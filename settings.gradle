@@ -1,0 +1,2 @@
+rootProject.name = 'archinsight'
+include 'common', 'insight-lang', 'compiler', 'renderer', 'editor-ui'

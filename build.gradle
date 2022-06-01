@@ -1,0 +1,125 @@
+plugins {
+    id 'java'
+    id 'antlr'
+    id 'io.micronaut.application' version '3.4.0'
+    id 'io.micronaut.minimal.application' version '3.4.0'
+    id 'io.micronaut.docker' version '3.4.0'
+}
+
+sourceCompatibility = 1.17
+targetCompatibility = 1.17
+
+allprojects {
+    apply plugin: 'java'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+
+    dependencies {
+        constraints {
+            implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.36'
+            implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.11'
+
+            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.5.0'
+            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.5.0'
+            implementation group: 'org.jgrapht', name: 'jgrapht-core', version: '1.5.1'
+            implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler', version: '1.3.0'
+
+            testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
+            testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+        }
+    }
+}
+
+micronaut {
+    version '3.5.0'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+subprojects {
+    task printDependencies(type: DependencyReportTask) {}
+}
+
+project('common') {
+    dependencies {
+        implementation group: 'org.slf4j', name: 'slf4j-api'
+        implementation group: 'ch.qos.logback', name: 'logback-classic'
+    }
+}
+
+project('insight-lang') {
+    apply plugin: 'antlr'
+
+    dependencies {
+        antlr group: 'org.antlr', name: 'antlr4', version: '4.10.1'
+    }
+
+    generateGrammarSource {
+        outputDirectory = new File("${project.buildDir}/$GEN_JAVA_SRC/$GEN_JAVA_PKG".toString())
+    }
+
+    sourceSets.main.java.srcDirs += ["${project.buildDir}/$GEN_JAVA_SRC"]
+
+
+
+    task generateJavascriptLexer(type: JavaExec) {
+        inputs.file("$ANTLR_SRC/${lexerName}.g4")
+        outputs.file("$GEN_JS_SRC/${lexerName}.js")
+        outputs.file("$GEN_JS_SRC/${lexerName}.interp")
+        outputs.file("$GEN_JS_SRC/${lexerName}.tokens")
+        main = 'org.antlr.v4.Tool'
+        classpath = sourceSets.main.runtimeClasspath
+        args = ['-Dlanguage=JavaScript', "${lexerName}.g4", '-o', "../../../${GEN_JS_SRC}"]
+        workingDir = ANTLR_SRC
+    }
+
+    task generateJavascriptParser(type: JavaExec) {
+        dependsOn generateJavascriptLexer
+        inputs.file("$ANTLR_SRC/${parserName}.g4")
+        inputs.file("$GEN_JS_SRC/${lexerName}.tokens")
+        outputs.file("$GEN_JS_SRC/${parserName}.js")
+        outputs.file("$GEN_JS_SRC/${parserName}.interp")
+        outputs.file("$GEN_JS_SRC/${parserName}.tokens")
+        main = 'org.antlr.v4.Tool'
+        classpath = sourceSets.main.runtimeClasspath
+        args = ['-Dlanguage=JavaScript', "${parserName}.g4", '-no-listener', '-no-visitor', '-o', "../../../${GEN_JS_SRC}"]
+        workingDir = ANTLR_SRC
+    }
+
+    task generateAllSources {
+        dependsOn generateGrammarSource
+        dependsOn generateJavascriptParser
+    }
+}
+
+project('compiler') {
+    apply plugin: 'io.micronaut.application'
+    apply plugin: 'io.micronaut.minimal.application'
+    apply plugin: 'io.micronaut.docker'
+
+    dependencies {
+        implementation project(':common')
+        implementation project(':insight-lang')
+
+        implementation group: 'org.jgrapht', name: 'jgrapht-core'
+        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
+        implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler'
+    }
+}
+
+project('renderer') {
+    apply plugin: 'io.micronaut.application'
+    apply plugin: 'io.micronaut.minimal.application'
+    apply plugin: 'io.micronaut.docker'
+
+    dependencies {
+        implementation project(':common')
+
+        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
+    }
+}
