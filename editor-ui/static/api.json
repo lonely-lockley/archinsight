@@ -1,0 +1,4 @@
+{
+  "compiler": "http://localhost:3333",
+  "renderer": "http://localhost:3334"
+}

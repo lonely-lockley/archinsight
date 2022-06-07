@@ -3,6 +3,25 @@
 
 # Ignore Gradle build output directory
 build
+
+# Ignore local files
 local
+
+# Ignore Idea project dir
 .idea
+
+# Ignore my special class for snippet testing
 Test.java
+
+# Ignore idea compile output
+out
+
+# Ignore idea generated output
+**/main/gen
+**/main/generated
+
+# Ignore node modules cache
+node_modules
+
+# Ignore mac-related
+.DS_Store

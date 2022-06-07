@@ -4,6 +4,7 @@ plugins {
     id 'io.micronaut.application' version '3.4.0'
     id 'io.micronaut.minimal.application' version '3.4.0'
     id 'io.micronaut.docker' version '3.4.0'
+    id 'com.github.node-gradle.node' version '3.3.0'
 }
 
 sourceCompatibility = 1.17
@@ -26,10 +27,15 @@ allprojects {
             implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.5.0'
             implementation group: 'org.jgrapht', name: 'jgrapht-core', version: '1.5.1'
             implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler', version: '1.3.0'
+            implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
 
             testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
             testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
         }
+    }
+
+    clean.doFirst {
+        delete 'out'
     }
 }
 
@@ -64,37 +70,6 @@ project('insight-lang') {
     }
 
     sourceSets.main.java.srcDirs += ["${project.buildDir}/$GEN_JAVA_SRC"]
-
-
-
-    task generateJavascriptLexer(type: JavaExec) {
-        inputs.file("$ANTLR_SRC/${lexerName}.g4")
-        outputs.file("$GEN_JS_SRC/${lexerName}.js")
-        outputs.file("$GEN_JS_SRC/${lexerName}.interp")
-        outputs.file("$GEN_JS_SRC/${lexerName}.tokens")
-        main = 'org.antlr.v4.Tool'
-        classpath = sourceSets.main.runtimeClasspath
-        args = ['-Dlanguage=JavaScript', "${lexerName}.g4", '-o', "../../../${GEN_JS_SRC}"]
-        workingDir = ANTLR_SRC
-    }
-
-    task generateJavascriptParser(type: JavaExec) {
-        dependsOn generateJavascriptLexer
-        inputs.file("$ANTLR_SRC/${parserName}.g4")
-        inputs.file("$GEN_JS_SRC/${lexerName}.tokens")
-        outputs.file("$GEN_JS_SRC/${parserName}.js")
-        outputs.file("$GEN_JS_SRC/${parserName}.interp")
-        outputs.file("$GEN_JS_SRC/${parserName}.tokens")
-        main = 'org.antlr.v4.Tool'
-        classpath = sourceSets.main.runtimeClasspath
-        args = ['-Dlanguage=JavaScript', "${parserName}.g4", '-no-listener', '-no-visitor', '-o', "../../../${GEN_JS_SRC}"]
-        workingDir = ANTLR_SRC
-    }
-
-    task generateAllSources {
-        dependsOn generateGrammarSource
-        dependsOn generateJavascriptParser
-    }
 }
 
 project('compiler') {
@@ -110,6 +85,14 @@ project('compiler') {
         implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
         implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler'
     }
+
+    tasks.named("dockerBuild") {
+        images = ["lonelylockley/archinsight:$project.name-$project.version"]
+    }
+
+    tasks.named("dockerfile") {
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.CompilerService')
+    }
 }
 
 project('renderer') {
@@ -122,4 +105,115 @@ project('renderer') {
 
         implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
     }
+
+    tasks.named("dockerBuild") {
+        images = ["lonelylockley/archinsight:$project.name-$project.version"]
+    }
+
+    tasks.named("dockerfile") {
+        runCommand('apk add --update --no-cache graphviz ttf-freefont')
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RenderService')
+    }
+}
+
+project('repository') {
+    apply plugin: 'io.micronaut.application'
+    apply plugin: 'io.micronaut.minimal.application'
+    apply plugin: 'io.micronaut.docker'
+
+    dependencies {
+        implementation project(':common')
+
+        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
+    }
+
+    tasks.named("dockerBuild") {
+        images = ["lonelylockley/archinsight:$project.name-$project.version"]
+    }
+
+    tasks.named("dockerfile") {
+        runCommand('apk add --update --no-cache graphviz ttf-freefont')
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RepositoryService')
+    }
+}
+
+project('editor-ui') {
+    apply plugin: 'com.github.node-gradle.node'
+    apply plugin: 'io.micronaut.application'
+    apply plugin: 'io.micronaut.docker'
+
+    clean.doFirst {
+        delete "${buildDir}"
+        delete "node_modules"
+    }
+
+    task antlr(type: NpmTask) {
+        dependsOn(npmInstall)
+        args = ['run', 'antlr']
+
+        doLast {
+            FileTree antlrFiles = fileTree("${buildDir}/insight-lang") {
+                include "**/*.ts"
+            }
+            antlrFiles.each { File antlrSrc ->
+                println "Removing java package from $antlrSrc"
+                String content = antlrSrc.getText()
+                content = content.replace("package com.github.lonelylockley.insight.lang;", "")
+                antlrSrc.setText(content)
+            }
+        }
+    }
+
+    tasks.named("dockerfile") {
+        dependsOn(antlr)
+    }
+
+    dockerfile.doLast {
+        copy {
+            from "dockerfile_template"
+            into "${buildDir}/docker/main"
+            rename "dockerfile_template", "Dockerfile"
+        }
+        copy {
+            from "run"
+            into "${buildDir}/docker/main/run"
+        }
+        copy {
+            from "src"
+            into "${buildDir}/docker/main/src"
+        }
+        copy {
+            from "static"
+            into "${buildDir}/docker/main/static"
+        }
+        copy {
+            from "."
+            include "*.json"
+            into "${buildDir}/docker/main"
+        }
+        copy {
+            from "${buildDir}/insight-lang"
+            into "${buildDir}/docker/main/build/insight-lang"
+        }
+        copy {
+            from "webpack.config.js"
+            into "${buildDir}/docker/main"
+        }
+        delete("${buildDir}/docker/main/layers")
+    }
+
+    tasks.named("dockerBuild") {
+        images = ["lonelylockley/archinsight:$project.name-$project.version"]
+    }
+
+    task runDev(type: NpmTask) {
+        dependsOn(npmInstall)
+        args = ['run', 'build:dev']
+    }
+
+    task runProd(type: NpmTask) {
+        dependsOn(npmInstall)
+        args = ['run', 'build:prod']
+    }
+
 }
