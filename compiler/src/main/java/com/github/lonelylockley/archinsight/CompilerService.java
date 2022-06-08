@@ -61,11 +61,15 @@ public class CompilerService {
         var descriptors = new Compiler().compile(sources, pr.getProjectName());
         var exp = new Exporter(descriptors, pr.getProjectName());
         var result = new Source();
-        if (pr.getContext() != null) {
+        if (pr.hasContext()) {
             result.setSource(exp.exportContext(Format.GRAPHVIZ));
         }
-        if (pr.getContainer() != null) {
+        else
+        if (pr.hasContainer()) {
             result.setSource(exp.exportContainer(Format.GRAPHVIZ));
+        }
+        else {
+            logger.warn("Compiler engine did not create any layer");
         }
         logger.info("Access: /compile from {} required {}ms",
                         addressResolver.resolve(request),

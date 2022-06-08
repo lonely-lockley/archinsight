@@ -31,7 +31,7 @@ npm run serve
 ## License
 Archinsight UI - is a part of Archinsight software.
 
-Copyright (C) 2022  Oleg Konev <Oleg Konev <i.m.n-d@yandex.com>>
+Copyright (C) 2022  Oleg Konev &lt;i.m.n-d@yandex.com&gt;
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as

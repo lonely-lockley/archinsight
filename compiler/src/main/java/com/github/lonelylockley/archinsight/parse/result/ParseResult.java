@@ -9,8 +9,16 @@ public class ParseResult {
         return context;
     }
 
+    public boolean hasContext() {
+        return context.getProjectName() != null;
+    }
+
     public LevelResult getContainer() {
         return container;
+    }
+
+    public boolean hasContainer() {
+        return container.getProjectName() != null;
     }
 
     public String getProjectName() {
