@@ -39,19 +39,19 @@ export const app = createModel<RootModel>()({
 
     getRender: async (code: string, state) => {
       const { renderer, compiler } = state.app.api;
-      console.log(state.app);
-      if (!renderer || !compiler) throw Error('API URl is not provided');
+      if (!renderer || !compiler) throw Error('API URL is not provided');
 
       const {
         data: { source },
       } = await axios.post<{ source: string }>(`${compiler}/compile`, {
-        source: code,
+        source: code.replace(/\r/g, ''),
       });
 
       if (!source) throw Error('Compiler returns null');
 
-      const render = await axios.post(`${renderer}/render`, { source });
-      console.log(render.data);
+      const render = await axios.post<string>(`${renderer}/render`, { source });
+
+      dispatch.app.setImage(render.data);
     },
   }),
 });
