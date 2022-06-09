@@ -34,7 +34,7 @@ IDENTIFIER : (LowerLetter (Letter | Digit | '_')*) ;
 INDENT : ('    ' | '\t') ;
 EOL : (WS+)? NL ;
 WHITESPACE : (NL | WS ) -> skip;
-COMMENT : '#' .*? (NL | EOF) -> skip;
+COMMENT : '#' .*? (NL | EOF);
 
 mode VALUE_MODE;
 TEXT : .*? (WS* NL INDENT INDENT .*?)* (EOL | EOF) -> popMode ;

@@ -2,7 +2,7 @@ import * as monaco from 'monaco-editor-core';
 
 import DiagnosticsAdapter from './DiagnosticsAdapter';
 import InsightFormattingProvider from './InsightFormattingProvider';
-import { monarchLanguage, richLanguageConfiguration } from './InsightHighlight';
+import { InsightTokensProvider } from './InsightHighlight';
 import { InsightWorker } from './InsightWorker';
 import { WorkerManager } from './WorkerManager';
 import { languageExtensionPoint, languageID } from './config';
@@ -20,8 +20,8 @@ const setupLanguage = () => {
   monaco.languages.register(languageExtensionPoint);
 
   monaco.languages.onLanguage(languageID, () => {
-    monaco.languages.setMonarchTokensProvider(languageID, monarchLanguage);
-    monaco.languages.setLanguageConfiguration(languageID, richLanguageConfiguration);
+    monaco.languages.setTokensProvider(languageID, new InsightTokensProvider());
+    //monaco.languages.setLanguageConfiguration(languageID, richLanguageConfiguration);
 
     const client = new WorkerManager();
 
