@@ -2,126 +2,115 @@ import { useSnackbar } from 'notistack';
 import React, { ChangeEvent, FC, useCallback, useEffect, useRef, useState } from 'react';
 import ResizeObserver from 'react-resize-observer';
 
-import SaveIcon from '@mui/icons-material/Save';
-import { Fab, Input } from '@mui/material';
+import { useSVGMove, useUpload } from '../hooks';
+import { useSelect } from '../store';
+import DownloadArea from './DownloadArea';
+import UploadArea from './UploadArea';
 
 type Props = {
   width: number;
 };
 
+type FileNames = {
+  upload: string;
+  download: string;
+};
+
 const Viewer: FC<Props> = ({ width }) => {
   const { enqueueSnackbar } = useSnackbar();
+
+  const { image } = useSelect((state) => state.app);
+  const { success, loading } = useSelect((state) => state.loading.effects.app.getRender);
 
   const container = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGElement>();
 
-  const [svgLoaded, setSVGLoaded] = useState(false);
-  const [scale, setScale] = useState(1);
-  const [isDraw, setIsDraw] = useState(false);
-
-  const loadFile = useCallback(({ target }: ChangeEvent<HTMLInputElement>) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string' && container.current) {
-        container.current.innerHTML = reader.result;
-        setSVGLoaded(true);
-      }
-    };
-    if (target?.files?.length) reader.readAsText(target.files[0]);
-  }, []);
+  const { onDown, onWheel, onUp, onMove } = useSVGMove(svg);
+  const { upload, clearUpload } = useUpload();
 
   useEffect(() => {
     getAreaSize();
   }, [width]);
 
-  useEffect(() => {
-    if (!svgLoaded || !container.current) return;
+  const [fileName, setFileName] = useState<FileNames>({
+    upload: '',
+    download: '',
+  });
+
+  /** Inject SVG onto DOM (when upload button was pressed) */
+  const loadFile = useCallback(
+    ({ target }: ChangeEvent<HTMLInputElement>) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string' && container.current) {
+          container.current.innerHTML = reader.result;
+          getSVGRef();
+        }
+      };
+      if (target?.files?.length) {
+        const file = target.files[0];
+        reader.readAsText(file);
+        setFileName({ upload: file.name, download: '' });
+      }
+    },
+    [container],
+  );
+
+  /** Finding SVG with saving ref  */
+  const getSVGRef = useCallback(() => {
+    if (!container.current) return;
     const nodes = container.current.childNodes;
     let svgElement = false;
-
     nodes.forEach((node) => {
       if (node.nodeName === 'svg') {
         svg.current = node as SVGElement;
         svgElement = true;
       }
     });
-
     if (!svgElement) {
       enqueueSnackbar('No SVG was found', { variant: 'error' });
-      setSVGLoaded(false);
-      return;
-    }
+    } else getAreaSize();
+  }, [container]);
 
-    getAreaSize();
-  }, [svgLoaded]);
-
+  /** Resizing SVG for Viewer area */
   const getAreaSize = useCallback(() => {
-    if (!container.current) return;
+    if (!container.current || !svg.current) return;
     const w = container.current.clientWidth;
     const h = container.current.clientHeight;
-    setSvgView(w, h);
-  }, []);
-
-  const setSvgView = useCallback((w: number, h: number) => {
-    if (!svg.current) return;
     svg.current.setAttribute('width', `${w - 5}px`);
     svg.current.setAttribute('height', `${h - 5}px`);
-  }, []);
+  }, [container]);
 
-  const onWheel = useCallback(
-    ({ deltaY }: React.WheelEvent<HTMLDivElement>) => {
-      if (!svg.current) return;
-      deltaY < 0
-        ? (() => {
-            const c = scale + 0.5;
-            setScale(c);
-            svg.current.setAttribute('transform', `scale(${c})`);
-          })()
-        : (() => {
-            const c = scale - 0.5;
-            if (c <= 0) return;
-            setScale(c);
-            svg.current.setAttribute('transform', `scale(${scale})`);
-          })();
-    },
-    [scale],
-  );
+  /** Watch render changing */
+  useEffect(() => {
+    if (!image || !container.current) return;
+    clearUpload();
+    setFileName({ upload: '', download: `temp-${Date.now()}.svg` });
+    container.current.innerHTML = image;
+    getSVGRef();
+  }, [success]);
 
-  const onDown = useCallback(() => {
-    setIsDraw(true);
-  }, []);
-
-  const onUp = useCallback(() => {
-    setIsDraw(false);
-  }, []);
-
-  const onMove = useCallback(
-    (event: React.MouseEvent) => {
-      if (!isDraw || !svg.current) return;
-      event.stopPropagation();
-      event.preventDefault();
-
-      const viewBox = svg.current?.getAttribute('viewBox');
-      if (!viewBox) return;
-      const [x, y, w, h] = viewBox.split(' ').map((a) => Number(a));
-
-      svg.current.setAttribute(
-        'viewBox',
-        `${x - event.movementX} ${y - event.movementY} ${w} ${h}`,
-      );
-    },
-    [isDraw],
-  );
+  const downloadFile = useCallback(() => {
+    if (!container.current) return;
+    const element = document.createElement('a');
+    const file = new Blob([container.current.innerHTML], { type: 'image/svg' });
+    element.href = URL.createObjectURL(file);
+    element.download = fileName.download + '.svg';
+    document.body.appendChild(element);
+    element.click();
+  }, [container, fileName.download]);
 
   return (
     <>
-      <Input type='file' onChange={loadFile} />
-      <Fab color='primary' disabled sx={{ position: 'absolute', bottom: '5px', right: '5px' }}>
-        <SaveIcon />
-      </Fab>
+      <UploadArea fileName={fileName.upload} upload={upload} onLoad={loadFile} />
+
+      <div style={{ position: 'absolute', bottom: '5px', right: '5px' }}>
+        <DownloadArea fileName={fileName.download} onDownload={downloadFile} loading={loading} />
+      </div>
+
       <ResizeObserver onResize={getAreaSize} />
       <div
-        style={{ height: '95%', overflow: 'hidden' }}
+        style={{ height: '90%', overflow: 'hidden' }}
         ref={container}
         onWheel={(e) => onWheel(e)}
         onMouseDown={onDown}

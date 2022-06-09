@@ -33,7 +33,7 @@ const Editor: FC = () => {
     }
   }, []);
 
-  return <div style={{ height: '100%', overflow: 'hidden' }} ref={container} id={'container'} />;
+  return <div style={{ height: '100%', overflow: 'hidden' }} ref={container} />;
 };
 
 export default Editor;

@@ -9,24 +9,24 @@ type Props = {
 const PageSplitter = memo(({ width, update }: Props) => {
   const nodeRef = useRef<HTMLDivElement>(null);
 
-  const LIMIT = 30;
+  const LIMIT = useMemo(() => 30, []);
 
   const calc = useMemo(
     () => ({
       left: -window.innerWidth * (width / 100) + LIMIT,
       right: ((window.innerWidth - LIMIT) * (100 - width)) / 100,
     }),
-    [width],
+    [LIMIT, width],
   );
 
   const onDrag = useCallback(
     (event: DraggableEvent) => {
       if (!('clientX' in event)) return;
-
       if (event.clientX < LIMIT || event.clientX > window.innerWidth - LIMIT) return;
+
       update((event.clientX / window.innerWidth) * 100);
     },
-    [calc.left, calc.right],
+    [LIMIT],
   );
 
   return (
@@ -37,7 +37,7 @@ const PageSplitter = memo(({ width, update }: Props) => {
       onDrag={(e) => onDrag(e)}
       scale={10000}
     >
-      <div ref={nodeRef} style={{ cursor: 'e-resize', width: 3, background: 'grey' }} />
+      <div ref={nodeRef} style={{ cursor: 'e-resize', width: 3, background: '#1e1e1e' }} />
     </Draggable>
   );
 });
