@@ -33,25 +33,29 @@ export const app = createModel<RootModel>()({
 
   effects: (dispatch) => ({
     loadAPI: async () => {
-      const res = await axios.get<API>(`${window.location.origin}/api.json`);
-      dispatch.app.setAPI(res.data);
+      const action = async () => {
+        const res = await axios.get<API>(`${window.location.origin}/api.json`);
+        dispatch.app.setAPI(res.data);
+      };
+      dispatch.loading.wrapper({ action, name: 'loadAPI' });
     },
 
     getRender: async (code: string, state) => {
-      const { renderer, compiler } = state.app.api;
-      if (!renderer || !compiler) throw Error('API URL is not provided');
+      const action = async () => {
+        const { renderer, compiler } = state.app.api;
+        if (!renderer || !compiler) throw Error('API URL is not provided');
 
-      const {
-        data: { source },
-      } = await axios.post<{ source: string }>(`${compiler}/compile`, {
-        source: code.replace(/\r/g, ''),
-      });
+        const {
+          data: { source },
+        } = await axios.post<{ source: string }>(`${compiler}/compile`, {
+          source: code.replace(/\r/g, ''),
+        });
 
-      if (!source) throw Error('Compiler returns null');
-
-      const render = await axios.post<string>(`${renderer}/render`, { source });
-
-      dispatch.app.setImage(render.data);
+        if (!source) throw Error('Compiler returns null');
+        const render = await axios.post<string>(`${renderer}/render`, { source });
+        dispatch.app.setImage(render.data);
+      };
+      dispatch.loading.wrapper({ action, name: 'getRender' });
     },
   }),
 });

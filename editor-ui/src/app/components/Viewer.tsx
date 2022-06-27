@@ -20,7 +20,7 @@ const Viewer: FC<Props> = ({ width }) => {
   const { enqueueSnackbar } = useSnackbar();
 
   const { image } = useSelect((state) => state.app);
-  const { success, loading } = useSelect((state) => state.loading.effects.app.getRender);
+  const { isSuccess, isLoading } = useSelect((state) => state.loading);
 
   const container = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGElement>();
@@ -88,7 +88,7 @@ const Viewer: FC<Props> = ({ width }) => {
     setFileName({ upload: '', download: `temp-${Date.now()}.svg` });
     container.current.innerHTML = image;
     getSVGRef();
-  }, [success]);
+  }, [isSuccess.getRender]);
 
   const downloadFile = useCallback(() => {
     if (!container.current) return;
@@ -105,7 +105,11 @@ const Viewer: FC<Props> = ({ width }) => {
       <UploadArea fileName={fileName.upload} upload={upload} onLoad={loadFile} />
 
       <div style={{ position: 'absolute', bottom: '5px', right: '5px' }}>
-        <DownloadArea fileName={fileName.download} onDownload={downloadFile} loading={loading} />
+        <DownloadArea
+          fileName={fileName.download}
+          onDownload={downloadFile}
+          loading={isLoading.getRender || false}
+        />
       </div>
 
       <ResizeObserver onResize={getAreaSize} />
