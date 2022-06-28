@@ -90,13 +90,25 @@ public abstract class Translator {
         sb.append("(");
     }
 
+    private String escape(String s){
+        return s.replace("\\", "\\\\")
+                .replace("\t", "\\t")
+                .replace("\b", "\\b")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\f", "\\f")
+                .replace("\'", "\\'")
+                .replace("\"", "\\\"");
+    }
+
     protected void addParameter(StringBuilder sb, String value, boolean requiresQuotation) {
         if (requiresQuotation && value != null) {
             sb.append("\"");
-        }
-        sb.append(value);
-        if (requiresQuotation && value != null) {
+            sb.append(escape(value));
             sb.append("\"");
+        }
+        else {
+            sb.append(value);
         }
         sb.append(", ");
     }

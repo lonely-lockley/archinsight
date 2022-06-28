@@ -52,7 +52,7 @@ public class TreeListener implements ParseTreeListener {
                 context.setParameter(nodeValue);
                 break;
             case TEXT:
-                String text = nodeValue.trim().replaceAll("(\\n\\t{2}|\\n\\s{8})", "\\\\n");
+                String text = nodeValue.trim().replaceAll("(\\n\\t{2}|\\n\\s{8})", "\n");
                 switch (context.currentParameter()) {
                     case "name":
                         context.currentElement().withName(text);
