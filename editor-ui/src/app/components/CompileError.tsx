@@ -13,20 +13,15 @@ const CompileError = forwardRef<HTMLDivElement, Props>((props, ref) => {
     const messages = useMemo(() => {
       const re = /[\w\s]+:\s([\w\s]+)\[(kind=\w+,\sline=\d+),\smessage=(.*)]/;
       const [_, ...payload] = message.match(re) || [null, null];
-      return _ ? payload : null;
+      if (_ && payload) return payload;
+      return message.replace('Internal Server Error: ', '').split('\n');
     }, [message]);
 
     return (
       <>
-        {messages ? (
-          <>
-            {messages.map((m, i) => (
-              <div key={i}>{m}</div>
-            ))}
-          </>
-        ) : (
-          'Unable to get message'
-        )}
+        {messages.map((m, i) => (
+          <div key={i}>{m}</div>
+        ))}
       </>
     );
   };
