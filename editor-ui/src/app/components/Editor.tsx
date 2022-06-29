@@ -19,6 +19,7 @@ const Editor: FC = () => {
         automaticLayout: true,
         autoIndent: 'full',
         theme: 'vs-dark',
+        fixedOverflowWidgets: true,
         value: code,
       });
 
