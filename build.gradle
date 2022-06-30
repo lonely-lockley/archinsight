@@ -220,3 +220,41 @@ project('editor-ui') {
     }
 
 }
+
+project('bff') {
+    apply plugin: 'com.github.node-gradle.node'
+    apply plugin: 'io.micronaut.application'
+    apply plugin: 'io.micronaut.docker'
+
+    dockerfile.doLast {
+        copy {
+            from "dockerfile_template"
+            into "${buildDir}/docker/main"
+            rename "dockerfile_template", "Dockerfile"
+        }
+        copy {
+            from "src"
+            into "${buildDir}/docker/main"
+        }
+        copy {
+            from "."
+            include "*.json"
+            into "${buildDir}/docker/main"
+        }
+        delete("${buildDir}/docker/main/layers")
+    }
+
+    tasks.named("dockerBuild") {
+        images = ["lonelylockley/archinsight:$project.name-$project.version"]
+    }
+
+    task runDev(type: NpmTask) {
+        dependsOn(npmInstall)
+        args = ['run', 'build']
+    }
+
+    task runProd(type: NpmTask) {
+        dependsOn(npmInstall)
+        args = ['run', 'prod']
+    }
+}

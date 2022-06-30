@@ -4,6 +4,9 @@
 # Ignore Gradle build output directory
 build
 
+# Ignore Gradle dist output directory
+dist
+
 # Ignore local files
 local
 
