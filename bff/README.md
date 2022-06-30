@@ -1,5 +1,4 @@
 ## Archinsight Proxy
-***
 
 ### Requirements
 - NodeJS 16

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 import {
   HttpException,
@@ -26,8 +26,8 @@ export class RenderService {
       .post<CodeRequest>(url, { source: lfCode })
       .then((res) => res.data.source)
       .catch((err) => {
-        Logger.error(err, 'Compiler');
-        throw new HttpException(err, HttpStatus.BAD_REQUEST);
+        const parsedError = this.getError(err, 'Compiler');
+        throw new HttpException(parsedError, HttpStatus.BAD_REQUEST);
       });
   }
 
@@ -37,8 +37,26 @@ export class RenderService {
       .post<string>(url, { source: content })
       .then((res) => res.data)
       .catch((err) => {
-        Logger.error(err, 'Renderer');
-        throw new HttpException(err, HttpStatus.BAD_REQUEST);
+        const parsedError = this.getError(err, 'Renderer');
+        throw new HttpException(parsedError, HttpStatus.BAD_REQUEST);
       });
+  }
+
+  getError(err: AxiosError<any>, source: string): string {
+    const { response: res } = err;
+    Logger.error(JSON.stringify(res), source);
+    const message = res?.data?.message;
+    const embedded: { message: string }[] = res?.data?._embedded?.errors;
+    if (embedded?.length) {
+      return embedded.reduce<string>(
+        (acc, next) => acc.concat(next.message).concat('\n'),
+        '',
+      );
+    } else if (message) {
+      return message;
+    } else if (err?.message) {
+      return err.message;
+    }
+    return 'Unknown error';
   }
 }

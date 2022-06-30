@@ -1,5 +1,4 @@
 ## Archinsight UI
-***
 
 ### Requirements
 - NodeJS 16
@@ -24,9 +23,8 @@ npm run build:prod
 npm run serve
 ```
 
-### Docker
-- Bind port 8080
-- Mount api.json to /app/api.json (optional)
+### Docker env
+- BACKEND: localhost:3000
 
 ## License
 Archinsight UI - is a part of Archinsight software.

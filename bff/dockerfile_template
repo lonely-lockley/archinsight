@@ -17,5 +17,4 @@ ENV NPM_CONFIG_LOGLEVEL verbose
 RUN apk add --update --no-cache --no-cache nodejs npm
 RUN npm ci --only=production
 
-EXPOSE 3000
 CMD ["node", "/app/main"]
