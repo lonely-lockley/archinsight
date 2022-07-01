@@ -9,13 +9,13 @@ export class RenderController {
 
   @Post('render')
   async getImage(@Body() code: CodeRequest): Promise<string> {
-    Logger.log(JSON.stringify(code), 'RenderEndpoint');
+    Logger.debug(JSON.stringify(code), 'RenderEndpoint');
 
     const content = await this.renderService.getCompilerResult(code.source);
-    Logger.log(JSON.stringify(content), 'Compiler');
+    Logger.debug(JSON.stringify(content), 'Compiler');
 
     const result = await this.renderService.getRendererResult(content);
-    Logger.log(JSON.stringify(result), 'Renderer');
+    Logger.debug(JSON.stringify(result), 'Renderer');
 
     return result;
   }

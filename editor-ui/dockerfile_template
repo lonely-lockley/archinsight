@@ -13,16 +13,17 @@ WORKDIR /app
 
 COPY --from=builder /app/dist .
 COPY --from=builder /app/run/nginx.conf /etc/nginx/http.d/default.conf
+COPY --from=builder /app/run/backend.conf /backend.conf
+COPY --from=builder /app/run/entrypoint.sh /entrypoint.sh
 COPY --from=builder /app/run/init.sh /init.sh
 
-RUN apk add --update --no-cache nginx  \
+RUN apk add --update --no-cache nginx gettext \
     && adduser -D -g 'www' www \
     && chown -R www:www /var/lib/nginx \
     && chown -R www:www /app   \
     && ln -svf /dev/stdout /var/log/nginx/access.log \
-    && ln -svf /dev/stderr /var/log/nginx/error.log
+    && ln -svf /dev/stderr /var/log/nginx/error.log \
+    && chmod +x /entrypoint.sh
 
-ENV COMPILER_ADDRESS 'http://localhost:3333'
-ENV RENDERER_ADDRESS 'http://localhost:3334'
-EXPOSE 8080
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/bin/sh", "/init.sh"]

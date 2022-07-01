@@ -3,7 +3,6 @@ const htmlWebpackPlugin = require('html-webpack-plugin');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
-const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = (env) => ({
   entry: {
@@ -68,15 +67,6 @@ module.exports = (env) => ({
           process,
         };
       },
-    }),
-    new CopyPlugin({
-      patterns: [
-        {
-          from: 'static/api.json',
-          to: 'api.json',
-          toType: 'file',
-        },
-      ],
     }),
   ].concat(
     env.report
