@@ -26,7 +26,7 @@ export class RenderService {
       .post<CodeRequest>(url, { source: lfCode })
       .then((res) => res.data.source)
       .catch((err) => {
-        const parsedError = this.getError(err, 'Compiler');
+        const parsedError = this.getError(err);
         throw new HttpException(parsedError, HttpStatus.BAD_REQUEST);
       });
   }
@@ -37,14 +37,13 @@ export class RenderService {
       .post<string>(url, { source: content })
       .then((res) => res.data)
       .catch((err) => {
-        const parsedError = this.getError(err, 'Renderer');
+        const parsedError = this.getError(err);
         throw new HttpException(parsedError, HttpStatus.BAD_REQUEST);
       });
   }
 
-  getError(err: AxiosError<any>, source: string): string {
+  getError(err: AxiosError<any>): string {
     const { response: res } = err;
-    Logger.error(JSON.stringify(res), source);
     const message = res?.data?.message;
     const embedded: { message: string }[] = res?.data?._embedded?.errors;
     if (embedded?.length) {
@@ -53,8 +52,10 @@ export class RenderService {
         '',
       );
     } else if (message) {
+      Logger.error(message, 'UI');
       return message;
     } else if (err?.message) {
+      Logger.error(err.message, 'UI');
       return err.message;
     }
     return 'Unknown error';
