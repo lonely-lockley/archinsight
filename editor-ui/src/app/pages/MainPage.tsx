@@ -1,4 +1,4 @@
-import React, { FC, useMemo, useState } from 'react';
+import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Box } from '@mui/material';
 
@@ -16,6 +16,17 @@ const MainPage: FC = () => {
     }),
     [baseWidth],
   );
+
+  const scalingPrevent = useCallback((event: Event) => {
+    event.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('wheel', (event) => scalingPrevent(event), { passive: false });
+    return () => {
+      window.removeEventListener('wheel', (event) => scalingPrevent(event));
+    };
+  }, []);
 
   return (
     <Box sx={{ height: '100vh', display: 'flex' }}>
