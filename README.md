@@ -26,7 +26,7 @@ This will build Compiler, Renderer and Editor UI services into docker images and
 them into your local docker repository
 
 ## Insight language description
-TBD
+[Project Wiki](https://github.com/lonely-lockley/archinsight/wiki/Insight-language)
 
 ## c4 model
 https://c4model.com/
