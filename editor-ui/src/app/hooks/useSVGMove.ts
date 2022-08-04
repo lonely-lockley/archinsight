@@ -31,19 +31,14 @@ export const useSVGMove = (svg: MutableRefObject<SVGElement | undefined>) => {
     (event: React.WheelEvent<HTMLDivElement>) => {
       const native = event.nativeEvent as any;
       const wdY = native?.wheelDeltaY || 0;
-      console.log(wdY, event.deltaY, event.deltaMode);
-      if (native.deltaX) {
-        setViewBox({ x1: -native.deltaX, y1: 0 });
-        return;
-      }
-      if (Math.abs(wdY) === 120) {
+      if (Math.abs(wdY) % 120 === 0 && wdY) {
         const factor = event.deltaY % 1 === 0 ? 0.5 : Math.abs(event.deltaY) / 10;
         const newScale = event.deltaY < 0 ? scale + factor : scale - factor;
         if (newScale <= 0.5) return;
         setTransform(newScale);
         return;
       }
-      setViewBox({ x1: 0, y1: -native.deltaY });
+      setViewBox({ x1: -native.deltaX, y1: -native.deltaY });
     },
     [scale],
   );
