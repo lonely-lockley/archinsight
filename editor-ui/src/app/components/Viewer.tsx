@@ -116,7 +116,7 @@ const Viewer: FC<Props> = ({ width }) => {
       <div
         style={{ height: '90%', overflow: 'hidden' }}
         ref={container}
-        onWheel={(e) => onWheel(e)}
+        onWheel={onWheel}
         onMouseDown={onDown}
         onMouseUp={onUp}
         onMouseMove={onMove}
