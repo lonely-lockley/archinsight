@@ -5,10 +5,18 @@ type MoveEvent = {
   y1: number;
 };
 
+type ViewBox = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
 /** SVG moving and scaling */
 export const useSVGMove = (svg: MutableRefObject<SVGElement | undefined>) => {
   const [scale, setScale] = useState(1);
   const [isDraw, setIsDraw] = useState(false);
+  const [vBox, setVBox] = useState<ViewBox | null>(null);
 
   const onDown = useCallback(() => {
     setIsDraw(true);
@@ -52,6 +60,7 @@ export const useSVGMove = (svg: MutableRefObject<SVGElement | undefined>) => {
       const [x, y, w, h] = viewBox.split(' ').map((a) => Number(a));
       const [newX, newY] = [x - x1, y - y1];
       if (newX < -w * 0.8 || newX > w * 0.8 || newY < -h * 0.8 || newY > h * 0.8) return;
+      setVBox({ x: newX, y: newY, w, h });
       svg.current.setAttribute('viewBox', `${newX} ${newY} ${w} ${h}`);
     },
     [svg],
@@ -66,5 +75,5 @@ export const useSVGMove = (svg: MutableRefObject<SVGElement | undefined>) => {
     [svg],
   );
 
-  return { onDown, onUp, onMove, onWheel };
+  return { onDown, onUp, onMove, onWheel, scale, vBox };
 };
