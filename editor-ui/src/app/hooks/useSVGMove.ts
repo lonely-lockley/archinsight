@@ -33,8 +33,8 @@ export const useSVGMove = (svg: MutableRefObject<SVGElement | undefined>) => {
       const wdY = native?.wheelDeltaY || 0;
       if (Math.abs(wdY) % 120 === 0 && wdY) {
         const factor = event.deltaY % 1 === 0 ? 0.5 : Math.abs(event.deltaY) / 10;
-        const newScale = event.deltaY < 0 ? scale + factor : scale - factor;
-        if (newScale <= 0.5) return;
+        let newScale = event.deltaY < 0 ? scale + factor : scale - factor;
+        if (newScale < 1.0) newScale = 1.0;
         setTransform(newScale);
         return;
       }
@@ -50,7 +50,9 @@ export const useSVGMove = (svg: MutableRefObject<SVGElement | undefined>) => {
       if (!viewBox) return;
 
       const [x, y, w, h] = viewBox.split(' ').map((a) => Number(a));
-      svg.current.setAttribute('viewBox', `${x - x1} ${y - y1} ${w} ${h}`);
+      const [newX, newY] = [x - x1, y - y1];
+      if (newX < -w * 0.8 || newX > w * 0.8 || newY < -h * 0.8 || newY > h * 0.8) return;
+      svg.current.setAttribute('viewBox', `${newX} ${newY} ${w} ${h}`);
     },
     [svg],
   );

@@ -31,11 +31,10 @@ module.exports = {
   rules: {
     '@typescript-eslint/no-explicit-any': 'off',
     'react/display-name': 'off',
-    'prettier/prettier': ['error', { endOfLine: 'lf' }],
     'sonarjs/cognitive-complexity': 1,
     'sonarjs/no-identical-functions': 1,
     'sonarjs/no-duplicate-string': 1,
-    'react-hooks/exhaustive-deps': 0,
+    'react-hooks/exhaustive-deps': 1,
   },
   settings: {
     react: {
