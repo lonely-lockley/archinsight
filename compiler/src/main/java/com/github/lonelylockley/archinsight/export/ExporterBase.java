@@ -29,6 +29,7 @@ public abstract class ExporterBase {
         sb.append("  edge [minlen=2,color=\"#303030\",fontcolor=\"#303030\",fontsize=\"8px\",penwidth=\"0.5\"]\n");
         sb.append("  overlap=false\n");
         sb.append("  rankdir=TB\n");
+        sb.append("  newrank=true\n");
         sb.append("  nodesep=1\n");
         sb.append("  ranksep=1\n");
         sb.append("  splines=ortho\n\n");
