@@ -25,7 +25,7 @@ const Viewer: FC<Props> = ({ width }) => {
   const container = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGElement>();
 
-  const { onDown, onWheel, onUp, onMove } = useSVGMove(svg);
+  const { onDown, onWheel, onUp, onMove, scale, vBox } = useSVGMove(svg);
   const { upload, clearUpload } = useUpload();
 
   useEffect(() => {
@@ -56,6 +56,17 @@ const Viewer: FC<Props> = ({ width }) => {
     [container],
   );
 
+  /** Resizing SVG for Viewer area */
+  const getAreaSize = useCallback(() => {
+    if (!container.current || !svg.current) return;
+    const w = container.current.clientWidth;
+    const h = container.current.clientHeight;
+    svg.current.setAttribute('width', `${w - 5}px`);
+    svg.current.setAttribute('height', `${h - 5}px`);
+    svg.current.setAttribute('transform', `scale(${scale})`);
+    if (vBox) svg.current.setAttribute('viewBox', `${vBox.x} ${vBox.y} ${vBox.w} ${vBox.h}`);
+  }, [scale, vBox]);
+
   /** Finding SVG with saving ref  */
   const getSVGRef = useCallback(() => {
     if (!container.current) return;
@@ -70,16 +81,7 @@ const Viewer: FC<Props> = ({ width }) => {
     if (!svgElement) {
       enqueueSnackbar('No SVG was found', { variant: 'error' });
     } else getAreaSize();
-  }, [container]);
-
-  /** Resizing SVG for Viewer area */
-  const getAreaSize = useCallback(() => {
-    if (!container.current || !svg.current) return;
-    const w = container.current.clientWidth;
-    const h = container.current.clientHeight;
-    svg.current.setAttribute('width', `${w - 5}px`);
-    svg.current.setAttribute('height', `${h - 5}px`);
-  }, [container]);
+  }, [container, getAreaSize]);
 
   /** Watch render changing */
   useEffect(() => {
