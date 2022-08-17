@@ -1,13 +1,19 @@
 package com.github.lonelylockley.archinsight.translate;
 
 import com.github.lonelylockley.archinsight.model.Tuple2;
+import com.github.lonelylockley.archinsight.model.elements.AnnotatedElement;
 import com.github.lonelylockley.archinsight.model.elements.Element;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 import com.github.lonelylockley.archinsight.parse.result.LevelResult;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class Translator {
@@ -23,6 +29,36 @@ public abstract class Translator {
     public Translator(String projectName, LevelResult parseResult) {
         this.projectName = projectName;
         this.parseResult = parseResult;
+    }
+
+    protected Tuple2<String, String>[] parseAttributes(AnnotatedElement el, Tuple2<String, String>... baseProperties) {
+        if (el.getAnnotations().containsKey("@attribute")) {
+            Map<String, Tuple2<String,String>> annotations = Arrays
+                    .stream(el.getAnnotations().get("@attribute").split("(\\s*,\\s*)+"))
+                    .filter(pair -> !pair.isBlank())
+                    .map(pair -> {
+                        int pos = pair.indexOf('=');
+                        if (pos >= 0) {
+                            return new Tuple2<>(pair.substring(0, pos), pair.substring(pos + 1));
+                        }
+                        else {
+                            return new Tuple2<>(pair, "");
+                        }
+                    })
+                    .collect(Collectors.toMap(Tuple2::_1, Function.identity()));
+            Map<String, Tuple2<String,String>> res = Arrays.stream(baseProperties).collect(Collectors.toMap(Tuple2::_1, Function.identity()));
+            res.putAll(annotations);
+            Tuple2<String, String>[] tmp = (Tuple2<String, String>[]) new Tuple2[res.size()];
+            int i = 0;
+            for (Tuple2<String, String> annotation: res.values()) {
+                tmp[i] = annotation;
+                i++;
+            }
+            return tmp;
+        }
+        else {
+            return baseProperties;
+        }
     }
 
     protected String generateIdentifier(String proposedId, Element el) {

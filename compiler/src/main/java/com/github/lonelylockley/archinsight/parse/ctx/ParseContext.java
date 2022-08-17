@@ -3,7 +3,9 @@ package com.github.lonelylockley.archinsight.parse.ctx;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.parse.BuilderBase;
 
+import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Map;
 
 public abstract class ParseContext {
 
@@ -14,14 +16,19 @@ public abstract class ParseContext {
     protected String identifier = null;
     protected String parameter = null;
     protected ElementType type = null;
+    protected String annotationName = null;
+    protected Map<String, String> annotations = new HashMap<>();
 
     public Element finishElement() {
         if (!context.isEmpty()) {
+            BuilderBase bb = context.pop();
+            bb.withAnnotations(annotations);
             setExternal(false);
             setIdentifier(null);
             setParameter(null);
             type = null;
-            return context.pop().build();
+            annotations = new HashMap<>();
+            return bb.build();
         }
         else {
             return null;
@@ -73,5 +80,21 @@ public abstract class ParseContext {
 
     public void setProjectName(String projectName) {
         this.projectName = projectName;
+    }
+
+    public String getAnnotationName() {
+        return annotationName;
+    }
+
+    public void setAnnotationName(String annotationName) {
+        this.annotationName = annotationName;
+    }
+
+    public void addAnnotation(String name, String value) {
+        this.annotations.put(name, value);
+    }
+
+    public Map<String, String> getAnnotations() {
+        return annotations;
     }
 }

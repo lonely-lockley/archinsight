@@ -250,7 +250,8 @@ project('bff') {
 
     task runDev(type: NpmTask) {
         dependsOn(npmInstall)
-        args = ['run', 'build']
+        environment = ['PORT': '3000']
+        args = ['run', 'dev']
     }
 
     task runProd(type: NpmTask) {

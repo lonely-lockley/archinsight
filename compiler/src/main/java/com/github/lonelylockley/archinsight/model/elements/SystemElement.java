@@ -2,7 +2,10 @@ package com.github.lonelylockley.archinsight.model.elements;
 
 import com.github.lonelylockley.archinsight.parse.BuilderBase;
 
-public class SystemElement implements Element {
+import java.util.HashMap;
+import java.util.Map;
+
+public class SystemElement extends AnnotatedElement {
 
     private final String name;
     private final String description;
@@ -11,7 +14,8 @@ public class SystemElement implements Element {
 
     private static final ElementType type = ElementType.SYSTEM;
 
-    public SystemElement(String name, String description, String technology, boolean external) {
+    public SystemElement(String name, String description, String technology, Map<String, String> annotations, boolean external) {
+        super(annotations);
         this.name = name;
         this.description = description;
         this.technology = technology;
@@ -55,6 +59,7 @@ public class SystemElement implements Element {
         protected String description = null;
         protected String technology = null;
         protected Boolean external = null;
+        protected Map<String, String> annotations = new HashMap<>();
 
         @Override
         public Builder withName(String name) {
@@ -74,6 +79,12 @@ public class SystemElement implements Element {
             return this;
         }
 
+        @Override
+        public Builder withAnnotations(Map<String, String> annotations) {
+            this.annotations = annotations;
+            return this;
+        }
+
         public Builder withExternalFlag(boolean external) {
             this.external = external;
             return this;
@@ -82,7 +93,7 @@ public class SystemElement implements Element {
         @Override
         public SystemElement build() {
             assert name != null && !name.isBlank();
-            return new SystemElement(name, description, technology, external != null && external);
+            return new SystemElement(name, description, technology, annotations, external != null && external);
         }
 
         @Override

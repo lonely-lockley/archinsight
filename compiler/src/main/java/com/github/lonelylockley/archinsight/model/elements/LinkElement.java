@@ -2,7 +2,10 @@ package com.github.lonelylockley.archinsight.model.elements;
 
 import com.github.lonelylockley.archinsight.parse.BuilderBase;
 
-public class LinkElement implements Element {
+import java.util.HashMap;
+import java.util.Map;
+
+public class LinkElement extends AnnotatedElement {
 
     private final String from;
     private final String to;
@@ -13,7 +16,8 @@ public class LinkElement implements Element {
 
     private static final ElementType type = ElementType.LINK;
 
-    public LinkElement(String from, String to, String name, String description, String technology, boolean sync) {
+    public LinkElement(String from, String to, String name, String description, String technology, Map<String, String> annotations, boolean sync) {
+        super(annotations);
         this.from = from;
         this.to = to;
         this.name = name;
@@ -72,6 +76,7 @@ public class LinkElement implements Element {
         private String description = null;
         private String technology = null;
         private Boolean sync = null;
+        protected Map<String, String> annotations = new HashMap<>();
 
         public Builder withFrom(String from) {
             this.from = from;
@@ -101,6 +106,12 @@ public class LinkElement implements Element {
             return this;
         }
 
+        @Override
+        public Builder withAnnotations(Map<String, String> annotations) {
+            this.annotations = annotations;
+            return this;
+        }
+
         public Builder withSyncFlag(boolean sync) {
             this.sync = sync;
             return this;
@@ -111,7 +122,7 @@ public class LinkElement implements Element {
             assert from != null && !from.isBlank();
             assert to != null && !to.isBlank();
             assert name != null && !name.isBlank();
-            return new LinkElement(from, to, name, description, technology, sync == null || sync);
+            return new LinkElement(from, to, name, description, technology, annotations, sync == null || sync);
         }
 
         @Override

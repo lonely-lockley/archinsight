@@ -17,22 +17,26 @@ empty
     :    EOL?
     ;
 
+annotation
+    :   ruleStart ANNOTATION ANNOTATION_VALUE EOL ruleEnd
+    ;
+
 namespace
     :    ruleStart PROJECTNAME ruleEnd
     ;
 
 contextDefinitions
-    :    ( ruleStart EXTERNAL? SYSTEM namedEntityDefinition ruleEnd
-         | ruleStart PERSON namedEntityDefinition ruleEnd
-         | ruleStart IDENTIFIER LINKS IDENTIFIER entityDefinition? ruleEnd EOL?
+    :    ( ruleStart annotation? EXTERNAL? SYSTEM namedEntityDefinition ruleEnd
+         | ruleStart annotation? PERSON namedEntityDefinition ruleEnd
+         | ruleStart annotation? IDENTIFIER LINKS IDENTIFIER entityDefinition? ruleEnd EOL?
          | COMMENT
          )
     ;
 
 containerDefinitions
-    :    ( ruleStart EXTERNAL? SERVICE namedEntityDefinition ruleEnd
-         | ruleStart EXTERNAL? STORAGE singleEntityDefinition ruleEnd
-         | ruleStart IDENTIFIER LINKS IDENTIFIER entityDefinition? ruleEnd EOL?
+    :    ( ruleStart annotation? EXTERNAL? SERVICE namedEntityDefinition ruleEnd
+         | ruleStart annotation? EXTERNAL? STORAGE singleEntityDefinition ruleEnd
+         | ruleStart annotation? IDENTIFIER LINKS IDENTIFIER entityDefinition? ruleEnd EOL?
          | ruleStart MODULE IDENTIFIER CONTAINS identifierList ruleEnd EOL?
          | COMMENT
          )

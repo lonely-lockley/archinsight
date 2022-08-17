@@ -2,7 +2,10 @@ package com.github.lonelylockley.archinsight.model.elements;
 
 import com.github.lonelylockley.archinsight.parse.BuilderBase;
 
-public class PersonElement implements Element {
+import java.util.HashMap;
+import java.util.Map;
+
+public class PersonElement extends AnnotatedElement {
 
     private final String name;
     private final String description;
@@ -10,7 +13,8 @@ public class PersonElement implements Element {
 
     private static final ElementType type = ElementType.PERSON;
 
-    public PersonElement(String name, String description, String technology) {
+    public PersonElement(String name, String description, String technology, Map<String, String> annotations) {
+        super(annotations);
         this.name = name;
         this.description = description;
         this.technology = technology;
@@ -48,6 +52,7 @@ public class PersonElement implements Element {
         protected String name = null;
         protected String description = null;
         protected String technology = null;
+        protected Map<String, String> annotations = new HashMap<>();
 
         @Override
         public Builder withName(String name) {
@@ -68,9 +73,15 @@ public class PersonElement implements Element {
         }
 
         @Override
+        public Builder withAnnotations(Map<String, String> annotations) {
+            this.annotations = annotations;
+            return this;
+        }
+
+        @Override
         public PersonElement build() {
             assert name != null && !name.isBlank();
-            return new PersonElement(name, description, technology);
+            return new PersonElement(name, description, technology, annotations);
         }
 
         @Override

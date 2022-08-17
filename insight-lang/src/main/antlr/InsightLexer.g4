@@ -5,8 +5,8 @@ package com.github.lonelylockley.insight.lang;
 }
 
 /* Levels */
-CONTEXT     : 'context' -> pushMode(NAMESPACE);
-CONTAINER   : 'container' -> pushMode(NAMESPACE);
+CONTEXT     : 'context' -> pushMode(NAMESPACE_MODE);
+CONTAINER   : 'container' -> pushMode(NAMESPACE_MODE);
 
 
 /* Keywords */
@@ -21,11 +21,16 @@ STORAGE     : ('storage') ;
 MODULE      : ('module') ;
 CONTAINS    : ('contains') ;
 
-fragment LowerLetter : 'a'..'z' ;
-fragment Letter      : 'a'..'z' | 'A'..'Z' ;
-fragment Digit       : '0'..'9' ;
-fragment NL          : ('\r'?'\n' | '\r')+  ;
-fragment WS          :  (' ' | '\t' | '\u000C') ;
+/* Annotations */
+ANNOTATION_NAME : ('attribute') ;
+
+fragment LowerLetter  : 'a'..'z' ;
+fragment Letter       : 'a'..'z' | 'A'..'Z' ;
+fragment Digit        : '0'..'9' ;
+fragment NL           : ('\r'?'\n' | '\r')+  ;
+fragment WS           :  (' ' | '\t' | '\u000C') ;
+fragment OPEN_BRAKET  : '(' ;
+fragment CLOSE_BRAKET : ')' ;
 
 COMMA       : ',' ;
 EQ : '=' -> pushMode(VALUE_MODE);
@@ -33,13 +38,15 @@ LINKS : ('->' | '~>') ;
 IDENTIFIER : (LowerLetter (Letter | Digit | '_')*) ;
 INDENT : ('    ' | '\t') ;
 EOL : (WS+)? NL ;
-WHITESPACE : (NL | WS ) -> skip;
-COMMENT : '#' .*? (NL | EOF);
+WHITESPACE : (NL | WS ) -> skip ;
+COMMENT : '#' .*? (NL | EOF) ;
+ANNOTATION : '@' ANNOTATION_NAME ;
+ANNOTATION_VALUE: OPEN_BRAKET ( ~[)] )* CLOSE_BRAKET;
 
 mode VALUE_MODE;
 TEXT : .*? (WS* NL INDENT INDENT .*?)* (EOL | EOF) -> popMode ;
 WHITESPACE2 : (NL | WS) -> skip ;
 
-mode NAMESPACE;
+mode NAMESPACE_MODE;
 PROJECTNAME : (LowerLetter (LowerLetter | Digit | '_')*) -> popMode ;
 WHITESPACE3 : (NL | WS) -> skip ;

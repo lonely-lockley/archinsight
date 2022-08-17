@@ -1,10 +1,7 @@
 package com.github.lonelylockley.archinsight.translate.level;
 
 import com.github.lonelylockley.archinsight.model.Tuple2;
-import com.github.lonelylockley.archinsight.model.elements.Element;
-import com.github.lonelylockley.archinsight.model.elements.ElementType;
-import com.github.lonelylockley.archinsight.model.elements.LinkElement;
-import com.github.lonelylockley.archinsight.model.elements.SystemElement;
+import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.parse.result.LevelResult;
 import com.github.lonelylockley.archinsight.translate.Translator;
 
@@ -45,7 +42,19 @@ public class ContextTranslator extends Translator {
                 addParameter(sb, lm.getName(), true);
                 addParameter(sb, lm.getTechnology(), true);
                 addParameter(sb, lm.getDescription(), true);
-                addParameter(sb, new Tuple2<>("sync", String.valueOf(lm.isSync())));
+                if (lm.isSync()) {
+                    addParameter(sb, parseAttributes(lm,
+                                    new Tuple2<>("style", "line")
+                            )
+                    );
+                }
+                else {
+                    addParameter(sb, parseAttributes(lm,
+                                    new Tuple2<>("style", "dashed"),
+                                    new Tuple2<>("arrowhead", "open")
+                            )
+                    );
+                }
                 finishVariable(sb);
             }
             else
@@ -56,17 +65,38 @@ public class ContextTranslator extends Translator {
                 addParameter(sb, sm.getName(), true);
                 addParameter(sb, sm.getTechnology(), true);
                 addParameter(sb, sm.getDescription(), true);
-                addParameter(sb, new Tuple2<>("shape", "box"), new Tuple2<>("external", String.valueOf(sm.isExternal())));
+                if (sm.isExternal()) {
+                    addParameter(sb, parseAttributes(sm,
+                                    new Tuple2<>("shape", "box"),
+                                    new Tuple2<>("style", "filled"),
+                                    new Tuple2<>("fillcolor", "#999999")
+                            )
+                    );
+                }
+                else {
+                    addParameter(sb, parseAttributes(sm,
+                                    new Tuple2<>("shape", "box"),
+                                    new Tuple2<>("style", "filled"),
+                                    new Tuple2<>("fillcolor", "#438dd5")
+                            )
+                    );
+                }
                 finishVariable(sb);
             }
             else
             if (el._2.getType() == ElementType.PERSON) {
+                PersonElement pe = (PersonElement) el._2;
                 declareVariable(sb, "Block", el._1);
                 addParameter(sb, el._1, true);
-                addParameter(sb, el._2.getName(), true);
-                addParameter(sb, el._2.getTechnology(), true);
-                addParameter(sb, el._2.getDescription(), true);
-                addParameter(sb, new Tuple2<>("shape", "egg"));
+                addParameter(sb, pe.getName(), true);
+                addParameter(sb, pe.getTechnology(), true);
+                addParameter(sb, pe.getDescription(), true);
+                addParameter(sb, parseAttributes(pe,
+                                new Tuple2<>("shape", "egg"),
+                                new Tuple2<>("style", "filled"),
+                                new Tuple2<>("fillcolor", "#08427B")
+                        )
+                );
                 finishVariable(sb);
             }
             else {

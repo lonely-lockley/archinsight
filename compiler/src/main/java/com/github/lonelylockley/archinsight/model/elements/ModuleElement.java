@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import java.util.Map;
 import java.util.Set;
 
 public class ModuleElement extends PersonElement {
@@ -8,8 +9,8 @@ public class ModuleElement extends PersonElement {
 
     private final Set<String> content;
 
-    public ModuleElement(String name, String description, String technology, Set<String> content) {
-        super(name, description, technology);
+    public ModuleElement(String name, String description, String technology, Map<String, String> annotations, Set<String> content) {
+        super(name, description, technology, annotations);
         this.content = content;
     }
 
@@ -44,7 +45,7 @@ public class ModuleElement extends PersonElement {
         @Override
         public ModuleElement build() {
             assert name != null && !name.isBlank();
-            return new ModuleElement(name, description, technology, content);
+            return new ModuleElement(name, description, technology, annotations, content);
         }
 
         @Override

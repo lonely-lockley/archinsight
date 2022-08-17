@@ -1,11 +1,13 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import java.util.Map;
+
 public class ServiceElement extends SystemElement {
 
     private static final ElementType type = ElementType.SERVICE;
 
-    public ServiceElement(String name, String description, String technology, boolean external) {
-        super(name, description, technology, external);
+    public ServiceElement(String name, String description, String technology, Map<String, String> annotations, boolean external) {
+        super(name, description, technology, annotations, external);
     }
 
     @Override
@@ -28,7 +30,7 @@ public class ServiceElement extends SystemElement {
         @Override
         public ServiceElement build() {
             assert name != null && !name.isBlank();
-            return new ServiceElement(name, description, technology, external != null && external);
+            return new ServiceElement(name, description, technology, annotations, external != null && external);
         }
 
         @Override
