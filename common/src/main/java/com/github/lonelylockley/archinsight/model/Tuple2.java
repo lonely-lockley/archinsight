@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.model;
 
+import java.util.Objects;
+
 public class Tuple2<T, K> {
 
     public final T _1;
@@ -17,4 +19,5 @@ public class Tuple2<T, K> {
     public K _2() {
         return _2;
     }
+
 }

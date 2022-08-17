@@ -29,7 +29,7 @@ public class ContainerTranslator extends Translator {
                 .getElements()
                 .stream()
                 .map(tp -> new Tuple2<>(generateIdentifier(tp._1, tp._2), tp._2))
-                .collect(Collectors.toList());
+                .toList();
         // variables
         identifiers.forEach(el -> {
             switch (el._2.getType()) {
@@ -42,7 +42,19 @@ public class ContainerTranslator extends Translator {
                     addParameter(sb, lm.getName(), true);
                     addParameter(sb, lm.getTechnology(), true);
                     addParameter(sb, lm.getDescription(), true);
-                    addParameter(sb, new Tuple2<>("sync", String.valueOf(lm.isSync())));
+                    if (lm.isSync()) {
+                        addParameter(sb, parseAttributes(lm,
+                                            new Tuple2<>("style", "line")
+                                        )
+                        );
+                    }
+                    else {
+                        addParameter(sb, parseAttributes(lm,
+                                            new Tuple2<>("style", "dashed"),
+                                            new Tuple2<>("arrowhead", "open")
+                                        )
+                        );
+                    }
                     finishVariable(sb);
                     break;
                 case SERVICE:
@@ -52,16 +64,48 @@ public class ContainerTranslator extends Translator {
                     addParameter(sb, sm.getName(), true);
                     addParameter(sb, sm.getTechnology(), true);
                     addParameter(sb, sm.getDescription(), true);
-                    addParameter(sb, new Tuple2<>("shape", "box"), new Tuple2<>("external", String.valueOf(sm.isExternal())));
+                    if (sm.isExternal()) {
+                        addParameter(sb, parseAttributes(sm,
+                                            new Tuple2<>("shape", "box"),
+                                            new Tuple2<>("style", "filled"),
+                                            new Tuple2<>("fillcolor", "#999999")
+                                        )
+                        );
+                    }
+                    else {
+                        addParameter(sb, parseAttributes(sm,
+                                            new Tuple2<>("shape", "box"),
+                                            new Tuple2<>("style", "filled"),
+                                            new Tuple2<>("fillcolor", "#438dd5")
+                                        )
+                        );
+                    }
                     finishVariable(sb);
                     break;
                 case STORAGE:
+                    StorageElement st = (StorageElement) el._2;
                     declareVariable(sb, "Block", el._1);
+                    parseAttributes(st);
                     addParameter(sb, el._1, true);
-                    addParameter(sb, el._2.getName(), true);
-                    addParameter(sb, el._2.getTechnology(), true);
-                    addParameter(sb, el._2.getDescription(), true);
-                    addParameter(sb, new Tuple2<>("shape", "cylinder"));
+                    addParameter(sb, st.getName(), true);
+                    addParameter(sb, st.getTechnology(), true);
+                    addParameter(sb, st.getDescription(), true);
+                    if (st.isExternal()) {
+                        addParameter(sb, parseAttributes(st,
+                                            new Tuple2<>("shape", "cylinder"),
+                                            new Tuple2<>("style", "filled"),
+                                            new Tuple2<>("fillcolor", "#4d4d4d")
+                                        )
+                        );
+                    }
+                    else {
+                        addParameter(sb, parseAttributes(st,
+                                            new Tuple2<>("shape", "cylinder"),
+                                            new Tuple2<>("style", "filled"),
+                                            new Tuple2<>("fillcolor", "#08427B")
+                                        )
+                        );
+                    }
                     finishVariable(sb);
                     break;
                 case MODULE:

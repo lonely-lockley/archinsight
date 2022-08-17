@@ -29,6 +29,7 @@ public abstract class ExporterBase {
         sb.append("  edge [minlen=2,color=\"#303030\",fontcolor=\"#303030\",fontsize=\"8px\",penwidth=\"0.5\"]\n");
         sb.append("  overlap=false\n");
         sb.append("  rankdir=TB\n");
+        sb.append("  newrank=true\n");
         sb.append("  nodesep=1\n");
         sb.append("  ranksep=1\n");
         sb.append("  splines=ortho\n\n");
@@ -66,6 +67,16 @@ public abstract class ExporterBase {
         }
     }
 
+    private void writeProperties(StringBuilder sb, Map<String, String> properties) {
+        for (Map.Entry<String, String> prop: properties.entrySet()) {
+            sb.append(prop.getKey());
+            sb.append("=\"");
+            sb.append(prop.getValue());
+            sb.append("\",");
+        }
+        sb.setLength(sb.length() - 1);
+    }
+
     protected void writeBlock(StringBuilder sb, Block b) {
         sb.append("  ");
         sb.append(b.getIdentifier());
@@ -73,30 +84,16 @@ public abstract class ExporterBase {
         writeLabelRow(sb, b.getUpperLine(), true, false);
         writeLabelRow(sb, b.getMidLine(), "point-size=\"10px\"", false, true);
         writeLabelRow(sb, b.getLowerLine(), "point-size=\"10px\"", false, false);
-        sb.append("</table>>,shape=");
-        sb.append(b.getProperties().get("shape"));
-        sb.append(",style=filled,");
-        if (b.getProperties().containsKey("external")) {
-            if ("true".equals(b.getProperties().get("external"))) {
-                sb.append("fillcolor=\"#999999\"");
-            }
-            else {
-                sb.append("fillcolor=\"#438dd5\"");
-            }
-        }
-        else {
-            sb.append("fillcolor=\"#08427B\"");
-        }
+        sb.append("</table>>,");
         if (statistics.containsKey(b) && statistics.get(b).size() > 2) {
             if ("true".equals(b.getProperties().get("external"))) {
-                sb.append(",height=");
-                sb.append(String.valueOf(statistics.get(b).size()));
+                b.getProperties().putIfAbsent("height", String.valueOf(statistics.get(b).size()));
             }
             else {
-                sb.append(",width=");
-                sb.append(String.valueOf(statistics.get(b).size()));
+                b.getProperties().putIfAbsent("width", String.valueOf(statistics.get(b).size()));
             }
         }
+        writeProperties(sb, b.getProperties());
         sb.append("]\n");
     }
 
@@ -105,12 +102,8 @@ public abstract class ExporterBase {
         sb.append(c.getFrom().getIdentifier());
         sb.append(" -> ");
         sb.append(c.getTo().getIdentifier());
-        if ("false".equals(c.getProperties().get("sync"))) {
-            sb.append(" [arrowhead=\"open\",style=\"dashed\"");
-        }
-        else {
-            sb.append(" [style=\"line\"");
-        }
+        sb.append(" [");
+        writeProperties(sb, c.getProperties());
         if (c.getTextUpper() != null || c.getTextMid() != null || c.getTextLower() != null) {
             sb.append(",taillabel=<<table border=\"0\">");
             writeLabelRow(sb, c.getTextUpper(), true, false);
@@ -162,7 +155,12 @@ public abstract class ExporterBase {
     public abstract String export();
 
     protected String multilineEscape(String source) {
-        return source == null ? source : source.replaceAll("\n", "<br/>");
+        if (source == null || source.isEmpty()) {
+            return " ";
+        }
+        else {
+            return source.replaceAll("\n", "<br/>");
+        }
     }
 
     public static final String empty(String project) {

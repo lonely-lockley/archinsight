@@ -1,11 +1,13 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import java.util.Map;
+
 public class StorageElement extends SystemElement {
 
     private static final ElementType type = ElementType.STORAGE;
 
-    public StorageElement(String name, String description, String technology, boolean external) {
-        super(name, description, technology, external);
+    public StorageElement(String name, String description, String technology, Map<String, String> annotations, boolean external) {
+        super(name, description, technology, annotations, external);
     }
 
     @Override
@@ -27,7 +29,7 @@ public class StorageElement extends SystemElement {
         @Override
         public StorageElement build() {
             assert name != null && !name.isBlank();
-            return new StorageElement(name, description, technology, external != null && external);
+            return new StorageElement(name, description, technology, annotations, external != null && external);
         }
 
         @Override
