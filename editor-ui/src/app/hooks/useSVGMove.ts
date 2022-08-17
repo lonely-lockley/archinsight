@@ -41,8 +41,8 @@ export const useSVGMove = (svg: MutableRefObject<SVGElement | undefined>) => {
       const wdY = native?.wheelDeltaY || 0;
       if (Math.abs(wdY) % 120 === 0 && wdY) {
         const factor = event.deltaY % 1 === 0 ? 0.5 : Math.abs(event.deltaY) / 10;
-        let newScale = event.deltaY < 0 ? scale + factor : scale - factor;
-        if (newScale < 1.0) newScale = 1.0;
+        const newScale = event.deltaY < 0 ? scale + factor : scale - factor;
+        if (newScale <= 0.99) return;
         setTransform(newScale);
         return;
       }
