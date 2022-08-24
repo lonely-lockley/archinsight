@@ -1,11 +1,13 @@
 package com.github.lonelylockley.archinsight;
 
+import io.micronaut.core.io.IOUtils;
+
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Collectors;
 
-public class GraphvizRenderer {
+public class GraphvizRenderer implements AutoCloseable {
 
     private final Path tmpDir;
     private final Path source;
@@ -15,10 +17,14 @@ public class GraphvizRenderer {
         source = Files.createTempFile(tmpDir, "input", ".dot");
     }
 
-    private String readIO(InputStream in) {
+    private String readTextOutput(InputStream in) {
         return new BufferedReader(new InputStreamReader(in))
                         .lines()
                         .collect(Collectors.joining("\n"));
+    }
+
+    private byte[] readBinaryOutput(InputStream in) throws IOException {
+        return in.readAllBytes();
     }
 
     public void writeInput(String content) throws Exception {
@@ -27,16 +33,16 @@ public class GraphvizRenderer {
         writer.close();
     }
 
-    public String render() throws Exception {
+    public byte[] render(String format) throws Exception {
         var builder = new ProcessBuilder();
         builder.directory(tmpDir.toFile());
-        builder.command("dot", "-Tsvg", source.getFileName().toString());
+        builder.command("dot", "-T" + format, source.getFileName().toString());
         var process = builder.start();
-        var stdout = readIO(process.getInputStream());
-        var stderr = readIO(process.getErrorStream());
+        var stdout = readBinaryOutput(process.getInputStream());
+        var stderr = readTextOutput(process.getErrorStream());
         var exitCode = process.waitFor();
         if (exitCode != 0) {
-            throw new RuntimeException("Could not render SVG! Application exited with code %d and error message: %s".formatted(exitCode, stderr));
+            throw new RuntimeException("Could not render %s! Application exited with code %d and error message: %s".formatted(format, exitCode, stderr));
         }
         return stdout;
     }
@@ -44,6 +50,11 @@ public class GraphvizRenderer {
     public void cleanup() throws Exception {
         Files.deleteIfExists(source);
         Files.deleteIfExists(tmpDir);
+    }
+
+    @Override
+    public void close() throws Exception {
+        cleanup();
     }
 
 }
