@@ -1,12 +1,12 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.insight.lang.InsightLexer;
-import com.github.lonelylockley.insight.lang.InsightParser;
 import com.github.lonelylockley.archinsight.export.Exporter;
 import com.github.lonelylockley.archinsight.export.Format;
 import com.github.lonelylockley.archinsight.parse.TreeListener;
 import com.github.lonelylockley.archinsight.translate.Generator;
 import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.insight.lang.InsightLexer;
+import com.github.lonelylockley.insight.lang.InsightParser;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Consumes;
@@ -24,18 +24,18 @@ import org.slf4j.LoggerFactory;
 import java.io.StringReader;
 
 @Controller("/compile")
-public class CompilerService {
+public class LinkerService {
 
-    private static final Logger logger = LoggerFactory.getLogger(CompilerService.class);
+    private static final Logger logger = LoggerFactory.getLogger(LinkerService.class);
 
     public static void main(String[] args) {
-        Micronaut.run(CompilerService.class, args);
-        logger.info("Compiler server started");
+        Micronaut.run(LinkerService.class, args);
+        logger.info("Linker server started");
     }
 
     private final HttpClientAddressResolver addressResolver;
 
-    public CompilerService(HttpClientAddressResolver addressResolver) {
+    public LinkerService(HttpClientAddressResolver addressResolver) {
         this.addressResolver = addressResolver;
     }
 
@@ -58,7 +58,7 @@ public class CompilerService {
          * _2 - container
          */
         var sources = new Generator().generate(pr);
-        var descriptors = new Compiler().compile(sources, pr.getProjectName());
+        var descriptors = new Linker().compile(sources, pr.getProjectName());
         var exp = new Exporter(descriptors, pr.getProjectName());
         var result = new Source();
         if (pr.hasContext()) {
@@ -69,7 +69,7 @@ public class CompilerService {
             result.setSource(exp.exportContainer(Format.GRAPHVIZ));
         }
         else {
-            logger.warn("Compiler engine did not create any layer");
+            logger.warn("Linker engine did not create any layer");
         }
         logger.info("Access: /compile from {} required {}ms",
                         addressResolver.resolve(request),

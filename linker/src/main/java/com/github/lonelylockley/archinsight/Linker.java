@@ -7,9 +7,9 @@ import org.mdkt.compiler.InMemoryJavaCompiler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class Compiler {
+public class Linker {
 
-    private static final Logger logger = LoggerFactory.getLogger(Compiler.class);
+    private static final Logger logger = LoggerFactory.getLogger(Linker.class);
 
     private static final String contextName = "Context";
     private static final String containerName = "Container";

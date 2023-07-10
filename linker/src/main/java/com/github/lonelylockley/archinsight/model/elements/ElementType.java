@@ -30,6 +30,9 @@ public enum ElementType {
     IDENTIFIER("IDENTIFIER"),
     ANNOTATION("ANNOTATION"),
     ANNOTATION_VALUE("ANNOTATION_VALUE"),
+    INDENT("INDENT"),
+    DEDENT("DEDENT"),
+    USES("USES"),
 
     UNKNOWN("unk");
 

@@ -15,6 +15,7 @@ public class ContextTreeListener implements SpecificListener {
     @Override
     public boolean visitLevelSpecific(CommonToken tkn, Vocabulary vocab, ElementType nodeType, String nodeValue) {
         boolean continueMatch = true;
+        //System.out.println("------ " + tkn + nodeType + " / " + nodeValue);
         switch (nodeType) {
             case SYSTEM:
                 ctx.startNewSystem().withExternalFlag(ctx.isExternal());

@@ -7,8 +7,10 @@ plugins {
     id 'com.github.node-gradle.node' version '3.3.0'
 }
 
-sourceCompatibility = 1.17
-targetCompatibility = 1.17
+compileJava {
+    targetCompatibility = '17'
+    sourceCompatibility = '17'
+}
 
 allprojects {
     apply plugin: 'java'
@@ -28,9 +30,9 @@ allprojects {
             implementation group: 'org.jgrapht', name: 'jgrapht-core', version: '1.5.1'
             implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler', version: '1.3.0'
             implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
+            implementation group: 'org.apache.commons', name: 'commons-text', version: '1.10.0'
 
-            testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
-            testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+            testImplementation group: 'org.testng', name: 'testng', version: '6.14.3'
         }
     }
 
@@ -63,6 +65,7 @@ project('insight-lang') {
 
     dependencies {
         antlr group: 'org.antlr', name: 'antlr4', version: '4.10.1'
+        testImplementation group: 'org.testng', name: 'testng'
     }
 
     generateGrammarSource {
@@ -72,7 +75,7 @@ project('insight-lang') {
     sourceSets.main.java.srcDirs += ["${project.buildDir}/$GEN_JAVA_SRC"]
 }
 
-project('compiler') {
+project('linker') {
     apply plugin: 'io.micronaut.application'
     apply plugin: 'io.micronaut.minimal.application'
     apply plugin: 'io.micronaut.docker'
@@ -155,13 +158,19 @@ project('editor-ui') {
         args = ['run', 'antlr']
 
         doLast {
+            def substs = new Properties()
+            file("${project.rootDir}/insight-lang/src/main/antlr/typescript_substitutions.properties").withInputStream { substs.load(it) }
             FileTree antlrFiles = fileTree("${buildDir}/insight-lang") {
                 include "**/*.ts"
             }
             antlrFiles.each { File antlrSrc ->
                 println "Removing java package from $antlrSrc"
                 String content = antlrSrc.getText()
-                content = content.replace("package com.github.lonelylockley.insight.lang;", "")
+                content = content.replaceAll(/(\/\* <package>)(.|\n)+?(<\/package> \*\/)/, substs.getProperty("package"))
+                content = content.replaceAll(/(\/\* <import>)(.|\n)+?(<\/import> \*\/)/, substs.getProperty("import"))
+                content = content.replaceAll(/(\/\* <override>)(.|\n)+?(<\/override> \*\/)/, substs.getProperty("override"))
+                content = content.replaceAll(/(\/\* <helper>)(.|\n)+?(<\/helper> \*\/)/, substs.getProperty("helper"))
+                content = content.replaceAll(/(\/\* <position>)(.|\n)+?(<\/position> \*\/)/, substs.getProperty("position"))
                 antlrSrc.setText(content)
             }
         }

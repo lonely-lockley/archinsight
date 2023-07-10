@@ -1,11 +1,11 @@
 package com.github.lonelylockley.archinsight.parse;
 
-import com.github.lonelylockley.insight.lang.InsightLexer;
-import com.github.lonelylockley.insight.lang.InsightParser;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 import com.github.lonelylockley.archinsight.parse.ctx.ParseContext;
 import com.github.lonelylockley.archinsight.parse.result.ParseResult;
+import com.github.lonelylockley.insight.lang.InsightLexer;
+import com.github.lonelylockley.insight.lang.InsightParser;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Vocabulary;
@@ -74,6 +74,7 @@ public class TreeListener implements ParseTreeListener {
                 }
                 break;
             case LINK:
+                System.out.println("++++ " + context.currentIdentifier());
                 context.startNewLink().withFrom(context.currentIdentifier());
                 switch (nodeValue) {
                     case "->":
@@ -102,7 +103,7 @@ public class TreeListener implements ParseTreeListener {
         final String rawType = vocab.getSymbolicName(tkn.getType());
         final ElementType nodeType = elementByIdentifier(rawType);
         final String nodeValue = tkn.getText();
-        //System.out.println("> " + nodeType + " (" + rawType + ") = " + nodeValue);
+        System.out.println("> " + nodeType + " (" + rawType + ") = " + nodeValue);
         if (continuationCallback != null && context != null) {
             if (continuationCallback.visitLevelSpecific(tkn, vocab, nodeType, nodeValue)) {
                 visitLevelDefault(tkn, vocab, nodeType, nodeValue);
