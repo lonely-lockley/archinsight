@@ -7,6 +7,7 @@ import org.antlr.v4.runtime.misc.Pair;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
@@ -60,8 +61,60 @@ public class InsightParserSingleLineBoundaryTest extends TestCommon {
     }
 
     @Test
+    public void testBoundaryDescription() throws Exception {
+        LexerState state = new LexerState(InsightLexer.TEXT);
+        setup(
+                """
+                    desc = klfvb  dlkfvb
+                """
+        );
+        lexer.restoreState(state);
+        List<Pair<String, String>> exp = Stream.of(
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("DESCRIPTION", "desc"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("TEXT", "klfvb"),
+                new Pair<>("TEXT", "  "),
+                new Pair<>("TEXT", "dlkfvb"),
+                new Pair<>("EOL", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it1 = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it1.next()));
+        Assert.assertFalse(it1.hasNext());
+        state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertTrue(state.wasText());
+    }
+
+    @Test
+    public void testBoundaryEmptyLine() throws Exception {
+        LexerState state = new LexerState(InsightLexer.TEXT);
+        setup(
+                """
+                
+                """
+        );
+        lexer.restoreState(state);
+        List<Pair<String, String>> exp = new ArrayList<>();
+        Iterator<Pair<String, String>> it1 = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it1.next()));
+        Assert.assertFalse(it1.hasNext());
+        state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
+    }
+
+    @Test
     public void testSystemDefinition() throws Exception {
         LexerState state = new LexerState(InsightLexer.TEXT);
+//        state.incIndentation();
+//        state.incIndentation();
+//        state.setWasText();
         setup(
                 """
                     system sb
@@ -154,7 +207,6 @@ public class InsightParserSingleLineBoundaryTest extends TestCommon {
         state.setWasText();
         setup(
                 """
-                
                 system nnn
                 """
         );
@@ -162,7 +214,6 @@ public class InsightParserSingleLineBoundaryTest extends TestCommon {
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("DEDENT", "<DEDENT>"),
                 new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOL", "\n"),
                 new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "nnn"),
                 new Pair<>("EOL", "\n")

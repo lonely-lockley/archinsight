@@ -1,5 +1,7 @@
 import { ANTLRInputStream, Token } from 'antlr4ts';
 import { languages } from 'monaco-editor';
+import * as monaco from 'monaco-editor-core';
+import React, { FC, useEffect, useRef } from 'react';
 
 import { InsightLexer } from '../../../build/insight-lang/InsightLexer';
 import LexerState from './LexerState';
@@ -86,6 +88,10 @@ export class InsightTokensProvider implements TokensProvider {
         tokens.push(token);
       }
     }
-    return { tokens: tokens, endState: lexer.snapshotState() };
+
+    var tt = lexer.snapshotState();
+    //var st = state as LexerState;
+    //console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
+    return { tokens: tokens, endState: tt };
   }
 }

@@ -157,6 +157,32 @@ public class InsightLexerContextBasicTest extends TestCommon {
     }
 
     @Test
+    public void testSystemDefinitionWithEmptyLine() throws Exception {
+        parse("""
+                context tms
+                
+                system test
+                    name = Test
+                """,
+                new Pair<>("CONTEXT", "context"),
+                new Pair<>("IDENTIFIER", "tms"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("SYSTEM", "system"),
+                new Pair<>("IDENTIFIER", "test"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("NAME", "name"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("TEXT", "Test"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("EOF", "<EOF>"));
+
+    }
+
+    @Test
     public void testExtSystemDefinition() throws Exception {
         parse("""
                 context tms

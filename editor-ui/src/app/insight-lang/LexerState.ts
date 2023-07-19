@@ -6,8 +6,8 @@ class LexerState implements IState {
 
     TEXT: number;
 
-    _wasText: boolean = false;
-    indentation: number = 0;
+    private _wasText: boolean = false;
+    private indentation: number = 0;
 
      constructor(TEXT: number) {
         this.TEXT = TEXT;

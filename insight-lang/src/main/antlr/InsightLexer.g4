@@ -75,7 +75,8 @@ fragment CloseBracket : ')' ;
 
 COLON            : ':' ;
 EQ               : '=' Ws* -> pushMode(VALUE_MODE) ;
-EOL              : Nl ;
+EOL              : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Nl ;
+EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Nl -> skip  ;
 BLANK            : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Ws+ -> channel(HIDDEN) ;
 INDENTATION      : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Ws+ -> channel(HIDDEN) ;
 ANNOTATION       : '@' ANNOTATION_NAME ;
@@ -83,16 +84,16 @@ ANNOTATION_VALUE : OpenBracket ( ~[)] )* CloseBracket ;
 COMMENT          : '#' .*? (EOL | EOF) ;
 
 mode NAMESPACE_MODE;
-PROJECTNAME : (LowerLetter (LowerLetter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
+PROJECTNAME     : (LowerLetter (LowerLetter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
 BLANK_NAMESPACE : BLANK -> skip ;
 
 mode IDENTIFIER_MODE;
-ID : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
+ID                : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
 BLANK_INDENTIFIER : BLANK -> skip ;
 
 mode VALUE_MODE;
-WORD : NonWs+ -> type(TEXT) ;
-BLANK_VALUE : BLANK -> type(TEXT), channel(DEFAULT_TOKEN_CHANNEL) ;
-INDENTATION_VALUE : INDENTATION -> type(INDENTATION), channel(HIDDEN) ;
-EOL_VALUE : EOL INDENTATION? { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
-EOF_VALUE : EOF -> type(EOF), popMode ;
+WORD               : NonWs+ -> type(TEXT) ;
+BLANK_VALUE        : BLANK -> type(TEXT), channel(DEFAULT_TOKEN_CHANNEL) ;
+INDENTATION_VALUE  : INDENTATION -> type(INDENTATION), channel(HIDDEN) ;
+EOL_VALUE          : EOL INDENTATION? { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
+EOF_VALUE          : EOF -> type(EOF), popMode ;

@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.lexer;
 
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import org.antlr.v4.runtime.CommonToken;
+import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 
 import java.util.LinkedList;
@@ -72,7 +73,10 @@ public class IndentHelper {
         }
         float tmp = (float) position / (float) INDENT_LENGTH;
         if (tmp % 1 != 0) {
-            throw new IndentationException(tkn, position, indentation * INDENT_LENGTH);
+            lexer.getErrorListenerDispatch().syntaxError(lexer, tkn, line, position, "woo-woo",
+                    new RecognitionException("choo-choo", lexer, lexer._input, null)
+                    );
+            //throw new IndentationException(tkn, position, indentation * INDENT_LENGTH);
         }
         return (int) tmp;
     }
@@ -123,8 +127,8 @@ public class IndentHelper {
         do {
             CommonToken tkn = (CommonToken) tokenSupplier.get();
             if (tkn.getLine() > line) {
-                handleIndentation(tkn);
                 line = tkn.getLine();
+                handleIndentation(tkn);
             }
             handleText(tkn);
             state.updateToken(tkn);

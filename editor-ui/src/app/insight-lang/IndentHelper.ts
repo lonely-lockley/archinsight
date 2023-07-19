@@ -24,8 +24,12 @@ class Queue<T> extends LinkedList<T> {
 
 class IndentationException extends Error {
 
-    constructor(tkn: CommonToken, actual: number, expected: number) {
-        super("line " + tkn.line + ":" + tkn.charPositionInLine + " incorrect indentation. current position: " + actual + ", expected: " + expected);
+    constructor(msg: string) {
+        super(msg);
+    }
+
+    public static createErrorMsg(tkn: CommonToken, actual: number, expected: number): string {
+        return "line " + tkn.line + ":" + tkn.charPositionInLine + " incorrect indentation. current position: " + actual + ", expected: " + expected;
     }
 
 }
@@ -94,7 +98,7 @@ class IndentHelper {
     }
 
     private calculateCurrentIndentation(tkn: CommonToken): number {
-        var position: number;
+        var position: number = 0;
         if (tkn.type == InsightLexer.INDENTATION || tkn.type == InsightLexer.EOL_VALUE) {
             position = this.expandTabCharacter(this.stripNewlineCharacters(tkn.text)).length;
         }
@@ -103,7 +107,15 @@ class IndentHelper {
         }
         var tmp: number = position / this.INDENT_LENGTH;
         if (tmp % 1 != 0) {
-            throw new IndentationException(tkn, position, this.indentation * this.INDENT_LENGTH);
+//             throw new IndentationException(tkn, position, this.indentation * this.INDENT_LENGTH);
+               this.lexer.getErrorListenerDispatch().syntaxError?.(
+                   this.lexer,
+                   undefined,
+                   this.line,
+                   position,
+                   IndentationException.createErrorMsg(tkn, position, this.indentation * this.INDENT_LENGTH),
+                   undefined
+               );
         }
         return Math.floor(tmp);
     }
@@ -119,13 +131,13 @@ class IndentHelper {
                 this.emitDedentTokens(tkn, curIndentation);
             }
         }
-        else
-        if (this.indentation == curIndentation) {
-            // nothing to do here
-        }
-        else {
-            throw new IndentationException(tkn, curIndentation * this.INDENT_LENGTH, this.indentation * this.INDENT_LENGTH);
-        }
+//         else
+//         if (this.indentation == curIndentation) {
+//             // nothing to do here
+//         }
+//         else {
+//             throw new IndentationException(tkn, curIndentation * this.INDENT_LENGTH, this.indentation * this.INDENT_LENGTH);
+//         }
     }
 
     private handleText(tkn: CommonToken) {
@@ -154,8 +166,8 @@ class IndentHelper {
         do {
             var tkn: CommonToken = rawToken as CommonToken;
             if (tkn.line > this.line) {
-                this.handleIndentation(tkn);
                 this.line = tkn.line;
+                this.handleIndentation(tkn);
             }
             this.handleText(tkn);
             this.state.updateToken(tkn);
@@ -173,13 +185,13 @@ class IndentHelper {
     }
 
     public snapshotState(): LexerState {
-        return this.state;
+        return this.state.clone() as LexerState;
     }
 
     public restoreState(state: LexerState) {
         var tkn: Token = this.lexer.supplyToken();
         this.lexer.reset();
-        this.state = state;
+        this.state = state.clone() as LexerState;
         this.indentation = state.getIndentation();
         if (state.wasText() && (tkn.type == InsightLexer.INDENTATION && !this.checkTextBlockBound(tkn.text))) {
             this.lexer.pushMode(InsightLexer.VALUE_MODE);

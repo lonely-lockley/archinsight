@@ -20,18 +20,18 @@ levelDeclaration
     ;
 
 contextDeclaration
-    :    CONTEXT IDENTIFIER EOL+
+    :    CONTEXT IDENTIFIER EOL
     ;
 
 containerDeclaration
-    :    CONTAINER IDENTIFIER EOL+
+    :    CONTAINER IDENTIFIER EOL
     ;
 
 contextElementDeclaration
-    :    ( systemDeclaration EOL*
-         | actorDeclaration EOL*
-         | boundaryForContextDeclaration EOL*
-         | INDENT* commentDeclaration
+    :    ( systemDeclaration EOL?
+         | actorDeclaration EOL?
+         | boundaryForContextDeclaration EOL?
+         | commentDeclaration
          )
     ;
 
@@ -52,19 +52,19 @@ actorParameters
     ;
 
 boundaryForContextDeclaration
-    :    BOUNDARY IDENTIFIER EOL+ boundaryContext
+    :    BOUNDARY IDENTIFIER EOL boundaryContext
     ;
 
 boundareForContainerDeclaration
-    :    BOUNDARY IDENTIFIER EOL+ boundaryContainer
+    :    BOUNDARY IDENTIFIER EOL boundaryContainer
     ;
 
 boundaryContext
-    :    INDENT boundaryParameters? EOL+ contextElementDeclaration+ DEDENT
+    :    INDENT boundaryParameters? contextElementDeclaration+ DEDENT
     ;
 
 boundaryContainer
-    :    INDENT boundaryParameters? EOL+ containerElementDeclaration+ DEDENT
+    :    INDENT boundaryParameters? containerElementDeclaration+ DEDENT
     ;
 
 boundaryParameters
@@ -72,9 +72,9 @@ boundaryParameters
     ;
 
 containerElementDeclaration
-    :    ( serviceDeclaration EOL*
-         | storageDeclaration EOL*
-         | boundareForContainerDeclaration EOL*
+    :    ( serviceDeclaration EOL?
+         | storageDeclaration EOL?
+         | boundareForContainerDeclaration EOL?
          | INDENT* commentDeclaration
          )
     ;
@@ -148,7 +148,7 @@ wireList
     ;
 
 wireDeclaration
-    :    annotationDeclaration? WIRE IDENTIFIER EOL wireParameters? EOL*
+    :    annotationDeclaration? WIRE IDENTIFIER EOL wireParameters? EOL?
     ;
 
 wireParameters
