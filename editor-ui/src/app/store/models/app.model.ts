@@ -22,7 +22,9 @@ export const app = createModel<RootModel>()({
     getRender: async (code: string) => {
       const action = async () => {
         const render = await api.render().post(code);
-        dispatch.app.setImage(render.data);
+        if (render.data.source != undefined) {
+            dispatch.app.setImage(render.data.source);
+        }
       };
       dispatch.loading.wrapper({ action, name: 'getRender' });
     },

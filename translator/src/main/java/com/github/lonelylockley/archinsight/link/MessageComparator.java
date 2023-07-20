@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.link;
 
+import com.github.lonelylockley.archinsight.model.LinkerMessage;
+
 import java.util.Comparator;
 
 public class MessageComparator implements Comparator<LinkerMessage> {

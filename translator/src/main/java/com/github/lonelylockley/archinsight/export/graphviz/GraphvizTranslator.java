@@ -9,7 +9,7 @@ import java.util.List;
 
 public class GraphvizTranslator extends TranslatorBase {
 
-    private static final List<LinkElement> connections = new ArrayList<>();
+    private final List<LinkElement> connections = new ArrayList<>();
 
     private void writeElement(AbstractElement el, StringBuilder sb, int level) {
         switch (el.getType()) {

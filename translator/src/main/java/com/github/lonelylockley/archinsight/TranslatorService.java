@@ -1,7 +1,8 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
-import com.github.lonelylockley.archinsight.link.LinkerMessage;
+import com.github.lonelylockley.archinsight.model.LinkerMessage;
+import com.github.lonelylockley.archinsight.model.TranslatedSource;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 import com.github.lonelylockley.archinsight.parse.TreeListener;
 import com.github.lonelylockley.archinsight.link.Linker;
@@ -23,10 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.StringReader;
-import java.util.List;
-import java.util.stream.Collectors;
 
-@Controller("/")
+@Controller("/translate")
 public class TranslatorService {
 
     private static final Logger logger = LoggerFactory.getLogger(TranslatorService.class);
@@ -57,33 +56,17 @@ public class TranslatorService {
     @Post
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public List<LinkerMessage> check(HttpRequest<Source> request, Source data) throws Exception {
+    public TranslatedSource translate(HttpRequest<Source> request, Source data) throws Exception {
         long startTime = System.nanoTime();
         var pr = parse(data.source);
         var messages = new Linker().checkIntegrity(pr);
-        logger.info("Access: /check from {} required {}ms",
-                addressResolver.resolve(request),
-                (System.nanoTime() - startTime) / 1000000
-        );
-        return messages;
-    }
-
-    @Post
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    public Source translate(HttpRequest<Source> request, Source data) throws Exception {
-        long startTime = System.nanoTime();
-        var pr = parse(data.source);
-        var messages = new Linker().checkIntegrity(pr);
+        var result = new TranslatedSource();
         if (!messages.isEmpty()) {
-            throw new RuntimeException(String.format("Code contains errors: \n%s", messages
-                                                                                       .stream()
-                                                                                       .map(LinkerMessage::toString)
-                                                                                       .collect(Collectors.joining("\n"))
-            ));
+            result.setMessages(messages);
         }
-        var result = new Source();
-        result.setSource(new GraphvizTranslator().translate(pr));
+        else {
+            result.setSource(new GraphvizTranslator().translate(pr));
+        }
         logger.info("Access: /translate from {} required {}ms",
                         addressResolver.resolve(request),
                         (System.nanoTime() - startTime) / 1000000

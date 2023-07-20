@@ -1,24 +1,32 @@
 package com.github.lonelylockley.archinsight.link;
 
 import com.github.lonelylockley.archinsight.link.model.File;
+import com.github.lonelylockley.archinsight.model.LinkerMessage;
+import com.github.lonelylockley.archinsight.model.MessageLevel;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 public class Linker {
 
     private static final Logger logger = LoggerFactory.getLogger(Linker.class);
 
+    public void copyPosition(LinkerMessage lm, AbstractElement el) {
+        lm.setCharPosition(el.getCharPosition());
+        lm.setLine(el.getLine());
+        lm.setStartIndex(el.getStartIndex());
+        lm.setStopIndex(el.getStopIndex());
+    }
+
     private void checkDeclarations(File f, AbstractElement el, ArrayList<LinkerMessage> results) {
         if (el.getType() == ElementType.LINK) {
             if (f.getConnections().contains((LinkElement) el)) {
                 LinkerMessage lm = new LinkerMessage(MessageLevel.WARNING, "Possible link duplication");
-                lm.copyPosition(el);
+                copyPosition(lm, el);
                 results.add(lm);
             }
             else {
@@ -29,7 +37,7 @@ public class Linker {
         if (el.getType() != ElementType.CONTEXT && el.getType() != ElementType.CONTAINER) {
             if (f.isDeclared(el)) {
                 LinkerMessage lm = new LinkerMessage(MessageLevel.ERROR, String.format("Identifier %s is already defined", ((WithId) el).getId()));
-                lm.copyPosition(el);
+                copyPosition(lm, el);
                 results.add(lm);
             }
             else {
@@ -48,7 +56,7 @@ public class Linker {
             .filter(c -> !f.isDeclared(c.getTo()))
             .forEach(el -> {
                 LinkerMessage lm = new LinkerMessage(MessageLevel.ERROR, String.format("Undeclared identifier %s", el.getTo()));
-                lm.copyPosition(el);
+                copyPosition(lm, el);
                 results.add(lm);
             });
     }

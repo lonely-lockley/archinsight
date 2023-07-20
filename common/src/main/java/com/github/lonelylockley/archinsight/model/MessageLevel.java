@@ -1,4 +1,4 @@
-package com.github.lonelylockley.archinsight.link;
+package com.github.lonelylockley.archinsight.model;
 
 public enum MessageLevel {
     NOTICE(0),

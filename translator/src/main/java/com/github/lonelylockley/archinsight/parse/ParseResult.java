@@ -20,14 +20,6 @@ public class ParseResult {
         return root;
     }
 
-    public String getProjectName() {
-        return ((WithId) root).getId();
-    }
-
-    public ElementType getLevel() {
-        return root.getType();
-    }
-
     @Override
     public String toString() {
         return "ParseResult{\n%s\n}".format(root.toString());

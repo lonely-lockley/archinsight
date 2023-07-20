@@ -26,7 +26,7 @@ allprojects {
             implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.11'
 
             implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: micronautVersion
-            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: micronautVersion
+            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: micronautVersion
             implementation group: 'org.jgrapht', name: 'jgrapht-core', version: '1.5.1'
             implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler', version: '1.3.0'
             implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
@@ -235,36 +235,19 @@ project('bff') {
     apply plugin: 'io.micronaut.application'
     apply plugin: 'io.micronaut.docker'
 
-    dockerfile.doLast {
-        copy {
-            from "dockerfile_template"
-            into "${buildDir}/docker/main"
-            rename "dockerfile_template", "Dockerfile"
-        }
-        copy {
-            from "src"
-            into "${buildDir}/docker/main"
-        }
-        copy {
-            from "."
-            include "*.json"
-            into "${buildDir}/docker/main"
-        }
-        delete("${buildDir}/docker/main/layers")
+    dependencies {
+        implementation project(':common')
+
+        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
+        implementation group: 'io.micronaut', name: 'micronaut-http-client'
     }
 
     tasks.named("dockerBuild") {
         images = ["lonelylockley/archinsight:$project.name-$project.version"]
     }
 
-    task runDev(type: NpmTask) {
-        dependsOn(npmInstall)
-        environment = ['PORT': '3000']
-        args = ['run', 'dev']
+    tasks.named("dockerfile") {
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.BffService')
     }
 
-    task runProd(type: NpmTask) {
-        dependsOn(npmInstall)
-        args = ['run', 'prod']
-    }
 }
