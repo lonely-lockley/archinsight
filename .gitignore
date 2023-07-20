@@ -14,7 +14,7 @@ local
 .idea
 
 # Ignore my special class for snippet testing
-Test.java
+Test*.java
 
 # Ignore idea compile output
 out
@@ -22,6 +22,7 @@ out
 # Ignore idea generated output
 **/main/gen
 **/main/generated
+**/main/antlr/InsightLexer.tokens
 
 # Ignore node modules cache
 node_modules

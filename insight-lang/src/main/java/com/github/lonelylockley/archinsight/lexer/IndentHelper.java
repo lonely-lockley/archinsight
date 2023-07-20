@@ -113,7 +113,7 @@ public class IndentHelper {
         }
         else
         if (tkn.getType() == InsightLexer.EOL_VALUE) {
-            CommonToken eol = new CommonToken(InsightLexer.EOL, "\n");
+            CommonToken eol = new CommonToken(InsightLexer.TEXT, "\n");
             eol.setLine(tkn.getLine());
             waitlist.add(eol);
         }

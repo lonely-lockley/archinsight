@@ -75,7 +75,7 @@ project('insight-lang') {
     sourceSets.main.java.srcDirs += ["${project.buildDir}/$GEN_JAVA_SRC"]
 }
 
-project('linker') {
+project('translator') {
     apply plugin: 'io.micronaut.application'
     apply plugin: 'io.micronaut.minimal.application'
     apply plugin: 'io.micronaut.docker'

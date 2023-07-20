@@ -55,7 +55,7 @@ boundaryForContextDeclaration
     :    BOUNDARY IDENTIFIER EOL boundaryContext
     ;
 
-boundareForContainerDeclaration
+boundaryForContainerDeclaration
     :    BOUNDARY IDENTIFIER EOL boundaryContainer
     ;
 
@@ -74,7 +74,7 @@ boundaryParameters
 containerElementDeclaration
     :    ( serviceDeclaration EOL?
          | storageDeclaration EOL?
-         | boundareForContainerDeclaration EOL?
+         | boundaryForContainerDeclaration EOL?
          | INDENT* commentDeclaration
          )
     ;
