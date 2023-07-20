@@ -37,4 +37,12 @@ public class ParseResult {
         throw new UnsupportedOperationException();
     }
 
+    public boolean hasContext() {
+        return root.getType() == ElementType.CONTEXT;
+    }
+
+    public boolean hasContainer() {
+        return root.getType() == ElementType.CONTAINER;
+    }
+
 }

@@ -5,7 +5,7 @@ import java.util.stream.Collectors;
 
 public class ActorElement extends AbstractElement implements WithId, WithParameters, WithAnnotations, WithChildElements {
 
-    private static final ElementType type = ElementType.SYSTEM;
+    private static final ElementType type = ElementType.ACTOR;
 
     private final Map<String, String> annotations = new HashMap<>();
     private final List<AbstractElement> children = new ArrayList<>();

@@ -1,7 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.export.Exporter;
-import com.github.lonelylockley.archinsight.export.Format;
+import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
 import com.github.lonelylockley.archinsight.link.LinkerMessage;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 import com.github.lonelylockley.archinsight.parse.TreeListener;
@@ -27,19 +26,19 @@ import java.io.StringReader;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Controller("/compile")
-public class LinkerService {
+@Controller("/")
+public class TranslatorService {
 
-    private static final Logger logger = LoggerFactory.getLogger(LinkerService.class);
+    private static final Logger logger = LoggerFactory.getLogger(TranslatorService.class);
 
     public static void main(String[] args) {
-        Micronaut.run(LinkerService.class, args);
+        Micronaut.run(TranslatorService.class, args);
         logger.info("Linker server started");
     }
 
     private final HttpClientAddressResolver addressResolver;
 
-    public LinkerService(HttpClientAddressResolver addressResolver) {
+    public TranslatorService(HttpClientAddressResolver addressResolver) {
         this.addressResolver = addressResolver;
     }
 
@@ -72,27 +71,20 @@ public class LinkerService {
     @Post
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Source compile(HttpRequest<Source> request, Source data) throws Exception {
+    public Source translate(HttpRequest<Source> request, Source data) throws Exception {
         long startTime = System.nanoTime();
         var pr = parse(data.source);
         var messages = new Linker().checkIntegrity(pr);
         if (!messages.isEmpty()) {
-            throw new RuntimeException(String.format("Code contains errors: \n%s", messages.stream().map(LinkerMessage::toString).collect(Collectors.joining("\n"))));
+            throw new RuntimeException(String.format("Code contains errors: \n%s", messages
+                                                                                       .stream()
+                                                                                       .map(LinkerMessage::toString)
+                                                                                       .collect(Collectors.joining("\n"))
+            ));
         }
-        // === export ==================================================================================================
-        //var exp = new Exporter(descriptors, pr.getProjectName());
         var result = new Source();
-        if (pr.hasContext()) {
-            //result.setSource(exp.exportContext(Format.GRAPHVIZ));
-        }
-        else
-        if (pr.hasContainer()) {
-            //result.setSource(exp.exportContainer(Format.GRAPHVIZ));
-        }
-        else {
-            logger.warn("Linker engine did not create any layer");
-        }
-        logger.info("Access: /compile from {} required {}ms",
+        result.setSource(new GraphvizTranslator().translate(pr));
+        logger.info("Access: /translate from {} required {}ms",
                         addressResolver.resolve(request),
                         (System.nanoTime() - startTime) / 1000000
                     );

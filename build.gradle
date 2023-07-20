@@ -94,7 +94,7 @@ project('translator') {
     }
 
     tasks.named("dockerfile") {
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.CompilerService')
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.TranslatorService')
     }
 }
 
