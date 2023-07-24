@@ -43,8 +43,7 @@ allprojects {
             implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server', version: '10.0.15'
             implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api', version: '10.0.15'
             implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-servlet', version: '10.0.15'
-
-            compileOnly group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
+            implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
 
 
             testImplementation group: 'org.testng', name: 'testng', version: '6.14.3'
@@ -164,6 +163,7 @@ project('editor-ui') {
         implementation project(':common')
 
         implementation group: 'com.vaadin', name: 'vaadin-core'
+        implementation group: 'com.vaadin.external.atmosphere', name: 'atmosphere-runtime'
         implementation group: 'org.eclipse.jetty', name: 'jetty-server'
         implementation group: 'org.eclipse.jetty', name: 'jetty-webapp'
         implementation group: 'org.eclipse.jetty', name: 'jetty-plus'
@@ -171,7 +171,8 @@ project('editor-ui') {
         implementation group: 'org.eclipse.jetty', name: 'jetty-util'
         implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server'
         implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api'
-        compileOnly group: 'jakarta.servlet', name: 'jakarta.servlet-api'
+        implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api'
+        implementation group: 'io.micronaut', name: 'micronaut-http-client'
     }
 
     clean.doFirst {
@@ -256,7 +257,6 @@ project('editor-ui') {
 }
 
 project('bff') {
-    apply plugin: 'com.github.node-gradle.node'
     apply plugin: 'io.micronaut.application'
     apply plugin: 'io.micronaut.docker'
 

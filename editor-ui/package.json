@@ -118,8 +118,8 @@
     "@vaadin/vaadin-virtual-list": "23.3.10",
     "@vaadin/vertical-layout": "23.3.10",
     "@vaadin/virtual-list": "23.3.10",
-    "antlr4ts": "^0.5.0-alpha.4",
-    "antlr4ts-cli": "^0.5.0-alpha.4",
+    "antlr4ts": "latest",
+    "antlr4ts-cli": "latest",
     "construct-style-sheets-polyfill": "3.1.0",
     "date-fns": "2.29.3",
     "linked-list-typescript": "latest",
@@ -260,11 +260,11 @@
       "@vaadin/vaadin-virtual-list": "23.3.10",
       "@vaadin/vertical-layout": "23.3.10",
       "@vaadin/virtual-list": "23.3.10",
-      "antlr4ts": "latest",
-      "antlr4ts-cli": "latest",
+      "antlr4ts": "^0.5.0-alpha.4",
+      "antlr4ts-cli": "^0.5.0-alpha.4",
       "construct-style-sheets-polyfill": "3.1.0",
       "date-fns": "2.29.3",
-      "linked-list-typescript": "latest",
+      "linked-list-typescript": "^1.0.15",
       "lit": "2.6.1",
       "monaco-editor": "^0.40.0",
       "monaco-editor-core": "^0.40.0"
@@ -293,7 +293,7 @@
       "workbox-precaching": "6.5.4",
       "workbox-webpack-plugin": "6.5.0"
     },
-    "hash": "3517e98ad0f695c518e97e7ec9276874e1b00806eb02fb026c6eae9cee22d730"
+    "hash": "09cc16b667ab34b51e090d4a53023defeff564bc62e021361f36018600ed98d9"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -400,15 +400,13 @@
     "construct-style-sheets-polyfill": "$construct-style-sheets-polyfill",
     "lit": "$lit",
     "@polymer/polymer": "$@polymer/polymer",
-    "monaco-editor": "$monaco-editor",
     "date-fns": "$date-fns",
-    "monaco-editor-core": "$monaco-editor-core",
     "chokidar": "$chokidar",
-    "antlr4ts": "$antlr4ts",
-    "antlr4ts-cli": "$antlr4ts-cli",
     "node-polyfill-webpack-plugin": "$node-polyfill-webpack-plugin",
     "webpack-bundle-analyzer": "$webpack-bundle-analyzer",
     "ts-loader": "$ts-loader",
-    "mini-css-extract-plugin": "$mini-css-extract-plugin"
+    "mini-css-extract-plugin": "$mini-css-extract-plugin",
+    "monaco-editor": "$monaco-editor",
+    "monaco-editor-core": "$monaco-editor-core"
   }
 }

@@ -16,6 +16,15 @@ function initializeEditor(code: string) {
                                                                   value: code,
                                                               });
 
+interface RRR {
+    msg: string,
+    messages: {
+        level: string,
+        msg: string,
+        line: number,
+        characterPos: number
+    }[]
+}
 
     let timeout: number | undefined;
     editor.onDidChangeModelContent(() => {
@@ -27,6 +36,16 @@ function initializeEditor(code: string) {
             const errors = monaco.editor.getModelMarkers({})?.length;
             if (!errors && value) {
                 //getRender(value);
+                (container as any).$server.render(value).then(
+                    (value: string) => {
+                        var ttt: RRR = JSON.parse(value);
+                        console.log(value);
+                        console.log(ttt.messages);
+                    },
+                    (error: any) => {
+                        console.log(error);
+                    }
+                );
             }
         }, 1000);
     });

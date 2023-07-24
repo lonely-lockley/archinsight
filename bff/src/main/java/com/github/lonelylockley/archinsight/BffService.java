@@ -10,6 +10,7 @@ import io.micronaut.http.annotation.Post;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.util.HttpClientAddressResolver;
 import io.micronaut.runtime.Micronaut;
+import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,8 +18,8 @@ import org.slf4j.LoggerFactory;
 public class BffService {
 
     private static final Logger logger = LoggerFactory.getLogger(BffService.class);
-
-    private final HttpClientAddressResolver addressResolver;
+    @Inject
+    private HttpClientAddressResolver addressResolver;
     private final TranslatorClient translator;
     private final RendererClient renderer;
 
@@ -27,9 +28,8 @@ public class BffService {
         logger.info("BFF server started");
     }
 
-    public BffService(HttpClientAddressResolver addressResolver, TranslatorClient translator, RendererClient renderer) {
+    public BffService(TranslatorClient translator, RendererClient renderer) {
         this.translator = translator;
-        this.addressResolver = addressResolver;
         this.renderer = renderer;
     }
 

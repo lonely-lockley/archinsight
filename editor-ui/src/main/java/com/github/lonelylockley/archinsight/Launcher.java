@@ -1,18 +1,15 @@
 package com.github.lonelylockley.archinsight;
 
+import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.helger.commons.lang.ClassPathHelper;
 import com.vaadin.flow.server.VaadinServlet;
-import com.vaadin.flow.server.communication.PushAtmosphereHandler;
-import org.atmosphere.container.Jetty9WebSocketHandler;
-import org.atmosphere.cpr.AsynchronousProcessor;
+import io.micronaut.context.ApplicationContext;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.util.resource.ResourceCollection;
 import org.eclipse.jetty.webapp.Configuration;
 import org.eclipse.jetty.webapp.WebAppContext;
-import org.eclipse.jetty.websocket.server.JettyWebSocketServlet;
 import org.eclipse.jetty.websocket.server.config.JettyWebSocketConfiguration;
-import org.eclipse.jetty.websocket.server.config.JettyWebSocketServletContainerInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +26,6 @@ public final class Launcher {
     private static final Logger logger = LoggerFactory.getLogger(Launcher.class);
 
     public static void main(String[] args) throws Exception {
-        //com.vaadin.experimental.FeatureFlags
         logger.info("Starting embedded Jetty server...");
         Server server = new Server(8080);
 
