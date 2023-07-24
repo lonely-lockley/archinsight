@@ -5,6 +5,7 @@ plugins {
     id 'io.micronaut.minimal.application' version '3.4.0'
     id 'io.micronaut.docker' version '3.4.0'
     id 'com.github.node-gradle.node' version '3.3.0'
+    id 'com.vaadin' version '23.3.10'
 }
 
 compileJava {
@@ -18,19 +19,33 @@ allprojects {
     repositories {
         mavenLocal()
         mavenCentral()
+        maven { url = "https://maven.vaadin.com/vaadin-addons" }
     }
 
     dependencies {
         constraints {
-            implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.36'
-            implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.11'
+            implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
+            implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.4.8'
 
-            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: micronautVersion
-            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: micronautVersion
+            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.5.0'
+            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '3.5.0'
             implementation group: 'org.jgrapht', name: 'jgrapht-core', version: '1.5.1'
             implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler', version: '1.3.0'
             implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
             implementation group: 'org.apache.commons', name: 'commons-text', version: '1.10.0'
+
+            implementation group: 'com.vaadin', name: 'vaadin-core', version: '23.3.10'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-server', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-webapp', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-plus', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-annotations', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-util', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-servlet', version: '10.0.15'
+
+            compileOnly group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
+
 
             testImplementation group: 'org.testng', name: 'testng', version: '6.14.3'
         }
@@ -39,10 +54,6 @@ allprojects {
     clean.doFirst {
         delete 'out'
     }
-}
-
-micronaut {
-    version '3.5.0'
 }
 
 test {
@@ -147,10 +158,24 @@ project('editor-ui') {
     apply plugin: 'com.github.node-gradle.node'
     apply plugin: 'io.micronaut.application'
     apply plugin: 'io.micronaut.docker'
+    apply plugin: 'com.vaadin'
+
+    dependencies {
+        implementation project(':common')
+
+        implementation group: 'com.vaadin', name: 'vaadin-core'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-server'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-webapp'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-plus'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-annotations'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-util'
+        implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server'
+        implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api'
+        compileOnly group: 'jakarta.servlet', name: 'jakarta.servlet-api'
+    }
 
     clean.doFirst {
-        delete "${buildDir}"
-        delete "node_modules"
+        delete "frontend/generated/insight-lang"
     }
 
     task antlr(type: NpmTask) {
@@ -160,7 +185,7 @@ project('editor-ui') {
         doLast {
             def substs = new Properties()
             file("${project.rootDir}/insight-lang/src/main/antlr/typescript_substitutions.properties").withInputStream { substs.load(it) }
-            FileTree antlrFiles = fileTree("${buildDir}/insight-lang") {
+            FileTree antlrFiles = fileTree("frontend/generated/insight-lang") {
                 include "**/*.ts"
             }
             antlrFiles.each { File antlrSrc ->
@@ -175,7 +200,7 @@ project('editor-ui') {
             }
         }
     }
-
+/*
     tasks.named("dockerfile") {
         dependsOn(antlr)
     }
@@ -217,7 +242,7 @@ project('editor-ui') {
     tasks.named("dockerBuild") {
         images = ["lonelylockley/archinsight:$project.name-$project.version"]
     }
-
+*/
     task runDev(type: NpmTask) {
         dependsOn(npmInstall)
         args = ['run', 'build:dev']

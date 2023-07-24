@@ -26,6 +26,8 @@ out
 
 # Ignore node modules cache
 node_modules
+dev-bundle
+generated
 
 # Ignore mac-related
 .DS_Store

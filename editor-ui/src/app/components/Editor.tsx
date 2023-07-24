@@ -43,6 +43,8 @@ const Editor: FC = () => {
     }
   }, []);
 
+  const { compileErrors } = useReducer((state) => )
+
   return <div style={{ height: '100%', overflow: 'hidden' }} ref={container} />;
 };
 
