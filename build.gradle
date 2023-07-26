@@ -33,6 +33,7 @@ allprojects {
             implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler', version: '1.3.0'
             implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
             implementation group: 'org.apache.commons', name: 'commons-text', version: '1.10.0'
+            implementation group: 'com.google.guava', name: 'guava', version: '32.1.1-jre'
 
             implementation group: 'com.vaadin', name: 'vaadin-core', version: '23.3.10'
             implementation group: 'org.eclipse.jetty', name: 'jetty-server', version: '10.0.15'
@@ -173,6 +174,7 @@ project('editor-ui') {
         implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api'
         implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api'
         implementation group: 'io.micronaut', name: 'micronaut-http-client'
+        implementation group: 'com.google.guava', name: 'guava'
     }
 
     clean.doFirst {
@@ -243,7 +245,7 @@ project('editor-ui') {
     tasks.named("dockerBuild") {
         images = ["lonelylockley/archinsight:$project.name-$project.version"]
     }
-*/
+
     task runDev(type: NpmTask) {
         dependsOn(npmInstall)
         args = ['run', 'build:dev']
@@ -253,26 +255,5 @@ project('editor-ui') {
         dependsOn(npmInstall)
         args = ['run', 'build:prod']
     }
-
-}
-
-project('bff') {
-    apply plugin: 'io.micronaut.application'
-    apply plugin: 'io.micronaut.docker'
-
-    dependencies {
-        implementation project(':common')
-
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
-        implementation group: 'io.micronaut', name: 'micronaut-http-client'
-    }
-
-    tasks.named("dockerBuild") {
-        images = ["lonelylockley/archinsight:$project.name-$project.version"]
-    }
-
-    tasks.named("dockerfile") {
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.BffService')
-    }
-
+*/
 }

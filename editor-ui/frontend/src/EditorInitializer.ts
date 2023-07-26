@@ -1,11 +1,14 @@
 import * as monaco from 'monaco-editor-core';
-import setupLanguage from './lang-service/setup'
+import setupLanguage from './lang-service/setup';
+import Renderer from './render/Renderer';
 
 const _global = (window) as any
+const renderClient: Renderer = new Renderer();
 
 function initializeEditor(code: string) {
     setupLanguage();
     const container: HTMLElement = document.getElementById('editor')!;
+    const svg: HTMLElement = document.getElementById('svg')!;
     const editor: monaco.editor.IStandaloneCodeEditor = monaco.editor.create(container, {
                                                                   language: 'insight',
                                                                   minimap: { enabled: true },
@@ -16,15 +19,7 @@ function initializeEditor(code: string) {
                                                                   value: code,
                                                               });
 
-interface RRR {
-    msg: string,
-    messages: {
-        level: string,
-        msg: string,
-        line: number,
-        characterPos: number
-    }[]
-}
+
 
     let timeout: number | undefined;
     editor.onDidChangeModelContent(() => {
@@ -35,24 +30,14 @@ interface RRR {
         timeout = window.setTimeout(() => {
             const errors = monaco.editor.getModelMarkers({})?.length;
             if (!errors && value) {
-                //getRender(value);
-                (container as any).$server.render(value).then(
-                    (value: string) => {
-                        var ttt: RRR = JSON.parse(value);
-                        console.log(value);
-                        console.log(ttt.messages);
-                    },
-                    (error: any) => {
-                        console.log(error);
-                    }
-                );
+                renderClient.remoteRender(container, value);
             }
         }, 1000);
     });
 
-    //if (code) {
-        //getRender(code);
-    //}
+    if (code) {
+        renderClient.remoteRender(container, code);
+    }
     _global.editor = editor;
 
     fetch('/themes/Cobalt2.json')

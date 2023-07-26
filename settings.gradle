@@ -1,2 +1,2 @@
 rootProject.name = 'archinsight'
-include 'common', 'insight-lang', 'translator', 'renderer', 'editor-ui', 'repository', 'bff'
+include 'common', 'insight-lang', 'translator', 'renderer', 'editor-ui', 'repository'
