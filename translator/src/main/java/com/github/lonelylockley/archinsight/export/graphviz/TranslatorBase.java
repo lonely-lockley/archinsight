@@ -1,8 +1,8 @@
 package com.github.lonelylockley.archinsight.export.graphviz;
 
-import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.elements.BoundaryElement;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
+import org.apache.commons.text.WordUtils;
 
 import java.util.Map;
 
@@ -18,6 +18,15 @@ public abstract class TranslatorBase {
         }
         else {
             return source.replaceAll("\n", "<br/>");
+        }
+    }
+
+    private String wrapTextIfNotFormatted(String text) {
+        if (text ==null || text.contains("\n")) {
+            return text;
+        }
+        else {
+            return WordUtils.wrap(text, 50);
         }
     }
 
@@ -39,7 +48,7 @@ public abstract class TranslatorBase {
             if (bracketed) {
                 sb.append("[ ");
             }
-            sb.append(multilineEscape(text));
+            sb.append(multilineEscape(wrapTextIfNotFormatted(text)));
             if (bracketed) {
                 sb.append(" ]");
             }

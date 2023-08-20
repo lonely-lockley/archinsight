@@ -96,6 +96,7 @@ project('translator') {
 
         implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
         implementation group: 'com.github.lonely-lockley', name: 'ltsv-parser'
+        implementation group: 'org.apache.commons', name: 'commons-text'
     }
 
     tasks.named("dockerBuild") {
