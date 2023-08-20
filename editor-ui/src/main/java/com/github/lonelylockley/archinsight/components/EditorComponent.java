@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.components;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.model.MessageLevel;
@@ -27,7 +29,7 @@ public class EditorComponent extends Div {
 
     public EditorComponent() {
         setId("editor");
-        UI.getCurrent().getPage().executeJs("initializeEditor($0)", "");
+        UI.getCurrent().getPage().executeJs("initializeEditor($0)", "context tms\n-");
     }
     @ClientCallable
     public void render(String code) {
@@ -35,12 +37,11 @@ public class EditorComponent extends Div {
         try {
             res = rs.render(code);
             if (res.getMessages() == null || res.getMessages().isEmpty()) {
-//                ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-//                return ow.writeValueAsString(res);
-                Communication.getBus().post(new SvgDataEvent(res.source));
+                Communication.getBus().post(new SvgDataEvent(res.getSource()));
             }
             else {
-                res.getMessages().forEach(e -> { new ErrorNotificationComponent(e.getMsg(), MessageLevel.ERROR); });
+                ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+                getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(res.getMessages()));
             }
         }
         catch (Exception ex) {

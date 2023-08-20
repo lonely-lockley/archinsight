@@ -1,5 +1,8 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
+import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -7,7 +10,7 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
 
     private static final ElementType type = ElementType.SYSTEM;
 
-    private final Map<String, String> annotations = new HashMap<>();
+    private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
     private final List<AbstractElement> children = new ArrayList<>();
 
     private String id;
@@ -82,17 +85,17 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     }
 
     @Override
-    public void addAllAnnotations(Map<String, String> annotations) {
+    public void addAllAnnotations(List<AbstractAnnotation> annotations) {
         annotations.forEach(this::addAnnotation);
     }
 
     @Override
-    public void addAnnotation(String name, String value) {
-        annotations.put(name, value);
+    public void addAnnotation(AbstractAnnotation annotation) {
+        annotations.put(annotation.getAnnotationType(), annotation);
     }
 
     @Override
-    public Map<String, String> getAnnotations() {
+    public Map<AnnotationType, AbstractAnnotation> getAnnotations() {
         return annotations;
     }
 

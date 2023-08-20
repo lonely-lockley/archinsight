@@ -29,7 +29,7 @@ export class InsightTokensProvider implements TokensProvider {
     'CONTAINER',
     'SYSTEM',
     'EXTERNAL',
-    'PERSON',
+    'ACTOR',
     'SERVICE',
     'STORAGE',
     'MODULE',

@@ -58,7 +58,7 @@ public class TranslatorService {
     @Produces(MediaType.APPLICATION_JSON)
     public TranslatedSource translate(HttpRequest<Source> request, Source data) throws Exception {
         long startTime = System.nanoTime();
-        var pr = parse(data.source);
+        var pr = parse(data.getSource());
         var messages = new Linker().checkIntegrity(pr);
         var result = new TranslatedSource();
         if (!messages.isEmpty()) {

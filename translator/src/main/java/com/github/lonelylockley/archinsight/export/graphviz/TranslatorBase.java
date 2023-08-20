@@ -4,6 +4,8 @@ import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.elements.BoundaryElement;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 
+import java.util.Map;
+
 public abstract class TranslatorBase {
 
     public static final String empty(String project) {
@@ -51,11 +53,11 @@ public abstract class TranslatorBase {
         }
     }
 
-    private void writeProperties(StringBuilder sb, Tuple2<String, String>... properties) {
-        for (Tuple2<String, String> prop: properties) {
-            sb.append(prop._1);
+    private void writeProperties(StringBuilder sb, Map<String, String> properties) {
+        for (Map.Entry<String, String> prop: properties.entrySet()) {
+            sb.append(prop.getKey());
             sb.append("=\"");
-            sb.append(prop._2);
+            sb.append(prop.getValue());
             sb.append("\",");
         }
         sb.setLength(sb.length() - 1);
@@ -78,7 +80,7 @@ public abstract class TranslatorBase {
         sb.append("}");
     }
 
-    protected void writeBlock(StringBuilder sb, String id, String name, String tech, String desc, int level, Tuple2<String, String>... properties) {
+    protected void writeBlock(StringBuilder sb, String id, String name, String tech, String desc, int level, Map<String, String> properties) {
         String indent = "  ".repeat(level);
         sb.append(indent);
         sb.append(id);
@@ -91,7 +93,7 @@ public abstract class TranslatorBase {
         sb.append("]\n");
     }
 
-    protected void writeConnection(StringBuilder sb, LinkElement lm, Tuple2<String, String>... properties) {
+    protected void writeConnection(StringBuilder sb, LinkElement lm, Map<String, String> properties) {
         sb.append("  ");
         sb.append(lm.getFrom());
         sb.append(" -> ");

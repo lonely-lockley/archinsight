@@ -36,7 +36,7 @@ public class RenderService {
         var startTime = System.nanoTime();
         var result = new byte[0];
         try (var renderer = new GraphvizRenderer()) {
-            renderer.writeInput(data.source);
+            renderer.writeInput(data.getSource());
             result = renderer.render(outputFormat);
         }
         logger.info("Access: /render/{} from {} required {}ms",

@@ -1,6 +1,10 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
-import java.util.HashMap;
+import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
+import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
+
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -8,7 +12,7 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
 
     private static final ElementType type = ElementType.LINK;
 
-    private final Map<String, String> annotations = new HashMap<>();
+    private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
 
     private String from;
     private String to;
@@ -76,17 +80,17 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     }
 
     @Override
-    public void addAllAnnotations(Map<String, String> annotations) {
+    public void addAllAnnotations(List<AbstractAnnotation> annotations) {
         annotations.forEach(this::addAnnotation);
     }
 
     @Override
-    public void addAnnotation(String name, String value) {
-        annotations.put(name, value);
+    public void addAnnotation(AbstractAnnotation annotation) {
+        annotations.put(annotation.getAnnotationType(), annotation);
     }
 
     @Override
-    public Map<String, String> getAnnotations() {
+    public Map<AnnotationType, AbstractAnnotation> getAnnotations() {
         return annotations;
     }
 

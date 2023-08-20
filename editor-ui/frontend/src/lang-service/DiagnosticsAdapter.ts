@@ -15,7 +15,7 @@ class DiagnosticsAdapter {
         handle = window.setTimeout(() => this.validate(model.uri), 500);
       });
 
-      // this.validate(model.uri);
+      this.validate(model.uri);
     };
     monaco.editor.onDidCreateModel(onModelAdd);
     monaco.editor.getModels().forEach(onModelAdd);

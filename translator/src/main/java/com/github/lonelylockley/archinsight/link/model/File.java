@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.link.model;
 
-import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
+import com.github.lonelylockley.archinsight.parse.WithSource;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 import com.github.lonelylockley.archinsight.model.elements.WithId;
 
@@ -11,11 +11,11 @@ import java.util.Set;
 public class File {
 
     private final ArrayList<String> imports = new ArrayList<>();
-    private final Set<AbstractElement> declarations = new HashSet<>();
+    private final Set<WithSource> declarations = new HashSet<>();
     private final Set<String> declaredIdentifiers = new HashSet<>();
     private final Set<LinkElement> connections = new HashSet<>();
 
-    public void declare(AbstractElement el) {
+    public void declare(WithSource el) {
         declarations.add(el);
         declaredIdentifiers.add(((WithId) el).getId());
     }
@@ -28,7 +28,7 @@ public class File {
         return imports;
     }
 
-    public Set<AbstractElement> getDeclarations() {
+    public Set<WithSource> getDeclarations() {
         return declarations;
     }
 
@@ -36,7 +36,7 @@ public class File {
         return connections;
     }
 
-    public boolean isDeclared(AbstractElement el) {
+    public boolean isDeclared(WithSource el) {
         return declarations.contains(el);
     }
 

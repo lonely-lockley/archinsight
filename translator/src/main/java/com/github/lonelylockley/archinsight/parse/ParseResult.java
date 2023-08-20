@@ -3,7 +3,6 @@ package com.github.lonelylockley.archinsight.parse;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
-import com.github.lonelylockley.archinsight.model.elements.WithId;
 import com.github.lonelylockley.archinsight.model.elements.WithParameters;
 
 import java.util.List;

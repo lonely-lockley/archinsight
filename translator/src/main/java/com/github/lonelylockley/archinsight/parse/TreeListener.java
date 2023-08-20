@@ -1,5 +1,9 @@
 package com.github.lonelylockley.archinsight.parse;
 
+import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
+import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
+import com.github.lonelylockley.archinsight.model.annotations.DeprecatedAnnotation;
+import com.github.lonelylockley.archinsight.model.annotations.PlannedAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import com.github.lonelylockley.insight.lang.InsightParser;
@@ -36,6 +40,14 @@ public class TreeListener implements ParseTreeListener {
                 break;
             case InsightLexer.EXTERNAL:
                 ctx.getCurrentElementWithExternal().setExternal();
+                break;
+            case InsightLexer.ATTRIBUTE:
+            case InsightLexer.PLANNED:
+            case InsightLexer.DEPRECATED:
+                ctx.getCurrentAnnotation().setSource(tkn);
+                break;
+            case InsightLexer.ANNOTATION_VALUE:
+                ctx.getCurrentAnnotation().setValue(tkn.getText());
                 break;
             default:
                 break;
@@ -101,6 +113,18 @@ public class TreeListener implements ParseTreeListener {
                 ctx.getCurrentElementWithChildren().addChild(le);
                 ctx.startNewElement(le);
                 break;
+            case InsightParser.RULE_attributeAnnotationDeclaration:
+                AttributeAnnotation aa = new AttributeAnnotation();
+                ctx.startNewAnnotation(aa);
+                break;
+            case InsightParser.RULE_plannedAnnotationDeclaration:
+                PlannedAnnotation pa = new PlannedAnnotation();
+                ctx.startNewAnnotation(pa);
+                break;
+            case InsightParser.RULE_deprecatedAnnotationDeclaration:
+                DeprecatedAnnotation da = new DeprecatedAnnotation();
+                ctx.startNewAnnotation(da);
+                break;
             default:
                 break;
         }
@@ -128,6 +152,11 @@ public class TreeListener implements ParseTreeListener {
                 break;
             case InsightParser.RULE_technologyParameter:
                 ctx.getCurrentElementWithParams().setTechnology(ctx.getCurrentText());
+                break;
+            case InsightParser.RULE_attributeAnnotationDeclaration:
+            case InsightParser.RULE_plannedAnnotationDeclaration:
+            case InsightParser.RULE_deprecatedAnnotationDeclaration:
+                ctx.getCurrentElementsWithAnnotations().addAnnotation(ctx.getCurrentAnnotation());
                 break;
             default:
                 break;

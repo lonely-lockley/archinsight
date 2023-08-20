@@ -62,7 +62,9 @@ STORAGE     : ('storage')          -> pushMode(IDENTIFIER_MODE) ;
 BOUNDARY    : ('boundary')         -> pushMode(IDENTIFIER_MODE) ;
 
 /* Annotations */
-ANNOTATION_NAME : ('attribute') ;
+ATTRIBUTE : ('@attribute') ;
+PLANNED : ('@planned') ;
+DEPRECATED : ('@deprecated') ;
 
 fragment LowerLetter  : 'a'..'z' ;
 fragment Letter       : 'a'..'z' | 'A'..'Z' ;
@@ -79,7 +81,6 @@ EOL              : { /* <position> */ getCharPositionInLine() /* </position> */ 
 EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Nl -> skip  ;
 BLANK            : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Ws+ -> channel(HIDDEN) ;
 INDENTATION      : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Ws+ -> channel(HIDDEN) ;
-ANNOTATION       : '@' ANNOTATION_NAME ;
 ANNOTATION_VALUE : OpenBracket ( ~[)] )* CloseBracket ;
 COMMENT          : '#' .*? (EOL | EOF) ;
 

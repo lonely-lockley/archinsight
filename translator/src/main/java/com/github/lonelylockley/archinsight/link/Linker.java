@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.model.LinkerMessage;
 import com.github.lonelylockley.archinsight.model.MessageLevel;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
+import com.github.lonelylockley.archinsight.parse.WithSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +16,7 @@ public class Linker {
 
     private static final Logger logger = LoggerFactory.getLogger(Linker.class);
 
-    public void copyPosition(LinkerMessage lm, AbstractElement el) {
+    public void copyPosition(LinkerMessage lm, WithSource el) {
         lm.setCharPosition(el.getCharPosition());
         lm.setLine(el.getLine());
         lm.setStartIndex(el.getStartIndex());

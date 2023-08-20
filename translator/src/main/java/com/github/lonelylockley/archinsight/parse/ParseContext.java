@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.parse;
 
+import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
 
 import java.util.LinkedList;
@@ -8,11 +9,20 @@ public class ParseContext {
 
     private final LinkedList<AbstractElement> tree = new LinkedList<>();
     private AbstractElement currentElement = null;
+    private AbstractAnnotation currentAnnotation = null;
     private StringBuilder currentText = null;
 
     public void startNewElement(AbstractElement element) {
         tree.push(element);
         currentElement = element;
+    }
+
+    public void startNewAnnotation(AbstractAnnotation annotation) {
+        this.currentAnnotation = annotation;
+    }
+
+    public AbstractAnnotation getCurrentAnnotation() {
+        return currentAnnotation;
     }
 
     public void finishElement() {

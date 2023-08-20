@@ -13,12 +13,13 @@ public class MenuBarComponent extends MenuBar {
 
         var item = addItem("Save Source", listener);
         item.setId("menu_btn_save");
-        item = addItem("Export", listener);
+        item = addItem("Export Image", listener);
         item.setId("menu_btn_export");
             var exportSubMenu = item.getSubMenu();
             exportSubMenu.addItem("as SVG",listener);
             exportSubMenu.addItem("as PNG", listener);
             exportSubMenu.addItem("as JSON", listener);
+            exportSubMenu.addItem("as DOT", listener);
         item = addItem("[ + ", listener);
         item.setId("menu_btn_plus");
         item = addItem(" 0 ", listener);
