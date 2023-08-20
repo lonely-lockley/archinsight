@@ -7,11 +7,9 @@ import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotatio
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class GraphvizTranslator extends TranslatorBase {
 
@@ -70,6 +68,9 @@ public class GraphvizTranslator extends TranslatorBase {
                         new Tuple2<>("fillcolor", "#438dd5"))
                     );
                 }
+                if (se.getNote() != null) {
+                    writeNote(se, se, sb, level);
+                }
                 break;
             case ACTOR:
                 var act = (ActorElement) el;
@@ -80,6 +81,9 @@ public class GraphvizTranslator extends TranslatorBase {
                         new Tuple2<>("style", "filled"),
                         new Tuple2<>("fillcolor", "#08427B"))
                 );
+                if (act.getNote() != null) {
+                    writeNote(act, act, sb, level);
+                }
                 break;
             case STORAGE:
                 var stor = (StorageElement) el;
@@ -101,10 +105,39 @@ public class GraphvizTranslator extends TranslatorBase {
                             new Tuple2<>("fillcolor", "#08427B"))
                     );
                 }
+                if (stor.getNote() != null) {
+                    writeNote(stor, stor, sb, level);
+                }
                 break;
             default:
                 break;
         }
+    }
+
+    private void writeNote(WithId wid, WithNote wn, StringBuilder sb, int level) {
+        var id = wid.getId() + "_note";
+        var text = wn.getNote().substring(1).trim();
+        writeBlock(sb, id, null, null, text, level, Stream.of(
+                            new Tuple2<>("shape", "note"),
+                            new Tuple2<>("style", "filled"),
+                            new Tuple2<>("fillcolor", "#faf6a2"),
+                            new Tuple2<>("fontcolor", "#000000"),
+                            new Tuple2<>("color", "#edce07")
+                        )
+                        .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
+        );
+        var c = new LinkElement();
+        c.setFrom(id);
+        c.setTo(wid.getId());
+        writeConnection(sb, c, Stream.of(
+                                new Tuple2<>("color", "#edce07"),
+                                new Tuple2<>("dir", "none"),
+                                new Tuple2<>("penwidth", "1"),
+                                new Tuple2<>("minlen", "0.2"),
+                                new Tuple2<>("maxlen", "1")
+                            )
+                            .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
+        );
     }
 
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {

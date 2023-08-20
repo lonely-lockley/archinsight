@@ -36,7 +36,7 @@ contextElementDeclaration
     ;
 
 systemDeclaration
-    :    annotationDeclaration* EXTERNAL? SYSTEM IDENTIFIER (commentDeclaration | EOL) systemParameters
+    :    annotationDeclaration* EXTERNAL? SYSTEM IDENTIFIER (noteDeclaration | EOL) systemParameters
     ;
 
 systemParameters
@@ -44,7 +44,7 @@ systemParameters
     ;
 
 actorDeclaration
-    :    annotationDeclaration* ACTOR IDENTIFIER (commentDeclaration | EOL) actorParameters
+    :    annotationDeclaration* ACTOR IDENTIFIER (noteDeclaration | EOL) actorParameters
     ;
 
 actorParameters
@@ -80,7 +80,7 @@ containerElementDeclaration
     ;
 
 serviceDeclaration
-    :    annotationDeclaration* EXTERNAL? SERVICE IDENTIFIER (commentDeclaration | EOL) serviceParameters
+    :    annotationDeclaration* EXTERNAL? SERVICE IDENTIFIER (noteDeclaration | EOL) serviceParameters
     ;
 
 serviceParameters
@@ -88,7 +88,7 @@ serviceParameters
     ;
 
 storageDeclaration
-    :    annotationDeclaration* EXTERNAL? STORAGE IDENTIFIER (commentDeclaration | EOL) storageParameters
+    :    annotationDeclaration* EXTERNAL? STORAGE IDENTIFIER (noteDeclaration | EOL) storageParameters
     ;
 
 storageParameters
@@ -172,5 +172,9 @@ deprecatedAnnotationDeclaration
     ;
 
 commentDeclaration
+    :    COMMENT
+    ;
+
+noteDeclaration
     :    COMMENT
     ;

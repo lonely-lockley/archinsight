@@ -6,7 +6,7 @@ import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ActorElement extends AbstractElement implements WithId, WithParameters, WithAnnotations, WithChildElements {
+public class ActorElement extends AbstractElement implements WithId, WithParameters, WithAnnotations, WithChildElements, WithNote {
 
     private static final ElementType type = ElementType.ACTOR;
 
@@ -17,6 +17,7 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     private String name;
     private String description;
     private String technology;
+    private String note;
 
     @Override
     public void addChild(AbstractElement child) {
@@ -110,5 +111,15 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    @Override
+    public void setNote(String note) {
+        this.note = note;
+    }
+
+    @Override
+    public String getNote() {
+        return note;
     }
 }

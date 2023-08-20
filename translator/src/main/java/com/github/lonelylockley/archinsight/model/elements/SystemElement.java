@@ -6,7 +6,7 @@ import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class SystemElement extends AbstractElement implements WithId, WithParameters, WithAnnotations, WithExternal, WithChildElements {
+public class SystemElement extends AbstractElement implements WithId, WithParameters, WithAnnotations, WithExternal, WithChildElements, WithNote {
 
     private static final ElementType type = ElementType.SYSTEM;
 
@@ -18,6 +18,7 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     private String description;
     private String technology;
     private boolean external;
+    private String note;
 
     @Override
     public void addChild(AbstractElement child) {
@@ -122,5 +123,15 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    @Override
+    public void setNote(String note) {
+        this.note = note;
+    }
+
+    @Override
+    public String getNote() {
+        return note;
     }
 }

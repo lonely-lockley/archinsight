@@ -1,6 +1,5 @@
 package com.github.lonelylockley.archinsight.parse;
 
-import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.DeprecatedAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.PlannedAnnotation;
@@ -48,6 +47,11 @@ public class TreeListener implements ParseTreeListener {
                 break;
             case InsightLexer.ANNOTATION_VALUE:
                 ctx.getCurrentAnnotation().setValue(tkn.getText());
+                break;
+            case InsightLexer.COMMENT:
+                if (ctx.commentIsNote()) {
+                    ctx.getCurrentElementWithNote().setNote(tkn.getText());
+                }
                 break;
             default:
                 break;
@@ -125,6 +129,9 @@ public class TreeListener implements ParseTreeListener {
                 DeprecatedAnnotation da = new DeprecatedAnnotation();
                 ctx.startNewAnnotation(da);
                 break;
+            case InsightParser.RULE_noteDeclaration:
+                ctx.nextCommentIsNote();
+                break;
             default:
                 break;
         }
@@ -157,6 +164,9 @@ public class TreeListener implements ParseTreeListener {
             case InsightParser.RULE_plannedAnnotationDeclaration:
             case InsightParser.RULE_deprecatedAnnotationDeclaration:
                 ctx.getCurrentElementsWithAnnotations().addAnnotation(ctx.getCurrentAnnotation());
+                break;
+            case InsightParser.RULE_noteDeclaration:
+                ctx.resetNoteFlag();
                 break;
             default:
                 break;

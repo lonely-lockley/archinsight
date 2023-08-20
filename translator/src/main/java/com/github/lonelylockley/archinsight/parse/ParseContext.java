@@ -11,6 +11,7 @@ public class ParseContext {
     private AbstractElement currentElement = null;
     private AbstractAnnotation currentAnnotation = null;
     private StringBuilder currentText = null;
+    private boolean nextCommentIsNote = false;
 
     public void startNewElement(AbstractElement element) {
         tree.push(element);
@@ -43,6 +44,18 @@ public class ParseContext {
         return currentText.toString();
     }
 
+    public void nextCommentIsNote() {
+        nextCommentIsNote = true;
+    }
+
+    public boolean commentIsNote() {
+        return nextCommentIsNote;
+    }
+
+    public void resetNoteFlag() {
+        nextCommentIsNote = false;
+    }
+
     public AbstractElement getCurrentElement() {
         return currentElement;
     }
@@ -69,6 +82,10 @@ public class ParseContext {
 
     public WithExternal getCurrentElementWithExternal() {
         return (WithExternal) currentElement;
+    }
+
+    public WithNote getCurrentElementWithNote() {
+        return (WithNote) currentElement;
     }
 
 }
