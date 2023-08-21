@@ -1,18 +1,20 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.helger.commons.lang.ClassPathHelper;
 import com.vaadin.flow.server.VaadinServlet;
-import io.micronaut.context.ApplicationContext;
+import com.vaadin.flow.server.startup.ServletDeployer;
+import org.eclipse.jetty.annotations.AnnotationConfiguration;
+import org.eclipse.jetty.plus.webapp.EnvConfiguration;
+import org.eclipse.jetty.plus.webapp.PlusConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.util.resource.Resource;
 import org.eclipse.jetty.util.resource.ResourceCollection;
-import org.eclipse.jetty.webapp.Configuration;
-import org.eclipse.jetty.webapp.WebAppContext;
+import org.eclipse.jetty.webapp.*;
 import org.eclipse.jetty.websocket.server.config.JettyWebSocketConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.servlet.ServletContextEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,9 +57,6 @@ public final class Launcher {
         context.setAttribute("org.eclipse.jetty.server.webapp.ContainerIncludeJarPattern", ".*");
 
         context.setParentLoaderPriority(true);
-        context.getConfigurations().add(new Configuration[] {
-                new JettyWebSocketConfiguration()
-        });
         server.setHandler(context);
 
         // This add jars to the jetty classpath in a certain syntax and the pattern makes sure to load all of them
@@ -72,10 +71,10 @@ public final class Launcher {
         }
 
         // It adds the web application resources. Styles, client-side components, ...
-        resourceList.add(Resource.newResource("editor-ui/frontend"));
+        context.setBaseResource(Resource.newResource("editor-ui/frontend"));
 
         // The base resource is where jetty serves its static content from
-        context.setBaseResource(new ResourceCollection(resourceList.toArray(new Resource[0])));
+        context.setExtraClasspath(resourceList);
 
         server.start();
         logger.info("Server started at port 8080");

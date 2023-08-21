@@ -55,6 +55,10 @@ allprojects {
     }
 }
 
+def checkBuildMode() {
+    return System.getenv("DEV_MODE") != "true"
+}
+
 test {
     useJUnitPlatform()
 }
@@ -202,57 +206,47 @@ project('editor-ui') {
             }
         }
     }
-/*
-    tasks.named("dockerfile") {
-        dependsOn(antlr)
-    }
 
-    dockerfile.doLast {
-        copy {
-            from "dockerfile_template"
-            into "${buildDir}/docker/main"
-            rename "dockerfile_template", "Dockerfile"
-        }
-        copy {
-            from "run"
-            into "${buildDir}/docker/main/run"
-        }
-        copy {
-            from "src"
-            into "${buildDir}/docker/main/src"
-        }
-        copy {
-            from "static"
-            into "${buildDir}/docker/main/static"
-        }
-        copy {
-            from "."
-            include "*.json"
-            into "${buildDir}/docker/main"
-        }
-        copy {
-            from "${buildDir}/insight-lang"
-            into "${buildDir}/docker/main/build/insight-lang"
-        }
-        copy {
-            from "webpack.config.js"
-            into "${buildDir}/docker/main"
-        }
-        delete("${buildDir}/docker/main/layers")
+    tasks.named("vaadinBuildFrontend") {
+        dependsOn(antlr)
     }
 
     tasks.named("dockerBuild") {
         images = ["lonelylockley/archinsight:$project.name-$project.version"]
     }
 
-    task runDev(type: NpmTask) {
-        dependsOn(npmInstall)
-        args = ['run', 'build:dev']
+    vaadin {
+        pnpmEnable = false
+        productionMode = checkBuildMode()
+        generateBundle(checkBuildMode())
+        optimizeBundle(checkBuildMode())
+        vaadinBuildFrontend
     }
 
-    task runProd(type: NpmTask) {
-        dependsOn(npmInstall)
-        args = ['run', 'build:prod']
+    tasks.named("dockerfile") {
+        copyFile('layers/editor-ui', '/home/app/editor-ui')
+        runCommand('apk add --update --no-cache graphviz ttf-freefont')
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar:libs/*", 'com.github.lonelylockley.archinsight.Launcher')
     }
-*/
+
+    dockerfile.doLast {
+        copy {
+            from "${buildDir}/docker/main/layers/resources/META-INF/VAADIN/webapp"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/"
+        }
+        copy {
+            from "frontend/icons"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/icons"
+        }
+        copy {
+            from "frontend/themes"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/themes"
+        }
+        copy {
+            from "frontend"
+            include "*.ico"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/"
+        }
+    }
+
 }
