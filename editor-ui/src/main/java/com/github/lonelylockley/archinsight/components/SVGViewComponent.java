@@ -23,7 +23,6 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
         Communication.getBus().register(new Object() {
             @Subscribe
             public void receiveSvgData(SvgDataEvent e) {
-                logger.info(e.getSvgData());
                 getElement().setProperty("innerHTML", e.getSvgData());
             }
         });
