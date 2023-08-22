@@ -1,33 +1,16 @@
 import { ANTLRInputStream, Token } from 'antlr4ts';
 import { languages } from 'monaco-editor';
+import * as monaco from 'monaco-editor-core';
+import React, { FC, useEffect, useRef } from 'react';
 
 import { InsightLexer } from '../../../build/insight-lang/InsightLexer';
+import LexerState from './LexerState';
 
 import TokensProvider = languages.TokensProvider;
 import IState = languages.IState;
 
 import EOF = Token.EOF;
 import IToken = languages.IToken;
-
-class MultilineState implements IState {
-  readonly previousMode: number;
-
-  constructor(previousMode: number) {
-    this.previousMode = previousMode;
-  }
-
-  clone(): IState {
-    return new MultilineState(this.previousMode);
-  }
-
-  equals(that: IState): boolean {
-    if (that instanceof MultilineState) {
-      return this.previousMode === that.previousMode;
-    } else {
-      return false;
-    }
-  }
-}
 
 class InsightToken implements IToken {
   readonly scopes: string;
@@ -52,25 +35,25 @@ export class InsightTokensProvider implements TokensProvider {
     'STORAGE',
     'MODULE',
     'CONTAINS',
+    'BOUNDARY'
   ]);
   parameters = new Set(['NAME', 'DESCRIPTION', 'TECHNOLOGY']);
   identifier = new Set(['PROJECTNAME', 'IDENTIFIER']);
   operator = new Set(['EQ', 'LINKS']);
 
   getInitialState(): languages.IState {
-    return new MultilineState(InsightLexer.DEFAULT_MODE);
+    return new LexerState(InsightLexer.TEXT);
   }
 
   tokenize(line: string, state: IState): languages.ILineTokens {
-    const inputStream = new ANTLRInputStream('\n' + line);
+    const inputStream = new ANTLRInputStream(line);
     const lexer = new InsightLexer(inputStream);
+    lexer.enableSingleLineMode();
     lexer.removeErrorListeners();
-    if (state instanceof MultilineState) {
-      lexer.pushMode(state.previousMode);
-    }
+    lexer.restoreState(state as LexerState);
+
     const tokens: InsightToken[] = [];
     let grammarToken;
-    let nextMode: number = InsightLexer.DEFAULT_MODE;
 
     while ((grammarToken = lexer.nextToken()) != null) {
       if (grammarToken.type == EOF) {
@@ -82,22 +65,16 @@ export class InsightTokensProvider implements TokensProvider {
 
         if (this.keywords.has(tokenTypeName)) {
           editorType = 'type';
-          nextMode = InsightLexer.DEFAULT_MODE;
         } else if (this.parameters.has(tokenTypeName)) {
           editorType = 'parameter';
-          nextMode = InsightLexer.DEFAULT_MODE;
         } else if (this.identifier.has(tokenTypeName)) {
           editorType = 'variable';
-          nextMode = InsightLexer.DEFAULT_MODE;
         } else if (tokenTypeName === 'TEXT') {
           editorType = 'string';
-          nextMode = InsightLexer.VALUE_MODE;
         } else if (tokenTypeName === 'COMMENT') {
           editorType = 'comment';
-          nextMode = InsightLexer.DEFAULT_MODE;
         } else if (this.operator.has(tokenTypeName)) {
           editorType = 'operator';
-          nextMode = InsightLexer.DEFAULT_MODE;
         } else {
           editorType = tokenTypeName;
         }
@@ -112,6 +89,9 @@ export class InsightTokensProvider implements TokensProvider {
       }
     }
 
-    return { tokens: tokens, endState: new MultilineState(nextMode) };
+    var tt = lexer.snapshotState();
+    //var st = state as LexerState;
+    //console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
+    return { tokens: tokens, endState: tt };
   }
 }

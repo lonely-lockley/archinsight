@@ -32,12 +32,12 @@ public class RenderService {
         this.addressResolver = addressResolver;
     }
 
-    private byte[] render(HttpRequest<Source> request, Source data, String outputFormat) throws Exception {
+    private byte[] render(HttpRequest<Source> request, Source data, String outputFormat, String dpi) throws Exception {
         var startTime = System.nanoTime();
         var result = new byte[0];
         try (var renderer = new GraphvizRenderer()) {
-            renderer.writeInput(data.source);
-            result = renderer.render(outputFormat);
+            renderer.writeInput(data.getSource());
+            result = renderer.render(outputFormat, dpi);
         }
         logger.info("Access: /render/{} from {} required {}ms",
                 outputFormat,
@@ -58,21 +58,21 @@ public class RenderService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces("image/svg+xml")
     public String renderSVG(HttpRequest<Source> request, Source data) throws Exception {
-        return new String(render(request, data, "svg"), StandardCharsets.UTF_8);
+        return new String(render(request, data, "svg", null), StandardCharsets.UTF_8);
     }
 
     @Post("/png")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.IMAGE_PNG)
     public byte[] renderPNG(HttpRequest<Source> request, Source data) throws Exception {
-        return render(request, data, "png");
+        return render(request, data, "png", "200");
     }
 
     @Post("/json")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public byte[] renderJSON(HttpRequest<Source> request, Source data) throws Exception {
-        return render(request, data, "json");
+        return render(request, data, "json", null);
     }
 
 }

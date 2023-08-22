@@ -33,10 +33,15 @@ public class GraphvizRenderer implements AutoCloseable {
         writer.close();
     }
 
-    public byte[] render(String format) throws Exception {
+    public byte[] render(String format, String dpi) throws Exception {
         var builder = new ProcessBuilder();
         builder.directory(tmpDir.toFile());
-        builder.command("dot", "-T" + format, source.getFileName().toString());
+        if (dpi == null) {
+            builder.command("dot", "-T" + format, source.getFileName().toString());
+        }
+        else {
+            builder.command("dot", "-Gdpi=" + dpi, "-T" + format, source.getFileName().toString());
+        }
         var process = builder.start();
         var stdout = readBinaryOutput(process.getInputStream());
         var stderr = readTextOutput(process.getErrorStream());

@@ -1,89 +1,180 @@
 parser grammar InsightParser;
 
 @header {
+/* <package> */
 package com.github.lonelylockley.insight.lang;
+/* </package> */
 }
 
 options { tokenVocab = InsightLexer; }
 
 /* This will be the entry point of our parser. */
 insight
-    :    ( CONTEXT namespace EOL (contextDefinitions+ | empty) EOF
-         | CONTAINER namespace EOL (containerDefinitions+ | empty) EOF
+    :    levelDeclaration EOF
+    ;
+
+levelDeclaration
+    :   ( contextDeclaration contextElementDeclaration*
+        | containerDeclaration containerElementDeclaration*
+        )
+    ;
+
+contextDeclaration
+    :    CONTEXT IDENTIFIER EOL
+    ;
+
+containerDeclaration
+    :    CONTAINER IDENTIFIER EOL
+    ;
+
+contextElementDeclaration
+    :    ( systemDeclaration EOL?
+         | actorDeclaration EOL?
+         | boundaryForContextDeclaration EOL?
+         | commentDeclaration
          )
     ;
 
-empty
-    :    EOL?
+systemDeclaration
+    :    annotationDeclaration* EXTERNAL? SYSTEM IDENTIFIER (noteDeclaration | EOL) systemParameters
     ;
 
-annotation
-    :   ruleStart ANNOTATION ANNOTATION_VALUE EOL ruleEnd
+systemParameters
+    :    INDENT namedEntityParametersDeclaration connectionDeclaration? DEDENT
     ;
 
-namespace
-    :    ruleStart PROJECTNAME ruleEnd
+actorDeclaration
+    :    annotationDeclaration* ACTOR IDENTIFIER (noteDeclaration | EOL) actorParameters
     ;
 
-contextDefinitions
-    :    ( ruleStart annotation? EXTERNAL? SYSTEM namedEntityDefinition ruleEnd
-         | ruleStart annotation? PERSON namedEntityDefinition ruleEnd
-         | ruleStart annotation? IDENTIFIER LINKS IDENTIFIER entityDefinition? ruleEnd EOL?
-         | COMMENT
+actorParameters
+    :    INDENT namedEntityParametersDeclaration connectionDeclaration? DEDENT
+    ;
+
+boundaryForContextDeclaration
+    :    BOUNDARY IDENTIFIER EOL boundaryContext
+    ;
+
+boundaryForContainerDeclaration
+    :    BOUNDARY IDENTIFIER EOL boundaryContainer
+    ;
+
+boundaryContext
+    :    INDENT boundaryParameters? contextElementDeclaration+ DEDENT
+    ;
+
+boundaryContainer
+    :    INDENT boundaryParameters? containerElementDeclaration+ DEDENT
+    ;
+
+boundaryParameters
+    :    entityParametersDefinition
+    ;
+
+containerElementDeclaration
+    :    ( serviceDeclaration EOL?
+         | storageDeclaration EOL?
+         | boundaryForContainerDeclaration EOL?
+         | INDENT* commentDeclaration
          )
     ;
 
-containerDefinitions
-    :    ( ruleStart annotation? EXTERNAL? SERVICE namedEntityDefinition ruleEnd
-         | ruleStart annotation? EXTERNAL? STORAGE singleEntityDefinition ruleEnd
-         | ruleStart annotation? IDENTIFIER LINKS IDENTIFIER entityDefinition? ruleEnd EOL?
-         | ruleStart MODULE IDENTIFIER CONTAINS identifierList ruleEnd EOL?
-         | COMMENT
+serviceDeclaration
+    :    annotationDeclaration* EXTERNAL? SERVICE IDENTIFIER (noteDeclaration | EOL) serviceParameters
+    ;
+
+serviceParameters
+    :    INDENT namedEntityParametersDeclaration connectionDeclaration? DEDENT
+    ;
+
+storageDeclaration
+    :    annotationDeclaration* EXTERNAL? STORAGE IDENTIFIER (noteDeclaration | EOL) storageParameters
+    ;
+
+storageParameters
+    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
+    ;
+
+namedEntityParametersDeclaration
+    :    ( nameParameter descriptionParameter? technologyParameter?
+         | descriptionParameter? nameParameter technologyParameter?
+         | descriptionParameter? technologyParameter? nameParameter
+         | nameParameter technologyParameter? descriptionParameter?
+         | technologyParameter? nameParameter descriptionParameter?
+         | technologyParameter? descriptionParameter? nameParameter
          )
     ;
 
-namedEntityDefinition
-    :    ( IDENTIFIER COMMENT? EOL? nameParameter descriptionParameter? technologyParameter?
-         | IDENTIFIER COMMENT? EOL? descriptionParameter? nameParameter technologyParameter?
-         | IDENTIFIER COMMENT? EOL? descriptionParameter? technologyParameter? nameParameter
-         | IDENTIFIER COMMENT? EOL? nameParameter technologyParameter? descriptionParameter?
-         | IDENTIFIER COMMENT? EOL? technologyParameter? nameParameter descriptionParameter?
-         | IDENTIFIER COMMENT? EOL? technologyParameter? descriptionParameter? nameParameter
-         )
+singleEntityParametersDefinition
+    :    ( nameParameter
+         | descriptionParameter
+         | technologyParameter
+         )+
     ;
 
-singleEntityDefinition
-    :    IDENTIFIER COMMENT? EOL? (nameParameter | descriptionParameter | technologyParameter)+
-    ;
-
-entityDefinition
-    :    IDENTIFIER? COMMENT? EOL? (nameParameter | descriptionParameter | technologyParameter)*
+entityParametersDefinition
+    :    ( nameParameter
+         | descriptionParameter
+         | technologyParameter
+         )*
     ;
 
 nameParameter
-    :    INDENT NAME EQ value
+    :    NAME EQ parameterValue
     ;
 
 descriptionParameter
-    :    INDENT DESCRIPTION EQ value
+    :    DESCRIPTION EQ parameterValue
     ;
 
 technologyParameter
-    :    INDENT TECHNOLOGY EQ value
+    :    TECHNOLOGY EQ parameterValue
     ;
 
-value
-    :    TEXT
+parameterValue
+    :    INDENT textLine+ DEDENT
     ;
 
-identifierList
-    :    (IDENTIFIER COMMA | IDENTIFIER EOL)+ (nameParameter)?
+textLine
+    :    TEXT+ EOL?
     ;
 
-ruleStart
-    :
+connectionDeclaration
+    :    LINKS COLON EOL wireList
     ;
 
-ruleEnd
-    :
+wireList
+    :    INDENT wireDeclaration+ DEDENT
+    ;
+
+wireDeclaration
+    :    annotationDeclaration? WIRE IDENTIFIER EOL wireParameters? EOL?
+    ;
+
+wireParameters
+    :    INDENT entityParametersDefinition DEDENT
+    ;
+
+annotationDeclaration
+    :   (attributeAnnotationDeclaration | plannedAnnotationDeclaration | deprecatedAnnotationDeclaration) (commentDeclaration | EOL)
+    ;
+
+attributeAnnotationDeclaration
+    :   ATTRIBUTE ANNOTATION_VALUE
+    ;
+
+plannedAnnotationDeclaration
+    :   PLANNED
+    ;
+
+deprecatedAnnotationDeclaration
+    :   DEPRECATED
+    ;
+
+commentDeclaration
+    :    COMMENT
+    ;
+
+noteDeclaration
+    :    COMMENT
     ;

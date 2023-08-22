@@ -5,10 +5,13 @@ plugins {
     id 'io.micronaut.minimal.application' version '3.4.0'
     id 'io.micronaut.docker' version '3.4.0'
     id 'com.github.node-gradle.node' version '3.3.0'
+    id 'com.vaadin' version '23.3.10'
 }
 
-sourceCompatibility = 1.17
-targetCompatibility = 1.17
+compileJava {
+    targetCompatibility = '17'
+    sourceCompatibility = '17'
+}
 
 allprojects {
     apply plugin: 'java'
@@ -16,21 +19,34 @@ allprojects {
     repositories {
         mavenLocal()
         mavenCentral()
+        maven { url = "https://maven.vaadin.com/vaadin-addons" }
     }
 
     dependencies {
         constraints {
-            implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.36'
-            implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.11'
+            implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
+            implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.4.8'
 
-            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: micronautVersion
-            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: micronautVersion
-            implementation group: 'org.jgrapht', name: 'jgrapht-core', version: '1.5.1'
-            implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler', version: '1.3.0'
+            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.5.0'
+            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '3.5.0'
             implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
+            implementation group: 'org.apache.commons', name: 'commons-text', version: '1.10.0'
+            implementation group: 'com.google.guava', name: 'guava', version: '32.1.1-jre'
+            implementation group: 'com.github.lonely-lockley', name: 'ltsv-parser', version: '1.1.0'
 
-            testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
-            testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+            implementation group: 'com.vaadin', name: 'vaadin-core', version: '23.3.10'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-server', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-webapp', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-plus', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-annotations', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty', name: 'jetty-util', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api', version: '10.0.15'
+            implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-servlet', version: '10.0.15'
+            implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api', version: '6.0.0'
+
+
+            testImplementation group: 'org.testng', name: 'testng', version: '6.14.3'
         }
     }
 
@@ -39,8 +55,8 @@ allprojects {
     }
 }
 
-micronaut {
-    version '3.5.0'
+def checkBuildMode() {
+    return System.getenv("DEV_MODE") != "true"
 }
 
 test {
@@ -63,6 +79,7 @@ project('insight-lang') {
 
     dependencies {
         antlr group: 'org.antlr', name: 'antlr4', version: '4.10.1'
+        testImplementation group: 'org.testng', name: 'testng'
     }
 
     generateGrammarSource {
@@ -72,7 +89,7 @@ project('insight-lang') {
     sourceSets.main.java.srcDirs += ["${project.buildDir}/$GEN_JAVA_SRC"]
 }
 
-project('compiler') {
+project('translator') {
     apply plugin: 'io.micronaut.application'
     apply plugin: 'io.micronaut.minimal.application'
     apply plugin: 'io.micronaut.docker'
@@ -81,9 +98,9 @@ project('compiler') {
         implementation project(':common')
         implementation project(':insight-lang')
 
-        implementation group: 'org.jgrapht', name: 'jgrapht-core'
         implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
-        implementation group: 'org.mdkt.compiler', name: 'InMemoryJavaCompiler'
+        implementation group: 'com.github.lonely-lockley', name: 'ltsv-parser'
+        implementation group: 'org.apache.commons', name: 'commons-text'
     }
 
     tasks.named("dockerBuild") {
@@ -91,7 +108,7 @@ project('compiler') {
     }
 
     tasks.named("dockerfile") {
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.CompilerService')
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.TranslatorService')
     }
 }
 
@@ -113,7 +130,7 @@ project('renderer') {
     tasks.named("dockerfile") {
         // tried to fix "Assertion failed: np->cells[1] (maze.c: chkSgraph: 331)" error with version update, no luck for 4.0.0
         // https://gitlab.com/graphviz/graphviz/-/issues/1408
-        baseImage('alpine:edge')
+        baseImage('alpine:3.18')
         runCommand('apk add --update --no-cache openjdk17 graphviz ttf-freefont')
         entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RenderService')
     }
@@ -144,10 +161,27 @@ project('editor-ui') {
     apply plugin: 'com.github.node-gradle.node'
     apply plugin: 'io.micronaut.application'
     apply plugin: 'io.micronaut.docker'
+    apply plugin: 'com.vaadin'
+
+    dependencies {
+        implementation project(':common')
+
+        implementation group: 'com.vaadin', name: 'vaadin-core'
+        implementation group: 'com.vaadin.external.atmosphere', name: 'atmosphere-runtime'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-server'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-webapp'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-plus'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-annotations'
+        implementation group: 'org.eclipse.jetty', name: 'jetty-util'
+        implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server'
+        implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api'
+        implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api'
+        implementation group: 'io.micronaut', name: 'micronaut-http-client'
+        implementation group: 'com.google.guava', name: 'guava'
+    }
 
     clean.doFirst {
-        delete "${buildDir}"
-        delete "node_modules"
+        delete "frontend/generated/insight-lang"
     }
 
     task antlr(type: NpmTask) {
@@ -155,107 +189,64 @@ project('editor-ui') {
         args = ['run', 'antlr']
 
         doLast {
-            FileTree antlrFiles = fileTree("${buildDir}/insight-lang") {
+            def substs = new Properties()
+            file("${project.rootDir}/insight-lang/src/main/antlr/typescript_substitutions.properties").withInputStream { substs.load(it) }
+            FileTree antlrFiles = fileTree("frontend/generated/insight-lang") {
                 include "**/*.ts"
             }
             antlrFiles.each { File antlrSrc ->
                 println "Removing java package from $antlrSrc"
                 String content = antlrSrc.getText()
-                content = content.replace("package com.github.lonelylockley.insight.lang;", "")
+                content = content.replaceAll(/(\/\* <package>)(.|\n)+?(<\/package> \*\/)/, substs.getProperty("package"))
+                content = content.replaceAll(/(\/\* <import>)(.|\n)+?(<\/import> \*\/)/, substs.getProperty("import"))
+                content = content.replaceAll(/(\/\* <override>)(.|\n)+?(<\/override> \*\/)/, substs.getProperty("override"))
+                content = content.replaceAll(/(\/\* <helper>)(.|\n)+?(<\/helper> \*\/)/, substs.getProperty("helper"))
+                content = content.replaceAll(/(\/\* <position>)(.|\n)+?(<\/position> \*\/)/, substs.getProperty("position"))
                 antlrSrc.setText(content)
             }
         }
     }
 
-    tasks.named("dockerfile") {
+    tasks.named("vaadinBuildFrontend") {
         dependsOn(antlr)
     }
 
-    dockerfile.doLast {
-        copy {
-            from "dockerfile_template"
-            into "${buildDir}/docker/main"
-            rename "dockerfile_template", "Dockerfile"
-        }
-        copy {
-            from "run"
-            into "${buildDir}/docker/main/run"
-        }
-        copy {
-            from "src"
-            into "${buildDir}/docker/main/src"
-        }
-        copy {
-            from "static"
-            into "${buildDir}/docker/main/static"
-        }
-        copy {
-            from "."
-            include "*.json"
-            into "${buildDir}/docker/main"
-        }
-        copy {
-            from "${buildDir}/insight-lang"
-            into "${buildDir}/docker/main/build/insight-lang"
-        }
-        copy {
-            from "webpack.config.js"
-            into "${buildDir}/docker/main"
-        }
-        delete("${buildDir}/docker/main/layers")
-    }
-
     tasks.named("dockerBuild") {
         images = ["lonelylockley/archinsight:$project.name-$project.version"]
     }
 
-    task runDev(type: NpmTask) {
-        dependsOn(npmInstall)
-        args = ['run', 'build:dev']
+    vaadin {
+        pnpmEnable = false
+        productionMode = checkBuildMode()
+        generateBundle(checkBuildMode())
+        optimizeBundle(checkBuildMode())
+        vaadinBuildFrontend
     }
 
-    task runProd(type: NpmTask) {
-        dependsOn(npmInstall)
-        args = ['run', 'build:prod']
+    tasks.named("dockerfile") {
+        copyFile('layers/editor-ui', '/home/app/editor-ui')
+        runCommand('apk add --update --no-cache graphviz ttf-freefont')
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar:libs/*", 'com.github.lonelylockley.archinsight.Launcher')
     }
-
-}
-
-project('bff') {
-    apply plugin: 'com.github.node-gradle.node'
-    apply plugin: 'io.micronaut.application'
-    apply plugin: 'io.micronaut.docker'
 
     dockerfile.doLast {
         copy {
-            from "dockerfile_template"
-            into "${buildDir}/docker/main"
-            rename "dockerfile_template", "Dockerfile"
+            from "${buildDir}/docker/main/layers/resources/META-INF/VAADIN/webapp"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/"
         }
         copy {
-            from "src"
-            into "${buildDir}/docker/main"
+            from "frontend/icons"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/icons"
         }
         copy {
-            from "."
-            include "*.json"
-            into "${buildDir}/docker/main"
+            from "frontend/themes"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/themes"
         }
-        delete("${buildDir}/docker/main/layers")
+        copy {
+            from "frontend"
+            include "*.ico"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/"
+        }
     }
 
-    tasks.named("dockerBuild") {
-        images = ["lonelylockley/archinsight:$project.name-$project.version"]
-    }
-
-    task runDev(type: NpmTask) {
-        dependsOn(npmInstall)
-        environment = ['PORT': '3000']
-        args = ['run', 'dev']
-    }
-
-    task runProd(type: NpmTask) {
-        dependsOn(npmInstall)
-        args = ['run', 'prod']
-    }
 }
