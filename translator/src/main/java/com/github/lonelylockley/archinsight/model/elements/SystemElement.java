@@ -115,9 +115,8 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SystemElement that = (SystemElement) o;
-        return id.equals(that.id);
+        if (!(o instanceof WithId that)) return false;
+        return id.equals(that.getId());
     }
 
     @Override

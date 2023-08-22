@@ -30,7 +30,7 @@ public class EditorComponent extends Div {
 
     public EditorComponent() {
         setId("editor");
-        UI.getCurrent().getPage().executeJs("initializeEditor($0)", "context tms\n-");
+        UI.getCurrent().getPage().executeJs("initializeEditor()");
     }
     @ClientCallable
     public void render(String code) {

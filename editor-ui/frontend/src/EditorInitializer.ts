@@ -7,7 +7,23 @@ import { LinkerMessage } from './model/TranslatorResponse';
 const _global = (window) as any
 const renderClient: Renderer = new Renderer();
 
+function renderCode(container: HTMLElement, value: string) {
+    const errors = monaco.editor.getModelMarkers({})?.length;
+    if (!errors && value) {
+        renderClient.remoteRender(container, value);
+    }
+}
+
+async function updateCode(value: string) {
+    localStorage.setItem('com.archinsight.sourcecode', value);
+}
+
+function restoreCode(): string {
+   return localStorage.getItem('com.archinsight.sourcecode') || '';
+}
+
 function initializeEditor(code: string) {
+    code = code || restoreCode();
     setupLanguage();
     const container: HTMLElement = document.getElementById('editor')!;
     const editor: monaco.editor.IStandaloneCodeEditor = monaco.editor.create(container, {
@@ -17,26 +33,15 @@ function initializeEditor(code: string) {
                                                                   autoIndent: 'full',
                                                                   theme: 'vs-dark',
                                                                   fixedOverflowWidgets: true,
-                                                                  value: code,
                                                               });
     // source highlight listener
     let timeout: number | undefined;
     editor.onDidChangeModelContent(() => {
         const value = editor.getValue();
-        //updateCode(value || '');
-
+        updateCode(value || '');
         clearTimeout(timeout);
-        timeout = window.setTimeout(() => {
-            const errors = monaco.editor.getModelMarkers({})?.length;
-            if (!errors && value) {
-                renderClient.remoteRender(container, value);
-            }
-        }, 1000);
+        timeout = window.setTimeout(() => renderCode(container, value), 1000);
     });
-
-    if (code) {
-        renderClient.remoteRender(container, code);
-    }
 
     // monkey patch editor to pass errors
     (editor as any).addModelMarkers = (linkerErrors: string) => {
@@ -69,7 +74,11 @@ function initializeEditor(code: string) {
       .then(data => {
         monaco.editor.defineTheme('cobalt', data);
         monaco.editor.setTheme('cobalt');
-      })
+    })
+
+    if (code) {
+        editor.setValue(code);
+    }
 }
 
 _global.initializeEditor = initializeEditor

@@ -40,8 +40,7 @@ public class ParseContext {
     }
 
     public String getCurrentText() {
-        currentText.setLength(currentText.length() - 1);
-        return currentText.toString();
+        return currentText.toString().trim();
     }
 
     public void nextCommentIsNote() {

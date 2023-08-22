@@ -130,7 +130,7 @@ project('renderer') {
     tasks.named("dockerfile") {
         // tried to fix "Assertion failed: np->cells[1] (maze.c: chkSgraph: 331)" error with version update, no luck for 4.0.0
         // https://gitlab.com/graphviz/graphviz/-/issues/1408
-        baseImage('alpine:edge')
+        baseImage('alpine:3.18')
         runCommand('apk add --update --no-cache openjdk17 graphviz ttf-freefont')
         entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RenderService')
     }

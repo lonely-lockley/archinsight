@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.model.elements;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class ContextElement extends AbstractElement implements WithId, WithChildElements {
@@ -41,5 +42,17 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
         return "ContextElement{" +
                 "id='" + id + "', children=[\n" + children.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 "]}";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof WithId that)) return false;
+        return id.equals(that.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }
