@@ -2,31 +2,49 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
+import com.github.lonelylockley.archinsight.events.ZoomEvent;
 import com.google.common.eventbus.Subscribe;
-import com.vaadin.flow.component.ClickNotifier;
-import com.vaadin.flow.component.HtmlContainer;
-import com.vaadin.flow.component.Tag;
+import com.vaadin.flow.component.*;
+import com.vaadin.flow.component.dependency.JsModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Tag("svg")
+@Tag("div")
+@JsModule("./src/PanZoomControl.ts")
 public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVGViewComponent> {
 
     private static final Logger logger = LoggerFactory.getLogger(SVGViewComponent.class);
 
     public SVGViewComponent() {
-        setId("svg");
-        getElement().setAttribute("xmlns", "http://www.w3.org/2000/svg");
-        getElement().setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-        getElement().setAttribute("transform", "scale(1)");
+        setId("svg-view-component");
 
         Communication.getBus().register(new Object() {
             @Subscribe
             public void receiveSvgData(SvgDataEvent e) {
-                getElement().setProperty("innerHTML", e.getSvgData());
+                getElement().setProperty("innerHTML", filterSVG(e.getSvgData()));
             }
         });
 
+        Communication.getBus().register(new Object() {
+            @Subscribe
+            public void receiveZoomEvent(ZoomEvent e) {
+                if (e.isZoomIn()) {
+                    UI.getCurrent().getPage().executeJs("zoomIn()");
+                }
+                else
+                if (e.isZoomOut()) {
+                    UI.getCurrent().getPage().executeJs("zoomOut()");
+                }
+                else {
+                    UI.getCurrent().getPage().executeJs("reset()");
+                }
+            }
+        });
+
+    }
+
+    private String filterSVG(String svgData) {
+        return svgData.replaceFirst("<svg", "<svg id=\"svg_render\" version=\"1.1\"");
     }
 
 }

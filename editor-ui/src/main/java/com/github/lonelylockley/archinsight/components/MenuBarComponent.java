@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
+import com.github.lonelylockley.archinsight.events.ZoomEvent;
 import com.github.lonelylockley.archinsight.remote.ExportSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
@@ -9,7 +10,6 @@ import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.server.StreamResource;
 
@@ -20,7 +20,7 @@ public class MenuBarComponent extends MenuBar {
 
     private final Div invisible;
 
-    private MenuItem exportDropdown;
+    private final MenuItem exportDropdown;
 
     public MenuBarComponent(Div invisible) {
         this.invisible = invisible;
@@ -41,11 +41,11 @@ public class MenuBarComponent extends MenuBar {
             item = exportSubMenu.addItem("as DOT", listener);
             item.setId("menu_btn_export_as_dot");
         item = addItem(" + ", listener);
-        item.setId("menu_btn_plus");
+        item.setId("menu_btn_zoom_plus");
         item = addItem(" 1:1 ", listener);
-        item.setId("menu_btn_reset");
+        item.setId("menu_btn_zoom_reset");
         item = addItem(" - ", listener);
-        item.setId("menu_btn_minus");
+        item.setId("menu_btn_zoom_minus");
 
         Communication.getBus().register(new Object() {
             @Subscribe
@@ -67,8 +67,12 @@ public class MenuBarComponent extends MenuBar {
             exportButtonClicked(id);
         }
         else
-        if (id.startsWith("menu_btn_save")) {
+        if (id.equals("menu_btn_save")) {
             saveButtonClicked(id);
+        }
+        else
+        if (id.startsWith("menu_btn_zoom")) {
+            zoomButtonClicked(id);
         }
     }
 
@@ -111,6 +115,20 @@ public class MenuBarComponent extends MenuBar {
                 "return new Promise(resolve =>{this.click(); setTimeout(() => resolve(true), 150)})",
                 a.getElement()).then(jsonValue -> invisible.remove(a)
         );
+    }
+
+    private void zoomButtonClicked(String id) {
+        switch (id) {
+            case "menu_btn_zoom_plus":
+                Communication.getBus().post(new ZoomEvent().zoomIn());
+                break;
+            case "menu_btn_zoom_minus":
+                Communication.getBus().post(new ZoomEvent().zoomOut());
+                break;
+            default:
+                Communication.getBus().post(new ZoomEvent().reset());
+                break;
+        }
     }
 
 }

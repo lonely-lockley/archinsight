@@ -75,6 +75,7 @@ public abstract class TranslatorBase {
     protected void writeHeader(StringBuilder sb, String projectName) {
         sb.append("digraph " + projectName + " {\n\n");
         sb.append("  labelloc=\"t\"\n");
+        //sb.append("  graph [ dpi = 200 ]");
         sb.append("  node [fontcolor=\"#ffffff\",fontsize=\"14px\",width=2,height=1,color=\"#ffffff\"]\n");
         sb.append("  edge [minlen=1.5,color=\"#303030\",fontcolor=\"#303030\",fontsize=\"8px\",penwidth=\"0.7\"]\n");
         sb.append("  overlap=false\n");

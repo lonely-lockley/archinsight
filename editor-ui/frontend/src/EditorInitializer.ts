@@ -10,7 +10,6 @@ const renderClient: Renderer = new Renderer();
 function initializeEditor(code: string) {
     setupLanguage();
     const container: HTMLElement = document.getElementById('editor')!;
-    const svg: HTMLElement = document.getElementById('svg')!;
     const editor: monaco.editor.IStandaloneCodeEditor = monaco.editor.create(container, {
                                                                   language: languageID,
                                                                   minimap: { enabled: true },
