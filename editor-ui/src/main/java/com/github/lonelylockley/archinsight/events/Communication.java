@@ -1,13 +1,44 @@
 package com.github.lonelylockley.archinsight.events;
 
 import com.google.common.eventbus.EventBus;
-import com.vaadin.flow.component.ComponentEventBus;
+import com.vaadin.flow.component.UI;
+
+import java.util.HashSet;
+import java.util.Set;
 
 public class Communication {
 
-    private static EventBus bus = new EventBus();
+    private final EventBus bus;
+    /*
+     * We have to store on own subscriber collision list cause
+     * this bus implementation checks added subscribers with ==
+     * instead of calling equals method causing duplicate subscribers if
+     * a user opens several browser tabs
+     */
+    private final Set<BaseListener<?>> registered = new HashSet<>();
 
-    public static EventBus getBus() {
-        return bus;
+    private Communication(String sessionId) {
+        bus = new EventBus("bus-instance-" + sessionId);
+    }
+
+    public static Communication getBus() {
+        var session = UI.getCurrent().getSession();
+        var res = session.getAttribute(Communication.class);
+        if (res == null) {
+            res = new Communication(session.getSession().getId());
+            session.setAttribute(Communication.class, res);
+        }
+        return res;
+    }
+
+    public void register(BaseListener<?> listener) {
+        if (!registered.contains(listener)) {
+            registered.add(listener);
+            bus.register(listener);
+        }
+    }
+
+    public void post(Object event) {
+        bus.post(event);
     }
 }

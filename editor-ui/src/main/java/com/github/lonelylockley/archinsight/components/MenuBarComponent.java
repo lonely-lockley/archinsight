@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
+import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.ZoomEvent;
@@ -7,16 +8,21 @@ import com.github.lonelylockley.archinsight.remote.ExportSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.server.StreamResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
 public class MenuBarComponent extends MenuBar {
+
+    private static final Logger logger = LoggerFactory.getLogger(MenuBarComponent.class);
 
     private final Div invisible;
 
@@ -47,15 +53,18 @@ public class MenuBarComponent extends MenuBar {
         item = addItem(" - ", listener);
         item.setId("menu_btn_zoom_minus");
 
-        Communication.getBus().register(new Object() {
+        Communication.getBus().register(new BaseListener<SourceCompilationEvent>() {
+            @Override
             @Subscribe
-            public void sourceCompiled(SourceCompilationEvent e) {
-                if (exportDropdown.isEnabled() && e.failure()) {
-                    exportDropdown.setEnabled(false);
-                }
-                else
-                if (!exportDropdown.isEnabled() && e.success()) {
-                    exportDropdown.setEnabled(true);
+            public void receive(SourceCompilationEvent e) {
+                if (checkUiAndSession(e)) {
+                    if (exportDropdown.isEnabled() && e.failure()) {
+                        exportDropdown.setEnabled(false);
+                    }
+                    else
+                    if (!exportDropdown.isEnabled() && e.success()) {
+                        exportDropdown.setEnabled(true);
+                    }
                 }
             }
         });

@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.events;
 
-public class SourceCompilationEvent {
+public class SourceCompilationEvent extends BaseEvent {
     private final boolean success;
 
     public SourceCompilationEvent(boolean success) {

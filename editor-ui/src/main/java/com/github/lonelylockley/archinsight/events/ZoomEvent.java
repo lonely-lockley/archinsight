@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.events;
 
-public class ZoomEvent {
+public class ZoomEvent extends BaseEvent {
 
     private ZoomEventType type = ZoomEventType.RESET;
 
@@ -35,5 +35,12 @@ public class ZoomEvent {
         ZOOM_IN,
         ZOOM_OUT,
         RESET
+    }
+
+    @Override
+    public String toString() {
+        return "ZoomEvent{" +
+                "type=" + type +
+                '}';
     }
 }
