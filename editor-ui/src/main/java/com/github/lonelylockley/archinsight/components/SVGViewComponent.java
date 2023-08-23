@@ -25,6 +25,7 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
             public void receive(SvgDataEvent e) {
                 if (checkUiAndSession(e)) {
                     getElement().setProperty("innerHTML", filterSVG(e.getSvgData()));
+                    UI.getCurrent().getPage().executeJs("zoomRestore()");
                 }
             }
         });
@@ -41,8 +42,12 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
                     if (e.isZoomOut()) {
                         UI.getCurrent().getPage().executeJs("zoomOut()");
                     }
+                    else
+                    if (e.isFit()) {
+                        UI.getCurrent().getPage().executeJs("zoomFit($0)", 1036);
+                    }
                     else {
-                        UI.getCurrent().getPage().executeJs("reset()");
+                        UI.getCurrent().getPage().executeJs("zoomReset()");
                     }
                 }
             }

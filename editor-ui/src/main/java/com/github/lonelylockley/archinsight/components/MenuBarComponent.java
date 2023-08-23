@@ -12,6 +12,8 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.server.StreamResource;
 import org.slf4j.Logger;
@@ -34,8 +36,10 @@ public class MenuBarComponent extends MenuBar {
 
         var item = addItem("Save Source", listener);
         item.setId("menu_btn_save");
+        item.add(new Icon(VaadinIcon.DOWNLOAD));
         exportDropdown = addItem("Export Image", listener);
         exportDropdown.setId("menu_btn_export");
+        exportDropdown.add(new Icon(VaadinIcon.ANGLE_DOWN));
         exportDropdown.setEnabled(false);
             var exportSubMenu = exportDropdown.getSubMenu();
             item = exportSubMenu.addItem("as SVG", listener);
@@ -46,12 +50,18 @@ public class MenuBarComponent extends MenuBar {
             item.setId("menu_btn_export_as_json");
             item = exportSubMenu.addItem("as DOT", listener);
             item.setId("menu_btn_export_as_dot");
-        item = addItem(" + ", listener);
+        item = addItem("", listener);
         item.setId("menu_btn_zoom_plus");
-        item = addItem(" 1:1 ", listener);
+        item.add(new Icon(VaadinIcon.PLUS));
+        item = addItem("", listener);
+        item.add(new Icon(VaadinIcon.PLUS_MINUS));
         item.setId("menu_btn_zoom_reset");
-        item = addItem(" - ", listener);
+        item = addItem("", listener);
         item.setId("menu_btn_zoom_minus");
+        item.add(new Icon(VaadinIcon.MINUS));
+        item = addItem("", listener);
+        item.setId("menu_btn_zoom_fit");
+        item.add(new Icon(VaadinIcon.EXPAND_SQUARE));
 
         Communication.getBus().register(new BaseListener<SourceCompilationEvent>() {
             @Override
@@ -90,16 +100,16 @@ public class MenuBarComponent extends MenuBar {
             StreamResource res;
             switch (id) {
                 case "menu_btn_export_as_png":
-                    res = new StreamResource("test.png", () -> new ByteArrayInputStream(new ExportSource().exportPng(code)));
+                    res = new StreamResource("export.png", () -> new ByteArrayInputStream(new ExportSource().exportPng(code)));
                     break;
                 case "menu_btn_export_as_json":
-                    res = new StreamResource("test.json", () -> new ByteArrayInputStream(new ExportSource().exportJson(code)));
+                    res = new StreamResource("export.json", () -> new ByteArrayInputStream(new ExportSource().exportJson(code)));
                     break;
                 case "menu_btn_export_as_svg":
-                    res = new StreamResource("test.svg", () -> new ByteArrayInputStream(new ExportSource().exportSvg(code)));
+                    res = new StreamResource("export.svg", () -> new ByteArrayInputStream(new ExportSource().exportSvg(code)));
                     break;
                 default:
-                    res = new StreamResource("test.dot", () -> new ByteArrayInputStream(new ExportSource().exportDot(code)));
+                    res = new StreamResource("export.dot", () -> new ByteArrayInputStream(new ExportSource().exportDot(code)));
                     break;
             }
             startDownload(res);
@@ -108,7 +118,7 @@ public class MenuBarComponent extends MenuBar {
 
     private void saveButtonClicked(String id) {
         this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
-            var res = new StreamResource("test.ai", () -> new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
+            var res = new StreamResource("source.ai", () -> new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
             startDownload(res);
         });
     }
@@ -133,6 +143,9 @@ public class MenuBarComponent extends MenuBar {
                 break;
             case "menu_btn_zoom_minus":
                 Communication.getBus().post(new ZoomEvent().zoomOut());
+                break;
+            case "menu_btn_zoom_fit":
+                Communication.getBus().post(new ZoomEvent().fit());
                 break;
             default:
                 Communication.getBus().post(new ZoomEvent().reset());

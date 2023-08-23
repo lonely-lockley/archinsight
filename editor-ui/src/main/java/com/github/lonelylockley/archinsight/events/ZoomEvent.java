@@ -19,6 +19,11 @@ public class ZoomEvent extends BaseEvent {
         return this;
     }
 
+    public ZoomEvent fit() {
+        type = ZoomEventType.FIT;
+        return this;
+    }
+
     public boolean isZoomIn() {
         return type == ZoomEventType.ZOOM_IN;
     }
@@ -30,11 +35,15 @@ public class ZoomEvent extends BaseEvent {
     public boolean isReset() {
         return type == ZoomEventType.RESET;
     }
+    public boolean isFit() {
+        return type == ZoomEventType.FIT;
+    }
 
     private enum ZoomEventType {
         ZOOM_IN,
         ZOOM_OUT,
-        RESET
+        RESET,
+        FIT
     }
 
     @Override

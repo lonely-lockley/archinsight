@@ -10,9 +10,9 @@ public class Communication {
 
     private final EventBus bus;
     /*
-     * We have to store on own subscriber collision list cause
-     * this bus implementation checks added subscribers with ==
-     * instead of calling equals method causing duplicate subscribers if
+     * We have to store own subscriber collision list, cause
+     * this bus implementation checks registered subscribers with `==`
+     * instead of calling `equals` method causing duplicate subscribers if
      * a user opens several browser tabs
      */
     private final Set<BaseListener<?>> registered = new HashSet<>();

@@ -5,7 +5,7 @@ import com.vaadin.flow.component.splitlayout.SplitLayout;
 /**
  * Adds methods to access splitter position cause native support appears in Vaadin 24.2
  */
-public class PatchedSplitView extends SplitLayout {
+public abstract class PatchedSplitView extends SplitLayout {
 
     private static final String PRIMARY_OFFSET_HEIGHT = "element._primaryChild.offsetHeight";
     private static final String SECONDARY_OFFSET_HEIGHT = "element._secondaryChild.offsetHeight";
@@ -66,4 +66,13 @@ public class PatchedSplitView extends SplitLayout {
     public double getSecondarySizePixel() {
         return secondarySizePixel;
     }
+
+    public double getPrimaryWidthPx() {
+        return primarySizePixel;
+    }
+
+    public double getSecondaryWidthPx() {
+        return secondarySizePixel;
+    }
+
 }

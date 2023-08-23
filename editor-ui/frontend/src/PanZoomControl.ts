@@ -25,9 +25,27 @@ function zoomOut() {
     svg.style.height = height + 'pt';
 }
 
-function reset() {
+function zoomReset() {
     var svg = document.getElementById('svg_render')!;
     getBasics(svg);
+    svg.style.width = width + 'pt';
+    svg.style.height = height + 'pt';
+}
+
+function zoomFit(suggestedWidth: number) {
+    var svg = document.getElementById('svg_render')!;
+    if (!width || !height) {
+        getBasics(svg);
+    }
+    var scale = suggestedWidth / width * 0.78;
+    width = width * scale;
+    height = height * scale;
+    svg.style.width = width + 'pt';
+    svg.style.height = height + 'pt';
+}
+
+function zoomRestore() {
+    var svg = document.getElementById('svg_render')!;
     svg.style.width = width + 'pt';
     svg.style.height = height + 'pt';
 }
@@ -39,4 +57,6 @@ function getBasics(svg: any) {
 
 _global.zoomIn = zoomIn;
 _global.zoomOut = zoomOut;
-_global.reset = reset;
+_global.zoomReset = zoomReset;
+_global.zoomFit = zoomFit;
+_global.zoomRestore = zoomRestore;
