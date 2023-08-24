@@ -15,11 +15,11 @@ function renderCode(container: HTMLElement, value: string) {
 }
 
 async function updateCode(value: string) {
-    localStorage.setItem('com.archinsight.sourcecode', value);
+    localStorage.setItem('org.archinsight.sourcecode', value);
 }
 
 function restoreCode(): string {
-   return localStorage.getItem('com.archinsight.sourcecode') || '';
+   return localStorage.getItem('org.archinsight.sourcecode') || '';
 }
 
 function initializeEditor(code: string) {

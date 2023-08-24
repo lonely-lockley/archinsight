@@ -4,41 +4,48 @@ var width: number;
 var height: number;
 
 function zoomIn() {
-    console.log('zoomIn');
     var svg = document.getElementById('svg_render')!;
     if (!width || !height) {
         getBasics(svg);
     }
-    console.log('dw = ' + width * step);
-    console.log('dh = ' + height * step);
     width = width + width * step;
     height = height + height * step;
-    console.log('curw = ' + width);
-    console.log('curh = ' + height);
     svg.style.width = width + 'pt';
     svg.style.height = height + 'pt';
 }
 
 function zoomOut() {
-    console.log('zoomOut');
     var svg = document.getElementById('svg_render')!;
     if (!width || !height) {
         getBasics(svg);
     }
-    console.log('dw = ' + width * step);
-    console.log('dh = ' + height * step);
     width = width - width * step;
     height = height - height * step;
-    console.log('curw = ' + width);
-    console.log('curh = ' + height);
     svg.style.width = width + 'pt';
     svg.style.height = height + 'pt';
 }
 
-function reset() {
-    console.log('reset');
+function zoomReset() {
     var svg = document.getElementById('svg_render')!;
     getBasics(svg);
+    svg.style.width = width + 'pt';
+    svg.style.height = height + 'pt';
+}
+
+function zoomFit(suggestedWidth: number) {
+    var svg = document.getElementById('svg_render')!;
+    if (!width || !height) {
+        getBasics(svg);
+    }
+    var scale = suggestedWidth / width * 0.78;
+    width = width * scale;
+    height = height * scale;
+    svg.style.width = width + 'pt';
+    svg.style.height = height + 'pt';
+}
+
+function zoomRestore() {
+    var svg = document.getElementById('svg_render')!;
     svg.style.width = width + 'pt';
     svg.style.height = height + 'pt';
 }
@@ -46,10 +53,10 @@ function reset() {
 function getBasics(svg: any) {
     width = svg.width.baseVal.valueInSpecifiedUnits;
     height = svg.height.baseVal.valueInSpecifiedUnits;
-    console.log('basicw = ' + width);
-    console.log('basich = ' + height);
 }
 
 _global.zoomIn = zoomIn;
 _global.zoomOut = zoomOut;
-_global.reset = reset;
+_global.zoomReset = zoomReset;
+_global.zoomFit = zoomFit;
+_global.zoomRestore = zoomRestore;

@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.events;
 
-public class ZoomEvent {
+public class ZoomEvent extends BaseEvent {
 
     private ZoomEventType type = ZoomEventType.RESET;
 
@@ -19,6 +19,11 @@ public class ZoomEvent {
         return this;
     }
 
+    public ZoomEvent fit() {
+        type = ZoomEventType.FIT;
+        return this;
+    }
+
     public boolean isZoomIn() {
         return type == ZoomEventType.ZOOM_IN;
     }
@@ -30,10 +35,21 @@ public class ZoomEvent {
     public boolean isReset() {
         return type == ZoomEventType.RESET;
     }
+    public boolean isFit() {
+        return type == ZoomEventType.FIT;
+    }
 
     private enum ZoomEventType {
         ZOOM_IN,
         ZOOM_OUT,
-        RESET
+        RESET,
+        FIT
+    }
+
+    @Override
+    public String toString() {
+        return "ZoomEvent{" +
+                "type=" + type +
+                '}';
     }
 }

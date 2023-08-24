@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
+import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.events.ZoomEvent;
@@ -18,25 +19,36 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
     public SVGViewComponent() {
         setId("svg-view-component");
 
-        Communication.getBus().register(new Object() {
+        Communication.getBus().register(new BaseListener<SvgDataEvent>() {
+            @Override
             @Subscribe
-            public void receiveSvgData(SvgDataEvent e) {
-                getElement().setProperty("innerHTML", filterSVG(e.getSvgData()));
+            public void receive(SvgDataEvent e) {
+                if (checkUiAndSession(e)) {
+                    getElement().setProperty("innerHTML", filterSVG(e.getSvgData()));
+                    UI.getCurrent().getPage().executeJs("zoomRestore()");
+                }
             }
         });
 
-        Communication.getBus().register(new Object() {
+        Communication.getBus().register(new BaseListener<ZoomEvent>() {
+            @Override
             @Subscribe
-            public void receiveZoomEvent(ZoomEvent e) {
-                if (e.isZoomIn()) {
-                    UI.getCurrent().getPage().executeJs("zoomIn()");
-                }
-                else
-                if (e.isZoomOut()) {
-                    UI.getCurrent().getPage().executeJs("zoomOut()");
-                }
-                else {
-                    UI.getCurrent().getPage().executeJs("reset()");
+            public void receive(ZoomEvent e) {
+                if (checkUiAndSession(e)) {
+                    if (e.isZoomIn()) {
+                        UI.getCurrent().getPage().executeJs("zoomIn()");
+                    }
+                    else
+                    if (e.isZoomOut()) {
+                        UI.getCurrent().getPage().executeJs("zoomOut()");
+                    }
+                    else
+                    if (e.isFit()) {
+                        UI.getCurrent().getPage().executeJs("zoomFit($0)", 1036);
+                    }
+                    else {
+                        UI.getCurrent().getPage().executeJs("zoomReset()");
+                    }
                 }
             }
         });
