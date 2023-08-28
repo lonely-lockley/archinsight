@@ -1,33 +1,27 @@
-package com.github.lonelylockley.archinsight;
+package com.github.lonelylockley.archinsight.screens;
 
 import com.github.lonelylockley.archinsight.components.*;
-import com.github.lonelylockley.archinsight.events.Communication;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
-import com.vaadin.flow.router.Route;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.theme.lumo.Lumo;
 
 /**
  * The main view contains a button and a click listener.
  */
-@Route("")
-@CssImport("./styles/shared-styles.css")
-@CssImport(value = "./styles/vaadin-text-field-styles.css", themeFor = "vaadin-text-field")
-public class EditorView extends AppLayout {
+public abstract class BasicEditorView extends AppLayout implements BaseView {
 
-    public EditorView() {
+    public BasicEditorView(String titleSuffix, boolean menuEnabled) {
         DrawerToggle toggle = new DrawerToggle();
 
-        H1 title = new H1("Archinsight");
-        title
-            .getStyle()
-            .set("font-size", "var(--lumo-font-size-l)")
-            .set("margin", "0");
+        var title = createTitle(titleSuffix);
 
-        addToDrawer(new NavItemsComponent());
+        var nav = new NavItemsComponent();
+        // how to disable drawer button?
+        addToDrawer(nav);
         addToNavbar(toggle, title);
         setDrawerOpened(false);
 
@@ -40,10 +34,14 @@ public class EditorView extends AppLayout {
         invisible.getElement().getStyle().set("display", "none");
         addToDrawer(invisible);
         // =============================================================================================================
+        var contentLayout = new VerticalLayout();
         var splitView = new SplitViewComponent(new EditorComponent(), new SVGViewComponent());
         var content = new WorkAreaComponent(new MenuBarComponent(invisible), splitView);
-        setContent(content);
-        getElement().executeJs("document.documentElement.setAttribute('theme', $0)", Lumo.DARK);
+        contentLayout.add(content);
+        contentLayout.setSizeFull();
+        addFooter(contentLayout);
+        setContent(contentLayout);
+        applyDarkTheme(getElement());
     }
 
 }

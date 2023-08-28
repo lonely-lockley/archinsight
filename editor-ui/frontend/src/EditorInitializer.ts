@@ -9,7 +9,7 @@ const renderClient: Renderer = new Renderer();
 
 function renderCode(container: HTMLElement, value: string) {
     const errors = monaco.editor.getModelMarkers({})?.length;
-    if (!errors && value) {
+    if (!errors && value && value.length > 0) {
         renderClient.remoteRender(container, value);
     }
 }

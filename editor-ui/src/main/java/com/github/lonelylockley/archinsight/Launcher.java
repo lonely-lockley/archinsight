@@ -2,24 +2,16 @@ package com.github.lonelylockley.archinsight;
 
 import com.helger.commons.lang.ClassPathHelper;
 import com.vaadin.flow.server.VaadinServlet;
-import com.vaadin.flow.server.startup.ServletDeployer;
-import org.eclipse.jetty.annotations.AnnotationConfiguration;
-import org.eclipse.jetty.plus.webapp.EnvConfiguration;
-import org.eclipse.jetty.plus.webapp.PlusConfiguration;
 import org.eclipse.jetty.server.CustomRequestLog;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Slf4jRequestLogWriter;
 import org.eclipse.jetty.util.resource.Resource;
-import org.eclipse.jetty.util.resource.ResourceCollection;
 import org.eclipse.jetty.webapp.*;
-import org.eclipse.jetty.websocket.server.config.JettyWebSocketConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.ServletContextEvent;
 import java.io.File;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,7 +29,8 @@ public final class Launcher {
 
         var tempDir = setupTemporaryDirectory();
 
-        var context = setupContext(server, tempDir);
+        var context = setupContext(tempDir);
+        server.setHandler(context);
 
         setupAccessLogs(server);
 
@@ -58,7 +51,7 @@ public final class Launcher {
         return tempDir;
     }
 
-    private static WebAppContext setupContext(Server server, File tempDir) throws IOException {
+    private static WebAppContext setupContext(File tempDir) throws IOException {
         WebAppContext context = new WebAppContext();
         context.setInitParameter("productionMode", "true");
 
@@ -75,7 +68,6 @@ public final class Launcher {
         context.setAttribute("org.eclipse.jetty.server.webapp.ContainerIncludeJarPattern", ".*");
 
         context.setParentLoaderPriority(true);
-        server.setHandler(context);
 
         // This add jars to the jetty classpath in a certain syntax and the pattern makes sure to load all of them
         List<Resource> resourceList = new ArrayList<>();

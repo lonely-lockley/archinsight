@@ -1,0 +1,26 @@
+micronaut:
+  server:
+    cors:
+      enabled: true
+  security:
+    authentication: idtoken
+    oauth2:
+      clients:
+        google:
+          client-id: '${OAUTH_CLIENT_ID}'
+          client-secret: '${OAUTH_CLIENT_SECRET}'
+          redirect-uri: '${PUBLIC_HOST}/oauth/callback/google'
+          scopes:
+            - openid
+            - profile
+            - email
+          openid:
+            issuer: 'https://accounts.google.com'
+    endpoints:
+      logout:
+        enabled: true
+        get-allowed: true
+    redirect:
+      prior-to-login: false
+      login-success: '${PUBLIC_HOST}/auth/ok'
+      login-failure: '${PUBLIC_HOST}/auth/fail'

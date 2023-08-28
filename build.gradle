@@ -1,9 +1,9 @@
 plugins {
     id 'java'
     id 'antlr'
-    id 'io.micronaut.application' version '3.4.0'
-    id 'io.micronaut.minimal.application' version '3.4.0'
-    id 'io.micronaut.docker' version '3.4.0'
+    id 'io.micronaut.application' version '3.7.10'
+    id 'io.micronaut.minimal.application' version '3.7.10'
+    id 'io.micronaut.docker' version '3.7.10'
     id 'com.github.node-gradle.node' version '3.3.0'
     id 'com.vaadin' version '23.3.10'
 }
@@ -27,8 +27,10 @@ allprojects {
             implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
             implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.4.8'
 
-            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.5.0'
-            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '3.5.0'
+            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.10.1'
+            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '3.10.1'
+            implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2', version: '3.10.1'
+            implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt', version: '3.10.1'
             implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
             implementation group: 'org.apache.commons', name: 'commons-text', version: '1.10.0'
             implementation group: 'com.google.guava', name: 'guava', version: '32.1.1-jre'
@@ -249,4 +251,27 @@ project('editor-ui') {
         }
     }
 
+}
+
+project('identity') {
+    apply plugin: 'io.micronaut.application'
+    apply plugin: 'io.micronaut.minimal.application'
+    apply plugin: 'io.micronaut.docker'
+
+    dependencies {
+        implementation project(':common')
+
+        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
+        implementation group: 'io.micronaut', name: 'micronaut-http-client'
+        implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2'
+        implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt'
+    }
+
+    tasks.named("dockerBuild") {
+        images = ["lonelylockley/archinsight:$project.name-$project.version"]
+    }
+
+    tasks.named("dockerfile") {
+        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.IdentityService')
+    }
 }
