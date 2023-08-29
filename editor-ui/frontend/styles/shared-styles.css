@@ -31,3 +31,22 @@
   opacity: 1;
   transition: 0s
 }
+
+.bg_code {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 1.0) 0%, transparent 100%);
+  opacity: 0.85;
+  z-index: -1;
+  overflow: hidden;
+  font-size: 13px;
+}
