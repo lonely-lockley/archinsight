@@ -1,5 +1,6 @@
-package com.github.lonelylockley.archinsight;
+package com.github.lonelylockley.archinsight.auth;
 
+import com.github.lonelylockley.archinsight.KeyGenerator;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;

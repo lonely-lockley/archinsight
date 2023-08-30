@@ -2,8 +2,11 @@ package com.github.lonelylockley.archinsight;
 
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.github.lonelylockley.archinsight.auth.Keychain;
 import com.github.lonelylockley.archinsight.model.Source;
 import com.github.lonelylockley.archinsight.model.Tuple2;
+import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
+import com.github.lonelylockley.archinsight.persistence.UserdataMapper;
 import io.micronaut.http.*;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
@@ -25,23 +28,34 @@ public class AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
 
-    private Config conf;
-    private Keychain keychain;
+    private final Config conf;
+    private final Keychain keychain;
+    private final SqlSessionFactoryBean sqlSessionFactory;
 
-    public AuthService(Keychain keychain, Config conf) {
+    public AuthService(Keychain keychain, Config conf, SqlSessionFactoryBean sqlSessionFactory) {
         if (conf.getKid() == null) {
             throw new IllegalArgumentException("JWT key id (env KID) is not set. This setting is required in production mode");
         }
         this.keychain = keychain;
         this.conf = conf;
+        this.sqlSessionFactory = sqlSessionFactory;
     }
 
-    @Get("/ok")
-    @Secured(SecurityRule.IS_AUTHENTICATED)
-    @Produces(MediaType.TEXT_HTML)
-    public HttpResponse<String> ok(HttpRequest<Source> request) throws Exception {
-        var accessToken = createJWT("test", conf.getKid(), Duration.of(20, ChronoUnit.MINUTES));
-        var refreshToken = createJWT("test", conf.getKid(), Duration.of(90, ChronoUnit.DAYS));
+    private HttpResponse<String> onSuccess(String email) {
+        UUID userId = null;
+        try (var session = sqlSessionFactory.getSession()) {
+            var sql = session.getMapper(UserdataMapper.class);
+            userId = sql.getIdByEmail(email);
+        }
+        catch (Exception ex) {
+            logger.error("Error accessing user data", ex);
+            return HttpResponse.serverError("Cannot access user data");
+        }
+        if (userId == null) {
+            return HttpResponse.notFound("User not found");
+        }
+        var accessToken = createJWT(userId.toString(), conf.getKid(), Duration.of(20, ChronoUnit.MINUTES));
+        var refreshToken = createJWT(userId.toString(), conf.getKid(), Duration.of(90, ChronoUnit.DAYS));
         return HttpResponse.ok(createFinalPage())
                 .cookie(createCookie("access_token", accessToken, conf.getDomain()))
                 .cookie(createCookie("refresh_token", refreshToken,  null))
@@ -49,7 +63,13 @@ public class AuthService {
                 .cookie(clearCookie("OAUTH2_STATE"))
                 .cookie(clearCookie("OPENID_NONCE"))
                 .cookie(clearCookie("OAUTH2_PKCE"));
+    }
 
+    @Get("/ok")
+    @Secured(SecurityRule.IS_AUTHENTICATED)
+    @Produces(MediaType.TEXT_HTML)
+    public HttpResponse<String> ok(HttpRequest<Source> request) throws Exception {
+        return onSuccess(getEmailFromToken(request));
     }
 
     @Get("/fail")
@@ -71,7 +91,7 @@ public class AuthService {
             return HttpResponse.notFound();
         }
         else {
-            return ok(request);
+            return onSuccess("y_menya@emaila.net");
         }
     }
 
@@ -124,6 +144,11 @@ public class AuthService {
             token.withClaim(claim._1, claim._2);
         }
         return token.sign(algorithm);
+    }
+
+    private String getEmailFromToken(HttpRequest<Source> request) {
+        var jwt = request.getCookies().get("JWT");
+        return JWT.decode(jwt.getValue()).getClaim("email").asString();
     }
 
 }
