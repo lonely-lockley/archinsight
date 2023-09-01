@@ -9,6 +9,7 @@ public class Config {
     private Boolean devMode;
     private String domain;
     private String kid;
+    private String apiToken;
 
     public Boolean getDevMode() {
         return devMode;
@@ -36,5 +37,13 @@ public class Config {
 
     public void setKid(String kid) {
         this.kid = kid;
+    }
+
+    public String getApiToken() {
+        return apiToken;
+    }
+
+    public void setApiToken(String apiToken) {
+        this.apiToken = apiToken;
     }
 }

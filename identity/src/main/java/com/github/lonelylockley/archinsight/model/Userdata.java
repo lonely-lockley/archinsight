@@ -1,9 +1,10 @@
 package com.github.lonelylockley.archinsight.model;
 
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.UUID;
 
-public class Userdata {
+public class Userdata implements Serializable {
 
     private UUID id;
     private String originId;

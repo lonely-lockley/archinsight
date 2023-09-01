@@ -12,6 +12,7 @@ import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.netty.cookies.NettyCookie;
+import io.micronaut.http.server.util.HttpClientAddressResolver;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 import org.slf4j.Logger;
@@ -31,14 +32,16 @@ public class AuthService {
     private final Config conf;
     private final Keychain keychain;
     private final SqlSessionFactoryBean sqlSessionFactory;
+    private final HttpClientAddressResolver addressResolver;
 
-    public AuthService(Keychain keychain, Config conf, SqlSessionFactoryBean sqlSessionFactory) {
+    public AuthService(Keychain keychain, Config conf, SqlSessionFactoryBean sqlSessionFactory, HttpClientAddressResolver addressResolver) {
         if (conf.getKid() == null) {
             throw new IllegalArgumentException("JWT key id (env KID) is not set. This setting is required in production mode");
         }
         this.keychain = keychain;
         this.conf = conf;
         this.sqlSessionFactory = sqlSessionFactory;
+        this.addressResolver = addressResolver;
     }
 
     private HttpResponse<String> onSuccess(String email) {
@@ -69,30 +72,49 @@ public class AuthService {
     @Secured(SecurityRule.IS_AUTHENTICATED)
     @Produces(MediaType.TEXT_HTML)
     public HttpResponse<String> ok(HttpRequest<Source> request) throws Exception {
-        return onSuccess(getEmailFromToken(request));
+        var startTime = System.nanoTime();
+        var result = onSuccess(getEmailFromToken(request));
+        logger.info("Access: /auth/ok from {} required {}ms",
+                addressResolver.resolve(request),
+                (System.nanoTime() - startTime) / 1000000
+        );
+        return result;
     }
 
     @Get("/fail")
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.TEXT_HTML)
     public HttpResponse<String> fail(HttpRequest<Source> request) throws Exception {
-        return HttpResponse.ok(createFinalPage())
-                .cookie(clearCookie("JWT"))
-                .cookie(clearCookie("OAUTH2_STATE"))
-                .cookie(clearCookie("OPENID_NONCE"))
-                .cookie(clearCookie("OAUTH2_PKCE"));
+        var startTime = System.nanoTime();
+        var result = HttpResponse.ok(createFinalPage())
+                                .cookie(clearCookie("JWT"))
+                                .cookie(clearCookie("OAUTH2_STATE"))
+                                .cookie(clearCookie("OPENID_NONCE"))
+                                .cookie(clearCookie("OAUTH2_PKCE"));
+        logger.info("Access: /auth/fail from {} required {}ms",
+                addressResolver.resolve(request),
+                (System.nanoTime() - startTime) / 1000000
+        );
+        return result;
     }
 
     @Get("/testOk")
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.TEXT_HTML)
     public HttpResponse<String> testOk(HttpRequest<Source> request) throws Exception {
+        var startTime = System.nanoTime();
+        HttpResponse<String> result = null;
         if (!conf.getDevMode()) {
-            return HttpResponse.notFound();
+            result = HttpResponse.notFound();
         }
         else {
-            return onSuccess("y_menya@emaila.net");
+            result = onSuccess("y_menya@emaila.net");
         }
+        logger.info("Access: /auth/testOk from {} required {}ms",
+                addressResolver.resolve(request),
+                (System.nanoTime() - startTime) / 1000000
+        );
+        return result;
     }
 
     private NettyCookie createCookie(String name, String value, String domain) {
@@ -130,16 +152,16 @@ public class AuthService {
 
     private String createJWT(String subject, String keyId, TemporalAmount ttl, Tuple2<String, String>... claims) {
         assert keychain.hasKID(keyId);
-        var keySet = keychain.getKeySet(keyId);
-        Algorithm algorithm = Algorithm.ECDSA256(keySet._1, keySet._2);
+        Algorithm algorithm = Algorithm.ECDSA256(keychain.getPublicKey(keyId), keychain.getPrivateKey(keyId));
         var issuedAt = Instant.now();
         var token = JWT.create()
-                .withIssuer("archinsight.org")
+                .withIssuer(conf.getDomain())
                 .withIssuedAt(issuedAt)
                 .withExpiresAt(issuedAt.plus(ttl))
                 .withJWTId(UUID.randomUUID().toString())
                 .withKeyId(keyId)
-                .withSubject(subject);
+                .withSubject(subject)
+                .withAudience(conf.getDomain());
         for (Tuple2<String, String> claim : claims) {
             token.withClaim(claim._1, claim._2);
         }

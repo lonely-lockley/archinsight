@@ -184,7 +184,7 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
         var playground = createTile(150, "Playground", "static/playground-svgrepo-com.svg", "#04AA6D");
         playground.setClassName("tile_action");
         playground.addClickListener(e -> {
-            UI.getCurrent().navigate("playground");
+            UI.getCurrent().navigate(PlaygroundView.class);
         });
         actionsFirstLine.add(dockerhub);
         actionsFirstLine.add(github);
