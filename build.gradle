@@ -38,6 +38,7 @@ allprojects {
             implementation group: 'com.google.guava', name: 'guava', version: '32.1.1-jre'
             implementation group: 'com.github.lonely-lockley', name: 'ltsv-parser', version: '1.1.0'
             implementation group: 'com.auth0', name: 'java-jwt', version: '4.4.0'
+            implementation group: 'com.auth0', name: 'jwks-rsa', version: '0.22.1'
             implementation group: 'org.mybatis', name: 'mybatis', version: '3.5.13'
             implementation group: 'org.postgresql', name: 'postgresql', version: '42.6.0'
 
@@ -185,6 +186,8 @@ project('editor-ui') {
         implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api'
         implementation group: 'io.micronaut', name: 'micronaut-http-client'
         implementation group: 'com.google.guava', name: 'guava'
+        implementation group: 'com.auth0', name: 'java-jwt'
+        implementation group: 'com.auth0', name: 'jwks-rsa'
     }
 
     clean.doFirst {

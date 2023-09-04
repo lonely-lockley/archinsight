@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.auth;
 
+import com.github.lonelylockley.archinsight.Config;
 import com.nimbusds.jose.jwk.ECKey;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -23,9 +24,9 @@ public class Keychain {
 
     private final Map<String, ECKey> keys = new HashMap<>();
 
-    public Keychain() throws Exception {
+    public Keychain(Config conf) throws Exception {
         // load test key for dev mode ==================================================================================
-        if ("true".equalsIgnoreCase(System.getenv("DEV_MODE"))) {
+        if (conf.getDevMode()) {
             var jwk = loadECKey(this.getClass().getResourceAsStream("/test_keyset/test_key.jwk"));
             keys.put(jwk.getKeyID(), jwk);
         }

@@ -1,15 +1,18 @@
 package com.github.lonelylockley.archinsight;
 
 import io.micronaut.context.annotation.ConfigurationProperties;
+import io.micronaut.http.client.ServiceHttpClientConfiguration;
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 @Singleton
 @ConfigurationProperties("archinsight")
 public class Config {
+
     private Boolean devMode;
     private String domain;
-    private String kid;
-    private String apiToken;
+    private String loginUrl;
+    private String identityAuthToken;
 
     public Boolean getDevMode() {
         return devMode != null && devMode;
@@ -23,27 +26,24 @@ public class Config {
         return domain;
     }
 
-    public String getLoginDomain() {
-        return "login." + domain;
-    }
-
     public void setDomain(String domain) {
         this.domain = domain;
     }
 
-    public String getKid() {
-        return kid;
+    public String getLoginUrl() {
+        return loginUrl;
     }
 
-    public void setKid(String kid) {
-        this.kid = kid;
+    public void setLoginUrl(String loginUrl) {
+        this.loginUrl = loginUrl;
     }
 
-    public String getApiToken() {
-        return apiToken;
+    public String getIdentityAuthToken() {
+        return String.format("Bearer %s", identityAuthToken);
     }
 
-    public void setApiToken(String apiToken) {
-        this.apiToken = apiToken;
+    public void setIdentityAuthToken(String identityAuthToken) {
+        this.identityAuthToken = identityAuthToken;
     }
+
 }

@@ -24,3 +24,8 @@ micronaut:
       prior-to-login: false
       login-success: '${PUBLIC_HOST}/auth/ok'
       login-failure: '${PUBLIC_HOST}/auth/fail'
+archinsight:
+  devMode: ${DEV_MODE:`false`}
+  domain: '${DOMAIN}'
+  kid: '${KID}'
+  apiToken: '${SECURITY_TOKEN}'

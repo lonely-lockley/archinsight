@@ -1,11 +1,25 @@
 package com.github.lonelylockley.archinsight;
 
+import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.archinsight.model.Userdata;
 import com.github.lonelylockley.archinsight.persistence.MigratorRunner;
+import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
+import com.github.lonelylockley.archinsight.persistence.UserdataMapper;
+import io.micronaut.http.HttpHeaders;
+import io.micronaut.http.HttpRequest;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
+import io.micronaut.http.annotation.Get;
+import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.util.HttpClientAddressResolver;
 import io.micronaut.runtime.Micronaut;
+import io.micronaut.security.annotation.Secured;
+import io.micronaut.security.rules.SecurityRule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.UUID;
 
 @Controller("/identity")
 public class IdentityService {
@@ -13,6 +27,8 @@ public class IdentityService {
     private static final Logger logger = LoggerFactory.getLogger(IdentityService.class);
 
     private final HttpClientAddressResolver addressResolver;
+    private final SqlSessionFactoryBean sqlSessionFactory;
+    private final Config conf;
 
     public static void main(String[] args) throws Exception {
         var ctx = Micronaut.run(new Class[] {IdentityService.class, AuthService.class, JWKSService.class}, args);
@@ -20,8 +36,64 @@ public class IdentityService {
         logger.info("Identity server started");
     }
 
-    public IdentityService(HttpClientAddressResolver addressResolver) {
+    public IdentityService(HttpClientAddressResolver addressResolver, SqlSessionFactoryBean sqlSessionFactory, Config conf) {
         this.addressResolver = addressResolver;
+        this.sqlSessionFactory = sqlSessionFactory;
+        this.conf = conf;
+    }
+
+    @Get("/id/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Secured(SecurityRule.IS_ANONYMOUS)
+    public HttpResponse<Userdata> getById(HttpRequest<Source> request, UUID id) {
+        var startTime = System.nanoTime();
+        HttpResponse<Userdata> result = HttpResponse.unauthorized();
+        if (checkToken(request)) {
+            try (var session = sqlSessionFactory.getSession()) {
+                var sql = session.getMapper(UserdataMapper.class);
+                var user = sql.getById(id);
+                result = HttpResponse.ok(user);
+            }
+            catch (Exception ex) {
+                logger.error("Error accessing user data", ex);
+                result = HttpResponse.serverError();
+            }
+        }
+        logger.info("Access: /identity/id from {} required {}ms",
+                addressResolver.resolve(request),
+                (System.nanoTime() - startTime) / 1000000
+        );
+        return result;
+    }
+
+    @Get("/email/{email}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Secured(SecurityRule.IS_ANONYMOUS)
+    public HttpResponse<Userdata> getByEmail(HttpRequest<Source> request, String email) {
+        var startTime = System.nanoTime();
+        HttpResponse<Userdata> result = HttpResponse.unauthorized();
+        if (checkToken(request)) {
+            try (var session = sqlSessionFactory.getSession()) {
+                var sql = session.getMapper(UserdataMapper.class);
+                var user = sql.getByEmail(email);
+                result = HttpResponse.ok(user);
+            }
+            catch (Exception ex) {
+                logger.error("Error accessing user data", ex);
+                result = HttpResponse.serverError();
+            }
+        }
+        logger.info("Access: /identity/email from {} required {}ms",
+                addressResolver.resolve(request),
+                (System.nanoTime() - startTime) / 1000000
+        );
+        return result;
+    }
+
+    private boolean checkToken(HttpRequest<Source> request) {
+        var auth = request.getHeaders().get(HttpHeaders.AUTHORIZATION);
+        // cut Bearer_ - 7 characters
+        return auth != null && conf.getApiToken().equals(auth.substring(7));
     }
 
 }

@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.screens;
 
+import com.github.lonelylockley.archinsight.Config;
+import com.github.lonelylockley.archinsight.MicronautContext;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.Unit;
@@ -10,15 +12,21 @@ import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.*;
+import com.vaadin.flow.server.auth.AnonymousAllowed;
+import jakarta.inject.Inject;
 
 @Route("")
 @PageTitle("Archinsight")
+@AnonymousAllowed
 public class SiteView extends VerticalLayout implements BaseView, HasUrlParameter<String> {
 
     private static final int grossContentWidth = 1000;
-    private static final int margin = 5;
+    private static final String marginLeft = "100px";
+
+    private final Config conf;
 
     public SiteView() {
+        this.conf = MicronautContext.getInstance().getConf();
         setAlignItems(Alignment.CENTER);
         var holder = new Div();
         holder.setWidth(grossContentWidth, Unit.PIXELS);
@@ -35,7 +43,7 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
     private Component createContent() {
         var content = new VerticalLayout();
         content.setMargin(false);
-        content.getElement().getStyle().set("margin-left", "50px");
+        content.getElement().getStyle().set("margin-left", marginLeft);
         content.setPadding(false);
         // code background =============================================================================================
         var bg = new Div();
@@ -194,7 +202,7 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
         actionsSecondLine.setMargin(false);
         var login = createTile(317, 150, "Sign in with Google", "static/google-178-svgrepo-com.svg", "#ff4e50");
         login.addClickListener(e -> {
-            getElement().executeJs(String.format("window.open('%s/oauth/login/google', '')", System.getenv("IDENTITY")));
+            getElement().executeJs(String.format("window.open('%s/oauth/login/google', '')", conf.getLoginUrl()));
         });
         login.getElement().setAttribute("router-ignore", true);
         login.setClassName("tile_action");
@@ -216,11 +224,11 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
             getElement().executeJs("window.open('mailto:webmaster@archinsight.org', '')");
         });
         actionsThirdLine.add(mailto);
-        if ("true".equalsIgnoreCase(System.getenv("DEV_MODE"))) {
+        if (conf.getDevMode()) {
             var devLogin = createTile(317, 150, "Test Login", "static/user-check-svgrepo-com.svg", "#ffffff");
             devLogin.getElement().getStyle().set("color", "#000000");
             devLogin.addClickListener(e -> {
-                getElement().executeJs(String.format("window.open('%s/auth/testOk', '')", System.getenv("IDENTITY")));
+                getElement().executeJs(String.format("window.open('%s/auth/testOk', '')", conf.getLoginUrl()));
             });
             devLogin.setClassName("tile_action");
             actionsThirdLine.add(devLogin);
@@ -279,7 +287,7 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
         greeting.add(new Label("Archinsight"));
         greeting.getElement().getStyle().set("font-size", "58px");
         greeting.getElement().getStyle().set("margin-top", "150px");
-        greeting.getElement().getStyle().set("margin-left", "50px");
+        greeting.getElement().getStyle().set("margin-left", marginLeft);
         layout.add(greeting);
         return layout;
     }

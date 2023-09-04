@@ -44,7 +44,7 @@ public class AuthService {
         this.addressResolver = addressResolver;
     }
 
-    private HttpResponse<String> onSuccess(String email) {
+    private HttpResponse<String> onSuccess(String email, String sessionId) {
         UUID userId = null;
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(UserdataMapper.class);
@@ -52,16 +52,14 @@ public class AuthService {
         }
         catch (Exception ex) {
             logger.error("Error accessing user data", ex);
-            return HttpResponse.serverError("Cannot access user data");
+            return HttpResponse.serverError();
         }
         if (userId == null) {
             return HttpResponse.notFound("User not found");
         }
-        var accessToken = createJWT(userId.toString(), conf.getKid(), Duration.of(20, ChronoUnit.MINUTES));
-        var refreshToken = createJWT(userId.toString(), conf.getKid(), Duration.of(90, ChronoUnit.DAYS));
+        var accessToken = createJWT(userId.toString(), conf.getKid(), Duration.of(5, ChronoUnit.MINUTES), new Tuple2<>("session", sessionId));
         return HttpResponse.ok(createFinalPage())
-                .cookie(createCookie("access_token", accessToken, conf.getDomain()))
-                .cookie(createCookie("refresh_token", refreshToken,  null))
+                .cookie(createCookie("auth_token", accessToken, null, Duration.of(5, ChronoUnit.MINUTES)))
                 .cookie(clearCookie("JWT"))
                 .cookie(clearCookie("OAUTH2_STATE"))
                 .cookie(clearCookie("OPENID_NONCE"))
@@ -73,7 +71,7 @@ public class AuthService {
     @Produces(MediaType.TEXT_HTML)
     public HttpResponse<String> ok(HttpRequest<Source> request) throws Exception {
         var startTime = System.nanoTime();
-        var result = onSuccess(getEmailFromToken(request));
+        var result = onSuccess(getEmailFromToken(request), getSessionId(request));
         logger.info("Access: /auth/ok from {} required {}ms",
                 addressResolver.resolve(request),
                 (System.nanoTime() - startTime) / 1000000
@@ -108,7 +106,7 @@ public class AuthService {
             result = HttpResponse.notFound();
         }
         else {
-            result = onSuccess("y_menya@emaila.net");
+            result = onSuccess("y_menya@emaila.net", getSessionId(request));
         }
         logger.info("Access: /auth/testOk from {} required {}ms",
                 addressResolver.resolve(request),
@@ -117,10 +115,13 @@ public class AuthService {
         return result;
     }
 
-    private NettyCookie createCookie(String name, String value, String domain) {
+    private NettyCookie createCookie(String name, String value, String domain, TemporalAmount ttl) {
         var res = new NettyCookie(name, value);
         if (domain != null) {
             res.domain(domain);
+        }
+        if (ttl != null) {
+            res.maxAge(ttl);
         }
         res.path("/");
         res.httpOnly(true);
@@ -171,6 +172,20 @@ public class AuthService {
     private String getEmailFromToken(HttpRequest<Source> request) {
         var jwt = request.getCookies().get("JWT");
         return JWT.decode(jwt.getValue()).getClaim("email").asString();
+    }
+
+    private String getSessionId(HttpRequest<Source> request) {
+        var jsessionid = request.getCookies().get("JSESSIONID");
+        if (jsessionid != null) {
+            var pos = jsessionid.getValue().indexOf(".");
+            if (pos > 0) {
+                return jsessionid.getValue().substring(0, pos);
+            }
+            else {
+                return jsessionid.getValue();
+            }
+        }
+        return null;
     }
 
 }

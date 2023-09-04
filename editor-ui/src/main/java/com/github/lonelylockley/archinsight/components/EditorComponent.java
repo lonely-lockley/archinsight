@@ -2,11 +2,13 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.model.MessageLevel;
 import com.github.lonelylockley.archinsight.model.TranslatedSource;
+import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.remote.RenderSource;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.UI;
@@ -26,9 +28,10 @@ public class EditorComponent extends Div {
 
     private static final Logger logger = LoggerFactory.getLogger(EditorComponent.class);
 
-    private final RenderSource rs = new RenderSource();
+    private final RemoteSource remoteSource;
 
     public EditorComponent() {
+        this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setId("editor");
         UI.getCurrent().getPage().executeJs("initializeEditor()");
     }
@@ -36,7 +39,7 @@ public class EditorComponent extends Div {
     public void render(String code) {
         TranslatedSource res = null;
         try {
-            res = rs.render(code);
+            res = remoteSource.render.render(code);
             if (res.getMessages() == null || res.getMessages().isEmpty()) {
                 Communication.getBus().post(new SourceCompilationEvent(true));
                 Communication.getBus().post(new SvgDataEvent(res.getSource()));
