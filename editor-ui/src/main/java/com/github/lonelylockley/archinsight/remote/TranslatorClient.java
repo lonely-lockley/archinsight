@@ -9,7 +9,7 @@ import io.micronaut.http.client.annotation.Client;
 import static io.micronaut.http.HttpHeaders.ACCEPT;
 import static io.micronaut.http.HttpHeaders.CONTENT_TYPE;
 
-@Client(id = "${COMPILER}")
+@Client(id = "compiler")
 @Header(name = ACCEPT, value = "application/json")
 @Header(name = CONTENT_TYPE, value = "application/json")
 public interface TranslatorClient {

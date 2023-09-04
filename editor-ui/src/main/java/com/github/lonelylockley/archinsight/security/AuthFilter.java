@@ -65,17 +65,22 @@ public class AuthFilter implements BeforeEnterListener {
     private boolean verifyToken(DecodedJWT decoded, String sessionId) throws Exception {
         var key = provider.get(decoded.getKeyId());
         if (key != null) {
-            JWT.require(Algorithm.ECDSA256((ECPublicKey) key.getPublicKey(), null))
-                    .withIssuer(conf.getDomain())
-                    .withAnyOfAudience(conf.getDomain())
-                    .withClaimPresence("sub")
-                    .withClaim("session", sessionId)
-                    .build()
-                    .verify(decoded);
+            try {
+                JWT.require(Algorithm.ECDSA256((ECPublicKey) key.getPublicKey(), null))
+                        .withIssuer(conf.getDomain())
+                        .withAnyOfAudience(conf.getDomain())
+                        .withClaimPresence("sub")
+                        .withClaim("session", sessionId)
+                        .build()
+                        .verify(decoded);
+            }
+            catch (Exception ex) {
+                logger.warn("{} [user id={}]", ex.getMessage(), decoded.getSubject());
+            }
             return true;
         }
         else {
-            logger.warn("Authentication with non-existent key ID {}", decoded.getKeyId());
+            logger.warn("Authentication with non-existent key ID {} [user id={}]", decoded.getKeyId(), decoded.getSubject());
             return false;
         }
     }

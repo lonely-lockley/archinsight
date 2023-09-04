@@ -11,19 +11,20 @@ public class ViewAccessSecurityInitializer implements VaadinServiceInitListener 
 
     private static final Logger logger = LoggerFactory.getLogger(ViewAccessSecurityInitializer.class);
 
-    private ViewAccessChecker viewAccessChecker;
+    private AccessChecker accessChecker;
 
     public ViewAccessSecurityInitializer() {
-        viewAccessChecker = new ViewAccessChecker();
-        viewAccessChecker.setLoginView(SiteView.class);
+        accessChecker = new AccessChecker();
+        accessChecker.setLoginView(SiteView.class);
+        accessChecker.enable();
         logger.info("Initialized view access security checker");
     }
 
     @Override
     public void serviceInit(ServiceInitEvent serviceInitEvent) {
         serviceInitEvent.getSource().addUIInitListener(uiInitEvent -> {
-            uiInitEvent.getUI().addBeforeEnterListener(viewAccessChecker);
             uiInitEvent.getUI().addBeforeEnterListener(new AuthFilter());
+            uiInitEvent.getUI().addBeforeEnterListener(accessChecker);
         });
     }
 }
