@@ -245,8 +245,8 @@ project('editor-ui') {
             into "${buildDir}/docker/main/layers/editor-ui/frontend/"
         }
         copy {
-            from "frontend/icons"
-            into "${buildDir}/docker/main/layers/editor-ui/frontend/icons"
+            from "frontend/static"
+            into "${buildDir}/docker/main/layers/editor-ui/frontend/static"
         }
         copy {
             from "frontend/themes"
