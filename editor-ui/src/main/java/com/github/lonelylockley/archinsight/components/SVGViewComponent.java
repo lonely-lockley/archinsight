@@ -18,8 +18,7 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
 
     public SVGViewComponent() {
         setId("svg-view-component");
-
-        Communication.getBus().register(new BaseListener<SvgDataEvent>() {
+        final var svgDataListener = new BaseListener<SvgDataEvent>() {
             @Override
             @Subscribe
             public void receive(SvgDataEvent e) {
@@ -28,9 +27,9 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
                     UI.getCurrent().getPage().executeJs("zoomRestore()");
                 }
             }
-        });
-
-        Communication.getBus().register(new BaseListener<ZoomEvent>() {
+        };
+        Communication.getBus().register(svgDataListener);
+        final var zoomEventListener = new BaseListener<ZoomEvent>() {
             @Override
             @Subscribe
             public void receive(ZoomEvent e) {
@@ -51,8 +50,13 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
                     }
                 }
             }
-        });
+        };
+        Communication.getBus().register(zoomEventListener);
 
+        addDetachListener(e -> {
+            Communication.getBus().unregister(svgDataListener);
+            Communication.getBus().unregister(zoomEventListener);
+        });
     }
 
     private String filterSVG(String svgData) {

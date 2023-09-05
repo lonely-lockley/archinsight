@@ -11,11 +11,15 @@ import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 
-import static com.github.lonelylockley.archinsight.model.MessageLevel.*;
+import java.time.Duration;
 
-public class ErrorNotificationComponent extends Notification {
+public class NotificationComponent extends Notification {
 
-    public ErrorNotificationComponent(String message, MessageLevel level) {
+    public NotificationComponent(String message, MessageLevel level) {
+        new NotificationComponent(message, level, -1);
+    }
+
+    public NotificationComponent(String message, MessageLevel level, int durationMillis) {
         switch (level) {
             case NOTICE:
                 addThemeVariants(NotificationVariant.LUMO_CONTRAST);
@@ -41,7 +45,9 @@ public class ErrorNotificationComponent extends Notification {
         add(layout);
 
         setPosition(Position.BOTTOM_END);
-        setDuration(3000);
+        if (durationMillis > 0) {
+            setDuration(durationMillis);
+        }
         open();
     }
 

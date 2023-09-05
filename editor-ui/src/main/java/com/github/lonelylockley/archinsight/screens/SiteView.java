@@ -2,9 +2,21 @@ package com.github.lonelylockley.archinsight.screens;
 
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.NotificationComponent;
+import com.github.lonelylockley.archinsight.components.tiles.*;
+import com.github.lonelylockley.archinsight.events.BaseListener;
+import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.UserAuthenticated;
+import com.github.lonelylockley.archinsight.model.MessageLevel;
+import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.security.AuthFilter;
+import com.github.lonelylockley.archinsight.security.Authentication;
+import com.google.common.eventbus.Subscribe;
+import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.Unit;
+import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Label;
@@ -12,12 +24,14 @@ import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.*;
+import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 
 @Route("")
 @PageTitle("Archinsight")
 @AnonymousAllowed
-public class SiteView extends VerticalLayout implements BaseView, HasUrlParameter<String> {
+@JsModule("./src/remote/LoginCallback.ts")
+public class SiteView extends VerticalLayout implements BaseView {
 
     private static final int grossContentWidth = 1000;
     private static final String marginLeft = "100px";
@@ -26,6 +40,7 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
 
     public SiteView() {
         this.conf = MicronautContext.getInstance().getConf();
+        setId("content-presentation");
         setAlignItems(Alignment.CENTER);
         var holder = new Div();
         holder.setWidth(grossContentWidth, Unit.PIXELS);
@@ -176,94 +191,37 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
         // first line actions ==========================================================================================
         var actionsFirstLine = new HorizontalLayout();
         actionsFirstLine.setMargin(false);
-        var dockerhub = createTile(150, "Dockerhub", "static/docker-svgrepo-com.svg", "#0db7ed");
-        dockerhub.getElement().setAttribute("router-ignore", true);
-        dockerhub.setClassName("tile_action");
-        dockerhub.addClickListener(e -> {
-            getElement().executeJs("window.open('https://hub.docker.com/r/lonelylockley/archinsight', '_blank')");
-        });
-        var github = createTile(150, "Project Github", "static/github-142-svgrepo-com.svg", "#171515");
-        github.getElement().setAttribute("router-ignore", true);
-        github.setClassName("tile_action");
-        github.addClickListener(e -> {
-            getElement().executeJs("window.open('https://github.com/lonely-lockley/archinsight', '_blank')");
-        });
-        var playground = createTile(150, "Playground", "static/playground-svgrepo-com.svg", "#04AA6D");
-        playground.setClassName("tile_action");
-        playground.addClickListener(e -> {
-            UI.getCurrent().navigate(PlaygroundView.class);
-        });
-        actionsFirstLine.add(dockerhub);
-        actionsFirstLine.add(github);
-        actionsFirstLine.add(playground);
+        actionsFirstLine.add(new DockerhubTile());
+        actionsFirstLine.add(new GithubTile());
+        actionsFirstLine.add(new PlaygroundTile());
         // second line actions =========================================================================================
         var actionsSecondLine = new HorizontalLayout();
         actionsSecondLine.setMargin(false);
-        var login = createTile(317, 150, "Sign in with Google", "static/google-178-svgrepo-com.svg", "#ff4e50");
-        login.addClickListener(e -> {
-            getElement().executeJs(String.format("window.open('%s/oauth/login/google', '')", conf.getLoginUrl()));
-        });
-        login.getElement().setAttribute("router-ignore", true);
-        login.setClassName("tile_action");
-        var ilang = createTile(150, "Insight language", "static/language-json-svgrepo-com.svg", "#a7226e");
-        ilang.getElement().setAttribute("router-ignore", true);
-        ilang.setClassName("tile_action");
-        ilang.addClickListener(e -> {
-            getElement().executeJs("window.open('https://github.com/lonely-lockley/archinsight/wiki/Insight-language', '_blank')");
-        });
+        var login = new LoginTile(conf.getLoginUrl());
+        if (Authentication.authenticated()) {
+            login.flipTile(Authentication.getAuthenticatedUser());
+        }
         actionsSecondLine.add(login);
-        actionsSecondLine.add(ilang);
+        actionsSecondLine.add(new InsightLanguageTile());
         // third line actions ==========================================================================================
         var actionsThirdLine = new HorizontalLayout();
         actionsThirdLine.setMargin(false);
-        var mailto = createTile(150, "Contact us", "static/mail-pencil-svgrepo-com.svg", "#f9d423");
-        mailto.getElement().setAttribute("router-ignore", true);
-        mailto.setClassName("tile_action");
-        mailto.addClickListener(e -> {
-            getElement().executeJs("window.open('mailto:webmaster@archinsight.org', '')");
-        });
-        actionsThirdLine.add(mailto);
+        actionsThirdLine.add(new MaitoTile());
+        // third line actions ==========================================================================================
+        var actionsFourthLine = new HorizontalLayout();
         if (conf.getDevMode()) {
-            var devLogin = createTile(317, 150, "Test Login", "static/user-check-svgrepo-com.svg", "#ffffff");
-            devLogin.getElement().getStyle().set("color", "#000000");
-            devLogin.addClickListener(e -> {
-                getElement().executeJs(String.format("window.open('%s/auth/testOk', '')", conf.getLoginUrl()));
-            });
-            devLogin.setClassName("tile_action");
-            actionsThirdLine.add(devLogin);
+            actionsFourthLine.add(new DevModeLocalLoginTile(conf.getLoginUrl()));
         }
-        // get thing done finally ======================================================================================
+        // get things done finally =====================================================================================
         var right = new VerticalLayout();
         right.setMargin(false);
         right.add(actionsFirstLine);
         right.add(actionsSecondLine);
         right.add(actionsThirdLine);
+        right.add(actionsFourthLine);
         content.add(bg);
         content.add(contentSplit(783, lb, right));
         return content;
-    }
-
-    private VerticalLayout createTile(float width, float height, String text, String iconSrc, String color) {
-        var res = new VerticalLayout();
-        res.setMargin(false);
-        res.setPadding(false);
-        res.setAlignItems(Alignment.CENTER);
-        res.setWidth(width, Unit.PIXELS);
-        res.setHeight(height, Unit.PIXELS);
-        res.getElement().getStyle().set("padding-top", (height * 0.12) + "px");
-        var icon = new Image(iconSrc, "-");
-        var smaller = Math.min(width, height);
-        icon.setWidth(smaller * 0.5f, Unit.PIXELS);
-        icon.setHeight(smaller * 0.5f, Unit.PIXELS);
-        res.add(icon);
-        var txt = new Label(text);
-        res.add(txt);
-        res.getElement().getStyle().set("background-color", color);
-        return res;
-    }
-
-    private VerticalLayout createTile(float size, String text, String iconSrc, String color) {
-        return createTile(size, size, text, iconSrc, color);
     }
 
     private HorizontalLayout contentSplit(float leftWidth, Component left, Component right) {
@@ -291,9 +249,13 @@ public class SiteView extends VerticalLayout implements BaseView, HasUrlParamete
         return layout;
     }
 
-    @Override
-    public void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
-        var location = event.getLocation();
-        UI.getCurrent().navigate(parameter);
+    @ClientCallable
+    public void loginCallback() {
+        if (Authentication.completedLogin()) {
+            Authentication.authenticate();
+            if (Authentication.authenticated()) {
+                Communication.getBus().post(new UserAuthenticated(Authentication.getAuthenticatedUser()));
+            }
+        }
     }
 }

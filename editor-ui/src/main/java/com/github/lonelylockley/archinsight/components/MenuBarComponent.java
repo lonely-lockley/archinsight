@@ -66,7 +66,7 @@ public class MenuBarComponent extends MenuBar {
         item.setId("menu_btn_zoom_fit");
         item.add(new Icon(VaadinIcon.EXPAND_SQUARE));
 
-        Communication.getBus().register(new BaseListener<SourceCompilationEvent>() {
+        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
             @Override
             @Subscribe
             public void receive(SourceCompilationEvent e) {
@@ -80,7 +80,9 @@ public class MenuBarComponent extends MenuBar {
                     }
                 }
             }
-        });
+        };
+        Communication.getBus().register(sourceCompilationListener);
+        addDetachListener(e -> Communication.getBus().unregister(sourceCompilationListener));
     }
 
     private void menuItemClicked(ClickEvent<MenuItem> event) {

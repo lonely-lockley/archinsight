@@ -6,6 +6,7 @@ import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.model.Userdata;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.vaadin.flow.router.BeforeEnterEvent;
@@ -76,6 +77,7 @@ public class AuthFilter implements BeforeEnterListener {
             }
             catch (Exception ex) {
                 logger.warn("{} [user id={}]", ex.getMessage(), decoded.getSubject());
+                return false;
             }
             return true;
         }

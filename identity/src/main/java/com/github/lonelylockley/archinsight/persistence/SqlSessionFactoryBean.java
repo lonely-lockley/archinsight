@@ -18,6 +18,7 @@ public class SqlSessionFactoryBean {
         var configuration = new Configuration(environment);
         configuration.getTypeHandlerRegistry().register(UuidTypeHandler.class);
         configuration.addMapper(UserdataMapper.class);
+        configuration.setMapUnderscoreToCamelCase(true);
         this.factory = new SqlSessionFactoryBuilder().build(configuration);
     }
 

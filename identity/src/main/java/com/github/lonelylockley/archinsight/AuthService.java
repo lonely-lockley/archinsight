@@ -143,9 +143,9 @@ public class AuthService {
          */
         var sb = new StringBuilder();
         sb.append("<html><header><script>");
-//        sb.append("try {");
-//        sb.append("window.opener.alert('test');");
-//        sb.append("} catch (error) {console.error(error);}");
+        sb.append("try {");
+        sb.append("window.opener.loginCallback();");
+        sb.append("} catch (error) {console.error(error);}");
         sb.append("window.close();");
         sb.append("</script></header><body></body></html>");
         return sb.toString();

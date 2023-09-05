@@ -9,7 +9,6 @@ import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.model.MessageLevel;
 import com.github.lonelylockley.archinsight.model.TranslatedSource;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
-import com.github.lonelylockley.archinsight.remote.RenderSource;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
@@ -52,7 +51,7 @@ public class EditorComponent extends Div {
         }
         catch (Exception ex) {
             Communication.getBus().post(new SourceCompilationEvent(false));
-            new ErrorNotificationComponent(ex.getMessage(), MessageLevel.ERROR);
+            new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 3000);
             logger.error("Could not render object. Sending empty response to browser", ex);
         }
     }

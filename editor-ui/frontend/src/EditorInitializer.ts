@@ -1,7 +1,7 @@
 import * as monaco from 'monaco-editor-core';
 import { languageID } from './lang-service/config';
 import setupLanguage from './lang-service/setup';
-import Renderer from './render/Renderer';
+import Renderer from './remote/Renderer';
 import { LinkerMessage } from './model/TranslatorResponse';
 
 const _global = (window) as any
