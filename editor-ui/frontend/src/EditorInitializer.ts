@@ -1,7 +1,7 @@
 import * as monaco from 'monaco-editor-core';
 import { languageID } from './lang-service/config';
 import setupLanguage from './lang-service/setup';
-import Renderer from './render/Renderer';
+import Renderer from './remote/Renderer';
 import { LinkerMessage } from './model/TranslatorResponse';
 
 const _global = (window) as any
@@ -9,7 +9,7 @@ const renderClient: Renderer = new Renderer();
 
 function renderCode(container: HTMLElement, value: string) {
     const errors = monaco.editor.getModelMarkers({})?.length;
-    if (!errors && value) {
+    if (!errors && value && value.length > 0) {
         renderClient.remoteRender(container, value);
     }
 }

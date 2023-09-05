@@ -1,6 +1,8 @@
 package com.github.lonelylockley.archinsight.remote;
 
+import com.github.lonelylockley.archinsight.Config;
 import io.micronaut.context.ApplicationContext;
+import io.micronaut.runtime.Micronaut;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -9,24 +11,13 @@ import org.slf4j.LoggerFactory;
 @Singleton
 public class RemoteSource {
 
-    private static final Logger logger = LoggerFactory.getLogger(RemoteSource.class);
-
-    private static RemoteSource instance;
-
-    private RemoteSource() {}
-
-    public static RemoteSource getInstance() {
-        if (instance == null) {
-            instance = new RemoteSource();
-            ApplicationContext.run("headless").registerSingleton(instance);
-            logger.info("Initialized micronaut headless context");
-        }
-        return instance;
-    }
+    @Inject
+    public RenderSource render;
 
     @Inject
-    protected TranslatorClient translator;
+    public IdentitySource identity;
+
     @Inject
-    protected RendererClient renderer;
+    public ExportSource export;
 
 }

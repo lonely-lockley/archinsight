@@ -9,7 +9,7 @@ import io.micronaut.http.client.annotation.Client;
 import static io.micronaut.http.HttpHeaders.ACCEPT;
 import static io.micronaut.http.HttpHeaders.CONTENT_TYPE;
 
-@Client(id = "${RENDERER}")
+@Client(id = "renderer")
 public interface RendererClient {
 
     @Post("/render/svg")

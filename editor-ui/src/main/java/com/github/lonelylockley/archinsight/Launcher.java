@@ -2,31 +2,19 @@ package com.github.lonelylockley.archinsight;
 
 import com.helger.commons.lang.ClassPathHelper;
 import com.vaadin.flow.server.VaadinServlet;
-import com.vaadin.flow.server.startup.ServletDeployer;
-import org.eclipse.jetty.annotations.AnnotationConfiguration;
-import org.eclipse.jetty.plus.webapp.EnvConfiguration;
-import org.eclipse.jetty.plus.webapp.PlusConfiguration;
 import org.eclipse.jetty.server.CustomRequestLog;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.Slf4jRequestLogWriter;
 import org.eclipse.jetty.util.resource.Resource;
-import org.eclipse.jetty.util.resource.ResourceCollection;
 import org.eclipse.jetty.webapp.*;
-import org.eclipse.jetty.websocket.server.config.JettyWebSocketConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.servlet.ServletContextEvent;
 import java.io.File;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Run {@link #main(String[])} to launch your app in Embedded Jetty.
- * @author mavi
- */
 public final class Launcher {
 
     private static final Logger logger = LoggerFactory.getLogger(Launcher.class);
@@ -34,12 +22,12 @@ public final class Launcher {
     public static void main(String[] args) throws Exception {
         logger.info("Starting embedded Jetty server...");
         Server server = new Server(8080);
-
+        var mc = MicronautContext.getInstance();
         var tempDir = setupTemporaryDirectory();
+        var context = setupContext(tempDir, mc.getConf().getDevMode());
+        server.setHandler(context);
 
-        var context = setupContext(server, tempDir);
-
-        setupAccessLogs(server);
+        setupAccessLogs(server, mc.getConf().getDevMode());
 
         server.start();
         logger.info("Server started at port 8080");
@@ -58,9 +46,9 @@ public final class Launcher {
         return tempDir;
     }
 
-    private static WebAppContext setupContext(Server server, File tempDir) throws IOException {
+    private static WebAppContext setupContext(File tempDir, boolean devMode) throws IOException {
         WebAppContext context = new WebAppContext();
-        context.setInitParameter("productionMode", "true");
+        context.setInitParameter("productionMode", String.valueOf(!devMode));
 
         // Context path of the application
         context.setContextPath("");
@@ -75,7 +63,6 @@ public final class Launcher {
         context.setAttribute("org.eclipse.jetty.server.webapp.ContainerIncludeJarPattern", ".*");
 
         context.setParentLoaderPriority(true);
-        server.setHandler(context);
 
         // This add jars to the jetty classpath in a certain syntax and the pattern makes sure to load all of them
         List<Resource> resourceList = new ArrayList<>();
@@ -97,10 +84,13 @@ public final class Launcher {
         return context;
     }
 
-    private static void setupAccessLogs(Server server) {
+    private static void setupAccessLogs(Server server, boolean devMode) {
         var slfjRequestLogWriter = new Slf4jRequestLogWriter();
         slfjRequestLogWriter.setLoggerName("AccessLog");
-        String format = "%{client}a - %u %t '%r' %s %O '%{Referer}i' '%{User-Agent}i' '%C'";
+        String format = "%{client}a - %u [%{CF-Connecting-IP}i] %t '%r' %s %O '%{Referer}i' '%{User-Agent}i'";
+        if (devMode) {
+            format = format + " '%C'"; // print cookies
+        }
         var requestLog = new CustomRequestLog(slfjRequestLogWriter, format);
         server.setRequestLog(requestLog);
     }

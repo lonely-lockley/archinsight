@@ -38,6 +38,13 @@ public class Communication {
         }
     }
 
+    public void unregister(BaseListener<?> listener) {
+        if (registered.contains(listener)) {
+            registered.remove(listener);
+            bus.unregister(listener);
+        }
+    }
+
     public void post(Object event) {
         bus.post(event);
     }

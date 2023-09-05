@@ -1,14 +1,14 @@
 package com.github.lonelylockley.archinsight.components;
 
+import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.ZoomEvent;
-import com.github.lonelylockley.archinsight.remote.ExportSource;
+import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
@@ -27,11 +27,12 @@ public class MenuBarComponent extends MenuBar {
     private static final Logger logger = LoggerFactory.getLogger(MenuBarComponent.class);
 
     private final Div invisible;
-
     private final MenuItem exportDropdown;
+    private final RemoteSource remoteSource;
 
     public MenuBarComponent(Div invisible) {
         this.invisible = invisible;
+        this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         ComponentEventListener<ClickEvent<MenuItem>> listener = this::menuItemClicked;
 
         var item = addItem("Save Source", listener);
@@ -63,11 +64,11 @@ public class MenuBarComponent extends MenuBar {
         item.setId("menu_btn_zoom_fit");
         item.add(new Icon(VaadinIcon.EXPAND_SQUARE));
 
-        Communication.getBus().register(new BaseListener<SourceCompilationEvent>() {
+        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
             @Override
             @Subscribe
             public void receive(SourceCompilationEvent e) {
-                if (checkUiAndSession(e)) {
+                if (checkUiId(e)) {
                     if (exportDropdown.isEnabled() && e.failure()) {
                         exportDropdown.setEnabled(false);
                     }
@@ -77,7 +78,9 @@ public class MenuBarComponent extends MenuBar {
                     }
                 }
             }
-        });
+        };
+        Communication.getBus().register(sourceCompilationListener);
+        addDetachListener(e -> Communication.getBus().unregister(sourceCompilationListener));
     }
 
     private void menuItemClicked(ClickEvent<MenuItem> event) {
@@ -100,16 +103,16 @@ public class MenuBarComponent extends MenuBar {
             StreamResource res;
             switch (id) {
                 case "menu_btn_export_as_png":
-                    res = new StreamResource("export.png", () -> new ByteArrayInputStream(new ExportSource().exportPng(code)));
+                    res = new StreamResource("export.png", () -> new ByteArrayInputStream(remoteSource.export.exportPng(code)));
                     break;
                 case "menu_btn_export_as_json":
-                    res = new StreamResource("export.json", () -> new ByteArrayInputStream(new ExportSource().exportJson(code)));
+                    res = new StreamResource("export.json", () -> new ByteArrayInputStream(remoteSource.export.exportJson(code)));
                     break;
                 case "menu_btn_export_as_svg":
-                    res = new StreamResource("export.svg", () -> new ByteArrayInputStream(new ExportSource().exportSvg(code)));
+                    res = new StreamResource("export.svg", () -> new ByteArrayInputStream(remoteSource.export.exportSvg(code)));
                     break;
                 default:
-                    res = new StreamResource("export.dot", () -> new ByteArrayInputStream(new ExportSource().exportDot(code)));
+                    res = new StreamResource("export.dot", () -> new ByteArrayInputStream(remoteSource.export.exportDot(code)));
                     break;
             }
             startDownload(res);
