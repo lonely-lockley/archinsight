@@ -5,12 +5,10 @@ import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.ZoomEvent;
-import com.github.lonelylockley.archinsight.remote.ExportSource;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
@@ -70,7 +68,7 @@ public class MenuBarComponent extends MenuBar {
             @Override
             @Subscribe
             public void receive(SourceCompilationEvent e) {
-                if (checkUiAndSession(e)) {
+                if (checkUiId(e)) {
                     if (exportDropdown.isEnabled() && e.failure()) {
                         exportDropdown.setEnabled(false);
                     }
