@@ -10,6 +10,7 @@ public class Config {
     private String domain;
     private String kid;
     private String apiToken;
+    private String redirectUri;
 
     public Boolean getDevMode() {
         return devMode != null && devMode;
@@ -45,5 +46,13 @@ public class Config {
 
     public void setApiToken(String apiToken) {
         this.apiToken = apiToken;
+    }
+
+    public String getRedirectUri() {
+        return redirectUri;
+    }
+
+    public void setRedirectUri(String redirectUri) {
+        this.redirectUri = redirectUri;
     }
 }
