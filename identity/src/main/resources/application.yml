@@ -9,7 +9,6 @@ micronaut:
         google:
           client-id: '${OAUTH_CLIENT_ID}'
           client-secret: '${OAUTH_CLIENT_SECRET}'
-          redirect-uri: '${PUBLIC_HOST}/oauth/callback/google'
           scopes:
             - openid
             - profile
@@ -47,3 +46,4 @@ archinsight:
   domain: '${DOMAIN}'
   kid: '${KID}'
   apiToken: '${SECURITY_TOKEN}'
+  redirect-uri: '${PUBLIC_HOST}/oauth/callback/google'
