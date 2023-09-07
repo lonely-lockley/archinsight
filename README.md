@@ -13,6 +13,9 @@ Unlike other UML software, such as PlantUML, Archinsight would offer it's user:
 * Model interactivity
 * Architecture introspections from highest to lowest level in one place
 
+## Try it out
+Preview language and features in [Playground](https://archinsight.org/playground/)
+
 ## Building a project
 To build Archinsight from source, you need:
 * JDK 17
