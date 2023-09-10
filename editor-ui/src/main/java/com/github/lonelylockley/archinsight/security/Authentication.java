@@ -9,17 +9,26 @@ import java.util.Arrays;
 public class Authentication {
 
     public static boolean authenticated() {
-        return VaadinSession.getCurrent().getAttribute(Userdata.class) != null;
+        var session = VaadinSession.getCurrent();
+        if (session == null) {
+            return false;
+        }
+        return session.getAttribute(Userdata.class) != null;
     }
 
     public static Userdata getAuthenticatedUser() {
-        var user = VaadinSession.getCurrent().getAttribute(Userdata.class);
+        var session = VaadinSession.getCurrent();
+        assert session != null;
+        var user = session.getAttribute(Userdata.class);
         assert user != null;
         return user;
     }
 
     public static boolean completedLogin() {
         var request = VaadinServletRequest.getCurrent();
+        if (request == null) {
+            return false;
+        }
         var token = Arrays.stream(request.getCookies()).filter(c -> "auth_token".equals(c.getName())).findAny();
         return token.isPresent();
     }
