@@ -153,6 +153,11 @@ project('repository') {
         implementation project(':common')
 
         implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
+        implementation group: 'io.micronaut', name: 'micronaut-http-client'
+        implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway'
+        implementation group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari'
+        implementation group: 'org.mybatis', name: 'mybatis'
+        implementation group: 'org.postgresql', name: 'postgresql'
     }
 
     tasks.named("dockerBuild") {

@@ -1,6 +1,7 @@
-package archinsight;
+package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.archinsight.persistence.MigratorRunner;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
@@ -15,7 +16,8 @@ public class RepositoryService {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryService.class);
 
     public static void main(String[] args) {
-        Micronaut.run(RepositoryService.class, args);
+        var ctx = Micronaut.run(RepositoryService.class, args);
+        ctx.getBean(MigratorRunner.class).run();
         logger.info("Repository server started");
     }
 

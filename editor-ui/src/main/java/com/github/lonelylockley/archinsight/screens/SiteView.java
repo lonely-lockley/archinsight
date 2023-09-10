@@ -80,7 +80,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         actionsFirstLine.setMargin(false);
         actionsFirstLine.add(new DockerhubTile());
         actionsFirstLine.add(new GithubTile());
-        actionsFirstLine.add(new PlaygroundTile());
+        actionsFirstLine.add(new InsightLanguageTile());
         // second line actions =========================================================================================
         var actionsSecondLine = new HorizontalLayout();
         actionsSecondLine.setMargin(false);
@@ -89,11 +89,12 @@ public class SiteView extends VerticalLayout implements BaseView {
             login.flipTile(Authentication.getAuthenticatedUser());
         }
         actionsSecondLine.add(login);
-        actionsSecondLine.add(new InsightLanguageTile());
+        actionsSecondLine.add(new PlaygroundTile());
         // third line actions ==========================================================================================
         var actionsThirdLine = new HorizontalLayout();
         actionsThirdLine.setMargin(false);
         actionsThirdLine.add(new MaitoTile());
+        actionsThirdLine.add(new ArchinsightTile());
         // third line actions ==========================================================================================
         var actionsFourthLine = new HorizontalLayout();
         if (conf.getDevMode()) {
