@@ -1,4 +1,4 @@
-package com.github.lonelylockley.archinsight.model;
+package com.github.lonelylockley.archinsight.model.remote.translator;
 
 public enum MessageLevel {
     NOTICE(0),

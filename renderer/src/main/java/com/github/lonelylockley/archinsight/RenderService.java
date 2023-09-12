@@ -1,8 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Consumes;
 import io.micronaut.http.annotation.Controller;
@@ -13,7 +12,6 @@ import io.micronaut.runtime.Micronaut;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.image.BufferedImage;
 import java.nio.charset.StandardCharsets;
 
 @Controller("/render")

@@ -30,7 +30,7 @@ datasources:
     url: 'jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE}'
     username: ${DATABASE_USER}
     password: ${DATABASE_PASSWORD}
-    auto-commit: false
+    auto-commit: true
     maximum-pool-size: 10
     minimum-idle: 2
     idle-timeout: 600000

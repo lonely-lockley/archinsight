@@ -12,12 +12,12 @@ public class SqlSessionFactoryBean {
 
     private final SqlSessionFactory factory;
 
-    public SqlSessionFactoryBean(DataSource datasource) {
+    public SqlSessionFactoryBean(DataSource datasource, MappersRegistry mappers) {
         var transactionFactory = new JdbcTransactionFactory();
         var environment = new Environment("development", transactionFactory, datasource);
         var configuration = new Configuration(environment);
         configuration.getTypeHandlerRegistry().register(UuidTypeHandler.class);
-        configuration.addMapper(UserdataMapper.class);
+        mappers.getMappersToRegister().forEach(configuration::addMapper);
         configuration.setMapUnderscoreToCamelCase(true);
         this.factory = new SqlSessionFactoryBuilder().build(configuration);
     }

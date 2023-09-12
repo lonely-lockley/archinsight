@@ -1,12 +1,11 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
-import com.github.lonelylockley.archinsight.model.LinkerMessage;
-import com.github.lonelylockley.archinsight.model.TranslatedSource;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 import com.github.lonelylockley.archinsight.parse.TreeListener;
 import com.github.lonelylockley.archinsight.link.Linker;
-import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import com.github.lonelylockley.insight.lang.InsightParser;
 import io.micronaut.http.HttpRequest;

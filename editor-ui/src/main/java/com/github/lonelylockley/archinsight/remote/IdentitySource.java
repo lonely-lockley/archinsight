@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight.remote;
 
 import com.github.lonelylockley.archinsight.Config;
-import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;

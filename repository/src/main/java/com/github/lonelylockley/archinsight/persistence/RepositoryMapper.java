@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.persistence;
 
-import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;

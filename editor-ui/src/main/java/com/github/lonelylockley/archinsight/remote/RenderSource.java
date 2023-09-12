@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight.remote;
 
-import com.github.lonelylockley.archinsight.model.Source;
-import com.github.lonelylockley.archinsight.model.TranslatedSource;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

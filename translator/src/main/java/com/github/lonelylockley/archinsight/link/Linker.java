@@ -1,8 +1,8 @@
 package com.github.lonelylockley.archinsight.link;
 
 import com.github.lonelylockley.archinsight.link.model.File;
-import com.github.lonelylockley.archinsight.model.LinkerMessage;
-import com.github.lonelylockley.archinsight.model.MessageLevel;
+import com.github.lonelylockley.archinsight.model.remote.translator.LinkerMessage;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 import com.github.lonelylockley.archinsight.parse.WithSource;

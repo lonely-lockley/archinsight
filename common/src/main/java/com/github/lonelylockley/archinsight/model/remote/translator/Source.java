@@ -1,4 +1,4 @@
-package com.github.lonelylockley.archinsight.model;
+package com.github.lonelylockley.archinsight.model.remote.translator;
 
 public class Source {
     private String source;

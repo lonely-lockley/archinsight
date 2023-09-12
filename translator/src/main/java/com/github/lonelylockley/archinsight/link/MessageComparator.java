@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.link;
 
-import com.github.lonelylockley.archinsight.model.LinkerMessage;
+import com.github.lonelylockley.archinsight.model.remote.translator.LinkerMessage;
 
 import java.util.Comparator;
 

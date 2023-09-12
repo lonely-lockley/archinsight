@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight.remote;
 
-import com.github.lonelylockley.archinsight.model.Source;
-import com.github.lonelylockley.archinsight.model.TranslatedSource;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
 import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.Post;
 import io.micronaut.http.client.annotation.Client;

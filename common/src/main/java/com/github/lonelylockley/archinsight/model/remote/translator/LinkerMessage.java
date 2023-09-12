@@ -1,4 +1,6 @@
-package com.github.lonelylockley.archinsight.model;
+package com.github.lonelylockley.archinsight.model.remote.translator;
+
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 
 import java.io.Serializable;
 

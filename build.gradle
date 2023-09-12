@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'java-library'
     id 'antlr'
     id 'io.micronaut.application' version '3.7.10'
     id 'io.micronaut.minimal.application' version '3.7.10'
@@ -29,6 +30,7 @@ allprojects {
 
             implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.10.1'
             implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '3.10.1'
+            implementation group: 'io.micronaut.security', name: 'micronaut-security', version: '3.10.1'
             implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2', version: '3.10.1'
             implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt', version: '3.10.1'
             implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway', version: '5.5.0'
@@ -76,9 +78,25 @@ subprojects {
 }
 
 project('common') {
+    apply plugin: 'java-library'
+
     dependencies {
-        implementation group: 'org.slf4j', name: 'slf4j-api'
-        implementation group: 'ch.qos.logback', name: 'logback-classic'
+        api group: 'org.slf4j', name: 'slf4j-api'
+        api group: 'ch.qos.logback', name: 'logback-classic'
+    }
+}
+
+project('database') {
+    apply plugin: 'java-library'
+    apply plugin: 'io.micronaut.application'
+
+    dependencies {
+        implementation project(':common')
+
+        api group: 'io.micronaut.flyway', name: 'micronaut-flyway'
+        api group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari'
+        api group: 'org.mybatis', name: 'mybatis'
+        api group: 'org.postgresql', name: 'postgresql'
     }
 }
 
@@ -151,13 +169,11 @@ project('repository') {
 
     dependencies {
         implementation project(':common')
+        implementation project(':database')
 
         implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
         implementation group: 'io.micronaut', name: 'micronaut-http-client'
-        implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway'
-        implementation group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari'
-        implementation group: 'org.mybatis', name: 'mybatis'
-        implementation group: 'org.postgresql', name: 'postgresql'
+        implementation group: 'io.micronaut.security', name: 'micronaut-security'
     }
 
     tasks.named("dockerBuild") {
@@ -273,16 +289,13 @@ project('identity') {
 
     dependencies {
         implementation project(':common')
+        implementation project(':database')
 
         implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
         implementation group: 'io.micronaut', name: 'micronaut-http-client'
         implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2'
         implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt'
-        implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway'
-        implementation group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari'
         implementation group: 'com.auth0', name: 'java-jwt'
-        implementation group: 'org.mybatis', name: 'mybatis'
-        implementation group: 'org.postgresql', name: 'postgresql'
     }
 
     tasks.named("dockerBuild") {

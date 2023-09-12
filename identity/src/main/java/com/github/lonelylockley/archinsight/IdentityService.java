@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.model.Source;
-import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.persistence.MigratorRunner;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.persistence.UserdataMapper;

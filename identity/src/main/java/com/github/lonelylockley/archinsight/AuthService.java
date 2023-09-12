@@ -3,7 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.github.lonelylockley.archinsight.auth.Keychain;
-import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.persistence.UserdataMapper;

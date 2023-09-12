@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.auth.Keychain;
-import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;

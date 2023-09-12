@@ -93,7 +93,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         // third line actions ==========================================================================================
         var actionsThirdLine = new HorizontalLayout();
         actionsThirdLine.setMargin(false);
-        actionsThirdLine.add(new MaitoTile());
+        actionsThirdLine.add(new MailtoTile());
         actionsThirdLine.add(new ArchinsightTile());
         // third line actions ==========================================================================================
         var actionsFourthLine = new HorizontalLayout();

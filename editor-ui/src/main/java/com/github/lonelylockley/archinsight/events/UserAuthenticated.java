@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.events;
 
-import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 
 public class UserAuthenticated extends BaseEvent {
 
