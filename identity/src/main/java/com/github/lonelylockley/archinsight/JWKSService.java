@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.auth.Keychain;
 import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.tracing.Measured;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
@@ -29,14 +30,9 @@ public class JWKSService {
     @Get("/keys")
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.APPLICATION_JSON)
+    @Measured
     public String jwks(HttpRequest<Source> request) {
-        var startTime = System.nanoTime();
-        var result = String.format("{\"keys\":[%s]}", String.join(",", keychain.getJwkPublicKeys().getKeys()));
-        logger.info("Access: /jwks/keys from {} required {}ms",
-                addressResolver.resolve(request),
-                (System.nanoTime() - startTime) / 1000000
-        );
-        return result;
+        return String.format("{\"keys\":[%s]}", String.join(",", keychain.getJwkPublicKeys().getKeys()));
     }
 
 }

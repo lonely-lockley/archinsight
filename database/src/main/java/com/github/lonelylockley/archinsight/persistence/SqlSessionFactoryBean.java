@@ -17,6 +17,7 @@ public class SqlSessionFactoryBean {
         var environment = new Environment("development", transactionFactory, datasource);
         var configuration = new Configuration(environment);
         configuration.getTypeHandlerRegistry().register(UuidTypeHandler.class);
+        configuration.getTypeHandlerRegistry().register(RepositoryJsonTypeHandler.class);
         mappers.getMappersToRegister().forEach(configuration::addMapper);
         configuration.setMapUnderscoreToCamelCase(true);
         this.factory = new SqlSessionFactoryBuilder().build(configuration);

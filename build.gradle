@@ -83,6 +83,9 @@ project('common') {
     dependencies {
         api group: 'org.slf4j', name: 'slf4j-api'
         api group: 'ch.qos.logback', name: 'logback-classic'
+        api group: 'io.micronaut', name: 'micronaut-http-server-netty'
+        api group: 'io.micronaut', name: 'micronaut-http-client'
+        api group: 'io.micronaut.security', name: 'micronaut-security'
     }
 }
 
@@ -124,7 +127,6 @@ project('translator') {
         implementation project(':common')
         implementation project(':insight-lang')
 
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
         implementation group: 'com.github.lonely-lockley', name: 'ltsv-parser'
         implementation group: 'org.apache.commons', name: 'commons-text'
     }
@@ -145,8 +147,6 @@ project('renderer') {
 
     dependencies {
         implementation project(':common')
-
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
     }
 
     tasks.named("dockerBuild") {
@@ -170,10 +170,6 @@ project('repository') {
     dependencies {
         implementation project(':common')
         implementation project(':database')
-
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
-        implementation group: 'io.micronaut', name: 'micronaut-http-client'
-        implementation group: 'io.micronaut.security', name: 'micronaut-security'
     }
 
     tasks.named("dockerBuild") {
@@ -205,7 +201,6 @@ project('editor-ui') {
         implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server'
         implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api'
         implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api'
-        implementation group: 'io.micronaut', name: 'micronaut-http-client'
         implementation group: 'com.google.guava', name: 'guava'
         implementation group: 'com.auth0', name: 'java-jwt'
         implementation group: 'com.auth0', name: 'jwks-rsa'
@@ -291,8 +286,6 @@ project('identity') {
         implementation project(':common')
         implementation project(':database')
 
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
-        implementation group: 'io.micronaut', name: 'micronaut-http-client'
         implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2'
         implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt'
         implementation group: 'com.auth0', name: 'java-jwt'

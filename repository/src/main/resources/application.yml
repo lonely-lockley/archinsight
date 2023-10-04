@@ -27,6 +27,3 @@ flyway:
         - classpath:migration
 archinsight:
   devMode: ${DEV_MODE:`false`}
-  domain: '${DOMAIN}'
-  kid: '${KID}'
-  redirect-uri: '${PUBLIC_HOST}/oauth/callback/google'

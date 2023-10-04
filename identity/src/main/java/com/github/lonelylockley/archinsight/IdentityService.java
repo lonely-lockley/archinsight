@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.persistence.MigratorRunner;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.persistence.UserdataMapper;
+import com.github.lonelylockley.archinsight.tracing.Measured;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
@@ -45,8 +46,8 @@ public class IdentityService {
     @Get("/id/{id}")
     @Produces(MediaType.APPLICATION_JSON)
     @Secured(SecurityRule.IS_ANONYMOUS)
+    @Measured
     public HttpResponse<Userdata> getById(HttpRequest<Source> request, UUID id) {
-        var startTime = System.nanoTime();
         HttpResponse<Userdata> result = HttpResponse.unauthorized();
         if (checkToken(request)) {
             try (var session = sqlSessionFactory.getSession()) {
@@ -59,18 +60,14 @@ public class IdentityService {
                 result = HttpResponse.serverError();
             }
         }
-        logger.info("Access: /identity/id from {} required {}ms",
-                addressResolver.resolve(request),
-                (System.nanoTime() - startTime) / 1000000
-        );
         return result;
     }
 
     @Get("/email/{email}")
     @Produces(MediaType.APPLICATION_JSON)
     @Secured(SecurityRule.IS_ANONYMOUS)
+    @Measured
     public HttpResponse<Userdata> getByEmail(HttpRequest<Source> request, String email) {
-        var startTime = System.nanoTime();
         HttpResponse<Userdata> result = HttpResponse.unauthorized();
         if (checkToken(request)) {
             try (var session = sqlSessionFactory.getSession()) {
@@ -83,10 +80,6 @@ public class IdentityService {
                 result = HttpResponse.serverError();
             }
         }
-        logger.info("Access: /identity/email from {} required {}ms",
-                addressResolver.resolve(request),
-                (System.nanoTime() - startTime) / 1000000
-        );
         return result;
     }
 
