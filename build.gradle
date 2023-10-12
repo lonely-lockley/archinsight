@@ -79,7 +79,6 @@ project('common') {
     dependencies {
         implementation group: 'org.slf4j', name: 'slf4j-api'
         implementation group: 'ch.qos.logback', name: 'logback-classic'
-        implementation group: 'io.micronaut', name: 'micronaut-http-client'
     }
 }
 

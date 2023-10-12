@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
+import com.github.lonelylockley.archinsight.model.LinkerMessage;
 import com.github.lonelylockley.archinsight.model.TranslatedSource;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 import com.github.lonelylockley.archinsight.parse.TreeListener;
@@ -24,17 +25,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.StringReader;
 
-import com.github.lonelylockley.archinsight.model.LoggingConfigReader;
-
 @Controller("/translate")
 public class TranslatorService {
 
     private static final Logger logger = LoggerFactory.getLogger(TranslatorService.class);
 
     public static void main(String[] args) {
-        LoggingConfigReader configSource = new LoggingConfigReader();
-        configSource.initLoggerConfig();
-
         Micronaut.run(TranslatorService.class, args);
         logger.info("Linker server started");
     }

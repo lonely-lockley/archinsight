@@ -1,5 +1,0 @@
-micronaut:
-  server:
-    cors:
-      enabled: true
-    port: ${REPOSITORY_PORT:8080}

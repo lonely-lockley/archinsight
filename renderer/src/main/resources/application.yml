@@ -2,4 +2,3 @@ micronaut:
   server:
     cors:
       enabled: true
-    port: ${RENDERER_PORT:8080}
