@@ -25,7 +25,7 @@ public class ResponseTimeMeasuringInterceptor implements MethodInterceptor<Objec
         var request = (HttpRequest) context.getParameterValueMap().get("request");
         var res = context.proceed();
         if (request != null) {
-            logger.warn("Access: {} from {} required {}ms",
+            logger.info("Access: {} from {} required {}ms",
                     request.getPath(),
                     addressResolver.resolve(request),
                     (System.nanoTime() - startTime) / 1000000

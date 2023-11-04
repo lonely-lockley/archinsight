@@ -27,7 +27,7 @@ public class LoginTile extends SiteViewTile {
             public void receive(UserAuthenticated e) {
                 if (checkUiId(e)) {
                     flipTile(e.getUser());
-                    new NotificationComponent("Signed in successfully!\nAuthentication works in test mode. It is an enabling step to develop a personal space. We do our best to implement this functionality soon.", MessageLevel.NOTICE);
+                    new NotificationComponent("Signed in successfully!\nAuthentication works in test mode. It is an enabling step to develop a personal space. We do our best to implement this functionality soon.", MessageLevel.NOTICE, 60000);
                 }
             }
         };

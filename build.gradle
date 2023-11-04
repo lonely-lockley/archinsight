@@ -79,6 +79,7 @@ subprojects {
 
 project('common') {
     apply plugin: 'java-library'
+    apply plugin: 'io.micronaut.application' // for micronaut annotations to be seen
 
     dependencies {
         api group: 'org.slf4j', name: 'slf4j-api'
@@ -91,7 +92,7 @@ project('common') {
 
 project('database') {
     apply plugin: 'java-library'
-    apply plugin: 'io.micronaut.application'
+    apply plugin: 'io.micronaut.application' // for micronaut annotations to be seen
 
     dependencies {
         implementation project(':common')

@@ -2,3 +2,8 @@ micronaut:
   server:
     cors:
       enabled: true
+  security:
+    authentication: bearer
+    enabled: true
+    apiKeys:
+      #kid: key

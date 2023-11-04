@@ -13,6 +13,7 @@ import com.vaadin.flow.theme.lumo.Lumo;
 
 @CssImport("./styles/shared-styles.css")
 @CssImport(value = "./styles/vaadin-text-field-styles.css", themeFor = "vaadin-text-field")
+@CssImport(value = "./styles/vaadin-app-layout.css", themeFor = "vaadin-app-layout")
 public interface BaseView {
 
     default Component createTitle() {

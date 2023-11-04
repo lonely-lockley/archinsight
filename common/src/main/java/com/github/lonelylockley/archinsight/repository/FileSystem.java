@@ -3,14 +3,23 @@ package com.github.lonelylockley.archinsight.repository;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public class FileSystem {
 
+    public static final String POSIX_FILE_NAME_PTR = "^[-_.A-Za-z0-9][-_.A-Za-z0-9]+$";
+
     private final RepositoryNode root;
     private final HashMap<UUID, RepositoryNode> index;
-    private final Pattern filenameValidator = Pattern.compile("[-_.A-Za-z0-9]");
+    private final Pattern filenameValidator = Pattern.compile(POSIX_FILE_NAME_PTR);
 
     public FileSystem(RepositoryNode root) {
         this.root = root;
@@ -19,19 +28,21 @@ public class FileSystem {
     }
 
     private void walk(RepositoryNode from, HashMap<UUID, RepositoryNode> result) {
-        from.getChildNodes().forEach(node -> {
-            if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
-                result.put(node.getId(), node);
-            }
-            else
-            if (RepositoryNode.TYPE_DIRECTORY.equals(node.getType())) {
-                result.put(node.getId(), node);
-                walk(node, result);
-            }
-            else {
-                throw new IllegalArgumentException(String.format("Unknown file type %s", node.getType()));
-            }
-        });
+        result.put(from.getId(), from);
+        if (from.getChildNodes() != null) {
+            from.getChildNodes().forEach(node -> {
+                if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
+                    result.put(node.getId(), node);
+                }
+                else if (RepositoryNode.TYPE_DIRECTORY.equals(node.getType())) {
+                    result.put(node.getId(), node);
+                    walk(node, result);
+                }
+                else {
+                    throw new IllegalArgumentException(String.format("Unknown file type %s", node.getType()));
+                }
+            });
+        }
     }
 
     private boolean isNameValid(String name) {
@@ -65,7 +76,7 @@ public class FileSystem {
         }
         var dup = parent.getChildNodes().stream().filter(node -> node.getName().equalsIgnoreCase(newNode.getName())).findFirst();
         if (dup.isPresent()) {
-            throw new IllegalArgumentException("Duplicate name");
+            throw new IllegalArgumentException("Already exists");
         }
         newNode.setId(UUID.randomUUID());
         newNode.setChildNodes(new ArrayList<>());
@@ -113,6 +124,11 @@ public class FileSystem {
         if (!isNameValid(newName)) {
             throw new IllegalArgumentException("Node name is not POSIX-compliant or empty");
         }
+        var parent = index.get(node.getParentId());
+        var dup = parent.getChildNodes().stream().filter(existing -> existing.getName().equalsIgnoreCase(node.getName())).findFirst();
+        if (dup.isPresent()) {
+            throw new IllegalArgumentException("Already exists");
+        }
         node.setName(newName);
         return node;
     }
@@ -135,6 +151,32 @@ public class FileSystem {
         file.setOwnerId(ownerId);
         file.setRepositoryId(repositoryId);
         return file;
+    }
+
+    public RepositoryNode getClosestDirectory(RepositoryNode selected) {
+        if (RepositoryNode.TYPE_DIRECTORY.equals(selected.getType())) {
+            return selected;
+        }
+        return getClosestDirectory(index.get(selected.getParentId()));
+    }
+
+    public <T> void walkRepositoryStructureWithState(BiFunction<RepositoryNode, T, T> callback, T initialState) {
+        walkRepositoryStructureWithState(callback, initialState, this.root);
+    }
+
+    private <T> void walkRepositoryStructureWithState(BiFunction<RepositoryNode, T, T> callback, T state, RepositoryNode root) {
+        var newState = callback.apply(root, state);
+        if (root.getChildNodes() != null) {
+            root.getChildNodes().forEach(ch -> {
+                if (RepositoryNode.TYPE_FILE.equalsIgnoreCase(ch.getType())) {
+                    // ignore state for files
+                    callback.apply(ch, newState);
+                }
+                else {
+                    walkRepositoryStructureWithState(callback, newState, ch);
+                }
+            });
+        }
     }
 
     public List<UUID> getAllFileIds(UUID repositoryId) {

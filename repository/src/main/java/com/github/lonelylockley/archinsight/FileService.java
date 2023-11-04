@@ -1,6 +1,5 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import com.github.lonelylockley.archinsight.persistence.FileMapper;
 import com.github.lonelylockley.archinsight.persistence.RepositoryMapper;
@@ -54,7 +53,7 @@ public class FileService {
     }
 
     @Get("/{repositoryId}/openAll")
-    @Produces(MediaType.TEXT_PLAIN)
+    @Produces(MediaType.APPLICATION_JSON)
     @Measured
     public HttpResponse<Object> openAll(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
         HttpResponse<Object> result;

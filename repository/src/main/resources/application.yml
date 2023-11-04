@@ -27,3 +27,4 @@ flyway:
         - classpath:migration
 archinsight:
   devMode: ${DEV_MODE:`false`}
+  playgroundRepositoryId: ${PLAYGROUND_REPOSITORY}

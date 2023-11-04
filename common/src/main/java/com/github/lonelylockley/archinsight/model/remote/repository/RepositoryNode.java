@@ -9,7 +9,8 @@ import java.util.UUID;
 public class RepositoryNode implements Serializable {
 
     public static final String TYPE_FILE = "f";
-    public static final String TYPE_DIRECTORY= "d";
+    public static final String TYPE_DIRECTORY = "d";
+    public static final UUID ROOT_UUID = UUID.fromString("1ad2ba2c-10a6-4f5f-997a-029065a700bc");
 
     private UUID id;
     private UUID parentId;
@@ -25,7 +26,7 @@ public class RepositoryNode implements Serializable {
     }
 
     public static RepositoryNode createRoot() {
-        return new RepositoryNode(UUID.fromString("1ad2ba2c-10a6-4f5f-997a-029065a700bc"), "<root>", TYPE_DIRECTORY, new ArrayList<>());
+        return new RepositoryNode(ROOT_UUID, "/", TYPE_DIRECTORY, new ArrayList<>());
     }
 
     public RepositoryNode() {
@@ -64,6 +65,9 @@ public class RepositoryNode implements Serializable {
     }
 
     public void addChild(RepositoryNode newNode) {
+        if (this.childNodes == null) {
+            this.childNodes = new ArrayList<>();
+        }
         this.childNodes.add(newNode);
     }
 

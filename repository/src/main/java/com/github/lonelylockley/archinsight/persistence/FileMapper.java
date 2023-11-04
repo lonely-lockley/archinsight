@@ -9,7 +9,7 @@ import java.util.UUID;
 @Mapper()
 public interface FileMapper {
 
-    @Insert("insert into public.file (id, owner_id, repository_id, file_name, content) values (#{data.id}, #{data.ownerId}, #{data.repositoryId}, #{data.fileName}, #{data.content})")
+    @Insert("insert into public.file (id, owner_id, repository_id, file_name, content) values (#{id}, #{ownerId}, #{repositoryId}, #{fileName}, #{content})")
     public void createFile(FileData data);
 
     @Select("select * from public.file where id = #{fileId}")

@@ -6,6 +6,7 @@ import com.github.lonelylockley.archinsight.parse.ParseResult;
 import com.github.lonelylockley.archinsight.parse.TreeListener;
 import com.github.lonelylockley.archinsight.link.Linker;
 import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.tracing.Measured;
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import com.github.lonelylockley.insight.lang.InsightParser;
 import io.micronaut.http.HttpRequest;
@@ -16,6 +17,8 @@ import io.micronaut.http.annotation.Post;
 import io.micronaut.http.annotation.Produces;
 import io.micronaut.http.server.util.HttpClientAddressResolver;
 import io.micronaut.runtime.Micronaut;
+import io.micronaut.security.annotation.Secured;
+import io.micronaut.security.rules.SecurityRule;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.atn.PredictionMode;
@@ -25,13 +28,14 @@ import org.slf4j.LoggerFactory;
 import java.io.StringReader;
 
 @Controller("/translate")
+@Secured(SecurityRule.IS_AUTHENTICATED)
 public class TranslatorService {
 
     private static final Logger logger = LoggerFactory.getLogger(TranslatorService.class);
 
     public static void main(String[] args) {
         Micronaut.run(TranslatorService.class, args);
-        logger.info("Linker server started");
+        logger.info("Translator server started");
     }
 
     private final HttpClientAddressResolver addressResolver;
@@ -55,8 +59,8 @@ public class TranslatorService {
     @Post
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @Measured
     public TranslatedSource translate(HttpRequest<Source> request, Source data) throws Exception {
-        long startTime = System.nanoTime();
         var pr = parse(data.getSource());
         var messages = new Linker().checkIntegrity(pr);
         var result = new TranslatedSource();
@@ -66,10 +70,6 @@ public class TranslatorService {
         else {
             result.setSource(new GraphvizTranslator().translate(pr));
         }
-        logger.info("Access: /translate from {} required {}ms",
-                        addressResolver.resolve(request),
-                        (System.nanoTime() - startTime) / 1000000
-                    );
         return result;
     }
 

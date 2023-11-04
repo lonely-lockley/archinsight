@@ -1,0 +1,7 @@
+:host {
+    --vaadin-app-layout-drawer-offset-size: 400px;
+}
+
+[part="drawer"] {
+    width: var(--vaadin-app-layout-drawer-offset-size);
+}
