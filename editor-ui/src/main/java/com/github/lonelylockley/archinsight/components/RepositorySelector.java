@@ -14,6 +14,8 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 
+import java.util.function.Consumer;
+
 public class RepositorySelector extends HorizontalLayout {
 
     private final RemoteSource remoteSource;
@@ -31,13 +33,19 @@ public class RepositorySelector extends HorizontalLayout {
         var comboBox = new ComboBox<RepositoryInfo>("Repository");
         comboBox.setClearButtonVisible(true);
         comboBox.setId("repository-selector");
-        comboBox.setItems(remoteSource.repository.listUserRepositories());
         comboBox.setItemLabelGenerator(RepositoryInfo::getName);
         comboBox.setWidth("100%");
         comboBox.getElement().getStyle().set("margin-left", "5px");
         comboBox.addValueChangeListener(event -> {
             Communication.getBus().post(new RepositorySelectionEvent(event.getOldValue(), event.getValue()));
         });
+        var items = remoteSource.repository.listUserRepositories();
+        comboBox.setItems(items);
+        if (items.size() == 1) {
+            var item = items.iterator().next();
+            comboBox.setValue(item);
+            Communication.getBus().post(new RepositorySelectionEvent(null, item));
+        }
         return comboBox;
     }
 

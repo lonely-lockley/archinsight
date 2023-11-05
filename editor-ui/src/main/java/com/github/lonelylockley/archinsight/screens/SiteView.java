@@ -4,7 +4,7 @@ import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.components.tiles.*;
 import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.UserAuthenticated;
+import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.Component;
@@ -143,7 +143,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         if (Authentication.completedLogin()) {
             Authentication.authenticate();
             if (Authentication.authenticated()) {
-                Communication.getBus().post(new UserAuthenticated(Authentication.getAuthenticatedUser()));
+                Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
             }
         }
     }

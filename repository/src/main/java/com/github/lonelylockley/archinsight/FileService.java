@@ -1,5 +1,8 @@
 package com.github.lonelylockley.archinsight;
 
+import com.github.lonelylockley.archinsight.exceptionhandling.ServiceException;
+import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
+import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import com.github.lonelylockley.archinsight.persistence.FileMapper;
 import com.github.lonelylockley.archinsight.persistence.RepositoryMapper;
@@ -14,6 +17,7 @@ import io.micronaut.http.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -31,32 +35,25 @@ public class FileService {
     @Get("/{fileId}/open")
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
-    public HttpResponse<Object> open(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID fileId) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<String> open(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID fileId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(FileMapper.class);
             var repositoryOwnerId = sql.getFileOwnerById(fileId);
             if (Objects.equals(repositoryOwnerId, ownerId)) {
                 var res = sql.openFile(fileId);
                 session.commit();
-                result = HttpResponse.ok(res);
+                return HttpResponse.ok(res.getContent());
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own file to be opened");
+                throw new ServiceException(new ErrorMessage("User does not own file to be opened", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not open file", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     @Get("/{repositoryId}/openAll")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<Object> openAll(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<List<FileData>> openAll(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -65,42 +62,31 @@ public class FileService {
                 var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
                 var res = fm.openFiles(fs.getAllFileIds(repositoryId));
                 session.commit();
-                result = HttpResponse.ok(res);
+                return HttpResponse.ok(res);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own files to be opened");
+                throw new ServiceException(new ErrorMessage("User does not own files to be opened", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not open all repository files", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     @Post("/{fileId}/save")
     @Consumes(MediaType.TEXT_PLAIN)
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
-    public HttpResponse<Object> save(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID fileId, String fileData) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<UUID> save(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID fileId, String fileData) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(FileMapper.class);
             var repositoryOwnerId = sql.getFileOwnerById(fileId);
             if (Objects.equals(repositoryOwnerId, ownerId)) {
                 sql.saveFile(fileId, fileData);
                 session.commit();
-                result = HttpResponse.ok();
+                return HttpResponse.ok(fileId);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own file to be modified");
+                throw new ServiceException(new ErrorMessage("User does not own files to be modified", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not modify file", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
 }

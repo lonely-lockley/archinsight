@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
+import com.github.lonelylockley.archinsight.exceptionhandling.ServiceException;
+import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
 import com.github.lonelylockley.archinsight.model.remote.repository.MoveNode;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
@@ -46,8 +48,8 @@ public class RepositoryService {
     @Get("/list")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<RepositoryInfo>> list(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId) throws Exception {
-        HttpResponse<List<RepositoryInfo>> result;
+    public HttpResponse<Object> list(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId) throws Exception {
+        HttpResponse<Object> result;
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             var repo = sql.listByOwnerId(ownerId);
@@ -65,7 +67,6 @@ public class RepositoryService {
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
     public HttpResponse<UUID> create(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, RepositoryInfo data) throws Exception {
-        HttpResponse<UUID> result;
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             var id = UUID.randomUUID();
@@ -74,70 +75,52 @@ public class RepositoryService {
             sql.createRepository(data);
             sql.setRepositoryStructure(id, RepositoryNode.createRoot());
             session.commit();
-            result = HttpResponse.ok(id);
+            return HttpResponse.ok(id);
         }
-        catch (Exception ex) {
-            logger.error("Could not create repository", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     // this should be a @Delete, but it fails to pass the `request` parameter into method. maybe in newer versions...
     @Get("/{repositoryId}/remove")
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
-    public HttpResponse<Object> remove(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<UUID> remove(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             var repositoryOwnerId = sql.getRepositoryOwnerId(repositoryId);
             if (Objects.equals(repositoryOwnerId, ownerId)) {
                 sql.deleteRepository(repositoryId);
                 session.commit();
-                result = HttpResponse.ok(repositoryId);
+                return HttpResponse.ok(repositoryId);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own repository to be removed");
+                throw new ServiceException(new ErrorMessage("User does not own repository to be removed", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not remove repository", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     @Get("/{repositoryId}/listNodes")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<Object> listNodes(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<RepositoryNode> listNodes(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             var repositoryOwnerId = sql.getRepositoryOwnerId(repositoryId);
             if (Objects.equals(repositoryOwnerId, ownerId)) {
                 var structure = sql.getRepositoryStructure(repositoryId);
                 session.commit();
-                result = HttpResponse.ok(structure);
+                return HttpResponse.ok(structure);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own repository to be read");
+                throw new ServiceException(new ErrorMessage("User does not own repository to be read", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not remove repository", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     @Patch("/{repositoryId}/createNode")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<Object> createNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode newNode) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<RepositoryNode> createNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode newNode) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -151,25 +134,19 @@ public class RepositoryService {
                     fm.createFile(file);
                 }
                 session.commit();
-                result = HttpResponse.ok(node);
+                return HttpResponse.ok(node);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own repository to be modified");
+                throw new ServiceException(new ErrorMessage("User does not own repository to be modified", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not create node", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     @Patch("/{repositoryId}/renameNode")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<Object> renameNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode node) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<RepositoryNode> renameNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode node) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -182,25 +159,19 @@ public class RepositoryService {
                     fm.renameFile(res.getId(), res.getName());
                 }
                 session.commit();
-                result = HttpResponse.ok(res);
+                return HttpResponse.ok(res);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own repository to be modified");
+                throw new ServiceException(new ErrorMessage("User does not own repository to be modified", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not rename node", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     @Patch("/{repositoryId}/moveNode")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<Object> moveNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, MoveNode move) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<RepositoryNode> moveNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, MoveNode move) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var repo = rm.getRepositoryById(repositoryId);
@@ -209,25 +180,19 @@ public class RepositoryService {
                 var res = fs.moveNode(move.getSrc(), move.getDst());
                 rm.setRepositoryStructure(repositoryId, fs.getRoot());
                 session.commit();
-                result = HttpResponse.ok(res);
+                return HttpResponse.ok(res);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own repository to be modified");
+                throw new ServiceException(new ErrorMessage("User does not own repository to be modified", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not move node", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
     @Patch("/{repositoryId}/removeNode")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<Object> removeNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, UUID nodeId) throws Exception {
-        HttpResponse<Object> result;
+    public HttpResponse<List<UUID>> removeNode(HttpRequest<Source> request, @Header("X-Authenticated-User") UUID ownerId, @PathVariable UUID repositoryId, UUID nodeId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -238,17 +203,12 @@ public class RepositoryService {
                 rm.setRepositoryStructure(repositoryId, fs.getRoot());
                 fm.deleteFiles(res);
                 session.commit();
-                result = HttpResponse.ok(res);
+                return HttpResponse.ok(res);
             }
             else {
-                result = HttpResponse.status(HttpStatus.FORBIDDEN).body("User does not own repository to be modified");
+                throw new ServiceException(new ErrorMessage("User does not own repository to be modified", HttpStatus.FORBIDDEN));
             }
         }
-        catch (Exception ex) {
-            logger.error("Could not remove node", ex);
-            result = HttpResponse.serverError();
-        }
-        return result;
     }
 
 }

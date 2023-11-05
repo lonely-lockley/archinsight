@@ -12,6 +12,6 @@ import javax.annotation.security.RolesAllowed;
 @JsModule("@vaadin/vaadin-lumo-styles/presets/compact.js")
 public class EditorView extends BasicEditorView {
     public EditorView() {
-        super(null, true);
+        super(null);
     }
 }

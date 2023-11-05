@@ -2,7 +2,7 @@ package com.github.lonelylockley.archinsight.components.tiles;
 
 import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.UserAuthenticated;
+import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
 import com.github.lonelylockley.archinsight.screens.EditorView;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
@@ -16,10 +16,10 @@ public class ArchinsightTile extends SiteViewTile {
         addClickListener(e -> {
             UI.getCurrent().navigate(EditorView.class);
         });
-        var authListener = new BaseListener<UserAuthenticated>() {
+        var authListener = new BaseListener<UserAuthenticatedEvent>() {
             @Override
             @Subscribe
-            public void receive(UserAuthenticated e) {
+            public void receive(UserAuthenticatedEvent e) {
                 setVisible(true);
             }
         };

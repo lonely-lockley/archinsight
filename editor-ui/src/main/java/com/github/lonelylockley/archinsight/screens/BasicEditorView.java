@@ -1,6 +1,11 @@
 package com.github.lonelylockley.archinsight.screens;
 
 import com.github.lonelylockley.archinsight.components.*;
+import com.github.lonelylockley.archinsight.events.BaseListener;
+import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.NotificationEvent;
+import com.github.lonelylockley.archinsight.events.RepositorySelectionEvent;
+import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.dependency.CssImport;
@@ -14,7 +19,7 @@ import com.vaadin.flow.theme.lumo.Lumo;
  */
 public abstract class BasicEditorView extends AppLayout implements BaseView {
 
-    public BasicEditorView(String titleSuffix, boolean menuEnabled) {
+    public BasicEditorView(String titleSuffix) {
         DrawerToggle toggle = new DrawerToggle();
 
         var title = createTitle(titleSuffix);
@@ -23,7 +28,7 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         // how to disable drawer button?
         addToDrawer(nav);
         addToNavbar(toggle, title);
-        setDrawerOpened(false);
+        setDrawerOpened(true);
 
         /* =============================================================================================================
          * a hidden element to spawn download links
@@ -42,6 +47,21 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         addFooter(contentLayout);
         setContent(contentLayout);
         applyDarkTheme(getElement());
+        // Common notification controller
+        final var notificationListener = new BaseListener<NotificationEvent>() {
+            @Override
+            @Subscribe
+            public void receive(NotificationEvent e) {
+                if (checkUiId(e)) {
+                    new NotificationComponent(e.getMessage(), e.getLevel(), e.getDuration());
+                }
+            }
+        };
+        Communication.getBus().register(notificationListener);
+        addDetachListener(e -> {
+            Communication.getBus().unregister(notificationListener);
+        });
+
     }
 
 }

@@ -1,16 +1,16 @@
 package com.github.lonelylockley.archinsight.repository;
 
+import com.github.lonelylockley.archinsight.exceptionhandling.ServiceException;
+import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import io.micronaut.http.HttpStatus;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public class FileSystem {
@@ -39,7 +39,7 @@ public class FileSystem {
                     walk(node, result);
                 }
                 else {
-                    throw new IllegalArgumentException(String.format("Unknown file type %s", node.getType()));
+                    throw new ServiceException(new ErrorMessage(String.format("Unknown file type %s", node.getType())));
                 }
             });
         }
@@ -56,27 +56,27 @@ public class FileSystem {
 
     public RepositoryNode createNode(RepositoryNode newNode) {
         if (newNode.getParentId() == null) {
-            throw new IllegalArgumentException("Parent id is undefined for a new node");
+            throw new ServiceException(new ErrorMessage("Parent id is undefined for a new node"));
         }
         if (!index.containsKey(newNode.getParentId())) {
-            throw new IllegalArgumentException("Nonexistent directory");
+            throw new ServiceException(new ErrorMessage("Nonexistent directory"));
         }
         if (!isNameValid(newNode.getName())) {
-            throw new IllegalArgumentException("Node name is not POSIX-compliant or empty");
+            throw new ServiceException(new ErrorMessage("Node name is not POSIX-compliant or empty"));
         }
         if (newNode.getType() == null) {
-            throw new IllegalArgumentException("Node type is not set");
+            throw new ServiceException(new ErrorMessage("Node type is not set"));
         }
         if (!newNode.getType().equals(RepositoryNode.TYPE_DIRECTORY) && !newNode.getType().equals(RepositoryNode.TYPE_FILE)) {
-            throw new IllegalArgumentException("Incorrect node type");
+            throw new ServiceException(new ErrorMessage("Incorrect node type"));
         }
         var parent = index.get(newNode.getParentId());
         if (!parent.getType().equals(RepositoryNode.TYPE_DIRECTORY)) {
-            throw new IllegalArgumentException("A new node may be created in directory only");
+            throw new ServiceException(new ErrorMessage("A new node may be created in directory only"));
         }
         var dup = parent.getChildNodes().stream().filter(node -> node.getName().equalsIgnoreCase(newNode.getName())).findFirst();
         if (dup.isPresent()) {
-            throw new IllegalArgumentException("Already exists");
+            throw new ServiceException(new ErrorMessage("Already exists"));
         }
         newNode.setId(UUID.randomUUID());
         newNode.setChildNodes(new ArrayList<>());
@@ -86,11 +86,14 @@ public class FileSystem {
 
     public List<UUID> removeNode(UUID nodeId) {
         if (!index.containsKey(nodeId)) {
-            throw new IllegalArgumentException("Nonexistent node");
+            throw new ServiceException(new ErrorMessage("Nonexistent node"));
+        }
+        if (RepositoryNode.ROOT_UUID.equals(nodeId)) {
+            throw new ServiceException(new ErrorMessage("Operation is not permitted"));
         }
         var toDelete = index.get(nodeId);
         if (toDelete.getParentId() == null) {
-            throw new IllegalArgumentException("Parent id is undefined for a node");
+            throw new ServiceException(new ErrorMessage("Parent id is undefined for a node"));
         }
         var parent = index.get(toDelete.getParentId());
         parent.removeChild(toDelete);
@@ -100,15 +103,22 @@ public class FileSystem {
         return subTree.keySet().stream().toList();
     }
 
+    // this method is not exposed to UI now. not tested
     public RepositoryNode moveNode(UUID nodeId, UUID dst) {
         if (!index.containsKey(nodeId) || !index.containsKey(dst)) {
-            throw new IllegalArgumentException("Nonexistent node");
+            throw new ServiceException(new ErrorMessage("Nonexistent node"));
+        }
+        if (RepositoryNode.ROOT_UUID.equals(nodeId)) {
+            throw new ServiceException(new ErrorMessage("Operation is not permitted"));
         }
         var node = index.get(nodeId);
         var srcParent = index.get(node.getParentId());
         var dstParent = index.get(dst);
         if (!dstParent.getType().equals(RepositoryNode.TYPE_DIRECTORY)) {
-            throw new IllegalArgumentException("A new node may be created in directory only");
+            throw new ServiceException(new ErrorMessage("A new node may be created in directory only"));
+        }
+        if (dstParent.getId().equals(nodeId)) {
+            throw new ServiceException(new ErrorMessage("Destination directory cannot be the same as source"));
         }
         srcParent.removeChild(node);
         node.setParentId(dst);
@@ -118,16 +128,19 @@ public class FileSystem {
 
     public RepositoryNode renameNode(UUID nodeId, String newName) {
         if (!index.containsKey(nodeId)) {
-            throw new IllegalArgumentException("Nonexistent node");
+            throw new ServiceException(new ErrorMessage("Nonexistent node"));
+        }
+        if (RepositoryNode.ROOT_UUID.equals(nodeId)) {
+            throw new ServiceException(new ErrorMessage("Operation is not permitted"));
         }
         var node = index.get(nodeId);
         if (!isNameValid(newName)) {
-            throw new IllegalArgumentException("Node name is not POSIX-compliant or empty");
+            throw new ServiceException(new ErrorMessage("Node name is not POSIX-compliant or empty"));
         }
         var parent = index.get(node.getParentId());
         var dup = parent.getChildNodes().stream().filter(existing -> existing.getName().equalsIgnoreCase(node.getName())).findFirst();
         if (dup.isPresent()) {
-            throw new IllegalArgumentException("Already exists");
+            throw new ServiceException(new ErrorMessage("Already exists", HttpStatus.BAD_REQUEST));
         }
         node.setName(newName);
         return node;
@@ -135,7 +148,7 @@ public class FileSystem {
 
     public RepositoryNode getNode(UUID nodeId) {
         if (!index.containsKey(nodeId)) {
-            throw new IllegalArgumentException("Nonexistent node");
+            throw new ServiceException(new ErrorMessage("Nonexistent node"));
         }
         return index.get(nodeId);
     }

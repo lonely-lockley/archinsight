@@ -13,7 +13,6 @@ import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
-import com.vaadin.flow.component.grid.SortOrderProvider;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
 import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -21,9 +20,8 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.treegrid.TreeGrid;
-import com.vaadin.flow.data.provider.SortDirection;
 
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -64,6 +62,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                             return node;
                         }, null);
                         RepositoryViewComponent.this.getDataProvider().refreshAll();
+                        RepositoryViewComponent.this.expandRecursively(Collections.singletonList(null), 1);
                     }
                     else {
                         RepositoryViewComponent.this.activeRepository = null;

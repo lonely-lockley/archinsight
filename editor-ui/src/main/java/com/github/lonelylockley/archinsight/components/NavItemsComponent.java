@@ -9,8 +9,8 @@ public class NavItemsComponent extends Div {
         setId("nav-panel");
         setWidth("100%");
         setHeight("100%");
+        var treeView = new RepositoryViewComponent(); // this MUST be created prior to RepositorySelector so it would be able to listen to events
         var repositorySelector = new RepositorySelector();
-        var treeView = new RepositoryViewComponent();
         add(repositorySelector);
         add(new Label("Structure"));
         add(treeView);
