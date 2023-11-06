@@ -28,11 +28,11 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private RepositoryInfo selected = null;
 
-    public RepositorySelectorComponent() {
+    public RepositorySelectorComponent(boolean readOnly) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setWidth("100%");
         add(initLabel());
-        add(initRepositorySelector());
+        add(initRepositorySelector(readOnly));
     }
 
     private Label initLabel() {
@@ -43,7 +43,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
         return label;
     }
 
-    private Button initRepositorySelector() {
+    private Button initRepositorySelector(boolean readOnly) {
         final var manageRepositoryButton = new Button("<Choose Repository>");
         manageRepositoryButton.setWidth("100%");
         manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -54,10 +54,16 @@ public class RepositorySelectorComponent extends VerticalLayout {
             // this event is sent before a listener is added, so it won't cause cycle
             Communication.getBus().post(new RepositorySelectionEvent(null, item));
         }
-        manageRepositoryButton.addClickListener(event -> {
-            var dlg = new ManagementDialog();
-            dlg.open();
-        });
+        if (!readOnly) {
+            manageRepositoryButton.addClickListener(event -> {
+                var dlg = new ManagementDialog();
+                dlg.open();
+            });
+        }
+        else {
+            manageRepositoryButton.setEnabled(false);
+        }
+
         final var repositorySelectionListener = new BaseListener<RepositorySelectionEvent>() {
             @Override
             @Subscribe
@@ -68,6 +74,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
         };
         Communication.getBus().register(repositorySelectionListener);
         addDetachListener(e -> { Communication.getBus().unregister(repositorySelectionListener); });
+
         return manageRepositoryButton;
     }
 

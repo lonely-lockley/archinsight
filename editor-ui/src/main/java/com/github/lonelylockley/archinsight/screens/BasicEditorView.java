@@ -15,13 +15,13 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  */
 public abstract class BasicEditorView extends AppLayout implements BaseView {
 
-    public BasicEditorView(String titleSuffix) {
+    public BasicEditorView(String titleSuffix, boolean readOnly) {
         registerNotificationListener();
         DrawerToggle toggle = new DrawerToggle();
 
         var title = createTitle(titleSuffix);
 
-        var nav = new RepositoryComponent();
+        var nav = new RepositoryComponent(readOnly);
         // how to disable drawer button?
         addToDrawer(nav);
         addToNavbar(toggle, title);
@@ -38,7 +38,7 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         // =============================================================================================================
         var contentLayout = new VerticalLayout();
         var splitView = new SplitViewComponent(new EditorComponent(), new SVGViewComponent());
-        var content = new WorkAreaComponent(new MenuBarComponent(invisible), splitView);
+        var content = new WorkAreaComponent(new MenuBarComponent(invisible, readOnly), splitView);
         contentLayout.add(content);
         contentLayout.setSizeFull();
         //addFooter(contentLayout);

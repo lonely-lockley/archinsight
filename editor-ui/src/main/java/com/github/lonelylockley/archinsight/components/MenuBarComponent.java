@@ -29,7 +29,7 @@ public class MenuBarComponent extends MenuBar {
 
     private RepositoryNode fileOpened;
 
-    public MenuBarComponent(Div invisible) {
+    public MenuBarComponent(Div invisible, boolean readOnly) {
         this.invisible = invisible;
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         ComponentEventListener<ClickEvent<MenuItem>> listener = this::menuItemClicked;
@@ -90,7 +90,9 @@ public class MenuBarComponent extends MenuBar {
             @Subscribe
             public void receive(FileOpenRequestEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    saveButton.setEnabled(true);
+                    if (!readOnly) {
+                        saveButton.setEnabled(true);
+                    }
                     openButtonClicked(e.getFile());
                 }
             }

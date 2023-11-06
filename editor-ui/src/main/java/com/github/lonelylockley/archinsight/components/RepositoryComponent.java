@@ -5,13 +5,13 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 public class RepositoryComponent extends VerticalLayout {
 
-    public RepositoryComponent() {
+    public RepositoryComponent(boolean readOnly) {
         setId("repository-panel");
         setWidth("100%");
         setHeight("100%");
         getElement().setAttribute("theme", "spacing");
-        var treeView = new RepositoryViewComponent(); // this MUST be created prior to RepositorySelectorComponent so it would be able to listen to events
-        var repositorySelector = new RepositorySelectorComponent();
+        var treeView = new RepositoryViewComponent(readOnly); // this MUST be created prior to RepositorySelectorComponent, so it would be able to listen to events
+        var repositorySelector = new RepositorySelectorComponent(readOnly);
         add(repositorySelector);
         var label = new Label("Structure");
         label.getStyle().set("color", "var(--lumo-secondary-text-color)");

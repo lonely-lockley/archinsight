@@ -32,13 +32,13 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
     private RepositoryInfo activeRepository;
     private FileSystem fileSystem;
 
-    public RepositoryViewComponent() {
+    public RepositoryViewComponent(boolean readOnly) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
 
         setWidth("100%");
         setHeight("100%");
         ((AbstractGridSingleSelectionModel<RepositoryNode>) getSelectionModel()).setDeselectAllowed(false);
-        var contextMenu = initContextMenu();
+        var contextMenu = initContextMenu(readOnly);
         var column = this.addComponentHierarchyColumn(node -> {
                         var icon = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? VaadinIcon.FOLDER.create() : VaadinIcon.FILE.create();
                         var row = new HorizontalLayout(icon, new Label(node.getName()));
@@ -98,7 +98,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         });
     }
 
-    private GridContextMenu<RepositoryNode> initContextMenu() {
+    private GridContextMenu<RepositoryNode> initContextMenu(boolean readOnly) {
         var menu = addContextMenu();
         // =============================================================================================================
         var lb = new Label("New file");
@@ -122,7 +122,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         final var deleteFile = menu.addItem(lb, event -> deleteFileDialog.show(getSelectedItems()));
         // =============================================================================================================
         menu.addGridContextMenuOpenedListener(event -> {
-            if (activeRepository != null) {
+            if (activeRepository != null && !readOnly) {
                 newFile.setEnabled(true);
                 newDirectory.setEnabled(true);
                 var selected = RepositoryViewComponent.this.getSelectedItems();
