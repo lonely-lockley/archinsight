@@ -15,6 +15,9 @@ public interface FileMapper {
     @Select("select * from public.file where id = #{fileId}")
     public FileData openFile(UUID fileId);
 
+    @Select("select * from public.file where repository_id = #{repositoryId} and id = #{fileId}")
+    public FileData openFileInRepository(UUID repositoryId, UUID fileId);
+
     @Select("<script>select * from public.file where id in <foreach item='item' index='index' collection='ids' open='(' separator=',' close=')'>#{item}</foreach></script>")
     public List<FileData> openFiles(List<UUID> ids);
 
@@ -26,6 +29,9 @@ public interface FileMapper {
 
     @Delete("<script>delete from public.file where id in <foreach item='item' index='index' collection='ids' open='(' separator=',' close=')'>#{item}</foreach></script>")
     public void deleteFiles(List<UUID> ids);
+
+    @Delete("delete from public.file where repository_id = #{repositoryId}")
+    public void deleteAllRepositoryFiles(UUID repositoryId);
 
     @Update("update pubic.file set file_name = #{filename} where id = #{fileId}")
     public void renameFile(UUID fileID, String filename);

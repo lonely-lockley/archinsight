@@ -76,4 +76,46 @@ public class RepositorySource {
         }
     }
 
+    public String openFile(UUID fileId) {
+        try {
+            return repository.openFile(conf.getRepositoryAuthToken(), fileId).orElse("");
+        }
+        catch (HttpClientResponseException ex) {
+            Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
+            throw new RuntimeException("Remote exception: " + ex.getMessage());
+        }
+    }
+
+    public UUID saveFile(UUID fileId, String content) {
+        try {
+            return repository.saveFile(conf.getRepositoryAuthToken(), fileId, content);
+        }
+        catch (HttpClientResponseException ex) {
+            Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
+            throw new RuntimeException("Remote exception: " + ex.getMessage());
+        }
+    }
+
+    public RepositoryInfo createRepository(String name) {
+        try {
+            var repo = new RepositoryInfo();
+            repo.setName(name);
+            return repository.createRepository(conf.getRepositoryAuthToken(), repo);
+        }
+        catch (HttpClientResponseException ex) {
+            Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
+            throw new RuntimeException("Remote exception: " + ex.getMessage());
+        }
+    }
+
+    public UUID removeRepository(UUID repositoryId) {
+        try {
+            return repository.removeRepository(conf.getRepositoryAuthToken(), repositoryId);
+        }
+        catch (HttpClientResponseException ex) {
+            Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
+            throw new RuntimeException("Remote exception: " + ex.getMessage());
+        }
+    }
+
 }

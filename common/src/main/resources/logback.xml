@@ -11,7 +11,15 @@
     <appender name="SUPPRESS" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <Pattern>
-                %d{HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%n%nopex
+                %d{dd.MM.yyyy HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%n%nopex
+            </Pattern>
+        </layout>
+    </appender>
+
+    <appender name="SHORT" class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %d{dd.MM.yyyy HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%n%ex{3}
             </Pattern>
         </layout>
     </appender>
@@ -28,6 +36,9 @@
     </logger>
     <logger name="com.vaadin.flow.server.VaadinServletService" level="INFO" additivity="false">
         <appender-ref ref="SUPPRESS" />
+    </logger>
+    <logger name="com.github.lonelylockley.archinsight.exceptionhandling.ServiceExceptionHandler" level="INFO" additivity="false">
+        <appender-ref ref="SHORT" />
     </logger>
 
     <root level="INFO">

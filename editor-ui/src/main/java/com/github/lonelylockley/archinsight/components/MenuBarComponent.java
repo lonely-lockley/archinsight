@@ -1,10 +1,8 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
-import com.github.lonelylockley.archinsight.events.ZoomEvent;
+import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
@@ -27,18 +25,23 @@ public class MenuBarComponent extends MenuBar {
     private static final Logger logger = LoggerFactory.getLogger(MenuBarComponent.class);
 
     private final Div invisible;
-    private final MenuItem exportDropdown;
     private final RemoteSource remoteSource;
+
+    private RepositoryNode fileOpened;
 
     public MenuBarComponent(Div invisible) {
         this.invisible = invisible;
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         ComponentEventListener<ClickEvent<MenuItem>> listener = this::menuItemClicked;
 
-        var item = addItem("Save Source", listener);
-        item.setId("menu_btn_save");
+        final var saveButton = addItem("Save source", listener);
+        saveButton.setId("menu_btn_file_save");
+        saveButton.add(new Icon(VaadinIcon.CLOUD_DOWNLOAD));
+        saveButton.setEnabled(false);
+        var item = addItem("Download source", listener);
+        item.setId("menu_btn_file_download");
         item.add(new Icon(VaadinIcon.DOWNLOAD));
-        exportDropdown = addItem("Export Image", listener);
+        final var exportDropdown = addItem("Export Image", listener);
         exportDropdown.setId("menu_btn_export");
         exportDropdown.add(new Icon(VaadinIcon.ANGLE_DOWN));
         exportDropdown.setEnabled(false);
@@ -68,7 +71,7 @@ public class MenuBarComponent extends MenuBar {
             @Override
             @Subscribe
             public void receive(SourceCompilationEvent e) {
-                if (checkUiId(e)) {
+                if (eventWasProducedForCurrentUiId(e)) {
                     if (exportDropdown.isEnabled() && e.failure()) {
                         exportDropdown.setEnabled(false);
                     }
@@ -81,6 +84,19 @@ public class MenuBarComponent extends MenuBar {
         };
         Communication.getBus().register(sourceCompilationListener);
         addDetachListener(e -> Communication.getBus().unregister(sourceCompilationListener));
+
+        final var fileSelectionListener = new BaseListener<FileOpenRequestEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileOpenRequestEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    saveButton.setEnabled(true);
+                    openButtonClicked(e.getFile());
+                }
+            }
+        };
+        Communication.getBus().register(fileSelectionListener);
+        addDetachListener(e -> Communication.getBus().unregister(fileSelectionListener));
     }
 
     private void menuItemClicked(ClickEvent<MenuItem> event) {
@@ -89,8 +105,8 @@ public class MenuBarComponent extends MenuBar {
             exportButtonClicked(id);
         }
         else
-        if (id.equals("menu_btn_save")) {
-            saveButtonClicked(id);
+        if (id.startsWith("menu_btn_file")) {
+            fileButtonClicked(id);
         }
         else
         if (id.startsWith("menu_btn_zoom")) {
@@ -119,9 +135,36 @@ public class MenuBarComponent extends MenuBar {
         });
     }
 
-    private void saveButtonClicked(String id) {
+    private void fileButtonClicked(String id) {
+        switch (id) {
+            case "menu_btn_file_save":
+                saveButtonClicked();
+                break;
+            case "menu_btn_file_download":
+                downloadButtonClicked();
+                break;
+        }
+    }
+
+    private void openButtonClicked(RepositoryNode fileSelected) {
+            var content = remoteSource.repository.openFile(fileSelected.getId());
+            this.getElement().executeJs("window.editor.setValue($0)", content);
+            this.fileOpened = fileSelected;
+            Communication.getBus().post(new FileOpenedEvent(fileOpened));
+    }
+
+    private void saveButtonClicked() {
+        if (fileOpened != null) {
+            this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
+                remoteSource.repository.saveFile(fileOpened.getId(), code);
+            });
+        }
+    }
+
+    private void downloadButtonClicked() {
+        final var filename = fileOpened == null ? "source.ai" : fileOpened.getName();
         this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
-            var res = new StreamResource("source.ai", () -> new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
+            var res = new StreamResource(filename, () -> new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
             startDownload(res);
         });
     }

@@ -9,6 +9,7 @@ import io.micronaut.http.annotation.*;
 import io.micronaut.http.client.annotation.Client;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static io.micronaut.http.HttpHeaders.ACCEPT;
@@ -23,8 +24,7 @@ public interface RepositoryClient {
     List<RepositoryInfo>  listUserRepositories(@Header String authorization);
 
     @Post("/repository/create")
-    @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)
-    UUID createRepository(@Header String authorization, @Body RepositoryInfo data);
+    RepositoryInfo createRepository(@Header String authorization, @Body RepositoryInfo data);
 
     @Get("/repository/{repositoryId}/remove")
     @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)
@@ -46,8 +46,8 @@ public interface RepositoryClient {
     List<UUID> removeNode(@Header String authorization, UUID repositoryId, UUID nodeId);
 
     @Get("/file/{fileId}/open")
-    @Header(name = CONTENT_TYPE, value = MediaType.TEXT_PLAIN)
-    FileData openFile(@Header String authorization, UUID fileId);
+    @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)
+    Optional<String> openFile(@Header String authorization, UUID fileId);
 
     @Get("/file/{repositoryId}/openAll")
     List<FileData> openAllFiles(@Header String authorization, UUID repositoryId);
@@ -55,7 +55,7 @@ public interface RepositoryClient {
     @Post("/file/{fileId}/save")
     @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)
     @Header(name = CONTENT_TYPE, value = MediaType.TEXT_PLAIN)
-    List<FileData> saveFile(@Header String authorization, UUID fileId, @Body String fileData);
+    UUID saveFile(@Header String authorization, UUID fileId, @Body String content);
 
 
 }

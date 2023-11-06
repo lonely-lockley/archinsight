@@ -1,9 +1,7 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.RepositorySelectionEvent;
+import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
@@ -13,6 +11,8 @@ import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.grid.AbstractGridSingleSelectionModel;
+import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
 import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -37,20 +37,21 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
         setWidth("100%");
         setHeight("100%");
+        ((AbstractGridSingleSelectionModel<RepositoryNode>) getSelectionModel()).setDeselectAllowed(false);
         var contextMenu = initContextMenu();
-        var column = this
-                    .addComponentHierarchyColumn(node -> {
+        var column = this.addComponentHierarchyColumn(node -> {
                         var icon = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? VaadinIcon.FOLDER.create() : VaadinIcon.FILE.create();
                         var row = new HorizontalLayout(icon, new Label(node.getName()));
                         row.setAlignItems(FlexComponent.Alignment.CENTER);
                         row.setSpacing(true);
+                        row.setId("gridview_" + node.getId().toString());
                         return row;
                     });
         final var repositorySelectionListener = new BaseListener<RepositorySelectionEvent>() {
             @Override
             @Subscribe
             public void receive(RepositorySelectionEvent e) {
-                if (checkUiId(e)) {
+                if (eventWasProducedForCurrentUiId(e)) {
                     if (e.getNewValue() != null) {
                         RepositoryViewComponent.this.activeRepository = e.getNewValue();
                         var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
@@ -74,10 +75,27 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             }
         };
         Communication.getBus().register(repositorySelectionListener);
-        addDetachListener(e -> {
-            Communication.getBus().unregister(repositorySelectionListener);
-        });
+        addDetachListener(e -> { Communication.getBus().unregister(repositorySelectionListener); });
 
+        addItemClickListener(new ComponentEventListener<ItemClickEvent<RepositoryNode>>() {
+
+            private RepositoryNode selection = null;
+
+            @Override
+            public void onComponentEvent(ItemClickEvent<RepositoryNode> event) {
+                if (event.getClickCount() > 1) {
+                    if (selection == null || !selection.getId().equals(event.getItem().getId())) {
+                        selection = event.getItem();
+                        if (RepositoryNode.TYPE_FILE.equals(selection.getType())) {
+                            Communication.getBus().post(new FileOpenRequestEvent(selection));
+                        }
+                        else {
+                            RepositoryViewComponent.this.expand(selection);
+                        }
+                    }
+                }
+            }
+        });
     }
 
     private GridContextMenu<RepositoryNode> initContextMenu() {

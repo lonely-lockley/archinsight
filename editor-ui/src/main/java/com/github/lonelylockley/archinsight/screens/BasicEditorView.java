@@ -4,15 +4,11 @@ import com.github.lonelylockley.archinsight.components.*;
 import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.NotificationEvent;
-import com.github.lonelylockley.archinsight.events.RepositorySelectionEvent;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
-import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.theme.lumo.Lumo;
 
 /**
  * The main view contains a button and a click listener.
@@ -20,11 +16,12 @@ import com.vaadin.flow.theme.lumo.Lumo;
 public abstract class BasicEditorView extends AppLayout implements BaseView {
 
     public BasicEditorView(String titleSuffix) {
+        registerNotificationListener();
         DrawerToggle toggle = new DrawerToggle();
 
         var title = createTitle(titleSuffix);
 
-        var nav = new NavItemsComponent();
+        var nav = new RepositoryComponent();
         // how to disable drawer button?
         addToDrawer(nav);
         addToNavbar(toggle, title);
@@ -44,15 +41,18 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         var content = new WorkAreaComponent(new MenuBarComponent(invisible), splitView);
         contentLayout.add(content);
         contentLayout.setSizeFull();
-        addFooter(contentLayout);
+        //addFooter(contentLayout);
         setContent(contentLayout);
         applyDarkTheme(getElement());
+    }
+
+    private void registerNotificationListener() {
         // Common notification controller
         final var notificationListener = new BaseListener<NotificationEvent>() {
             @Override
             @Subscribe
             public void receive(NotificationEvent e) {
-                if (checkUiId(e)) {
+                if (eventWasProducedForCurrentUiId(e)) {
                     new NotificationComponent(e.getMessage(), e.getLevel(), e.getDuration());
                 }
             }
@@ -61,7 +61,6 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         addDetachListener(e -> {
             Communication.getBus().unregister(notificationListener);
         });
-
     }
 
 }

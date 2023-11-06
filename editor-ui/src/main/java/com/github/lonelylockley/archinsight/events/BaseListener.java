@@ -13,7 +13,7 @@ public abstract class BaseListener<T> {
 
     public abstract void receive(T e);
 
-    protected boolean checkUiId(T event) {
+    protected boolean eventWasProducedForCurrentUiId(T event) {
         if (event instanceof BaseEvent typedEvent) {
             return typedEvent.getUiId() == uiId;
         }

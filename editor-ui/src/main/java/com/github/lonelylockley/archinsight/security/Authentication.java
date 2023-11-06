@@ -33,6 +33,22 @@ public class Authentication {
         return token.isPresent();
     }
 
+    public static void enablePlaygroundMode() {
+        var session = VaadinSession.getCurrent();
+        session.setAttribute("playground_mode", true);
+    }
+
+    public static boolean playgroundModeEnabled() {
+        var session = VaadinSession.getCurrent();
+        var pgMode = session.getAttribute("playground_mode");
+        return pgMode != null;
+    }
+
+    public static void disablePlaygroundMode() {
+        var session = VaadinSession.getCurrent();
+        session.setAttribute("playground_mode", null);
+    }
+
     public static void authenticate() {
         new AuthFilter().beforeEnter(null);
     }
