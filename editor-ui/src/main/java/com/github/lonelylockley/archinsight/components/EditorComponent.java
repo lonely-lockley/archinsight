@@ -42,23 +42,28 @@ public class EditorComponent extends Div {
     }
     @ClientCallable
     public void render(String code) {
-        TranslatedSource res = null;
-        try {
-            res = remoteSource.render.render(code);
-            if (res.getMessages() == null || res.getMessages().isEmpty()) {
-                Communication.getBus().post(new SourceCompilationEvent(true));
-                Communication.getBus().post(new SvgDataEvent(res.getSource()));
-            }
-            else {
-                Communication.getBus().post(new SourceCompilationEvent(false));
-                ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-                getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(res.getMessages()));
-            }
-        }
-        catch (Exception ex) {
+        if (code == null || code.isBlank()) {
             Communication.getBus().post(new SourceCompilationEvent(false));
-            new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 3000);
-            logger.error("Could not render object. Sending empty response to browser", ex);
+        }
+        else {
+            TranslatedSource res = null;
+            try {
+                res = remoteSource.render.render(code);
+                if (res.getMessages() == null || res.getMessages().isEmpty()) {
+                    Communication.getBus().post(new SourceCompilationEvent(true));
+                    Communication.getBus().post(new SvgDataEvent(res.getSource()));
+                }
+                else {
+                    Communication.getBus().post(new SourceCompilationEvent(false));
+                    ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+                    getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(res.getMessages()));
+                }
+            }
+            catch (Exception ex) {
+                Communication.getBus().post(new SourceCompilationEvent(false));
+                new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 3000);
+                logger.error("Could not render object. Sending empty response to browser", ex);
+            }
         }
     }
 

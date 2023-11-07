@@ -54,18 +54,22 @@ public class MenuBarComponent extends MenuBar {
             item.setId("menu_btn_export_as_json");
             item = exportSubMenu.addItem("as DOT", listener);
             item.setId("menu_btn_export_as_dot");
-        item = addItem("", listener);
-        item.setId("menu_btn_zoom_plus");
-        item.add(new Icon(VaadinIcon.PLUS));
-        item = addItem("", listener);
-        item.add(new Icon(VaadinIcon.PLUS_MINUS));
-        item.setId("menu_btn_zoom_reset");
-        item = addItem("", listener);
-        item.setId("menu_btn_zoom_minus");
-        item.add(new Icon(VaadinIcon.MINUS));
-        item = addItem("", listener);
-        item.setId("menu_btn_zoom_fit");
-        item.add(new Icon(VaadinIcon.EXPAND_SQUARE));
+        final var zoomInButton = addItem("", listener);
+        zoomInButton.setId("menu_btn_zoom_plus");
+        zoomInButton.add(new Icon(VaadinIcon.PLUS));
+        zoomInButton.setEnabled(false);
+        final var zoomResetButton = addItem("", listener);
+        zoomResetButton.add(new Icon(VaadinIcon.PLUS_MINUS));
+        zoomResetButton.setId("menu_btn_zoom_reset");
+        zoomResetButton.setEnabled(false);
+        final var zoomOutButton = addItem("", listener);
+        zoomOutButton.setId("menu_btn_zoom_minus");
+        zoomOutButton.add(new Icon(VaadinIcon.MINUS));
+        zoomOutButton.setEnabled(false);
+        final var zoomFitButton = addItem("", listener);
+        zoomFitButton.setId("menu_btn_zoom_fit");
+        zoomFitButton.add(new Icon(VaadinIcon.EXPAND_SQUARE));
+        zoomFitButton.setEnabled(false);
 
         final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
             @Override
@@ -74,6 +78,10 @@ public class MenuBarComponent extends MenuBar {
                 if (eventWasProducedForCurrentUiId(e)) {
                     if (exportDropdown.isEnabled() && e.failure()) {
                         exportDropdown.setEnabled(false);
+                        zoomInButton.setEnabled(false);
+                        zoomResetButton.setEnabled(false);
+                        zoomOutButton.setEnabled(false);
+                        zoomFitButton.setEnabled(false);
                     }
                     else
                     if (!exportDropdown.isEnabled() && e.success()) {
@@ -107,6 +115,11 @@ public class MenuBarComponent extends MenuBar {
                 if (eventWasProducedForCurrentUiId(e)) {
                     MenuBarComponent.this.fileOpened = null;
                     saveButton.setEnabled(false);
+                    exportDropdown.setEnabled(false);
+                    zoomInButton.setEnabled(false);
+                    zoomResetButton.setEnabled(false);
+                    zoomOutButton.setEnabled(false);
+                    zoomFitButton.setEnabled(false);
                 }
             }
         };
@@ -132,11 +145,31 @@ public class MenuBarComponent extends MenuBar {
             public void receive(FileCloseRequestEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
                     saveButton.setEnabled(false);
+                    exportDropdown.setEnabled(false);
+                    zoomInButton.setEnabled(false);
+                    zoomResetButton.setEnabled(false);
+                    zoomOutButton.setEnabled(false);
+                    zoomFitButton.setEnabled(false);
                 }
             }
         };
         Communication.getBus().register(fileCloseListener);
         addDetachListener(e -> { Communication.getBus().unregister(fileCloseListener); });
+
+        final var svgDataListener = new BaseListener<SvgDataEvent>() {
+            @Override
+            @Subscribe
+            public void receive(SvgDataEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    zoomInButton.setEnabled(true);
+                    zoomResetButton.setEnabled(true);
+                    zoomOutButton.setEnabled(true);
+                    zoomFitButton.setEnabled(true);
+                }
+            }
+        };
+        Communication.getBus().register(svgDataListener);
+        addDetachListener(e -> { Communication.getBus().unregister(svgDataListener); });
     }
 
     private void menuItemClicked(ClickEvent<MenuItem> event) {

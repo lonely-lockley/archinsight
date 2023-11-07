@@ -12,6 +12,9 @@ function renderCode(container: HTMLElement, value: string) {
     if (!errors && value && value.length > 0) {
         renderClient.remoteRender(container, value);
     }
+    else {
+        renderClient.remoteRender(container, '');
+    }
 }
 
 function initializeEditor(localStorageKey: string, code: string) {

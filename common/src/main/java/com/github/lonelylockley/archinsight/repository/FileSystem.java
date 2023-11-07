@@ -138,7 +138,7 @@ public class FileSystem {
             throw new ServiceException(new ErrorMessage("Node name is not POSIX-compliant or empty"));
         }
         var parent = index.get(node.getParentId());
-        var dup = parent.getChildNodes().stream().filter(existing -> existing.getName().equalsIgnoreCase(node.getName())).findFirst();
+        var dup = parent.getChildNodes().stream().filter(existing -> existing.getName().equalsIgnoreCase(newName)).findFirst();
         if (dup.isPresent()) {
             throw new ServiceException(new ErrorMessage("Already exists", HttpStatus.BAD_REQUEST));
         }

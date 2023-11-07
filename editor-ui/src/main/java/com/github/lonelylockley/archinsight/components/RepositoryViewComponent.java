@@ -101,17 +101,15 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
             @Override
             public void onComponentEvent(ItemClickEvent<RepositoryNode> event) {
-                if (event.getClickCount() > 1) {
-                    if (selection == null || !selection.getId().equals(event.getItem().getId())) {
-                        selection = event.getItem();
-                        if (RepositoryNode.TYPE_FILE.equals(selection.getType())) {
-                            Communication.getBus().post(new FileCloseRequestEvent());
-                            Communication.getBus().post(new FileOpenRequestEvent(selection));
-                            storeOpenedFile(selection.getId());
-                        }
-                        else {
-                            RepositoryViewComponent.this.expand(selection);
-                        }
+                if (event.getClickCount() == 2) {
+                    selection = event.getItem();
+                    if (RepositoryNode.TYPE_FILE.equals(selection.getType())) {
+                        Communication.getBus().post(new FileCloseRequestEvent());
+                        Communication.getBus().post(new FileOpenRequestEvent(selection));
+                        storeOpenedFile(selection.getId());
+                    }
+                    else {
+                        RepositoryViewComponent.this.expand(selection);
                     }
                 }
             }
@@ -123,23 +121,23 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         // =============================================================================================================
         var lb = new Label("New file");
         lb.setId("repository-tree-view-new-file");
-        final var newFileDialog = new ResultReturningDialog("Create new file", "File name", "Archinsight will add an .ai extension automatically", this::createFile);
-        final var newFile = menu.addItem(lb, event -> newFileDialog.open());
+        final var newFile = menu.addItem(lb, event ->
+                new ResultReturningDialog("Create new file", "File name", "Archinsight will add an .ai extension automatically", this::createFile).open());
         // =============================================================================================================
         lb = new Label("New directory");
         lb.setId("repository-tree-view-new-dir");
-        var editDirectoryDialog = new ResultReturningDialog("Create new directory", "Directory name", null, this::createDirectory);
-        final var newDirectory = menu.addItem(lb, event -> editDirectoryDialog.open());
+        final var newDirectory = menu.addItem(lb, event ->
+                new ResultReturningDialog("Create new directory", "Directory name", null, this::createDirectory).open());
         // =============================================================================================================
         lb = new Label("Rename");
         lb.setId("repository-tree-view-rename-file");
-        var editFileDialog = new ResultReturningDialog("Rename %s", "New %s name", null, this::renameNode);
-        final var editFile = menu.addItem(lb, event -> editFileDialog.show(getSelectedItems()));
+        final var editFile = menu.addItem(lb, event ->
+                new ResultReturningDialog("Rename %s", "New %s name", null, this::renameNode).show(getSelectedItems()));
         // =============================================================================================================
         lb = new Label("Delete");
         lb.setId("repository-tree-view-delete-file");
-        var deleteFileDialog = new ConfirmDialog("Confirm delete", "Are you sure want to delete %s `%s`?", this::removeNode);
-        final var deleteFile = menu.addItem(lb, event -> deleteFileDialog.show(getSelectedItems()));
+        final var deleteFile = menu.addItem(lb, event ->
+                new ConfirmDialog("Confirm delete", "Are you sure want to delete %s `%s`?", this::removeNode).show(getSelectedItems()));
         // =============================================================================================================
         menu.addGridContextMenuOpenedListener(event -> {
             if (activeRepository != null && !readOnly) {
@@ -195,8 +193,8 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             node.setParentId(parent.getId());
         }
         node = remoteSource.repository.createNode(activeRepository.getId(), node);
-        RepositoryViewComponent.this.getTreeData().addItem(parent, node);
-        RepositoryViewComponent.this.getDataProvider().refreshAll();
+        getTreeData().addItem(parent, node);
+        getDataProvider().refreshAll();
     }
 
     private void removeNode() {
@@ -204,8 +202,8 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
             remoteSource.repository.removeNode(activeRepository.getId(), node.getId());
-            RepositoryViewComponent.this.getTreeData().removeItem(node);
-            RepositoryViewComponent.this.getDataProvider().refreshAll();
+            getTreeData().removeItem(node);
+            getDataProvider().refreshAll();
             Communication.getBus().post(new FileCloseRequestEvent());
             storeOpenedFile(null);
         }
@@ -216,9 +214,10 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
             newName = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? newName : ensureFileExtensionAdded(newName);
-            node = remoteSource.repository.renameNode(activeRepository.getId(), node.getId(), newName);
+            remoteSource.repository.renameNode(activeRepository.getId(), node.getId(), newName);
             node.setName(newName);
-            RepositoryViewComponent.this.getDataProvider().refreshItem(node);
+            getDataProvider().refreshItem(node);
+            getDataProvider().refreshAll();
         }
     }
 
