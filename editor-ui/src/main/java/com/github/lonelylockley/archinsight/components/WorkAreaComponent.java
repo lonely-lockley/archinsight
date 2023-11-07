@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.FileCloseRequestEvent;
 import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.html.Div;
@@ -30,5 +31,18 @@ public class WorkAreaComponent extends VerticalLayout {
         };
         Communication.getBus().register(repositoryCloseListener);
         addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
+
+        final var fileCloseListener = new BaseListener<FileCloseRequestEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileCloseRequestEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    editor.reset();
+                    view.reset();
+                }
+            }
+        };
+        Communication.getBus().register(fileCloseListener);
+        addDetachListener(e -> { Communication.getBus().unregister(fileCloseListener); });
     }
 }

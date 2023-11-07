@@ -3,7 +3,7 @@ package com.github.lonelylockley.archinsight.remote;
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.NotificationEvent;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
@@ -23,7 +23,7 @@ public class RepositorySource {
     @Inject
     private Config conf;
 
-    public List<RepositoryInfo> listUserRepositories() {
+    public List<RepostioryInfo> listUserRepositories() {
         try {
             return repository.listUserRepositories(conf.getRepositoryAuthToken());
         }
@@ -96,9 +96,9 @@ public class RepositorySource {
         }
     }
 
-    public RepositoryInfo createRepository(String name) {
+    public RepostioryInfo createRepository(String name) {
         try {
-            var repo = new RepositoryInfo();
+            var repo = new RepostioryInfo();
             repo.setName(name);
             return repository.createRepository(conf.getRepositoryAuthToken(), repo);
         }

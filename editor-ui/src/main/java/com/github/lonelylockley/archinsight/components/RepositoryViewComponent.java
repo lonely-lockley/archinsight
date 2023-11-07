@@ -2,10 +2,11 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.events.*;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
+import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.button.Button;
@@ -21,15 +22,14 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.treegrid.TreeGrid;
 
-import java.util.Collections;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
     private final RemoteSource remoteSource;
 
-    private RepositoryInfo activeRepository;
+    private RepostioryInfo activeRepository;
     private FileSystem fileSystem;
 
     public RepositoryViewComponent(boolean readOnly) {
@@ -57,6 +57,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                     RepositoryViewComponent.this.fileSystem = null;
                     RepositoryViewComponent.this.getTreeData().clear();
                     RepositoryViewComponent.this.getDataProvider().refreshAll();
+                    storeOpenedFile(null);
                 }
             }
         };
@@ -87,6 +88,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                         RepositoryViewComponent.this.getTreeData().clear();
                         RepositoryViewComponent.this.getDataProvider().refreshAll();
                     }
+                    restoreOpenedFile();
                 }
             }
         };
@@ -103,7 +105,9 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                     if (selection == null || !selection.getId().equals(event.getItem().getId())) {
                         selection = event.getItem();
                         if (RepositoryNode.TYPE_FILE.equals(selection.getType())) {
+                            Communication.getBus().post(new FileCloseRequestEvent());
                             Communication.getBus().post(new FileOpenRequestEvent(selection));
+                            storeOpenedFile(selection.getId());
                         }
                         else {
                             RepositoryViewComponent.this.expand(selection);
@@ -202,6 +206,8 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             remoteSource.repository.removeNode(activeRepository.getId(), node.getId());
             RepositoryViewComponent.this.getTreeData().removeItem(node);
             RepositoryViewComponent.this.getDataProvider().refreshAll();
+            Communication.getBus().post(new FileCloseRequestEvent());
+            storeOpenedFile(null);
         }
     }
 
@@ -213,6 +219,32 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             node = remoteSource.repository.renameNode(activeRepository.getId(), node.getId(), newName);
             node.setName(newName);
             RepositoryViewComponent.this.getDataProvider().refreshItem(node);
+        }
+    }
+
+    private void storeOpenedFile(UUID fileId) {
+        if (!Authentication.playgroundModeEnabled()) {
+            getElement().executeJs("localStorage.setItem($0, $1)", "org.archinsight.editor.file", fileId == null ? "" : fileId.toString());
+        }
+    }
+
+    private void restoreOpenedFile() {
+        if (!Authentication.playgroundModeEnabled()) {
+            getElement().executeJs("return (localStorage.getItem($0) || '')", "org.archinsight.editor.file").then(String.class, fileId -> {
+                var id = fileId.isBlank() ? null : UUID.fromString(fileId);
+                if (id != null) {
+                    if (fileSystem.hasNode(id)) {
+                        var node = fileSystem.getNode(id);
+                        // open all menu items and select current file
+                        select(node);
+                        Communication.getBus().post(new FileRestoredEvent(node));
+                        while (node.getParentId() != null) {
+                            node = fileSystem.getNode(node.getParentId());
+                            expand(node);
+                        }
+                    }
+                }
+            });
         }
     }
 

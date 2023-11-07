@@ -1,11 +1,8 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
-import com.github.lonelylockley.archinsight.events.RepositorySelectionEvent;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
+import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.Key;
@@ -29,7 +26,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private final RemoteSource remoteSource;
 
-    private RepositoryInfo selected = null;
+    private RepostioryInfo selected = null;
 
     public RepositorySelectorComponent(boolean readOnly) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
@@ -106,10 +103,10 @@ public class RepositorySelectorComponent extends VerticalLayout {
     }
 
     private void storeSelectedRepository(UUID repositoryId) {
-       getElement().executeJs("localStorage.setItem($0, $1)", "org.archinsight.editor.project", repositoryId == null ? null : repositoryId.toString());
+       getElement().executeJs("localStorage.setItem($0, $1)", "org.archinsight.editor.project", repositoryId == null ? "" : repositoryId.toString());
     }
 
-    private void restoreSelectedRepository(List<RepositoryInfo> items) {
+    private void restoreSelectedRepository(List<RepostioryInfo> items) {
         getElement().executeJs("return localStorage.getItem($0)", "org.archinsight.editor.project").then(String.class, repositoryId -> {
             if (repositoryId != null) {
                 var uuid = UUID.fromString(repositoryId);
@@ -127,7 +124,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
         private final Button createButton = new Button("Create");
         private final Button editButton = new Button("Edit");
         private final Button deleteButton = new Button("Delete");
-        private final Grid<RepositoryInfo> table = new Grid<>();
+        private final Grid<RepostioryInfo> table = new Grid<>();
 
         public ManagementDialog() {
             setModal(true);
@@ -161,6 +158,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
             createButton.addClickListener(e -> {
                 var repo = remoteSource.repository.createRepository(input.getValue());
                 table.getListDataView().addItem(repo);
+                table.select(repo);
             });
             editButton.setMinWidth("65px");
             editButton.setEnabled(false);
@@ -174,6 +172,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
                             Communication.getBus().post(new RepositoryCloseEvent());
                         }
                         remoteSource.repository.removeRepository(repo.getId());
+                        table.deselect(repo);
                         table.getListDataView().removeItem(repo);
                     });
                 }
@@ -187,20 +186,17 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
         private void initTable() {
             table.setSelectionMode(Grid.SelectionMode.SINGLE);
-//            tbl.setWidth("100%");
-//            tbl.setHeight("100%");
-//            UI.getCurrent().getPage().retrieveExtendedClientDetails(extendedClientDetails -> {
-//                extendedClientDetails.getTimeZoneId()
-//            });
             final var locale = VaadinService.getCurrentRequest().getLocale();
             final var formatter = DateTimeFormatter
                     .ofLocalizedDateTime(FormatStyle.MEDIUM)
                     .withLocale(locale)
                     .withZone(ZoneOffset.UTC);
-            table.addColumn(RepositoryInfo::getName).setHeader("Name").setAutoWidth(true);
-            table.addColumn(RepositoryInfo::getPermissions).setHeader("Permissions").setAutoWidth(true);
+            table.addColumn(RepostioryInfo::getName).setHeader("Name").setAutoWidth(true);
+            table.addColumn(repo -> "rwx").setHeader("Permissions").setAutoWidth(true);
             table.addColumn(repo -> formatter.format(repo.getCreated())).setHeader("Created").setAutoWidth(true);
             table.addColumn(repo -> formatter.format(repo.getUpdated())).setHeader("Updated").setAutoWidth(true);
+            // @todo make "share repository" button
+            table.addColumn(repo -> "Not implemented").setHeader("Public Link").setAutoWidth(true);
             remoteSource.repository.listUserRepositories().forEach(repo -> table.getListDataView().addItem(repo));
             table.addSelectionListener(e -> {
                 var selectiono = e.getFirstSelectedItem();

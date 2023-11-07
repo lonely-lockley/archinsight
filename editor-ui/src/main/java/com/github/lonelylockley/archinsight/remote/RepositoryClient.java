@@ -2,7 +2,7 @@ package com.github.lonelylockley.archinsight.remote;
 
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.repository.MoveNode;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
@@ -21,10 +21,10 @@ import static io.micronaut.http.HttpHeaders.CONTENT_TYPE;
 public interface RepositoryClient {
 
     @Get("/repository/list")
-    List<RepositoryInfo>  listUserRepositories(@Header String authorization);
+    List<RepostioryInfo>  listUserRepositories(@Header String authorization);
 
     @Post("/repository/create")
-    RepositoryInfo createRepository(@Header String authorization, @Body RepositoryInfo data);
+    RepostioryInfo createRepository(@Header String authorization, @Body RepostioryInfo data);
 
     @Get("/repository/{repositoryId}/remove")
     @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)

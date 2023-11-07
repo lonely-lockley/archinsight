@@ -3,7 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.github.lonelylockley.archinsight.exceptionhandling.ServiceException;
 import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
 import com.github.lonelylockley.archinsight.model.remote.repository.MoveNode;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import com.github.lonelylockley.archinsight.persistence.FileMapper;
@@ -49,7 +49,7 @@ public class RepositoryService {
     @Get("/list")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<RepositoryInfo>> list(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole) throws Exception {
+    public HttpResponse<List<RepostioryInfo>> list(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             if (SecurityConstants.ROLE_ANONYMOUS.equals(ownerRole)) {
@@ -69,7 +69,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepositoryInfo> create(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, RepositoryInfo data) throws Exception {
+    public HttpResponse<RepostioryInfo> create(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, RepostioryInfo data) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             var id = UUID.randomUUID();

@@ -146,6 +146,10 @@ public class FileSystem {
         return node;
     }
 
+    public boolean hasNode(UUID nodeId) {
+        return index.containsKey(nodeId);
+    }
+
     public RepositoryNode getNode(UUID nodeId) {
         if (!index.containsKey(nodeId)) {
             throw new ServiceException(new ErrorMessage("Nonexistent node"));
@@ -167,6 +171,10 @@ public class FileSystem {
     }
 
     public RepositoryNode getClosestDirectory(RepositoryNode selected) {
+        if (selected == null) {
+            return root;
+        }
+        else
         if (RepositoryNode.TYPE_DIRECTORY.equals(selected.getType())) {
             return selected;
         }
