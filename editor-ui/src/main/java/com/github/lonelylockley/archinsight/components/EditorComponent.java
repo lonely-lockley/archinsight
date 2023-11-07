@@ -9,6 +9,7 @@ import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
+import com.github.lonelylockley.archinsight.security.Authentication;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
@@ -32,7 +33,12 @@ public class EditorComponent extends Div {
     public EditorComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setId("editor");
-        UI.getCurrent().getPage().executeJs("initializeEditor()");
+        if (Authentication.playgroundModeEnabled()) {
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1)", "org.archinsight.playground.sourcecode", null);
+        }
+        else {
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1)", "org.archinsight.editor.sourcecode", null);
+        }
     }
     @ClientCallable
     public void render(String code) {
@@ -56,6 +62,8 @@ public class EditorComponent extends Div {
         }
     }
 
-
+    public void reset() {
+        getElement().executeJs("window.editor.setValue('')");
+    }
 
 }

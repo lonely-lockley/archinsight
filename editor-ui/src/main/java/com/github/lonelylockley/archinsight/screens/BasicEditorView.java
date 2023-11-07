@@ -4,6 +4,7 @@ import com.github.lonelylockley.archinsight.components.*;
 import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.NotificationEvent;
+import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
@@ -15,14 +16,14 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  */
 public abstract class BasicEditorView extends AppLayout implements BaseView {
 
-    public BasicEditorView(String titleSuffix, boolean readOnly) {
+    protected void initView(String titleSuffix, boolean readOnly) {
         registerNotificationListener();
+        Communication.getBus().post(new RepositoryCloseEvent());
         DrawerToggle toggle = new DrawerToggle();
 
         var title = createTitle(titleSuffix);
 
         var nav = new RepositoryComponent(readOnly);
-        // how to disable drawer button?
         addToDrawer(nav);
         addToNavbar(toggle, title);
         setDrawerOpened(true);
@@ -37,11 +38,10 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         addToDrawer(invisible);
         // =============================================================================================================
         var contentLayout = new VerticalLayout();
-        var splitView = new SplitViewComponent(new EditorComponent(), new SVGViewComponent());
-        var content = new WorkAreaComponent(new MenuBarComponent(invisible, readOnly), splitView);
+
+        var content = new WorkAreaComponent(invisible, readOnly);
         contentLayout.add(content);
         contentLayout.setSizeFull();
-        //addFooter(contentLayout);
         setContent(contentLayout);
         applyDarkTheme(getElement());
     }

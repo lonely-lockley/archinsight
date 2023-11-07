@@ -47,6 +47,22 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                         row.setId("gridview_" + node.getId().toString());
                         return row;
                     });
+
+        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
+            @Override
+            @Subscribe
+            public void receive(RepositoryCloseEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    RepositoryViewComponent.this.activeRepository = null;
+                    RepositoryViewComponent.this.fileSystem = null;
+                    RepositoryViewComponent.this.getTreeData().clear();
+                    RepositoryViewComponent.this.getDataProvider().refreshAll();
+                }
+            }
+        };
+        Communication.getBus().register(repositoryCloseListener);
+        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
+
         final var repositorySelectionListener = new BaseListener<RepositorySelectionEvent>() {
             @Override
             @Subscribe

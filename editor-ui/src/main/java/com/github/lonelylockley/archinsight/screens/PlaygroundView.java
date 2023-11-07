@@ -12,7 +12,7 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 @JsModule("@vaadin/vaadin-lumo-styles/presets/compact.js")
 public class PlaygroundView extends BasicEditorView {
     public PlaygroundView() {
-        super(" Playground", true);
         Authentication.enablePlaygroundMode();
+        initView(" Playground", true);
     }
 }

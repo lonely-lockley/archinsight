@@ -63,4 +63,8 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
         return svgData.replaceFirst("<svg", "<svg id=\"svg_render\" version=\"1.1\"");
     }
 
+    public void reset() {
+        getElement().setProperty("innerHTML", "");
+    }
+
 }

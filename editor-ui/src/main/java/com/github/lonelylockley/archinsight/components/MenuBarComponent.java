@@ -99,6 +99,19 @@ public class MenuBarComponent extends MenuBar {
         };
         Communication.getBus().register(fileSelectionListener);
         addDetachListener(e -> Communication.getBus().unregister(fileSelectionListener));
+
+        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
+            @Override
+            @Subscribe
+            public void receive(RepositoryCloseEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    MenuBarComponent.this.fileOpened = null;
+                    saveButton.setEnabled(false);
+                }
+            }
+        };
+        Communication.getBus().register(repositoryCloseListener);
+        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
     }
 
     private void menuItemClicked(ClickEvent<MenuItem> event) {

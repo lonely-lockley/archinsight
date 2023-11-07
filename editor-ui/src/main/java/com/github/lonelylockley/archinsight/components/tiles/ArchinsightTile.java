@@ -20,7 +20,9 @@ public class ArchinsightTile extends SiteViewTile {
             @Override
             @Subscribe
             public void receive(UserAuthenticatedEvent e) {
-                setVisible(true);
+                if (eventWasProducedForCurrentUiId(e)) {
+                    setVisible(true);
+                }
             }
         };
         Communication.getBus().register(authListener);
