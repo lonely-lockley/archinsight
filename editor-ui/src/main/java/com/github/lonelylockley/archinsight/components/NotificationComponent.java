@@ -29,7 +29,7 @@ public class NotificationComponent extends Notification {
                 addThemeVariants(NotificationVariant.LUMO_ERROR);
                 break;
         }
-        Div text = new Div(new Text(String.format("%s: %s", level, message)));
+        Div text = new Div(new Text(String.format("%s", message)));
 
         Button closeButton = new Button(new Icon("lumo", "cross"));
         closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);

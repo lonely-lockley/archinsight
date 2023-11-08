@@ -25,6 +25,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -75,11 +76,32 @@ public class RepositoryService {
             var id = UUID.randomUUID();
             data.setId(id);
             data.setOwnerId(ownerId);
-            sql.createRepository(data);
-            sql.setRepositoryStructure(id, RepositoryNode.createRoot());
+            var timestamp = Instant.now();
+            sql.createRepository(data, timestamp, timestamp);
+            sql.setRepositoryStructure(id, RepositoryNode.createRoot(), timestamp);
             var repo = sql.getRepositoryById(id);
             session.commit();
             return HttpResponse.ok(repo);
+        }
+    }
+
+    @Patch("/{repositoryId}/rename")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @Measured
+    public HttpResponse<RepostioryInfo> rename(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepostioryInfo data) throws Exception {
+        try (var session = sqlSessionFactory.getSession()) {
+            var rm = session.getMapper(RepositoryMapper.class);
+            var repositoryOwnerId = rm.getRepositoryOwnerId(repositoryId);
+            if (Objects.equals(repositoryOwnerId, ownerId)) {
+                rm.renameRepository(repositoryId, data.getName(), Instant.now());
+                var res = rm.getRepositoryById(repositoryId);
+                session.commit();
+                return HttpResponse.ok(res);
+            }
+            else {
+                throw new ServiceException(new ErrorMessage("User does not own repository to be renamed", HttpStatus.FORBIDDEN));
+            }
         }
     }
 
@@ -142,7 +164,7 @@ public class RepositoryService {
             if (Objects.equals(repo.getOwnerId(), ownerId)) {
                 var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
                 var node = fs.createNode(newNode);
-                rm.setRepositoryStructure(repositoryId, fs.getRoot());
+                rm.setRepositoryStructure(repositoryId, fs.getRoot(), Instant.now());
                 if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
                     var file = fs.nodeToFile(node, ownerId, repositoryId);
                     fm.createFile(file);
@@ -168,7 +190,7 @@ public class RepositoryService {
             if (Objects.equals(repo.getOwnerId(), ownerId)) {
                 var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
                 var res = fs.renameNode(node.getId(), node.getName());
-                rm.setRepositoryStructure(repositoryId, fs.getRoot());
+                rm.setRepositoryStructure(repositoryId, fs.getRoot(), Instant.now());
                 if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
                     fm.renameFile(res.getId(), res.getName());
                 }
@@ -192,7 +214,7 @@ public class RepositoryService {
             if (Objects.equals(repo.getOwnerId(), ownerId)) {
                 var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
                 var res = fs.moveNode(move.getSrc(), move.getDst());
-                rm.setRepositoryStructure(repositoryId, fs.getRoot());
+                rm.setRepositoryStructure(repositoryId, fs.getRoot(), Instant.now());
                 session.commit();
                 return HttpResponse.ok(res);
             }
@@ -214,7 +236,7 @@ public class RepositoryService {
             if (Objects.equals(repo.getOwnerId(), ownerId)) {
                 var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
                 var res = fs.removeNode(nodeId);
-                rm.setRepositoryStructure(repositoryId, fs.getRoot());
+                rm.setRepositoryStructure(repositoryId, fs.getRoot(), Instant.now());
                 fm.deleteFiles(res);
                 session.commit();
                 return HttpResponse.ok(res);

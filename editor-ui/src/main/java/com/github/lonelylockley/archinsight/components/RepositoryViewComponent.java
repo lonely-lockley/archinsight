@@ -53,10 +53,11 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             @Subscribe
             public void receive(RepositoryCloseEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    RepositoryViewComponent.this.activeRepository = null;
-                    RepositoryViewComponent.this.fileSystem = null;
-                    RepositoryViewComponent.this.getTreeData().clear();
-                    RepositoryViewComponent.this.getDataProvider().refreshAll();
+                    activeRepository = null;
+                    fileSystem = null;
+                    getTreeData().clear();
+                    getDataProvider().refreshAll();
+                    deselectAll();
                     storeOpenedFile(null);
                 }
             }
@@ -69,25 +70,17 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             @Subscribe
             public void receive(RepositorySelectionEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    if (e.getNewValue() != null) {
-                        RepositoryViewComponent.this.activeRepository = e.getNewValue();
-                        var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
-                        var fs = new FileSystem(activeRepositoryStructure);
-                        RepositoryViewComponent.this.fileSystem = fs;
-                        RepositoryViewComponent.this.getTreeData().clear();
-                        fs.<RepositoryNode>walkRepositoryStructureWithState((node, rootItem) -> {
-                            RepositoryViewComponent.this.getTreeData().addItem(rootItem, node);
-                            return node;
-                        }, null);
-                        RepositoryViewComponent.this.getDataProvider().refreshAll();
-                        RepositoryViewComponent.this.expandRecursively(Collections.singletonList(null), 1);
-                    }
-                    else {
-                        RepositoryViewComponent.this.activeRepository = null;
-                        RepositoryViewComponent.this.fileSystem = null;
-                        RepositoryViewComponent.this.getTreeData().clear();
-                        RepositoryViewComponent.this.getDataProvider().refreshAll();
-                    }
+                    activeRepository = e.getNewValue();
+                    var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
+                    var fs = new FileSystem(activeRepositoryStructure);
+                    fileSystem = fs;
+                    getTreeData().clear();
+                    fs.<RepositoryNode>walkRepositoryStructureWithState((node, rootItem) -> {
+                        getTreeData().addItem(rootItem, node);
+                        return node;
+                    }, null);
+                    getDataProvider().refreshAll();
+                    expandRecursively(Collections.singletonList(null), 1);
                     restoreOpenedFile();
                 }
             }
@@ -97,29 +90,24 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
         addItemClickListener(new ComponentEventListener<ItemClickEvent<RepositoryNode>>() {
 
-            private RepositoryNode selection = null;
-
             @Override
             public void onComponentEvent(ItemClickEvent<RepositoryNode> event) {
                 if (event.getClickCount() == 2) {
-                    selection = event.getItem();
-                    if (RepositoryNode.TYPE_FILE.equals(selection.getType())) {
-                        Communication.getBus().post(new FileCloseRequestEvent());
-                        Communication.getBus().post(new FileOpenRequestEvent(selection));
-                        storeOpenedFile(selection.getId());
-                    }
-                    else {
-                        RepositoryViewComponent.this.expand(selection);
-                    }
+                    openNode(Set.of(event.getItem()));
                 }
             }
+
         });
     }
 
     private GridContextMenu<RepositoryNode> initContextMenu(boolean readOnly) {
         var menu = addContextMenu();
         // =============================================================================================================
-        var lb = new Label("New file");
+        var lb = new Label("Open");
+        lb.setId("repository-tree-view-open-file");
+        final var openFile = menu.addItem(lb, event -> openNode(getSelectedItems()));
+        // =============================================================================================================
+        lb = new Label("New file");
         lb.setId("repository-tree-view-new-file");
         final var newFile = menu.addItem(lb, event ->
                 new ResultReturningDialog("Create new file", "File name", "Archinsight will add an .ai extension automatically", this::createFile).open());
@@ -141,19 +129,27 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         // =============================================================================================================
         menu.addGridContextMenuOpenedListener(event -> {
             if (activeRepository != null && !readOnly) {
+                openFile.setEnabled(false);
                 newFile.setEnabled(true);
                 newDirectory.setEnabled(true);
-                var selected = RepositoryViewComponent.this.getSelectedItems();
-                if (selected.isEmpty()) {
+                if (getSelectedItems().isEmpty()) {
+                    openFile.setEnabled(false);
                     editFile.setEnabled(false);
                     deleteFile.setEnabled(false);
                 }
                 else {
+                    openFile.setEnabled(true);
                     editFile.setEnabled(true);
                     deleteFile.setEnabled(true);
                 }
             }
             else {
+                if (activeRepository == null || getSelectedItems().isEmpty()) {
+                    openFile.setEnabled(false);
+                }
+                else {
+                    openFile.setEnabled(true);
+                }
                 newFile.setEnabled(false);
                 newDirectory.setEnabled(false);
                 editFile.setEnabled(false);
@@ -165,6 +161,20 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
     private String ensureFileExtensionAdded(String name) {
         return name.endsWith(".ai") ? name : name + ".ai";
+    }
+
+    private void openNode(Set<RepositoryNode> selection) {
+        if (!selection.isEmpty()) {
+            var node = selection.iterator().next();
+            if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
+                Communication.getBus().post(new FileCloseRequestEvent());
+                Communication.getBus().post(new FileOpenRequestEvent(node));
+                storeOpenedFile(node.getId());
+            }
+            else {
+                RepositoryViewComponent.this.expand(selection);
+            }
+        }
     }
 
     private void createFile(String name) {
@@ -204,6 +214,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             remoteSource.repository.removeNode(activeRepository.getId(), node.getId());
             getTreeData().removeItem(node);
             getDataProvider().refreshAll();
+            deselect(node);
             Communication.getBus().post(new FileCloseRequestEvent());
             storeOpenedFile(null);
         }

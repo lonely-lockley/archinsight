@@ -26,6 +26,9 @@ public interface RepositoryClient {
     @Post("/repository/create")
     RepostioryInfo createRepository(@Header String authorization, @Body RepostioryInfo data);
 
+    @Patch("/repository/{repositoryId}/rename")
+    RepostioryInfo renameRepository(@Header String authorization, UUID repositoryId, @Body RepostioryInfo data);
+
     @Get("/repository/{repositoryId}/remove")
     @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)
     UUID removeRepository(@Header String authorization, UUID repositoryId);

@@ -122,7 +122,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
         private final TextField input = new TextField();
         private final Button createButton = new Button("Create");
-        private final Button editButton = new Button("Edit");
+        private final Button editButton = new Button("Rename");
         private final Button deleteButton = new Button("Delete");
         private final Grid<RepostioryInfo> table = new Grid<>();
 
@@ -137,8 +137,11 @@ public class RepositorySelectorComponent extends VerticalLayout {
             var selectButton = new Button("Select", e -> {
                 var selection = table.getSelectedItems();
                 if (selection.size() > 0) {
-                    Communication.getBus().post(new RepositoryCloseEvent());
-                    Communication.getBus().post(new RepositorySelectionEvent(RepositorySelectorComponent.this.selected, selection.iterator().next()));
+                    var repo = selection.iterator().next();
+                    if (!repo.equals(RepositorySelectorComponent.this.selected)) {
+                        Communication.getBus().post(new RepositoryCloseEvent());
+                        Communication.getBus().post(new RepositorySelectionEvent(RepositorySelectorComponent.this.selected, repo));
+                    }
                     close();
                 }
             });
@@ -160,8 +163,21 @@ public class RepositorySelectorComponent extends VerticalLayout {
                 table.getListDataView().addItem(repo);
                 table.select(repo);
             });
-            editButton.setMinWidth("65px");
+            editButton.setMinWidth("80px");
             editButton.setEnabled(false);
+            editButton.addClickListener(e -> {
+                var items = table.getSelectedItems();
+                if (items.size() > 0) {
+                    var newName = input.getValue();
+                    var repo = items.iterator().next();
+                    remoteSource.repository.renameRepository(repo.getId(), newName);
+                    repo.setName(newName);
+                    if (repo.equals(RepositorySelectorComponent.this.selected)) {
+                        Communication.getBus().post(new RepositorySelectionEvent(repo, repo));
+                    }
+                    table.getListDataView().refreshItem(repo);
+                }
+            });
             deleteButton.setMinWidth("80px");
             deleteButton.setEnabled(false);
             deleteButton.addClickListener(e -> {

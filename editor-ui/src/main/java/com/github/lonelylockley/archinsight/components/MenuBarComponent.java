@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.components;
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
@@ -230,6 +231,7 @@ public class MenuBarComponent extends MenuBar {
         if (fileOpened != null) {
             this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
                 remoteSource.repository.saveFile(fileOpened.getId(), code);
+                Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, "File saved", 3000));
             });
         }
     }

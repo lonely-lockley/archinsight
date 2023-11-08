@@ -108,6 +108,18 @@ public class RepositorySource {
         }
     }
 
+    public RepostioryInfo renameRepository(UUID repositoryId, String newName) {
+        try {
+            var repo = new RepostioryInfo();
+            repo.setName(newName);
+            return repository.renameRepository(conf.getRepositoryAuthToken(), repositoryId, repo);
+        }
+        catch (HttpClientResponseException ex) {
+            Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
+            throw new RuntimeException("Remote exception: " + ex.getMessage());
+        }
+    }
+
     public UUID removeRepository(UUID repositoryId) {
         try {
             return repository.removeRepository(conf.getRepositoryAuthToken(), repositoryId);

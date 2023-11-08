@@ -21,6 +21,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -50,8 +51,8 @@ public class FileService {
                 return HttpResponse.ok(res.getContent());
             }
             else {
-                var repositoryOwnerId = sql.getFileOwnerById(fileId);
-                if (Objects.equals(repositoryOwnerId, ownerId)) {
+                var repositoryAndOwner = sql.getFileOwnerAndRepositoryById(fileId);
+                if (Objects.equals(repositoryAndOwner.getOwnerId(), ownerId)) {
                     var res = sql.openFile(fileId);
                     session.commit();
                     return HttpResponse.ok(res.getContent());
@@ -89,10 +90,13 @@ public class FileService {
     @Measured
     public HttpResponse<UUID> save(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, String content) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
-            var sql = session.getMapper(FileMapper.class);
-            var repositoryOwnerId = sql.getFileOwnerById(fileId);
-            if (Objects.equals(repositoryOwnerId, ownerId)) {
-                sql.saveFile(fileId, content);
+            var rm = session.getMapper(RepositoryMapper.class);
+            var fm = session.getMapper(FileMapper.class);
+            var repositoryAndOwner = fm.getFileOwnerAndRepositoryById(fileId);
+            if (Objects.equals(repositoryAndOwner.getOwnerId(), ownerId)) {
+                var timestamp = Instant.now();
+                fm.saveFile(fileId, content, timestamp);
+                rm.touchRepository(repositoryAndOwner.getRepositoryId(), timestamp);
                 session.commit();
                 return HttpResponse.ok(fileId);
             }
