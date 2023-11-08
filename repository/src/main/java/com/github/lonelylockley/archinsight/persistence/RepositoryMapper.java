@@ -26,8 +26,8 @@ public interface RepositoryMapper {
     @Select("select * from public.repository where owner_id = #{ownerId}")
     public List<RepostioryInfo> listByOwnerId(UUID ownerId);
 
-    @Insert("insert into public.repository (id, owner_id, name, created, updated) values (#{id}, #{ownerId}, #{name}, #{createTime}, #{updateTime})")
-    public void createRepository(RepostioryInfo data, Instant createTime, Instant updateTime);
+    @Insert("insert into public.repository (id, owner_id, name, created, updated) values (#{id}, #{ownerId}, #{name}, #{created}, #{updated})")
+    public void createRepository(RepostioryInfo data);
 
     @Update("update public.repository set structure = #{root}, updated = #{updateTime} where id = #{repositoryId}")
     public void setRepositoryStructure(UUID repositoryId, RepositoryNode root, Instant updateTime);

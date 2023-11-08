@@ -80,7 +80,9 @@ public class RepositoryService {
             data.setId(id);
             data.setOwnerId(ownerId);
             var timestamp = Instant.now();
-            sql.createRepository(data, timestamp, timestamp);
+            data.setCreated(timestamp);
+            data.setUpdated(timestamp);
+            sql.createRepository(data);
             sql.setRepositoryStructure(id, RepositoryNode.createRoot(), timestamp);
             var repo = sql.getRepositoryById(id);
             session.commit();
