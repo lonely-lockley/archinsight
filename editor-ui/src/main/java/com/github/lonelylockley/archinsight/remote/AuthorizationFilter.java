@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.remote;
 
 import com.github.lonelylockley.archinsight.security.Authentication;
+import com.github.lonelylockley.archinsight.security.SecurityConstants;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.MutableHttpRequest;
 import io.micronaut.http.annotation.Filter;
@@ -13,10 +14,14 @@ public class AuthorizationFilter implements HttpClientFilter {
 
     @Override
     public Publisher<? extends HttpResponse<?>> doFilter(MutableHttpRequest<?> request, ClientFilterChain chain) {
-        if (Authentication.authenticated()) {
+        if ((Authentication.authenticated() && Authentication.playgroundModeEnabled()) || !Authentication.authenticated()) {
+            request.getHeaders().add(SecurityConstants.USER_ID_HEADER_NAME, SecurityConstants.ANONYMOUS_USER_ID.toString());
+            request.getHeaders().add(SecurityConstants.USER_ROLE_HEADER_NAME, SecurityConstants.ROLE_ANONYMOUS);
+        }
+        else {
             var user = Authentication.getAuthenticatedUser();
-            request.getHeaders().add("X-Authenticated-User", user.getId().toString());
-            request.getHeaders().add("X-Authenticated-User-Role", "user");
+            request.getHeaders().add(SecurityConstants.USER_ID_HEADER_NAME, user.getId().toString());
+            request.getHeaders().add(SecurityConstants.USER_ROLE_HEADER_NAME, SecurityConstants.ROLE_USER);
         }
         return chain.proceed(request);
     }

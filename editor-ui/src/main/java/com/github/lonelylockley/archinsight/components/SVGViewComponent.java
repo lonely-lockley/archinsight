@@ -22,7 +22,7 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
             @Override
             @Subscribe
             public void receive(SvgDataEvent e) {
-                if (checkUiId(e)) {
+                if (eventWasProducedForCurrentUiId(e)) {
                     getElement().setProperty("innerHTML", filterSVG(e.getSvgData()));
                     UI.getCurrent().getPage().executeJs("zoomRestore()");
                 }
@@ -33,7 +33,7 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
             @Override
             @Subscribe
             public void receive(ZoomEvent e) {
-                if (checkUiId(e)) {
+                if (eventWasProducedForCurrentUiId(e)) {
                     if (e.isZoomIn()) {
                         UI.getCurrent().getPage().executeJs("zoomIn()");
                     }
@@ -61,6 +61,10 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
 
     private String filterSVG(String svgData) {
         return svgData.replaceFirst("<svg", "<svg id=\"svg_render\" version=\"1.1\"");
+    }
+
+    public void reset() {
+        getElement().setProperty("innerHTML", "");
     }
 
 }

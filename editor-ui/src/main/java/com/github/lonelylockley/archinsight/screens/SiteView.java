@@ -4,7 +4,7 @@ import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.components.tiles.*;
 import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.UserAuthenticated;
+import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.Component;
@@ -80,7 +80,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         actionsFirstLine.setMargin(false);
         actionsFirstLine.add(new DockerhubTile());
         actionsFirstLine.add(new GithubTile());
-        actionsFirstLine.add(new PlaygroundTile());
+        actionsFirstLine.add(new InsightLanguageTile());
         // second line actions =========================================================================================
         var actionsSecondLine = new HorizontalLayout();
         actionsSecondLine.setMargin(false);
@@ -89,11 +89,12 @@ public class SiteView extends VerticalLayout implements BaseView {
             login.flipTile(Authentication.getAuthenticatedUser());
         }
         actionsSecondLine.add(login);
-        actionsSecondLine.add(new InsightLanguageTile());
+        actionsSecondLine.add(new PlaygroundTile());
         // third line actions ==========================================================================================
         var actionsThirdLine = new HorizontalLayout();
         actionsThirdLine.setMargin(false);
-        actionsThirdLine.add(new MaitoTile());
+        actionsThirdLine.add(new MailtoTile());
+        actionsThirdLine.add(new ArchinsightTile());
         // third line actions ==========================================================================================
         var actionsFourthLine = new HorizontalLayout();
         if (conf.getDevMode()) {
@@ -142,7 +143,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         if (Authentication.completedLogin()) {
             Authentication.authenticate();
             if (Authentication.authenticated()) {
-                Communication.getBus().post(new UserAuthenticated(Authentication.getAuthenticatedUser()));
+                Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
             }
         }
     }

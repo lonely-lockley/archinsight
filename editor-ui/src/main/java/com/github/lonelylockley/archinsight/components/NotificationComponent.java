@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.github.lonelylockley.archinsight.model.MessageLevel;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -10,8 +10,6 @@ import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-
-import java.time.Duration;
 
 public class NotificationComponent extends Notification {
 
@@ -31,7 +29,7 @@ public class NotificationComponent extends Notification {
                 addThemeVariants(NotificationVariant.LUMO_ERROR);
                 break;
         }
-        Div text = new Div(new Text(String.format("%s: %s", level, message)));
+        Div text = new Div(new Text(String.format("%s", message)));
 
         Button closeButton = new Button(new Icon("lumo", "cross"));
         closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);

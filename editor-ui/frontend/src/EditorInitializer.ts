@@ -12,18 +12,13 @@ function renderCode(container: HTMLElement, value: string) {
     if (!errors && value && value.length > 0) {
         renderClient.remoteRender(container, value);
     }
+    else {
+        renderClient.remoteRender(container, '');
+    }
 }
 
-async function updateCode(value: string) {
-    localStorage.setItem('org.archinsight.sourcecode', value);
-}
-
-function restoreCode(): string {
-   return localStorage.getItem('org.archinsight.sourcecode') || '';
-}
-
-function initializeEditor(code: string) {
-    code = code || restoreCode();
+function initializeEditor(localStorageKey: string, code: string) {
+    code = code || (localStorage.getItem(localStorageKey) || '');
     setupLanguage();
     const container: HTMLElement = document.getElementById('editor')!;
     const editor: monaco.editor.IStandaloneCodeEditor = monaco.editor.create(container, {
@@ -38,7 +33,7 @@ function initializeEditor(code: string) {
     let timeout: number | undefined;
     editor.onDidChangeModelContent(() => {
         const value = editor.getValue();
-        updateCode(value || '');
+        localStorage.setItem(localStorageKey, value || '');
         clearTimeout(timeout);
         timeout = window.setTimeout(() => renderCode(container, value), 1000);
     });

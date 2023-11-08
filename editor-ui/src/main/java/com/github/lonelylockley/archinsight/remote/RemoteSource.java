@@ -20,4 +20,7 @@ public class RemoteSource {
     @Inject
     public ExportSource export;
 
+    @Inject
+    public RepositorySource repository;
+
 }

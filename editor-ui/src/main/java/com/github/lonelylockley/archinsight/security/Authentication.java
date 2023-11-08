@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.security;
 
-import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.vaadin.flow.server.VaadinServletRequest;
 import com.vaadin.flow.server.VaadinSession;
 
@@ -31,6 +31,22 @@ public class Authentication {
         }
         var token = Arrays.stream(request.getCookies()).filter(c -> "auth_token".equals(c.getName())).findAny();
         return token.isPresent();
+    }
+
+    public static void enablePlaygroundMode() {
+        var session = VaadinSession.getCurrent();
+        session.setAttribute("playground_mode", true);
+    }
+
+    public static boolean playgroundModeEnabled() {
+        var session = VaadinSession.getCurrent();
+        var pgMode = session.getAttribute("playground_mode");
+        return pgMode != null;
+    }
+
+    public static void disablePlaygroundMode() {
+        var session = VaadinSession.getCurrent();
+        session.setAttribute("playground_mode", null);
     }
 
     public static void authenticate() {

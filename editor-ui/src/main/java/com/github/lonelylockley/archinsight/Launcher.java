@@ -87,7 +87,7 @@ public final class Launcher {
     private static void setupAccessLogs(Server server, boolean devMode) {
         var slfjRequestLogWriter = new Slf4jRequestLogWriter();
         slfjRequestLogWriter.setLoggerName("AccessLog");
-        String format = "%{client}a - %u [%{CF-Connecting-IP}i] %t '%r' %s %O '%{Referer}i' '%{User-Agent}i'";
+        String format = "%{client}a - %u [%{CF-Connecting-IP}i] '%r' %s %O '%{Referer}i' '%{User-Agent}i'";
         if (devMode) {
             format = format + " '%C'"; // print cookies
         }

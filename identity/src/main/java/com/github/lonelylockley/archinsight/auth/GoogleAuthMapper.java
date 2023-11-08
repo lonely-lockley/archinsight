@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.auth;
 
-import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.persistence.UserdataMapper;
 import io.micronaut.security.authentication.AuthenticationResponse;

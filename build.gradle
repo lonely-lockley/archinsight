@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'java-library'
     id 'antlr'
     id 'io.micronaut.application' version '3.7.10'
     id 'io.micronaut.minimal.application' version '3.7.10'
@@ -29,6 +30,7 @@ allprojects {
 
             implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.10.1'
             implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '3.10.1'
+            implementation group: 'io.micronaut.security', name: 'micronaut-security', version: '3.10.1'
             implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2', version: '3.10.1'
             implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt', version: '3.10.1'
             implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway', version: '5.5.0'
@@ -76,9 +78,29 @@ subprojects {
 }
 
 project('common') {
+    apply plugin: 'java-library'
+    apply plugin: 'io.micronaut.application' // for micronaut annotations to be seen
+
     dependencies {
-        implementation group: 'org.slf4j', name: 'slf4j-api'
-        implementation group: 'ch.qos.logback', name: 'logback-classic'
+        api group: 'org.slf4j', name: 'slf4j-api'
+        api group: 'ch.qos.logback', name: 'logback-classic'
+        api group: 'io.micronaut', name: 'micronaut-http-server-netty'
+        api group: 'io.micronaut', name: 'micronaut-http-client'
+        api group: 'io.micronaut.security', name: 'micronaut-security'
+    }
+}
+
+project('database') {
+    apply plugin: 'java-library'
+    apply plugin: 'io.micronaut.application' // for micronaut annotations to be seen
+
+    dependencies {
+        implementation project(':common')
+
+        api group: 'io.micronaut.flyway', name: 'micronaut-flyway'
+        api group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari'
+        api group: 'org.mybatis', name: 'mybatis'
+        api group: 'org.postgresql', name: 'postgresql'
     }
 }
 
@@ -106,7 +128,6 @@ project('translator') {
         implementation project(':common')
         implementation project(':insight-lang')
 
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
         implementation group: 'com.github.lonely-lockley', name: 'ltsv-parser'
         implementation group: 'org.apache.commons', name: 'commons-text'
     }
@@ -127,8 +148,6 @@ project('renderer') {
 
     dependencies {
         implementation project(':common')
-
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
     }
 
     tasks.named("dockerBuild") {
@@ -151,8 +170,7 @@ project('repository') {
 
     dependencies {
         implementation project(':common')
-
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
+        implementation project(':database')
     }
 
     tasks.named("dockerBuild") {
@@ -184,7 +202,6 @@ project('editor-ui') {
         implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-server'
         implementation group: 'org.eclipse.jetty.websocket', name: 'websocket-jetty-api'
         implementation group: 'jakarta.servlet', name: 'jakarta.servlet-api'
-        implementation group: 'io.micronaut', name: 'micronaut-http-client'
         implementation group: 'com.google.guava', name: 'guava'
         implementation group: 'com.auth0', name: 'java-jwt'
         implementation group: 'com.auth0', name: 'jwks-rsa'
@@ -268,16 +285,11 @@ project('identity') {
 
     dependencies {
         implementation project(':common')
+        implementation project(':database')
 
-        implementation group: 'io.micronaut', name: 'micronaut-http-server-netty'
-        implementation group: 'io.micronaut', name: 'micronaut-http-client'
         implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2'
         implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt'
-        implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway'
-        implementation group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari'
         implementation group: 'com.auth0', name: 'java-jwt'
-        implementation group: 'org.mybatis', name: 'mybatis'
-        implementation group: 'org.postgresql', name: 'postgresql'
     }
 
     tasks.named("dockerBuild") {

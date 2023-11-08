@@ -1,4 +1,4 @@
-package com.github.lonelylockley.archinsight.model;
+package com.github.lonelylockley.archinsight.model.remote.identity;
 
 import java.io.Serializable;
 import java.time.Instant;

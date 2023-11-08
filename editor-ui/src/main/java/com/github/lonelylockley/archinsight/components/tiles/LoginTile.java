@@ -3,9 +3,9 @@ package com.github.lonelylockley.archinsight.components.tiles;
 import com.github.lonelylockley.archinsight.components.NotificationComponent;
 import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.UserAuthenticated;
-import com.github.lonelylockley.archinsight.model.MessageLevel;
-import com.github.lonelylockley.archinsight.model.Userdata;
+import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
+import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
@@ -21,13 +21,13 @@ public class LoginTile extends SiteViewTile {
         setClassName("tile_action");
         clickListener = new LoginClickListener(loginUrl);
         addClickListener(clickListener);
-        var authListener = new BaseListener<UserAuthenticated>() {
+        var authListener = new BaseListener<UserAuthenticatedEvent>() {
             @Override
             @Subscribe
-            public void receive(UserAuthenticated e) {
-                if (checkUiId(e)) {
+            public void receive(UserAuthenticatedEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
                     flipTile(e.getUser());
-                    new NotificationComponent("Signed in successfully!\nAuthentication works in test mode. It is an enabling step to develop a personal space. We do our best to implement this functionality soon.", MessageLevel.NOTICE);
+                    new NotificationComponent("Please be advised, that all file storage features work in TEST MODE. You MUST backup all important source codes locally!", MessageLevel.NOTICE, 60000);
                 }
             }
         };

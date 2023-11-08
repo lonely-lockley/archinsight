@@ -3,10 +3,11 @@ package com.github.lonelylockley.archinsight;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.github.lonelylockley.archinsight.auth.Keychain;
-import com.github.lonelylockley.archinsight.model.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.persistence.UserdataMapper;
+import com.github.lonelylockley.archinsight.tracing.Measured;
 import io.micronaut.http.*;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
@@ -69,38 +70,29 @@ public class AuthService {
     @Get("/ok")
     @Secured(SecurityRule.IS_AUTHENTICATED)
     @Produces(MediaType.TEXT_HTML)
+    @Measured
     public HttpResponse<String> ok(HttpRequest<Source> request) throws Exception {
-        var startTime = System.nanoTime();
-        var result = onSuccess(getEmailFromToken(request), getSessionId(request));
-        logger.info("Access: /auth/ok from {} required {}ms",
-                addressResolver.resolve(request),
-                (System.nanoTime() - startTime) / 1000000
-        );
-        return result;
+        return onSuccess(getEmailFromToken(request), getSessionId(request));
     }
 
     @Get("/fail")
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.TEXT_HTML)
+    @Measured
     public HttpResponse<String> fail(HttpRequest<Source> request) throws Exception {
-        var startTime = System.nanoTime();
         var result = HttpResponse.ok(createFinalPage())
                                 .cookie(clearCookie("JWT"))
                                 .cookie(clearCookie("OAUTH2_STATE"))
                                 .cookie(clearCookie("OPENID_NONCE"))
                                 .cookie(clearCookie("OAUTH2_PKCE"));
-        logger.info("Access: /auth/fail from {} required {}ms",
-                addressResolver.resolve(request),
-                (System.nanoTime() - startTime) / 1000000
-        );
         return result;
     }
 
     @Get("/testOk")
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.TEXT_HTML)
+    @Measured
     public HttpResponse<String> testOk(HttpRequest<Source> request) throws Exception {
-        var startTime = System.nanoTime();
         HttpResponse<String> result = null;
         if (!conf.getDevMode()) {
             result = HttpResponse.notFound();
@@ -108,10 +100,6 @@ public class AuthService {
         else {
             result = onSuccess("y_menya@emaila.net", getSessionId(request));
         }
-        logger.info("Access: /auth/testOk from {} required {}ms",
-                addressResolver.resolve(request),
-                (System.nanoTime() - startTime) / 1000000
-        );
         return result;
     }
 

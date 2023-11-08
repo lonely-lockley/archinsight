@@ -1,14 +1,48 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.vaadin.flow.component.menubar.MenuBar;
+import com.github.lonelylockley.archinsight.events.BaseListener;
+import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.FileCloseRequestEvent;
+import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
+import com.google.common.eventbus.Subscribe;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.splitlayout.SplitLayout;
 
 public class WorkAreaComponent extends VerticalLayout {
 
-    public WorkAreaComponent(MenuBar menu, SplitLayout splitPane) {
+    public WorkAreaComponent(Div invisible, boolean readOnly) {
+        final var editor = new EditorComponent();
+        final var view = new SVGViewComponent();
+        final var splitPane = new SplitViewComponent(editor, view);
+        final var menu = new MenuBarComponent(invisible, readOnly);
         setSizeFull();
         add(menu);
         add(splitPane);
+
+        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
+            @Override
+            @Subscribe
+            public void receive(RepositoryCloseEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    editor.reset();
+                    view.reset();
+                }
+            }
+        };
+        Communication.getBus().register(repositoryCloseListener);
+        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
+
+        final var fileCloseListener = new BaseListener<FileCloseRequestEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileCloseRequestEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    editor.reset();
+                    view.reset();
+                }
+            }
+        };
+        Communication.getBus().register(fileCloseListener);
+        addDetachListener(e -> { Communication.getBus().unregister(fileCloseListener); });
     }
 }

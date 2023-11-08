@@ -6,9 +6,10 @@ import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
-import com.github.lonelylockley.archinsight.model.MessageLevel;
-import com.github.lonelylockley.archinsight.model.TranslatedSource;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
+import com.github.lonelylockley.archinsight.security.Authentication;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
@@ -32,30 +33,42 @@ public class EditorComponent extends Div {
     public EditorComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setId("editor");
-        UI.getCurrent().getPage().executeJs("initializeEditor()");
+        if (Authentication.playgroundModeEnabled()) {
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1)", "org.archinsight.playground.sourcecode", null);
+        }
+        else {
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1)", "org.archinsight.editor.sourcecode", null);
+        }
     }
     @ClientCallable
     public void render(String code) {
-        TranslatedSource res = null;
-        try {
-            res = remoteSource.render.render(code);
-            if (res.getMessages() == null || res.getMessages().isEmpty()) {
-                Communication.getBus().post(new SourceCompilationEvent(true));
-                Communication.getBus().post(new SvgDataEvent(res.getSource()));
-            }
-            else {
-                Communication.getBus().post(new SourceCompilationEvent(false));
-                ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-                getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(res.getMessages()));
-            }
-        }
-        catch (Exception ex) {
+        if (code == null || code.isBlank()) {
             Communication.getBus().post(new SourceCompilationEvent(false));
-            new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 3000);
-            logger.error("Could not render object. Sending empty response to browser", ex);
+        }
+        else {
+            TranslatedSource res = null;
+            try {
+                res = remoteSource.render.render(code);
+                if (res.getMessages() == null || res.getMessages().isEmpty()) {
+                    Communication.getBus().post(new SourceCompilationEvent(true));
+                    Communication.getBus().post(new SvgDataEvent(res.getSource()));
+                }
+                else {
+                    Communication.getBus().post(new SourceCompilationEvent(false));
+                    ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+                    getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(res.getMessages()));
+                }
+            }
+            catch (Exception ex) {
+                Communication.getBus().post(new SourceCompilationEvent(false));
+                new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 3000);
+                logger.error("Could not render object. Sending empty response to browser", ex);
+            }
         }
     }
 
-
+    public void reset() {
+        getElement().executeJs("window.editor.setValue('')");
+    }
 
 }

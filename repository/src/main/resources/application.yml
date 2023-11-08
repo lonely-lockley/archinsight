@@ -1,0 +1,30 @@
+micronaut:
+  server:
+    cors:
+      enabled: true
+  security:
+    authentication: bearer
+    enabled: true
+    apiKeys:
+      #kid: key
+datasources:
+  default:
+    db-type: POSTGRES
+    driverClassName: org.postgresql.Driver
+    url: 'jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE}'
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+    auto-commit: true
+    maximum-pool-size: 10
+    minimum-idle: 2
+    idle-timeout: 600000
+flyway:
+  enabled: true
+  datasources:
+    default:
+      enabled: false
+      locations:
+        - classpath:migration
+archinsight:
+  devMode: ${DEV_MODE:`false`}
+  playgroundRepositoryId: ${PLAYGROUND_REPOSITORY}
