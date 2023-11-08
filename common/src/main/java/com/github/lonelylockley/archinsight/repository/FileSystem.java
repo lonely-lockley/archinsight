@@ -6,10 +6,7 @@ import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import io.micronaut.http.HttpStatus;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 
@@ -45,13 +42,9 @@ public class FileSystem {
         }
     }
 
-    private boolean isNameValid(String name) {
-        if (name == null) {
-            return false;
-        }
-        else {
-            return filenameValidator.matcher(name).matches();
-        }
+    private boolean isNameValid(String name, String type) {
+        var minLength = Objects.equals(type, RepositoryNode.TYPE_FILE) ? 4 : 2;
+        return name != null && filenameValidator.matcher(name).matches() && name.length() >= minLength && name.length() <= 30;
     }
 
     public RepositoryNode createNode(RepositoryNode newNode) {
@@ -61,8 +54,8 @@ public class FileSystem {
         if (!index.containsKey(newNode.getParentId())) {
             throw new ServiceException(new ErrorMessage("Nonexistent directory"));
         }
-        if (!isNameValid(newNode.getName())) {
-            throw new ServiceException(new ErrorMessage("Node name is not POSIX-compliant or empty"));
+        if (!isNameValid(newNode.getName(), newNode.getType())) {
+            throw new ServiceException(new ErrorMessage("Node name is not POSIX-compliant or has an incorrect length"));
         }
         if (newNode.getType() == null) {
             throw new ServiceException(new ErrorMessage("Node type is not set"));
@@ -134,7 +127,7 @@ public class FileSystem {
             throw new ServiceException(new ErrorMessage("Operation is not permitted"));
         }
         var node = index.get(nodeId);
-        if (!isNameValid(newName)) {
+        if (!isNameValid(newName, node.getType())) {
             throw new ServiceException(new ErrorMessage("Node name is not POSIX-compliant or empty"));
         }
         var parent = index.get(node.getParentId());

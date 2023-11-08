@@ -71,6 +71,9 @@ public class RepositoryService {
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
     public HttpResponse<RepostioryInfo> create(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, RepostioryInfo data) throws Exception {
+        if (!Validations.repositoryNameLengthBetween3And50(data.getName())) {
+            throw new ServiceException(new ErrorMessage("Repository name length must be between 3 and 50 symbols", HttpStatus.BAD_REQUEST));
+        }
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             var id = UUID.randomUUID();
@@ -90,6 +93,9 @@ public class RepositoryService {
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
     public HttpResponse<RepostioryInfo> rename(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepostioryInfo data) throws Exception {
+        if (!Validations.repositoryNameLengthBetween3And50(data.getName())) {
+            throw new ServiceException(new ErrorMessage("Repository name length must be between 3 and 50 symbols", HttpStatus.BAD_REQUEST));
+        }
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var repositoryOwnerId = rm.getRepositoryOwnerId(repositoryId);

@@ -89,6 +89,9 @@ public class FileService {
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
     public HttpResponse<UUID> save(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, String content) throws Exception {
+        if (!Validations.fileContentLengthIsUnder1MB(content)) {
+            throw new ServiceException(new ErrorMessage("The file is too large", HttpStatus.BAD_REQUEST));
+        }
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
