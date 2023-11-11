@@ -3,24 +3,39 @@ package com.github.lonelylockley.archinsight.components.tiles;
 import com.github.lonelylockley.archinsight.components.NotificationComponent;
 import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
 import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
+import com.github.lonelylockley.archinsight.screens.SiteView;
+import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 public class LoginTile extends SiteViewTile {
 
-    private final LoginClickListener clickListener;
+    private static final String iconSrc = "static/google-178-svgrepo-com.svg";
+    private static final String baseColor = "#ff4e50";
+
+    private final LoginClickListener loginClickListener;
+    private final LogoutClickListener logoutClickListener;
 
     public LoginTile(String loginUrl) {
-        super("Sign in with Google", "static/google-178-svgrepo-com.svg", "#ff4e50", doubleWidth, singleHeight);
+        super("Sign in with Google", iconSrc, baseColor, doubleWidth, singleHeight);
         getElement().setAttribute("router-ignore", true);
         setClassName("tile_action");
-        clickListener = new LoginClickListener(loginUrl);
-        addClickListener(clickListener);
+        makeTextBold();
+        loginClickListener = new LoginClickListener(loginUrl);
+        addClickListener(loginClickListener);
+        logoutClickListener = new LogoutClickListener();
+        addClickListener(logoutClickListener);
+
         var authListener = new BaseListener<UserAuthenticatedEvent>() {
             @Override
             @Subscribe
@@ -36,11 +51,21 @@ public class LoginTile extends SiteViewTile {
     }
 
     public void flipTile(Userdata user) {
-        setText(user.getDisplayName());
+        setText(user.getDisplayName() + " (Logout)");
+        makeTextNormal();
         setIcon(user.getAvatar());
         setColor("#04AA6D");
-        getListeners(ClickEvent.class).clear();
-        clickListener.disable();
+        loginClickListener.disable();
+        logoutClickListener.enable();
+    }
+
+    public void flipBackTile() {
+        setText("Sign in with Google");
+        makeTextBold();
+        setIcon(iconSrc);
+        setColor(baseColor);
+        loginClickListener.enable();
+        logoutClickListener.disable();
     }
 
     private class LoginClickListener implements ComponentEventListener<ClickEvent<VerticalLayout>> {
@@ -56,6 +81,29 @@ public class LoginTile extends SiteViewTile {
         public void onComponentEvent(ClickEvent<VerticalLayout> event) {
             if (enabled) {
                 getElement().executeJs(String.format("window.open('%s/oauth/login/google', '')", loginUrl));
+            }
+        }
+
+        public void enable() {
+            enabled = true;
+        }
+
+        public void disable() {
+            enabled = false;
+        }
+    }
+
+    private class LogoutClickListener implements ComponentEventListener<ClickEvent<VerticalLayout>> {
+        private boolean enabled = false;
+
+        @Override
+        public void onComponentEvent(ClickEvent<VerticalLayout> event) {
+            if (enabled) {
+                if (Authentication.authenticated()) {
+                    Communication.getBus().post(new RepositoryCloseEvent());
+                    Authentication.deauthenticate();
+                }
+                UI.getCurrent().navigate(SiteView.class);
             }
         }
 

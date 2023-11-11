@@ -1,9 +1,12 @@
 package com.github.lonelylockley.archinsight.security;
 
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinServletRequest;
+import com.vaadin.flow.server.VaadinServletResponse;
 import com.vaadin.flow.server.VaadinSession;
 
+import javax.servlet.http.Cookie;
 import java.util.Arrays;
 
 public class Authentication {
@@ -51,6 +54,18 @@ public class Authentication {
 
     public static void authenticate() {
         new AuthFilter().beforeEnter(null);
+    }
+
+    public static void deauthenticate() {
+        var session = VaadinSession.getCurrent();
+        assert session != null;
+        session.setAttribute(Userdata.class, null);
+        var response = VaadinServletResponse.getCurrent();
+        assert response != null;
+        var accessTokenReset = new Cookie("auth_token", "");
+        accessTokenReset.setMaxAge(0);
+        response.addCookie(accessTokenReset);
+        UI.getCurrent().getSession().close();
     }
 
 }

@@ -3,12 +3,15 @@ package com.github.lonelylockley.archinsight.components.tiles;
 import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 public abstract class SiteViewTile extends VerticalLayout {
 
     public static final float singleWidth = 150;
-    public static final float doubleWidth = 317;
+    public static final float doubleWidth = 310;
 
     public static final float singleHeight = 150;
 
@@ -32,6 +35,14 @@ public abstract class SiteViewTile extends VerticalLayout {
         setColor(color);
     }
 
+    protected void makeTextBold() {
+        txt.getStyle().set("font-weight", "bold");
+    }
+
+    protected void makeTextNormal() {
+        txt.getStyle().remove("font-weight");
+    }
+
     protected void setText(String text) {
         txt.setText(text);
     }
@@ -40,7 +51,7 @@ public abstract class SiteViewTile extends VerticalLayout {
         icon.setSrc(imageSrc);
     }
 
-    protected void setColor(String color) {
+    public void setColor(String color) {
         getElement().getStyle().set("background-color", color);
     }
 }

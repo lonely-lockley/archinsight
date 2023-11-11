@@ -4,8 +4,10 @@ import com.github.lonelylockley.archinsight.events.BaseListener;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.FileCloseRequestEvent;
 import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
+import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 public class WorkAreaComponent extends VerticalLayout {
@@ -14,8 +16,12 @@ public class WorkAreaComponent extends VerticalLayout {
         final var editor = new EditorComponent();
         final var view = new SVGViewComponent();
         final var splitPane = new SplitViewComponent(editor, view);
-        final var menu = new MenuBarComponent(invisible, readOnly);
+        var menu = new HorizontalLayout();
         setSizeFull();
+        menu.add(new MenuBarComponent(invisible, readOnly));
+        if (Authentication.playgroundModeEnabled() && !Authentication.authenticated()) {
+            menu.add(new CreateRepositoryComponent());
+        }
         add(menu);
         add(splitPane);
 

@@ -1,9 +1,12 @@
 package com.github.lonelylockley.archinsight.screens;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -21,11 +24,23 @@ public interface BaseView {
     }
 
     default Component createTitle(String titleSuffix) {
-        H1 title = new H1("Archinsight" + (titleSuffix == null ? "" : titleSuffix));
-        title
-                .getStyle()
-                .set("font-size", "var(--lumo-font-size-l)")
-                .set("margin", "0");
+        var title = new HorizontalLayout();
+        title.getStyle().set("font-size", "var(--lumo-font-size-l)");
+        title.getElement().setAttribute("theme", "");
+        var siteIcon = new Image("static/archinsight-logo-no-background.svg", "ai");
+        siteIcon.setHeight("24px");
+        siteIcon.addClickListener(event -> UI.getCurrent().navigate(SiteView.class));
+        title.add(siteIcon);
+        var siteName = new Label("Archinsight");
+        siteName.getElement().addEventListener("click", event -> UI.getCurrent().navigate(SiteView.class));
+        siteName.getStyle().set("margin-left", "7px").set("margin-top", "2px");
+        title.add(siteName);
+        if (titleSuffix != null) {
+            var suffixLabel = new Label(titleSuffix);
+            title.add(suffixLabel);
+            suffixLabel.getStyle().set("margin-left", "7px").set("margin-top", "2px");
+        }
+        title.setVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
         return title;
     }
 

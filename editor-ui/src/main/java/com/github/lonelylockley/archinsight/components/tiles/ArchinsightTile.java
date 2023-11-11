@@ -11,7 +11,7 @@ import com.vaadin.flow.component.UI;
 public class ArchinsightTile extends SiteViewTile {
 
     public ArchinsightTile() {
-        super("Get to work", "static/archinsight-logo-no-background.svg", "#04AA6D", doubleWidth, singleHeight);
+        super("Open Insight editor", "static/archinsight-logo-no-background.svg", "#04AA6D", doubleWidth, singleHeight);
         setClassName("tile_action");
         addClickListener(e -> {
             UI.getCurrent().navigate(EditorView.class);
@@ -33,6 +33,7 @@ public class ArchinsightTile extends SiteViewTile {
         else {
             setVisible(false);
         }
+        makeTextBold();
     }
 
 }
