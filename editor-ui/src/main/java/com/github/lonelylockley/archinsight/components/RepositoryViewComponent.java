@@ -11,6 +11,7 @@ import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.AbstractGridSingleSelectionModel;
 import com.vaadin.flow.component.grid.ItemClickEvent;
@@ -27,6 +28,7 @@ import com.vaadin.flow.data.provider.hierarchy.TreeData;
 import java.util.*;
 import java.util.function.Consumer;
 
+@CssImport("./styles/shared-styles.css")
 public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
     private final RemoteSource remoteSource;
@@ -46,6 +48,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                 return result;
             }
         });
+        setClassName("prevent-select");
         setWidth("100%");
         setHeight("100%");
         ((AbstractGridSingleSelectionModel<RepositoryNode>) getSelectionModel()).setDeselectAllowed(false);

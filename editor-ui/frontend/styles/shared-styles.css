@@ -50,3 +50,9 @@
   overflow: hidden;
   font-size: 13px;
 }
+
+.prevent-select {
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
