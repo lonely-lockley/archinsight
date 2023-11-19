@@ -202,4 +202,22 @@ public class FileSystem {
                 .toList();
     }
 
+    // nodes are ordered by type first (directories are followed by files), alphabetically - second
+    public static class NodeSorter implements Comparator<RepositoryNode> {
+
+        @Override
+        public int compare(RepositoryNode left, RepositoryNode right) {
+            if (Objects.equals(left.getType(), RepositoryNode.TYPE_DIRECTORY) && Objects.equals(right.getType(), RepositoryNode.TYPE_FILE)) {
+                return -1;
+            }
+            else
+            if (Objects.equals(left.getType(), RepositoryNode.TYPE_FILE) && Objects.equals(right.getType(), RepositoryNode.TYPE_DIRECTORY)) {
+                return 1;
+            }
+            else {
+                return left.getName().compareTo(right.getName());
+            }
+        }
+    }
+
 }

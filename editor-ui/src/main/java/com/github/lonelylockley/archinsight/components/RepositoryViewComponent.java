@@ -16,11 +16,13 @@ import com.vaadin.flow.component.grid.AbstractGridSingleSelectionModel;
 import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
 import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.treegrid.TreeGrid;
+import com.vaadin.flow.data.provider.hierarchy.TreeData;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -34,19 +36,28 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
     public RepositoryViewComponent(boolean readOnly) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
-
+        setTreeData(new TreeData<>() {
+            @Override
+            public List<RepositoryNode> getChildren(RepositoryNode item) {
+                var result = super.getChildren(item);
+                if (result.size() > 1) {
+                    result = result.stream().sorted(new FileSystem.NodeSorter()).toList();
+                }
+                return result;
+            }
+        });
         setWidth("100%");
         setHeight("100%");
         ((AbstractGridSingleSelectionModel<RepositoryNode>) getSelectionModel()).setDeselectAllowed(false);
-        var contextMenu = initContextMenu(readOnly);
-        var column = this.addComponentHierarchyColumn(node -> {
-                        var icon = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? VaadinIcon.FOLDER.create() : VaadinIcon.FILE.create();
-                        var row = new HorizontalLayout(icon, new Label(node.getName()));
-                        row.setAlignItems(FlexComponent.Alignment.CENTER);
-                        row.setSpacing(true);
-                        row.setId("gridview_" + node.getId().toString());
-                        return row;
-                    });
+        initContextMenu(readOnly);
+        addComponentHierarchyColumn(node -> {
+            var icon = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? VaadinIcon.FOLDER.create() : VaadinIcon.FILE.create();
+            var row = new HorizontalLayout(icon, new Span(node.getName()));
+            row.setAlignItems(FlexComponent.Alignment.CENTER);
+            row.setSpacing(true);
+            row.setId("gridview_" + node.getId().toString());
+            return row;
+        });
 
         final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
             @Override
