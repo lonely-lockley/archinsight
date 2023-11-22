@@ -1,17 +1,21 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class ContextElement extends AbstractElement implements WithId, WithChildElements {
+public class ContextElement extends AbstractElement implements WithId, WithChildElements, WithImports {
 
     private static final ElementType type = ElementType.CONTEXT;
 
     private String id = null;
 
     private final List<AbstractElement> children = new ArrayList<>();
+
+    private final List<AbstractImport> imports = new ArrayList<>();
 
     @Override
     public void setId(String id) {
@@ -40,7 +44,9 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     @Override
     public String toString() {
         return "ContextElement{" +
-                "id='" + id + "', children=[\n" + children.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
+                "id='" + id +
+                "', imports=[\n" + imports.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
+                "', children=[\n" + children.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 "]}";
     }
 
@@ -55,4 +61,15 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     public int hashCode() {
         return Objects.hash(id);
     }
+
+    @Override
+    public void addImport(AbstractImport newImport) {
+        this.imports.add(newImport);
+    }
+
+    @Override
+    public List<AbstractImport> getImports() {
+        return imports;
+    }
+
 }

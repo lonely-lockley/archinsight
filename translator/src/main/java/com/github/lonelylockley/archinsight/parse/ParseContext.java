@@ -2,6 +2,8 @@ package com.github.lonelylockley.archinsight.parse;
 
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
+import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
+import org.antlr.v4.runtime.CommonToken;
 
 import java.util.LinkedList;
 
@@ -10,25 +12,37 @@ public class ParseContext {
     private final LinkedList<AbstractElement> tree = new LinkedList<>();
     private AbstractElement currentElement = null;
     private AbstractAnnotation currentAnnotation = null;
+    private AbstractImport currentImport = null;
     private StringBuilder currentText = null;
     private boolean nextCommentIsNote = false;
+    private CommonToken previousToken = null;
 
     public void startNewElement(AbstractElement element) {
         tree.push(element);
         currentElement = element;
     }
 
+    private WithImports getImportsContainer() {
+        // context or container expected here
+        return (WithImports) tree.getLast();
+    }
+
     public void startNewAnnotation(AbstractAnnotation annotation) {
         this.currentAnnotation = annotation;
     }
 
-    public AbstractAnnotation getCurrentAnnotation() {
-        return currentAnnotation;
+    public void startNewImport(AbstractImport importElement) {
+        this.currentImport = importElement;
     }
 
     public void finishElement() {
         tree.pop();
         currentElement = tree.peek();
+    }
+
+    public void finishImport() {
+        getImportsContainer().addImport(currentImport);
+        currentImport = null;
     }
 
     public void startText() {
@@ -87,4 +101,19 @@ public class ParseContext {
         return (WithNote) currentElement;
     }
 
+    public AbstractAnnotation getCurrentAnnotation() {
+        return currentAnnotation;
+    }
+
+    public AbstractImport getCurrentImport() {
+        return currentImport;
+    }
+
+    public CommonToken getPreviousToken() {
+        return previousToken;
+    }
+
+    public void setPreviousToken(CommonToken previousToken) {
+        this.previousToken = previousToken;
+    }
 }

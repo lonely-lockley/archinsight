@@ -3,7 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
-import com.github.lonelylockley.archinsight.parse.TreeListener;
+import com.github.lonelylockley.archinsight.parse.InsightParseTreeListener;
 import com.github.lonelylockley.archinsight.link.Linker;
 import com.github.lonelylockley.archinsight.model.remote.translator.Source;
 import com.github.lonelylockley.archinsight.tracing.Measured;
@@ -50,7 +50,7 @@ public class TranslatorService {
         var tokenStream = new CommonTokenStream(lexer);
         var parser = new InsightParser(tokenStream);
         parser.getInterpreter().setPredictionMode(PredictionMode.LL);
-        var listener = new TreeListener();
+        var listener = new InsightParseTreeListener();
         parser.addParseListener(listener);
         parser.insight();
         return listener.getResult();

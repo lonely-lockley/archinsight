@@ -14,8 +14,8 @@ insight
     ;
 
 levelDeclaration
-    :   ( contextDeclaration contextElementDeclaration*
-        | containerDeclaration containerElementDeclaration*
+    :   ( contextDeclaration namedImportDeclaration* contextElementDeclaration*
+        | containerDeclaration namedImportDeclaration* containerElementDeclaration*
         )
     ;
 
@@ -25,6 +25,40 @@ contextDeclaration
 
 containerDeclaration
     :    CONTAINER IDENTIFIER EOL
+    ;
+
+namedImportDeclaration
+    :   IMPORT importElementDeclaration importAliasDeclaration? EOL?
+    ;
+
+importAliasDeclaration
+    :   AS IDENTIFIER
+    ;
+
+anonymousImportDeclaration
+    :   importElementDeclaration
+    ;
+
+importElementDeclaration
+    :   ( importContextElementDeclaration
+        | importContainerElementDeclaration
+        )
+    ;
+
+importContextElementDeclaration
+    :   IMPORT_CONTEXT_ELEMENT? IDENTIFIER IN importContextDeclaration
+    ;
+
+importContextDeclaration
+    :   IMPORT_CONTEXT IDENTIFIER
+    ;
+
+importContainerElementDeclaration
+    :   IMPORT_CONTAINER_ELEMENT? IDENTIFIER IN importContainerDeclaration
+    ;
+
+importContainerDeclaration
+    :   IMPORT_CONTAINER IDENTIFIER
     ;
 
 contextElementDeclaration
@@ -148,7 +182,7 @@ wireList
     ;
 
 wireDeclaration
-    :    annotationDeclaration? WIRE IDENTIFIER EOL wireParameters? EOL?
+    :    annotationDeclaration? WIRE (anonymousImportDeclaration | IDENTIFIER) EOL? wireParameters? EOL?
     ;
 
 wireParameters

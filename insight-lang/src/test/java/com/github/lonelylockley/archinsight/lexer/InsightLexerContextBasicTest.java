@@ -14,130 +14,41 @@ import org.testng.annotations.*;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class InsightLexerContextBasicTest extends TestCommon {
 
-    private InsightParser parser;
-
-    public void parse(String text, Pair<String, String>... asserts) throws Exception {
-        Iterator<Pair<String, String>> it = Arrays.stream(asserts).iterator();
-        CodePointCharStream inputStream = CharStreams.fromReader(new StringReader(text));
-        lexer = new InsightLexer(inputStream);
-        CommonTokenStream tokenStream = new CommonTokenStream(lexer);
-        parser = new InsightParser(tokenStream);
-        parser.addParseListener(new ParseTreeListener() {
-            @Override
-            public void visitTerminal(TerminalNode node) {
-                CommonToken tkn = (CommonToken) node.getPayload();
-                Vocabulary vocab = lexer.getVocabulary();
-                final String actualType = vocab.getSymbolicName(tkn.getType());
-                final String actualValue = tkn.getText();
-                debugPrinter(tkn);
-                Assert.assertTrue(it.hasNext());
-                Pair<String, String> expected = it.next();
-                Assert.assertEquals(actualType, expected.a);
-                Assert.assertEquals(actualValue, expected.b);
-            }
-
-            @Override
-            public void visitErrorNode(ErrorNode node) {
-                throw new RuntimeException(node.getSymbol().getText() + " at " + node.getSymbol().getLine() + ":" + node.getSymbol().getCharPositionInLine());
-            }
-
-            @Override
-            public void enterEveryRule(ParserRuleContext ctx) {
-
-            }
-
-            @Override
-            public void exitEveryRule(ParserRuleContext ctx) {
-
-            }
-        });
-        parser.insight();
-    }
-
     @Test
     public void testContextDefinition() throws Exception {
-        parse("""
+        setup("""
                 context tms
-                """,
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("EOF", "<EOF>"));
-
-    }
-
-    @Test
-    public void testSystemDefinitionRequiresName() throws Exception {
-        Assert.assertThrows(AssertionError.class,
-            new ThrowingRunnable() {
-                public void run() throws Exception {
-                    parse("""
-                    context tms
-                    system test
-                    """,
-                    new Pair<>("CONTEXT", "context"),
-                    new Pair<>("IDENTIFIER", "tms"),
-                    new Pair<>("EOL", "\n"),
-                    new Pair<>("SYSTEM", "system"),
-                    new Pair<>("IDENTIFIER", "test"),
-                    new Pair<>("EOL", "\n"));
-                }
-            });
-
-        Assert.assertThrows(AssertionError.class,
-            new ThrowingRunnable() {
-                public void run() throws Exception {
-                    parse("""
-                    context tms
-                    system test
-                        
-                    """,
-                    new Pair<>("CONTEXT", "context"),
-                    new Pair<>("IDENTIFIER", "tms"),
-                    new Pair<>("EOL", "\n"),
-                    new Pair<>("SYSTEM", "system"),
-                    new Pair<>("IDENTIFIER", "test"),
-                    new Pair<>("EOL", "\n"),
-                    new Pair<>("INDENT", "<INDENT>"));
-                }
-            });
-        Assert.assertThrows(RuntimeException.class,
-                new ThrowingRunnable() {
-                    public void run() throws Exception {
-                        parse("""
-                context tms
-                system test
-                    desc = 123
-                """,
-                new Pair<>("CONTEXT", "context"),
-                new Pair<>("IDENTIFIER", "tms"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("SYSTEM", "system"),
-                new Pair<>("IDENTIFIER", "test"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("DESCRIPTION", "desc"),
-                new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("TEXT", "123"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOF", "<EOF>"));
-                    }
-                });
+                new Pair<>("EOL", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
     }
 
     @Test
     public void testSystemDefinition() throws Exception {
-        parse("""
+        setup("""
                 context tms
                 system test
                     name = Test
-                """,
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
@@ -149,21 +60,28 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOF", "<EOF>"));
-
+                new Pair<>("TEXT", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertTrue(state.wasText());
     }
 
     @Test
     public void testSystemDefinitionWithEmptyLine() throws Exception {
-        parse("""
+        setup("""
                 context tms
                 
                 system test
                     name = Test
-                """,
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
@@ -175,20 +93,28 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOF", "<EOF>"));
+                new Pair<>("TEXT", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertTrue(state.wasText());
 
     }
 
     @Test
-    public void testExtSystemDefinition() throws Exception {
-        parse("""
+    public void testExtSystemDefinitionWithEmptyLine() throws Exception {
+        setup("""
                 context tms
                 ext system test
                     name = Test
-                """,
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
@@ -201,15 +127,26 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOF", "<EOF>"));
-        parse("""
+                new Pair<>("TEXT", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn -> checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertTrue(state.wasText());
+    }
+    @Test
+    public void testExtSystemDefinitionWithoutEmptyLine() throws Exception {
+        setup("""
                 context tms
                 external system test
                     name = Test
-                """,
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
@@ -222,20 +159,28 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOF", "<EOF>"));
+                new Pair<>("TEXT", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertTrue(state.wasText());
     }
 
     @Test
     public void testSystemDefinitionMultilineText() throws Exception {
-        parse("""
+        setup("""
                 context tms
                 system test
                     name = Test
                         Uuu TTT
-                """,
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
@@ -247,20 +192,25 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n"),
+                new Pair<>("TEXT", "\n"),
                 new Pair<>("TEXT", "Uuu"),
                 new Pair<>("TEXT", " "),
                 new Pair<>("TEXT", "TTT"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOF", "<EOF>"));
-
+                new Pair<>("TEXT", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertTrue(state.wasText());
     }
 
     @Test
     public void testSystemDefinitionWithLinks() throws Exception {
-        parse("""
+        setup("""
                 context tms
                 system test
                     name = Test
@@ -270,7 +220,9 @@ public class InsightLexerContextBasicTest extends TestCommon {
                             tech = aa
                             desc = oo
                                 ll
-                """,
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
@@ -282,11 +234,11 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n"),
+                new Pair<>("TEXT", "\n"),
                 new Pair<>("TEXT", "Uuu"),
                 new Pair<>("TEXT", " "),
                 new Pair<>("TEXT", "TTT"),
-                new Pair<>("EOL", "\n"),
+                new Pair<>("TEXT", "\n"),
                 new Pair<>("DEDENT", "<DEDENT>"),
                 new Pair<>("LINKS", "links"),
                 new Pair<>("COLON", ":"),
@@ -300,20 +252,24 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "aa"),
-                new Pair<>("EOL", "\n"),
+                new Pair<>("TEXT", "\n"),
                 new Pair<>("DEDENT", "<DEDENT>"),
                 new Pair<>("DESCRIPTION", "desc"),
                 new Pair<>("EQ", "= "),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("TEXT", "oo"),
-                new Pair<>("EOL", "\n"),
+                new Pair<>("TEXT", "\n"),
                 new Pair<>("TEXT", "ll"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("EOF", "<EOF>"));
+                new Pair<>("TEXT", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 4);
+        Assert.assertTrue(state.wasText());
 
     }
 

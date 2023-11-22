@@ -1,9 +1,12 @@
 package com.github.lonelylockley.archinsight.parse;
 
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.DeprecatedAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.PlannedAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
+import com.github.lonelylockley.archinsight.model.imports.AnonymousImport;
+import com.github.lonelylockley.archinsight.model.imports.NamedImport;
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import com.github.lonelylockley.insight.lang.InsightParser;
 import org.antlr.v4.runtime.CommonToken;
@@ -14,20 +17,41 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 
 import static com.github.lonelylockley.archinsight.model.elements.ElementType.*;
 
-public class TreeListener implements ParseTreeListener {
+public class InsightParseTreeListener implements ParseTreeListener {
+    /*
+     * Debug only - source of rule names
+     */
+    private final InsightParser parser = new InsightParser(null);
 
-    private ParseContext ctx = new ParseContext();
+    private final ParseContext ctx = new ParseContext();
 
     protected void handleToken(CommonToken tkn) {
         switch (tkn.getType()) {
             case InsightLexer.IDENTIFIER:
-                if (ctx.getCurrentElement().getType() == LINK) {
+                if (ctx.getCurrentElement().getType() == LINK && ctx.getCurrentImport() == null) {
                     ctx.getCurrentElementAsLink().setTo(tkn.getText());
+                    ctx.getCurrentElement().setSource(tkn);
+                }
+                else
+                if (ctx.getCurrentImport() != null) {
+                    var imp = ctx.getCurrentImport();
+                    if (ctx.getPreviousToken().getType() == InsightLexer.AS) {
+                        imp.setAlias(tkn.getText());
+                        imp.setAliasSource(tkn);
+                    }
+                    else if (ctx.getPreviousToken().getType() == InsightLexer.IMPORT_CONTEXT || ctx.getPreviousToken().getType() == InsightLexer.IMPORT_CONTAINER) {
+                        imp.setNamespace(tkn.getText());
+                        imp.setIdentifierSource(tkn);
+                    }
+                    else {
+                        imp.setIdentifier(tkn.getText());
+                        imp.setIdentifierSource(tkn);
+                    }
                 }
                 else {
                     ctx.getCurrentElementWithId().setId(tkn.getText());
+                    ctx.getCurrentElement().setSource(tkn);
                 }
-                ctx.getCurrentElement().setSource(tkn);
                 break;
             case InsightLexer.TEXT:
                 ctx.addText(tkn.getText());
@@ -53,9 +77,26 @@ public class TreeListener implements ParseTreeListener {
                     ctx.getCurrentElementWithNote().setNote(tkn.getText());
                 }
                 break;
+            case InsightLexer.IMPORT:
+                ctx.getCurrentImport().setSource(tkn);
+                break;
+            case InsightLexer.IMPORT_CONTEXT:
+                ctx.getCurrentImport().setLevel(ArchLevel.CONTEXT);
+                ctx.getCurrentImport().setLevelSource(tkn);
+                break;
+            case InsightLexer.IMPORT_CONTAINER:
+                ctx.getCurrentImport().setLevel(ArchLevel.CONTAINER);
+                ctx.getCurrentImport().setLevelSource(tkn);
+                break;
+            case InsightLexer.IMPORT_CONTEXT_ELEMENT:
+            case InsightLexer.IMPORT_CONTAINER_ELEMENT:
+                ctx.getCurrentImport().setElement(tkn.getText());
+                ctx.getCurrentImport().setElementSource(tkn);
+                break;
             default:
                 break;
         }
+        ctx.setPreviousToken(tkn);
     }
 
     @Override
@@ -132,6 +173,12 @@ public class TreeListener implements ParseTreeListener {
             case InsightParser.RULE_noteDeclaration:
                 ctx.nextCommentIsNote();
                 break;
+            case InsightParser.RULE_namedImportDeclaration:
+                ctx.startNewImport(new NamedImport());
+                break;
+            case InsightParser.RULE_anonymousImportDeclaration:
+                ctx.startNewImport(new AnonymousImport());
+                break;
             default:
                 break;
         }
@@ -167,6 +214,13 @@ public class TreeListener implements ParseTreeListener {
                 break;
             case InsightParser.RULE_noteDeclaration:
                 ctx.resetNoteFlag();
+                break;
+            case InsightParser.RULE_namedImportDeclaration:
+            case InsightParser.RULE_anonymousImportDeclaration:
+                if (ctx.getCurrentElement().getType() == LINK) {
+                    ctx.getCurrentElementAsLink().setTo(ctx.getCurrentImport().getAlias());
+                }
+                ctx.finishImport();
                 break;
             default:
                 break;

@@ -73,7 +73,7 @@ public class IndentHelper {
         }
         float tmp = (float) position / (float) INDENT_LENGTH;
         if (tmp % 1 != 0) {
-            lexer.getErrorListenerDispatch().syntaxError(lexer, tkn, line, position, "woo-woo",
+            lexer.getErrorListenerDispatch().syntaxError(lexer, tkn, line, position, "incorrect indentation",
                     new RecognitionException("choo-choo", lexer, lexer._input, null)
                     );
             //throw new IndentationException(tkn, position, indentation * INDENT_LENGTH);
