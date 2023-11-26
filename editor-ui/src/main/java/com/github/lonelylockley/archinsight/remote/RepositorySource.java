@@ -35,7 +35,7 @@ public class RepositorySource {
 
     public RepositoryNode listNodes(UUID repositoryId) {
         try {
-            return repository.listNodes(conf.getRepositoryAuthToken(), repositoryId);
+            return repository.listNodes(conf.getRepositoryAuthToken(), null, null, repositoryId);
         }
         catch (HttpClientResponseException ex) {
             Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));

@@ -1,72 +1,118 @@
 package com.github.lonelylockley.archinsight.link;
 
-import com.github.lonelylockley.archinsight.link.model.File;
-import com.github.lonelylockley.archinsight.model.remote.translator.LinkerMessage;
+import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
+import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.elements.*;
-import com.github.lonelylockley.archinsight.parse.ParseResult;
-import com.github.lonelylockley.archinsight.parse.WithSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Linker {
 
     private static final Logger logger = LoggerFactory.getLogger(Linker.class);
 
-    public void copyPosition(LinkerMessage lm, WithSource el) {
-        lm.setCharPosition(el.getCharPosition());
-        lm.setLine(el.getLine());
-        lm.setStartIndex(el.getStartIndex());
-        lm.setStopIndex(el.getStopIndex());
+    private final Map<String, ParsedFileDescriptor> namespaces = new HashMap<>();
+    private final TranslationContext ctx;
+
+    public Linker(TranslationContext ctx) {
+        this.ctx = ctx;
     }
 
-    private void checkDeclarations(File f, AbstractElement el, ArrayList<LinkerMessage> results) {
+    private void rewriteNamedImports() {
+
+    }
+
+    private void checkNamespace(ParsedFileDescriptor descriptor) {
+        // LId - level id
+        var namespaceLId = String.format("%s:%s", descriptor.getLevel(), descriptor.getNamespace());
+        if (namespaces.containsKey(namespaceLId)) {
+            TranslatorMessage lm = new TranslatorMessage(
+                    MessageLevel.WARNING,
+                    descriptor.getId(),
+                    descriptor.getLocation(),
+                    String.format("Duplicate namespace definition declared in file %s", namespaces.get(namespaceLId).getLocation())
+            );
+            Util.copyPosition(lm, descriptor.getParseResult().getRoot());
+            ctx.addMessage(lm);
+        }
+        else {
+            namespaces.put(namespaceLId, descriptor);
+        }
+    }
+
+    private void checkNamespaces(List<ParsedFileDescriptor> projectDescriptors, ParsedFileDescriptor edited) {
+        for (ParsedFileDescriptor descriptor: projectDescriptors) {
+            checkNamespace(descriptor);
+        }
+        checkNamespace(edited);
+    }
+
+    private void checkDeclarations(ParsedFileDescriptor descriptor, AbstractElement el) {
         if (el.getType() == ElementType.LINK) {
-            if (f.getConnections().contains((LinkElement) el)) {
-                LinkerMessage lm = new LinkerMessage(MessageLevel.WARNING, "Possible link duplication");
-                copyPosition(lm, el);
-                results.add(lm);
+            if (descriptor.getConnections().contains((LinkElement) el)) {
+                TranslatorMessage lm = new TranslatorMessage(
+                        MessageLevel.WARNING,
+                        descriptor.getId(),
+                        descriptor.getLocation(),
+                        "Possible link duplication"
+                );
+                Util.copyPosition(lm, el);
+                ctx.addMessage(lm);
             }
             else {
-                f.connect((LinkElement) el);
+                descriptor.connect((LinkElement) el);
             }
         }
         else
         if (el.getType() != ElementType.CONTEXT && el.getType() != ElementType.CONTAINER) {
-            if (f.isDeclared(el)) {
-                LinkerMessage lm = new LinkerMessage(MessageLevel.ERROR, String.format("Identifier %s is already defined", ((WithId) el).getId()));
-                copyPosition(lm, el);
-                results.add(lm);
+            if (descriptor.isDeclared(el)) {
+                TranslatorMessage lm = new TranslatorMessage(
+                        MessageLevel.ERROR,
+                        descriptor.getId(),
+                        descriptor.getLocation(),
+                        String.format("Identifier %s is already defined", ((WithId) el).getId())
+                );
+                Util.copyPosition(lm, el);
+                ctx.addMessage(lm);
             }
             else {
-                f.declare(el);
+                descriptor.declare(el);
             }
         }
-        if (el instanceof WithChildElements) {
-            WithChildElements withChildren = (WithChildElements) el;
-            withChildren.getChildren().forEach(ch -> checkDeclarations(f, ch, results));
+        if (el instanceof WithImports hasImports) {
+            descriptor.declareForeign(hasImports);
+        }
+        if (el instanceof WithChildElements hasChildren) {
+            hasChildren.getChildren().forEach(ch -> checkDeclarations(descriptor, ch));
         }
     }
 
-    private void checkConnections(File f, ArrayList<LinkerMessage> results) {
-        f.getConnections()
+    private void checkConnections(ParsedFileDescriptor descriptor) {
+        descriptor.getConnections()
             .stream()
-            .filter(c -> !f.isDeclared(c.getTo()))
+            .filter(c -> !descriptor.isDeclared(c.getTo()))
             .forEach(el -> {
-                LinkerMessage lm = new LinkerMessage(MessageLevel.ERROR, String.format("Undeclared identifier %s", el.getTo()));
-                copyPosition(lm, el);
-                results.add(lm);
+                TranslatorMessage lm = new TranslatorMessage(
+                        MessageLevel.ERROR,
+                        descriptor.getId(),
+                        descriptor.getLocation(),
+                        String.format("Undeclared identifier %s", el.getTo())
+                );
+                Util.copyPosition(lm, el);
+                ctx.addMessage(lm);
             });
     }
 
-    public List<LinkerMessage> checkIntegrity(ParseResult pr) {
-        File f = new File();
-        ArrayList<LinkerMessage> results = new ArrayList<>();
-        checkDeclarations(f, pr.getRoot(), results);
-        checkConnections(f, results);
-        return results.stream().sorted(new MessageComparator()).toList();
+    public void checkIntegrity() {
+        var edited = ctx.getEdited();
+        checkNamespaces(ctx.getDescriptors(), edited);
+        checkDeclarations(edited, edited.getParseResult().getRoot());
+        checkConnections(edited);
     }
+
 }

@@ -1,19 +1,26 @@
 package com.github.lonelylockley.archinsight.parse;
 
+import com.github.lonelylockley.archinsight.link.Util;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.DeprecatedAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.PlannedAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.model.imports.AnonymousImport;
 import com.github.lonelylockley.archinsight.model.imports.NamedImport;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import com.github.lonelylockley.insight.lang.InsightParser;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
+import org.antlr.v4.runtime.tree.ErrorNodeImpl;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 import org.antlr.v4.runtime.tree.TerminalNode;
+
+import java.util.stream.Collectors;
 
 import static com.github.lonelylockley.archinsight.model.elements.ElementType.*;
 
@@ -24,6 +31,11 @@ public class InsightParseTreeListener implements ParseTreeListener {
     private final InsightParser parser = new InsightParser(null);
 
     private final ParseContext ctx = new ParseContext();
+    private final TranslationContext translationContext;
+
+    public InsightParseTreeListener(TranslationContext translationContext) {
+        this.translationContext = translationContext;
+    }
 
     protected void handleToken(CommonToken tkn) {
         switch (tkn.getType()) {
@@ -107,7 +119,6 @@ public class InsightParseTreeListener implements ParseTreeListener {
 
     @Override
     public void visitErrorNode(ErrorNode node) {
-        throw new RuntimeException(node.getSymbol().getText() + " at " + node.getSymbol().getLine() + ":" + node.getSymbol().getCharPositionInLine());
     }
 
     @Override

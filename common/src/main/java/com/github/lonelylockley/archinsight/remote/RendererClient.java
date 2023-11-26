@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.remote;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.Post;

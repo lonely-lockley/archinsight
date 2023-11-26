@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.parse;
 
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import org.antlr.v4.runtime.CommonToken;
 
 public abstract class WithSource {

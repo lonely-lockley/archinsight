@@ -3,13 +3,14 @@ package com.github.lonelylockley.archinsight.components;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.github.lonelylockley.archinsight.MicronautContext;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
-import com.github.lonelylockley.archinsight.events.SvgDataEvent;
+import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.security.Authentication;
+import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
@@ -30,6 +31,9 @@ public class EditorComponent extends Div {
 
     private final RemoteSource remoteSource;
 
+    private RepositoryNode fileOpened;
+    private RepostioryInfo repositorySelected;
+
     public EditorComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setId("editor");
@@ -39,31 +43,83 @@ public class EditorComponent extends Div {
         else {
             UI.getCurrent().getPage().executeJs("initializeEditor($0, $1)", "org.archinsight.editor.sourcecode", null);
         }
+
+        final var fileSelectionListener = new BaseListener<FileOpenRequestEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileOpenRequestEvent e) {
+            if (eventWasProducedForCurrentUiId(e)) {
+                fileOpened = e.getFile();
+            }
+            }
+        };
+        Communication.getBus().register(fileSelectionListener);
+        addDetachListener(e -> Communication.getBus().unregister(fileSelectionListener));
+
+        final var repositorySelectionListener = new BaseListener<RepositorySelectionEvent>() {
+            @Override
+            @Subscribe
+            public void receive(RepositorySelectionEvent e) {
+            if (eventWasProducedForCurrentUiId(e)) {
+                repositorySelected = e.getNewValue();
+            }
+            }
+        };
+        Communication.getBus().register(repositorySelectionListener);
+        addDetachListener(e -> { Communication.getBus().unregister(repositorySelectionListener); });
+
+        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
+            @Override
+            @Subscribe
+            public void receive(RepositoryCloseEvent e) {
+            if (eventWasProducedForCurrentUiId(e)) {
+                repositorySelected = null;
+                fileOpened = null;
+            }
+            }
+        };
+        Communication.getBus().register(repositoryCloseListener);
+        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
+
+        final var fileRestorationListener = new BaseListener<FileRestoredEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileRestoredEvent e) {
+            if (eventWasProducedForCurrentUiId(e)) {
+                fileOpened = e.getOpenedFile();
+            }
+            }
+        };
+        Communication.getBus().register(fileRestorationListener);
+        addDetachListener(e -> { Communication.getBus().unregister(fileRestorationListener); });
+
+        final var fileCloseListener = new BaseListener<FileCloseRequestEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileCloseRequestEvent e) {
+            if (eventWasProducedForCurrentUiId(e)) {
+                fileOpened = null;
+            }
+            }
+        };
+        Communication.getBus().register(fileCloseListener);
+        addDetachListener(e -> { Communication.getBus().unregister(fileCloseListener); });
     }
     @ClientCallable
     public void render(String code) {
-        if (code == null || code.isBlank()) {
-            Communication.getBus().post(new SourceCompilationEvent(false));
+        try {
+            var file = fileOpened == null ? null : fileOpened.getId();
+            var repo = repositorySelected == null ? null : repositorySelected.getId();
+            var messages = remoteSource.render.render(code, repo, file);
+            if (messages.isPresent()) {
+                ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+                getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(messages.get()));
+            }
         }
-        else {
-            TranslatedSource res = null;
-            try {
-                res = remoteSource.render.render(code);
-                if (res.getMessages() == null || res.getMessages().isEmpty()) {
-                    Communication.getBus().post(new SourceCompilationEvent(true));
-                    Communication.getBus().post(new SvgDataEvent(res.getSource()));
-                }
-                else {
-                    Communication.getBus().post(new SourceCompilationEvent(false));
-                    ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-                    getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(res.getMessages()));
-                }
-            }
-            catch (Exception ex) {
-                Communication.getBus().post(new SourceCompilationEvent(false));
-                new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 3000);
-                logger.error("Could not render object. Sending empty response to browser", ex);
-            }
+        catch (Exception ex) {
+            Communication.getBus().post(new SourceCompilationEvent(false));
+            new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
+            logger.error("Could not render source", ex);
         }
     }
 

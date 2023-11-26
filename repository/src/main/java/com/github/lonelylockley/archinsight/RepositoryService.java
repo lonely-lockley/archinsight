@@ -5,7 +5,7 @@ import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
 import com.github.lonelylockley.archinsight.model.remote.repository.MoveNode;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.persistence.FileMapper;
 import com.github.lonelylockley.archinsight.persistence.MigratorRunner;
 import com.github.lonelylockley.archinsight.persistence.RepositoryMapper;
@@ -50,7 +50,7 @@ public class RepositoryService {
     @Get("/list")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<RepostioryInfo>> list(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole) throws Exception {
+    public HttpResponse<List<RepostioryInfo>> list(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             if (SecurityConstants.ROLE_ANONYMOUS.equals(ownerRole)) {
@@ -70,7 +70,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepostioryInfo> create(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, RepostioryInfo data) throws Exception {
+    public HttpResponse<RepostioryInfo> create(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, RepostioryInfo data) throws Exception {
         if (!Validations.repositoryNameLengthBetween3And50(data.getName())) {
             throw new ServiceException(new ErrorMessage("Repository name length must be between 3 and 50 symbols", HttpStatus.BAD_REQUEST));
         }
@@ -94,7 +94,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepostioryInfo> rename(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepostioryInfo data) throws Exception {
+    public HttpResponse<RepostioryInfo> rename(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepostioryInfo data) throws Exception {
         if (!Validations.repositoryNameLengthBetween3And50(data.getName())) {
             throw new ServiceException(new ErrorMessage("Repository name length must be between 3 and 50 symbols", HttpStatus.BAD_REQUEST));
         }
@@ -117,7 +117,7 @@ public class RepositoryService {
     @Get("/{repositoryId}/remove")
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
-    public HttpResponse<UUID> remove(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
+    public HttpResponse<UUID> remove(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -137,7 +137,7 @@ public class RepositoryService {
     @Get("/{repositoryId}/listNodes")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepositoryNode> listNodes(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID repositoryId) throws Exception {
+    public HttpResponse<RepositoryNode> listNodes(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             // omit owner check for playground
@@ -164,7 +164,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepositoryNode> createNode(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode newNode) throws Exception {
+    public HttpResponse<RepositoryNode> createNode(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode newNode) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -190,7 +190,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepositoryNode> renameNode(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode node) throws Exception {
+    public HttpResponse<RepositoryNode> renameNode(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepositoryNode node) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -215,7 +215,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepositoryNode> moveNode(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, MoveNode move) throws Exception {
+    public HttpResponse<RepositoryNode> moveNode(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, MoveNode move) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var repo = rm.getRepositoryById(repositoryId);
@@ -236,7 +236,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<UUID>> removeNode(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, UUID nodeId) throws Exception {
+    public HttpResponse<List<UUID>> removeNode(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, UUID nodeId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);

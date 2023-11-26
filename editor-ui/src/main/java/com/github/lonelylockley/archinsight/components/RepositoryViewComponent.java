@@ -247,29 +247,29 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
     }
 
     private void storeOpenedFile(UUID fileId) {
-        if (!Authentication.playgroundModeEnabled()) {
-            getElement().executeJs("localStorage.setItem($0, $1)", "org.archinsight.editor.file", fileId == null ? "" : fileId.toString());
+        var key = Authentication.playgroundModeEnabled() ? "org.archinsight.playground.file" : "org.archinsight.editor.file";
+        getElement().executeJs("localStorage.setItem($0, $1)", key, fileId == null ? "" : fileId.toString());
+    }
+
+    private void fileRestorationCallback(String fileId) {
+        var id = fileId.isBlank() ? null : UUID.fromString(fileId);
+        if (id != null) {
+            if (fileSystem.hasNode(id)) {
+                var node = fileSystem.getNode(id);
+                // open all menu items and select current file
+                select(node);
+                Communication.getBus().post(new FileRestoredEvent(node));
+                while (node.getParentId() != null) {
+                    node = fileSystem.getNode(node.getParentId());
+                    expand(node);
+                }
+            }
         }
     }
 
     private void restoreOpenedFile() {
-        if (!Authentication.playgroundModeEnabled()) {
-            getElement().executeJs("return (localStorage.getItem($0) || '')", "org.archinsight.editor.file").then(String.class, fileId -> {
-                var id = fileId.isBlank() ? null : UUID.fromString(fileId);
-                if (id != null) {
-                    if (fileSystem.hasNode(id)) {
-                        var node = fileSystem.getNode(id);
-                        // open all menu items and select current file
-                        select(node);
-                        Communication.getBus().post(new FileRestoredEvent(node));
-                        while (node.getParentId() != null) {
-                            node = fileSystem.getNode(node.getParentId());
-                            expand(node);
-                        }
-                    }
-                }
-            });
-        }
+        var key = Authentication.playgroundModeEnabled() ? "org.archinsight.playground.file" : "org.archinsight.editor.file";
+        getElement().executeJs("return (localStorage.getItem($0) || '')", key).then(String.class, this::fileRestorationCallback);
     }
 
     private static class ResultReturningDialog extends Dialog {

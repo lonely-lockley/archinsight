@@ -1,6 +1,7 @@
-package com.github.lonelylockley.archinsight.model.remote.translator;
+package com.github.lonelylockley.archinsight.model.remote.renderer;
 
 public class Source {
+
     private String source;
 
     public String getSource() {

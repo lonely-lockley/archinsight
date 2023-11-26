@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight.remote;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Body;
 import io.micronaut.http.annotation.Header;
@@ -17,6 +17,6 @@ import static io.micronaut.http.HttpHeaders.CONTENT_TYPE;
 public interface TranslatorClient {
 
     @Post("/translate")
-    TranslatedSource translate(@Header String authorization, @Body Source data);
+    TranslationResult translate(@Header String authorization, @Body TranslationRequest data);
 
 }

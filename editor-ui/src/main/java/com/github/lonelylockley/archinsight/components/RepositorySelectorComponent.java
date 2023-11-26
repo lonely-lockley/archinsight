@@ -75,11 +75,11 @@ public class RepositorySelectorComponent extends VerticalLayout {
             @Override
             @Subscribe
             public void receive(RepositoryCloseEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    manageRepositoryButton.setText("<Choose Repository>");
-                    RepositorySelectorComponent.this.selected = null;
-                    storeSelectedRepository(null);
-                }
+            if (eventWasProducedForCurrentUiId(e)) {
+                manageRepositoryButton.setText("<Choose Repository>");
+                RepositorySelectorComponent.this.selected = null;
+                storeSelectedRepository(null);
+            }
             }
         };
         Communication.getBus().register(repositoryCloseListener);
@@ -89,11 +89,11 @@ public class RepositorySelectorComponent extends VerticalLayout {
             @Override
             @Subscribe
             public void receive(RepositorySelectionEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    manageRepositoryButton.setText(String.format("[ %s ]", e.getNewValue().getName()));
-                    RepositorySelectorComponent.this.selected = e.getNewValue();
-                    storeSelectedRepository(e.getNewValue().getId());
-                }
+            if (eventWasProducedForCurrentUiId(e)) {
+                manageRepositoryButton.setText(String.format("[ %s ]", e.getNewValue().getName()));
+                RepositorySelectorComponent.this.selected = e.getNewValue();
+                storeSelectedRepository(e.getNewValue().getId());
+            }
             }
         };
         Communication.getBus().register(repositorySelectionListener);

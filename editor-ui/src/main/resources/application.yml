@@ -7,6 +7,8 @@ micronaut:
         url: ${TRANSLATOR:`http://translator:8080`}
       renderer:
         url: ${RENDERER:`http://renderer:8080`}
+      repository:
+        url: ${REPOSITORY:`http://repository:8080`}
 archinsight:
   devMode: ${DEV_MODE:`false`}
   domain: ${DOMAIN}

@@ -4,10 +4,13 @@ import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.repository.MoveNode;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.security.SecurityConstants;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.client.annotation.Client;
 
+import javax.validation.constraints.Null;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,7 +37,7 @@ public interface RepositoryClient {
     UUID removeRepository(@Header String authorization, UUID repositoryId);
 
     @Get("/repository/{repositoryId}/listNodes")
-    RepositoryNode listNodes(@Header String authorization, UUID repositoryId);
+    RepositoryNode listNodes(@Header String authorization, @Nullable @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID userId, @Nullable @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String userRole, UUID repositoryId);
 
     @Patch("/repository/{repositoryId}/createNode")
     RepositoryNode createNode(@Header String authorization, UUID repositoryId, @Body RepositoryNode newNode);
@@ -53,7 +56,7 @@ public interface RepositoryClient {
     Optional<String> openFile(@Header String authorization, UUID fileId);
 
     @Get("/file/{repositoryId}/openAll")
-    List<FileData> openAllFiles(@Header String authorization, UUID repositoryId);
+    List<FileData> openAllFiles(@Header String authorization, @Nullable @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID userId, @Nullable @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String userRole, UUID repositoryId);
 
     @Post("/file/{fileId}/save")
     @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)

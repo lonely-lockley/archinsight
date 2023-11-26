@@ -3,7 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.github.lonelylockley.archinsight.exceptionhandling.ServiceException;
 import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.persistence.FileMapper;
 import com.github.lonelylockley.archinsight.persistence.RepositoryMapper;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
@@ -40,7 +40,7 @@ public class FileService {
     @Get("/{fileId}/open")
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
-    public HttpResponse<String> open(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID fileId) throws Exception {
+    public HttpResponse<String> open(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID fileId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(FileMapper.class);
             // omit owner check for playground
@@ -67,19 +67,29 @@ public class FileService {
     @Get("/{repositoryId}/openAll")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<FileData>> openAll(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
+    public HttpResponse<List<FileData>> openAll(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
-            var repositoryOwnerId = rm.getRepositoryOwnerId(repositoryId);
-            if (Objects.equals(repositoryOwnerId, ownerId)) {
-                var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
-                var res = fm.openFiles(fs.getAllFileIds(repositoryId));
+            // omit owner check for playground
+            if (SecurityConstants.ROLE_ANONYMOUS.equals(ownerRole)) {
+                // to prevent any file opening by anonymous user we lock user in playground repository
+                var fs = new FileSystem(rm.getRepositoryStructure(conf.getPlaygroundRepositoryId()));
+                var res = fm.openFiles(fs.getAllFileIds(conf.getPlaygroundRepositoryId()));
                 session.commit();
                 return HttpResponse.ok(res);
             }
             else {
-                throw new ServiceException(new ErrorMessage("User does not own files to be opened", HttpStatus.FORBIDDEN));
+                var repositoryOwnerId = rm.getRepositoryOwnerId(repositoryId);
+                if (Objects.equals(repositoryOwnerId, ownerId)) {
+                    var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
+                    var res = fm.openFiles(fs.getAllFileIds(repositoryId));
+                    session.commit();
+                    return HttpResponse.ok(res);
+                }
+                else {
+                    throw new ServiceException(new ErrorMessage("User does not own files to be opened", HttpStatus.FORBIDDEN));
+                }
             }
         }
     }
@@ -88,7 +98,7 @@ public class FileService {
     @Consumes(MediaType.TEXT_PLAIN)
     @Produces(MediaType.TEXT_PLAIN)
     @Measured
-    public HttpResponse<UUID> save(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, String content) throws Exception {
+    public HttpResponse<UUID> save(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, String content) throws Exception {
         if (!Validations.fileContentLengthIsUnder1MB(content)) {
             throw new ServiceException(new ErrorMessage("The file is too large", HttpStatus.BAD_REQUEST));
         }

@@ -20,7 +20,9 @@ public enum ElementType {
     CONTAINER("CONTAINER"),
     BOUNDARY("BOUNDARY"),
 
-    UNKNOWN("unk");
+    // special case
+    UNKNOWN("unk"),
+    EMPTY("empty");
 
     private final String identifier;
 

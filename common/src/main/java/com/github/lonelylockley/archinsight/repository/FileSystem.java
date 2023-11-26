@@ -9,6 +9,7 @@ import io.micronaut.http.HttpStatus;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class FileSystem {
 
@@ -200,6 +201,17 @@ public class FileSystem {
                 .filter(node -> RepositoryNode.TYPE_FILE.equals(node.getType()))
                 .map(RepositoryNode::getId)
                 .toList();
+    }
+
+    public String getPath(UUID fileId) {
+        var node = index.get(fileId);
+        var res = new ArrayList<String>();
+        res.add(node.getName());
+        while (node.getParentId() != null && !Objects.equals(node.getParentId(), RepositoryNode.ROOT_UUID)) {
+            node = index.get(node.getParentId());
+            res.add(node.getName());
+        }
+        return String.join("/", res);
     }
 
     // nodes are ordered by type first (directories are followed by files), alphabetically - second

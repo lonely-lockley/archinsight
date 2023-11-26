@@ -3,7 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.github.lonelylockley.archinsight.auth.Keychain;
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.persistence.UserdataMapper;
@@ -71,7 +71,7 @@ public class AuthService {
     @Secured(SecurityRule.IS_AUTHENTICATED)
     @Produces(MediaType.TEXT_HTML)
     @Measured
-    public HttpResponse<String> ok(HttpRequest<Source> request) throws Exception {
+    public HttpResponse<String> ok(HttpRequest<TranslationRequest> request) throws Exception {
         return onSuccess(getEmailFromToken(request), getSessionId(request));
     }
 
@@ -79,7 +79,7 @@ public class AuthService {
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.TEXT_HTML)
     @Measured
-    public HttpResponse<String> fail(HttpRequest<Source> request) throws Exception {
+    public HttpResponse<String> fail(HttpRequest<TranslationRequest> request) throws Exception {
         var result = HttpResponse.ok(createFinalPage())
                                 .cookie(clearCookie("JWT"))
                                 .cookie(clearCookie("OAUTH2_STATE"))
@@ -92,7 +92,7 @@ public class AuthService {
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.TEXT_HTML)
     @Measured
-    public HttpResponse<String> testOk(HttpRequest<Source> request) throws Exception {
+    public HttpResponse<String> testOk(HttpRequest<TranslationRequest> request) throws Exception {
         HttpResponse<String> result = null;
         if (!conf.getDevMode()) {
             result = HttpResponse.notFound();
@@ -157,12 +157,12 @@ public class AuthService {
         return token.sign(algorithm);
     }
 
-    private String getEmailFromToken(HttpRequest<Source> request) {
+    private String getEmailFromToken(HttpRequest<TranslationRequest> request) {
         var jwt = request.getCookies().get("JWT");
         return JWT.decode(jwt.getValue()).getClaim("email").asString();
     }
 
-    private String getSessionId(HttpRequest<Source> request) {
+    private String getSessionId(HttpRequest<TranslationRequest> request) {
         var jsessionid = request.getCookies().get("JSESSIONID");
         if (jsessionid != null) {
             var pos = jsessionid.getValue().indexOf(".");
