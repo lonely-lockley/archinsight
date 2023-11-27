@@ -13,4 +13,5 @@ public class TranslationResult extends TranslationRequest {
     public void setMessages(List<TranslatorMessage> messages) {
         this.messages = messages;
     }
+
 }

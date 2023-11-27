@@ -1,9 +1,6 @@
 package com.github.lonelylockley.archinsight.remote;
 
-import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
-import com.github.lonelylockley.archinsight.model.remote.repository.MoveNode;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.model.remote.repository.*;
 import com.github.lonelylockley.archinsight.security.SecurityConstants;
 import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.MediaType;
@@ -52,16 +49,16 @@ public interface RepositoryClient {
     List<UUID> removeNode(@Header String authorization, UUID repositoryId, UUID nodeId);
 
     @Get("/file/{fileId}/open")
-    @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)
-    Optional<String> openFile(@Header String authorization, UUID fileId);
+    @Header(name = ACCEPT, value = MediaType.APPLICATION_JSON)
+    FileContent openFile(@Header String authorization, UUID fileId);
 
     @Get("/file/{repositoryId}/openAll")
     List<FileData> openAllFiles(@Header String authorization, @Nullable @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID userId, @Nullable @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String userRole, UUID repositoryId);
 
     @Post("/file/{fileId}/save")
-    @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)
-    @Header(name = CONTENT_TYPE, value = MediaType.TEXT_PLAIN)
-    UUID saveFile(@Header String authorization, UUID fileId, @Body String content);
+    @Header(name = ACCEPT, value = MediaType.APPLICATION_JSON)
+    @Header(name = CONTENT_TYPE, value = MediaType.APPLICATION_JSON)
+    UUID saveFile(@Header String authorization, UUID fileId, @Body FileContent fc);
 
 
 }

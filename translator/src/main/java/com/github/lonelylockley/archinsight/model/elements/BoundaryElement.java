@@ -71,6 +71,18 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     }
 
     @Override
+    public Object clone() {
+        var res = new BoundaryElement();
+        res.id = this.id;
+        res.name = this.name;
+        res.desc = this.desc;
+        res.tech = this.tech;
+        res.children.addAll(this.children);
+        clonePosition(res);
+        return res;
+    }
+
+    @Override
     public String toString() {
         return "BoundaryElement{" +
                 "id='" + id + '\'' +

@@ -205,11 +205,11 @@ public class FileSystem {
 
     public String getPath(UUID fileId) {
         var node = index.get(fileId);
-        var res = new ArrayList<String>();
+        var res = new LinkedList<String>();
         res.add(node.getName());
         while (node.getParentId() != null && !Objects.equals(node.getParentId(), RepositoryNode.ROOT_UUID)) {
             node = index.get(node.getParentId());
-            res.add(node.getName());
+            res.addFirst(node.getName());
         }
         return String.join("/", res);
     }

@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.export.graphviz;
 
+import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
@@ -140,6 +141,13 @@ public class GraphvizTranslator extends TranslatorBase {
         );
     }
 
+    private void traverseImports(ParsedFileDescriptor descriptor, StringBuilder sb) {
+        descriptor.getImports().forEach(i -> {
+            var el = (AbstractElement) descriptor.getDeclared(i.getAlias());
+            traverseDeclarations(el, sb, 1);
+        });
+    }
+
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
         if (el.getType() == ElementType.CONTEXT || el.getType() == ElementType.CONTAINER) {
             writeHeader(sb, ((WithId) el).getId());
@@ -185,9 +193,10 @@ public class GraphvizTranslator extends TranslatorBase {
         });
     }
 
-    public String translate(ParseResult pr) {
+    public String translate(ParsedFileDescriptor descriptor) {
         var res = new StringBuilder();
-        traverseDeclarations(pr.getRoot(), res, 0);
+        traverseDeclarations(descriptor.getParseResult().getRoot(), res, 0);
+        traverseImports(descriptor, res);
         res.append('\n');
         traverseConnections(res);
         finish(res);

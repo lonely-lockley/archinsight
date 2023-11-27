@@ -53,9 +53,10 @@ public class InsightParseTreeListener implements ParseTreeListener {
                     }
                     else if (ctx.getPreviousToken().getType() == InsightLexer.IMPORT_CONTEXT || ctx.getPreviousToken().getType() == InsightLexer.IMPORT_CONTAINER) {
                         imp.setNamespace(tkn.getText());
-                        imp.setIdentifierSource(tkn);
+                        imp.setNamespaceSource(tkn);
                     }
                     else {
+                        imp.setLine(tkn.getLine());
                         imp.setIdentifier(tkn.getText());
                         imp.setIdentifierSource(tkn);
                     }

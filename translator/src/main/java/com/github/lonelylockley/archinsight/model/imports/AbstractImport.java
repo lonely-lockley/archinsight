@@ -106,6 +106,10 @@ public abstract class AbstractImport extends WithSource {
         this.elementSource.setSource(tkn);
     }
 
+    public void setLine(int line) {
+        super.line = line;
+    }
+
     @Override
     public String toString() {
         return "AbstractImport{" +

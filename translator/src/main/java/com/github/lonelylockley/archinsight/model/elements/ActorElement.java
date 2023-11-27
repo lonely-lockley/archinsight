@@ -90,6 +90,20 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     }
 
     @Override
+    public Object clone() {
+        var res = new ActorElement();
+        res.note = this.note;
+        res.id = this.id;
+        res.name = this.name;
+        res.description = this.description;
+        res.technology = this.technology;
+        res.annotations.putAll(this.annotations);
+        res.children.addAll(this.children);
+        clonePosition(res);
+        return res;
+    }
+
+    @Override
     public String toString() {
         return "SystemElement{" +
                 "id='" + id + '\'' +

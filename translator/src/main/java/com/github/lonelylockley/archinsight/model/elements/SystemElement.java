@@ -101,6 +101,21 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     }
 
     @Override
+    public Object clone() {
+        var res = new SystemElement();
+        res.note = this.note;
+        res.id = this.id;
+        res.name = this.name;
+        res.description = this.description;
+        res.technology = this.technology;
+        res.external = this.external;
+        res.annotations.putAll(this.annotations);
+        res.children.addAll(this.children);
+        clonePosition(res);
+        return res;
+    }
+
+    @Override
     public String toString() {
         return "SystemElement{" +
                 "id='" + id + '\'' +

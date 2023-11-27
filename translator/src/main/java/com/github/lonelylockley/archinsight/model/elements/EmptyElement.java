@@ -5,4 +5,9 @@ public class EmptyElement extends AbstractElement {
     public ElementType getType() {
         return ElementType.EMPTY;
     }
+
+    @Override
+    public Object clone() {
+        return new EmptyElement();
+    }
 }

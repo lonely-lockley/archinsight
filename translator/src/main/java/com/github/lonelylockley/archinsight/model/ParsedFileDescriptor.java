@@ -5,9 +5,7 @@ import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
 import com.github.lonelylockley.archinsight.parse.WithSource;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class ParsedFileDescriptor {
 
@@ -15,8 +13,7 @@ public class ParsedFileDescriptor {
     private final String location;
     private final ParseResult parseResult;
     private final Set<AbstractImport> imports = new HashSet<>();
-    private final Set<WithSource> declarations = new HashSet<>();
-    private final Set<String> declaredIdentifiers = new HashSet<>();
+    private final Map<String, WithSource> declarations = new HashMap<>();
     private final Set<LinkElement> connections = new HashSet<>();
 
     private ArchLevel level;
@@ -41,9 +38,8 @@ public class ParsedFileDescriptor {
         }
     }
 
-    public void declare(WithSource el) {
-        declarations.add(el);
-        declaredIdentifiers.add(((WithId) el).getId());
+    public void declare(WithId el) {
+        declarations.put(el.getId(), (WithSource) el);
     }
 
     public void connect(LinkElement el) {
@@ -58,7 +54,7 @@ public class ParsedFileDescriptor {
         return imports;
     }
 
-    public Set<WithSource> getDeclarations() {
+    public Map<String, WithSource> getDeclarations() {
         return declarations;
     }
 
@@ -66,12 +62,12 @@ public class ParsedFileDescriptor {
         return connections;
     }
 
-    public boolean isDeclared(WithSource el) {
-        return declarations.contains(el);
+    public boolean isDeclared(String id) {
+        return declarations.containsKey(id);
     }
 
-    public boolean isDeclared(String id) {
-        return declaredIdentifiers.contains(id);
+    public WithSource getDeclared(String id) {
+        return declarations.get(id);
     }
 
     public UUID getId() {

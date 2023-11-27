@@ -42,6 +42,16 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     }
 
     @Override
+    public Object clone() {
+        var res = new ContextElement();
+        res.id = this.id;
+        res.imports.addAll(this.imports);
+        res.children.addAll(this.children);
+        clonePosition(res);
+        return res;
+    }
+
+    @Override
     public String toString() {
         return "ContextElement{" +
                 "id='" + id +

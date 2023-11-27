@@ -95,6 +95,20 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     }
 
     @Override
+    public Object clone() {
+        var res = new LinkElement();
+        res.name = this.name;
+        res.description = this.description;
+        res.technology = this.technology;
+        res.annotations.putAll(this.annotations);
+        res.from = this.from;
+        res.to = this.to;
+        res.sync = this.sync;
+        clonePosition(res);
+        return res;
+    }
+
+    @Override
     public String toString() {
         return "LinkElement{" +
                 "from='" + from + '\'' +

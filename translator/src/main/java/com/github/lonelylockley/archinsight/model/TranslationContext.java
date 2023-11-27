@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model;
 
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ public class TranslationContext {
     private ArrayList<ParsedFileDescriptor> descriptors = new ArrayList<>();
     private ParsedFileDescriptor edited;
     private ArrayList<TranslatorMessage> messages = new ArrayList<>();
+    private boolean hasErrors = false;
 
     public void setEdited(ParsedFileDescriptor edited) {
         this.edited = edited;
@@ -39,7 +41,13 @@ public class TranslationContext {
     }
 
     public void addMessage(TranslatorMessage message) {
+        if (message.getLevel() == MessageLevel.ERROR) {
+            hasErrors = true;
+        }
         this.messages.add(message);
     }
 
+    public boolean hasErrors() {
+        return hasErrors;
+    }
 }

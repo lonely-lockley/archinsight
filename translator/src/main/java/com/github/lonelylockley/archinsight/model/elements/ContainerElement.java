@@ -10,6 +10,17 @@ public class ContainerElement extends ContextElement {
     public ElementType getType() {
         return type;
     }
+
+    @Override
+    public Object clone() {
+        var res = new ContainerElement();
+        res.setId(this.getId());
+        res.getImports().addAll(this.getImports());
+        res.getChildren().addAll(this.getChildren());
+        clonePosition(res);
+        return res;
+    }
+
     @Override
     public String toString() {
         return "ContainerElement{" +
