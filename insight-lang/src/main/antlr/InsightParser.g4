@@ -46,19 +46,19 @@ importElementDeclaration
     ;
 
 importContextElementDeclaration
-    :   IMPORT_CONTEXT_ELEMENT? IDENTIFIER IN importContextDeclaration
+    :   CONTEXT_ELEMENT_IMPORT? IDENTIFIER IN importContextDeclaration
     ;
 
 importContextDeclaration
-    :   IMPORT_CONTEXT IDENTIFIER
+    :   CONTEXT_IMPORT IDENTIFIER
     ;
 
 importContainerElementDeclaration
-    :   IMPORT_CONTAINER_ELEMENT? IDENTIFIER IN importContainerDeclaration
+    :   CONTAINER_ELEMENT_IMPORT? IDENTIFIER IN importContainerDeclaration
     ;
 
 importContainerDeclaration
-    :   IMPORT_CONTAINER IDENTIFIER
+    :   CONTAINER_IMPORT IDENTIFIER
     ;
 
 contextElementDeclaration
@@ -94,11 +94,11 @@ boundaryForContainerDeclaration
     ;
 
 boundaryContext
-    :    INDENT boundaryParameters? contextElementDeclaration+ DEDENT
+    :    INDENT boundaryParameters? namedImportDeclaration* contextElementDeclaration+ DEDENT
     ;
 
 boundaryContainer
-    :    INDENT boundaryParameters? containerElementDeclaration+ DEDENT
+    :    INDENT boundaryParameters? namedImportDeclaration* containerElementDeclaration+ DEDENT
     ;
 
 boundaryParameters

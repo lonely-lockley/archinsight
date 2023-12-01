@@ -104,7 +104,7 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
         res.from = this.from;
         res.to = this.to;
         res.sync = this.sync;
-        clonePosition(res);
+        clonePositionTo(res);
         return res;
     }
 

@@ -56,6 +56,9 @@ public class TranslatorService {
         if (!ctx.hasErrors()) {
             result.setSource(new GraphvizTranslator().translate(ctx.getEdited()));
         }
+        else {
+            result.setHasErrors(true);
+        }
         result.setMessages(ctx.getMessages());
         return result;
     }

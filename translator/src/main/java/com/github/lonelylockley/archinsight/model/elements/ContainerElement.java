@@ -17,7 +17,7 @@ public class ContainerElement extends ContextElement {
         res.setId(this.getId());
         res.getImports().addAll(this.getImports());
         res.getChildren().addAll(this.getChildren());
-        clonePosition(res);
+        clonePositionTo(res);
         return res;
     }
 

@@ -103,9 +103,9 @@ EOL_VALUE          : EOL INDENTATION? { /* <helper> */ if (helper.checkTextBlock
 EOF_VALUE          : EOF -> type(EOF), popMode ;
 
 mode IMPORT_MODE;
-IMPORT_CONTEXT           : CONTEXT -> popMode, pushMode(NAMESPACE_MODE) ;
-IMPORT_CONTAINER         : CONTAINER -> popMode, pushMode(NAMESPACE_MODE) ;
-IMPORT_CONTEXT_ELEMENT   : (SYSTEM | ACTOR) ;
-IMPORT_CONTAINER_ELEMENT : (SERVICE | STORAGE) ;
-IMPORT_IDENTIFIER        : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
+CONTEXT_IMPORT           : CONTEXT -> popMode, pushMode(NAMESPACE_MODE) ;
+CONTAINER_IMPORT         : CONTAINER -> popMode, pushMode(NAMESPACE_MODE) ;
+CONTEXT_ELEMENT_IMPORT   : (SYSTEM | ACTOR) ;
+CONTAINER_ELEMENT_IMPORT : (SERVICE | STORAGE) ;
+IDENTIFIER_IMPORT        : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
 BLANK_IMPORT             : BLANK -> skip ;

@@ -1,6 +1,5 @@
 package com.github.lonelylockley.archinsight.parse;
 
-import com.github.lonelylockley.archinsight.link.Util;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
@@ -9,18 +8,13 @@ import com.github.lonelylockley.archinsight.model.annotations.PlannedAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.model.imports.AnonymousImport;
 import com.github.lonelylockley.archinsight.model.imports.NamedImport;
-import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import com.github.lonelylockley.insight.lang.InsightParser;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
-import org.antlr.v4.runtime.tree.ErrorNodeImpl;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 import org.antlr.v4.runtime.tree.TerminalNode;
-
-import java.util.stream.Collectors;
 
 import static com.github.lonelylockley.archinsight.model.elements.ElementType.*;
 
@@ -51,7 +45,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
                         imp.setAlias(tkn.getText());
                         imp.setAliasSource(tkn);
                     }
-                    else if (ctx.getPreviousToken().getType() == InsightLexer.IMPORT_CONTEXT || ctx.getPreviousToken().getType() == InsightLexer.IMPORT_CONTAINER) {
+                    else if (ctx.getPreviousToken().getType() == InsightLexer.CONTEXT_IMPORT || ctx.getPreviousToken().getType() == InsightLexer.CONTAINER_IMPORT) {
                         imp.setNamespace(tkn.getText());
                         imp.setNamespaceSource(tkn);
                     }
@@ -93,16 +87,16 @@ public class InsightParseTreeListener implements ParseTreeListener {
             case InsightLexer.IMPORT:
                 ctx.getCurrentImport().setSource(tkn);
                 break;
-            case InsightLexer.IMPORT_CONTEXT:
+            case InsightLexer.CONTEXT_IMPORT:
                 ctx.getCurrentImport().setLevel(ArchLevel.CONTEXT);
                 ctx.getCurrentImport().setLevelSource(tkn);
                 break;
-            case InsightLexer.IMPORT_CONTAINER:
+            case InsightLexer.CONTAINER_IMPORT:
                 ctx.getCurrentImport().setLevel(ArchLevel.CONTAINER);
                 ctx.getCurrentImport().setLevelSource(tkn);
                 break;
-            case InsightLexer.IMPORT_CONTEXT_ELEMENT:
-            case InsightLexer.IMPORT_CONTAINER_ELEMENT:
+            case InsightLexer.CONTEXT_ELEMENT_IMPORT:
+            case InsightLexer.CONTAINER_ELEMENT_IMPORT:
                 ctx.getCurrentImport().setElement(tkn.getText());
                 ctx.getCurrentImport().setElementSource(tkn);
                 break;

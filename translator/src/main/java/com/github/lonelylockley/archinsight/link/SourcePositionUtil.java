@@ -1,10 +1,11 @@
 package com.github.lonelylockley.archinsight.link;
 
+import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.parse.WithSource;
 import org.antlr.v4.runtime.Token;
 
-public class Util {
+public class SourcePositionUtil {
     public static void copyPosition(TranslatorMessage lm, WithSource el) {
         lm.setCharPosition(el.getCharPosition());
         lm.setLine(el.getLine());
@@ -17,6 +18,10 @@ public class Util {
         lm.setLine(tkn.getLine());
         lm.setStartIndex(tkn.getStartIndex());
         lm.setStopIndex(tkn.getStopIndex());
+    }
+
+    public static void copyPosition(WithSource el, WithSource imp) {
+        imp.clonePositionTo(el);
     }
 
     public static void copyPosition(TranslatorMessage lm, int line, int charPositionInLine, int startIndex, int stopIndex) {

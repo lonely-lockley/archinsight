@@ -21,10 +21,10 @@ public class InsightLexerImportTest extends TestCommon {
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("WIRE", "->"),
-                new Pair<>("IMPORT_CONTEXT_ELEMENT", "system"),
+                new Pair<>("CONTEXT_ELEMENT_IMPORT", "system"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTEXT", "context"),
+                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n")
         ).toList();
@@ -49,7 +49,7 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("WIRE", "->"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTEXT", "context"),
+                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n")
         ).toList();
@@ -73,10 +73,10 @@ public class InsightLexerImportTest extends TestCommon {
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("WIRE", "->"),
-                new Pair<>("IMPORT_CONTEXT_ELEMENT", "system"),
+                new Pair<>("CONTEXT_ELEMENT_IMPORT", "system"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTEXT", "context"),
+                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
@@ -131,16 +131,16 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("WIRE", "->"),
-                new Pair<>("IMPORT_CONTEXT_ELEMENT", "person"),
+                new Pair<>("CONTEXT_ELEMENT_IMPORT", "person"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTEXT", "context"),
+                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("WIRE", "->"),
                 new Pair<>("IDENTIFIER", "kkk"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTEXT", "context"),
+                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "lll"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("WIRE", "~>"),
@@ -166,10 +166,10 @@ public class InsightLexerImportTest extends TestCommon {
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("IMPORT", "import"),
-                new Pair<>("IMPORT_CONTAINER_ELEMENT", "service"),
+                new Pair<>("CONTAINER_ELEMENT_IMPORT", "service"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTAINER", "container"),
+                new Pair<>("CONTAINER_IMPORT", "container"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("AS", "as"),
                 new Pair<>("IDENTIFIER", "ttt"),
@@ -196,7 +196,7 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTAINER", "container"),
+                new Pair<>("CONTAINER_IMPORT", "container"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("AS", "as"),
                 new Pair<>("IDENTIFIER", "ttt"),
@@ -233,7 +233,7 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("IDENTIFIER", "jjj"),
                 new Pair<>("IN", "in"),
-                new Pair<>("IMPORT_CONTEXT", "context"),
+                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "lll"),
                 new Pair<>("AS", "as"),
                 new Pair<>("IDENTIFIER", "ttt"),
@@ -268,4 +268,41 @@ public class InsightLexerImportTest extends TestCommon {
         Assert.assertFalse(state.wasText());
     }
 
+    @Test
+    public void testImportSyntaxNamedInBoundary() throws Exception {
+        setup(
+                """
+                        boundary bb
+                            desc = 888
+                                        
+                            import translator in container archinsight
+                        """
+        );
+        List<Pair<String, String>> exp = Stream.of(
+                new Pair<>("BOUNDARY", "boundary"),
+                new Pair<>("IDENTIFIER", "bb"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("DESCRIPTION", "desc"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("TEXT", "888"),
+                new Pair<>("TEXT", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("IMPORT", "import"),
+                new Pair<>("IDENTIFIER", "translator"),
+                new Pair<>("IN", "in"),
+                new Pair<>("CONTAINER_IMPORT", "container"),
+                new Pair<>("IDENTIFIER", "archinsight"),
+                new Pair<>("EOL", "\n")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn -> checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 1);
+        Assert.assertFalse(state.wasText());
+    }
 }

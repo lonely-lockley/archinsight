@@ -12,9 +12,9 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class RenderSource {
 
@@ -41,25 +41,37 @@ public class RenderSource {
         return res;
     }
 
-    public Optional<List<TranslatorMessage>> render(String code, UUID repositoryId, UUID fileId) {
+    public Map<UUID, List<TranslatorMessage>> render(String code, UUID repositoryId, UUID fileId) {
         if (code == null || code.isBlank()) {
             Communication.getBus().post(new SourceCompilationEvent(false));
         }
         else {
             long startTime = System.nanoTime();
             var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(code, repositoryId, fileId));
-            if (translated.getMessages() == null || translated.getMessages().isEmpty()) {
+            if (!translated.isHasErrors()) {
                 var svg = renderer.renderSvg(conf.getRendererAuthToken(), prepareRendererRequest(translated));
                 Communication.getBus().post(new SourceCompilationEvent(true));
                 Communication.getBus().post(new SvgDataEvent(svg));
             }
             else {
                 Communication.getBus().post(new SourceCompilationEvent(false));
-                return Optional.of(translated.getMessages());
             }
+            var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
             logger.info("Render required required {}ms", (System.nanoTime() - startTime) / 1000000);
+            return messages.stream().collect(Collectors.toMap(
+                    TranslatorMessage::getFileId,
+                    msg -> {
+                        var lst = new ArrayList<TranslatorMessage>();
+                        lst.add(msg);
+                        return lst;
+                    },
+                    (res, msg) -> {
+                        res.addAll(msg);
+                        return res;
+                    })
+            );
         }
-        return Optional.empty();
+        return Collections.emptyMap();
     }
 
 }

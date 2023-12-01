@@ -23,8 +23,8 @@ public class ParseContext {
     }
 
     private WithImports getImportsContainer() {
-        // context or container expected here
-        return (WithImports) tree.getLast();
+        var container = tree.stream().filter(ae -> ae instanceof WithImports).findFirst();
+        return (WithImports) container.orElseThrow();
     }
 
     public void startNewAnnotation(AbstractAnnotation annotation) {

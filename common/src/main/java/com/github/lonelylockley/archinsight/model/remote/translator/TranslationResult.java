@@ -5,6 +5,7 @@ import java.util.List;
 public class TranslationResult extends TranslationRequest {
 
     private List<TranslatorMessage> messages;
+    private boolean hasErrors = false;
 
     public List<TranslatorMessage> getMessages() {
         return messages;
@@ -14,4 +15,11 @@ public class TranslationResult extends TranslationRequest {
         this.messages = messages;
     }
 
+    public boolean isHasErrors() {
+        return hasErrors;
+    }
+
+    public void setHasErrors(boolean hasErrors) {
+        this.hasErrors = hasErrors;
+    }
 }

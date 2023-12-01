@@ -22,7 +22,7 @@ public class ServiceElement extends SystemElement {
         if (this.isExternal()) res.setExternal();
         res.getAnnotations().putAll(this.getAnnotations());
         res.getChildren().addAll(this.getChildren());
-        clonePosition(res);
+        clonePositionTo(res);
         return res;
     }
 

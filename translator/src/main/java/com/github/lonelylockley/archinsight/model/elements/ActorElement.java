@@ -99,7 +99,7 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
         res.technology = this.technology;
         res.annotations.putAll(this.annotations);
         res.children.addAll(this.children);
-        clonePosition(res);
+        clonePositionTo(res);
         return res;
     }
 

@@ -1,6 +1,5 @@
 package com.github.lonelylockley.archinsight.parse;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import org.antlr.v4.runtime.CommonToken;
 
 public abstract class WithSource {
@@ -33,7 +32,7 @@ public abstract class WithSource {
         return line;
     }
 
-    protected void clonePosition(WithSource res) {
+    public void clonePositionTo(WithSource res) {
         res.charPosition = this.charPosition;
         res.line = line;
         res.startIndex = startIndex;

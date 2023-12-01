@@ -111,7 +111,7 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
         res.external = this.external;
         res.annotations.putAll(this.annotations);
         res.children.addAll(this.children);
-        clonePosition(res);
+        clonePositionTo(res);
         return res;
     }
 

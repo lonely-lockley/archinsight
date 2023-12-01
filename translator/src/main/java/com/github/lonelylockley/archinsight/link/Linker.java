@@ -3,16 +3,14 @@ package com.github.lonelylockley.archinsight.link;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
+import com.github.lonelylockley.archinsight.model.imports.NamedImport;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public class Linker {
 
@@ -25,41 +23,41 @@ public class Linker {
         this.ctx = ctx;
     }
 
-    private void rewriteImports(ParsedFileDescriptor edited) {
-        var root = edited.getParseResult().getRoot();
+    private void rewriteImportsInternal(AbstractElement root, ParsedFileDescriptor edited) {
         if (root instanceof WithImports hasImports) {
             for (AbstractImport imported : hasImports.getImports()) {
+                AbstractElement copy = new EmptyElement(imported.getAlias());
                 var namespaceLId = String.format("%s_%s", imported.getLevel(), imported.getNamespace());
-                if (Objects.equals(edited.getNamespace(), imported.getNamespace()) && Objects.equals(edited.getLevel(), imported.getLevel())) {
+                if (Objects.equals(edited.getNamespace(), imported.getNamespace())) {
                     TranslatorMessage tm = new TranslatorMessage(
                             MessageLevel.ERROR,
                             edited.getId(),
                             edited.getLocation(),
                             "Cyclic import detected"
                     );
-                    Util.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
+                    SourcePositionUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
                 if (!namespaces.containsKey(namespaceLId)) {
                     TranslatorMessage tm = new TranslatorMessage(
-                        MessageLevel.ERROR,
-                        edited.getId(),
-                        edited.getLocation(),
-                        String.format("Unsatisfied import: %s %s not found", imported.getLevel().toString().toLowerCase(), imported.getNamespace())
+                            MessageLevel.ERROR,
+                            edited.getId(),
+                            edited.getLocation(),
+                            String.format("Unsatisfied import: %s %s not found", imported.getLevel().toString().toLowerCase(), imported.getNamespace())
                     );
-                    Util.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
+                    SourcePositionUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
                 if (!namespaces.get(namespaceLId).isDeclared(imported.getIdentifier())) {
                     TranslatorMessage tm = new TranslatorMessage(
-                        MessageLevel.ERROR,
-                        edited.getId(),
-                        edited.getLocation(),
-                        String.format("Unsatisfied import: %s%s not found in %s %s", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), imported.getLevel().toString().toLowerCase(), imported.getNamespace())
+                            MessageLevel.ERROR,
+                            edited.getId(),
+                            edited.getLocation(),
+                            String.format("Unsatisfied import: %s%s not found in %s %s", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), imported.getLevel().toString().toLowerCase(), imported.getNamespace())
                     );
-                    Util.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
+                    SourcePositionUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
@@ -67,29 +65,62 @@ public class Linker {
                     var el = (AbstractElement) namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());
                     if (!Objects.equals(imported.getElement(), el.getType().toString().toLowerCase())) {
                         TranslatorMessage tm = new TranslatorMessage(
-                            MessageLevel.ERROR,
-                            edited.getId(),
-                            edited.getLocation(),
-                            String.format("Unsatisfied import: %s%s not found in %s %s. Did you mean %s?", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), imported.getLevel().toString().toLowerCase(), imported.getNamespace(), el.getType().toString().toLowerCase())
+                                MessageLevel.ERROR,
+                                edited.getId(),
+                                edited.getLocation(),
+                                String.format("Unsatisfied import: %s%s not found in %s %s. Did you mean %s?", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), imported.getLevel().toString().toLowerCase(), imported.getNamespace(), el.getType().toString().toLowerCase())
                         );
-                        Util.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
+                        SourcePositionUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
                         ctx.addMessage(tm);
                     }
                 }
                 else {
+                    // finally, create element copy
                     var el = (AbstractElement) namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());
-                    var copy = ((WithId) el.clone());
-                    copy.setId(imported.getAlias());
-                    if (copy instanceof WithChildElements hasChildren) {
-                        hasChildren.getChildren().clear();
+                    copy = (AbstractElement) el.clone();
+                    if (copy instanceof WithExternal external && external.isExternal()) {
+                        TranslatorMessage tm = new TranslatorMessage(
+                                MessageLevel.ERROR,
+                                edited.getId(),
+                                edited.getLocation(),
+                                "External element imported"
+                        );
+                        SourcePositionUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
+                        ctx.addMessage(tm);
                     }
-                    if (copy instanceof WithExternal hasExternal) {
-                        hasExternal.setExternal();
-                    }
-                    checkDeclarations(edited, (AbstractElement) copy);
                 }
+
+                // copy position and fix copied attributes if needed
+                SourcePositionUtil.copyPosition(copy, imported.getIdentifierSource());
+                if (copy instanceof WithId hasId) {
+                    hasId.setId(imported.getAlias());
+                }
+                if (copy instanceof WithChildElements hasChildren) {
+                    hasChildren.getChildren().clear();
+                }
+                if (copy instanceof WithExternal hasExternal) {
+                    hasExternal.setExternal();
+                }
+                // attach named imports to current container and anonymous imports to root container
+                WithChildElements container;
+                if (imported instanceof NamedImport) {
+                    container = (WithChildElements) root;
+                }
+                else {
+                    container = (WithChildElements) edited.getParseResult().getRoot();
+                }
+                container.addChild(copy);
             }
         }
+        if (root instanceof WithChildElements hasChildren) {
+            var children = new ArrayList<AbstractElement>(hasChildren.getChildren().size());
+            children.addAll(hasChildren.getChildren());
+            children.forEach(ch -> rewriteImportsInternal(ch, edited));
+        }
+    }
+
+    private void rewriteImports(ParsedFileDescriptor edited) {
+        rewriteImportsInternal(edited.getParseResult().getRoot(), edited);
     }
 
     private void checkNamespace(ParsedFileDescriptor descriptor) {
@@ -102,7 +133,7 @@ public class Linker {
                     descriptor.getLocation(),
                     String.format("Duplicate namespace definition declared in file %s", namespaces.get(namespaceLId).getLocation())
             );
-            Util.copyPosition(tm, descriptor.getParseResult().getRoot());
+            SourcePositionUtil.copyPosition(tm, descriptor.getParseResult().getRoot());
             ctx.addMessage(tm);
         }
         else {
@@ -127,7 +158,7 @@ public class Linker {
                         descriptor.getLocation(),
                         "Possible link duplication"
                 );
-                Util.copyPosition(tm, el);
+                SourcePositionUtil.copyPosition(tm, el);
                 ctx.addMessage(tm);
             }
             else {
@@ -135,7 +166,7 @@ public class Linker {
             }
         }
         else
-        if (el.getType() != ElementType.CONTEXT && el.getType() != ElementType.CONTAINER && el.getType() != ElementType.EMPTY) {
+        if (el.getType() != ElementType.CONTEXT && el.getType() != ElementType.CONTAINER) {
             var id = ((WithId) el).getId();
             if (descriptor.isDeclared(id)) {
                 TranslatorMessage tm = new TranslatorMessage(
@@ -144,7 +175,7 @@ public class Linker {
                         descriptor.getLocation(),
                         String.format("Identifier %s is already defined", id)
                 );
-                Util.copyPosition(tm, el);
+                SourcePositionUtil.copyPosition(tm, el);
                 ctx.addMessage(tm);
             }
             else {
@@ -170,7 +201,7 @@ public class Linker {
                         descriptor.getLocation(),
                         String.format("Undeclared identifier %s", el.getTo())
                 );
-                Util.copyPosition(tm, el);
+                SourcePositionUtil.copyPosition(tm, el);
                 ctx.addMessage(tm);
             });
     }

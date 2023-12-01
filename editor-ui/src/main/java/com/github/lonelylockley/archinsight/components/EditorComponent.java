@@ -8,6 +8,7 @@ import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNo
 import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
@@ -18,6 +19,12 @@ import com.vaadin.flow.component.dependency.NpmPackage;
 import com.vaadin.flow.component.html.Div;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @NpmPackage(value = "monaco-editor-core", version = "^0.40.0")
 @NpmPackage(value = "monaco-editor", version = "^0.40.0")
@@ -105,15 +112,41 @@ public class EditorComponent extends Div {
         Communication.getBus().register(fileCloseListener);
         addDetachListener(e -> { Communication.getBus().unregister(fileCloseListener); });
     }
+
+    private int nonNull(Integer value) {
+        return value == null ? 0 : value;
+    }
+
     @ClientCallable
     public void render(String code) {
         try {
             var file = fileOpened == null ? null : fileOpened.getId();
             var repo = repositorySelected == null ? null : repositorySelected.getId();
             var messages = remoteSource.render.render(code, repo, file);
-            if (messages.isPresent()) {
-                ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-                getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(messages.get()));
+            var msg = new StringBuilder();
+            for (Map.Entry<UUID, List<TranslatorMessage>> entry : messages.entrySet()) {
+                if (Objects.equals(fileOpened.getId(), entry.getKey())) {
+                    ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+                    getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(messages.get(fileOpened.getId())));
+                }
+                else {
+                    var location = entry.getValue().stream().findFirst().get().getLocation();
+                    var summary = entry.getValue().stream().collect(Collectors.toMap(TranslatorMessage::getLevel, val -> 1, Integer::sum));
+                    msg
+                        .append('\n')
+                        .append("- In file ")
+                        .append(location)
+                        .append('\n')
+                        .append("errors: ")
+                        .append(nonNull(summary.get(MessageLevel.ERROR)))
+                        .append(" warnings: ")
+                        .append(nonNull(summary.get(MessageLevel.WARNING)))
+                        .append(" notices: ")
+                        .append(nonNull(summary.get(MessageLevel.NOTICE)));
+                }
+            }
+            if (!msg.isEmpty()) {
+                new NotificationComponent("Project linking failure:" + msg, MessageLevel.ERROR, 15000);
             }
         }
         catch (Exception ex) {

@@ -47,7 +47,7 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
         res.id = this.id;
         res.imports.addAll(this.imports);
         res.children.addAll(this.children);
-        clonePosition(res);
+        clonePositionTo(res);
         return res;
     }
 
