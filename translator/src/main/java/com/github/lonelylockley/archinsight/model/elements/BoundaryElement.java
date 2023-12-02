@@ -9,8 +9,6 @@ import java.util.stream.Collectors;
 
 public class BoundaryElement extends AbstractElement implements WithId, WithChildElements, WithParameters, WithImports {
 
-    private static final ElementType type = ElementType.BOUNDARY;
-
     private final List<AbstractElement> children = new ArrayList<>();
     private final List<AbstractImport> imports = new ArrayList<>();
 
@@ -70,12 +68,12 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     }
 
     @Override
-    public ElementType getType() {
-        return type;
+    public ElementType<BoundaryElement> getType() {
+        return ElementType.BOUNDARY;
     }
 
     @Override
-    public Object clone() {
+    public AbstractElement clone() {
         var res = new BoundaryElement();
         res.id = this.id;
         res.name = this.name;

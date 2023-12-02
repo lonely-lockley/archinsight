@@ -13,7 +13,7 @@ public class ParsedFileDescriptor {
     private final String location;
     private final ParseResult parseResult;
     private final Set<AbstractImport> imports = new HashSet<>();
-    private final Map<String, WithSource> declarations = new HashMap<>();
+    private final Map<String, AbstractElement> declarations = new HashMap<>();
     private final Set<LinkElement> connections = new HashSet<>();
 
     private ArchLevel level;
@@ -38,8 +38,8 @@ public class ParsedFileDescriptor {
         }
     }
 
-    public void declare(WithId el) {
-        declarations.put(el.getId(), (WithSource) el);
+    public void declare(String id, AbstractElement el) {
+        declarations.put(id, el);
     }
 
     public void connect(LinkElement el) {
@@ -54,7 +54,7 @@ public class ParsedFileDescriptor {
         return imports;
     }
 
-    public Map<String, WithSource> getDeclarations() {
+    public Map<String, AbstractElement> getDeclarations() {
         return declarations;
     }
 
@@ -66,7 +66,7 @@ public class ParsedFileDescriptor {
         return declarations.containsKey(id);
     }
 
-    public WithSource getDeclared(String id) {
+    public AbstractElement getDeclared(String id) {
         return declarations.get(id);
     }
 

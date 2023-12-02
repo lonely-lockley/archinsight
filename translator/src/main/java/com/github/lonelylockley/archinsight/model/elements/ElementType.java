@@ -1,42 +1,49 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.Functional;
+
 import java.util.HashMap;
 import java.util.Map;
 
-public enum ElementType {
+public class ElementType<T extends AbstractElement> implements Functional<T, AbstractElement> {
     // any level
-    LINK("LINKS"),
+    public static final ElementType<LinkElement> LINK = new ElementType<>("LINKS");
 
     // context level
-    SYSTEM("SYSTEM"),
-    ACTOR("ACTOR"),
+    public static final ElementType<SystemElement> SYSTEM = new ElementType<>("SYSTEM");
+    public static final ElementType<ActorElement> ACTOR = new ElementType<>("ACTOR");
 
     // container level
-    SERVICE("SERVICE"),
-    STORAGE("STORAGE"),
+    public static final ElementType<ServiceElement> SERVICE = new ElementType<>("SERVICE");
+    public static final ElementType<StorageElement> STORAGE = new ElementType<>("STORAGE");
 
     // other
-    CONTEXT("CONTEXT"),
-    CONTAINER("CONTAINER"),
-    BOUNDARY("BOUNDARY"),
+    public static final ElementType<ContextElement> CONTEXT = new ElementType<>("CONTEXT");
+    public static final ElementType<ContainerElement> CONTAINER = new ElementType<>("CONTAINER");
+    public static final ElementType<BoundaryElement> BOUNDARY = new ElementType<>("BOUNDARY");
 
     // special case
-    UNKNOWN("unk"),
-    EMPTY("empty");
+    public static final ElementType<EmptyElement> UNKNOWN = new ElementType<>("unk");
+    public static final ElementType<EmptyElement> EMPTY = new ElementType<>("empty");
 
-    private final String identifier;
+    private final String id;
 
-    ElementType(String identifier) {
-        this.identifier = identifier;
+    private ElementType(String identifier) {
+        this.id = identifier;
     }
 
     private static final Map<String, ElementType> byId = new HashMap<>();
     static {
-        for (ElementType e : ElementType.values()) {
-            if (byId.put(e.identifier, e) != null) {
-                throw new IllegalArgumentException("duplicate id: " + e.identifier);
-            }
-        }
+        byId.put(LINK.id, LINK);
+        byId.put(SYSTEM.id, SYSTEM);
+        byId.put(ACTOR.id, ACTOR);
+        byId.put(SERVICE.id, SERVICE);
+        byId.put(STORAGE.id, STORAGE);
+        byId.put(CONTEXT.id, CONTEXT);
+        byId.put(CONTAINER.id, CONTAINER);
+        byId.put(BOUNDARY.id, BOUNDARY);
+        byId.put(UNKNOWN.id, UNKNOWN);
+        byId.put(EMPTY.id, EMPTY);
     }
 
     public static ElementType elementByIdentifier(String identifier) {
@@ -46,4 +53,9 @@ public enum ElementType {
         }
         return et;
     }
+
+    public String getId() {
+        return id;
+    }
+
 }

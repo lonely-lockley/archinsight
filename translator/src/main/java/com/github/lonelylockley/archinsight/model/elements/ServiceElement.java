@@ -4,15 +4,13 @@ import java.util.stream.Collectors;
 
 public class ServiceElement extends SystemElement {
 
-    private static final ElementType type = ElementType.SERVICE;
-
     @Override
     public ElementType getType() {
-        return type;
+        return ElementType.SERVICE;
     }
 
     @Override
-    public Object clone() {
+    public AbstractElement clone() {
         var res = new ServiceElement();
         res.setNote(this.getNote());
         res.setId(this.getId());

@@ -4,15 +4,14 @@ import java.util.stream.Collectors;
 
 public class ContainerElement extends ContextElement {
 
-    private static final ElementType type = ElementType.CONTAINER;
 
     @Override
     public ElementType getType() {
-        return type;
+        return ElementType.CONTAINER;
     }
 
     @Override
-    public Object clone() {
+    public AbstractElement clone() {
         var res = new ContainerElement();
         res.setId(this.getId());
         res.getImports().addAll(this.getImports());

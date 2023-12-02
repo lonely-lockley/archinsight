@@ -4,15 +4,13 @@ import java.util.stream.Collectors;
 
 public class StorageElement extends SystemElement {
 
-    private static final ElementType type = ElementType.STORAGE;
-
     @Override
     public ElementType getType() {
-        return type;
+        return ElementType.STORAGE;
     }
 
     @Override
-    public Object clone() {
+    public AbstractElement clone() {
         var res = new StorageElement();
         res.setNote(this.getNote());
         res.setId(this.getId());

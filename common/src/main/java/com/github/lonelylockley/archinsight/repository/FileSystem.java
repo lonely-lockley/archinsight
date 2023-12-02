@@ -227,7 +227,16 @@ public class FileSystem {
                 return 1;
             }
             else {
-                return left.getName().compareTo(right.getName());
+                if (left.getName().startsWith("<")) {
+                    return 1;
+                }
+                else
+                if (right.getName().startsWith("<")) {
+                    return -1;
+                }
+                else {
+                    return left.getName().compareTo(right.getName());
+                }
             }
         }
     }

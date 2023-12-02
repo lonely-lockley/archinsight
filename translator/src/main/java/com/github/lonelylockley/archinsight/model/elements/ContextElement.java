@@ -9,8 +9,6 @@ import java.util.stream.Collectors;
 
 public class ContextElement extends AbstractElement implements WithId, WithChildElements, WithImports {
 
-    private static final ElementType type = ElementType.CONTEXT;
-
     private String id = null;
 
     private final List<AbstractElement> children = new ArrayList<>();
@@ -28,8 +26,8 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     }
 
     @Override
-    public ElementType getType() {
-        return type;
+    public ElementType<ContextElement> getType() {
+        return ElementType.CONTEXT;
     }
 
     public void addChild(AbstractElement child) {
@@ -42,7 +40,7 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     }
 
     @Override
-    public Object clone() {
+    public AbstractElement clone() {
         var res = new ContextElement();
         res.id = this.id;
         res.imports.addAll(this.imports);

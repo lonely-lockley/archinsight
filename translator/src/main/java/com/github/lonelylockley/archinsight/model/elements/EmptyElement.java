@@ -12,12 +12,12 @@ public class EmptyElement extends AbstractElement implements WithId {
     }
 
     @Override
-    public ElementType getType() {
+    public ElementType<EmptyElement> getType() {
         return ElementType.EMPTY;
     }
 
     @Override
-    public Object clone() {
+    public AbstractElement clone() {
         return new EmptyElement();
     }
 
