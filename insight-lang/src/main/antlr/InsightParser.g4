@@ -46,7 +46,7 @@ importElementDeclaration
     ;
 
 importContextElementDeclaration
-    :   CONTEXT_ELEMENT_IMPORT? IDENTIFIER IN importContextDeclaration
+    :   CONTEXT_ELEMENT_IMPORT? IDENTIFIER FROM importContextDeclaration
     ;
 
 importContextDeclaration
@@ -54,7 +54,7 @@ importContextDeclaration
     ;
 
 importContainerElementDeclaration
-    :   CONTAINER_ELEMENT_IMPORT? IDENTIFIER IN importContainerDeclaration
+    :   CONTAINER_ELEMENT_IMPORT? IDENTIFIER FROM importContainerDeclaration
     ;
 
 importContainerDeclaration

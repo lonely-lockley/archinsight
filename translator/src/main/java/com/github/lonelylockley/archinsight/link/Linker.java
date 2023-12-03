@@ -60,15 +60,16 @@ public class Linker {
                 }
                 else
                 // check optional element type if it is set
-                if (imported.getElement() != null) {
-                    var el = namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());
-                    if (!Objects.equals(imported.getElement(), el.getType().toString().toLowerCase())) {
-                        var tm = LinkerUtil.newError(edited,
-                            String.format("Unsatisfied import: %s%s not found in %s %s. Did you mean %s?", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), imported.getLevel().toString().toLowerCase(), imported.getNamespace(), el.getType().toString().toLowerCase())
-                        );
-                        LinkerUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
-                        ctx.addMessage(tm);
-                    }
+                if (imported.getElement() != null && !Objects.equals(imported.getElement(), namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType().toString().toLowerCase())) {
+                    var tm = LinkerUtil.newError(edited,
+                        String.format("Unsatisfied import: %s%s not found in %s %s. Did you mean %s?",
+                                imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(),
+                                imported.getLevel().toString().toLowerCase(), imported.getNamespace(),
+                                namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType().toString().toLowerCase()
+                        )
+                    );
+                    LinkerUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
+                    ctx.addMessage(tm);
                 }
                 else {
                     // finally, if no problems found, create element copy

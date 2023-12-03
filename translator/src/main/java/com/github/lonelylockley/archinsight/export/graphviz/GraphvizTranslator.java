@@ -144,10 +144,6 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
-        if (el.getType() == ElementType.EMPTY) {
-            ElementType.EMPTY.capture(el).foreach(ee -> sb.append(empty(ee.getId())));
-        }
-        else
         if (el.getType() == ElementType.CONTEXT || el.getType() == ElementType.CONTAINER) {
             ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getId()));
         }
@@ -176,9 +172,7 @@ public class GraphvizTranslator extends TranslatorBase {
             ElementType.STORAGE.capture(el).foreach(se -> writeStorageElement(se, sb, level));
         }
 
-        if (el instanceof WithChildElements) {
-            ((WithChildElements) el).getChildren().forEach(ch -> traverseDeclarations(ch, sb, level + 1));
-        }
+        el.hasChildren().foreach(hasChildren -> hasChildren.getChildren().forEach(ch -> traverseDeclarations(ch, sb, level + 1)));
 
         if (el.getType() == ElementType.BOUNDARY) {
             ElementType.BOUNDARY.capture(el).foreach(be -> finishAggregate(sb, be, level));

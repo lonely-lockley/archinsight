@@ -62,7 +62,7 @@ STORAGE     : ('storage')          -> pushMode(IDENTIFIER_MODE) ;
 BOUNDARY    : ('boundary')         -> pushMode(IDENTIFIER_MODE) ;
 IMPORT      : ('import')           -> pushMode(IMPORT_MODE) ;
 AS          : ('as')               -> pushMode(IMPORT_MODE) ;
-IN          : ('in')               -> pushMode(IMPORT_MODE);
+FROM        : ('from')             -> pushMode(IMPORT_MODE);
 
 /* Annotations */
 ATTRIBUTE  : ('@attribute') ;
