@@ -4,6 +4,7 @@ import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.archinsight.security.Authentication;
@@ -33,6 +34,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
     private final RemoteSource remoteSource;
 
+    private Set<UUID> filesWithErrors = new HashSet<>();
     private RepostioryInfo activeRepository;
     private FileSystem fileSystem;
 
@@ -55,10 +57,14 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         initContextMenu(readOnly);
         addComponentHierarchyColumn(node -> {
             var icon = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? VaadinIcon.FOLDER.create() : VaadinIcon.FILE.create();
-            var row = new HorizontalLayout(icon, new Span(node.getName()));
+            var text = new Span(node.getName());
+            var row = new HorizontalLayout(icon, text);
             row.setAlignItems(FlexComponent.Alignment.CENTER);
             row.setSpacing(true);
-            row.setId("gridview_" + node.getId().toString());
+            row.setId("gridnode_" + node.getId().toString());
+            if (filesWithErrors.contains(node.getId())) {
+                text.setClassName("contains-errors");
+            }
             return row;
         });
 
@@ -102,15 +108,31 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         Communication.getBus().register(repositorySelectionListener);
         addDetachListener(e -> { Communication.getBus().unregister(repositorySelectionListener); });
 
-        addItemClickListener(new ComponentEventListener<ItemClickEvent<RepositoryNode>>() {
+        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
+            @Override
+            @Subscribe
+            public void receive(SourceCompilationEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    if (e.failure() && !e.getMessagesByFile().isEmpty()) {
+                        filesWithErrors = e.getMessagesByFile().keySet();
+                    }
+                    if (e.success()) {
+                        filesWithErrors.clear();
+                    }
+                    getDataProvider().refreshAll();
+                }
+            }
+        };
+        Communication.getBus().register(sourceCompilationListener);
+        addDetachListener(e -> { Communication.getBus().unregister(sourceCompilationListener); });
 
+        addItemClickListener(new ComponentEventListener<ItemClickEvent<RepositoryNode>>() {
             @Override
             public void onComponentEvent(ItemClickEvent<RepositoryNode> event) {
                 if (event.getClickCount() == 2) {
                     openNode(Set.of(event.getItem()));
                 }
             }
-
         });
     }
 

@@ -32,6 +32,10 @@ public class IndentHelper {
         this.singleLineMode = true;
     }
 
+    private String indentationError(CommonToken tkn, int actual, int expected) {
+        return String.format("line %d:%d incorrect indentation. current position: %d, expected: %d", tkn.getLine(), tkn.getCharPositionInLine(), actual, expected);
+    }
+
     private void emitIndentToken(CommonToken tkn) {
         indentation++;
         state.incIndentation();
@@ -74,9 +78,8 @@ public class IndentHelper {
         float tmp = (float) position / (float) INDENT_LENGTH;
         if (tmp % 1 != 0) {
             lexer.getErrorListenerDispatch().syntaxError(lexer, tkn, line, position, "incorrect indentation",
-                    new RecognitionException("choo-choo", lexer, lexer._input, null)
-                    );
-            //throw new IndentationException(tkn, position, indentation * INDENT_LENGTH);
+                new RecognitionException(indentationError(tkn, position, indentation * INDENT_LENGTH), lexer, lexer._input, null)
+            );
         }
         return (int) tmp;
     }
@@ -97,7 +100,9 @@ public class IndentHelper {
             // nothing to do here
         }
         else {
-            throw new IndentationException(tkn, curIndentation * INDENT_LENGTH, indentation * INDENT_LENGTH);
+            lexer.getErrorListenerDispatch().syntaxError(lexer, tkn, line, curIndentation * INDENT_LENGTH, "incorrect indentation",
+                    new RecognitionException(indentationError(tkn, curIndentation * INDENT_LENGTH, indentation * INDENT_LENGTH), lexer, lexer._input, null)
+            );
         }
     }
 

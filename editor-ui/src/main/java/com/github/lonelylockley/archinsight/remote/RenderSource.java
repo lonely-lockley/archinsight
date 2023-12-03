@@ -48,20 +48,11 @@ public class RenderSource {
         else {
             long startTime = System.nanoTime();
             var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(code, repositoryId, fileId));
-            if (!translated.isHasErrors()) {
-                var svg = renderer.renderSvg(conf.getRendererAuthToken(), prepareRendererRequest(translated));
-                Communication.getBus().post(new SourceCompilationEvent(true));
-                Communication.getBus().post(new SvgDataEvent(svg));
-            }
-            else {
-                Communication.getBus().post(new SourceCompilationEvent(false));
-            }
             var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
-            logger.info("Render required required {}ms", (System.nanoTime() - startTime) / 1000000);
-            return messages.stream().collect(Collectors.toMap(
+            var messagesByFile = messages.stream().collect(Collectors.toMap(
                     TranslatorMessage::getFileId,
                     msg -> {
-                        var lst = new ArrayList<TranslatorMessage>();
+                        List<TranslatorMessage> lst = new ArrayList<>();
                         lst.add(msg);
                         return lst;
                     },
@@ -70,6 +61,17 @@ public class RenderSource {
                         return res;
                     })
             );
+            if (!translated.isHasErrors()) {
+                var svg = renderer.renderSvg(conf.getRendererAuthToken(), prepareRendererRequest(translated));
+                Communication.getBus().post(new SourceCompilationEvent(true));
+                Communication.getBus().post(new SvgDataEvent(svg));
+            }
+            else {
+                Communication.getBus().post(new SourceCompilationEvent(false, messagesByFile));
+            }
+            logger.info("Render required required {}ms", (System.nanoTime() - startTime) / 1000000);
+
+            return messagesByFile;
         }
         return Collections.emptyMap();
     }
