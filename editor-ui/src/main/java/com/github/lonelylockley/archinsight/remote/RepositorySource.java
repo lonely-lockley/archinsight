@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.remote;
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.NotificationEvent;
+import com.github.lonelylockley.archinsight.model.remote.repository.FileContent;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
@@ -35,7 +36,7 @@ public class RepositorySource {
 
     public RepositoryNode listNodes(UUID repositoryId) {
         try {
-            return repository.listNodes(conf.getRepositoryAuthToken(), repositoryId);
+            return repository.listNodes(conf.getRepositoryAuthToken(), null, null, repositoryId);
         }
         catch (HttpClientResponseException ex) {
             Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
@@ -78,7 +79,8 @@ public class RepositorySource {
 
     public String openFile(UUID fileId) {
         try {
-            return repository.openFile(conf.getRepositoryAuthToken(), fileId).orElse("");
+            var content = repository.openFile(conf.getRepositoryAuthToken(), fileId).getContent();
+            return content == null ? "" : content;
         }
         catch (HttpClientResponseException ex) {
             Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
@@ -88,7 +90,7 @@ public class RepositorySource {
 
     public UUID saveFile(UUID fileId, String content) {
         try {
-            return repository.saveFile(conf.getRepositoryAuthToken(), fileId, content);
+            return repository.saveFile(conf.getRepositoryAuthToken(), fileId, new FileContent(content));
         }
         catch (HttpClientResponseException ex) {
             Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));

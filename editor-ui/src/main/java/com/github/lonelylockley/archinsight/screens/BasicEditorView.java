@@ -23,11 +23,6 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
 
         var title = createTitle(titleSuffix);
 
-        var nav = new RepositoryComponent(readOnly);
-        addToDrawer(nav);
-        addToNavbar(toggle, title);
-        setDrawerOpened(true);
-
         /* =============================================================================================================
          * a hidden element to spawn download links
          * without it, download activation script triggering anchor click, triggers menu item click again causing
@@ -37,12 +32,20 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         invisible.getElement().getStyle().set("display", "none");
         addToDrawer(invisible);
         // =============================================================================================================
-        var contentLayout = new VerticalLayout();
 
+        // create content first to register all event listeners
+        var contentLayout = new VerticalLayout();
         var content = new WorkAreaComponent(invisible, readOnly);
         contentLayout.add(content);
         contentLayout.setSizeFull();
         setContent(contentLayout);
+
+        // and repository component second because it sends event
+        var nav = new RepositoryComponent(readOnly);
+        addToDrawer(nav);
+        addToNavbar(toggle, title);
+        setDrawerOpened(true);
+
         applyDarkTheme(getElement());
     }
 

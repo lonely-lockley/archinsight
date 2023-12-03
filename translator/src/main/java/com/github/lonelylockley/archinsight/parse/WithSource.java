@@ -31,4 +31,12 @@ public abstract class WithSource {
     public int getLine() {
         return line;
     }
+
+    public void clonePositionTo(WithSource res) {
+        res.charPosition = this.charPosition;
+        res.line = line;
+        res.startIndex = startIndex;
+        res.stopIndex = stopIndex;
+    }
+
 }

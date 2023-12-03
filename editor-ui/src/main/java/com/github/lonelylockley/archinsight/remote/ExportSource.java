@@ -1,8 +1,9 @@
 package com.github.lonelylockley.archinsight.remote;
 
 import com.github.lonelylockley.archinsight.Config;
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatedSource;
+import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -23,8 +24,8 @@ public class ExportSource {
     @Inject
     private Config conf;
 
-    private TranslatedSource translateInternal(String code) {
-        var src = new Source();
+    private TranslationResult translateInternal(String code) {
+        var src = new TranslationRequest();
         src.setSource(code);
         return translator.translate(conf.getTranslatorAuthToken(), src);
     }
@@ -34,7 +35,9 @@ public class ExportSource {
         byte[] data = new byte[0];
         var res = translateInternal(code);
         if (res.getMessages() == null || res.getMessages().isEmpty()) {
-            data = renderer.apply(res);
+            var src = new Source();
+            src.setSource(res.getSource());
+            data = renderer.apply(src);
         }
         logger.info("Export to {} required {}ms",
                 format,

@@ -50,3 +50,15 @@
   overflow: hidden;
   font-size: 13px;
 }
+
+.prevent-select {
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.contains-errors {
+  text-decoration-style: wavy;
+  text-decoration-color: red;
+  text-decoration-line: underline;
+}

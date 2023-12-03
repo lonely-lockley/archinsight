@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
 import com.github.lonelylockley.archinsight.tracing.Measured;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;

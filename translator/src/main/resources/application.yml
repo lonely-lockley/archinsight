@@ -7,3 +7,9 @@ micronaut:
     enabled: true
     apiKeys:
       #kid: key
+  http:
+    services: # private network only
+      repository:
+        url: ${REPOSITORY:`http://repository:8080`}
+archinsight:
+  repositoryAuthToken: ${REPOSITORY_TOKEN}

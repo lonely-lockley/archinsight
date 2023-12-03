@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.auth.Keychain;
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.tracing.Measured;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
@@ -31,7 +31,7 @@ public class JWKSService {
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public String jwks(HttpRequest<Source> request) {
+    public String jwks(HttpRequest<TranslationRequest> request) {
         return String.format("{\"keys\":[%s]}", String.join(",", keychain.getJwkPublicKeys().getKeys()));
     }
 

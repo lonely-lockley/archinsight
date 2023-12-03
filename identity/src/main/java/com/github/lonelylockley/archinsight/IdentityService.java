@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.persistence.MigratorRunner;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
@@ -47,7 +47,7 @@ public class IdentityService {
     @Produces(MediaType.APPLICATION_JSON)
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Measured
-    public HttpResponse<Userdata> getById(HttpRequest<Source> request, UUID id) {
+    public HttpResponse<Userdata> getById(HttpRequest<TranslationRequest> request, UUID id) {
         HttpResponse<Userdata> result = HttpResponse.unauthorized();
         if (checkToken(request)) {
             try (var session = sqlSessionFactory.getSession()) {
@@ -67,7 +67,7 @@ public class IdentityService {
     @Produces(MediaType.APPLICATION_JSON)
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Measured
-    public HttpResponse<Userdata> getByEmail(HttpRequest<Source> request, String email) {
+    public HttpResponse<Userdata> getByEmail(HttpRequest<TranslationRequest> request, String email) {
         HttpResponse<Userdata> result = HttpResponse.unauthorized();
         if (checkToken(request)) {
             try (var session = sqlSessionFactory.getSession()) {
@@ -83,7 +83,7 @@ public class IdentityService {
         return result;
     }
 
-    private boolean checkToken(HttpRequest<Source> request) {
+    private boolean checkToken(HttpRequest<TranslationRequest> request) {
         var auth = request.getHeaders().get(HttpHeaders.AUTHORIZATION);
         // cut Bearer_ - 7 characters
         return auth != null && conf.getApiToken().equals(auth.substring(7));

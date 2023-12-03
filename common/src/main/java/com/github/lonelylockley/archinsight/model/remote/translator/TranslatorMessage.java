@@ -1,24 +1,26 @@
 package com.github.lonelylockley.archinsight.model.remote.translator;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
-
 import java.io.Serializable;
+import java.util.UUID;
 
-public class LinkerMessage implements Serializable {
+public class TranslatorMessage implements Serializable {
 
     private MessageLevel level;
     private String msg;
-
+    private UUID fileId;
+    private String location;
     private int charPosition = 0;
     private int startIndex = 0;
     private int stopIndex = 0;
     private int line = 0;
 
-    public LinkerMessage() {}
+    public TranslatorMessage() {}
 
-    public LinkerMessage(MessageLevel level, String msg) {
+    public TranslatorMessage(MessageLevel level, UUID fileId, String location, String msg) {
         this.level = level;
         this.msg = msg;
+        this.fileId = fileId;
+        this.location = location;
     }
 
     public void setLevel(MessageLevel level) {
@@ -67,6 +69,22 @@ public class LinkerMessage implements Serializable {
 
     public int getLine() {
         return line;
+    }
+
+    public UUID getFileId() {
+        return fileId;
+    }
+
+    public void setFileId(UUID fileId) {
+        this.fileId = fileId;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     @Override

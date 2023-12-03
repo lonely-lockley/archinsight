@@ -8,8 +8,6 @@ import java.util.stream.Collectors;
 
 public class SystemElement extends AbstractElement implements WithId, WithParameters, WithAnnotations, WithExternal, WithChildElements, WithNote {
 
-    private static final ElementType type = ElementType.SYSTEM;
-
     private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
     private final List<AbstractElement> children = new ArrayList<>();
 
@@ -81,8 +79,8 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     }
 
     @Override
-    public ElementType getType() {
-        return type;
+    public ElementType<SystemElement> getType() {
+        return ElementType.SYSTEM;
     }
 
     @Override
@@ -98,6 +96,21 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     @Override
     public Map<AnnotationType, AbstractAnnotation> getAnnotations() {
         return annotations;
+    }
+
+    @Override
+    public AbstractElement clone() {
+        var res = new SystemElement();
+        res.note = this.note;
+        res.id = this.id;
+        res.name = this.name;
+        res.description = this.description;
+        res.technology = this.technology;
+        res.external = this.external;
+        res.annotations.putAll(this.annotations);
+        res.children.addAll(this.children);
+        clonePositionTo(res);
+        return res;
     }
 
     @Override

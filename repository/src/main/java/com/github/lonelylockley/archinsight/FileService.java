@@ -2,14 +2,16 @@ package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.exceptionhandling.ServiceException;
 import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
+import com.github.lonelylockley.archinsight.model.remote.repository.FileContent;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
-import com.github.lonelylockley.archinsight.model.remote.translator.Source;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.persistence.FileMapper;
 import com.github.lonelylockley.archinsight.persistence.RepositoryMapper;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.archinsight.security.SecurityConstants;
 import com.github.lonelylockley.archinsight.tracing.Measured;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
@@ -24,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Controller("/file")
@@ -38,9 +41,9 @@ public class FileService {
     private SqlSessionFactoryBean sqlSessionFactory;
 
     @Get("/{fileId}/open")
-    @Produces(MediaType.TEXT_PLAIN)
+    @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<String> open(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID fileId) throws Exception {
+    public HttpResponse<FileContent> open(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID fileId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(FileMapper.class);
             // omit owner check for playground
@@ -48,14 +51,14 @@ public class FileService {
                 // to prevent any file opening by anonymous user we lock user in playground repository
                 var res = sql.openFileInRepository(conf.getPlaygroundRepositoryId(), fileId);
                 session.commit();
-                return HttpResponse.ok(res.getContent());
+                return HttpResponse.ok(new FileContent(res.getContent()));
             }
             else {
                 var repositoryAndOwner = sql.getFileOwnerAndRepositoryById(fileId);
                 if (Objects.equals(repositoryAndOwner.getOwnerId(), ownerId)) {
                     var res = sql.openFile(fileId);
                     session.commit();
-                    return HttpResponse.ok(res.getContent());
+                    return HttpResponse.ok(new FileContent(res.getContent()));
                 }
                 else {
                     throw new ServiceException(new ErrorMessage("User does not own file to be opened", HttpStatus.FORBIDDEN));
@@ -67,29 +70,39 @@ public class FileService {
     @Get("/{repositoryId}/openAll")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<FileData>> openAll(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId) throws Exception {
+    public HttpResponse<List<FileData>> openAll(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
-            var repositoryOwnerId = rm.getRepositoryOwnerId(repositoryId);
-            if (Objects.equals(repositoryOwnerId, ownerId)) {
-                var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
-                var res = fm.openFiles(fs.getAllFileIds(repositoryId));
+            // omit owner check for playground
+            if (SecurityConstants.ROLE_ANONYMOUS.equals(ownerRole)) {
+                // to prevent any file opening by anonymous user we lock user in playground repository
+                var fs = new FileSystem(rm.getRepositoryStructure(conf.getPlaygroundRepositoryId()));
+                var res = fm.openFiles(fs.getAllFileIds(conf.getPlaygroundRepositoryId()));
                 session.commit();
                 return HttpResponse.ok(res);
             }
             else {
-                throw new ServiceException(new ErrorMessage("User does not own files to be opened", HttpStatus.FORBIDDEN));
+                var repositoryOwnerId = rm.getRepositoryOwnerId(repositoryId);
+                if (Objects.equals(repositoryOwnerId, ownerId)) {
+                    var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
+                    var res = fm.openFiles(fs.getAllFileIds(repositoryId));
+                    session.commit();
+                    return HttpResponse.ok(res);
+                }
+                else {
+                    throw new ServiceException(new ErrorMessage("User does not own files to be opened", HttpStatus.FORBIDDEN));
+                }
             }
         }
     }
 
     @Post("/{fileId}/save")
-    @Consumes(MediaType.TEXT_PLAIN)
-    @Produces(MediaType.TEXT_PLAIN)
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<UUID> save(HttpRequest<Source> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, String content) throws Exception {
-        if (!Validations.fileContentLengthIsUnder1MB(content)) {
+    public HttpResponse<UUID> save(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, FileContent fc) throws Exception {
+        if (!Validations.fileContentLengthIsUnder1MB(fc.getContent())) {
             throw new ServiceException(new ErrorMessage("The file is too large", HttpStatus.BAD_REQUEST));
         }
         try (var session = sqlSessionFactory.getSession()) {
@@ -98,7 +111,7 @@ public class FileService {
             var repositoryAndOwner = fm.getFileOwnerAndRepositoryById(fileId);
             if (Objects.equals(repositoryAndOwner.getOwnerId(), ownerId)) {
                 var timestamp = Instant.now();
-                fm.saveFile(fileId, content, timestamp);
+                fm.saveFile(fileId, fc.getContent(), timestamp);
                 rm.touchRepository(repositoryAndOwner.getRepositoryId(), timestamp);
                 session.commit();
                 return HttpResponse.ok(fileId);

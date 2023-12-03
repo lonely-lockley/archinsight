@@ -12,7 +12,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class InsightParserSingleLineBoundaryTest extends TestCommon {
+public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testContextDefinition() throws Exception {
@@ -77,7 +77,7 @@ public class InsightParserSingleLineBoundaryTest extends TestCommon {
                 new Pair<>("TEXT", "klfvb"),
                 new Pair<>("TEXT", "  "),
                 new Pair<>("TEXT", "dlkfvb"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("TEXT", "\n")
         ).toList();
         Iterator<Pair<String, String>> it1 = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -155,7 +155,7 @@ public class InsightParserSingleLineBoundaryTest extends TestCommon {
                 new Pair<>("TEXT", "qu"),
                 new Pair<>("TEXT", " "),
                 new Pair<>("TEXT", "qu"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("TEXT", "\n")
         ).toList();
         Iterator<Pair<String, String>> it3 = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -187,7 +187,7 @@ public class InsightParserSingleLineBoundaryTest extends TestCommon {
                 new Pair<>("TEXT", "vvv"),
                 new Pair<>("TEXT", " "),
                 new Pair<>("TEXT", "g"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("TEXT", "\n")
         ).toList();
         Iterator<Pair<String, String>> it3 = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();

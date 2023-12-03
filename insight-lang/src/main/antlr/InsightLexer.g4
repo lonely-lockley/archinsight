@@ -56,14 +56,17 @@ NAME        : ('name') ;
 DESCRIPTION : ('description' | 'desc') ;
 TECHNOLOGY  : ('technology' | 'tech') ;
 LINKS       : ('links') ;
-WIRE        : ('->' | '~>')        -> pushMode(IDENTIFIER_MODE) ;
+WIRE        : ('->' | '~>')        -> pushMode(IMPORT_MODE) ;
 SERVICE     : ('service')          -> pushMode(IDENTIFIER_MODE) ;
 STORAGE     : ('storage')          -> pushMode(IDENTIFIER_MODE) ;
 BOUNDARY    : ('boundary')         -> pushMode(IDENTIFIER_MODE) ;
+IMPORT      : ('import')           -> pushMode(IMPORT_MODE) ;
+AS          : ('as')               -> pushMode(IMPORT_MODE) ;
+FROM        : ('from')             -> pushMode(IMPORT_MODE);
 
 /* Annotations */
-ATTRIBUTE : ('@attribute') ;
-PLANNED : ('@planned') ;
+ATTRIBUTE  : ('@attribute') ;
+PLANNED    : ('@planned') ;
 DEPRECATED : ('@deprecated') ;
 
 fragment LowerLetter  : 'a'..'z' ;
@@ -85,8 +88,8 @@ ANNOTATION_VALUE : OpenBracket ( ~[)] )* CloseBracket ;
 COMMENT          : '#' .*? (EOL | EOF) ;
 
 mode NAMESPACE_MODE;
-PROJECTNAME     : (LowerLetter (LowerLetter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
-BLANK_NAMESPACE : BLANK -> skip ;
+NAMESPACE           : (LowerLetter (LowerLetter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
+BLANK_NAMESPACE     : BLANK -> skip ;
 
 mode IDENTIFIER_MODE;
 ID                : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
@@ -98,3 +101,11 @@ BLANK_VALUE        : BLANK -> type(TEXT), channel(DEFAULT_TOKEN_CHANNEL) ;
 INDENTATION_VALUE  : INDENTATION -> type(INDENTATION), channel(HIDDEN) ;
 EOL_VALUE          : EOL INDENTATION? { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
 EOF_VALUE          : EOF -> type(EOF), popMode ;
+
+mode IMPORT_MODE;
+CONTEXT_IMPORT           : CONTEXT -> popMode, pushMode(NAMESPACE_MODE) ;
+CONTAINER_IMPORT         : CONTAINER -> popMode, pushMode(NAMESPACE_MODE) ;
+CONTEXT_ELEMENT_IMPORT   : (SYSTEM | ACTOR) ;
+CONTAINER_ELEMENT_IMPORT : (SERVICE | STORAGE) ;
+IDENTIFIER_IMPORT        : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
+BLANK_IMPORT             : BLANK -> skip ;

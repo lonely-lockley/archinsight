@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class RepositoryNode implements Serializable {
 
@@ -16,7 +17,7 @@ public class RepositoryNode implements Serializable {
     private UUID parentId;
     private String name;
     private String type;
-    private List<RepositoryNode> childNodes;
+    private List<RepositoryNode> childNodes = new ArrayList<>();
 
     private RepositoryNode(UUID id, String name, String type, List<RepositoryNode> childNodes) {
         this.id = id;
@@ -94,5 +95,16 @@ public class RepositoryNode implements Serializable {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return "RepositoryNode{" +
+                "id=" + id +
+                ", parentId=" + parentId +
+                ", name='" + name + '\'' +
+                ", type='" + type + '\'' +
+                ", childNodes=[\n" + childNodes.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
+                "]}";
     }
 }

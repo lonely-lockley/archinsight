@@ -1,15 +1,17 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class BoundaryElement extends AbstractElement implements WithId, WithChildElements, WithParameters {
-
-    private static final ElementType type = ElementType.BOUNDARY;
+public class BoundaryElement extends AbstractElement implements WithId, WithChildElements, WithParameters, WithImports {
 
     private final List<AbstractElement> children = new ArrayList<>();
+    private final List<AbstractImport> imports = new ArrayList<>();
+
     private String id = null;
     private String name = null;
     private String desc = null;
@@ -66,8 +68,21 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     }
 
     @Override
-    public ElementType getType() {
-        return type;
+    public ElementType<BoundaryElement> getType() {
+        return ElementType.BOUNDARY;
+    }
+
+    @Override
+    public AbstractElement clone() {
+        var res = new BoundaryElement();
+        res.id = this.id;
+        res.name = this.name;
+        res.desc = this.desc;
+        res.tech = this.tech;
+        res.imports.addAll(this.imports);
+        res.children.addAll(this.children);
+        clonePositionTo(res);
+        return res;
     }
 
     @Override
@@ -77,6 +92,7 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
                 ", name='" + name + '\'' +
                 ", desc='" + desc + '\'' +
                 ", tech='" + tech + '\'' +
+                "', imports=[\n" + imports.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 ", children=[\n" + children.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 "]}";
     }
@@ -93,4 +109,13 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
         return Objects.hash(id);
     }
 
+    @Override
+    public void addImport(AbstractImport newImport) {
+        this.imports.add(newImport);
+    }
+
+    @Override
+    public List<AbstractImport> getImports() {
+        return imports;
+    }
 }

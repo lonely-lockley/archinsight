@@ -8,8 +8,6 @@ import java.util.stream.Collectors;
 
 public class ActorElement extends AbstractElement implements WithId, WithParameters, WithAnnotations, WithChildElements, WithNote {
 
-    private static final ElementType type = ElementType.ACTOR;
-
     private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
     private final List<AbstractElement> children = new ArrayList<>();
 
@@ -70,8 +68,8 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     }
 
     @Override
-    public ElementType getType() {
-        return type;
+    public ElementType<ActorElement> getType() {
+        return ElementType.ACTOR;
     }
 
     @Override
@@ -87,6 +85,20 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     @Override
     public Map<AnnotationType, AbstractAnnotation> getAnnotations() {
         return annotations;
+    }
+
+    @Override
+    public AbstractElement clone() {
+        var res = new ActorElement();
+        res.note = this.note;
+        res.id = this.id;
+        res.name = this.name;
+        res.description = this.description;
+        res.technology = this.technology;
+        res.annotations.putAll(this.annotations);
+        res.children.addAll(this.children);
+        clonePositionTo(res);
+        return res;
     }
 
     @Override

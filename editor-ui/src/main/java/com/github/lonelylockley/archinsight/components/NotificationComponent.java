@@ -1,10 +1,12 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
+import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
@@ -29,7 +31,7 @@ public class NotificationComponent extends Notification {
                 addThemeVariants(NotificationVariant.LUMO_ERROR);
                 break;
         }
-        Div text = new Div(new Text(String.format("%s", message)));
+        var text = new Html(String.format("<div>%s</div>", message.replaceAll("\n", "<br/>")));
 
         Button closeButton = new Button(new Icon("lumo", "cross"));
         closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);

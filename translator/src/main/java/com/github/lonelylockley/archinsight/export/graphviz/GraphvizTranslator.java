@@ -1,11 +1,11 @@
 package com.github.lonelylockley.archinsight.export.graphviz;
 
+import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
-import com.github.lonelylockley.archinsight.parse.ParseResult;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -45,72 +45,68 @@ public class GraphvizTranslator extends TranslatorBase {
         return res;
     }
 
-    private void writeElement(AbstractElement el, StringBuilder sb, int level) {
-        switch (el.getType()) {
-            case SYSTEM:
-            case SERVICE:
-                var se = (SystemElement) el;
-                if (se.isExternal()) {
-                    writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
-                        se.getType(),
-                        se.getAnnotations(),
-                        new Tuple2<>("shape", "box"),
-                        new Tuple2<>("style", "filled"),
-                        new Tuple2<>("fillcolor", "#999999"))
-                    );
-                }
-                else {
-                    writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
-                        se.getType(),
-                        se.getAnnotations(),
-                        new Tuple2<>("shape", "box"),
-                        new Tuple2<>("style", "filled"),
-                        new Tuple2<>("fillcolor", "#438dd5"))
-                    );
-                }
-                if (se.getNote() != null) {
-                    writeNote(se, se, sb, level);
-                }
-                break;
-            case ACTOR:
-                var act = (ActorElement) el;
-                writeBlock(sb, act.getId(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
-                        act.getType(),
-                        act.getAnnotations(),
-                        new Tuple2<>("shape", "egg"),
-                        new Tuple2<>("style", "filled"),
-                        new Tuple2<>("fillcolor", "#08427B"))
-                );
-                if (act.getNote() != null) {
-                    writeNote(act, act, sb, level);
-                }
-                break;
-            case STORAGE:
-                var stor = (StorageElement) el;
-                if (stor.isExternal()) {
-                    writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
-                            stor.getType(),
-                            stor.getAnnotations(),
-                            new Tuple2<>("shape", "cylinder"),
-                            new Tuple2<>("style", "filled"),
-                            new Tuple2<>("fillcolor", "#4d4d4d"))
-                    );
-                }
-                else {
-                    writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
-                            stor.getType(),
-                            stor.getAnnotations(),
-                            new Tuple2<>("shape", "cylinder"),
-                            new Tuple2<>("style", "filled"),
-                            new Tuple2<>("fillcolor", "#08427B"))
-                    );
-                }
-                if (stor.getNote() != null) {
-                    writeNote(stor, stor, sb, level);
-                }
-                break;
-            default:
-                break;
+    private void writeSystemElement(SystemElement se, StringBuilder sb, int level) {
+        if (se.isExternal()) {
+            writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+                    se.getType(),
+                    se.getAnnotations(),
+                    new Tuple2<>("shape", "box"),
+                    new Tuple2<>("style", "filled"),
+                    new Tuple2<>("fillcolor", "#999999"))
+            );
+        }
+        else {
+            writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+                    se.getType(),
+                    se.getAnnotations(),
+                    new Tuple2<>("shape", "box"),
+                    new Tuple2<>("style", "filled"),
+                    new Tuple2<>("fillcolor", "#438dd5"))
+            );
+        }
+        if (se.getNote() != null) {
+            writeNote(se, se, sb, level);
+        }
+    }
+
+    private void writeServiceElement(ServiceElement se, StringBuilder sb, int level) {
+        writeSystemElement(se, sb, level);
+    }
+
+    private void writeActorElement(ActorElement act, StringBuilder sb, int level) {
+        writeBlock(sb, act.getId(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
+                act.getType(),
+                act.getAnnotations(),
+                new Tuple2<>("shape", "egg"),
+                new Tuple2<>("style", "filled"),
+                new Tuple2<>("fillcolor", "#08427B"))
+        );
+        if (act.getNote() != null) {
+            writeNote(act, act, sb, level);
+        }
+    }
+
+    private void writeStorageElement(StorageElement stor, StringBuilder sb, int level) {
+        if (stor.isExternal()) {
+            writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+                    stor.getType(),
+                    stor.getAnnotations(),
+                    new Tuple2<>("shape", "cylinder"),
+                    new Tuple2<>("style", "filled"),
+                    new Tuple2<>("fillcolor", "#4d4d4d"))
+            );
+        }
+        else {
+            writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+                    stor.getType(),
+                    stor.getAnnotations(),
+                    new Tuple2<>("shape", "cylinder"),
+                    new Tuple2<>("style", "filled"),
+                    new Tuple2<>("fillcolor", "#08427B"))
+            );
+        }
+        if (stor.getNote() != null) {
+            writeNote(stor, stor, sb, level);
         }
     }
 
@@ -140,28 +136,46 @@ public class GraphvizTranslator extends TranslatorBase {
         );
     }
 
+    private void traverseImports(ParsedFileDescriptor descriptor, StringBuilder sb) {
+        descriptor.getImports().forEach(i -> {
+            var el = descriptor.getDeclared(i.getAlias());
+            traverseDeclarations(el, sb, 1);
+        });
+    }
+
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
         if (el.getType() == ElementType.CONTEXT || el.getType() == ElementType.CONTAINER) {
-            writeHeader(sb, ((WithId) el).getId());
+            ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getId()));
         }
         else
         if (el.getType() == ElementType.BOUNDARY) {
-            startAggregate(sb, (BoundaryElement) el, level);
+            ElementType.BOUNDARY.capture(el).foreach(be -> startAggregate(sb, be, level));
         }
         else
         if (el.getType() == ElementType.LINK) {
-            connections.add((LinkElement) el);
+            ElementType.LINK.capture(el).foreach(connections::add);
         }
-        else {
-            writeElement(el, sb, level);
+        else
+        if (el.getType() == ElementType.SYSTEM) {
+            ElementType.SYSTEM.capture(el).foreach(se -> writeSystemElement(se, sb, level));
+        }
+        else
+        if (el.getType() == ElementType.SERVICE) {
+            ElementType.SERVICE.capture(el).foreach(se -> writeServiceElement(se, sb, level));
+        }
+        else
+        if (el.getType() == ElementType.ACTOR) {
+            ElementType.ACTOR.capture(el).foreach(ae -> writeActorElement(ae, sb, level));
+        }
+        else
+        if (el.getType() == ElementType.STORAGE) {
+            ElementType.STORAGE.capture(el).foreach(se -> writeStorageElement(se, sb, level));
         }
 
-        if (el instanceof WithChildElements) {
-            ((WithChildElements) el).getChildren().forEach(ch -> traverseDeclarations(ch, sb, level + 1));
-        }
+        el.hasChildren().foreach(hasChildren -> hasChildren.getChildren().forEach(ch -> traverseDeclarations(ch, sb, level + 1)));
 
         if (el.getType() == ElementType.BOUNDARY) {
-            finishAggregate(sb, (BoundaryElement) el, level);
+            ElementType.BOUNDARY.capture(el).foreach(be -> finishAggregate(sb, be, level));
         }
     }
 
@@ -185,12 +199,19 @@ public class GraphvizTranslator extends TranslatorBase {
         });
     }
 
-    public String translate(ParseResult pr) {
-        var res = new StringBuilder();
-        traverseDeclarations(pr.getRoot(), res, 0);
-        res.append('\n');
-        traverseConnections(res);
-        finish(res);
-        return res.toString();
+    public String translate(ParsedFileDescriptor descriptor) {
+        var root = descriptor.getParseResult().getRoot();
+        if (root.getType() == ElementType.EMPTY) {
+            return empty("empty");
+        }
+        else {
+            var res = new StringBuilder();
+            traverseDeclarations(root, res, 0);
+            traverseImports(descriptor, res);
+            res.append('\n');
+            traverseConnections(res);
+            finish(res);
+            return res.toString();
+        }
     }
 }

@@ -10,12 +10,12 @@ options { tokenVocab = InsightLexer; }
 
 /* This will be the entry point of our parser. */
 insight
-    :    levelDeclaration EOF
+    :    commentDeclaration? levelDeclaration? EOF
     ;
 
 levelDeclaration
-    :   ( contextDeclaration contextElementDeclaration*
-        | containerDeclaration containerElementDeclaration*
+    :   ( contextDeclaration namedImportDeclaration* contextElementDeclaration*
+        | containerDeclaration namedImportDeclaration* containerElementDeclaration*
         )
     ;
 
@@ -25,6 +25,40 @@ contextDeclaration
 
 containerDeclaration
     :    CONTAINER IDENTIFIER EOL
+    ;
+
+namedImportDeclaration
+    :   IMPORT importElementDeclaration importAliasDeclaration? EOL?
+    ;
+
+importAliasDeclaration
+    :   AS IDENTIFIER
+    ;
+
+anonymousImportDeclaration
+    :   importElementDeclaration
+    ;
+
+importElementDeclaration
+    :   ( importContextElementDeclaration
+        | importContainerElementDeclaration
+        )
+    ;
+
+importContextElementDeclaration
+    :   CONTEXT_ELEMENT_IMPORT? IDENTIFIER FROM importContextDeclaration
+    ;
+
+importContextDeclaration
+    :   CONTEXT_IMPORT IDENTIFIER
+    ;
+
+importContainerElementDeclaration
+    :   CONTAINER_ELEMENT_IMPORT? IDENTIFIER FROM importContainerDeclaration
+    ;
+
+importContainerDeclaration
+    :   CONTAINER_IMPORT IDENTIFIER
     ;
 
 contextElementDeclaration
@@ -60,11 +94,11 @@ boundaryForContainerDeclaration
     ;
 
 boundaryContext
-    :    INDENT boundaryParameters? contextElementDeclaration+ DEDENT
+    :    INDENT boundaryParameters? namedImportDeclaration* contextElementDeclaration+ DEDENT
     ;
 
 boundaryContainer
-    :    INDENT boundaryParameters? containerElementDeclaration+ DEDENT
+    :    INDENT boundaryParameters? namedImportDeclaration* containerElementDeclaration+ DEDENT
     ;
 
 boundaryParameters
@@ -148,7 +182,7 @@ wireList
     ;
 
 wireDeclaration
-    :    annotationDeclaration? WIRE IDENTIFIER EOL wireParameters? EOL?
+    :    annotationDeclaration? WIRE (anonymousImportDeclaration | IDENTIFIER) EOL? wireParameters? EOL?
     ;
 
 wireParameters

@@ -40,6 +40,8 @@
     <logger name="com.github.lonelylockley.archinsight.exceptionhandling.ServiceExceptionHandler" level="INFO" additivity="false">
         <appender-ref ref="SHORT" />
     </logger>
+    <!-- Debug requests -->
+    <!--logger level="TRACE" name="io.micronaut.http.client" /-->
 
     <root level="INFO">
         <appender-ref ref="ASYNC"/>

@@ -35,8 +35,8 @@ public interface FileMapper {
     @Delete("delete from public.file where repository_id = #{repositoryId}")
     public void deleteAllRepositoryFiles(UUID repositoryId);
 
-    @Update("update pubic.file set file_name = #{filename} where id = #{fileId}")
-    public void renameFile(UUID fileID, String filename);
+    @Update("update public.file set file_name = #{filename} where id = #{fileId}")
+    public void renameFile(UUID fileId, String filename);
 
     @Select("select repository_id, owner_id from public.file where id = #{fileId}")
     public FileOwnerAndRepository getFileOwnerAndRepositoryById(UUID fileId);
