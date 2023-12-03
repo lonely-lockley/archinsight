@@ -10,7 +10,7 @@ options { tokenVocab = InsightLexer; }
 
 /* This will be the entry point of our parser. */
 insight
-    :    commentDeclaration? levelDeclaration? EOF
+    :    commentDeclaration* levelDeclaration? EOF
     ;
 
 levelDeclaration
