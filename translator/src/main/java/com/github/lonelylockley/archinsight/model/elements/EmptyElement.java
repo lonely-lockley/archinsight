@@ -1,8 +1,10 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import java.util.UUID;
+
 public class EmptyElement extends AbstractElement implements WithId {
 
-    private String id = "<empty>";
+    private String id = "empty_" + UUID.randomUUID();
 
     public EmptyElement() {
     }

@@ -28,18 +28,13 @@ public class ParsedFileDescriptor {
 
     private void stat(AbstractElement el) {
         if (el.getType() == ElementType.CONTEXT) {
-            ElementType.CONTEXT.capture(el).foreach(c -> {
-                this.level = ArchLevel.CONTEXT;
-                this.namespace = c.getId();
-            });
+            this.level = ArchLevel.CONTEXT;
         }
         else
         if (el.getType() == ElementType.CONTAINER) {
-            ElementType.CONTAINER.capture(el).foreach(c -> {
-                level = ArchLevel.CONTAINER;
-                this.namespace = c.getId();
-            });
+            this.level = ArchLevel.CONTAINER;
         }
+        el.hasId().foreach(wid -> this.namespace = wid.getId());
     }
 
     public void declare(String id, AbstractElement el) {

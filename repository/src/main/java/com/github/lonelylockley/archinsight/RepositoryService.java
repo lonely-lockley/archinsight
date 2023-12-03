@@ -199,7 +199,7 @@ public class RepositoryService {
                 var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
                 var res = fs.renameNode(node.getId(), node.getName());
                 rm.setRepositoryStructure(repositoryId, fs.getRoot(), Instant.now());
-                if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
+                if (RepositoryNode.TYPE_FILE.equals(res.getType())) {
                     fm.renameFile(res.getId(), res.getName());
                 }
                 session.commit();

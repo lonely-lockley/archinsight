@@ -7,7 +7,6 @@ import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.security.Authentication;
@@ -80,6 +79,9 @@ public class EditorComponent extends Div {
             @Subscribe
             public void receive(RepositoryCloseEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
+                if (!Authentication.playgroundModeEnabled()) {
+                    saveCode();
+                }
                 repositorySelected = null;
                 fileOpened = null;
             }
@@ -105,6 +107,9 @@ public class EditorComponent extends Div {
             @Subscribe
             public void receive(FileCloseRequestEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
+                if (!Authentication.playgroundModeEnabled()) {
+                    saveCode();
+                }
                 fileOpened = null;
             }
             }
@@ -125,7 +130,7 @@ public class EditorComponent extends Div {
             var messages = remoteSource.render.render(code, repo, file);
             var msg = new StringBuilder();
             for (Map.Entry<UUID, List<TranslatorMessage>> entry : messages.entrySet()) {
-                if (Objects.equals(fileOpened.getId(), entry.getKey())) {
+                if (Objects.equals(file, entry.getKey())) {
                     ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
                     getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(messages.get(fileOpened.getId())));
                 }
@@ -158,6 +163,24 @@ public class EditorComponent extends Div {
 
     public void reset() {
         getElement().executeJs("window.editor.setValue('')");
+    }
+
+    public void saveCode() {
+        if (fileOpened != null) {
+            // capture context, because lambdas will be called asynchronously when fileOpened will be already updated
+            final var filename = fileOpened.getName();
+            final var id = fileOpened.getId();
+            getElement().executeJs("return window.editor.getValue()").then(String.class,
+                    code -> {
+                        remoteSource.repository.saveFile(id, code);
+                        // this messages seems to be annoying. may be uncommented any time later
+                        //Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, String.format("File %s saved", filename), 3000));
+                    },
+                    error -> {
+                        Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, String.format("Could not save file %s", filename), 3000));
+                    }
+            );
+        }
     }
 
 }
