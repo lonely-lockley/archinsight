@@ -53,6 +53,9 @@ public class MenuBarComponent extends MenuBar {
         saveButton.setId("menu_btn_file_save");
         saveButton.add(new Icon(VaadinIcon.CLOUD_DOWNLOAD));
         saveButton.setEnabled(false);
+        if (readOnly) {
+            saveButton.setVisible(false);
+        }
         var item = addItem("Download source", listener);
         item.setId("menu_btn_file_download");
         item.add(new Icon(VaadinIcon.DOWNLOAD));

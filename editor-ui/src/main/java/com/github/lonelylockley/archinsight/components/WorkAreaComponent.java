@@ -27,10 +27,13 @@ public class WorkAreaComponent extends VerticalLayout {
         add(menuBar);
         add(splitPane);
         switchListener.setRepositoryCloseCallback(e -> {
-            menu.disableExportButton();
-            menu.disableControlButtons();
-            editor.closeFile(e.getReason());
-            view.reset();
+            var closed = editor.closeFile(e.getReason());
+            if (closed) {
+                view.reset();
+                menu.disableSaveButton();
+                menu.disableExportButton();
+                menu.disableControlButtons();
+            }
         });
         switchListener.setFileCloseCallback(e -> {
             var closed = editor.closeFile(e.getReason());

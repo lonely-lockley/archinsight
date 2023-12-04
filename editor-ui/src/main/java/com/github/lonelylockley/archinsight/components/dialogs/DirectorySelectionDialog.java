@@ -44,6 +44,7 @@ public class DirectorySelectionDialog extends Dialog implements FileDialog {
         add(new Label(question1));
         input.setWidth("100%");
         input.setPattern(FileSystem.POSIX_FILE_NAME_PTR);
+        input.getStyle().set("padding-bottom", "10px");
         if (helpText != null) {
             input.setHelperText(helpText);
         }

@@ -72,9 +72,12 @@ public class FileSystem {
         if (dup.isPresent()) {
             throw new ServiceException(new ErrorMessage("Already exists"));
         }
-        newNode.setId(UUID.randomUUID());
-        newNode.setChildNodes(new ArrayList<>());
+        if (newNode.getId() == null) {
+            // needed on repository, but breaks editor-ui
+            newNode.setId(UUID.randomUUID());
+        }
         parent.addChild(newNode);
+        index.put(newNode.getId(), newNode);
         return newNode;
     }
 

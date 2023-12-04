@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.orderedlayout.Scroller;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 public class RepositoryComponent extends VerticalLayout {

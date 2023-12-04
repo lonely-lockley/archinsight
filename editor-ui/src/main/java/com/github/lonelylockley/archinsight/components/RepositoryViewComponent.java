@@ -49,8 +49,6 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             }
         });
         setClassName("prevent-select");
-        setWidth("100%");
-        setHeight("100%");
         ((AbstractGridSingleSelectionModel<RepositoryNode>) getSelectionModel()).setDeselectAllowed(false);
         initContextMenu(readOnly);
         addComponentHierarchyColumn(node -> {
@@ -64,6 +62,9 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                 text.setClassName("contains-errors");
             }
             return row;
+        }).setAutoWidth(true);
+        addExpandListener((event) -> {
+            recalculateColumnWidths();
         });
 
         switchListener.setRepositoryCloseCallback(e -> {
@@ -112,6 +113,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             public void receive(FileCreatedEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
                     getTreeData().addItem(e.getParent(), e.getCreatedFile());
+                    fileSystem.createNode(e.getCreatedFile());
                     getDataProvider().refreshAll();
                     storeOpenedFile(e.getCreatedFile().getId());
                     fileRestorationCallback(e.getCreatedFile().getId());
@@ -235,6 +237,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         }
         node = remoteSource.repository.createNode(switchListener.getActiveRepositoryId(), node);
         getTreeData().addItem(parent, node);
+        fileSystem.createNode(node);
         getDataProvider().refreshAll();
     }
 
@@ -242,11 +245,14 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         var selection = getSelectedItems();
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
-            remoteSource.repository.removeNode(switchListener.getActiveRepositoryId(), node.getId());
+            var deleted = remoteSource.repository.removeNode(switchListener.getActiveRepositoryId(), node.getId());
             getTreeData().removeItem(node);
+            fileSystem.removeNode(node.getId());
             getDataProvider().refreshAll();
             deselect(node);
-            Communication.getBus().post(new FileCloseRequestEvent(CloseReason.DELETED));
+            if (deleted.contains(switchListener.getOpenedFileId())) {
+                Communication.getBus().post(new FileCloseRequestEvent(CloseReason.DELETED));
+            }
             storeOpenedFile(null);
         }
     }
@@ -258,6 +264,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             newName = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? newName : ensureFileExtensionAdded(newName);
             remoteSource.repository.renameNode(switchListener.getActiveRepositoryId(), node.getId(), newName);
             node.setName(newName);
+            fileSystem.renameNode(node.getId(), newName);
             getDataProvider().refreshItem(node);
             getDataProvider().refreshAll();
         }
