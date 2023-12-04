@@ -14,7 +14,7 @@ public class AuthorizationFilter implements HttpClientFilter {
 
     @Override
     public Publisher<? extends HttpResponse<?>> doFilter(MutableHttpRequest<?> request, ClientFilterChain chain) {
-        if (Authentication.authenticated()) {
+        if (Authentication.authenticated() && !Authentication.playgroundModeEnabled()) {
             var user = Authentication.getAuthenticatedUser();
             request.getHeaders().add(SecurityConstants.USER_ID_HEADER_NAME, user.getId().toString());
             request.getHeaders().add(SecurityConstants.USER_ROLE_HEADER_NAME, SecurityConstants.ROLE_USER);

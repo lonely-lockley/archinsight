@@ -8,8 +8,12 @@ import com.vaadin.flow.server.VaadinSession;
 
 import javax.servlet.http.Cookie;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Authentication {
+
+    private static final String pg_attribute = "playground_mode";
 
     public static boolean authenticated() {
         var session = VaadinSession.getCurrent();
@@ -36,20 +40,31 @@ public class Authentication {
         return token.isPresent();
     }
 
+    private static Map<Integer, Boolean> getPgModeOrCreate(VaadinSession session) {
+        var attr = (HashMap<Integer, Boolean>) session.getAttribute(pg_attribute);
+        if (attr == null) {
+            attr = new HashMap<>();
+            session.setAttribute(pg_attribute, attr);
+        }
+        return attr;
+    }
+
     public static void enablePlaygroundMode() {
         var session = VaadinSession.getCurrent();
-        session.setAttribute("playground_mode", true);
+        var pg = getPgModeOrCreate(session);
+        pg.put(UI.getCurrent().getUIId(), true);
     }
 
     public static boolean playgroundModeEnabled() {
         var session = VaadinSession.getCurrent();
-        var pgMode = session.getAttribute("playground_mode");
-        return pgMode != null;
+        var pg = getPgModeOrCreate(session);
+        return pg.get(UI.getCurrent().getUIId()) != null;
     }
 
     public static void disablePlaygroundMode() {
         var session = VaadinSession.getCurrent();
-        session.setAttribute("playground_mode", null);
+        var pg = getPgModeOrCreate(session);
+        pg.remove(UI.getCurrent().getUIId());
     }
 
     public static void authenticate() {
