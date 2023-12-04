@@ -71,6 +71,15 @@ public class Linker {
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
+                else
+                // check imported element is not a boundary
+                if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(namespaces.get(namespaceLId).getDeclared(imported.getAlias()).getType().toString().toLowerCase(), ElementType.BOUNDARY.toString().toLowerCase())) {
+                    var tm = LinkerUtil.newError(edited,
+                            "Boundary cannot be imported"
+                    );
+                    LinkerUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
+                    ctx.addMessage(tm);
+                }
                 else {
                     // finally, if no problems found, create element copy
                     var el = namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());

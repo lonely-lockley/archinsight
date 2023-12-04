@@ -14,14 +14,14 @@ public class AuthorizationFilter implements HttpClientFilter {
 
     @Override
     public Publisher<? extends HttpResponse<?>> doFilter(MutableHttpRequest<?> request, ClientFilterChain chain) {
-        if ((Authentication.authenticated() && Authentication.playgroundModeEnabled()) || !Authentication.authenticated()) {
-            request.getHeaders().add(SecurityConstants.USER_ID_HEADER_NAME, SecurityConstants.ANONYMOUS_USER_ID.toString());
-            request.getHeaders().add(SecurityConstants.USER_ROLE_HEADER_NAME, SecurityConstants.ROLE_ANONYMOUS);
-        }
-        else {
+        if (Authentication.authenticated()) {
             var user = Authentication.getAuthenticatedUser();
             request.getHeaders().add(SecurityConstants.USER_ID_HEADER_NAME, user.getId().toString());
             request.getHeaders().add(SecurityConstants.USER_ROLE_HEADER_NAME, SecurityConstants.ROLE_USER);
+        }
+        else {
+            request.getHeaders().add(SecurityConstants.USER_ID_HEADER_NAME, SecurityConstants.ANONYMOUS_USER_ID.toString());
+            request.getHeaders().add(SecurityConstants.USER_ROLE_HEADER_NAME, SecurityConstants.ROLE_ANONYMOUS);
         }
         return chain.proceed(request);
     }
