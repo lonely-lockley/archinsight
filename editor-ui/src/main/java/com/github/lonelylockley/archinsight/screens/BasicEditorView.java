@@ -1,10 +1,7 @@
 package com.github.lonelylockley.archinsight.screens;
 
 import com.github.lonelylockley.archinsight.components.*;
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.NotificationEvent;
-import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
+import com.github.lonelylockley.archinsight.events.*;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.applayout.AppLayout;
 import com.vaadin.flow.component.applayout.DrawerToggle;
@@ -18,7 +15,7 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
 
     protected void initView(String titleSuffix, boolean readOnly) {
         registerNotificationListener();
-        Communication.getBus().post(new RepositoryCloseEvent());
+        Communication.getBus().post(new RepositoryCloseEvent(CloseReason.CLOSED));
         DrawerToggle toggle = new DrawerToggle();
 
         var title = createTitle(titleSuffix);

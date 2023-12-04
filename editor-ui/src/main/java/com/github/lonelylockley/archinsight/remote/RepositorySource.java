@@ -4,7 +4,7 @@ import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.NotificationEvent;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileContent;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import io.micronaut.http.client.exceptions.HttpClientResponseException;
@@ -24,7 +24,7 @@ public class RepositorySource {
     @Inject
     private Config conf;
 
-    public List<RepostioryInfo> listUserRepositories() {
+    public List<RepositoryInfo> listUserRepositories() {
         try {
             return repository.listUserRepositories(conf.getRepositoryAuthToken());
         }
@@ -98,9 +98,9 @@ public class RepositorySource {
         }
     }
 
-    public RepostioryInfo createRepository(String name) {
+    public RepositoryInfo createRepository(String name) {
         try {
-            var repo = new RepostioryInfo();
+            var repo = new RepositoryInfo();
             repo.setName(name);
             return repository.createRepository(conf.getRepositoryAuthToken(), repo);
         }
@@ -110,9 +110,9 @@ public class RepositorySource {
         }
     }
 
-    public RepostioryInfo renameRepository(UUID repositoryId, String newName) {
+    public RepositoryInfo renameRepository(UUID repositoryId, String newName) {
         try {
-            var repo = new RepostioryInfo();
+            var repo = new RepositoryInfo();
             repo.setName(newName);
             return repository.renameRepository(conf.getRepositoryAuthToken(), repositoryId, repo);
         }

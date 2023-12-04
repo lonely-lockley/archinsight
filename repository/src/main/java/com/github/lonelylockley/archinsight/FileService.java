@@ -24,10 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Controller("/file")
 @Secured(SecurityRule.IS_AUTHENTICATED)
@@ -78,17 +75,29 @@ public class FileService {
             if (SecurityConstants.ROLE_ANONYMOUS.equals(ownerRole)) {
                 // to prevent any file opening by anonymous user we lock user in playground repository
                 var fs = new FileSystem(rm.getRepositoryStructure(conf.getPlaygroundRepositoryId()));
-                var res = fm.openFiles(fs.getAllFileIds(conf.getPlaygroundRepositoryId()));
-                session.commit();
-                return HttpResponse.ok(res);
+                var ids = fs.getAllFileIds(conf.getPlaygroundRepositoryId());
+                if (ids.isEmpty()) {
+                    return HttpResponse.ok(Collections.emptyList());
+                }
+                else {
+                    var res = fm.openFiles(ids);
+                    session.commit();
+                    return HttpResponse.ok(res);
+                }
             }
             else {
                 var repositoryOwnerId = rm.getRepositoryOwnerId(repositoryId);
                 if (Objects.equals(repositoryOwnerId, ownerId)) {
                     var fs = new FileSystem(rm.getRepositoryStructure(repositoryId));
-                    var res = fm.openFiles(fs.getAllFileIds(repositoryId));
-                    session.commit();
-                    return HttpResponse.ok(res);
+                    var ids = fs.getAllFileIds(repositoryId);
+                    if (ids.isEmpty()) {
+                        return HttpResponse.ok(Collections.emptyList());
+                    }
+                    else {
+                        var res = fm.openFiles(ids);
+                        session.commit();
+                        return HttpResponse.ok(res);
+                    }
                 }
                 else {
                     throw new ServiceException(new ErrorMessage("User does not own files to be opened", HttpStatus.FORBIDDEN));

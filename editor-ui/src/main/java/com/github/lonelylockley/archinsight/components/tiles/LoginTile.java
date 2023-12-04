@@ -1,10 +1,7 @@
 package com.github.lonelylockley.archinsight.components.tiles;
 
 import com.github.lonelylockley.archinsight.components.NotificationComponent;
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
-import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
+import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.screens.SiteView;
@@ -100,7 +97,7 @@ public class LoginTile extends SiteViewTile {
         public void onComponentEvent(ClickEvent<VerticalLayout> event) {
             if (enabled) {
                 if (Authentication.authenticated()) {
-                    Communication.getBus().post(new RepositoryCloseEvent());
+                    Communication.getBus().post(new RepositoryCloseEvent(CloseReason.CLOSED));
                     Authentication.deauthenticate();
                 }
                 UI.getCurrent().navigate(SiteView.class);

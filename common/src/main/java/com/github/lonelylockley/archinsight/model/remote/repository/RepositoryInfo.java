@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-public class RepostioryInfo implements Serializable {
+public class RepositoryInfo implements Serializable {
 
     private UUID id;
     private UUID ownerId;
@@ -66,7 +66,7 @@ public class RepostioryInfo implements Serializable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RepostioryInfo that = (RepostioryInfo) o;
+        RepositoryInfo that = (RepositoryInfo) o;
         return Objects.equals(id, that.id);
     }
 

@@ -28,7 +28,7 @@ containerDeclaration
     ;
 
 namedImportDeclaration
-    :   IMPORT importElementDeclaration importAliasDeclaration? EOL?
+    :   commentDeclaration* IMPORT importElementDeclaration importAliasDeclaration? EOL?
     ;
 
 importAliasDeclaration

@@ -7,9 +7,7 @@ import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.client.annotation.Client;
 
-import javax.validation.constraints.Null;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static io.micronaut.http.HttpHeaders.ACCEPT;
@@ -21,13 +19,13 @@ import static io.micronaut.http.HttpHeaders.CONTENT_TYPE;
 public interface RepositoryClient {
 
     @Get("/repository/list")
-    List<RepostioryInfo>  listUserRepositories(@Header String authorization);
+    List<RepositoryInfo>  listUserRepositories(@Header String authorization);
 
     @Post("/repository/create")
-    RepostioryInfo createRepository(@Header String authorization, @Body RepostioryInfo data);
+    RepositoryInfo createRepository(@Header String authorization, @Body RepositoryInfo data);
 
     @Patch("/repository/{repositoryId}/rename")
-    RepostioryInfo renameRepository(@Header String authorization, UUID repositoryId, @Body RepostioryInfo data);
+    RepositoryInfo renameRepository(@Header String authorization, UUID repositoryId, @Body RepositoryInfo data);
 
     @Get("/repository/{repositoryId}/remove")
     @Header(name = ACCEPT, value = MediaType.TEXT_PLAIN)

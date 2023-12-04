@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.persistence;
 
-import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import org.apache.ibatis.annotations.*;
 
@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface RepositoryMapper {
 
     @Select("select * from public.repository where id = #{repositoryId}")
-    public RepostioryInfo getRepositoryById(UUID repositoryId);
+    public RepositoryInfo getRepositoryById(UUID repositoryId);
 
     @Update("update public.repository set name = #{newName}, updated = #{updateTime} where id = #{repositoryId}")
     public void renameRepository(UUID repositoryId, String newName, Instant updateTime);
@@ -24,10 +24,10 @@ public interface RepositoryMapper {
     public UUID getRepositoryOwnerId(UUID repositoryId);
 
     @Select("select * from public.repository where owner_id = #{ownerId}")
-    public List<RepostioryInfo> listByOwnerId(UUID ownerId);
+    public List<RepositoryInfo> listByOwnerId(UUID ownerId);
 
     @Insert("insert into public.repository (id, owner_id, name, created, updated) values (#{id}, #{ownerId}, #{name}, #{created}, #{updated})")
-    public void createRepository(RepostioryInfo data);
+    public void createRepository(RepositoryInfo data);
 
     @Update("update public.repository set structure = #{root}, updated = #{updateTime} where id = #{repositoryId}")
     public void setRepositoryStructure(UUID repositoryId, RepositoryNode root, Instant updateTime);

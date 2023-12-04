@@ -1,9 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.SvgDataEvent;
-import com.github.lonelylockley.archinsight.events.ZoomEvent;
+import com.github.lonelylockley.archinsight.events.*;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.dependency.JsModule;

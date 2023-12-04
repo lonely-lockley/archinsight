@@ -1,22 +1,22 @@
 package com.github.lonelylockley.archinsight.events;
 
-import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 
 public class RepositorySelectionEvent extends BaseEvent {
 
-    private final RepostioryInfo oldValue;
-    private final RepostioryInfo newValue;
+    private final RepositoryInfo oldValue;
+    private final RepositoryInfo newValue;
 
-    public RepositorySelectionEvent(RepostioryInfo oldValue, RepostioryInfo newValue) {
+    public RepositorySelectionEvent(RepositoryInfo oldValue, RepositoryInfo newValue) {
         this.oldValue = oldValue;
         this.newValue = newValue;
     }
 
-    public RepostioryInfo getOldValue() {
+    public RepositoryInfo getOldValue() {
         return oldValue;
     }
 
-    public RepostioryInfo getNewValue() {
+    public RepositoryInfo getNewValue() {
         return newValue;
     }
 }

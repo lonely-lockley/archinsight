@@ -3,7 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.github.lonelylockley.archinsight.exceptionhandling.ServiceException;
 import com.github.lonelylockley.archinsight.model.remote.ErrorMessage;
 import com.github.lonelylockley.archinsight.model.remote.repository.MoveNode;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.persistence.FileMapper;
@@ -50,7 +50,7 @@ public class RepositoryService {
     @Get("/list")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<RepostioryInfo>> list(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole) throws Exception {
+    public HttpResponse<List<RepositoryInfo>> list(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(RepositoryMapper.class);
             if (SecurityConstants.ROLE_ANONYMOUS.equals(ownerRole)) {
@@ -70,7 +70,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepostioryInfo> create(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, RepostioryInfo data) throws Exception {
+    public HttpResponse<RepositoryInfo> create(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, RepositoryInfo data) throws Exception {
         if (!Validations.repositoryNameLengthBetween3And50(data.getName())) {
             throw new ServiceException(new ErrorMessage("Repository name length must be between 3 and 50 symbols", HttpStatus.BAD_REQUEST));
         }
@@ -94,7 +94,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<RepostioryInfo> rename(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepostioryInfo data) throws Exception {
+    public HttpResponse<RepositoryInfo> rename(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, RepositoryInfo data) throws Exception {
         if (!Validations.repositoryNameLengthBetween3And50(data.getName())) {
             throw new ServiceException(new ErrorMessage("Repository name length must be between 3 and 50 symbols", HttpStatus.BAD_REQUEST));
         }

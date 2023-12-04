@@ -1,9 +1,7 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
-import com.github.lonelylockley.archinsight.events.FileCloseRequestEvent;
-import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
+import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
+import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.html.Div;
@@ -12,43 +10,45 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 public class WorkAreaComponent extends VerticalLayout {
 
+    private final SwitchListenerHelper switchListener;
+
     public WorkAreaComponent(Div invisible, boolean readOnly) {
-        final var editor = new EditorComponent();
+        switchListener = new SwitchListenerHelper(this);
+        final var editor = new EditorComponent(switchListener);
         final var view = new SVGViewComponent();
         final var splitPane = new SplitViewComponent(editor, view);
-        var menu = new HorizontalLayout();
+        final var menu = new MenuBarComponent(invisible, readOnly, switchListener);
+        var menuBar = new HorizontalLayout();
         setSizeFull();
-        menu.add(new MenuBarComponent(invisible, readOnly));
+        menuBar.add(menu);
         if (Authentication.playgroundModeEnabled() && !Authentication.authenticated()) {
-            menu.add(new CreateRepositoryComponent());
+            menuBar.add(new CreateRepositoryComponent());
         }
-        add(menu);
+        add(menuBar);
         add(splitPane);
-
-        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositoryCloseEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    editor.reset();
-                    view.reset();
-                }
+        switchListener.setRepositoryCloseCallback(e -> {
+            menu.disableExportButton();
+            menu.disableControlButtons();
+            editor.closeFile(e.getReason());
+            view.reset();
+        });
+        switchListener.setFileCloseCallback(e -> {
+            var closed = editor.closeFile(e.getReason());
+            if (closed) {
+                view.reset();
+                menu.disableExportButton();
+                menu.disableControlButtons();
             }
-        };
-        Communication.getBus().register(repositoryCloseListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
-
-        final var fileCloseListener = new BaseListener<FileCloseRequestEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileCloseRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    editor.reset();
-                    view.reset();
-                }
-            }
-        };
-        Communication.getBus().register(fileCloseListener);
-        addDetachListener(e -> { Communication.getBus().unregister(fileCloseListener); });
+        });
+        switchListener.setFileSelectionCallback(e -> {
+            menu.openFile(e.getFile());
+        });
+        switchListener.setRepositorySelectionCallback(e -> {
+            menu.enableSaveButton();
+        });
+        switchListener.setFileRestorationCallback(e -> {
+            menu.enableSaveButton();
+        });
     }
+
 }

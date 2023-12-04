@@ -2,6 +2,8 @@ package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
 import com.github.lonelylockley.archinsight.link.Linker;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
@@ -21,6 +23,8 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.UUID;
 
 @Controller("/translate")
@@ -45,10 +49,19 @@ public class TranslatorService {
     @Measured
     public TranslationResult translate(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, TranslationRequest data) throws Exception {
         var ctx = new TranslationContext();
-        var fs = new FileSystem(repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()));
-        var files = repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId());
-        // parse the whole repository if a file belongs to some
-        new Parser(ctx).parseRepository(ctx, fs, files, data.getFileId(), data.getRepositoryId(), data.getSource());
+        FileSystem fs;
+        // if a request is issued from the editor when no repositories created
+        if (data.getRepositoryId() == null) {
+            fs = new FileSystem(RepositoryNode.createRoot());
+            var files = Collections.<FileData>emptyList();
+            new Parser(ctx).parseRepository(ctx, fs, files, data.getFileId(), data.getRepositoryId(), data.getSource());
+        }
+        else {
+            fs = new FileSystem(repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()));
+            var files = repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId());
+            // parse the whole repository if a file belongs to some
+            new Parser(ctx).parseRepository(ctx, fs, files, data.getFileId(), data.getRepositoryId(), data.getSource());
+        }
         // check integrity
         new Linker(ctx).checkIntegrity();
         // translate to DOT

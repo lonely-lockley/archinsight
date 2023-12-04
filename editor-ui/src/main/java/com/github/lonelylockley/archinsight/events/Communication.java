@@ -15,7 +15,7 @@ public class Communication {
      * instead of calling `equals` method causing duplicate subscribers if
      * a user opens several browser tabs
      */
-    private final Set<BaseListener<?>> registered = new HashSet<>();
+    //private final Set<BaseListener<?>> registered = new HashSet<>();
 
     private Communication(String sessionId) {
         bus = new EventBus("bus-instance-" + sessionId);
@@ -32,17 +32,17 @@ public class Communication {
     }
 
     public void register(BaseListener<?> listener) {
-        if (!registered.contains(listener)) {
-            registered.add(listener);
+//        if (!registered.contains(listener)) {
+//            registered.add(listener);
             bus.register(listener);
-        }
+//        }
     }
 
     public void unregister(BaseListener<?> listener) {
-        if (registered.contains(listener)) {
-            registered.remove(listener);
+//        if (registered.contains(listener)) {
+//            registered.remove(listener);
             bus.unregister(listener);
-        }
+//        }
     }
 
     public void post(Object event) {

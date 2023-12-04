@@ -1,8 +1,9 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.dialogs.RepositoryManagementDialog;
 import com.github.lonelylockley.archinsight.events.*;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.Key;
@@ -26,7 +27,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private final RemoteSource remoteSource;
 
-    private RepostioryInfo selected = null;
+    private RepositoryInfo selected = null;
 
     public RepositorySelectorComponent(boolean readOnly) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
@@ -63,7 +64,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
         }
         if (!readOnly) {
             manageRepositoryButton.addClickListener(event -> {
-                var dlg = new ManagementDialog();
+                var dlg = new RepositoryManagementDialog(selected);
                 dlg.open();
             });
         }
@@ -106,7 +107,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
        getElement().executeJs("localStorage.setItem($0, $1)", "org.archinsight.editor.project", repositoryId == null ? "" : repositoryId.toString());
     }
 
-    private void restoreSelectedRepository(List<RepostioryInfo> items) {
+    private void restoreSelectedRepository(List<RepositoryInfo> items) {
         getElement().executeJs("return localStorage.getItem($0)", "org.archinsight.editor.project").then(String.class, repositoryId -> {
             if (repositoryId != null) {
                 var uuid = UUID.fromString(repositoryId);
@@ -118,117 +119,4 @@ public class RepositorySelectorComponent extends VerticalLayout {
         });
     }
 
-    private class ManagementDialog extends Dialog {
-
-        private final TextField input = new TextField();
-        private final Button createButton = new Button("Create");
-        private final Button editButton = new Button("Rename");
-        private final Button deleteButton = new Button("Delete");
-        private final Grid<RepostioryInfo> table = new Grid<>();
-
-        public ManagementDialog() {
-            setModal(true);
-            setMinHeight("50%");
-            setWidth("50%");
-            setHeaderTitle("Manage repositories");
-            setModal(true);
-            setDraggable(false);
-            initTable();
-            var selectButton = new Button("Select", e -> {
-                var selection = table.getSelectedItems();
-                if (selection.size() > 0) {
-                    var repo = selection.iterator().next();
-                    if (!repo.equals(RepositorySelectorComponent.this.selected)) {
-                        Communication.getBus().post(new RepositoryCloseEvent());
-                        Communication.getBus().post(new RepositorySelectionEvent(RepositorySelectorComponent.this.selected, repo));
-                    }
-                    close();
-                }
-            });
-            selectButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-            selectButton.addClickShortcut(Key.ENTER);
-            var cancelButton = new Button("Cancel", e -> close());
-            add(initControls());
-            add(table);
-            getFooter().add(cancelButton);
-            getFooter().add(selectButton);
-        }
-
-        private HorizontalLayout initControls() {
-            final var controls = new HorizontalLayout();
-            input.setWidth("100%");
-            createButton.setMinWidth("80px");
-            createButton.addClickListener(e -> {
-                var repo = remoteSource.repository.createRepository(input.getValue());
-                table.getListDataView().addItem(repo);
-                table.select(repo);
-            });
-            editButton.setMinWidth("80px");
-            editButton.setEnabled(false);
-            editButton.addClickListener(e -> {
-                var items = table.getSelectedItems();
-                if (items.size() > 0) {
-                    var newName = input.getValue();
-                    var repo = items.iterator().next();
-                    remoteSource.repository.renameRepository(repo.getId(), newName);
-                    repo.setName(newName);
-                    if (repo.equals(RepositorySelectorComponent.this.selected)) {
-                        Communication.getBus().post(new RepositorySelectionEvent(repo, repo));
-                    }
-                    table.getListDataView().refreshItem(repo);
-                }
-            });
-            deleteButton.setMinWidth("80px");
-            deleteButton.setEnabled(false);
-            deleteButton.addClickListener(e -> {
-                var items = table.getSelectedItems();
-                if (items.size() > 0) {
-                    items.forEach(repo -> {
-                        if (repo.equals(RepositorySelectorComponent.this.selected)) {
-                            Communication.getBus().post(new RepositoryCloseEvent());
-                        }
-                        remoteSource.repository.removeRepository(repo.getId());
-                        table.deselect(repo);
-                        table.getListDataView().removeItem(repo);
-                    });
-                }
-            });
-            controls.add(input);
-            controls.add(createButton);
-            controls.add(editButton);
-            controls.add(deleteButton);
-            return controls;
-        }
-
-        private void initTable() {
-            table.setSelectionMode(Grid.SelectionMode.SINGLE);
-            final var locale = VaadinService.getCurrentRequest().getLocale();
-            final var formatter = DateTimeFormatter
-                    .ofLocalizedDateTime(FormatStyle.MEDIUM)
-                    .withLocale(locale)
-                    .withZone(ZoneOffset.UTC);
-            table.addColumn(RepostioryInfo::getName).setHeader("Name").setAutoWidth(true);
-            table.addColumn(repo -> "rwx").setHeader("Permissions").setAutoWidth(true);
-            table.addColumn(repo -> formatter.format(repo.getCreated())).setHeader("Created").setAutoWidth(true);
-            table.addColumn(repo -> formatter.format(repo.getUpdated())).setHeader("Updated").setAutoWidth(true);
-            // @todo make "share repository" button
-            table.addColumn(repo -> "Not implemented").setHeader("Public Link").setAutoWidth(true);
-            remoteSource.repository.listUserRepositories().forEach(repo -> table.getListDataView().addItem(repo));
-            table.addSelectionListener(e -> {
-                var selectiono = e.getFirstSelectedItem();
-                if (selectiono.isPresent()) {
-                    createButton.setEnabled(false);
-                    editButton.setEnabled(true);
-                    deleteButton.setEnabled(true);
-                    input.setValue(selectiono.get().getName());
-                }
-                else {
-                    createButton.setEnabled(true);
-                    editButton.setEnabled(false);
-                    deleteButton.setEnabled(false);
-                    input.setValue("");
-                }
-            });
-        }
-    }
 }

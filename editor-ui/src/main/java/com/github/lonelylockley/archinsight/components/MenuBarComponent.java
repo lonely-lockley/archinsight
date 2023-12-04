@@ -1,31 +1,30 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.dialogs.DirectorySelectionDialog;
+import com.github.lonelylockley.archinsight.components.dialogs.ResultReturningDialog;
+import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
-import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
-import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.contextmenu.MenuItem;
-import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
-import com.vaadin.flow.component.menubar.MenuBarVariant;
 import com.vaadin.flow.server.StreamResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 public class MenuBarComponent extends MenuBar {
 
@@ -33,22 +32,31 @@ public class MenuBarComponent extends MenuBar {
 
     private final Div invisible;
     private final RemoteSource remoteSource;
+    private final SwitchListenerHelper switchListener;
 
-    private RepositoryNode fileOpened;
+    private final MenuItem saveButton;
+    private final MenuItem exportDropdown;
+    private final MenuItem zoomInButton;
+    private final MenuItem zoomResetButton;
+    private final MenuItem zoomOutButton;
+    private final MenuItem zoomFitButton;
+    private final boolean readOnly;
 
-    public MenuBarComponent(Div invisible, boolean readOnly) {
+    public MenuBarComponent(Div invisible, boolean readOnly, SwitchListenerHelper switchListener) {
+        this.readOnly = readOnly;
+        this.switchListener = switchListener;
         this.invisible = invisible;
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         ComponentEventListener<ClickEvent<MenuItem>> listener = this::menuItemClicked;
 
-        final var saveButton = addItem("Save source", listener);
+        saveButton = addItem("Save source", listener);
         saveButton.setId("menu_btn_file_save");
         saveButton.add(new Icon(VaadinIcon.CLOUD_DOWNLOAD));
         saveButton.setEnabled(false);
         var item = addItem("Download source", listener);
         item.setId("menu_btn_file_download");
         item.add(new Icon(VaadinIcon.DOWNLOAD));
-        final var exportDropdown = addItem("Export Image", listener);
+        exportDropdown = addItem("Export Image", listener);
         exportDropdown.setId("menu_btn_export");
         exportDropdown.add(new Icon(VaadinIcon.ANGLE_DOWN));
         exportDropdown.setEnabled(false);
@@ -61,19 +69,19 @@ public class MenuBarComponent extends MenuBar {
             item.setId("menu_btn_export_as_json");
             item = exportSubMenu.addItem("as DOT", listener);
             item.setId("menu_btn_export_as_dot");
-        final var zoomInButton = addItem("", listener);
+        zoomInButton = addItem("", listener);
         zoomInButton.setId("menu_btn_zoom_plus");
         zoomInButton.add(new Icon(VaadinIcon.PLUS));
         zoomInButton.setEnabled(false);
-        final var zoomResetButton = addItem("", listener);
+        zoomResetButton = addItem("", listener);
         zoomResetButton.add(new Icon(VaadinIcon.PLUS_MINUS));
         zoomResetButton.setId("menu_btn_zoom_reset");
         zoomResetButton.setEnabled(false);
-        final var zoomOutButton = addItem("", listener);
+        zoomOutButton = addItem("", listener);
         zoomOutButton.setId("menu_btn_zoom_minus");
         zoomOutButton.add(new Icon(VaadinIcon.MINUS));
         zoomOutButton.setEnabled(false);
-        final var zoomFitButton = addItem("", listener);
+        zoomFitButton = addItem("", listener);
         zoomFitButton.setId("menu_btn_zoom_fit");
         zoomFitButton.add(new Icon(VaadinIcon.EXPAND_SQUARE));
         zoomFitButton.setEnabled(false);
@@ -84,15 +92,12 @@ public class MenuBarComponent extends MenuBar {
             public void receive(SourceCompilationEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
                     if (exportDropdown.isEnabled() && e.failure()) {
-                        exportDropdown.setEnabled(false);
-                        zoomInButton.setEnabled(false);
-                        zoomResetButton.setEnabled(false);
-                        zoomOutButton.setEnabled(false);
-                        zoomFitButton.setEnabled(false);
+                        disableExportButton();
+                        disableControlButtons();
                     }
                     else
                     if (!exportDropdown.isEnabled() && e.success()) {
-                        exportDropdown.setEnabled(true);
+                        enableExportButton();
                     }
                 }
             }
@@ -100,83 +105,57 @@ public class MenuBarComponent extends MenuBar {
         Communication.getBus().register(sourceCompilationListener);
         addDetachListener(e -> Communication.getBus().unregister(sourceCompilationListener));
 
-        final var fileSelectionListener = new BaseListener<FileOpenRequestEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileOpenRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (!readOnly) {
-                        saveButton.setEnabled(true);
-                    }
-                    openButtonClicked(e.getFile());
-                }
-            }
-        };
-        Communication.getBus().register(fileSelectionListener);
-        addDetachListener(e -> Communication.getBus().unregister(fileSelectionListener));
-
-        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositoryCloseEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    MenuBarComponent.this.fileOpened = null;
-                    saveButton.setEnabled(false);
-                    exportDropdown.setEnabled(false);
-                    zoomInButton.setEnabled(false);
-                    zoomResetButton.setEnabled(false);
-                    zoomOutButton.setEnabled(false);
-                    zoomFitButton.setEnabled(false);
-                }
-            }
-        };
-        Communication.getBus().register(repositoryCloseListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
-
-        final var fileRestorationListener = new BaseListener<FileRestoredEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileRestoredEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    MenuBarComponent.this.fileOpened = e.getOpenedFile();
-                    saveButton.setEnabled(true);
-                }
-            }
-        };
-        Communication.getBus().register(fileRestorationListener);
-        addDetachListener(e -> { Communication.getBus().unregister(fileRestorationListener); });
-
-        final var fileCloseListener = new BaseListener<FileCloseRequestEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileCloseRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    saveButton.setEnabled(false);
-                    exportDropdown.setEnabled(false);
-                    zoomInButton.setEnabled(false);
-                    zoomResetButton.setEnabled(false);
-                    zoomOutButton.setEnabled(false);
-                    zoomFitButton.setEnabled(false);
-                }
-            }
-        };
-        Communication.getBus().register(fileCloseListener);
-        addDetachListener(e -> { Communication.getBus().unregister(fileCloseListener); });
-
         final var svgDataListener = new BaseListener<SvgDataEvent>() {
             @Override
             @Subscribe
             public void receive(SvgDataEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    zoomInButton.setEnabled(true);
-                    zoomResetButton.setEnabled(true);
-                    zoomOutButton.setEnabled(true);
-                    zoomFitButton.setEnabled(true);
+                    enableControlButtons();
                 }
             }
         };
         Communication.getBus().register(svgDataListener);
         addDetachListener(e -> { Communication.getBus().unregister(svgDataListener); });
+    }
+
+    public void openFile(RepositoryNode file) {
+        openButtonClicked(file);
+    }
+
+    public void enableSaveButton() {
+        if (!readOnly) {
+            saveButton.setEnabled(true);
+        }
+    }
+
+    public void disableSaveButton() {
+        saveButton.setEnabled(false);
+    }
+
+    public void enableExportButton() {
+        exportDropdown.setEnabled(true);
+    }
+
+    public void disableExportButton() {
+        exportDropdown.setEnabled(false);
+    }
+
+    public void enableControlButtons() {
+        zoomInButton.setEnabled(true);
+        zoomResetButton.setEnabled(true);
+        zoomOutButton.setEnabled(true);
+        zoomFitButton.setEnabled(true);
+    }
+
+    public void disableControlButtons() {
+        zoomInButton.setEnabled(false);
+        zoomResetButton.setEnabled(false);
+        zoomOutButton.setEnabled(false);
+        zoomFitButton.setEnabled(false);
+    }
+
+    public void enableButtons() {
+
     }
 
     private void menuItemClicked(ClickEvent<MenuItem> event) {
@@ -227,23 +206,33 @@ public class MenuBarComponent extends MenuBar {
     }
 
     private void openButtonClicked(RepositoryNode fileSelected) {
-            var content = remoteSource.repository.openFile(fileSelected.getId());
-            this.getElement().executeJs("window.editor.setValue($0)", content);
-            this.fileOpened = fileSelected;
-            Communication.getBus().post(new FileOpenedEvent(fileOpened));
+        var content = remoteSource.repository.openFile(fileSelected.getId());
+        this.getElement().executeJs("window.editor.setValue($0)", content);
+        Communication.getBus().post(new FileOpenedEvent(fileSelected));
+    }
+
+    private void saveSource(UUID fileId) {
+        this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
+            remoteSource.repository.saveFile(fileId, code);
+            Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, "File saved", 3000));
+        });
     }
 
     private void saveButtonClicked() {
-        if (fileOpened != null) {
-            this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
-                remoteSource.repository.saveFile(fileOpened.getId(), code);
-                Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, "File saved", 3000));
+        if (switchListener.fileOpened()) {
+            saveSource(switchListener.getOpenedFileId());
+        }
+        else {
+            var dlg = new DirectorySelectionDialog("Create new file", "File name", "Choose directory", "Archinsight will add an .ai extension automatically", switchListener.getActiveRepositoryId(), res -> {
+                Communication.getBus().post(res);
+                saveSource(res.getCreatedFile().getId());
             });
+            dlg.open();
         }
     }
 
     private void downloadButtonClicked() {
-        final var filename = fileOpened == null ? "source.ai" : fileOpened.getName();
+        final var filename = switchListener.fileOpened() ? switchListener.getOpenedFile().getName() : "source.ai";
         this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
             var res = new StreamResource(filename, () -> new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
             startDownload(res);

@@ -1,19 +1,18 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.dialogs.ConfirmDialog;
+import com.github.lonelylockley.archinsight.components.dialogs.ResultReturningDialog;
+import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepostioryInfo;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dependency.CssImport;
-import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.AbstractGridSingleSelectionModel;
 import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
@@ -22,23 +21,22 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
-import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.treegrid.TreeGrid;
 import com.vaadin.flow.data.provider.hierarchy.TreeData;
 
 import java.util.*;
-import java.util.function.Consumer;
 
 @CssImport("./styles/shared-styles.css")
 public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
     private final RemoteSource remoteSource;
+    private final SwitchListenerHelper switchListener;
 
     private Set<UUID> filesWithErrors = new HashSet<>();
-    private RepostioryInfo activeRepository;
     private FileSystem fileSystem;
 
     public RepositoryViewComponent(boolean readOnly) {
+        this.switchListener = new SwitchListenerHelper(this);
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setTreeData(new TreeData<>() {
             @Override
@@ -68,45 +66,27 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             return row;
         });
 
-        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositoryCloseEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    activeRepository = null;
-                    fileSystem = null;
-                    getTreeData().clear();
-                    getDataProvider().refreshAll();
-                    deselectAll();
-                    storeOpenedFile(null);
-                }
-            }
-        };
-        Communication.getBus().register(repositoryCloseListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
+        switchListener.setRepositoryCloseCallback(e -> {
+            fileSystem = null;
+            getTreeData().clear();
+            getDataProvider().refreshAll();
+            deselectAll();
+            storeOpenedFile(null);
+        });
 
-        final var repositorySelectionListener = new BaseListener<RepositorySelectionEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositorySelectionEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    activeRepository = e.getNewValue();
-                    var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
-                    var fs = new FileSystem(activeRepositoryStructure);
-                    fileSystem = fs;
-                    getTreeData().clear();
-                    fs.<RepositoryNode>walkRepositoryStructureWithState((node, rootItem) -> {
-                        getTreeData().addItem(rootItem, node);
-                        return node;
-                    }, null);
-                    getDataProvider().refreshAll();
-                    expandRecursively(Collections.singletonList(null), 1);
-                    restoreOpenedFile();
-                }
-            }
-        };
-        Communication.getBus().register(repositorySelectionListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositorySelectionListener); });
+        switchListener.setRepositorySelectionCallback(e -> {
+            var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
+            var fs = new FileSystem(activeRepositoryStructure);
+            fileSystem = fs;
+            getTreeData().clear();
+            fs.<RepositoryNode>walkRepositoryStructureWithState((node, rootItem) -> {
+                getTreeData().addItem(rootItem, node);
+                return node;
+            }, null);
+            getDataProvider().refreshAll();
+            expandRecursively(Collections.singletonList(null), 1);
+            restoreOpenedFile();
+        });
 
         final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
             @Override
@@ -125,6 +105,21 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         };
         Communication.getBus().register(sourceCompilationListener);
         addDetachListener(e -> { Communication.getBus().unregister(sourceCompilationListener); });
+
+        final var fileCreatedListener = new BaseListener<FileCreatedEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileCreatedEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    getTreeData().addItem(e.getParent(), e.getCreatedFile());
+                    getDataProvider().refreshAll();
+                    storeOpenedFile(e.getCreatedFile().getId());
+                    fileRestorationCallback(e.getCreatedFile().getId());
+                }
+            }
+        };
+        Communication.getBus().register(fileCreatedListener);
+        addDetachListener(e -> { Communication.getBus().unregister(fileCreatedListener); });
 
         addItemClickListener(new ComponentEventListener<ItemClickEvent<RepositoryNode>>() {
             @Override
@@ -164,7 +159,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                 new ConfirmDialog("Confirm delete", "Are you sure want to delete %s `%s`?", this::removeNode).show(getSelectedItems()));
         // =============================================================================================================
         menu.addGridContextMenuOpenedListener(event -> {
-            if (activeRepository != null && !readOnly) {
+            if (switchListener.repositoryOpened() && !readOnly) {
                 openFile.setEnabled(false);
                 newFile.setEnabled(true);
                 newDirectory.setEnabled(true);
@@ -180,7 +175,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                 }
             }
             else {
-                if (activeRepository == null || getSelectedItems().isEmpty()) {
+                if (switchListener.repositoryOpened() || getSelectedItems().isEmpty()) {
                     openFile.setEnabled(false);
                 }
                 else {
@@ -203,7 +198,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
             if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
-                Communication.getBus().post(new FileCloseRequestEvent());
+                Communication.getBus().post(new FileCloseRequestEvent(CloseReason.CLOSED));
                 Communication.getBus().post(new FileOpenRequestEvent(node));
                 storeOpenedFile(node.getId());
             }
@@ -229,7 +224,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
     private void createNode(RepositoryNode node) {
         var selection = getSelectedItems();
-        RepositoryNode parent = null;
+        RepositoryNode parent;
         if (selection.isEmpty()) {
             parent = fileSystem.getRoot();
             node.setParentId(parent.getId());
@@ -238,7 +233,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             parent = fileSystem.getClosestDirectory(selection.iterator().next());
             node.setParentId(parent.getId());
         }
-        node = remoteSource.repository.createNode(activeRepository.getId(), node);
+        node = remoteSource.repository.createNode(switchListener.getActiveRepositoryId(), node);
         getTreeData().addItem(parent, node);
         getDataProvider().refreshAll();
     }
@@ -247,11 +242,11 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         var selection = getSelectedItems();
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
-            remoteSource.repository.removeNode(activeRepository.getId(), node.getId());
+            remoteSource.repository.removeNode(switchListener.getActiveRepositoryId(), node.getId());
             getTreeData().removeItem(node);
             getDataProvider().refreshAll();
             deselect(node);
-            Communication.getBus().post(new FileCloseRequestEvent());
+            Communication.getBus().post(new FileCloseRequestEvent(CloseReason.DELETED));
             storeOpenedFile(null);
         }
     }
@@ -261,7 +256,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
             newName = RepositoryNode.TYPE_DIRECTORY.equalsIgnoreCase(node.getType()) ? newName : ensureFileExtensionAdded(newName);
-            remoteSource.repository.renameNode(activeRepository.getId(), node.getId(), newName);
+            remoteSource.repository.renameNode(switchListener.getActiveRepositoryId(), node.getId(), newName);
             node.setName(newName);
             getDataProvider().refreshItem(node);
             getDataProvider().refreshAll();
@@ -274,10 +269,13 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
     }
 
     private void fileRestorationCallback(String fileId) {
-        var id = fileId.isBlank() ? null : UUID.fromString(fileId);
-        if (id != null) {
-            if (fileSystem.hasNode(id)) {
-                var node = fileSystem.getNode(id);
+        fileRestorationCallback(fileId.isBlank() ? null : UUID.fromString(fileId));
+    }
+
+    private void fileRestorationCallback(UUID fileId) {
+        if (fileId != null) {
+            if (fileSystem.hasNode(fileId)) {
+                var node = fileSystem.getNode(fileId);
                 // open all menu items and select current file
                 select(node);
                 Communication.getBus().post(new FileRestoredEvent(node));
@@ -292,91 +290,6 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
     private void restoreOpenedFile() {
         var key = Authentication.playgroundModeEnabled() ? "org.archinsight.playground.file" : "org.archinsight.editor.file";
         getElement().executeJs("return (localStorage.getItem($0) || '')", key).then(String.class, this::fileRestorationCallback);
-    }
-
-    private static class ResultReturningDialog extends Dialog {
-
-        private final TextField textField = new TextField();
-        private final String title;
-        private final String textFieldName;
-
-        public ResultReturningDialog(String title, String textFieldName, String helpText, Consumer<String> successAction) {
-            this.title = title;
-            this.textFieldName = textFieldName;
-            setModal(true);
-            setWidth("600px");
-            setDraggable(false);
-            textField.setWidth("100%");
-            textField.setPattern(FileSystem.POSIX_FILE_NAME_PTR);
-            if (helpText != null) {
-                textField.setHelperText("");
-            }
-            var saveButton = new Button("Save", e -> {
-                successAction.accept(textField.getValue());
-                close();
-            });
-            saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-            saveButton.addClickShortcut(Key.ENTER);
-            var cancelButton = new Button("Cancel", e -> close());
-            add(textField);
-            getFooter().add(cancelButton);
-            getFooter().add(saveButton);
-        }
-
-        public void show(Set<RepositoryNode> selection) {
-            if (!selection.isEmpty()) {
-                var node = selection.iterator().next();
-                var objectTypeText = RepositoryNode.TYPE_FILE.equalsIgnoreCase(node.getType()) ? "file" : "directory";
-                setHeaderTitle(String.format(title, objectTypeText));
-                textField.setValue(node.getName());
-                textField.setLabel(String.format(textFieldName, objectTypeText));
-                textField.focus();
-                super.open();
-            }
-        }
-
-        @Override
-        public void open() {
-            setHeaderTitle(title);
-            textField.setLabel(textFieldName);
-            textField.setValue("");
-            textField.focus();
-            super.open();
-        }
-    }
-
-    private static class ConfirmDialog extends Dialog {
-
-        private final String confirmationQuestionPattern;
-        private final Label questionDisplay = new Label();;
-
-        public ConfirmDialog(String title, String confirmationQuestionPattern, Runnable successAction) {
-            this.confirmationQuestionPattern = confirmationQuestionPattern;
-            setHeaderTitle(title);
-            setModal(true);
-            setWidth("600px");
-            setDraggable(false);
-            var okButton = new Button("Ok", e -> {
-                successAction.run();
-                close();
-            });
-            okButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-            okButton.addClickShortcut(Key.ENTER);
-            var cancelButton = new Button("Cancel", e -> close());
-            add(questionDisplay);
-            getFooter().add(cancelButton);
-            getFooter().add(okButton);
-        }
-
-        public void show(Set<RepositoryNode> selection) {
-            if (!selection.isEmpty()) {
-                var node = selection.iterator().next();
-                var objectTypeText = RepositoryNode.TYPE_FILE.equalsIgnoreCase(node.getType()) ? "file" : "directory";
-                questionDisplay.setText(String.format(confirmationQuestionPattern, objectTypeText, node.getName()));
-                super.open();
-            }
-        }
-
     }
 
 }
