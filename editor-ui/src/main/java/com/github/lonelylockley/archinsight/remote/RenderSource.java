@@ -69,7 +69,7 @@ public class RenderSource {
             else {
                 Communication.getBus().post(new SourceCompilationEvent(false, messagesByFile));
             }
-            logger.info("Render required required {}ms", (System.nanoTime() - startTime) / 1000000);
+            logger.info("Render for {} required {}ms", fileId, (System.nanoTime() - startTime) / 1000000);
 
             return messagesByFile;
         }
