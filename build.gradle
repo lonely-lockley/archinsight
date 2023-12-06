@@ -137,7 +137,7 @@ project('translator') {
     }
 
     tasks.named("dockerfile") {
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.TranslatorService')
+        entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.TranslatorService')
     }
 }
 
@@ -159,7 +159,7 @@ project('renderer') {
         // https://gitlab.com/graphviz/graphviz/-/issues/1408
         baseImage('alpine:3.18')
         runCommand('apk add --update --no-cache openjdk17 graphviz ttf-freefont')
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RenderService')
+        entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RenderService')
     }
 }
 
@@ -179,7 +179,7 @@ project('repository') {
 
     tasks.named("dockerfile") {
         runCommand('apk add --update --no-cache graphviz ttf-freefont')
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RepositoryService')
+        entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RepositoryService')
     }
 }
 
@@ -253,7 +253,7 @@ project('editor-ui') {
     tasks.named("dockerfile") {
         copyFile('layers/editor-ui', '/home/app/editor-ui')
         runCommand('apk add --update --no-cache graphviz ttf-freefont')
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar:libs/*", 'com.github.lonelylockley.archinsight.Launcher')
+        entryPoint("java", "-cp", "/home/app/application.jar:libs/*", 'com.github.lonelylockley.archinsight.Launcher')
     }
 
     dockerfile.doLast {
@@ -297,6 +297,6 @@ project('identity') {
     }
 
     tasks.named("dockerfile") {
-        entryPoint("java", "-Xms128M", "-Xmx128M", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.IdentityService')
+        entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.IdentityService')
     }
 }

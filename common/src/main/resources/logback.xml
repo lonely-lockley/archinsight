@@ -1,4 +1,5 @@
 <configuration>
+    <variable name="LOG_LEVEL" value="${LOG_LEVEL:-INFO}" />
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
@@ -43,7 +44,7 @@
     <!-- Debug requests -->
     <!--logger level="TRACE" name="io.micronaut.http.client" /-->
 
-    <root level="INFO">
+    <root level="${LOG_LEVEL}">
         <appender-ref ref="ASYNC"/>
     </root>
 
