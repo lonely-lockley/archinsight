@@ -2,30 +2,30 @@
     <variable name="LOG_LEVEL" value="${LOG_LEVEL:-INFO}" />
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <layout class="ch.qos.logback.classic.PatternLayout">
-            <Pattern>
+        <encoder>
+            <pattern>
                 %d{dd.MM.yyyy HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%n
-            </Pattern>
-        </layout>
+            </pattern>
+        </encoder>
     </appender>
 
     <appender name="SUPPRESS" class="ch.qos.logback.core.ConsoleAppender">
-        <layout class="ch.qos.logback.classic.PatternLayout">
-            <Pattern>
+        <encoder>
+            <pattern>
                 %d{dd.MM.yyyy HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%n%nopex
-            </Pattern>
-        </layout>
+            </pattern>
+        </encoder>
     </appender>
 
     <appender name="SHORT" class="ch.qos.logback.core.ConsoleAppender">
-        <layout class="ch.qos.logback.classic.PatternLayout">
-            <Pattern>
+        <encoder>
+            <pattern>
                 %d{dd.MM.yyyy HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%n%ex{3}
-            </Pattern>
-        </layout>
+            </pattern>
+        </encoder>
     </appender>
 
-    <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+    <appender name="ASYNC_STDOUT" class="ch.qos.logback.classic.AsyncAppender">
         <appender-ref ref="STDOUT" />
     </appender>
 
@@ -45,7 +45,7 @@
     <!--logger level="TRACE" name="io.micronaut.http.client" /-->
 
     <root level="${LOG_LEVEL}">
-        <appender-ref ref="ASYNC"/>
+        <appender-ref ref="ASYNC_STDOUT"/>
     </root>
 
 </configuration>
