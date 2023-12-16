@@ -16,6 +16,7 @@ public class SplitViewComponent extends PatchedSplitView {
 
     public SplitViewComponent(HtmlComponent left, HtmlComponent right) {
         super();
+        setSizeFull();
         var svgBackground = new Div();
         svgBackground.add(right);
         svgBackground.getElement().getStyle().set("background-color", "#ffffff");

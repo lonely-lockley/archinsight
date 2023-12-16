@@ -97,7 +97,8 @@ public class LoginTile extends SiteViewTile {
                     Communication.getBus().post(new RepositoryCloseEvent(CloseReason.CLOSED));
                     Authentication.deauthenticate();
                 }
-                UI.getCurrent().navigate(SiteView.class);
+                flipBackTile();
+                UI.getCurrent().getPage().reload();
             }
         }
 

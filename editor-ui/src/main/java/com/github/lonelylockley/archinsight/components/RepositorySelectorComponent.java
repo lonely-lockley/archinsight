@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.components.dialogs.RepositoryManagem
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
+import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -20,11 +21,22 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private RepositoryInfo selected = null;
 
-    public RepositorySelectorComponent(boolean readOnly) {
+    public RepositorySelectorComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setWidth("100%");
         add(initLabel());
-        add(initRepositorySelector(readOnly));
+
+        if (Authentication.playgroundModeEnabled()) {
+            if (Authentication.authenticated()) {
+                add(initRepositorySelector(true));
+            }
+            else {
+                add(new CreateRepositoryComponent());
+            }
+        }
+        else {
+            add(initRepositorySelector(false));
+        }
     }
 
     private Span initLabel() {
@@ -35,7 +47,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
         return label;
     }
 
-    private Button initRepositorySelector(boolean readOnly) {
+    private Button initRepositorySelector(boolean lockedOut) {
         final var manageRepositoryButton = new Button("<Choose Repository>");
         manageRepositoryButton.setWidth("100%");
         manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -53,7 +65,8 @@ public class RepositorySelectorComponent extends VerticalLayout {
         else {
             manageRepositoryButton.setText("<Create Repository>");
         }
-        if (!readOnly) {
+
+        if (!lockedOut) {
             manageRepositoryButton.addClickListener(event -> {
                 var dlg = new RepositoryManagementDialog(selected);
                 dlg.open();

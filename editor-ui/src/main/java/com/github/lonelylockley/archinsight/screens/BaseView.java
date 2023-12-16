@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.screens;
 
+import com.github.lonelylockley.archinsight.components.MenuBarComponent;
+import com.github.lonelylockley.archinsight.components.UserMenuComponent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.CssImport;
@@ -15,28 +17,32 @@ import com.vaadin.flow.theme.lumo.Lumo;
 @CssImport(value = "./styles/vaadin-app-layout.css", themeFor = "vaadin-app-layout")
 public interface BaseView {
 
-    default Component createTitle() {
-        return createTitle(null);
+    default Component createTitle(MenuBarComponent menu) {
+        return createTitle(null, menu);
     }
 
-    default Component createTitle(String titleSuffix) {
+    default Component createTitle(String titleSuffix, MenuBarComponent menu) {
         var title = new HorizontalLayout();
         title.getStyle().set("font-size", "var(--lumo-font-size-l)");
         title.getElement().setAttribute("theme", "");
         var siteIcon = new Image("static/archinsight-logo-no-background.svg", "ai");
         siteIcon.setHeight("24px");
+        siteIcon.getStyle().set("margin-top", "7px").set("cursor", "pointer");
         siteIcon.addClickListener(event -> UI.getCurrent().navigate(SiteView.class));
         title.add(siteIcon);
         var siteName = new Span("Archinsight");
         siteName.getElement().addEventListener("click", event -> UI.getCurrent().navigate(SiteView.class));
-        siteName.getStyle().set("margin-left", "7px").set("margin-top", "2px");
+        siteName.getStyle().set("margin-left", "7px").set("margin-top", "7px").set("cursor", "pointer");
         title.add(siteName);
         if (titleSuffix != null) {
             var suffixLabel = new Span(titleSuffix);
             title.add(suffixLabel);
-            suffixLabel.getStyle().set("margin-left", "7px").set("margin-top", "2px");
+            suffixLabel.getStyle().set("margin-left", "7px").set("margin-top", "7px");
         }
+        menu.getStyle().set("margin-left", "20px");
+        title.add(menu);
         title.setVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
+        title.setWidthFull();
         return title;
     }
 

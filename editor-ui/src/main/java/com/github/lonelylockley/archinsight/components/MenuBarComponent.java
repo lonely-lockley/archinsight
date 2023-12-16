@@ -2,7 +2,6 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.components.dialogs.DirectorySelectionDialog;
-import com.github.lonelylockley.archinsight.components.dialogs.ResultReturningDialog;
 import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
@@ -21,7 +20,6 @@ import com.vaadin.flow.server.StreamResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;

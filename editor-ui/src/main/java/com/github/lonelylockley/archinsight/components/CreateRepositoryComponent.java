@@ -34,16 +34,16 @@ public class CreateRepositoryComponent extends MenuBar {
         }
     }
 
-    @ClientCallable
-    public void loginCallback() {
+    //@ClientCallable
+    //public void loginCallback() {
         // called from browser when login sequence finishes
-        if (Authentication.completedLogin()) {
+        /*if (Authentication.completedLogin()) {
             Authentication.authenticate();
             if (Authentication.authenticated()) {
                 Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
                 UI.getCurrent().navigate(EditorView.class);
             }
-        }
-    }
+        }*/
+    //}
 
 }

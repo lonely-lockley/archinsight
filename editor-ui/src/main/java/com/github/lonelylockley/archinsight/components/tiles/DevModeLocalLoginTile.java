@@ -6,7 +6,7 @@ public class DevModeLocalLoginTile extends SiteViewTile {
         super("Test Login", "static/user-check-svgrepo-com.svg", "#ffffff", doubleWidth, singleHeight);
         getElement().getStyle().set("color", "#000000");
         addClickListener(e -> {
-            getElement().executeJs(String.format("window.open('%s/auth/testOk', '')",loginUrl));
+            getElement().executeJs(String.format("window.open('%s/auth/testOk', '')", loginUrl));
         });
         setClassName("tile_action");
     }

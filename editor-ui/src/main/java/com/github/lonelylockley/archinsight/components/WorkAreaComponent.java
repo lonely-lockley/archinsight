@@ -11,21 +11,17 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 public class WorkAreaComponent extends VerticalLayout {
 
     private final SwitchListenerHelper switchListener;
+    private final MenuBarComponent menu;
 
     public WorkAreaComponent(Div invisible, boolean readOnly) {
         switchListener = new SwitchListenerHelper(this);
+        menu = new MenuBarComponent(invisible, readOnly, switchListener);
         final var editor = new EditorComponent(switchListener);
         final var view = new SVGViewComponent();
         final var splitPane = new SplitViewComponent(editor, view);
-        final var menu = new MenuBarComponent(invisible, readOnly, switchListener);
-        var menuBar = new HorizontalLayout();
-        setSizeFull();
-        menuBar.add(menu);
-        if (Authentication.playgroundModeEnabled() && !Authentication.authenticated()) {
-            menuBar.add(new CreateRepositoryComponent());
-        }
-        add(menuBar);
         add(splitPane);
+        setSpacing(false);
+        setSizeFull();
         switchListener.setRepositoryCloseCallback(e -> {
             var closed = editor.closeFile(e.getReason());
             if (closed) {
@@ -54,4 +50,7 @@ public class WorkAreaComponent extends VerticalLayout {
         });
     }
 
+    public MenuBarComponent getMenuControls() {
+        return menu;
+    }
 }
