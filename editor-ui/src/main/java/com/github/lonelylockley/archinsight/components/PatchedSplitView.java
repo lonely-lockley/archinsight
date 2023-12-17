@@ -55,7 +55,7 @@ public abstract class PatchedSplitView extends SplitLayout {
         this.splitterPosition = position;
     }
 
-    public double getSplitterPosition() {
+    public Double getSplitterPosition() {
         return splitterPosition;
     }
 

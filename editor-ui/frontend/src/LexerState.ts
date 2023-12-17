@@ -1,8 +1,8 @@
 import { Token } from 'antlr4ts';
-import { languages } from 'monaco-editor';
-import IState = languages.IState;
+// import { languages } from 'monaco-editor';
+// import IState = languages.IState;
 
-class LexerState implements IState {
+class LexerState {
 
     TEXT: number;
 
@@ -43,14 +43,14 @@ class LexerState implements IState {
          }
      }
 
-     public clone(): IState {
+     public clone(): LexerState {
          var res = new LexerState(this.TEXT);
          res._wasText = this._wasText;
          res.indentation = this.indentation;
          return res;
      }
 
-     equals(that: IState): boolean {
+     equals(that: LexerState): boolean {
          if (that instanceof LexerState) {
              return this._wasText === that._wasText && this.indentation === that.indentation;
          }

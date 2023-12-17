@@ -2,6 +2,8 @@ import * as monaco from 'monaco-editor-core';
 import DiagnosticsAdapter from './DiagnosticsAdapter';
 import InsightFormattingProvider from './InsightFormattingProvider';
 import { InsightTokensProvider } from '../InsightHighlight';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import { InsightWorker } from './InsightWorker';
 import { WorkerManager } from './WorkerManager';
 import { languageExtensionPoint, languageID } from './config';
@@ -12,8 +14,12 @@ export type WorkerAccessor = (...uris: monaco.Uri[]) => Promise<InsightWorker>;
 const setupLanguage = () => {
   (window as any).MonacoEnvironment = {
     getWorkerUrl: (moduleId: unknown, label: string) => {
-      if (label === languageID) return 'insight.worker.js';
-     return 'editor.worker.js';
+      if (label === languageID) {
+        return 'insight.worker.bundle.js';
+      }
+      else {
+        return 'editor.worker.bundle.js';
+      }
     },
   };
 

@@ -27,12 +27,12 @@ public class SplitViewComponent extends PatchedSplitView {
         // initialize fixes introduced in PatchedSplitView
         init();
 
-        addSplitterDragendListener(new ComponentEventListener<SplitterDragendEvent<SplitLayout>>() {
-            @Override
-            public void onComponentEvent(SplitterDragendEvent<SplitLayout> event) {
-                saveSplitterPosition();
-            }
-        });
+//        addSplitterDragendListener(new ComponentEventListener<SplitterDragendEvent<SplitLayout>>() {
+//            @Override
+//            public void onComponentEvent(SplitterDragendEvent<SplitLayout> event) {
+//                saveSplitterPosition();
+//            }
+//        });
     }
 
     private void getSavedSplitterPosition() {

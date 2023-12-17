@@ -23,7 +23,7 @@ out
 **/main/gen
 **/main/generated
 **/main/antlr/InsightLexer.tokens
-webpack.generated.js
+vite.generated.ts
 
 # Ignore node modules cache
 node_modules
