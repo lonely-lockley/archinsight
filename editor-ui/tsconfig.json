@@ -4,14 +4,14 @@
 // You might want to change the configurations to fit your preferences
 // For more information about the configurations, please refer to http://www.typescriptlang.org/docs/handbook/tsconfig-json.html
 {
-  "_version": "9",
+  "flow_version": "23.3.4",
   "compilerOptions": {
     "sourceMap": true,
     "jsx": "react-jsx",
     "inlineSources": true,
     "module": "esNext",
-    "target": "es2020",
-    "moduleResolution": "bundler",
+    "target": "es2019",
+    "moduleResolution": "node",
     "strict": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
@@ -23,13 +23,11 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "baseUrl": "frontend",
-    "types": ["vite/client"],
     "paths": {
       "@vaadin/flow-frontend": ["generated/jar-resources"],
       "@vaadin/flow-frontend/*": ["generated/jar-resources/*"],
       "Frontend/*": ["*"]
-    },
-    "outDir": "src/main/webapp"
+    }
   },
   "include": [
     "frontend/**/*",
