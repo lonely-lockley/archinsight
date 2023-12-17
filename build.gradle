@@ -181,7 +181,6 @@ project('repository') {
     }
 
     tasks.named("dockerfile") {
-        runCommand('apk add --update --no-cache graphviz ttf-freefont')
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RepositoryService')
     }
 }
@@ -234,13 +233,17 @@ project('editor-ui') {
         }
     }
 
-//    task webWorkers(type: NpmTask) {
-//        dependsOn(npmInstall)
-//        args = ['run', 'build:prod']
-//    }
+    task webWorkers(type: NpmTask) {
+        dependsOn(npmInstall)
+        args = ['run', 'build:prod']
+    }
+
+    tasks.named("npmInstall") {
+        dependsOn(vaadinPrepareFrontend)
+    }
 
     tasks.named("vaadinBuildFrontend") {
-//        dependsOn(webWorkers)
+        dependsOn(webWorkers)
         dependsOn(antlr)
     }
 
@@ -257,7 +260,6 @@ project('editor-ui') {
 
     tasks.named("dockerfile") {
         copyFile('layers/editor-ui', '/home/app/editor-ui')
-        runCommand('apk add --update --no-cache graphviz ttf-freefont')
         entryPoint("java", "-cp", "/home/app/application.jar:libs/*", 'com.github.lonelylockley.archinsight.Launcher')
     }
 

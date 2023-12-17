@@ -5,6 +5,7 @@
   "description": "Vaadin UI for Archinsight",
   "author": "",
   "license": "AGPL-3.0",
+  "type": "module",
   "scripts": {
     "antlr": "rimraf frontend/generated/insight-lang && mkdir -p frontend/generated/insight-lang && antlr4ts ../insight-lang/src/main/antlr/InsightLexer.g4 ../insight-lang/src/main/antlr/InsightParser.g4 -Xexact-output-dir -o frontend/generated/insight-lang",
     "build:prod": "webpack",
@@ -90,6 +91,7 @@
     "html-webpack-plugin": "^5.5.4",
     "linked-list-typescript": "1.0.15",
     "lit": "3.1.0",
+    "mini-css-extract-plugin": "^2.7.6",
     "monaco-editor": "^0.40.0",
     "monaco-editor-core": "^0.40.0",
     "node": "^21.2.0",
@@ -220,7 +222,7 @@
       "workbox-core": "7.0.0",
       "workbox-precaching": "7.0.0"
     },
-    "hash": "201a66c12ddd1c7cf430c4f00f26e15105e1df9bd7690af5eabdd8d67453b8db"
+    "hash": "0d4c7a8fc8aff275f215d9e8dfc6a9a0466eb3a8de485238b8fc87cd5ae28c35"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -315,6 +317,7 @@
     "webpack": "$webpack",
     "webpack-cli": "$webpack-cli",
     "webpack-merge": "$webpack-merge",
-    "workbox-webpack-plugin": "$workbox-webpack-plugin"
+    "workbox-webpack-plugin": "$workbox-webpack-plugin",
+    "mini-css-extract-plugin": "$mini-css-extract-plugin"
   }
 }
