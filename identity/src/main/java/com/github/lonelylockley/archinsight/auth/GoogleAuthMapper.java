@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.auth;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
 import com.github.lonelylockley.archinsight.persistence.UserdataMapper;
+import io.micronaut.context.annotation.Replaces;
 import io.micronaut.security.authentication.AuthenticationResponse;
 import io.micronaut.security.config.AuthenticationModeConfiguration;
 import io.micronaut.security.oauth2.configuration.OpenIdAdditionalClaimsConfiguration;
@@ -12,6 +13,7 @@ import io.micronaut.security.oauth2.endpoint.token.response.OpenIdClaims;
 import io.micronaut.security.oauth2.endpoint.token.response.OpenIdTokenResponse;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
+import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +21,7 @@ import java.util.UUID;
 
 @Named("google")
 @Singleton
+@Replaces(DefaultOpenIdAuthenticationMapper.class)
 public class GoogleAuthMapper extends DefaultOpenIdAuthenticationMapper {
 
     private static final Logger logger = LoggerFactory.getLogger(GoogleAuthMapper.class);
@@ -39,7 +42,7 @@ public class GoogleAuthMapper extends DefaultOpenIdAuthenticationMapper {
     }
 
     @Override
-    public AuthenticationResponse createAuthenticationResponse(String providerName, OpenIdTokenResponse tokenResponse, OpenIdClaims openIdClaims, State state) {
+    public Publisher<AuthenticationResponse> createAuthenticationResponse(String providerName, OpenIdTokenResponse tokenResponse, OpenIdClaims openIdClaims, State state) {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(UserdataMapper.class);
             Userdata user = sql.getByEmail(openIdClaims.getEmail());

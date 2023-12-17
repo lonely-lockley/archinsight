@@ -2,16 +2,16 @@ plugins {
     id 'java'
     id 'java-library'
     id 'antlr'
-    id 'io.micronaut.application' version '3.7.10'
-    id 'io.micronaut.minimal.application' version '3.7.10'
-    id 'io.micronaut.docker' version '3.7.10'
+    id 'io.micronaut.application' version '4.2.1'
+    id 'io.micronaut.minimal.application' version '4.2.1'
+    id 'io.micronaut.docker' version '4.2.1'
     id 'com.github.node-gradle.node' version '7.0.1'
-    id 'com.vaadin' version '23.3.10'
+    id 'com.vaadin' version '24.3.0'
 }
 
 compileJava {
-    targetCompatibility = '17'
-    sourceCompatibility = '17'
+    targetCompatibility = '20'
+    sourceCompatibility = '20'
 }
 
 allprojects {
@@ -28,13 +28,16 @@ allprojects {
             implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.0.7'
             implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.4.8'
 
-            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '3.10.1'
-            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '3.10.1'
-            implementation group: 'io.micronaut.security', name: 'micronaut-security', version: '3.10.1'
-            implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2', version: '3.10.1'
-            implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt', version: '3.10.1'
-            implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway', version: '5.5.0'
-            implementation group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari', version: '4.8.1'
+            implementation group: 'io.micronaut', name: 'micronaut-http-server-netty', version: '4.2.1'
+            implementation group: 'io.micronaut', name: 'micronaut-http-client', version: '4.2.1'
+            implementation group: 'io.micronaut', name: 'micronaut-inject', version: '4.2.1'
+            implementation group: 'io.micronaut', name: 'micronaut-jackson-databind', version: '4.2.1'
+            implementation group: 'io.micronaut.security', name: 'micronaut-security', version: '4.4.0'
+            implementation group: 'io.micronaut.security', name: 'micronaut-security-oauth2', version: '4.2.1'
+            implementation group: 'io.micronaut.security', name: 'micronaut-security-jwt', version: '4.2.1'
+            implementation group: 'io.micronaut.flyway', name: 'micronaut-flyway', version: '6.2.1'
+            implementation group: 'io.micronaut.sql', name: 'micronaut-jdbc-hikari', version: '5.4.0'
+            implementation group: 'org.yaml', name: 'snakeyaml', version: '2.2'
             implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '6.1.0.202203080745-r'
             implementation group: 'org.apache.commons', name: 'commons-text', version: '1.10.0'
             implementation group: 'com.google.guava', name: 'guava', version: '32.1.1-jre'
@@ -84,6 +87,9 @@ project('common') {
         api group: 'io.micronaut', name: 'micronaut-http-server-netty'
         api group: 'io.micronaut', name: 'micronaut-http-client'
         api group: 'io.micronaut.security', name: 'micronaut-security'
+        api group: 'io.micronaut', name: 'micronaut-jackson-databind'
+        api group: 'io.micronaut', name: 'micronaut-inject'
+        api group: 'org.yaml', name: 'snakeyaml'
     }
 }
 
@@ -245,8 +251,7 @@ project('editor-ui') {
     vaadin {
         pnpmEnable = false
         productionMode = checkBuildMode()
-        generateBundle(checkBuildMode())
-        optimizeBundle(checkBuildMode())
+        optimizeBundle = true
         vaadinBuildFrontend
     }
 
