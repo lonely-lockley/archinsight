@@ -1,8 +1,6 @@
 import * as monaco from 'monaco-editor-core';
 
 import Uri = monaco.Uri;
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
 import { InsightWorker } from './InsightWorker';
 import { languageID } from './config';
 

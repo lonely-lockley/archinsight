@@ -5,7 +5,7 @@ plugins {
     id 'io.micronaut.application' version '3.7.10'
     id 'io.micronaut.minimal.application' version '3.7.10'
     id 'io.micronaut.docker' version '3.7.10'
-    id 'com.github.node-gradle.node' version '3.3.0'
+    id 'com.github.node-gradle.node' version '7.0.1'
     id 'com.vaadin' version '23.3.10'
 }
 
@@ -228,7 +228,13 @@ project('editor-ui') {
         }
     }
 
+//    task webWorkers(type: NpmTask) {
+//        dependsOn(npmInstall)
+//        args = ['run', 'build:prod']
+//    }
+
     tasks.named("vaadinBuildFrontend") {
+//        dependsOn(webWorkers)
         dependsOn(antlr)
     }
 

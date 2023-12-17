@@ -23,12 +23,13 @@ out
 **/main/gen
 **/main/generated
 **/main/antlr/InsightLexer.tokens
-vite.generated.ts
 
 # Ignore node modules cache
 node_modules
 dev-bundle
 generated
+vite.generated.ts
+webpack.generated.js
 
 # Ignore mac-related
 .DS_Store
