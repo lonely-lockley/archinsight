@@ -6,7 +6,6 @@ import com.github.lonelylockley.archinsight.components.dialogs.ResultReturningDi
 import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.archinsight.security.Authentication;
@@ -16,7 +15,6 @@ import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.AbstractGridSingleSelectionModel;
 import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
@@ -136,26 +134,26 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
     private GridContextMenu<RepositoryNode> initContextMenu(boolean readOnly) {
         var menu = addContextMenu();
         // =============================================================================================================
-        var lb = new Label("Open");
+        var lb = new Span("Open");
         lb.setId("repository-tree-view-open-file");
         final var openFile = menu.addItem(lb, event -> openNode(getSelectedItems()));
         // =============================================================================================================
-        lb = new Label("New file");
+        lb = new Span("New file");
         lb.setId("repository-tree-view-new-file");
         final var newFile = menu.addItem(lb, event ->
                 new ResultReturningDialog("Create new file", "File name", "Archinsight will add an .ai extension automatically", this::createFile).open());
         // =============================================================================================================
-        lb = new Label("New directory");
+        lb = new Span("New directory");
         lb.setId("repository-tree-view-new-dir");
         final var newDirectory = menu.addItem(lb, event ->
                 new ResultReturningDialog("Create new directory", "Directory name", null, this::createDirectory).open());
         // =============================================================================================================
-        lb = new Label("Rename");
+        lb = new Span("Rename");
         lb.setId("repository-tree-view-rename-file");
         final var editFile = menu.addItem(lb, event ->
                 new ResultReturningDialog("Rename %s", "New %s name", null, this::renameNode).show(getSelectedItems()));
         // =============================================================================================================
-        lb = new Label("Delete");
+        lb = new Span("Delete");
         lb.setId("repository-tree-view-delete-file");
         final var deleteFile = menu.addItem(lb, event ->
                 new ConfirmDialog("Confirm delete", "Are you sure want to delete %s `%s`?", this::removeNode).show(getSelectedItems()));

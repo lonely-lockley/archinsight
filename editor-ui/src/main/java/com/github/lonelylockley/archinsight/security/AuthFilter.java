@@ -12,9 +12,12 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterListener;
 import com.vaadin.flow.server.VaadinServletRequest;
 import com.vaadin.flow.server.VaadinSession;
+import io.micronaut.security.authentication.AuthenticationProvider;
+import org.eclipse.jetty.security.authentication.BasicAuthenticator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.Authenticator;
 import java.security.interfaces.ECPublicKey;
 import java.time.Duration;
 import java.time.Instant;
@@ -93,7 +96,7 @@ public class AuthFilter implements BeforeEnterListener {
             if (session.getAttribute(Userdata.class) == null) {
                 var request = VaadinServletRequest.getCurrent();
                 var sessionId = session.getSession().getId();
-                var token = Arrays.stream(request.getCookies()).filter(c -> "auth_token".equals(c.getName())).findAny();
+                var token = Arrays.stream(request.getCookies()).filter(c -> "auth_token".equals(c.getName())).findFirst();
                 if (token.isPresent()) {
                     var decoded = JWT.decode(token.get().getValue());
                     if (verifyToken(decoded, sessionId)) {

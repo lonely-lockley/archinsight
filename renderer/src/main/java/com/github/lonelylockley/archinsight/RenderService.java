@@ -34,7 +34,7 @@ public class RenderService {
         this.addressResolver = addressResolver;
     }
 
-    private byte[] render(HttpRequest<Source> request, Source data, String outputFormat, String dpi) throws Exception {
+    private byte[] render(HttpRequest<?> request, Source data, String outputFormat, String dpi) throws Exception {
         var result = new byte[0];
         try (var renderer = new GraphvizRenderer()) {
             renderer.writeInput(data.getSource());
@@ -47,7 +47,7 @@ public class RenderService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces("image/svg+xml")
     @Measured
-    public String renderDefault(HttpRequest<Source> request, Source data) throws Exception {
+    public String renderDefault(HttpRequest<?> request, Source data) throws Exception {
         return renderSVG(request, data);
     }
 
@@ -55,7 +55,7 @@ public class RenderService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces("image/svg+xml")
     @Measured
-    public String renderSVG(HttpRequest<Source> request, Source data) throws Exception {
+    public String renderSVG(HttpRequest<?> request, Source data) throws Exception {
         return new String(render(request, data, "svg", null), StandardCharsets.UTF_8);
     }
 
@@ -63,7 +63,7 @@ public class RenderService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.IMAGE_PNG)
     @Measured
-    public byte[] renderPNG(HttpRequest<Source> request, Source data) throws Exception {
+    public byte[] renderPNG(HttpRequest<?> request, Source data) throws Exception {
         return render(request, data, "png", "200");
     }
 
@@ -71,7 +71,7 @@ public class RenderService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public byte[] renderJSON(HttpRequest<Source> request, Source data) throws Exception {
+    public byte[] renderJSON(HttpRequest<?> request, Source data) throws Exception {
         return render(request, data, "json", null);
     }
 

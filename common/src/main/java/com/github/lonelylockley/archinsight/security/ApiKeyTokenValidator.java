@@ -8,7 +8,7 @@ import jakarta.inject.Singleton;
 import org.reactivestreams.Publisher;
 
 @Singleton
-class ApiKeyTokenValidator implements TokenValidator {
+class ApiKeyTokenValidator implements TokenValidator<HttpRequest<?>> {
 
     private final ApiKeyConfiguration apiKeyConfiguration;
 
@@ -22,5 +22,4 @@ class ApiKeyTokenValidator implements TokenValidator {
                 .map(principal -> Authentication.build(principal._2))
                 .map(Publishers::just).orElseGet(Publishers::empty);
     }
-
 }

@@ -5,14 +5,14 @@ import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.Span;
 
 import java.util.Set;
 
 public class ConfirmDialog extends Dialog {
 
     private final String confirmationQuestionPattern;
-    private final Label questionDisplay = new Label();;
+    private final Span questionDisplay = new Span();
 
     public ConfirmDialog(String title, String confirmationQuestionPattern, Runnable successAction) {
         this.confirmationQuestionPattern = confirmationQuestionPattern;

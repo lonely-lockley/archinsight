@@ -12,18 +12,18 @@ import com.github.lonelylockley.archinsight.remote.RepositoryClient;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.archinsight.security.SecurityConstants;
 import com.github.lonelylockley.archinsight.tracing.Measured;
-import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.runtime.Micronaut;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -46,8 +46,9 @@ public class TranslatorService {
     @Post
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @ExecuteOn(TaskExecutors.BLOCKING)
     @Measured
-    public TranslationResult translate(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, TranslationRequest data) throws Exception {
+    public TranslationResult translate(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @Body TranslationRequest data) throws Exception {
         var ctx = new TranslationContext();
         FileSystem fs;
         // if a request is issued from the editor when no repositories created

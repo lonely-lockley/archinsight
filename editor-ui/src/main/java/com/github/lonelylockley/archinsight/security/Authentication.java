@@ -5,8 +5,8 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinServletRequest;
 import com.vaadin.flow.server.VaadinServletResponse;
 import com.vaadin.flow.server.VaadinSession;
+import jakarta.servlet.http.Cookie;
 
-import javax.servlet.http.Cookie;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
