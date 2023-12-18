@@ -50,6 +50,7 @@ public class KeyGenerator {
                 .notBeforeTime(now)
                 .build();
         writeFile(path, kid, jwk.toString());
+        System.out.printf("Written keyset `%s` to path %s%n", kid, path);
     }
 
     private static void writeFile(String baseP, String filename, String content) throws Exception {

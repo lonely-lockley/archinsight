@@ -140,6 +140,7 @@ project('translator') {
     }
 
     tasks.named("dockerfile") {
+        baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.TranslatorService')
     }
 }
@@ -160,8 +161,8 @@ project('renderer') {
     tasks.named("dockerfile") {
         // tried to fix "Assertion failed: np->cells[1] (maze.c: chkSgraph: 331)" error with version update, no luck for 4.0.0
         // https://gitlab.com/graphviz/graphviz/-/issues/1408
-        baseImage('alpine:3.18')
-        runCommand('apk add --update --no-cache openjdk17 graphviz ttf-freefont')
+        baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
+        runCommand('apk add --update --no-cache graphviz ttf-freefont')
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RenderService')
     }
 }
@@ -181,6 +182,7 @@ project('repository') {
     }
 
     tasks.named("dockerfile") {
+        baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RepositoryService')
     }
 }
@@ -264,6 +266,7 @@ project('editor-ui') {
     }
 
     tasks.named("dockerfile") {
+        baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
         copyFile('layers/editor-ui', '/home/app/editor-ui')
         entryPoint("java", "-cp", "/home/app/application.jar:libs/*", 'com.github.lonelylockley.archinsight.Launcher')
     }
@@ -309,6 +312,7 @@ project('identity') {
     }
 
     tasks.named("dockerfile") {
+        baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.IdentityService')
     }
 }
