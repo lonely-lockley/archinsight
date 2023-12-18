@@ -1,7 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.vaadin.flow.component.html.Label;
-import com.vaadin.flow.component.orderedlayout.Scroller;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 
 public class RepositoryComponent extends VerticalLayout {
@@ -14,7 +13,7 @@ public class RepositoryComponent extends VerticalLayout {
         var treeView = new RepositoryViewComponent(readOnly); // this MUST be created prior to RepositorySelectorComponent, so it would be able to listen to events
         var repositorySelector = new RepositorySelectorComponent(readOnly);
         add(repositorySelector);
-        var label = new Label("Structure");
+        var label = new Span("Structure");
         label.getStyle().set("color", "var(--lumo-secondary-text-color)");
         label.getStyle().set("font-size", "var(--lumo-font-size-s)");
         label.getStyle().set("font-weight", "500");

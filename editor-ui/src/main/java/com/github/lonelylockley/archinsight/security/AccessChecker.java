@@ -1,28 +1,50 @@
 package com.github.lonelylockley.archinsight.security;
 
-import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
-import com.vaadin.flow.server.VaadinRequest;
-import com.vaadin.flow.server.VaadinSession;
-import com.vaadin.flow.server.auth.ViewAccessChecker;
+import com.vaadin.flow.server.auth.AccessAnnotationChecker;
+import com.vaadin.flow.server.auth.AccessCheckResult;
+import com.vaadin.flow.server.auth.NavigationAccessChecker;
+import com.vaadin.flow.server.auth.NavigationContext;
+import jakarta.annotation.security.DenyAll;
+import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.security.Principal;
-import java.util.function.Function;
+public class AccessChecker implements NavigationAccessChecker {
 
-public class AccessChecker extends ViewAccessChecker {
+    private static final Logger logger = LoggerFactory.getLogger(AccessChecker.class);
+
+    private final AccessAnnotationChecker accessAnnotationChecker = new AccessAnnotationChecker();
 
     @Override
-    protected Principal getPrincipal(VaadinRequest request) {
-        var user = VaadinSession.getCurrent().getAttribute(Userdata.class);
-        if (user == null) {
-            return null;
+    public AccessCheckResult check(NavigationContext context) {
+        Class<?> targetView = context.getNavigationTarget();
+        boolean hasAccess = accessAnnotationChecker.hasAccess(targetView, new UserPrincipal(Authentication.getAuthenticatedUser()), this::checkRoles);
+        logger.debug("Access to view '{}' with path '{}' is {}",
+                context.getNavigationTarget().getName(),
+                context.getLocation().getPath(),
+                ((hasAccess) ? "allowed" : "denied")
+        );
+        if (hasAccess) {
+            return context.allow();
+        }
+        String denyReason;
+        if (isImplicitlyDenyAllAnnotated(targetView)) {
+            denyReason = "Consider adding one of the following annotations to make the view accessible: @AnonymousAllowed, @PermitAll, @RolesAllowed";
         }
         else {
-            return new UserPrincipal(user);
+            denyReason = "Access is denied by annotations on the view.";
         }
+        return context.deny(denyReason);
     }
 
-    @Override
-    protected Function<String, Boolean> getRolesChecker(VaadinRequest request) {
-        return "user"::equals; // any logged-in user has only one role at this time. must be extended later
+    private boolean isImplicitlyDenyAllAnnotated(Class<?> targetView) {
+        return !(targetView.isAnnotationPresent(DenyAll.class)
+                || targetView.isAnnotationPresent(PermitAll.class)
+                || targetView.isAnnotationPresent(RolesAllowed.class));
+    }
+
+    protected boolean checkRoles(String requiredRole) {
+        return "user".equals(requiredRole); // any logged-in user has only one role at this time. must be extended later
     }
 }

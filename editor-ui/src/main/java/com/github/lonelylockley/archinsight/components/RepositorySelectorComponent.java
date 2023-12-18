@@ -6,20 +6,11 @@ import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
-import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.dialog.Dialog;
-import com.vaadin.flow.component.grid.Grid;
-import com.vaadin.flow.component.html.Label;
-import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.server.VaadinService;
 
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,8 +27,8 @@ public class RepositorySelectorComponent extends VerticalLayout {
         add(initRepositorySelector(readOnly));
     }
 
-    private Label initLabel() {
-        var label = new Label("Repository");
+    private Span initLabel() {
+        var label = new Span("Repository");
         label.getStyle().set("color", "var(--lumo-secondary-text-color)");
         label.getStyle().set("font-size", "var(--lumo-font-size-s)");
         label.getStyle().set("font-weight", "500");

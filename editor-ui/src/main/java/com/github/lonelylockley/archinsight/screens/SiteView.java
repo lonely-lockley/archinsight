@@ -8,10 +8,10 @@ import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -68,7 +68,9 @@ public class SiteView extends VerticalLayout implements BaseView {
         }
         // project motivation ==========================================================================================
         var lb = new Div();
-        lb.getElement().getStyle().set("text-align", "justify");
+        lb.getElement().getStyle()
+                .set("text-align", "justify")
+                .set("font-size", "var(--lumo-font-size-l)");
         try {
             lb.getElement().setProperty("innerHTML", IOUtils.toString(this.getClass().getResourceAsStream("/description.html"), StandardCharsets.UTF_8));
         }
@@ -129,7 +131,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         var layout = new FlexLayout();
         layout.setAlignItems(Alignment.END);
         var greeting = new Div();
-        greeting.add(new Label("Archinsight"));
+        greeting.add(new Text("Archinsight"));
         greeting.getElement().getStyle().set("font-size", "58px");
         greeting.getElement().getStyle().set("margin-top", "150px");
         greeting.getElement().getStyle().set("margin-left", marginLeft);

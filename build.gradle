@@ -238,6 +238,11 @@ project('editor-ui') {
         args = ['run', 'build:prod']
     }
 
+    node {
+        println 'WARNING: Node path in plugin was not detected correctly, so I locked it to `/usr/local/bin/npm` @see https://github.com/node-gradle/gradle-node-plugin/issues/152'
+        npmCommand = '/usr/local/bin/npm'
+    }
+
     tasks.named("npmInstall") {
         dependsOn(vaadinPrepareFrontend)
     }

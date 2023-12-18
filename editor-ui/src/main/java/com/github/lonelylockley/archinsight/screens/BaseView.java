@@ -2,12 +2,8 @@ package com.github.lonelylockley.archinsight.screens;
 
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
-import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.dependency.CssImport;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.H1;
-import com.vaadin.flow.component.html.Image;
-import com.vaadin.flow.component.html.Label;
+import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -31,12 +27,12 @@ public interface BaseView {
         siteIcon.setHeight("24px");
         siteIcon.addClickListener(event -> UI.getCurrent().navigate(SiteView.class));
         title.add(siteIcon);
-        var siteName = new Label("Archinsight");
+        var siteName = new Span("Archinsight");
         siteName.getElement().addEventListener("click", event -> UI.getCurrent().navigate(SiteView.class));
         siteName.getStyle().set("margin-left", "7px").set("margin-top", "2px");
         title.add(siteName);
         if (titleSuffix != null) {
-            var suffixLabel = new Label(titleSuffix);
+            var suffixLabel = new Span(titleSuffix);
             title.add(suffixLabel);
             suffixLabel.getStyle().set("margin-left", "7px").set("margin-top", "2px");
         }
@@ -48,7 +44,7 @@ public interface BaseView {
         // Actual footer content
         var layout = new HorizontalLayout();
         var footer = new Div();
-        footer.add(new Label("Copyright © 2023 lonely-lockley"));
+        footer.add(new Span("Copyright © 2023 lonely-lockley"));
         footer.getElement().getStyle().set("font-size", "12px");
         footer.getElement().getStyle().set("margin-left", "auto");
         footer.getElement().getStyle().set("margin-right", "0");

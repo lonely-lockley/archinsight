@@ -13,7 +13,6 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.AbstractGridSingleSelectionModel;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
@@ -41,7 +40,7 @@ public class DirectorySelectionDialog extends Dialog implements FileDialog {
         setHeight("600px");
         setDraggable(false);
         var grid = initView(remoteSource, repositoryId);
-        add(new Label(question1));
+        add(new Span(question1));
         input.setWidth("100%");
         input.setPattern(FileSystem.POSIX_FILE_NAME_PTR);
         input.getStyle().set("padding-bottom", "10px");
@@ -49,7 +48,7 @@ public class DirectorySelectionDialog extends Dialog implements FileDialog {
             input.setHelperText(helpText);
         }
         add(input);
-        add(new Label(question2));
+        add(new Span(question2));
         add(grid);
         var okButton = new Button("Ok", e -> {
             var res = grid.getSelectedItems().stream().findFirst();
