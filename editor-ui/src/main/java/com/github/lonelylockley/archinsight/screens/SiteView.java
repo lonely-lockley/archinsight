@@ -77,31 +77,52 @@ public class SiteView extends VerticalLayout implements BaseView {
         catch (Exception ex) {
             logger.error("Could not load site description", ex);
         }
-        // first line actions ==========================================================================================
         var actionsFirstLine = new HorizontalLayout();
         actionsFirstLine.setMargin(false);
-        actionsFirstLine.add(new DockerhubTile());
-        actionsFirstLine.add(new GithubTile());
-        actionsFirstLine.add(new InsightLanguageTile());
-        // second line actions =========================================================================================
         var actionsSecondLine = new HorizontalLayout();
         actionsSecondLine.setMargin(false);
-        var login = new LoginTile(conf.getLoginUrl());
-        if (Authentication.authenticated()) {
-            login.flipTile(Authentication.getAuthenticatedUser());
-        }
-        actionsSecondLine.add(login);
-        actionsSecondLine.add(new PlaygroundTile());
-        // third line actions ==========================================================================================
         var actionsThirdLine = new HorizontalLayout();
         actionsThirdLine.setMargin(false);
-        actionsThirdLine.add(new MailtoTile());
-        actionsThirdLine.add(new ArchinsightTile());
-        // third line actions ==========================================================================================
         var actionsFourthLine = new HorizontalLayout();
+        actionsFourthLine.setMargin(false);
+        // first line actions =========================================================================================
+        var loginFirstLine = new LoginTile(conf.getLoginUrl());
+        var editor = new EditorTile();
+        editor.setVisible(false);
+        actionsFirstLine.add(loginFirstLine);
+        actionsFirstLine.add(editor);
+        actionsFirstLine.add(new PlaygroundTile());
+        // second line actions =========================================================================================
+        var loginSecondLine = new LoginTile(conf.getLoginUrl());
+        loginSecondLine.setVisible(false);
+        actionsSecondLine.add(loginSecondLine);
+        loginFirstLine.onTileFlip(e -> {
+            if (Authentication.authenticated()) {
+                editor.setVisible(true);
+                loginFirstLine.setVisible(false);
+                loginSecondLine.setVisible(true);
+            }
+            else {
+                editor.setVisible(false);
+                loginFirstLine.setVisible(true);
+                loginSecondLine.setVisible(false);
+
+            }
+        });
+        if (Authentication.authenticated()) {
+            loginFirstLine.flipTile(Authentication.getAuthenticatedUser());
+            loginSecondLine.flipTile(Authentication.getAuthenticatedUser());
+        }
+        // third line actions ==========================================================================================
+        actionsThirdLine.add(new DockerhubTile());
+        actionsThirdLine.add(new GithubTile());
+        actionsThirdLine.add(new InsightLanguageTile());
+        // fourth line actions =========================================================================================
+        actionsFourthLine.add(new MailtoTile());
         if (conf.getDevMode()) {
             actionsFourthLine.add(new DevModeLocalLoginTile(conf.getLoginUrl()));
         }
+
         // get things done finally =====================================================================================
         var right = new VerticalLayout();
         right.setMargin(false);

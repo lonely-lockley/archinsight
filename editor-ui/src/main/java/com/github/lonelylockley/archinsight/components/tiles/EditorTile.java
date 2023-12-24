@@ -8,10 +8,10 @@ import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.UI;
 
-public class ArchinsightTile extends SiteViewTile {
+public class EditorTile extends SiteViewTile {
 
-    public ArchinsightTile() {
-        super("Open Insight editor", "static/archinsight-logo-no-background.svg", "#04AA6D", doubleWidth, singleHeight);
+    public EditorTile() {
+        super("Open Insight editor", "static/archinsight-logo-no-background.svg", "#59981A", doubleWidth, singleHeight);
         setClassName("tile_action");
         addClickListener(e -> {
             UI.getCurrent().navigate(EditorView.class);

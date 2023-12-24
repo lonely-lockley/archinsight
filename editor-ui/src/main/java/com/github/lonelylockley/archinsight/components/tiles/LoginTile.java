@@ -4,13 +4,14 @@ import com.github.lonelylockley.archinsight.components.NotificationComponent;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
-import com.github.lonelylockley.archinsight.screens.SiteView;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+
+import java.util.function.Consumer;
 
 public class LoginTile extends SiteViewTile {
 
@@ -19,6 +20,8 @@ public class LoginTile extends SiteViewTile {
 
     private final LoginClickListener loginClickListener;
     private final LogoutClickListener logoutClickListener;
+
+    private Consumer<Userdata> listener = null;
 
     public LoginTile(String loginUrl) {
         super("Sign in with Google", iconSrc, baseColor, doubleWidth, singleHeight);
@@ -30,7 +33,7 @@ public class LoginTile extends SiteViewTile {
         logoutClickListener = new LogoutClickListener();
         addClickListener(logoutClickListener);
 
-        var authListener = new BaseListener<UserAuthenticatedEvent>() {
+        final var authListener = new BaseListener<UserAuthenticatedEvent>() {
             @Override
             @Subscribe
             public void receive(UserAuthenticatedEvent e) {
@@ -44,13 +47,20 @@ public class LoginTile extends SiteViewTile {
         addDetachListener(e -> Communication.getBus().unregister(authListener));
     }
 
+    public void onTileFlip(Consumer<Userdata> listener) {
+        this.listener = listener;
+    }
+
     public void flipTile(Userdata user) {
         setText(user.getDisplayName() + " (Logout)");
         makeTextNormal();
         setIcon(user.getAvatar());
-        setColor("#04AA6D");
+        setColor("#59981A");
         loginClickListener.disable();
         logoutClickListener.enable();
+        if (listener != null) {
+            listener.accept(user);
+        }
     }
 
     public void flipBackTile() {
