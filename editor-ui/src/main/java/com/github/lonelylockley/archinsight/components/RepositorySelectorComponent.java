@@ -26,16 +26,17 @@ public class RepositorySelectorComponent extends VerticalLayout {
         setWidth("100%");
         add(initLabel());
 
+        var items = listRepositories();
         if (Authentication.playgroundModeEnabled()) {
             if (Authentication.authenticated()) {
-                add(initRepositorySelector(true));
+                add(initRepositorySelector(true, items));
             }
             else {
                 add(new CreateRepositoryComponent());
             }
         }
         else {
-            add(initRepositorySelector(false));
+            add(initRepositorySelector(false, items));
         }
     }
 
@@ -47,20 +48,27 @@ public class RepositorySelectorComponent extends VerticalLayout {
         return label;
     }
 
-    private Button initRepositorySelector(boolean lockedOut) {
-        final var manageRepositoryButton = new Button("<Choose Repository>");
-        manageRepositoryButton.setWidth("100%");
-        manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+    private List<RepositoryInfo> listRepositories() {
         var items = remoteSource.repository.listUserRepositories();
         if (items.size() == 1) {
             var item = items.iterator().next();
-            manageRepositoryButton.setText(String.format("[ %s ]", item.getName()));
             // this event is sent before a listener is added, so it won't cause cycle
             Communication.getBus().post(new RepositorySelectionEvent(null, item));
         }
         else
         if (items.size() > 1) {
             restoreSelectedRepository(items);
+        }
+        return items;
+    }
+
+    private Button initRepositorySelector(boolean lockedOut, List<RepositoryInfo> items) {
+        final var manageRepositoryButton = new Button("<Choose Repository>");
+        manageRepositoryButton.setWidth("100%");
+        manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        if (items.size() == 1) {
+            var item = items.iterator().next();
+            manageRepositoryButton.setText(String.format("[ %s ]", item.getName()));
         }
         else {
             manageRepositoryButton.setText("<Create Repository>");

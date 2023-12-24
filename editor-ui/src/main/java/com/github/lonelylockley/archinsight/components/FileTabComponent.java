@@ -18,13 +18,6 @@ public class FileTabComponent extends TabSheet {
 
     public FileTabComponent(MenuBarComponent menu, SwitchListenerHelper switchListener) {
         this.switchListener = switchListener;
-        final var menuBar = new HorizontalLayout();
-        menuBar.add(menu);
-        if (Authentication.playgroundModeEnabled() && !Authentication.authenticated()) {
-            menuBar.add(new CreateRepositoryComponent());
-        }
-        var menuTab = new Tab(menuBar);
-        menuTab.getStyle().set("padding-left", "2px");
         setSizeFull();
     }
 
