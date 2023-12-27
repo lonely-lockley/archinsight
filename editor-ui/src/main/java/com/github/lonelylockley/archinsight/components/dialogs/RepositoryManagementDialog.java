@@ -1,8 +1,7 @@
 package com.github.lonelylockley.archinsight.components.dialogs;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
-import com.github.lonelylockley.archinsight.components.RepositorySelectorComponent;
-import com.github.lonelylockley.archinsight.events.CloseReason;
+import com.github.lonelylockley.archinsight.events.FileChangeReason;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.RepositoryCloseEvent;
 import com.github.lonelylockley.archinsight.events.RepositorySelectionEvent;
@@ -44,7 +43,7 @@ public class RepositoryManagementDialog extends Dialog {
             if (selection.size() > 0) {
                 var repo = selection.iterator().next();
                 if (!repo.equals(selected)) {
-                    Communication.getBus().post(new RepositoryCloseEvent(CloseReason.CLOSED));
+                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
                     Communication.getBus().post(new RepositorySelectionEvent(selected, repo));
                 }
                 close();
@@ -90,7 +89,7 @@ public class RepositoryManagementDialog extends Dialog {
             if (items.size() > 0) {
                 items.forEach(repo -> {
                     if (repo.equals(selected)) {
-                        Communication.getBus().post(new RepositoryCloseEvent(CloseReason.DELETED));
+                        Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.DELETED));
                     }
                     remoteSource.repository.removeRepository(repo.getId());
                     table.deselect(repo);

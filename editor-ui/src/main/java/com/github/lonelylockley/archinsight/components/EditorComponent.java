@@ -1,10 +1,11 @@
 package com.github.lonelylockley.archinsight.components;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.github.lonelylockley.archinsight.MicronautContext;
-import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
@@ -14,14 +15,14 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.dependency.NpmPackage;
 import com.vaadin.flow.component.html.Div;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.function.Consumer;
 
 @NpmPackage(value = "monaco-editor-core", version = "^0.40.0")
 @NpmPackage(value = "monaco-editor", version = "^0.40.0")
@@ -34,98 +35,85 @@ public class EditorComponent extends Div {
     private static final Logger logger = LoggerFactory.getLogger(EditorComponent.class);
 
     private final RemoteSource remoteSource;
+    private final Consumer<String> renderer;
+    private final String id;
 
-    private final SwitchListenerHelper switchListener;
+    private String originalHash;
+    private String clientHash;
+    private String clientCodeCache;
 
-    public EditorComponent(SwitchListenerHelper switchListener) {
-        this.switchListener = switchListener;
+    public EditorComponent(Consumer<String> renderer, String content) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
-        setId("editor");
+        this.renderer = renderer;
+        this.clientCodeCache = content;
+        this.originalHash = DigestUtils.sha256Hex(content);
+        this.id = String.format("editor-%s", UUID.randomUUID());
+        setId(id);
         if (Authentication.playgroundModeEnabled()) {
-            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1)", "org.archinsight.playground.sourcecode", null);
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2)", id, "org.archinsight.playground.sourcecode", content);
         }
         else {
-            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1)", "org.archinsight.editor.sourcecode", null);
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2)", id, "org.archinsight.editor.sourcecode", content);
         }
     }
 
-    private int nonNull(Integer value) {
-        return value == null ? 0 : value;
+    private boolean canAutoSaveFile(RepositoryNode file, FileChangeReason reason) {
+        return !Authentication.playgroundModeEnabled() && !file.isNew() && reason != FileChangeReason.DELETED;
+    }
+
+    public void close(RepositoryNode file, FileChangeReason reason, Consumer<String> andThen) {
+        if (canAutoSaveFile(file, reason)) {
+            saveCode(file, reason, andThen);
+            logger.warn(">>>>> saved file " + file.getName());
+        }
+        else {
+            andThen.accept(clientCodeCache);
+            logger.warn(">>>>> did not save file " + file.getName());
+        }
+    }
+
+    public void saveCode(RepositoryNode file, FileChangeReason reason, Consumer<String> andThen) {
+        // capture context, because lambdas will be called asynchronously when fileOpened will be already updated
+        final var filename = file.getName();
+        final var id = file.getId();
+        getElement().executeJs("return this.editor.getValue()").then(String.class,
+            code -> {
+                clientHash = DigestUtils.sha256Hex(code);
+                if (!Objects.equals(originalHash, clientHash)) {
+                    remoteSource.repository.saveFile(id, code);
+                    // this messages seems to be annoying. so default behavior is silent
+                    if (reason == FileChangeReason.USER_REQUEST) {
+                        Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, String.format("File %s saved", filename), 3000));
+                    }
+                    originalHash = clientHash;
+                }
+                andThen.accept(code);
+            },
+            error -> {
+                if (!Objects.equals(originalHash, clientHash)) {
+                    remoteSource.repository.saveFile(id, clientCodeCache);
+                    Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, String.format("File %s saved. Cached server version was saved - it may be out of sync with the browser", filename), 3000));
+                }
+                andThen.accept(clientCodeCache);
+            }
+        );
+    }
+
+    public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
+        ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+        getElement().executeJs("this.editor.addModelMarkers($0)", ow.writeValueAsString(messages));
     }
 
     @ClientCallable
-    public void render(String code) {
-        try {
-            var file = switchListener.getOpenedFileId();
-            var repo = switchListener.getActiveRepositoryId();
-            var messages = remoteSource.render.render(code, repo, file);
-            var msg = new StringBuilder();
-            for (Map.Entry<UUID, List<TranslatorMessage>> entry : messages.entrySet()) {
-                if (Objects.equals(file, entry.getKey())) {
-                    ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-                    getElement().executeJs("window.editor.addModelMarkers($0)", ow.writeValueAsString(messages.get(file)));
-                }
-                else {
-                    var location = entry.getValue().stream().findFirst().get().getLocation();
-                    var summary = entry.getValue().stream().collect(Collectors.toMap(TranslatorMessage::getLevel, val -> 1, Integer::sum));
-                    msg
-                        .append('\n')
-                        .append("- In file ")
-                        .append(location)
-                        .append('\n')
-                        .append("errors: ")
-                        .append(nonNull(summary.get(MessageLevel.ERROR)))
-                        .append(" warnings: ")
-                        .append(nonNull(summary.get(MessageLevel.WARNING)))
-                        .append(" notices: ")
-                        .append(nonNull(summary.get(MessageLevel.NOTICE)));
-                }
-            }
-            if (!msg.isEmpty()) {
-                new NotificationComponent("Project linking failure:" + msg, MessageLevel.ERROR, 15000);
-            }
-        }
-        catch (Exception ex) {
-            Communication.getBus().post(new SourceCompilationEvent(false));
-            new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
-            logger.error("Could not render source", ex);
-        }
+    public void render(String digest, String code) {
+        cache(digest, code);
+        renderer.accept(code);
     }
 
-    private boolean canAutoSaveFile(CloseReason reason) {
-        return !Authentication.playgroundModeEnabled() && switchListener.repositoryOpened()
-                && switchListener.fileOpened() && reason != CloseReason.DELETED;
-    }
-
-    public boolean closeFile(CloseReason reason) {
-        if (canAutoSaveFile(reason)) {
-            saveCode();
-        }
-        if (switchListener.fileOpened()) {
-            getElement().executeJs("window.editor.setValue('')");
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
-
-    public void saveCode() {
-        if (switchListener.fileOpened()) {
-            // capture context, because lambdas will be called asynchronously when fileOpened will be already updated
-            final var filename = switchListener.getOpenedFile().getName();
-            final var id = switchListener.getOpenedFileId();
-            getElement().executeJs("return window.editor.getValue()").then(String.class,
-                    code -> {
-                        remoteSource.repository.saveFile(id, code);
-                        // this messages seems to be annoying. may be uncommented any time later
-                        //Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, String.format("File %s saved", filename), 3000));
-                    },
-                    error -> {
-                        Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, String.format("Could not save file %s", filename), 3000));
-                    }
-            );
-        }
+    @ClientCallable
+    public void cache(String digest, String code) {
+        clientHash = digest;
+        clientCodeCache = code;
     }
 
 }

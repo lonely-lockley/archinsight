@@ -41,9 +41,9 @@ public class RenderSource {
         return res;
     }
 
-    public Map<UUID, List<TranslatorMessage>> render(String code, UUID repositoryId, UUID fileId) {
+    public Map<UUID, List<TranslatorMessage>> render(String code, String tabId, UUID repositoryId, UUID fileId) {
         if (code == null || code.isBlank()) {
-            Communication.getBus().post(new SourceCompilationEvent(false));
+            Communication.getBus().post(new SourceCompilationEvent(tabId, false));
         }
         else {
             long startTime = System.nanoTime();
@@ -63,11 +63,11 @@ public class RenderSource {
             );
             if (!translated.isHasErrors()) {
                 var svg = renderer.renderSvg(conf.getRendererAuthToken(), prepareRendererRequest(translated));
-                Communication.getBus().post(new SourceCompilationEvent(true));
-                Communication.getBus().post(new SvgDataEvent(svg));
+                Communication.getBus().post(new SourceCompilationEvent(tabId, true));
+                Communication.getBus().post(new SvgDataEvent(tabId, svg));
             }
             else {
-                Communication.getBus().post(new SourceCompilationEvent(false, messagesByFile));
+                Communication.getBus().post(new SourceCompilationEvent(tabId, false, messagesByFile));
             }
             logger.info("Render for {} required {}ms", fileId, (System.nanoTime() - startTime) / 1000000);
 

@@ -8,14 +8,17 @@ import java.util.Map;
 import java.util.UUID;
 
 public class SourceCompilationEvent extends BaseEvent {
+    private final String tabId;
     private final boolean success;
     private final Map<UUID, List<TranslatorMessage>> messagesByFile = new HashMap<>();
 
-    public SourceCompilationEvent(boolean success) {
+    public SourceCompilationEvent(String tabId, boolean success) {
+        this.tabId = tabId;
         this.success = success;
     }
 
-    public SourceCompilationEvent(boolean success, Map<UUID, List<TranslatorMessage>> messagesByFile) {
+    public SourceCompilationEvent(String tabId, boolean success, Map<UUID, List<TranslatorMessage>> messagesByFile) {
+        this.tabId = tabId;
         this.success = success;
         this.messagesByFile.putAll(messagesByFile);
     }

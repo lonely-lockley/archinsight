@@ -15,7 +15,7 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
 
     protected void initView(String titleSuffix, boolean readOnly) {
         registerNotificationListener();
-        Communication.getBus().post(new RepositoryCloseEvent(CloseReason.CLOSED));
+        Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
         DrawerToggle toggle = new DrawerToggle();
 
         /* =============================================================================================================

@@ -76,7 +76,7 @@ public class UserMenuComponent extends MenuBar {
         logout.addClickListener(e -> {
             if (Authentication.authenticated()) {
                 if (!Authentication.playgroundModeEnabled()) {
-                    Communication.getBus().post(new RepositoryCloseEvent(CloseReason.CLOSED));
+                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
                 }
                 Authentication.deauthenticate();
             }

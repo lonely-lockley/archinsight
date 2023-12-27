@@ -40,7 +40,7 @@ public class FileService {
     @Get("/{fileId}/open")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<FileContent> open(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID fileId) throws Exception {
+    public HttpResponse<FileContent> open(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID fileId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(FileMapper.class);
             // omit owner check for playground
@@ -67,7 +67,7 @@ public class FileService {
     @Get("/{repositoryId}/openAll")
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<FileData>> openAll(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID repositoryId) throws Exception {
+    public HttpResponse<List<FileData>> openAll(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @PathVariable UUID repositoryId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
@@ -110,7 +110,7 @@ public class FileService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<UUID> save(HttpRequest<TranslationRequest> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, FileContent fc) throws Exception {
+    public HttpResponse<UUID> save(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID fileId, @Body FileContent fc) throws Exception {
         if (!Validations.fileContentLengthIsUnder1MB(fc.getContent())) {
             throw new ServiceException(new ErrorMessage("The file is too large", HttpStatus.BAD_REQUEST));
         }

@@ -2,12 +2,12 @@ package com.github.lonelylockley.archinsight.events;
 
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 
-public class FileCloseRequestEvent extends BaseEvent {
+public class FileSaveRequestEvent extends BaseEvent {
 
     private final RepositoryNode file;
     private final FileChangeReason reason;
 
-    public FileCloseRequestEvent(RepositoryNode file, FileChangeReason reason) {
+    public FileSaveRequestEvent(RepositoryNode file, FileChangeReason reason) {
         this.file = file;
         this.reason = reason;
     }
@@ -19,5 +19,4 @@ public class FileCloseRequestEvent extends BaseEvent {
     public RepositoryNode getFile() {
         return file;
     }
-
 }

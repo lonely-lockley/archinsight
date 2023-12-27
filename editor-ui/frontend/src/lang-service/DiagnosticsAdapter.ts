@@ -25,7 +25,7 @@ class DiagnosticsAdapter {
     // get the worker proxy
     const worker = await this.worker(resource);
     // call to validate method proxy from the language service and get errors
-    const errorMarkers = await worker.doValidation();
+    const errorMarkers = await worker.doValidation(resource);
     // get the current model(editor or file) which is only one
     const model = monaco.editor.getModel(resource);
     // add the error markers and underline them with severity of Error

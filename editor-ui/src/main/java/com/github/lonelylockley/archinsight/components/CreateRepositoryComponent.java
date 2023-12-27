@@ -18,7 +18,7 @@ public class CreateRepositoryComponent extends Button {
         final var icon = new Image("static/google-178-svgrepo-com.svg", "G");
         icon.setHeight(20, Unit.PIXELS);
         icon.setWidth(20, Unit.PIXELS);
-        icon.getStyle().set("margin-right", "5px");
+        icon.getStyle().set("margin-right", "5px").set("margin-top", "2px");
         setPrefixComponent(icon);
         addClickListener(e -> {
             Communication.getBus().post(new CreateRepositoryEvent());

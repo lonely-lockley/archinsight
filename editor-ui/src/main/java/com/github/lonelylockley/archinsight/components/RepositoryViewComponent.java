@@ -198,8 +198,8 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
             if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
-                Communication.getBus().post(new FileCloseRequestEvent(CloseReason.CLOSED));
-                Communication.getBus().post(new FileOpenRequestEvent(node));
+                Communication.getBus().post(new FileCloseRequestEvent(node, FileChangeReason.CLOSED));
+                Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
                 storeOpenedFile(node.getId());
             }
             else {
@@ -249,7 +249,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             getDataProvider().refreshAll();
             deselect(node);
             if (deleted.contains(switchListener.getOpenedFileId())) {
-                Communication.getBus().post(new FileCloseRequestEvent(CloseReason.DELETED));
+                Communication.getBus().post(new FileCloseRequestEvent(node, FileChangeReason.DELETED));
             }
             storeOpenedFile(null);
         }

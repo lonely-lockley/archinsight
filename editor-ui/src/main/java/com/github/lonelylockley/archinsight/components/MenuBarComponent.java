@@ -119,10 +119,6 @@ public class MenuBarComponent extends MenuBar {
         addDetachListener(e -> { Communication.getBus().unregister(svgDataListener); });
     }
 
-    public void openFile(RepositoryNode file) {
-        openButtonClicked(file);
-    }
-
     public void enableSaveButton() {
         if (!readOnly) {
             saveButton.setEnabled(true);
@@ -153,10 +149,6 @@ public class MenuBarComponent extends MenuBar {
         zoomResetButton.setEnabled(false);
         zoomOutButton.setEnabled(false);
         zoomFitButton.setEnabled(false);
-    }
-
-    public void enableButtons() {
-
     }
 
     private void menuItemClicked(ClickEvent<MenuItem> event) {
@@ -206,27 +198,18 @@ public class MenuBarComponent extends MenuBar {
         }
     }
 
-    private void openButtonClicked(RepositoryNode fileSelected) {
-        var content = remoteSource.repository.openFile(fileSelected.getId());
-        this.getElement().executeJs("window.editor.setValue($0)", content);
-        Communication.getBus().post(new FileOpenedEvent(fileSelected));
-    }
-
-    private void saveSource(UUID fileId) {
-        this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
-            remoteSource.repository.saveFile(fileId, code);
-            Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, "File saved", 3000));
-        });
+    private void saveSource(RepositoryNode file) {
+        Communication.getBus().post(new FileSaveRequestEvent(file, FileChangeReason.USER_REQUEST));
     }
 
     private void saveButtonClicked() {
         if (switchListener.fileOpened()) {
-            saveSource(switchListener.getOpenedFileId());
+            saveSource(switchListener.getOpenedFile());
         }
         else {
             var dlg = new DirectorySelectionDialog("Create new file", "File name", "Choose directory", "Archinsight will add an .ai extension automatically", switchListener.getActiveRepositoryId(), res -> {
                 Communication.getBus().post(res);
-                saveSource(res.getCreatedFile().getId());
+                saveSource(res.getCreatedFile());
             });
             dlg.open();
         }
