@@ -7,18 +7,19 @@ import { LinkerMessage } from './model/TranslatorResponse';
 const _global = (window) as any
 const renderClient: Renderer = new Renderer();
 
-function renderCode(container: HTMLElement, value: string, uri: monaco.Uri) {
+function renderCode(container: HTMLElement, tab: string, value: string, uri: monaco.Uri) {
     const errors = monaco.editor.getModelMarkers({ resource: uri })?.length;
     if (!errors && value && value.length > 0) {
-        renderClient.remoteRender(container, value);
+        renderClient.remoteRender(container, tab, value);
     }
     else {
-        renderClient.remoteCache(container, value);
+        renderClient.remoteCache(container, tab, value);
     }
 }
 
-function initializeEditor(anchorId: string, localStorageKey: string, code: string) {
+function initializeEditor(anchorId: string, remoteId: string, tab: string, localStorageKey: string, code: string) {
     setupLanguage();
+    const remote: HTMLElement = document.getElementById(remoteId)!;
     const container: HTMLElement = document.getElementById(anchorId)!;
     const editor: monaco.editor.IStandaloneCodeEditor = monaco.editor.create(container, {
                                                                   language: languageID,
@@ -34,7 +35,7 @@ function initializeEditor(anchorId: string, localStorageKey: string, code: strin
         const value = editor.getValue();
         localStorage.setItem(localStorageKey, value || '');
         clearTimeout(timeout);
-        timeout = window.setTimeout(() => renderCode(container, value, editor.getModel()!.uri), 1000);
+        timeout = window.setTimeout(() => renderCode(remote, tab, value, editor.getModel()!.uri), 1000);
     });
 
     // monkey patch editor to pass errors

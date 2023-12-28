@@ -10,6 +10,7 @@ import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMe
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.tabs.Tab;
 import org.slf4j.Logger;
@@ -27,39 +28,41 @@ public class EditorTabComponent extends Tab {
 
     private static final Logger logger = LoggerFactory.getLogger(EditorTabComponent.class);
 
+    private final Span label;
     private final RemoteSource remoteSource;
     private final EditorComponent editor;
     private final SVGViewComponent view;
     private final SplitViewComponent content;
     private final String id;
-
-    private final Button closeButton = new Button(VaadinIcon.CLOSE_SMALL.create());
+    private final UUID repositoryId;
 
     private BiConsumer<EditorTabComponent, FileChangeReason> listener;
     private RepositoryNode file;
-    private UUID repositoryId;
 
-    public EditorTabComponent(UUID repositoryId, RepositoryNode file) {
-        super(file.getName());
+    public EditorTabComponent(String parentId, UUID repositoryId, RepositoryNode file) {
+        super();
+        this.label = new Span(file.getName());
+        add(label);
         this.file = file;
         this.repositoryId = repositoryId;
         this.id = String.format("editor-tab-%s", UUID.randomUUID());
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
-        String source = null;
+        String source = "";
         if (!file.isNew()) {
             source = remoteSource.repository.openFile(file.getId());
         }
-        this.editor = new EditorComponent(this:: renderer, source);
+        this.editor = new EditorComponent(parentId, id, this::renderer, source);
         this.view = new SVGViewComponent();
         this.content = new SplitViewComponent(editor, view);
         getStyle().set("padding-top", "0px").set("padding-bottom", "0px");
+        var closeButton = new Button(VaadinIcon.CLOSE_SMALL.create());
         closeButton.addThemeVariants(ButtonVariant.LUMO_SMALL);
         closeButton.getStyle().set("padding", "0px");
         closeButton.getStyle().set("margin-left", "5px");
         closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ICON);
         closeButton.addClickListener(e -> {
             if (listener != null) {
-                listener.accept(this, FileChangeReason.USER_REQUEST);
+                listener.accept(this, FileChangeReason.CLOSED);
             }
             // do not call it here. listener will call it from TabsComponent
             //closeTab(FileChangeReason.USER_REQUEST);
@@ -73,6 +76,10 @@ public class EditorTabComponent extends Tab {
 
     public void requestCloseTab(FileChangeReason reason, Consumer<String> andThen) {
         editor.close(file, reason, andThen);
+    }
+
+    public void saveSource() {
+        editor.saveCode(file, FileChangeReason.USER_REQUEST, e -> {});
     }
 
     public SplitViewComponent getContent() {
@@ -93,6 +100,19 @@ public class EditorTabComponent extends Tab {
 
     public UUID getFileId() {
         return file.getId();
+    }
+
+    public RepositoryNode getFile() {
+        return file;
+    }
+
+    public boolean isNew() {
+        return file.isNew();
+    }
+
+    public void updateFile(RepositoryNode file) {
+        this.file = file;
+        label.setText(file.getName());
     }
 
     public void renderer(String code) {

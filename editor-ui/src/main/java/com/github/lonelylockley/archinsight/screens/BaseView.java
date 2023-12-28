@@ -17,10 +17,6 @@ import com.vaadin.flow.theme.lumo.Lumo;
 @CssImport(value = "./styles/vaadin-app-layout.css", themeFor = "vaadin-app-layout")
 public interface BaseView {
 
-    default Component createTitle(MenuBarComponent menu) {
-        return createTitle(null, menu);
-    }
-
     default Component createTitle(String titleSuffix, MenuBarComponent menu) {
         var title = new HorizontalLayout();
         title.getStyle().set("font-size", "var(--lumo-font-size-l)");
@@ -39,7 +35,6 @@ public interface BaseView {
             title.add(suffixLabel);
             suffixLabel.getStyle().set("margin-left", "7px").set("margin-top", "7px");
         }
-        menu.getStyle().set("margin-left", "20px");
         title.add(menu);
         title.setVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
         title.setWidthFull();

@@ -16,6 +16,7 @@ import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.dependency.NpmPackage;
 import com.vaadin.flow.component.html.Div;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang3.function.TriConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,18 +43,21 @@ public class EditorComponent extends Div {
     private String clientHash;
     private String clientCodeCache;
 
-    public EditorComponent(Consumer<String> renderer, String content) {
+    private boolean hasErrors = false;
+
+    public EditorComponent(String rootId, String tabId, Consumer<String> renderer, String content) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         this.renderer = renderer;
         this.clientCodeCache = content;
         this.originalHash = DigestUtils.sha256Hex(content);
         this.id = String.format("editor-%s", UUID.randomUUID());
+        logger.warn(">>>>> create editor " + id);
         setId(id);
         if (Authentication.playgroundModeEnabled()) {
-            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2)", id, "org.archinsight.playground.sourcecode", content);
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2, $3, $4)", id, rootId, tabId, "org.archinsight.playground.sourcecode", content);
         }
         else {
-            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2)", id, "org.archinsight.editor.sourcecode", content);
+            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2, $3, $4)", id, rootId, tabId, "org.archinsight.editor.sourcecode", content);
         }
     }
 
@@ -90,6 +94,7 @@ public class EditorComponent extends Div {
                 andThen.accept(code);
             },
             error -> {
+                logger.error(error);
                 if (!Objects.equals(originalHash, clientHash)) {
                     remoteSource.repository.saveFile(id, clientCodeCache);
                     Communication.getBus().post(new NotificationEvent(MessageLevel.WARNING, String.format("File %s saved. Cached server version was saved - it may be out of sync with the browser", filename), 3000));
@@ -99,18 +104,35 @@ public class EditorComponent extends Div {
         );
     }
 
-    public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
-        ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-        getElement().executeJs("this.editor.addModelMarkers($0)", ow.writeValueAsString(messages));
+    public void doWithCode(RepositoryNode file, String tabId, TriConsumer<String, RepositoryNode, String> andThen) {
+        getElement().executeJs("return this.editor.getValue()").then(String.class,
+                code -> {
+                    andThen.accept(tabId, file, code);
+                },
+                error -> {
+                    logger.error(error);
+                    andThen.accept(tabId, file, clientCodeCache);
+                }
+        );
     }
 
-    @ClientCallable
+    public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
+        if (!messages.isEmpty()) {
+            ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+            getElement().executeJs("this.editor.addModelMarkers($0)", ow.writeValueAsString(messages));
+            hasErrors = true;
+        }
+    }
+
+    public boolean hasErrors() {
+        return hasErrors;
+    }
+
     public void render(String digest, String code) {
         cache(digest, code);
         renderer.accept(code);
     }
 
-    @ClientCallable
     public void cache(String digest, String code) {
         clientHash = digest;
         clientCodeCache = code;

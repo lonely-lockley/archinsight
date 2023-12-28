@@ -236,7 +236,7 @@ public class RepositoryService {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
-    public HttpResponse<List<UUID>> removeNode(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, @Body UUID nodeId) throws Exception {
+    public HttpResponse<List<UUID>> removeNode(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @PathVariable UUID repositoryId, UUID nodeId) throws Exception {
         try (var session = sqlSessionFactory.getSession()) {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);

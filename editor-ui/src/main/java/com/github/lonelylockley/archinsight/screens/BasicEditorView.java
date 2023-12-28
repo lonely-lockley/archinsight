@@ -13,26 +13,37 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  */
 public abstract class BasicEditorView extends AppLayout implements BaseView {
 
-    protected void initView(String titleSuffix, boolean readOnly) {
+    protected void initView(String titleSuffix, boolean readOnly, int menuMargin) {
         registerNotificationListener();
         Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
-        DrawerToggle toggle = new DrawerToggle();
 
         /* =============================================================================================================
          * a hidden element to spawn download links
          * without it, download activation script triggering anchor click, triggers menu item click again causing
          * endless cycle
          */
-        var invisible = new Div();
+        final var invisible = new Div();
         invisible.getElement().getStyle().set("display", "none");
         addToDrawer(invisible);
         // =============================================================================================================
 
-        var content = new WorkAreaComponent(invisible, readOnly);
-        var title = createTitle(titleSuffix, content.getMenuControls());
+        final var content = new WorkAreaComponent(invisible, readOnly);
+        final var menu = content.getMenuControls();
+        menu.getStyle().set("margin-left", menuMargin + "px");
+        final var title = createTitle(titleSuffix, menu);
+
+        final var toggle = new DrawerToggle();
+        toggle.addClickListener(e -> {
+            if (isDrawerOpened()) {
+                menu.getStyle().set("margin-left", menuMargin + "px");
+            }
+            else {
+                menu.getStyle().set("margin-left", "20px");
+            }
+        });
 
         // create content first to register all event listeners
-        var contentLayout = new VerticalLayout();
+        final var contentLayout = new VerticalLayout();
         contentLayout.setSpacing(false);
         contentLayout.setPadding(false);
         contentLayout.add(content);
@@ -40,7 +51,7 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         setContent(contentLayout);
 
         // and repository component second because it sends event
-        var nav = new RepositoryComponent(readOnly);
+        final var nav = new RepositoryComponent(readOnly);
         addToDrawer(nav);
         addToNavbar(toggle, title, new UserMenuComponent());
         setDrawerOpened(true);

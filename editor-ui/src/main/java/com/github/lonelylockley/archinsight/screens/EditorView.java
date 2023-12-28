@@ -13,6 +13,6 @@ import jakarta.annotation.security.RolesAllowed;
 public class EditorView extends BasicEditorView {
     public EditorView() {
         Authentication.disablePlaygroundMode();
-        initView(null, false);
+        initView(null, false, 137);
     }
 }

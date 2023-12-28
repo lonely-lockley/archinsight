@@ -8,11 +8,12 @@ import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNo
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
-import com.vaadin.flow.component.ClickEvent;
-import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.contextmenu.MenuItem;
+import com.vaadin.flow.component.contextmenu.SubMenu;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
@@ -22,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import java.util.UUID;
 
 public class MenuBarComponent extends MenuBar {
@@ -32,7 +34,8 @@ public class MenuBarComponent extends MenuBar {
     private final RemoteSource remoteSource;
     private final SwitchListenerHelper switchListener;
 
-    private final MenuItem saveButton;
+    private final MenuItem newButton;
+    private final MenuItem sourceDropdown;
     private final MenuItem exportDropdown;
     private final MenuItem zoomInButton;
     private final MenuItem zoomResetButton;
@@ -47,104 +50,103 @@ public class MenuBarComponent extends MenuBar {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         ComponentEventListener<ClickEvent<MenuItem>> listener = this::menuItemClicked;
 
-        saveButton = addItem("Save source", listener);
-        saveButton.setId("menu_btn_file_save");
-        saveButton.add(new Icon(VaadinIcon.CLOUD_DOWNLOAD));
-        saveButton.setEnabled(false);
-        if (readOnly) {
-            saveButton.setVisible(false);
+        newButton = createItem(this, "menu_btn_file_new", new Icon(VaadinIcon.FILE), "New file", null, false, false, listener);
+        sourceDropdown = createItem(this, "menu_btn_source", null, "Source", new Icon(VaadinIcon.ANGLE_DOWN), false, false, listener);
+        var sourceSubMenu = sourceDropdown.getSubMenu();
+            createItem(sourceSubMenu, "menu_btn_file_save", new Icon(VaadinIcon.CLOUD_DOWNLOAD), "Save", null, true, !readOnly, listener);
+            createItem(sourceSubMenu, "menu_btn_file_download", new Icon(VaadinIcon.DOWNLOAD), "Download", null, true, true, listener);
+        exportDropdown = createItem(this, "menu_btn_export", null, "Diagram", new Icon(VaadinIcon.ANGLE_DOWN), false, false, listener);
+        var exportSubMenu = exportDropdown.getSubMenu();
+            createItem(exportSubMenu, "menu_btn_export_as_svg",  new Icon(VaadinIcon.DOWNLOAD), "Export as SVG", null, true, true, listener);
+            createItem(exportSubMenu, "menu_btn_export_as_png",  new Icon(VaadinIcon.DOWNLOAD), "Export as PNG", null, true, true, listener);
+            createItem(exportSubMenu, "menu_btn_export_as_json", new Icon(VaadinIcon.DOWNLOAD), "Export as JSON", null, true, true, listener);
+            createItem(exportSubMenu, "menu_btn_export_as_dot",  new Icon(VaadinIcon.DOWNLOAD), "Export as DOT", null, true, true, listener);
+        zoomInButton    = createItem(this, "menu_btn_zoom_plus", new Icon(VaadinIcon.PLUS), null, null, false, false, listener);
+        zoomResetButton = createItem(this, "menu_btn_zoom_reset", new Icon(VaadinIcon.PLUS_MINUS), null, null, false, false, listener);
+        zoomOutButton   = createItem(this, "menu_btn_zoom_minus", new Icon(VaadinIcon.MINUS), null, null, false, false, listener);
+        zoomFitButton   = createItem(this, "menu_btn_zoom_fit", new Icon(VaadinIcon.EXPAND_SQUARE), null, null, false, false, listener);
+
+        UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.CONTROL);
+        UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.META);
+    }
+
+    private MenuItem createItem(MenuBar root, String id, Icon prefix, String text, Icon suffix, boolean padText, boolean enabled, ComponentEventListener<ClickEvent<MenuItem>> listener) {
+        MenuItem item;
+        if (prefix != null) {
+            item = root.addItem(prefix, listener);
         }
-        var item = addItem("Download source", listener);
-        item.setId("menu_btn_file_download");
-        item.add(new Icon(VaadinIcon.DOWNLOAD));
-        exportDropdown = addItem("Export Image", listener);
-        exportDropdown.setId("menu_btn_export");
-        exportDropdown.add(new Icon(VaadinIcon.ANGLE_DOWN));
-        exportDropdown.setEnabled(false);
-            var exportSubMenu = exportDropdown.getSubMenu();
-            item = exportSubMenu.addItem("as SVG", listener);
-            item.setId("menu_btn_export_as_svg");
-            item = exportSubMenu.addItem("as PNG", listener);
-            item.setId("menu_btn_export_as_png");
-            item = exportSubMenu.addItem("as JSON", listener);
-            item.setId("menu_btn_export_as_json");
-            item = exportSubMenu.addItem("as DOT", listener);
-            item.setId("menu_btn_export_as_dot");
-        zoomInButton = addItem("", listener);
-        zoomInButton.setId("menu_btn_zoom_plus");
-        zoomInButton.add(new Icon(VaadinIcon.PLUS));
-        zoomInButton.setEnabled(false);
-        zoomResetButton = addItem("", listener);
-        zoomResetButton.add(new Icon(VaadinIcon.PLUS_MINUS));
-        zoomResetButton.setId("menu_btn_zoom_reset");
-        zoomResetButton.setEnabled(false);
-        zoomOutButton = addItem("", listener);
-        zoomOutButton.setId("menu_btn_zoom_minus");
-        zoomOutButton.add(new Icon(VaadinIcon.MINUS));
-        zoomOutButton.setEnabled(false);
-        zoomFitButton = addItem("", listener);
-        zoomFitButton.setId("menu_btn_zoom_fit");
-        zoomFitButton.add(new Icon(VaadinIcon.EXPAND_SQUARE));
-        zoomFitButton.setEnabled(false);
-
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SourceCompilationEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (exportDropdown.isEnabled() && e.failure()) {
-                        disableExportButton();
-                        disableControlButtons();
-                    }
-                    else
-                    if (!exportDropdown.isEnabled() && e.success()) {
-                        enableExportButton();
-                    }
-                }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
-        addDetachListener(e -> Communication.getBus().unregister(sourceCompilationListener));
-
-        final var svgDataListener = new BaseListener<SvgDataEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SvgDataEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    enableControlButtons();
-                }
-            }
-        };
-        Communication.getBus().register(svgDataListener);
-        addDetachListener(e -> { Communication.getBus().unregister(svgDataListener); });
-    }
-
-    public void enableSaveButton() {
-        if (!readOnly) {
-            saveButton.setEnabled(true);
+        else {
+            item = root.addItem(text, listener);
         }
+        return createItemInternal(item, id, prefix, text, suffix, padText, enabled);
     }
 
-    public void disableSaveButton() {
-        saveButton.setEnabled(false);
+    private MenuItem createItem(SubMenu root, String id, Icon prefix, String text, Icon suffix, boolean padText, boolean enabled, ComponentEventListener<ClickEvent<MenuItem>> listener) {
+        MenuItem item;
+        if (prefix != null) {
+            item = root.addItem(prefix, listener);
+        }
+        else {
+            assert text != null;
+            item = root.addItem(text, listener);
+        }
+        return createItemInternal(item, id, prefix, text, suffix, padText, enabled);
     }
 
-    public void enableExportButton() {
+    private MenuItem createItemInternal(MenuItem newItem, String id, Icon prefix, String text, Icon suffix, boolean padText, boolean enabled) {
+        if (prefix == null) {
+            if (suffix != null) {
+                if (padText) {
+                    suffix.getStyle().set("padding-left", "5px");
+                }
+                newItem.add(suffix);
+            }
+        }
+        else
+        if (text != null) {
+            var label = new Span(text);
+            if (padText) {
+                label.getStyle().set("padding-left", "5px");
+            }
+            newItem.add(label);
+        }
+        newItem.setId(id);
+        newItem.setEnabled(enabled);
+        return newItem;
+    }
+
+    public void enableNewFile() {
+        newButton.setEnabled(true);
+    }
+
+    public void disableNewFile() {
+        newButton.setEnabled(false);
+    }
+
+    public void enableSourceBlock() {
+        sourceDropdown.setEnabled(true);
+    }
+
+    public void disableSourceBlock() {
+        sourceDropdown.setEnabled(false);
+    }
+
+    public void enableExportBlock() {
         exportDropdown.setEnabled(true);
     }
 
-    public void disableExportButton() {
+    public void disableExportBlock() {
         exportDropdown.setEnabled(false);
     }
 
-    public void enableControlButtons() {
+    public void enableDiagramBlock() {
         zoomInButton.setEnabled(true);
         zoomResetButton.setEnabled(true);
         zoomOutButton.setEnabled(true);
         zoomFitButton.setEnabled(true);
     }
 
-    public void disableControlButtons() {
+    public void disableDiagramBlock() {
         zoomInButton.setEnabled(false);
         zoomResetButton.setEnabled(false);
         zoomOutButton.setEnabled(false);
@@ -167,28 +169,36 @@ public class MenuBarComponent extends MenuBar {
     }
 
     private void exportButtonClicked(String id) {
-        this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
+        Communication.getBus().post(new DoWithSourceEvent((tabId, file, code) -> {
+            var filename = file.isNew() ? "export" : file.getName().substring(0, file.getName().length() - 3);
             StreamResource res;
             switch (id) {
                 case "menu_btn_export_as_png":
-                    res = new StreamResource("export.png", () -> new ByteArrayInputStream(remoteSource.export.exportPng(code)));
+                    final var png = new ByteArrayInputStream(remoteSource.export.exportPng(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    res = new StreamResource("export.png", () -> png);
                     break;
                 case "menu_btn_export_as_json":
-                    res = new StreamResource("export.json", () -> new ByteArrayInputStream(remoteSource.export.exportJson(code)));
+                    final var json =new ByteArrayInputStream(remoteSource.export.exportJson(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    res = new StreamResource(filename + ".json", () -> json);
                     break;
                 case "menu_btn_export_as_svg":
-                    res = new StreamResource("export.svg", () -> new ByteArrayInputStream(remoteSource.export.exportSvg(code)));
+                    final var svg = new ByteArrayInputStream(remoteSource.export.exportSvg(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    res = new StreamResource(filename + ".svg", () -> svg);
                     break;
                 default:
-                    res = new StreamResource("export.dot", () -> new ByteArrayInputStream(remoteSource.export.exportDot(code)));
+                    final var dot = new ByteArrayInputStream(remoteSource.export.exportDot(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    res = new StreamResource(filename + ".dot", () -> dot);
                     break;
             }
             startDownload(res);
-        });
+        }));
     }
 
     private void fileButtonClicked(String id) {
         switch (id) {
+            case "menu_btn_file_new":
+                newButtonClicked();
+                break;
             case "menu_btn_file_save":
                 saveButtonClicked();
                 break;
@@ -198,16 +208,26 @@ public class MenuBarComponent extends MenuBar {
         }
     }
 
+    private void newButtonClicked() {
+        var node = new RepositoryNode();
+        node.setType(RepositoryNode.TYPE_FILE);
+        node.setName("<New File>");
+        Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
+    }
+
     private void saveSource(RepositoryNode file) {
         Communication.getBus().post(new FileSaveRequestEvent(file, FileChangeReason.USER_REQUEST));
     }
 
     private void saveButtonClicked() {
-        if (switchListener.fileOpened()) {
+        if (readOnly) {
+            return;
+        }
+        if (switchListener.fileOpened() && !switchListener.getOpenedFile().isNew()) {
             saveSource(switchListener.getOpenedFile());
         }
         else {
-            var dlg = new DirectorySelectionDialog("Create new file", "File name", "Choose directory", "Archinsight will add an .ai extension automatically", switchListener.getActiveRepositoryId(), res -> {
+            var dlg = new DirectorySelectionDialog("Save new file", "File name", "Choose directory", "Archinsight will add an .ai extension automatically", switchListener.getActiveRepositoryId(), res -> {
                 Communication.getBus().post(res);
                 saveSource(res.getCreatedFile());
             });
@@ -216,11 +236,11 @@ public class MenuBarComponent extends MenuBar {
     }
 
     private void downloadButtonClicked() {
-        final var filename = switchListener.fileOpened() ? switchListener.getOpenedFile().getName() : "source.ai";
-        this.getElement().executeJs("return window.editor.getValue()").then(String.class, code -> {
+        Communication.getBus().post(new DoWithSourceEvent((tabId, file, code) -> {
+            final var filename = file.isNew() ? "source.ai" : file.getName();
             var res = new StreamResource(filename, () -> new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
             startDownload(res);
-        });
+        }));
     }
 
     private void startDownload(StreamResource res) {

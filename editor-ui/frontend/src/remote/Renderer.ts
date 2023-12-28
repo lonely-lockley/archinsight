@@ -1,11 +1,11 @@
 class Renderer {
 
-    public remoteRender(container: HTMLElement, code: string) {
-        this.digestMessage(code).then((digest) => (container as any).$server.render(digest, code));
+    public remoteRender(container: HTMLElement, tab: string, code: string) {
+        this.digestMessage(code).then((digest) => (container as any).$server.render(digest, tab, code));
     }
 
-    public remoteCache(container: HTMLElement, code: string) {
-        this.digestMessage(code).then((digest) => (container as any).$server.cache(digest, code));
+    public remoteCache(container: HTMLElement, tab: string, code: string) {
+        this.digestMessage(code).then((digest) => (container as any).$server.cache(digest, tab, code));
     }
 
     private async digestMessage(message: string): Promise<string> {

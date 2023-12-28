@@ -13,6 +13,6 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 public class PlaygroundView extends BasicEditorView {
     public PlaygroundView() {
         Authentication.enablePlaygroundMode();
-        initView("playground", true);
+        initView("playground", true, 47);
     }
 }
