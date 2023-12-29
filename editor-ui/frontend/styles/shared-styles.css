@@ -62,3 +62,10 @@
   text-decoration-color: red;
   text-decoration-line: underline;
 }
+
+.welcome-panel {
+  border-radius: 7px;
+  border-color: rgb(128, 128, 128);
+  border-collapse: separate;
+  background-color: var(--lumo-contrast-5pct);
+}

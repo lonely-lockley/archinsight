@@ -37,10 +37,9 @@ public class LoginTile extends SiteViewTile {
             @Override
             @Subscribe
             public void receive(UserAuthenticatedEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    flipTile(e.getUser());
-                    new NotificationComponent("Please be advised, that all file storage features work in TEST MODE. You MUST backup all important source codes locally!", MessageLevel.NOTICE, 60000);
-                }
+            if (eventWasProducedForCurrentUiId(e)) {
+                flipTile(e.getUser());
+            }
             }
         };
         Communication.getBus().register(authListener);
@@ -55,7 +54,7 @@ public class LoginTile extends SiteViewTile {
         setText(user.getDisplayName() + " (Logout)");
         makeTextNormal();
         setIcon(user.getAvatar());
-        setColor("#59981A");
+        setColor("var(--lumo-contrast-5pct)");
         loginClickListener.disable();
         logoutClickListener.enable();
         if (listener != null) {

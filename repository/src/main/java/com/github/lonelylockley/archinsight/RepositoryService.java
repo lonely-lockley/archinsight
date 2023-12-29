@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -56,7 +57,12 @@ public class RepositoryService {
             if (SecurityConstants.ROLE_ANONYMOUS.equals(ownerRole)) {
                 // special case for playground
                 var repo = sql.getRepositoryById(conf.getPlaygroundRepositoryId());
-                return HttpResponse.ok(List.of(repo));
+                if (repo == null) {
+                    return HttpResponse.ok(Collections.emptyList());
+                }
+                else {
+                    return HttpResponse.ok(List.of(repo));
+                }
             }
             else {
                 // for authenticated users

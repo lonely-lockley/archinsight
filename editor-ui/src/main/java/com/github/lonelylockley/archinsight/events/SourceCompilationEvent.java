@@ -27,6 +27,10 @@ public class SourceCompilationEvent extends BaseEvent {
         return messagesByFile;
     }
 
+    public String getTabId() {
+        return tabId;
+    }
+
     public boolean success() {
         return success;
     }

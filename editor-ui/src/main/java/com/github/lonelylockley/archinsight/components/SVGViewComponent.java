@@ -18,6 +18,8 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
     private final String id;
     private final String svgTag;
 
+    private boolean hasImage = false;
+
     public SVGViewComponent() {
         this.id = String.format("svg-view-component-%s", UUID.randomUUID());
         this.svgTag = String.format("<svg id=\"%s\" version=\"1.1\"", id);
@@ -28,11 +30,13 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
     }
 
     public void reset() {
+        hasImage = false;
         getElement().setProperty("innerHTML", "");
     }
 
     public void update(String svgData) {
         logger.warn(">>>>> update svg " + id);
+        hasImage = true;
         getElement().setProperty("innerHTML", filterSVG(svgData));
         UI.getCurrent().getPage().executeJs("zoomRestore($0)", id);
     }
@@ -55,4 +59,7 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
         }
     }
 
+    public boolean hasImage() {
+        return hasImage;
+    }
 }

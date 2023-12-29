@@ -197,6 +197,7 @@ public class TabsComponent extends TabSheet {
     @ClientCallable
     public void cache(String digest, String tabId, String code) {
         Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
+            tab.setHasErrorsOrEmpty();
             tab.getEditor().cache(digest, code);
         });
     }

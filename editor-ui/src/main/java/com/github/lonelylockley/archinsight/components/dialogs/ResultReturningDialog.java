@@ -28,7 +28,7 @@ public class ResultReturningDialog extends Dialog {
         if (helpText != null) {
             textField.setHelperText(helpText);
         }
-        var saveButton = new Button("Save", e -> {
+        var saveButton = new Button("Ok", e -> {
             successAction.accept(textField.getValue());
             close();
         });

@@ -94,6 +94,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         actionsFirstLine.add(new PlaygroundTile());
         // second line actions =========================================================================================
         var loginSecondLine = new LoginTile(conf.getLoginUrl());
+        loginSecondLine.setWidth(LoginTile.tripleWidth, Unit.PIXELS);
         loginSecondLine.setVisible(false);
         actionsSecondLine.add(loginSecondLine);
         loginFirstLine.onTileFlip(e -> {

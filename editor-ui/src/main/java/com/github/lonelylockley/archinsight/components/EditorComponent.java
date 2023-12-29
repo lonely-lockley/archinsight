@@ -10,7 +10,6 @@ import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.security.Authentication;
-import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.dependency.NpmPackage;
@@ -42,8 +41,6 @@ public class EditorComponent extends Div {
     private String originalHash;
     private String clientHash;
     private String clientCodeCache;
-
-    private boolean hasErrors = false;
 
     public EditorComponent(String rootId, String tabId, Consumer<String> renderer, String content) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
@@ -117,15 +114,8 @@ public class EditorComponent extends Div {
     }
 
     public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
-        if (!messages.isEmpty()) {
-            ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-            getElement().executeJs("this.editor.addModelMarkers($0)", ow.writeValueAsString(messages));
-            hasErrors = true;
-        }
-    }
-
-    public boolean hasErrors() {
-        return hasErrors;
+        ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
+        getElement().executeJs("this.editor.addModelMarkers($0)", ow.writeValueAsString(messages));
     }
 
     public void render(String digest, String code) {

@@ -3,8 +3,11 @@ package com.github.lonelylockley.archinsight.components;
 import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.google.common.eventbus.Subscribe;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+
+import java.util.Optional;
 
 public class WorkAreaComponent extends VerticalLayout {
 
@@ -15,11 +18,15 @@ public class WorkAreaComponent extends VerticalLayout {
         switchListener = new SwitchListenerHelper(this);
         menu = new MenuBarComponent(invisible, readOnly, switchListener);
         final var tabs = new TabsComponent();
+        hideComponent(tabs);
+        final var welcome = new WelcomePanelComponent(switchListener);
         add(tabs);
+        add(welcome);
         setSpacing(false);
         setPadding(false);
         setSizeFull();
         switchListener.setRepositoryCloseCallback(e -> {
+            welcome.switchToNoRepo();
             tabs.closeAllTabs(e.getReason());
             menu.disableDiagramBlock();
             menu.disableExportBlock();
@@ -30,10 +37,13 @@ public class WorkAreaComponent extends VerticalLayout {
             tabs.closeTab(e.getFile(), e.getReason());
         });
         switchListener.setFileSelectionCallback(e -> {
+            hideComponent(welcome);
+            showComponent(tabs);
             tabs.openTab(switchListener.getActiveRepositoryId(), e.getFile());
             menu.enableSourceBlock();
         });
         switchListener.setRepositorySelectionCallback(e -> {
+            welcome.switchToRepo();
             menu.enableNewFile();
         });
         switchListener.setTabSwitchCallback(e -> {
@@ -41,14 +51,23 @@ public class WorkAreaComponent extends VerticalLayout {
                 menu.disableDiagramBlock();
                 menu.disableExportBlock();
                 menu.disableSourceBlock();
-            }
-            else
-            if (e.getSelectedTab().getEditor().hasErrors()) {
-                menu.disableDiagramBlock();
-                menu.disableExportBlock();
+                showComponent(welcome);
+                hideComponent(tabs);
             }
             else {
-                menu.enableExportBlock();
+                if (e.getSelectedTab().getView().hasImage()) {
+                    menu.enableDiagramBlock();
+                }
+                else {
+                    menu.disableDiagramBlock();
+                }
+
+                if (e.getSelectedTab().getHasErrorsOrEmpty()) {
+                    menu.disableExportBlock();
+                }
+                else {
+                    menu.enableExportBlock();
+                }
             }
         });
         final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
@@ -56,12 +75,15 @@ public class WorkAreaComponent extends VerticalLayout {
             @Subscribe
             public void receive(SourceCompilationEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
-                if (e.failure()) {
-                    menu.disableExportBlock();
-                }
-                else {
-                    menu.enableExportBlock();
-                }
+                Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
+                    if (tab.getHasErrorsOrEmpty()) {
+                        menu.disableExportBlock();
+                    }
+                    else {
+                        menu.enableExportBlock();
+                    }
+                });
+
             }
             }
         };
@@ -86,5 +108,16 @@ public class WorkAreaComponent extends VerticalLayout {
 
     public MenuBarComponent getMenuControls() {
         return menu;
+    }
+
+    /*
+     * Visibility affects component state and stops listening to events. Use CSS instead
+     */
+    private void hideComponent(Component comp) {
+        comp.getElement().getStyle().set("display", "none");
+    }
+
+    private void showComponent(Component comp) {
+        comp.getElement().getStyle().remove("display");
     }
 }

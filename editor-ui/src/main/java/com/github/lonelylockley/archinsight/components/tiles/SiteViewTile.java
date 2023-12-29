@@ -9,6 +9,7 @@ public abstract class SiteViewTile extends VerticalLayout {
 
     public static final float singleWidth = 150;
     public static final float doubleWidth = 310;
+    public static final float tripleWidth = 470;
 
     public static final float singleHeight = 150;
 
