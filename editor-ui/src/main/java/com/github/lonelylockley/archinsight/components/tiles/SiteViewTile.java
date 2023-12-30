@@ -4,6 +4,7 @@ import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import org.apache.commons.lang3.text.WordUtils;
 
 public abstract class SiteViewTile extends VerticalLayout {
 
@@ -32,6 +33,16 @@ public abstract class SiteViewTile extends VerticalLayout {
         txt.getStyle().set("font-size", "var(--lumo-font-size-l)");
         add(txt);
         setColor(color);
+    }
+
+    protected String limitTextLength(String text, int limit) {
+        assert limit > 3;
+        if (text.length() <= limit) {
+            return text;
+        }
+        else {
+            return text.substring(0, limit - 3) + "...";
+        }
     }
 
     protected void makeTextBold() {

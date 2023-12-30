@@ -31,8 +31,8 @@ public class SiteView extends VerticalLayout implements BaseView {
 
     private static final Logger logger = LoggerFactory.getLogger(SiteView.class);
 
-    private static final int grossContentWidth = 1000;
-    private static final String marginLeft = "100px";
+    private static final int grossContentWidth = 1350;
+    private static final String marginLeft = "130px";
 
     private final Config conf;
 
@@ -79,8 +79,9 @@ public class SiteView extends VerticalLayout implements BaseView {
         }
         var actionsFirstLine = new HorizontalLayout();
         actionsFirstLine.setMargin(false);
-        var actionsSecondLine = new HorizontalLayout();
-        actionsSecondLine.setMargin(false);
+        // unused currently
+//        var actionsSecondLine = new HorizontalLayout();
+//        actionsSecondLine.setMargin(false);
         var actionsThirdLine = new HorizontalLayout();
         actionsThirdLine.setMargin(false);
         var actionsFourthLine = new HorizontalLayout();
@@ -92,27 +93,27 @@ public class SiteView extends VerticalLayout implements BaseView {
         actionsFirstLine.add(loginFirstLine);
         actionsFirstLine.add(editor);
         actionsFirstLine.add(new PlaygroundTile());
-        // second line actions =========================================================================================
-        var loginSecondLine = new LoginTile(conf.getLoginUrl());
-        loginSecondLine.setWidth(LoginTile.tripleWidth, Unit.PIXELS);
-        loginSecondLine.setVisible(false);
-        actionsSecondLine.add(loginSecondLine);
+        // logout actions ==============================================================================================
+        var logoutFirstLine = new LoginTile(conf.getLoginUrl());
+        logoutFirstLine.setWidth(LoginTile.singleWidth, Unit.PIXELS);
+        logoutFirstLine.setVisible(false);
+        actionsFirstLine.add(logoutFirstLine);
         loginFirstLine.onTileFlip(e -> {
             if (Authentication.authenticated()) {
                 editor.setVisible(true);
                 loginFirstLine.setVisible(false);
-                loginSecondLine.setVisible(true);
+                logoutFirstLine.setVisible(true);
             }
             else {
                 editor.setVisible(false);
                 loginFirstLine.setVisible(true);
-                loginSecondLine.setVisible(false);
+                logoutFirstLine.setVisible(false);
 
             }
         });
         if (Authentication.authenticated()) {
             loginFirstLine.flipTile(Authentication.getAuthenticatedUser());
-            loginSecondLine.flipTile(Authentication.getAuthenticatedUser());
+            logoutFirstLine.flipTile(Authentication.getAuthenticatedUser());
         }
         // third line actions ==========================================================================================
         actionsThirdLine.add(new DockerhubTile());
@@ -123,16 +124,15 @@ public class SiteView extends VerticalLayout implements BaseView {
         if (conf.getDevMode()) {
             actionsFourthLine.add(new DevModeLocalLoginTile(conf.getLoginUrl()));
         }
-
         // get things done finally =====================================================================================
         var right = new VerticalLayout();
         right.setMargin(false);
         right.add(actionsFirstLine);
-        right.add(actionsSecondLine);
+       // right.add(actionsSecondLine);
         right.add(actionsThirdLine);
         right.add(actionsFourthLine);
         content.add(bg);
-        content.add(contentSplit(783, lb, right));
+        content.add(contentSplit(600, lb, right));
         return content;
     }
 
@@ -141,7 +141,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         dl.setWidth(leftWidth, Unit.PIXELS);
         dl.add(left);
         var dr = new Div();
-        dr.setWidth(100, Unit.PERCENTAGE);
+        dr.setWidth(grossContentWidth - leftWidth, Unit.PIXELS);
         dr.add(right);
         var res = new HorizontalLayout();
         res.add(dl);

@@ -1,8 +1,6 @@
 package com.github.lonelylockley.archinsight.components.tiles;
 
-import com.github.lonelylockley.archinsight.components.NotificationComponent;
 import com.github.lonelylockley.archinsight.events.*;
-import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
@@ -10,6 +8,7 @@ import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import org.apache.commons.lang3.text.WordUtils;
 
 import java.util.function.Consumer;
 
@@ -51,7 +50,7 @@ public class LoginTile extends SiteViewTile {
     }
 
     public void flipTile(Userdata user) {
-        setText(user.getDisplayName() + " (Logout)");
+        setText(limitTextLength("Logout: " + user.getDisplayName(), 18));
         makeTextNormal();
         setIcon(user.getAvatar());
         setColor("var(--lumo-contrast-5pct)");

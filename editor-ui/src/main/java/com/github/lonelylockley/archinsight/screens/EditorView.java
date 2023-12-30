@@ -16,6 +16,5 @@ public class EditorView extends BasicEditorView {
     public EditorView() {
         Authentication.disablePlaygroundMode();
         initView(null, false, 137);
-        new NotificationComponent("Please be advised, that all file storage features work in TEST MODE. You MUST backup all important source codes locally!", MessageLevel.NOTICE, 60000);
     }
 }
