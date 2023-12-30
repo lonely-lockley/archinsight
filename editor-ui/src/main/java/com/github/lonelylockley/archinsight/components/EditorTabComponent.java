@@ -18,10 +18,7 @@ import com.vaadin.flow.component.tabs.Tab;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -42,7 +39,7 @@ public class EditorTabComponent extends Tab {
     private RepositoryNode file;
     private boolean hasErrorsOrEmpty = false;
 
-    public EditorTabComponent(String parentId, UUID repositoryId, RepositoryNode file) {
+    public EditorTabComponent(String parentId, UUID repositoryId, RepositoryNode file, Optional<String> source) {
         super();
         this.label = new Span(file.getName());
         add(label);
@@ -50,11 +47,10 @@ public class EditorTabComponent extends Tab {
         this.repositoryId = repositoryId;
         this.id = String.format("editor-tab-%s", UUID.randomUUID());
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
-        String source = "";
-        if (!file.isNew()) {
-            source = remoteSource.repository.openFile(file.getId());
+        if (!file.isNew() && source.isEmpty()) {
+            source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
         }
-        this.editor = new EditorComponent(parentId, id, this::renderer, source);
+        this.editor = new EditorComponent(parentId, id, this::renderer, source.orElse(""));
         this.view = new SVGViewComponent();
         this.content = new SplitViewComponent(editor, view);
         getStyle().set("padding-top", "0px").set("padding-bottom", "0px");
@@ -163,7 +159,6 @@ public class EditorTabComponent extends Tab {
     }
 
     public void renderer(String code) {
-        logger.warn(">>>>> render for tab " + id);
         remoteSource.render.render(code, id, repositoryId, file.getId());
     }
 

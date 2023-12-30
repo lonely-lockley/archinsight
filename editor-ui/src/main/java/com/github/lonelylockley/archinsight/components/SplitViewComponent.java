@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 public class SplitViewComponent extends SplitLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(SplitViewComponent.class);
-    private static final int defaultSplitterPosition = 40;
+    private static final double defaultSplitterPosition = 50.0;
 
     public SplitViewComponent(HtmlComponent left, HtmlComponent right) {
         super();
@@ -22,6 +22,7 @@ public class SplitViewComponent extends SplitLayout {
         addToSecondary(svgBackground);
         setOrientation(Orientation.HORIZONTAL);
         setSizeFull();
+        setSplitterPosition(defaultSplitterPosition);
         getSavedSplitterPosition();
 
         addSplitterDragendListener(e -> {
@@ -31,10 +32,7 @@ public class SplitViewComponent extends SplitLayout {
 
     private void getSavedSplitterPosition() {
         getElement().executeJs("return localStorage.getItem('org.archinsight.splitter.pos')").then(value -> {
-            if (value.getType() == JsonType.NULL) {
-                setSplitterPosition(defaultSplitterPosition);
-            }
-            else {
+            if (value.getType() != JsonType.NULL) {
                 setSplitterPosition(value.asNumber());
             }
         });

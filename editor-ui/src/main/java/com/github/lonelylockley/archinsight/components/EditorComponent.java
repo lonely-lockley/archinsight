@@ -48,14 +48,12 @@ public class EditorComponent extends Div {
         this.clientCodeCache = content;
         this.originalHash = DigestUtils.sha256Hex(content);
         this.id = String.format("editor-%s", UUID.randomUUID());
-        logger.warn(">>>>> create editor " + id);
         setId(id);
-        if (Authentication.playgroundModeEnabled()) {
-            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2, $3, $4)", id, rootId, tabId, "org.archinsight.playground.sourcecode", content);
-        }
-        else {
-            UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2, $3, $4)", id, rootId, tabId, "org.archinsight.editor.sourcecode", content);
-        }
+        UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2, $3, $4)", id, rootId, tabId, getKey(), content);
+    }
+
+    private String getKey() {
+        return Authentication.playgroundModeEnabled() ? "org.archinsight.playground.tabs" : "org.archinsight.editor.tabs";
     }
 
     private boolean canAutoSaveFile(RepositoryNode file, FileChangeReason reason) {
@@ -65,11 +63,9 @@ public class EditorComponent extends Div {
     public void close(RepositoryNode file, FileChangeReason reason, Consumer<String> andThen) {
         if (canAutoSaveFile(file, reason)) {
             saveCode(file, reason, andThen);
-            logger.warn(">>>>> saved file " + file.getName());
         }
         else {
             andThen.accept(clientCodeCache);
-            logger.warn(">>>>> did not save file " + file.getName());
         }
     }
 

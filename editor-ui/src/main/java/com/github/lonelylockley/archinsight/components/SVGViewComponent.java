@@ -35,14 +35,12 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
     }
 
     public void update(String svgData) {
-        logger.warn(">>>>> update svg " + id);
         hasImage = true;
         getElement().setProperty("innerHTML", filterSVG(svgData));
         UI.getCurrent().getPage().executeJs("zoomRestore($0)", id);
     }
 
     public void zoom(ZoomEvent e) {
-        logger.warn(">>>>> zoom svg " + id);
         if (e.isZoomIn()) {
             UI.getCurrent().getPage().executeJs("zoomIn($0)", id);
         }

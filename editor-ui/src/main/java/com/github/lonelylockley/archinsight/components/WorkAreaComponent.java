@@ -39,7 +39,7 @@ public class WorkAreaComponent extends VerticalLayout {
         switchListener.setFileSelectionCallback(e -> {
             hideComponent(welcome);
             showComponent(tabs);
-            tabs.openTab(switchListener.getActiveRepositoryId(), e.getFile());
+            tabs.openTab(switchListener.getActiveRepositoryId(), e.getFile(), e.getSource());
             menu.enableSourceBlock();
         });
         switchListener.setRepositorySelectionCallback(e -> {

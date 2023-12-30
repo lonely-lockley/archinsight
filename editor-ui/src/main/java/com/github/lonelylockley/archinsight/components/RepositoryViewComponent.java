@@ -89,9 +89,9 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             @Override
             @Subscribe
             public void receive(FileRestoreEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                fileRestorationCallback(e.getRestoredFileId());
-            }
+                if (eventWasProducedForCurrentUiId(e)) {
+                    fileRestorationCallback(e.getRestoredFileId(), e.getSource());
+                }
             }
         };
         Communication.getBus().register(fileRestorationListener);
@@ -183,7 +183,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                 }
             }
             else {
-                if (switchListener.repositoryOpened() || getSelectedItems().isEmpty()) {
+                if (!switchListener.repositoryOpened() || getSelectedItems().isEmpty()) {
                     openFile.setEnabled(false);
                 }
                 else {
@@ -273,13 +273,13 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         }
     }
 
-    private void fileRestorationCallback(UUID fileId) {
+    private void fileRestorationCallback(UUID fileId, Optional<String> source) {
         if (fileId != null) {
             if (fileSystem.hasNode(fileId)) {
                 var node = fileSystem.getNode(fileId);
                 // open all menu items and select current file
                 select(node);
-                Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
+                Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node, source));
                 while (node.getParentId() != null) {
                     node = fileSystem.getNode(node.getParentId());
                     expand(node);

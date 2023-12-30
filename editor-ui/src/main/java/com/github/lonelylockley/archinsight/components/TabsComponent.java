@@ -1,12 +1,11 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.helpers.TabsPersistenceHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
-import com.github.lonelylockley.archinsight.remote.RemoteSource;
-import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
+import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.tabs.TabSheet;
 import org.slf4j.Logger;
@@ -17,6 +16,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+@JsModule("./src/StatePersistence.ts")
 public class TabsComponent extends TabSheet {
 
     private static final Logger logger = LoggerFactory.getLogger(TabsComponent.class);
@@ -24,20 +24,20 @@ public class TabsComponent extends TabSheet {
 
     private final ConcurrentHashMap<String, EditorTabComponent> tabs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, EditorTabComponent> files = new ConcurrentHashMap<>();
-    private final RemoteSource remoteSource;
+    private final TabsPersistenceHelper clientStorage;
 
     public TabsComponent() {
-        this.remoteSource = MicronautContext.getInstance().getRemoteSource();
+        clientStorage = new TabsPersistenceHelper(this.getElement());
         setId(id);
         setSizeFull();
         addSelectedChangeListener(e -> {
             var tab = (EditorTabComponent) e.getSelectedTab();
-            if (tab == null || tab.isNew()) {
-                storeOpenedFile(null);
-            }
-            else {
-                storeOpenedFile(tab.getFileId());
-            }
+//            if (tab == null || tab.isNew()) {
+//                clientStorage.removeTab(tab);
+//            }
+//            else {
+//                storeOpenedFile(tab.getFileId());
+//            }
             Communication.getBus().post(new TabSwitchEvent((EditorTabComponent) e.getPreviousTab(), (EditorTabComponent) e.getSelectedTab()));
         });
 
@@ -110,17 +110,28 @@ public class TabsComponent extends TabSheet {
             Communication.getBus().unregister(fileChangeListener);
         });
 
-        restoreOpenedFile();
+        clientStorage.restoreOpenedTabs((tabId, restored) -> {
+            if (restored.getFid() != null) {
+                Communication.getBus().post(new FileRestoreEvent(UUID.fromString(restored.getFid()), Optional.ofNullable(restored.getCode())));
+            }
+            else {
+                var file = new RepositoryNode();
+                file.setType(RepositoryNode.TYPE_FILE);
+                file.setName(restored.getName());
+                Communication.getBus().post(new FileOpenRequestEvent(null, file, Optional.ofNullable(restored.getCode())));
+                //openTab(null, file, Optional.ofNullable(restored.getCode()));
+            }
+        });
+        clientStorage.restoreOpenedFileLegacy();
     }
 
-    public void openTab(UUID repositoryId, RepositoryNode file) {
+    public void openTab(UUID repositoryId, RepositoryNode file, Optional<String> source) {
         if (!file.isNew() && files.containsKey(file.getId())) {
             var tab = files.get(file.getId());
             setSelectedTab(tab);
-            logger.warn(">>>>> select tab " + tab.getTabId());
         }
         else {
-            final var editorTab = new EditorTabComponent(id, repositoryId, file);
+            final var editorTab = new EditorTabComponent(id, repositoryId, file, source);
             editorTab.setCloseListener(this::closeTab);
             add(editorTab, editorTab.getContent());
             tabs.put(editorTab.getTabId(), editorTab);
@@ -128,7 +139,7 @@ public class TabsComponent extends TabSheet {
                 files.put(file.getId(), editorTab);
             }
             setSelectedTab(editorTab);
-            logger.warn(">>>>> open tab " + editorTab.getTabId());
+            clientStorage.storeTab(editorTab, source);
         }
     }
 
@@ -139,13 +150,15 @@ public class TabsComponent extends TabSheet {
             if (tab.getFileId() != null) {
                 files.remove(tab.getFileId());
             }
-            logger.warn(">>>>> close tab " + tab.getTabId());
+            clientStorage.removeTab(tab);
         });
     }
 
+    /**
+     * When file was deleted
+     */
     public void closeTab(RepositoryNode file, FileChangeReason reason) {
         Optional.ofNullable(files.get(file.getId())).ifPresent(tab -> closeTab(tab, reason));
-        logger.warn(">>>>> close selected tab");
     }
 
     public void closeAllTabs(FileChangeReason reason) {
@@ -154,7 +167,7 @@ public class TabsComponent extends TabSheet {
         for (EditorTabComponent tab : tmp) {
             closeTab(tab, reason);
         }
-        logger.warn(">>>>> close all tabs");
+        clientStorage.clearState();
     }
 
     public EditorTabComponent getSelectedTab() {
@@ -163,28 +176,12 @@ public class TabsComponent extends TabSheet {
 
     /**
      * For future use: tab badge indicating number of errors/warnings
-     * @param value
-     * @return
      */
-    private Span createBadge(int value) {
-        Span badge = new Span(String.valueOf(value));
+    private void createBadge(EditorTabComponent tab, int numberOfErrors) {
+        Span badge = new Span(String.valueOf(numberOfErrors));
         badge.getElement().getThemeList().add("badge small contrast");
         badge.getStyle().set("margin-inline-start", "var(--lumo-space-xs)");
-        return badge;
-    }
-
-    private void storeOpenedFile(UUID fileId) {
-        var key = Authentication.playgroundModeEnabled() ? "org.archinsight.playground.file" : "org.archinsight.editor.file";
-        getElement().executeJs("localStorage.setItem($0, $1)", key, fileId == null ? "" : fileId.toString());
-    }
-
-    private void restoreOpenedFile() {
-        var key = Authentication.playgroundModeEnabled() ? "org.archinsight.playground.file" : "org.archinsight.editor.file";
-        getElement().executeJs("return (localStorage.getItem($0) || '')", key).then(String.class, fileId -> {
-            if (fileId != null && !fileId.isBlank()) {
-                Communication.getBus().post(new FileRestoreEvent(UUID.fromString(fileId)));
-            }
-        });
+        tab.add(badge);
     }
 
     @ClientCallable

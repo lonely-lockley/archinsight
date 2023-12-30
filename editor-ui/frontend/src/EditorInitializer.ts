@@ -33,7 +33,7 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
     let timeout: number | undefined;
     editor.onDidChangeModelContent(() => {
         const value = editor.getValue();
-        localStorage.setItem(localStorageKey, value || '');
+        _global.tabState.storeCodeForTab(localStorageKey, tab, value);
         clearTimeout(timeout);
         timeout = window.setTimeout(() => renderCode(remote, tab, value, editor.getModel()!.uri), 1000);
     });
