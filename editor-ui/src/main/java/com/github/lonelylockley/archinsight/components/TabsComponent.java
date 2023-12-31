@@ -1,8 +1,12 @@
 package com.github.lonelylockley.archinsight.components;
 
+import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.components.helpers.TabsPersistenceHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
+import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.dependency.JsModule;
@@ -11,10 +15,9 @@ import com.vaadin.flow.component.tabs.TabSheet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @JsModule("./src/StatePersistence.ts")
 public class TabsComponent extends TabSheet {
@@ -24,20 +27,15 @@ public class TabsComponent extends TabSheet {
 
     private final ConcurrentHashMap<String, EditorTabComponent> tabs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, EditorTabComponent> files = new ConcurrentHashMap<>();
+    private final RemoteSource remoteSource;
     private final TabsPersistenceHelper clientStorage;
 
     public TabsComponent() {
+        this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         clientStorage = new TabsPersistenceHelper(this.getElement());
         setId(id);
         setSizeFull();
         addSelectedChangeListener(e -> {
-            var tab = (EditorTabComponent) e.getSelectedTab();
-//            if (tab == null || tab.isNew()) {
-//                clientStorage.removeTab(tab);
-//            }
-//            else {
-//                storeOpenedFile(tab.getFileId());
-//            }
             Communication.getBus().post(new TabSwitchEvent((EditorTabComponent) e.getPreviousTab(), (EditorTabComponent) e.getSelectedTab()));
         });
 
@@ -83,7 +81,7 @@ public class TabsComponent extends TabSheet {
             public void receive(DoWithSourceEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
                     Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                        tab.getEditor().doWithCode(tab.getFile(), tab.getTabId(), e.getCallback());
+                        tab.getEditor().doWithCode(tab, tabs.values(), e.getCallback());
                     });
                 }
             }
@@ -102,12 +100,53 @@ public class TabsComponent extends TabSheet {
         };
         Communication.getBus().register(fileChangeListener);
 
+        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
+            @Subscribe
+            @Override
+            public void receive(SourceCompilationEvent e) {
+                try {
+                    // @todo review this part
+                    var messages = e.getMessagesByTab();
+                    var msg = new StringBuilder();
+                    for (Map.Entry<String, List<TranslatorMessage>> entry : messages.entrySet()) {
+                        if (tabs.containsKey(entry.getKey())) {
+                            tabs.get(entry.getKey()).addModelMarkers(entry.getValue());
+                        }
+                        var location = entry.getValue().stream().findFirst().get().getLocation();
+                        var summary = entry.getValue().stream().collect(Collectors.toMap(TranslatorMessage::getLevel, val -> 1, Integer::sum));
+                        msg
+                                .append('\n')
+                                .append("- In file ")
+                                .append(location)
+                                .append('\n')
+                                .append(nonNull(summary.get(MessageLevel.ERROR)))
+                                .append(" errors, ")
+                                .append(nonNull(summary.get(MessageLevel.WARNING)))
+                                .append(" warnings, ")
+                                .append(nonNull(summary.get(MessageLevel.NOTICE)))
+                                .append(" notices");
+
+                        if (!msg.isEmpty()) {
+                            var lvl = summary.get(MessageLevel.ERROR) > 0 ? MessageLevel.ERROR : (summary.get(MessageLevel.WARNING) > 0 ? MessageLevel.WARNING : MessageLevel.NOTICE);
+                            new NotificationComponent("Project linking failure:" + msg, lvl, 15000);
+                        }
+                    }
+                }
+                catch (Exception ex) {
+                    new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
+                    logger.error("Could not render source", ex);
+                }
+            }
+        };
+        Communication.getBus().register(sourceCompilationListener);
+
         addDetachListener(e -> {
             Communication.getBus().unregister(svgDataListener);
             Communication.getBus().unregister(zoomEventListener);
             Communication.getBus().unregister(saveEventListener);
             Communication.getBus().unregister(sourceActionEventListener);
             Communication.getBus().unregister(fileChangeListener);
+            Communication.getBus().unregister(sourceCompilationListener);
         });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
@@ -119,10 +158,13 @@ public class TabsComponent extends TabSheet {
                 file.setType(RepositoryNode.TYPE_FILE);
                 file.setName(restored.getName());
                 Communication.getBus().post(new FileOpenRequestEvent(null, file, Optional.ofNullable(restored.getCode())));
-                //openTab(null, file, Optional.ofNullable(restored.getCode()));
             }
         });
         clientStorage.restoreOpenedFileLegacy();
+    }
+
+    private int nonNull(Integer value) {
+        return value == null ? 0 : value;
     }
 
     public void openTab(UUID repositoryId, RepositoryNode file, Optional<String> source) {
@@ -131,7 +173,12 @@ public class TabsComponent extends TabSheet {
             setSelectedTab(tab);
         }
         else {
-            final var editorTab = new EditorTabComponent(id, repositoryId, file, source);
+            if (!file.isNew() && source.isEmpty()) {
+                source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
+            }
+            final var editorTab = new EditorTabComponent(id, repositoryId, file, source, (tabId) -> {
+                remoteSource.render.render(tabId, repositoryId, tabs.values());
+            });
             editorTab.setCloseListener(this::closeTab);
             add(editorTab, editorTab.getContent());
             tabs.put(editorTab.getTabId(), editorTab);
@@ -187,7 +234,7 @@ public class TabsComponent extends TabSheet {
     @ClientCallable
     public void render(String digest, String tabId, String code) {
         Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
-            tab.getEditor().render(digest, code);
+            tab.getEditor().render(tab.getTabId(), digest, code);
         });
     }
 
@@ -195,7 +242,7 @@ public class TabsComponent extends TabSheet {
     public void cache(String digest, String tabId, String code) {
         Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
             tab.setHasErrorsOrEmpty();
-            tab.getEditor().cache(digest, code);
+            tab.getEditor().cache(tab.getTabId(), digest, code);
         });
     }
 

@@ -20,7 +20,7 @@ import java.util.function.BiConsumer;
 public class TabsPersistenceHelper {
 
     private static final Logger logger = LoggerFactory.getLogger(TabsComponent.class);
-    private static final TypeReference<Map<String, Tab>> typeRef = new TypeReference<>() {};
+    private static final TypeReference<Map<String, StoredTab>> typeRef = new TypeReference<>() {};
 
     private final Element self;
 
@@ -67,7 +67,7 @@ public class TabsPersistenceHelper {
                 source);
     }
 
-    public void restoreOpenedTabs(BiConsumer<String, Tab> callback) {
+    public void restoreOpenedTabs(BiConsumer<String, StoredTab> callback) {
         self.executeJs("return window.tabState.restoreTabs($0)", getKey()).then(String.class, tabsState -> {
             try {
                 var tabs = new ObjectMapper().readValue(tabsState, typeRef);
@@ -95,7 +95,7 @@ public class TabsPersistenceHelper {
         });
     }
 
-    public static class Tab implements Serializable {
+    public static class StoredTab implements Serializable {
         private String name;
         private String fid;
         private String code;

@@ -1,13 +1,12 @@
 package com.github.lonelylockley.archinsight.remote;
 
 import com.github.lonelylockley.archinsight.Config;
+import com.github.lonelylockley.archinsight.components.EditorTabComponent;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
+import com.github.lonelylockley.archinsight.model.remote.translator.*;
 import com.vaadin.flow.component.UI;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
@@ -15,10 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -34,48 +30,65 @@ public class ExportSource {
     @Inject
     private Config conf;
 
-    private TranslationRequest prepareTranslationRequest(String code, UUID repositoryId, UUID fileId) {
+    private TranslationRequest prepareTranslationRequest(UUID repositoryId, Collection<EditorTabComponent> tabs) {
         var res = new TranslationRequest();
-        res.setSource(code);
         res.setRepositoryId(repositoryId);
-        res.setFileId(fileId);
+        var tmp = new ArrayList<TabData>(tabs.size());
+        for (EditorTabComponent tab: tabs) {
+            var td = new TabData();
+            td.setFileName(tab.getFile().getName());
+            td.setTabId(tab.getTabId());
+            td.setFileId(tab.getFileId());
+            td.setSource(tab.getEditor().getCachedClientCode());
+            tmp.add(td);
+        }
+        res.setTabs(tmp);
         return res;
     }
 
-    private TranslationResult translateInternal(String tabId, UUID repositoryId, UUID fileId, String code) {
-        var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(code, repositoryId, fileId));
-        var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
-        var messagesByFile = messages.stream().collect(Collectors.toMap(
-                TranslatorMessage::getFileId,
-                msg -> {
-                    List<TranslatorMessage> lst = new ArrayList<>();
-                    lst.add(msg);
-                    return lst;
-                },
-                (res, msg) -> {
-                    res.addAll(msg);
-                    return res;
+    private TranslationResult translateInternal(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+        final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(repositoryId, tabs));
+        final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
+        final var filesWithErrors = new HashSet<UUID>();
+        final var messagesByFile = messages
+                .stream()
+                .map(tm -> {
+                    if (tm.getFileId() != null && tm.getLevel() == MessageLevel.ERROR) {
+                        filesWithErrors.add(tm.getFileId());
+                    }
+                    return tm;
                 })
-        );
+                .collect(Collectors.toMap(
+                    TranslatorMessage::getTabId,
+                    msg -> {
+                        List<TranslatorMessage> lst = new ArrayList<>();
+                        lst.add(msg);
+                        return lst;
+                    },
+                    (res, msg) -> {
+                        res.addAll(msg);
+                        return res;
+                    })
+                );
         if (!translated.isHasErrors()) {
             Communication.getBus().post(new SourceCompilationEvent(tabId, true));
         }
         else {
-            Communication.getBus().post(new SourceCompilationEvent(tabId, false, messagesByFile));
+            Communication.getBus().post(new SourceCompilationEvent(tabId, false, messagesByFile, filesWithErrors));
         }
         return translated;
     }
 
     private Source prepareRendererRequest(TranslationResult translated) {
         var res = new Source();
-        res.setSource(translated.getSource());
+        res.setSource(translated.getEdited().getSource());
         return res;
     }
 
-    private byte[] exportInternal(String tabId, UUID repositoryId, UUID fileId, String code, String format, Function<Source, byte[]> renderer) {
+    private byte[] exportInternal(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs, String format, Function<Source, byte[]> renderer) {
         long startTime = System.nanoTime();
         byte[] data;
-        var translated = translateInternal(tabId, repositoryId, fileId, code);
+        var translated = translateInternal(tabId, repositoryId, tabs);
         if (!translated.isHasErrors()) {
             data = renderer.apply(prepareRendererRequest(translated));
         }
@@ -89,20 +102,20 @@ public class ExportSource {
         return data;
     }
 
-    public byte[] exportPng(String tabId, UUID repositoryId, UUID fileId, String code) {
-        return exportInternal(tabId, repositoryId, fileId, code, "PNG", src -> renderer.exportPng(conf.getRendererAuthToken(), src));
+    public byte[] exportPng(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+        return exportInternal(tabId, repositoryId, tabs, "PNG", src -> renderer.exportPng(conf.getRendererAuthToken(), src));
     }
 
-    public byte[] exportSvg(String tabId, UUID repositoryId, UUID fileId, String code) {
-        return exportInternal(tabId, repositoryId, fileId, code, "SVG", src -> renderer.exportSvg(conf.getRendererAuthToken(), src));
+    public byte[] exportSvg(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+        return exportInternal(tabId, repositoryId, tabs, "SVG", src -> renderer.exportSvg(conf.getRendererAuthToken(), src));
     }
 
-    public byte[] exportJson(String tabId, UUID repositoryId, UUID fileId, String code) {
-        return exportInternal(tabId, repositoryId, fileId, code, "SVG", src -> renderer.exportJson(conf.getRendererAuthToken(), src));
+    public byte[] exportJson(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+        return exportInternal(tabId, repositoryId, tabs, "SVG", src -> renderer.exportJson(conf.getRendererAuthToken(), src));
     }
 
-    public byte[] exportDot(String tabId, UUID repositoryId, UUID fileId, String code) {
-        return translateInternal(tabId, repositoryId, fileId, code).getSource().getBytes(StandardCharsets.UTF_8);
+    public byte[] exportDot(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+        return translateInternal(tabId, repositoryId, tabs).getEdited().getSource().getBytes(StandardCharsets.UTF_8);
     }
 
 }

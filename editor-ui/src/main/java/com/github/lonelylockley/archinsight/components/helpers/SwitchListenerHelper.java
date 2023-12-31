@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.components.helpers;
 
+import com.github.lonelylockley.archinsight.components.MenuBarComponent;
+import com.github.lonelylockley.archinsight.components.WorkAreaComponent;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
@@ -22,7 +24,6 @@ public class SwitchListenerHelper {
     private final BaseListener<RepositoryCloseEvent> repositoryCloseListener;
     private Consumer<RepositoryCloseEvent> repositoryCloseCallback = null;
 
-    private RepositoryNode openedFile;
     private RepositoryInfo activeRepository;
 
     public SwitchListenerHelper(Component parent) {
@@ -34,7 +35,6 @@ public class SwitchListenerHelper {
                     if (repositoryCloseCallback != null) {
                         repositoryCloseCallback.accept(e);
                     }
-                    openedFile = null;
                     activeRepository = null;
                 }
             }
@@ -49,7 +49,6 @@ public class SwitchListenerHelper {
                     if (fileCloseCallback != null) {
                         fileCloseCallback.accept(e);
                     }
-                    openedFile = null;
                 }
             }
         };
@@ -63,7 +62,6 @@ public class SwitchListenerHelper {
                     if (fileSelectionCallback != null) {
                         fileSelectionCallback.accept(e);
                     }
-                    openedFile = e.getFile();
                 }
             }
         };
@@ -91,7 +89,6 @@ public class SwitchListenerHelper {
                     if (tabSwitchCallback != null) {
                         tabSwitchCallback.accept(e);
                     }
-                    openedFile = e.getSelectedFile();
                 }
             }
         };
@@ -124,18 +121,6 @@ public class SwitchListenerHelper {
 
     public void setRepositoryCloseCallback(Consumer<RepositoryCloseEvent> repositoryCloseCallback) {
         this.repositoryCloseCallback = repositoryCloseCallback;
-    }
-
-    public boolean fileOpened() {
-        return openedFile != null;
-    }
-
-    public RepositoryNode getOpenedFile() {
-        return openedFile;
-    }
-
-    public UUID getOpenedFileId() {
-        return openedFile == null ? null : openedFile.getId();
     }
 
     public boolean repositoryOpened() {

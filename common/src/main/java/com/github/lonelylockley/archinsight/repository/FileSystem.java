@@ -9,7 +9,6 @@ import io.micronaut.http.HttpStatus;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class FileSystem {
 

@@ -169,24 +169,24 @@ public class MenuBarComponent extends MenuBar {
     }
 
     private void exportButtonClicked(String id) {
-        Communication.getBus().post(new DoWithSourceEvent((tabId, file, code) -> {
-            var filename = file.isNew() ? "export" : file.getName().substring(0, file.getName().length() - 3);
+        Communication.getBus().post(new DoWithSourceEvent((callerTab, source, tabs) -> {
+            var filename = callerTab.getFile().isNew() ? "export" : callerTab.getFile().getName().substring(0, callerTab.getFile().getName().length() - 3);
             StreamResource res;
             switch (id) {
                 case "menu_btn_export_as_png":
-                    final var png = new ByteArrayInputStream(remoteSource.export.exportPng(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    final var png = new ByteArrayInputStream(remoteSource.export.exportPng(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
                     res = new StreamResource("export.png", () -> png);
                     break;
                 case "menu_btn_export_as_json":
-                    final var json =new ByteArrayInputStream(remoteSource.export.exportJson(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    final var json =new ByteArrayInputStream(remoteSource.export.exportJson(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
                     res = new StreamResource(filename + ".json", () -> json);
                     break;
                 case "menu_btn_export_as_svg":
-                    final var svg = new ByteArrayInputStream(remoteSource.export.exportSvg(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    final var svg = new ByteArrayInputStream(remoteSource.export.exportSvg(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
                     res = new StreamResource(filename + ".svg", () -> svg);
                     break;
                 default:
-                    final var dot = new ByteArrayInputStream(remoteSource.export.exportDot(tabId, switchListener.getActiveRepositoryId(), file.getId(), code));
+                    final var dot = new ByteArrayInputStream(remoteSource.export.exportDot(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
                     res = new StreamResource(filename + ".dot", () -> dot);
                     break;
             }
@@ -223,21 +223,23 @@ public class MenuBarComponent extends MenuBar {
         if (readOnly) {
             return;
         }
-        if (switchListener.fileOpened() && !switchListener.getOpenedFile().isNew()) {
-            saveSource(switchListener.getOpenedFile());
-        }
-        else {
-            var dlg = new DirectorySelectionDialog("Save new file", "File name", "Choose directory", "Archinsight will add an .ai extension automatically", switchListener.getActiveRepositoryId(), res -> {
-                Communication.getBus().post(res);
-                saveSource(res.getCreatedFile());
-            });
-            dlg.open();
-        }
+        Communication.getBus().post(new DoWithSourceEvent((tab, source, tabs) -> {
+            if (tab.getFile().isNew()) {
+                var dlg = new DirectorySelectionDialog("Save new file", "File name", "Choose directory", "Archinsight will add an .ai extension automatically", switchListener.getActiveRepositoryId(), res -> {
+                    Communication.getBus().post(res);
+                    saveSource(res.getCreatedFile());
+                });
+                dlg.open();
+            }
+            else {
+                saveSource(tab.getFile());
+            }
+        }));
     }
 
     private void downloadButtonClicked() {
-        Communication.getBus().post(new DoWithSourceEvent((tabId, file, code) -> {
-            final var filename = file.isNew() ? "source.ai" : file.getName();
+        Communication.getBus().post(new DoWithSourceEvent((callerTab, code, tabs) -> {
+            final var filename = callerTab.getFile().isNew() ? "source.ai" : callerTab.getFile().getName();
             var res = new StreamResource(filename, () -> new ByteArrayInputStream(code.getBytes(StandardCharsets.UTF_8)));
             startDownload(res);
         }));

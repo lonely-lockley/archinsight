@@ -7,6 +7,7 @@ public class TranslatorMessage implements Serializable {
 
     private MessageLevel level;
     private String msg;
+    private String tabId;
     private UUID fileId;
     private String location;
     private int charPosition = 0;
@@ -16,9 +17,10 @@ public class TranslatorMessage implements Serializable {
 
     public TranslatorMessage() {}
 
-    public TranslatorMessage(MessageLevel level, UUID fileId, String location, String msg) {
+    public TranslatorMessage(MessageLevel level, String tabId, UUID fileId, String location, String msg) {
         this.level = level;
         this.msg = msg;
+        this.tabId = tabId;
         this.fileId = fileId;
         this.location = location;
     }
@@ -69,6 +71,14 @@ public class TranslatorMessage implements Serializable {
 
     public int getLine() {
         return line;
+    }
+
+    public String getTabId() {
+        return tabId;
+    }
+
+    public void setTabId(String tabId) {
+        this.tabId = tabId;
     }
 
     public UUID getFileId() {

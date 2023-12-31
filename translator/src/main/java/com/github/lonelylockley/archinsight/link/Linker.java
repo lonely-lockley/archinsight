@@ -25,7 +25,7 @@ public class Linker {
         this.ctx = ctx;
     }
 
-    private void rewriteImportsInternal(AbstractElement root, ParsedFileDescriptor edited) {
+    private void rewriteImportsInternal(AbstractElement root, ParsedFileDescriptor descriptor) {
         if (root instanceof WithImports hasImports) {
             for (AbstractImport imported : hasImports.getImports()) {
                 // if an element contains errors we still have to register empty element to declarations
@@ -33,8 +33,8 @@ public class Linker {
                 AbstractElement copy = new EmptyElement(imported.getAlias());
                 var namespaceLId = String.format("%s_%s", imported.getLevel(), imported.getNamespace());
                 // check for imports from the same namespace
-                if (Objects.equals(edited.getNamespace(), imported.getNamespace())) {
-                    var tm = LinkerUtil.newError(edited,
+                if (Objects.equals(descriptor.getNamespace(), imported.getNamespace())) {
+                    var tm = LinkerUtil.newError(descriptor,
                         "Cyclic import detected"
                     );
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
@@ -43,7 +43,7 @@ public class Linker {
                 else
                 // check namespace exists
                 if (!namespaces.containsKey(namespaceLId)) {
-                    var tm = LinkerUtil.newError(edited,
+                    var tm = LinkerUtil.newError(descriptor,
                         String.format("Unsatisfied import: %s %s not found", imported.getLevel().toString().toLowerCase(), imported.getNamespace())
                     );
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
@@ -52,7 +52,7 @@ public class Linker {
                 else
                 // check that imported element is declared in namespace
                 if (!namespaces.get(namespaceLId).isDeclared(imported.getIdentifier())) {
-                    var tm = LinkerUtil.newError(edited,
+                    var tm = LinkerUtil.newError(descriptor,
                         String.format("Unsatisfied import: %s%s not found in %s %s", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), imported.getLevel().toString().toLowerCase(), imported.getNamespace())
                     );
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
@@ -61,7 +61,7 @@ public class Linker {
                 else
                 // check optional element type if it is set
                 if (imported.getElement() != null && !Objects.equals(imported.getElement(), namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType().toString().toLowerCase())) {
-                    var tm = LinkerUtil.newError(edited,
+                    var tm = LinkerUtil.newError(descriptor,
                         String.format("Unsatisfied import: %s%s not found in %s %s. Did you mean %s?",
                                 imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(),
                                 imported.getLevel().toString().toLowerCase(), imported.getNamespace(),
@@ -74,7 +74,7 @@ public class Linker {
                 else
                 // check imported element is not a boundary
                 if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(namespaces.get(namespaceLId).getDeclared(imported.getAlias()).getType().toString().toLowerCase(), ElementType.BOUNDARY.toString().toLowerCase())) {
-                    var tm = LinkerUtil.newError(edited,
+                    var tm = LinkerUtil.newError(descriptor,
                             "Boundary cannot be imported"
                     );
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
@@ -85,7 +85,7 @@ public class Linker {
                     var el = namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());
                     copy = el.clone();
                     copy.hasExternal().filter(WithExternal::isExternal).foreach(external -> {
-                        var tm = LinkerUtil.newError(edited,
+                        var tm = LinkerUtil.newError(descriptor,
                             "External element imported"
                         );
                         LinkerUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
@@ -101,20 +101,21 @@ public class Linker {
                 // attach named imports to current container and anonymous imports to root container
                 var container = root.hasChildren().mapOrElse(
                         Function.identity(),
-                        () -> edited.getParseResult().getRoot().hasChildren().mapOrElse(Function.identity(), () -> { throw new RuntimeException("Could not find a suitable candidate to add imports"); })
+                        () -> descriptor.getParseResult().getRoot().hasChildren().mapOrElse(Function.identity(), () -> { throw new RuntimeException("Could not find a suitable candidate to add imports"); })
                     );
                 container.addChild(copy);
+                descriptor.declare(copy.hasId().mapOrElse(WithId::getId, null), copy);
             }
         }
         root.hasChildren().foreach(hasChildren -> {
             var children = new ArrayList<AbstractElement>(hasChildren.getChildren().size());
             children.addAll(hasChildren.getChildren());
-            children.forEach(ch -> rewriteImportsInternal(ch, edited));
+            children.forEach(ch -> rewriteImportsInternal(ch, descriptor));
         });
     }
 
-    private void rewriteImports(ParsedFileDescriptor edited) {
-        rewriteImportsInternal(edited.getParseResult().getRoot(), edited);
+    private void rewriteImports(ParsedFileDescriptor descriptor) {
+        rewriteImportsInternal(descriptor.getParseResult().getRoot(), descriptor);
     }
 
     private void checkNamespace(ParsedFileDescriptor descriptor) {
@@ -174,7 +175,8 @@ public class Linker {
     private void checkConnections(ParsedFileDescriptor descriptor) {
         descriptor.getConnections()
             .stream()
-            .filter(c -> !descriptor.isDeclared(c.getTo()))
+            .filter(c ->
+                    !descriptor.isDeclared(c.getTo()))
             .forEach(el -> {
                 var tm = LinkerUtil.newError(descriptor, el,
                     String.format("Undeclared identifier %s", el.getTo())
@@ -184,14 +186,14 @@ public class Linker {
     }
 
     public void checkIntegrity() {
-        var edited = ctx.getEdited();
-        checkNamespaces(ctx.getDescriptors(), edited);
         for (ParsedFileDescriptor descriptor : ctx.getDescriptors()) {
+            checkNamespace(descriptor);
             checkDeclarations(descriptor, descriptor.getParseResult().getRoot());
         }
-        rewriteImports(edited);
-        checkDeclarations(edited, edited.getParseResult().getRoot());
-        checkConnections(edited);
+        for (ParsedFileDescriptor descriptor : ctx.getDescriptors()) {
+            rewriteImports(descriptor);
+            checkConnections(descriptor);
+        }
     }
 
 }

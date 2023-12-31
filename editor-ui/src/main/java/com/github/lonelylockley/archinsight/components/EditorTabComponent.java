@@ -1,15 +1,9 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.github.lonelylockley.archinsight.MicronautContext;
-import com.github.lonelylockley.archinsight.events.BaseListener;
-import com.github.lonelylockley.archinsight.events.Communication;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.lonelylockley.archinsight.events.FileChangeReason;
-import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
-import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
-import com.github.lonelylockley.archinsight.remote.RemoteSource;
-import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Span;
@@ -21,14 +15,12 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class EditorTabComponent extends Tab {
 
     private static final Logger logger = LoggerFactory.getLogger(EditorTabComponent.class);
 
     private final Span label;
-    private final RemoteSource remoteSource;
     private final EditorComponent editor;
     private final SVGViewComponent view;
     private final SplitViewComponent content;
@@ -39,18 +31,14 @@ public class EditorTabComponent extends Tab {
     private RepositoryNode file;
     private boolean hasErrorsOrEmpty = false;
 
-    public EditorTabComponent(String parentId, UUID repositoryId, RepositoryNode file, Optional<String> source) {
+    public EditorTabComponent(String parentId, UUID repositoryId, RepositoryNode file, Optional<String> source, Consumer<String> renderer) {
         super();
         this.label = new Span(file.getName());
         add(label);
         this.file = file;
         this.repositoryId = repositoryId;
         this.id = String.format("editor-tab-%s", UUID.randomUUID());
-        this.remoteSource = MicronautContext.getInstance().getRemoteSource();
-        if (!file.isNew() && source.isEmpty()) {
-            source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
-        }
-        this.editor = new EditorComponent(parentId, id, this::renderer, source.orElse(""));
+        this.editor = new EditorComponent(parentId, id, renderer, source.orElse(""));
         this.view = new SVGViewComponent();
         this.content = new SplitViewComponent(editor, view);
         getStyle().set("padding-top", "0px").set("padding-bottom", "0px");
@@ -67,50 +55,6 @@ public class EditorTabComponent extends Tab {
             //closeTab(FileChangeReason.USER_REQUEST);
         });
         add(closeButton);
-
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Subscribe
-            @Override
-            public void receive(SourceCompilationEvent e) {
-                try {
-                    hasErrorsOrEmpty = e.failure();
-                    var messages = e.getMessagesByFile();
-                    var msg = new StringBuilder();
-                    for (Map.Entry<UUID, List<TranslatorMessage>> entry : messages.entrySet()) {
-                        if (Objects.equals(file.getId(), entry.getKey())) {
-                            editor.addModelMarkers(messages.get(file.getId()));
-                        }
-                        else {
-                            var location = entry.getValue().stream().findFirst().get().getLocation();
-                            var summary = entry.getValue().stream().collect(Collectors.toMap(TranslatorMessage::getLevel, val -> 1, Integer::sum));
-                            msg
-                                .append('\n')
-                                .append("- In file ")
-                                .append(location)
-                                .append('\n')
-                                .append("errors: ")
-                                .append(nonNull(summary.get(MessageLevel.ERROR)))
-                                .append(" warnings: ")
-                                .append(nonNull(summary.get(MessageLevel.WARNING)))
-                                .append(" notices: ")
-                                .append(nonNull(summary.get(MessageLevel.NOTICE)));
-                        }
-                    }
-                    if (!msg.isEmpty()) {
-                        new NotificationComponent("Project linking failure:" + msg, MessageLevel.ERROR, 15000);
-                    }
-                }
-                catch (Exception ex) {
-                    Communication.getBus().post(new SourceCompilationEvent(id, false));
-                    new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
-                    logger.error("Could not render source", ex);
-                }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
-        addDetachListener(e -> {
-            Communication.getBus().unregister(sourceCompilationListener);
-        });
     }
 
     public void setCloseListener(BiConsumer<EditorTabComponent, FileChangeReason> listener) {
@@ -158,10 +102,6 @@ public class EditorTabComponent extends Tab {
         label.setText(file.getName());
     }
 
-    public void renderer(String code) {
-        remoteSource.render.render(code, id, repositoryId, file.getId());
-    }
-
     public void setHasErrorsOrEmpty() {
         hasErrorsOrEmpty = true;
     }
@@ -170,8 +110,14 @@ public class EditorTabComponent extends Tab {
         return hasErrorsOrEmpty;
     }
 
-    private int nonNull(Integer value) {
-        return value == null ? 0 : value;
+    public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
+        if (!messages.isEmpty()) {
+            hasErrorsOrEmpty = true;
+        }
+        else {
+            hasErrorsOrEmpty = false;
+        }
+        editor.addModelMarkers(messages);
     }
 
 }

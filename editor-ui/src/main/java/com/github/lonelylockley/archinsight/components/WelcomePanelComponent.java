@@ -30,12 +30,18 @@ public class WelcomePanelComponent extends HorizontalLayout {
     }
 
     public void switchToNoRepo() {
+        if (Authentication.playgroundModeEnabled()) {
+            return;
+        }
         var tmp = showForNoRepo();
         replace(current, tmp);
         current = tmp;
     }
 
     public void switchToRepo() {
+        if (Authentication.playgroundModeEnabled()) {
+            return;
+        }
         var tmp = showForRepo();
         replace(current, tmp);
         current = tmp;

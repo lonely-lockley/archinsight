@@ -19,6 +19,7 @@ import org.apache.commons.lang3.function.TriConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -97,16 +98,20 @@ public class EditorComponent extends Div {
         );
     }
 
-    public void doWithCode(RepositoryNode file, String tabId, TriConsumer<String, RepositoryNode, String> andThen) {
+    public void doWithCode(EditorTabComponent tab, Collection<EditorTabComponent> tabs, TriConsumer<EditorTabComponent, String, Collection<EditorTabComponent>> andThen) {
         getElement().executeJs("return this.editor.getValue()").then(String.class,
                 code -> {
-                    andThen.accept(tabId, file, code);
+                    andThen.accept(tab, code, tabs);
                 },
-                error -> {
-                    logger.error(error);
-                    andThen.accept(tabId, file, clientCodeCache);
+                errorMsg -> {
+                    logger.error(errorMsg);
+                    andThen.accept(tab, clientCodeCache, tabs);
                 }
         );
+    }
+
+    public String getCachedClientCode() {
+        return clientCodeCache;
     }
 
     public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
@@ -114,12 +119,12 @@ public class EditorComponent extends Div {
         getElement().executeJs("this.editor.addModelMarkers($0)", ow.writeValueAsString(messages));
     }
 
-    public void render(String digest, String code) {
-        cache(digest, code);
-        renderer.accept(code);
+    public void render(String tabId, String digest, String code) {
+        cache(tabId, digest, code);
+        renderer.accept(tabId);
     }
 
-    public void cache(String digest, String code) {
+    public void cache(String tabId, String digest, String code) {
         clientHash = digest;
         clientCodeCache = code;
     }

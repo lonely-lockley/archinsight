@@ -8,12 +8,9 @@ import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
-import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
-import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.AbstractGridSingleSelectionModel;
-import com.vaadin.flow.component.grid.ItemClickEvent;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -101,11 +98,9 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             @Subscribe
             public void receive(SourceCompilationEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
-                if (e.failure() && !e.getMessagesByFile().isEmpty()) {
-                    filesWithErrors = e.getMessagesByFile().keySet();
-                }
-                if (e.success()) {
-                    filesWithErrors.clear();
+                filesWithErrors.clear();
+                if (e.failure()) {
+                    filesWithErrors = e.getFilesWithErrors();
                 }
                 getDataProvider().refreshAll();
             }

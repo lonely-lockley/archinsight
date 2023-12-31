@@ -1,26 +1,20 @@
 package com.github.lonelylockley.archinsight.model.remote.translator;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 public class TranslationRequest {
-    private String source;
-    private UUID fileId;
+    private List<TabData> tabs = Collections.emptyList();
     private UUID repositoryId;
+    private String tabId;
 
-    public String getSource() {
-        return source;
+    public List<TabData> getTabs() {
+        return tabs;
     }
 
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    public UUID getFileId() {
-        return fileId;
-    }
-
-    public void setFileId(UUID fileId) {
-        this.fileId = fileId;
+    public void setTabs(List<TabData> tabs) {
+        this.tabs = tabs;
     }
 
     public UUID getRepositoryId() {
@@ -29,5 +23,13 @@ public class TranslationRequest {
 
     public void setRepositoryId(UUID repositoryId) {
         this.repositoryId = repositoryId;
+    }
+
+    public String getTabId() {
+        return tabId;
+    }
+
+    public void setTabId(String tabId) {
+        this.tabId = tabId;
     }
 }

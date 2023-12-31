@@ -1,17 +1,22 @@
 package com.github.lonelylockley.archinsight.events;
 
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.components.EditorTabComponent;
 import org.apache.commons.lang3.function.TriConsumer;
+
+import java.util.Collection;
 
 public class DoWithSourceEvent extends BaseEvent {
 
-    private final TriConsumer<String, RepositoryNode, String> callback;
+    /**
+     * tabId, file, source
+     */
+    private final TriConsumer<EditorTabComponent, String, Collection<EditorTabComponent>> callback;
 
-    public DoWithSourceEvent(TriConsumer<String, RepositoryNode, String> callback) {
+    public DoWithSourceEvent(TriConsumer<EditorTabComponent, String, Collection<EditorTabComponent>> callback) {
         this.callback = callback;
     }
 
-    public TriConsumer<String, RepositoryNode, String> getCallback() {
+    public TriConsumer<EditorTabComponent, String, Collection<EditorTabComponent>> getCallback() {
         return callback;
     }
 }

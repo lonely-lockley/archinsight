@@ -36,6 +36,7 @@ public class LinkerUtil {
         return new TranslatorMessage(
                 MessageLevel.ERROR,
                 descriptor.getId(),
+                descriptor.getFileId().orElse(null),
                 descriptor.getLocation(),
                 message
                 );
@@ -45,6 +46,7 @@ public class LinkerUtil {
         var tm = new TranslatorMessage(
                 MessageLevel.ERROR,
                 descriptor.getId(),
+                descriptor.getFileId().orElse(null),
                 descriptor.getLocation(),
                 message
         );
@@ -56,6 +58,7 @@ public class LinkerUtil {
         var tm = new TranslatorMessage(
                 MessageLevel.WARNING,
                 descriptor.getId(),
+                descriptor.getFileId().orElse(null),
                 descriptor.getLocation(),
                 message
         );

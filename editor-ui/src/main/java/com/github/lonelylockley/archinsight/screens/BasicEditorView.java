@@ -50,7 +50,7 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         contentLayout.setSizeFull();
         setContent(contentLayout);
 
-        // and repository component second because it sends event
+        // and repository component second because it sends openRepository event
         final var nav = new RepositoryComponent(readOnly);
         addToDrawer(nav);
         addToNavbar(toggle, title, new UserMenuComponent());

@@ -3,13 +3,13 @@ package com.github.lonelylockley.archinsight.model;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.parse.ParseResult;
-import com.github.lonelylockley.archinsight.parse.WithSource;
 
 import java.util.*;
 
 public class ParsedFileDescriptor {
 
-    private final UUID id;
+    private final Optional<String> tabId;
+    private final Optional<UUID> fileId;
     private final String location;
     private final ParseResult parseResult;
     private final Set<AbstractImport> imports = new HashSet<>();
@@ -19,8 +19,9 @@ public class ParsedFileDescriptor {
     private ArchLevel level;
     private String namespace;
 
-    public ParsedFileDescriptor(ParseResult pr, String location, UUID fileId) {
-        this.id = fileId;
+    public ParsedFileDescriptor(ParseResult pr, String location, Optional<String> tabId, Optional<UUID> fileId) {
+        this.tabId = tabId;
+        this.fileId = fileId;
         this.location = location;
         this.parseResult = pr;
         stat(pr.getRoot());
@@ -69,8 +70,16 @@ public class ParsedFileDescriptor {
         return declarations.get(id);
     }
 
-    public UUID getId() {
-        return id;
+    public String getId() {
+        return tabId.or(() -> fileId.map(UUID::toString)).orElseThrow();
+    }
+
+    public Optional<String> getTabId() {
+        return tabId;
+    }
+
+    public Optional<UUID> getFileId() {
+        return fileId;
     }
 
     public String getLocation() {

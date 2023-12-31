@@ -1,9 +1,9 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
+import com.github.lonelylockley.archinsight.model.TabBoundedFileData;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
-import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import com.github.lonelylockley.archinsight.model.remote.translator.TabData;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
 import com.github.lonelylockley.archinsight.link.Linker;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
@@ -24,8 +24,12 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Controller("/translate")
 @Secured(SecurityRule.IS_AUTHENTICATED)
@@ -50,31 +54,64 @@ public class TranslatorService {
     @Measured
     public TranslationResult translate(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @Body TranslationRequest data) throws Exception {
         var ctx = new TranslationContext();
-        FileSystem fs;
-        // if a request is issued from the editor when no repositories created
-        if (data.getRepositoryId() == null) {
-            fs = new FileSystem(RepositoryNode.createRoot());
-            var files = Collections.<FileData>emptyList();
-            new Parser(ctx).parseRepository(ctx, fs, files, data.getFileId(), data.getRepositoryId(), data.getSource());
-        }
-        else {
-            fs = new FileSystem(repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()));
-            var files = repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId());
-            // parse the whole repository if a file belongs to some
-            new Parser(ctx).parseRepository(ctx, fs, files, data.getFileId(), data.getRepositoryId(), data.getSource());
-        }
+        var fs = new FileSystem(repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()));
+        var files = mergeSources(data, ownerId, ownerRole);
+        // parse the whole repository
+        new Parser(ctx).parseRepository(ctx, fs, files);
         // check integrity
         new Linker(ctx).checkIntegrity();
         // translate to DOT
         var result = new TranslationResult();
+        result.setTabId(data.getTabId());
         if (!ctx.hasErrors()) {
-            result.setSource(new GraphvizTranslator().translate(ctx.getEdited()));
+            mergeResults(data, result, ctx);
         }
         else {
             result.setHasErrors(true);
         }
         result.setMessages(ctx.getMessages());
         return result;
+    }
+
+    private List<TabBoundedFileData> mergeSources(TranslationRequest data, UUID ownerId, String ownerRole) {
+        final var files = repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId())
+                        .stream()
+                        .map(TabBoundedFileData::new)
+                        .collect(Collectors.toMap(TabBoundedFileData::getId, Function.identity()));
+        final var tabs = data.getTabs()
+                .stream()
+                .map(tab -> {
+                    TabBoundedFileData tmp;
+                    if (tab.getFileId() == null || !files.containsKey(tab.getFileId())) {
+                        tmp = new TabBoundedFileData();
+                        tmp.setTabId(tab.getTabId());
+                        tmp.setFileName(tab.getFileName());
+                        tmp.setContent(tab.getSource());
+
+                    }
+                    else {
+                        tmp = files.remove(tab.getFileId());
+                        tmp.setTabId(tab.getTabId());
+                        tmp.setContent(tab.getSource());
+                    }
+                    return tmp;
+                })
+                .toList();
+        var res = new ArrayList<TabBoundedFileData>(files.size() + tabs.size());
+        res.addAll(files.values());
+        res.addAll(tabs);
+        return res;
+    }
+
+    private void mergeResults(TranslationRequest data, TranslationResult result, TranslationContext ctx) {
+        result.setTabs(data.getTabs());
+        for (TabData tab : result.getTabs()) {
+            var tr = new GraphvizTranslator();
+            tab.setSource(tr.translate(ctx.getDescriptor(tab.getTabId())));
+            if (Objects.equals(tab.getTabId(), data.getTabId())) {
+                result.setEdited(tab);
+            }
+        }
     }
 
 }
