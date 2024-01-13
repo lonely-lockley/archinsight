@@ -65,6 +65,7 @@ public class MenuBarComponent extends MenuBar {
         zoomResetButton = createItem(this, "menu_btn_zoom_reset", new Icon(VaadinIcon.PLUS_MINUS), null, null, false, false, listener);
         zoomOutButton   = createItem(this, "menu_btn_zoom_minus", new Icon(VaadinIcon.MINUS), null, null, false, false, listener);
         zoomFitButton   = createItem(this, "menu_btn_zoom_fit", new Icon(VaadinIcon.EXPAND_SQUARE), null, null, false, false, listener);
+        var refresh   = createItem(this, "menu_btn_render", new Icon(VaadinIcon.CARET_RIGHT), "Render", null, false, false, listener);
 
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.CONTROL);
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.META);

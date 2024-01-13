@@ -43,17 +43,21 @@ public class RenderSource {
         return res;
     }
 
-    private Source prepareRendererRequest(TranslationResult translated) {
-        var res = new Source();
-        res.setSource(translated.getEdited().getSource());
-        return res;
+    private List<Source> prepareRendererRequest(TranslationResult translated) {
+        return translated.getTabs().stream().map(td -> {
+            var res = new Source();
+            res.setTabId(td.getTabId());
+            res.setSource(td.getSource());
+            return res;
+        }).toList();
     }
 
-    public Map<String, List<TranslatorMessage>> render(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-//        if (code == null || code.isBlank()) {
-//            Communication.getBus().post(new SourceCompilationEvent(tabId, false));
-//        }
-//        else {
+    public void render(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+        var edited = tabs.stream().filter(t -> Objects.equals(t.getTabId(), tabId)).findFirst();
+        if (edited.isEmpty() || edited.get().getEditor().getCachedClientCode() == null || edited.get().getEditor().getCachedClientCode().isBlank()) {
+            Communication.getBus().post(new SourceCompilationEvent(tabId, false));
+        }
+        else {
             long startTime = System.nanoTime();
             final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, tabs));
             final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
@@ -79,18 +83,17 @@ public class RenderSource {
                         })
                     );
             if (!translated.isHasErrors()) {
-                var svg = renderer.renderSvg(conf.getRendererAuthToken(), prepareRendererRequest(translated));
+                var diagrams = renderer.renderSvgBatch(conf.getRendererAuthToken(), prepareRendererRequest(translated));
+                for (Source svg : diagrams) {
+                    Communication.getBus().post(new SvgDataEvent(svg.getTabId(), svg.getSource()));
+                }
                 Communication.getBus().post(new SourceCompilationEvent(tabId, true));
-                Communication.getBus().post(new SvgDataEvent(tabId, svg));
             }
             else {
                 Communication.getBus().post(new SourceCompilationEvent(tabId, false, messagesByFile, filesWithErrors));
             }
             logger.info("Render for {} required {}ms", tabId, (System.nanoTime() - startTime) / 1000000);
-
-            return messagesByFile;
-//        }
-//        return Collections.emptyMap();
+        }
     }
 
 }

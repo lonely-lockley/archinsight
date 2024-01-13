@@ -6,6 +6,8 @@ import io.micronaut.http.annotation.Header;
 import io.micronaut.http.annotation.Post;
 import io.micronaut.http.client.annotation.Client;
 
+import java.util.List;
+
 import static io.micronaut.http.HttpHeaders.ACCEPT;
 
 @Client(id = "renderer")
@@ -14,6 +16,10 @@ public interface RendererClient {
     @Post("/render/svg")
     @Header(name = ACCEPT, value = "image/svg+xml")
     String renderSvg(@Header String authorization, Source data);
+
+    @Post("/render/svg/batch")
+    @Header(name = ACCEPT, value = MediaType.APPLICATION_JSON)
+    List<Source> renderSvgBatch(@Header String authorization, List<Source> data);
 
     @Post("/render/svg")
     @Header(name = ACCEPT, value = "image/svg+xml")

@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @JsModule("./src/StatePersistence.ts")
@@ -27,6 +28,7 @@ public class TabsComponent extends TabSheet {
 
     private final ConcurrentHashMap<String, EditorTabComponent> tabs = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, EditorTabComponent> files = new ConcurrentHashMap<>();
+    private final AtomicInteger restoredTabsRenderCountdownLatch = new AtomicInteger(0);
     private final RemoteSource remoteSource;
     private final TabsPersistenceHelper clientStorage;
 
@@ -150,10 +152,13 @@ public class TabsComponent extends TabSheet {
         });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
+            restoredTabsRenderCountdownLatch.incrementAndGet();
             if (restored.getFid() != null) {
+                // restore file
                 Communication.getBus().post(new FileRestoreEvent(UUID.fromString(restored.getFid()), Optional.ofNullable(restored.getCode())));
             }
             else {
+                // restore tab
                 var file = new RepositoryNode();
                 file.setType(RepositoryNode.TYPE_FILE);
                 file.setName(restored.getName());
@@ -233,9 +238,15 @@ public class TabsComponent extends TabSheet {
 
     @ClientCallable
     public void render(String digest, String tabId, String code) {
-        Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
-            tab.getEditor().render(tab.getTabId(), digest, code);
-        });
+        // each restored tab requests render. run it only once when counter reaches 0
+        if (restoredTabsRenderCountdownLatch.get() > 0) {
+            restoredTabsRenderCountdownLatch.decrementAndGet();
+        }
+        if (restoredTabsRenderCountdownLatch.get() == 0) {
+            Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
+                tab.getEditor().render(tab.getTabId(), digest, code);
+            });
+        }
     }
 
     @ClientCallable
