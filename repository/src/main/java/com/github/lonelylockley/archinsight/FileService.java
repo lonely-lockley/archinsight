@@ -118,6 +118,9 @@ public class FileService {
             var rm = session.getMapper(RepositoryMapper.class);
             var fm = session.getMapper(FileMapper.class);
             var repositoryAndOwner = fm.getFileOwnerAndRepositoryById(fileId);
+            if (repositoryAndOwner == null) {
+                throw new ServiceException(new ErrorMessage("File does not exist", HttpStatus.NOT_FOUND));
+            }
             if (Objects.equals(repositoryAndOwner.getOwnerId(), ownerId)) {
                 var timestamp = Instant.now();
                 fm.saveFile(fileId, fc.getContent(), timestamp);

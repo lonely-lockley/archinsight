@@ -96,6 +96,19 @@ public class TranslatorService {
                     }
                     return tmp;
                 })
+                .sorted((left, right) -> {
+                    if (Objects.equals(left.getTabId(), data.getTabId())) {
+                        return 1;
+                    }
+                    else
+                    if (Objects.equals(right.getTabId(), data.getTabId())) {
+                        return -1;
+                    }
+                    else {
+                        return 0;
+                    }
+
+                })
                 .toList();
         var res = new ArrayList<TabBoundedFileData>(files.size() + tabs.size());
         res.addAll(files.values());

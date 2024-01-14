@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.components;
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.components.helpers.TabsPersistenceHelper;
 import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
@@ -10,7 +11,6 @@ import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.dependency.JsModule;
-import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.tabs.TabSheet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -106,41 +106,38 @@ public class TabsComponent extends TabSheet {
             @Subscribe
             @Override
             public void receive(SourceCompilationEvent e) {
-                try {
-                    // @todo review this part
-                    var messages = e.getMessagesByTab();
-                    var msg = new StringBuilder();
-                    for (Map.Entry<String, List<TranslatorMessage>> entry : messages.entrySet()) {
-                        if (tabs.containsKey(entry.getKey())) {
-                            tabs.get(entry.getKey()).addModelMarkers(entry.getValue());
-                        }
-                        var location = entry.getValue().stream().findFirst().get().getLocation();
-                        var summary = entry.getValue().stream().collect(Collectors.toMap(TranslatorMessage::getLevel, val -> 1, Integer::sum));
-                        msg
-                                .append('\n')
-                                .append("- In file ")
-                                .append(location)
-                                .append('\n')
-                                .append(nonNull(summary.get(MessageLevel.ERROR)))
-                                .append(" errors, ")
-                                .append(nonNull(summary.get(MessageLevel.WARNING)))
-                                .append(" warnings, ")
-                                .append(nonNull(summary.get(MessageLevel.NOTICE)))
-                                .append(" notices");
-
-                        if (!msg.isEmpty()) {
-                            var lvl = summary.get(MessageLevel.ERROR) > 0 ? MessageLevel.ERROR : (summary.get(MessageLevel.WARNING) > 0 ? MessageLevel.WARNING : MessageLevel.NOTICE);
-                            new NotificationComponent("Project linking failure:" + msg, lvl, 15000);
+                if (eventWasProducedForCurrentUiId(e)) {
+                    try {
+                        // skip technical failed compilation events that don't have message errors as this
+                        // causes errors blinking on frontend
+                        if (e.success() || (e.failure() && !e.getMessagesByTab().isEmpty())) {
+                            var messages = e.getMessagesByTab();
+                            var summary = collectSummary(messages);
+                            updateBadges(messages, summary);
+                            createMessage(messages, summary);
                         }
                     }
-                }
-                catch (Exception ex) {
-                    new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
-                    logger.error("Could not render source", ex);
+                    catch (Exception ex) {
+                        new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
+                        logger.error("Could not render source", ex);
+                    }
                 }
             }
         };
         Communication.getBus().register(sourceCompilationListener);
+
+        final var requestRender = new BaseListener<RequestRenderEvent>() {
+            @Override
+            @Subscribe
+            public void receive(RequestRenderEvent e) {
+            if (eventWasProducedForCurrentUiId(e)) {
+                Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
+                    remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), tabs.values());
+                });
+            }
+            }
+        };
+        Communication.getBus().register(requestRender);
 
         addDetachListener(e -> {
             Communication.getBus().unregister(svgDataListener);
@@ -149,6 +146,7 @@ public class TabsComponent extends TabSheet {
             Communication.getBus().unregister(sourceActionEventListener);
             Communication.getBus().unregister(fileChangeListener);
             Communication.getBus().unregister(sourceCompilationListener);
+            Communication.getBus().unregister(requestRender);
         });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
@@ -181,7 +179,7 @@ public class TabsComponent extends TabSheet {
             if (!file.isNew() && source.isEmpty()) {
                 source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
             }
-            final var editorTab = new EditorTabComponent(id, repositoryId, file, source, (tabId) -> {
+            final var editorTab = new EditorTabComponent(id, file, source, (tabId) -> {
                 remoteSource.render.render(tabId, repositoryId, tabs.values());
             });
             editorTab.setCloseListener(this::closeTab);
@@ -209,8 +207,10 @@ public class TabsComponent extends TabSheet {
     /**
      * When file was deleted
      */
-    public void closeTab(RepositoryNode file, FileChangeReason reason) {
-        Optional.ofNullable(files.get(file.getId())).ifPresent(tab -> closeTab(tab, reason));
+    public void closeTab(List<UUID> deletedObjects, FileChangeReason reason) {
+        for (UUID oid : deletedObjects) {
+            Optional.ofNullable(files.get(oid)).ifPresent(tab -> closeTab(tab, reason));
+        }
     }
 
     public void closeAllTabs(FileChangeReason reason) {
@@ -226,14 +226,51 @@ public class TabsComponent extends TabSheet {
         return (EditorTabComponent) super.getSelectedTab();
     }
 
-    /**
-     * For future use: tab badge indicating number of errors/warnings
-     */
-    private void createBadge(EditorTabComponent tab, int numberOfErrors) {
-        Span badge = new Span(String.valueOf(numberOfErrors));
-        badge.getElement().getThemeList().add("badge small contrast");
-        badge.getStyle().set("margin-inline-start", "var(--lumo-space-xs)");
-        tab.add(badge);
+    private Map<String, Map<MessageLevel, Integer>> collectSummary(Map<String, List<TranslatorMessage>> messages) {
+        return messages
+                .entrySet()
+                .stream()
+                .map(entry -> new Tuple2<>(entry.getKey(), entry.getValue().stream().collect(Collectors.toMap(TranslatorMessage::getLevel, val -> 1, Integer::sum))))
+                .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2));
+    }
+
+    private void updateBadges(Map<String, List<TranslatorMessage>> messages, Map<String, Map<MessageLevel, Integer>> summary) {
+        for (EditorTabComponent tab : tabs.values()) {
+            if (messages.containsKey(tab.getTabId())) {
+                var entry = messages.get(tab.getTabId());
+                tab.setModelMarkers(entry, summary.get(tab.getTabId()).get(MessageLevel.ERROR));
+            }
+            else {
+                tab.resetModelMarkers();
+            }
+        }
+    }
+
+    private void createMessage(Map<String, List<TranslatorMessage>> messages, Map<String, Map<MessageLevel, Integer>> summary) {
+        var msg = new StringBuilder();
+        var level = MessageLevel.NOTICE;
+        for (Map.Entry<String, List<TranslatorMessage>> entry : messages.entrySet()) {
+            var location = entry.getValue().stream().findFirst().get().getLocation();
+            var stats = summary.get(entry.getKey());
+            msg
+                    .append('\n')
+                    .append("- In file ")
+                    .append(location)
+                    .append('\n')
+                    .append(nonNull(stats.get(MessageLevel.ERROR)))
+                    .append(" errors, ")
+                    .append(nonNull(stats.get(MessageLevel.WARNING)))
+                    .append(" warnings, ")
+                    .append(nonNull(stats.get(MessageLevel.NOTICE)))
+                    .append(" notices");
+            var max = stats.keySet().stream().max(Comparator.comparingInt(MessageLevel::getPriority));
+            if (max.isPresent() && max.get().getPriority() > level.getPriority()) {
+                level = max.get();
+            }
+        }
+        if (!msg.isEmpty()) {
+            new NotificationComponent("Project linking failed:" + msg, level, 5000);
+        }
     }
 
     @ClientCallable
@@ -252,7 +289,6 @@ public class TabsComponent extends TabSheet {
     @ClientCallable
     public void cache(String digest, String tabId, String code) {
         Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
-            tab.setHasErrorsOrEmpty();
             tab.getEditor().cache(tab.getTabId(), digest, code);
         });
     }

@@ -28,7 +28,11 @@ public class NotificationComponent extends Notification {
                 addThemeVariants(NotificationVariant.LUMO_ERROR);
                 break;
         }
-        var text = new Html(String.format("<div>%s</div>", message.replaceAll("\n", "<br/>")));
+        var text = new Html(String.format("<div>%s</div>", message
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll("\n", "<br/>")
+        ));
 
         Button closeButton = new Button(new Icon("lumo", "cross"));
         closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);

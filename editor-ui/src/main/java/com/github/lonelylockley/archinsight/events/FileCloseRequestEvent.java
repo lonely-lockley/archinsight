@@ -1,14 +1,15 @@
 package com.github.lonelylockley.archinsight.events;
 
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
+import java.util.List;
+import java.util.UUID;
 
 public class FileCloseRequestEvent extends BaseEvent {
 
-    private final RepositoryNode file;
+    private final List<UUID> deleted;
     private final FileChangeReason reason;
 
-    public FileCloseRequestEvent(RepositoryNode file, FileChangeReason reason) {
-        this.file = file;
+    public FileCloseRequestEvent(List<UUID> deleted, FileChangeReason reason) {
+        this.deleted = deleted;
         this.reason = reason;
     }
 
@@ -16,8 +17,8 @@ public class FileCloseRequestEvent extends BaseEvent {
         return reason;
     }
 
-    public RepositoryNode getFile() {
-        return file;
+    public List<UUID> getDeletedObjects() {
+        return deleted;
     }
 
 }

@@ -34,7 +34,7 @@ public class WorkAreaComponent extends VerticalLayout {
             menu.disableNewFile();
         });
         switchListener.setFileCloseCallback(e -> {
-            tabs.closeTab(e.getFile(), e.getReason());
+            tabs.closeTab(e.getDeletedObjects(), e.getReason());
         });
         switchListener.setFileSelectionCallback(e -> {
             hideComponent(welcome);
@@ -62,7 +62,7 @@ public class WorkAreaComponent extends VerticalLayout {
                     menu.disableDiagramBlock();
                 }
 
-                if (e.getSelectedTab().getHasErrorsOrEmpty()) {
+                if (e.getSelectedTab().getEditor().hasErrors()) {
                     menu.disableExportBlock();
                 }
                 else {
@@ -76,7 +76,7 @@ public class WorkAreaComponent extends VerticalLayout {
             public void receive(SourceCompilationEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
                 Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
-                    if (tab.getHasErrorsOrEmpty()) {
+                    if (tab.getEditor().hasErrors()) {
                         menu.disableExportBlock();
                     }
                     else {

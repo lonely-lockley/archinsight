@@ -39,9 +39,9 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
     });
 
     // monkey patch editor to pass errors
-    (editor as any).addModelMarkers = (linkerErrors: string) => {
+    (editor as any).setModelMarkers = (linkerErrors: string) => {
         var model = editor.getModel()!;
-        var errors = monaco.editor.getModelMarkers({ resource: model.uri! });
+        var errors: any[] = [];
         (JSON.parse(linkerErrors) as LinkerMessage[]).forEach(lm => {
             errors.push({
                 "resource": model.uri!,
@@ -57,6 +57,11 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
         })
 
         monaco.editor.setModelMarkers(model, languageID, errors);
+    }
+
+    (editor as any).resetModelMarkers = () => {
+        var model = editor.getModel()!;
+        monaco.editor.setModelMarkers(model, languageID, []);
     }
 
     // publish editor

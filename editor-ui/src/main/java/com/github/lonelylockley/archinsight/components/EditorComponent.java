@@ -43,6 +43,8 @@ public class EditorComponent extends Div {
     private String clientHash;
     private String clientCodeCache;
 
+    private boolean hasErrors = false;
+
     public EditorComponent(String rootId, String tabId, Consumer<String> renderer, String content) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         this.renderer = renderer;
@@ -114,17 +116,36 @@ public class EditorComponent extends Div {
         return clientCodeCache;
     }
 
-    public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
-        ObjectWriter ow = new ObjectMapper().writer().withDefaultPrettyPrinter();
-        getElement().executeJs("this.editor.addModelMarkers($0)", ow.writeValueAsString(messages));
+    public boolean hasErrors() {
+        return hasErrors;
+    }
+
+    public void setModelMarkers(List<TranslatorMessage> messages) {
+        hasErrors = true;
+        ObjectWriter ow = new ObjectMapper().writer();
+        try {
+            getElement().executeJs("this.editor.setModelMarkers($0)", ow.writeValueAsString(messages));
+        }
+        catch (JsonProcessingException ex) {
+            throw new RuntimeException("Could not serialize value as JSON", ex);
+        }
+    }
+
+    public void resetModelMarkers() {
+        hasErrors = false;
+        getElement().executeJs("this.editor.resetModelMarkers()");
     }
 
     public void render(String tabId, String digest, String code) {
-        cache(tabId, digest, code);
+        hasErrors = false;
+        clientHash = digest;
+        clientCodeCache = code;
         renderer.accept(tabId);
     }
 
     public void cache(String tabId, String digest, String code) {
+        hasErrors = true;
+        Communication.getBus().post(new SourceCompilationEvent(tabId, false));
         clientHash = digest;
         clientCodeCache = code;
     }

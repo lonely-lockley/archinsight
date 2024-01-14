@@ -98,8 +98,11 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             @Subscribe
             public void receive(SourceCompilationEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
-                filesWithErrors.clear();
-                if (e.failure()) {
+                if (e.success()) {
+                    filesWithErrors.clear();
+                }
+                else
+                if (e.failure() && !e.getFilesWithErrors().isEmpty()) {
                     filesWithErrors = e.getFilesWithErrors();
                 }
                 getDataProvider().refreshAll();
@@ -246,12 +249,12 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         var selection = getSelectedItems();
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
-            remoteSource.repository.removeNode(switchListener.getActiveRepositoryId(), node.getId());
+            var deletedObjects = remoteSource.repository.removeNode(switchListener.getActiveRepositoryId(), node.getId());
             getTreeData().removeItem(node);
             fileSystem.removeNode(node.getId());
             getDataProvider().refreshAll();
             deselect(node);
-            Communication.getBus().post(new FileCloseRequestEvent(node, FileChangeReason.DELETED));
+            Communication.getBus().post(new FileCloseRequestEvent(deletedObjects, FileChangeReason.DELETED));
         }
     }
 

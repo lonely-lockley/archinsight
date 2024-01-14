@@ -5,9 +5,7 @@ import com.github.lonelylockley.archinsight.components.dialogs.DirectorySelectio
 import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
-import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
-import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.contextmenu.SubMenu;
@@ -33,7 +31,6 @@ public class MenuBarComponent extends MenuBar {
     private final Div invisible;
     private final RemoteSource remoteSource;
     private final SwitchListenerHelper switchListener;
-
     private final MenuItem newButton;
     private final MenuItem sourceDropdown;
     private final MenuItem exportDropdown;
@@ -41,6 +38,7 @@ public class MenuBarComponent extends MenuBar {
     private final MenuItem zoomResetButton;
     private final MenuItem zoomOutButton;
     private final MenuItem zoomFitButton;
+    private final MenuItem render;
     private final boolean readOnly;
 
     public MenuBarComponent(Div invisible, boolean readOnly, SwitchListenerHelper switchListener) {
@@ -65,7 +63,7 @@ public class MenuBarComponent extends MenuBar {
         zoomResetButton = createItem(this, "menu_btn_zoom_reset", new Icon(VaadinIcon.PLUS_MINUS), null, null, false, false, listener);
         zoomOutButton   = createItem(this, "menu_btn_zoom_minus", new Icon(VaadinIcon.MINUS), null, null, false, false, listener);
         zoomFitButton   = createItem(this, "menu_btn_zoom_fit", new Icon(VaadinIcon.EXPAND_SQUARE), null, null, false, false, listener);
-        var refresh   = createItem(this, "menu_btn_render", new Icon(VaadinIcon.CARET_RIGHT), "Render", null, false, false, listener);
+        render          = createItem(this, "menu_btn_render", new Icon(VaadinIcon.CARET_RIGHT), "Render", null, false, false, listener);
 
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.CONTROL);
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.META);
@@ -126,10 +124,12 @@ public class MenuBarComponent extends MenuBar {
 
     public void enableSourceBlock() {
         sourceDropdown.setEnabled(true);
+        render.setEnabled(true);
     }
 
     public void disableSourceBlock() {
         sourceDropdown.setEnabled(false);
+        render.setEnabled(false);
     }
 
     public void enableExportBlock() {
@@ -166,6 +166,10 @@ public class MenuBarComponent extends MenuBar {
         else
         if (id.startsWith("menu_btn_zoom")) {
             zoomButtonClicked(id);
+        }
+        else
+        if (id.equals("menu_btn_render")) {
+            refreshButtonClicked();
         }
     }
 
@@ -236,6 +240,10 @@ public class MenuBarComponent extends MenuBar {
                 saveSource(tab.getFile());
             }
         }));
+    }
+
+    private void refreshButtonClicked() {
+        Communication.getBus().post(new RequestRenderEvent(switchListener.getActiveRepositoryId()));
     }
 
     private void downloadButtonClicked() {

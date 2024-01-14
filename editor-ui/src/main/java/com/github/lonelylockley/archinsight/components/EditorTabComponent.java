@@ -24,19 +24,18 @@ public class EditorTabComponent extends Tab {
     private final EditorComponent editor;
     private final SVGViewComponent view;
     private final SplitViewComponent content;
+    private final Span badge;
     private final String id;
-    private final UUID repositoryId;
 
     private BiConsumer<EditorTabComponent, FileChangeReason> listener;
     private RepositoryNode file;
-    private boolean hasErrorsOrEmpty = false;
 
-    public EditorTabComponent(String parentId, UUID repositoryId, RepositoryNode file, Optional<String> source, Consumer<String> renderer) {
+    public EditorTabComponent(String parentId, RepositoryNode file, Optional<String> source, Consumer<String> renderer) {
         super();
         this.label = new Span(file.getName());
+        this.badge = createBadge();
         add(label);
         this.file = file;
-        this.repositoryId = repositoryId;
         this.id = String.format("editor-tab-%s", UUID.randomUUID());
         this.editor = new EditorComponent(parentId, id, renderer, source.orElse(""));
         this.view = new SVGViewComponent();
@@ -54,7 +53,16 @@ public class EditorTabComponent extends Tab {
             // do not call it here. listener will call it from TabsComponent
             //closeTab(FileChangeReason.USER_REQUEST);
         });
+        add(badge);
         add(closeButton);
+    }
+
+    private Span createBadge() {
+        Span badge = new Span();
+        badge.getElement().getThemeList().add("badge small error");
+        badge.getStyle().set("margin-inline-start", "var(--lumo-space-m)");
+        badge.setVisible(false);
+        return badge;
     }
 
     public void setCloseListener(BiConsumer<EditorTabComponent, FileChangeReason> listener) {
@@ -102,22 +110,16 @@ public class EditorTabComponent extends Tab {
         label.setText(file.getName());
     }
 
-    public void setHasErrorsOrEmpty() {
-        hasErrorsOrEmpty = true;
+    public void setModelMarkers(List<TranslatorMessage> messages, int errorCount) {
+        assert errorCount > 0;
+        badge.setText(String.valueOf(errorCount));
+        badge.setVisible(true);
+        editor.setModelMarkers(messages);
     }
 
-    public boolean getHasErrorsOrEmpty() {
-        return hasErrorsOrEmpty;
-    }
-
-    public void addModelMarkers(List<TranslatorMessage> messages) throws JsonProcessingException {
-        if (!messages.isEmpty()) {
-            hasErrorsOrEmpty = true;
-        }
-        else {
-            hasErrorsOrEmpty = false;
-        }
-        editor.addModelMarkers(messages);
+    public void resetModelMarkers() {
+        badge.setVisible(false);
+        editor.resetModelMarkers();
     }
 
 }
