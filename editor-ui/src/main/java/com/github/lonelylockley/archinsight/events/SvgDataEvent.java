@@ -5,9 +5,11 @@ import com.vaadin.flow.component.ComponentEvent;
 
 public class SvgDataEvent extends BaseEvent {
 
+    private String tabId;
     private String svgData;
 
-    public SvgDataEvent(String svgData) {
+    public SvgDataEvent(String tabId, String svgData) {
+        this.tabId = tabId;
         this.svgData = svgData;
     }
 
@@ -15,4 +17,7 @@ public class SvgDataEvent extends BaseEvent {
         return svgData;
     }
 
+    public String getTabId() {
+        return tabId;
+    }
 }

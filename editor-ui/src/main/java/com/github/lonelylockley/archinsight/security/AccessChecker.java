@@ -19,7 +19,9 @@ public class AccessChecker implements NavigationAccessChecker {
     @Override
     public AccessCheckResult check(NavigationContext context) {
         Class<?> targetView = context.getNavigationTarget();
-        boolean hasAccess = accessAnnotationChecker.hasAccess(targetView, new UserPrincipal(Authentication.getAuthenticatedUser()), this::checkRoles);
+        final var user = Authentication.getAuthenticatedUser();
+        // very strange, but principal is checked for null only in `hasAccess` and never used ever after
+        boolean hasAccess = accessAnnotationChecker.hasAccess(targetView, user == null ? null : new UserPrincipal(user), this::checkRoles);
         logger.debug("Access to view '{}' with path '{}' is {}",
                 context.getNavigationTarget().getName(),
                 context.getLocation().getPath(),

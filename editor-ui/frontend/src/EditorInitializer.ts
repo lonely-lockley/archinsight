@@ -7,20 +7,20 @@ import { LinkerMessage } from './model/TranslatorResponse';
 const _global = (window) as any
 const renderClient: Renderer = new Renderer();
 
-function renderCode(container: HTMLElement, value: string) {
-    const errors = monaco.editor.getModelMarkers({})?.length;
+function renderCode(container: HTMLElement, tab: string, value: string, uri: monaco.Uri) {
+    const errors = monaco.editor.getModelMarkers({ resource: uri })?.length;
     if (!errors && value && value.length > 0) {
-        renderClient.remoteRender(container, value);
+        renderClient.remoteRender(container, tab, value);
     }
     else {
-        renderClient.remoteRender(container, '');
+        renderClient.remoteCache(container, tab, value);
     }
 }
 
-function initializeEditor(localStorageKey: string, code: string) {
-    code = code || (localStorage.getItem(localStorageKey) || '');
+function initializeEditor(anchorId: string, remoteId: string, tab: string, localStorageKey: string, code: string) {
     setupLanguage();
-    const container: HTMLElement = document.getElementById('editor')!;
+    const remote: HTMLElement = document.getElementById(remoteId)!;
+    const container: HTMLElement = document.getElementById(anchorId)!;
     const editor: monaco.editor.IStandaloneCodeEditor = monaco.editor.create(container, {
                                                                   language: languageID,
                                                                   minimap: { enabled: true },
@@ -33,17 +33,16 @@ function initializeEditor(localStorageKey: string, code: string) {
     let timeout: number | undefined;
     editor.onDidChangeModelContent(() => {
         const value = editor.getValue();
-        localStorage.setItem(localStorageKey, value || '');
+        _global.tabState.storeCodeForTab(localStorageKey, tab, value);
         clearTimeout(timeout);
-        timeout = window.setTimeout(() => renderCode(container, value), 1000);
+        timeout = window.setTimeout(() => renderCode(remote, tab, value, editor.getModel()!.uri), 1000);
     });
 
     // monkey patch editor to pass errors
-    (editor as any).addModelMarkers = (linkerErrors: string) => {
+    (editor as any).setModelMarkers = (linkerErrors: string) => {
         var model = editor.getModel()!;
-        var errors = monaco.editor.getModelMarkers({ resource: model.uri! });
+        var errors: any[] = [];
         (JSON.parse(linkerErrors) as LinkerMessage[]).forEach(lm => {
-        console.log(lm);
             errors.push({
                 "resource": model.uri!,
                 "owner": languageID,
@@ -60,8 +59,13 @@ function initializeEditor(localStorageKey: string, code: string) {
         monaco.editor.setModelMarkers(model, languageID, errors);
     }
 
+    (editor as any).resetModelMarkers = () => {
+        var model = editor.getModel()!;
+        monaco.editor.setModelMarkers(model, languageID, []);
+    }
+
     // publish editor
-    _global.editor = editor;
+    (container as any).editor = editor;
 
     // set theme
     fetch('/themes/Cobalt2.json')

@@ -17,11 +17,13 @@ import java.util.UUID;
 public class InsightParseErrorListener implements ANTLRErrorListener {
 
     private final TranslationContext ctx;
+    private final String tabId;
     private final UUID fileId;
     private final String location;
 
-    public InsightParseErrorListener(TranslationContext ctx, UUID fileId, String location) {
+    public InsightParseErrorListener(TranslationContext ctx, String tabId, UUID fileId, String location) {
         this.ctx = ctx;
+        this.tabId = tabId;
         this.fileId = fileId;
         this.location = location;
     }
@@ -30,6 +32,7 @@ public class InsightParseErrorListener implements ANTLRErrorListener {
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
         TranslatorMessage lm = new TranslatorMessage(
                 MessageLevel.ERROR,
+                tabId,
                 fileId,
                 location,
                 String.format("line %d:%d %s", line, charPositionInLine, msg)

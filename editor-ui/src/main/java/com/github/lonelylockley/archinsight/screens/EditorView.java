@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.screens;
 
+import com.github.lonelylockley.archinsight.components.NotificationComponent;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.router.PageTitle;
@@ -13,6 +15,6 @@ import jakarta.annotation.security.RolesAllowed;
 public class EditorView extends BasicEditorView {
     public EditorView() {
         Authentication.disablePlaygroundMode();
-        initView(null, false);
+        initView(null, false, 137);
     }
 }

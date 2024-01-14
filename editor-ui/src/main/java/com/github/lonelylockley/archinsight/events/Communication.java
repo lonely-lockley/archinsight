@@ -33,6 +33,11 @@ public class Communication {
     }
 
     public void post(Object event) {
-        bus.post(event);
+        if (event instanceof BaseEvent) {
+            bus.post(event);
+        }
+        else {
+            throw new IllegalArgumentException("Events MUST extends BaseEvent class");
+        }
     }
 }

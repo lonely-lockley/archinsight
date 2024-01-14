@@ -14,8 +14,8 @@ export class InsightWorker {
     this.languageService = new InsightLanguageService();
   }
 
-  doValidation(): Promise<InsightError[]> {
-    const code = this.getTextDocument();
+  doValidation(uri: monaco.Uri): Promise<InsightError[]> {
+    const code = this.getTextDocument(uri);
     return Promise.resolve(this.languageService.validate(code));
   }
 
@@ -23,8 +23,8 @@ export class InsightWorker {
     return Promise.resolve(this.languageService.format(code));
   }
 
-  private getTextDocument(): string {
-    const model = this._ctx.getMirrorModels()[0]; // When there are multiple files open, this will be an array
+  private getTextDocument(uri: any): string {
+    const model = this._ctx.getMirrorModels().filter((md) => md.uri == uri._formatted)[0];
     return model.getValue();
   }
 }

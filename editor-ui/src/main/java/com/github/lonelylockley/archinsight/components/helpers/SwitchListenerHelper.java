@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.components.helpers;
 
+import com.github.lonelylockley.archinsight.components.MenuBarComponent;
+import com.github.lonelylockley.archinsight.components.WorkAreaComponent;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
@@ -11,8 +13,8 @@ import java.util.function.Consumer;
 
 public class SwitchListenerHelper {
 
-    private final BaseListener<FileRestoredEvent> fileRestorationListener;
-    private Consumer<FileRestoredEvent> fileRestorationCallback = null;
+    private final BaseListener<TabSwitchEvent> tabSwitchListener;
+    private Consumer<TabSwitchEvent> tabSwitchCallback = null;
     private final BaseListener<RepositorySelectionEvent> repositorySelectionListener;
     private Consumer<RepositorySelectionEvent> repositorySelectionCallback = null;
     private final BaseListener<FileOpenRequestEvent> fileSelectionListener;
@@ -22,7 +24,6 @@ public class SwitchListenerHelper {
     private final BaseListener<RepositoryCloseEvent> repositoryCloseListener;
     private Consumer<RepositoryCloseEvent> repositoryCloseCallback = null;
 
-    private RepositoryNode openedFile;
     private RepositoryInfo activeRepository;
 
     public SwitchListenerHelper(Component parent) {
@@ -34,7 +35,6 @@ public class SwitchListenerHelper {
                     if (repositoryCloseCallback != null) {
                         repositoryCloseCallback.accept(e);
                     }
-                    openedFile = null;
                     activeRepository = null;
                 }
             }
@@ -49,7 +49,6 @@ public class SwitchListenerHelper {
                     if (fileCloseCallback != null) {
                         fileCloseCallback.accept(e);
                     }
-                    openedFile = null;
                 }
             }
         };
@@ -63,7 +62,6 @@ public class SwitchListenerHelper {
                     if (fileSelectionCallback != null) {
                         fileSelectionCallback.accept(e);
                     }
-                    openedFile = e.getFile();
                 }
             }
         };
@@ -83,79 +81,46 @@ public class SwitchListenerHelper {
         };
         Communication.getBus().register(repositorySelectionListener);
 
-        fileRestorationListener = new BaseListener<>() {
+        tabSwitchListener = new BaseListener<>() {
             @Override
             @Subscribe
-            public void receive(FileRestoredEvent e) {
+            public void receive(TabSwitchEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    if (fileRestorationCallback != null) {
-                        fileRestorationCallback.accept(e);
+                    if (tabSwitchCallback != null) {
+                        tabSwitchCallback.accept(e);
                     }
-                    openedFile = e.getOpenedFile();
                 }
             }
         };
-        Communication.getBus().register(fileRestorationListener);
+        Communication.getBus().register(tabSwitchListener);
 
         parent.addDetachListener(e -> {
             Communication.getBus().unregister(repositoryCloseListener);
             Communication.getBus().unregister(fileCloseListener);
             Communication.getBus().unregister(fileSelectionListener);
             Communication.getBus().unregister(repositorySelectionListener);
-            Communication.getBus().unregister(fileRestorationListener);
+            Communication.getBus().unregister(tabSwitchListener);
         });
     }
 
-    public void clearFileRestorationCallback() {
-        fileRestorationCallback = null;
-    }
-
-    public void setFileRestorationCallback(Consumer<FileRestoredEvent> fileRestorationCallback) {
-        this.fileRestorationCallback = fileRestorationCallback;
-    }
-
-    public void getRepositorySelectionCallback() {
-        repositorySelectionCallback = null;
+    public void setTabSwitchCallback(Consumer<TabSwitchEvent> tabSwitchCallback) {
+        this.tabSwitchCallback = tabSwitchCallback;
     }
 
     public void setRepositorySelectionCallback(Consumer<RepositorySelectionEvent> repositorySelectionCallback) {
         this.repositorySelectionCallback = repositorySelectionCallback;
     }
 
-    public void getFileSelectionCallback() {
-        fileSelectionCallback = null;
-    }
-
     public void setFileSelectionCallback(Consumer<FileOpenRequestEvent> fileSelectionCallback) {
         this.fileSelectionCallback = fileSelectionCallback;
-    }
-
-    public void getFileCloseCallback() {
-        fileCloseCallback = null;
     }
 
     public void setFileCloseCallback(Consumer<FileCloseRequestEvent> fileCloseCallback) {
         this.fileCloseCallback = fileCloseCallback;
     }
 
-    public void getRepositoryCloseCallback() {
-        repositoryCloseCallback = null;
-    }
-
     public void setRepositoryCloseCallback(Consumer<RepositoryCloseEvent> repositoryCloseCallback) {
         this.repositoryCloseCallback = repositoryCloseCallback;
-    }
-
-    public boolean fileOpened() {
-        return openedFile != null;
-    }
-
-    public RepositoryNode getOpenedFile() {
-        return openedFile;
-    }
-
-    public UUID getOpenedFileId() {
-        return openedFile == null ? null : openedFile.getId();
     }
 
     public boolean repositoryOpened() {

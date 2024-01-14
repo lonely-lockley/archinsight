@@ -11,7 +11,7 @@ public class RepositoryComponent extends VerticalLayout {
         setHeight("100%");
         getElement().setAttribute("theme", "spacing");
         var treeView = new RepositoryViewComponent(readOnly); // this MUST be created prior to RepositorySelectorComponent, so it would be able to listen to events
-        var repositorySelector = new RepositorySelectorComponent(readOnly);
+        var repositorySelector = new RepositorySelectorComponent();
         add(repositorySelector);
         var label = new Span("Structure");
         label.getStyle().set("color", "var(--lumo-secondary-text-color)");

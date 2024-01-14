@@ -2,13 +2,13 @@ package com.github.lonelylockley.archinsight.events;
 
 public class RepositoryCloseEvent extends BaseEvent {
 
-    private final CloseReason reason;
+    private final FileChangeReason reason;
 
-    public RepositoryCloseEvent(CloseReason reason) {
+    public RepositoryCloseEvent(FileChangeReason reason) {
         this.reason = reason;
     }
 
-    public CloseReason getReason() {
+    public FileChangeReason getReason() {
         return reason;
     }
 }

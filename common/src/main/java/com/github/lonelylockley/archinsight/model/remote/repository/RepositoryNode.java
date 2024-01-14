@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.model.remote.repository;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -82,6 +84,11 @@ public class RepositoryNode implements Serializable {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    @JsonIgnore
+    public boolean isNew() {
+        return id == null;
     }
 
     @Override

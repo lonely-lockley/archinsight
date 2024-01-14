@@ -1,15 +1,16 @@
 package com.github.lonelylockley.archinsight.components.tiles;
 
-import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import org.apache.commons.lang3.text.WordUtils;
 
 public abstract class SiteViewTile extends VerticalLayout {
 
     public static final float singleWidth = 150;
     public static final float doubleWidth = 310;
+    public static final float tripleWidth = 470;
 
     public static final float singleHeight = 150;
 
@@ -32,6 +33,16 @@ public abstract class SiteViewTile extends VerticalLayout {
         txt.getStyle().set("font-size", "var(--lumo-font-size-l)");
         add(txt);
         setColor(color);
+    }
+
+    protected String limitTextLength(String text, int limit) {
+        assert limit > 3;
+        if (text.length() <= limit) {
+            return text;
+        }
+        else {
+            return text.substring(0, limit - 3) + "...";
+        }
     }
 
     protected void makeTextBold() {

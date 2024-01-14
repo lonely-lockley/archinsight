@@ -3,25 +3,20 @@ package com.github.lonelylockley.archinsight.model;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 
-import java.util.ArrayList;
+import java.util.*;
 
 public class TranslationContext {
 
-    private ArrayList<ParsedFileDescriptor> descriptors = new ArrayList<>();
-    private ParsedFileDescriptor edited;
+    private HashMap<String, ParsedFileDescriptor> descriptors = new HashMap<>();
     private ArrayList<TranslatorMessage> messages = new ArrayList<>();
     private boolean hasErrors = false;
 
-    public void setEdited(ParsedFileDescriptor edited) {
-        this.edited = edited;
+    public Collection<ParsedFileDescriptor> getDescriptors() {
+        return descriptors.values();
     }
 
-    public ArrayList<ParsedFileDescriptor> getDescriptors() {
-        return descriptors;
-    }
-
-    public ParsedFileDescriptor getEdited() {
-        return edited;
+    public ParsedFileDescriptor getDescriptor(String id) {
+        return descriptors.get(id);
     }
 
     public ArrayList<TranslatorMessage> getMessages() {
@@ -29,11 +24,13 @@ public class TranslationContext {
     }
 
     public void addDescriptors(ArrayList<ParsedFileDescriptor> descriptors) {
-        this.descriptors.addAll(descriptors);
+        for (ParsedFileDescriptor descriptor : descriptors){
+            this.descriptors.put(descriptor.getId(), descriptor);
+        }
     }
 
     public void addDescriptor(ParsedFileDescriptor descriptor) {
-        this.descriptors.add(descriptor);
+        this.descriptors.put(descriptor.getId(), descriptor);
     }
 
     public void addMessages(ArrayList<TranslatorMessage> messages) {

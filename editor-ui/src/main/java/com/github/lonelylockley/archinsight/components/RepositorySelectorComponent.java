@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.components.dialogs.RepositoryManagem
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
+import com.github.lonelylockley.archinsight.security.Authentication;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -20,11 +21,23 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private RepositoryInfo selected = null;
 
-    public RepositorySelectorComponent(boolean readOnly) {
+    public RepositorySelectorComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setWidth("100%");
         add(initLabel());
-        add(initRepositorySelector(readOnly));
+
+        var items = listRepositories();
+        if (Authentication.playgroundModeEnabled()) {
+            if (Authentication.authenticated()) {
+                add(initRepositorySelector(true, items));
+            }
+            else {
+                add(new CreateRepositoryComponent());
+            }
+        }
+        else {
+            add(initRepositorySelector(false, items));
+        }
     }
 
     private Span initLabel() {
@@ -35,14 +48,10 @@ public class RepositorySelectorComponent extends VerticalLayout {
         return label;
     }
 
-    private Button initRepositorySelector(boolean readOnly) {
-        final var manageRepositoryButton = new Button("<Choose Repository>");
-        manageRepositoryButton.setWidth("100%");
-        manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+    private List<RepositoryInfo> listRepositories() {
         var items = remoteSource.repository.listUserRepositories();
         if (items.size() == 1) {
             var item = items.iterator().next();
-            manageRepositoryButton.setText(String.format("[ %s ]", item.getName()));
             // this event is sent before a listener is added, so it won't cause cycle
             Communication.getBus().post(new RepositorySelectionEvent(null, item));
         }
@@ -50,10 +59,22 @@ public class RepositorySelectorComponent extends VerticalLayout {
         if (items.size() > 1) {
             restoreSelectedRepository(items);
         }
+        return items;
+    }
+
+    private Button initRepositorySelector(boolean lockedOut, List<RepositoryInfo> items) {
+        final var manageRepositoryButton = new Button("<Choose Repository>");
+        manageRepositoryButton.setWidth("100%");
+        manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        if (items.size() == 1) {
+            var item = items.iterator().next();
+            manageRepositoryButton.setText(String.format("[ %s ]", item.getName()));
+        }
         else {
             manageRepositoryButton.setText("<Create Repository>");
         }
-        if (!readOnly) {
+
+        if (!lockedOut) {
             manageRepositoryButton.addClickListener(event -> {
                 var dlg = new RepositoryManagementDialog(selected);
                 dlg.open();

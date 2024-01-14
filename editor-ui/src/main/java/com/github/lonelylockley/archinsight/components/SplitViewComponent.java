@@ -1,21 +1,20 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.HtmlComponent;
-import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
 import elemental.json.JsonType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SplitViewComponent extends PatchedSplitView {
+public class SplitViewComponent extends SplitLayout {
 
     private static final Logger logger = LoggerFactory.getLogger(SplitViewComponent.class);
-    private static final int defaultSplitterPosition = 40;
+    private static final double defaultSplitterPosition = 50.0;
 
     public SplitViewComponent(HtmlComponent left, HtmlComponent right) {
         super();
+        setSizeFull();
         var svgBackground = new Div();
         svgBackground.add(right);
         svgBackground.getElement().getStyle().set("background-color", "#ffffff");
@@ -23,24 +22,17 @@ public class SplitViewComponent extends PatchedSplitView {
         addToSecondary(svgBackground);
         setOrientation(Orientation.HORIZONTAL);
         setSizeFull();
+        setSplitterPosition(defaultSplitterPosition);
         getSavedSplitterPosition();
-        // initialize fixes introduced in PatchedSplitView
-        init();
 
-//        addSplitterDragendListener(new ComponentEventListener<SplitterDragendEvent<SplitLayout>>() {
-//            @Override
-//            public void onComponentEvent(SplitterDragendEvent<SplitLayout> event) {
-//                saveSplitterPosition();
-//            }
-//        });
+        addSplitterDragendListener(e -> {
+            saveSplitterPosition();
+        });
     }
 
     private void getSavedSplitterPosition() {
         getElement().executeJs("return localStorage.getItem('org.archinsight.splitter.pos')").then(value -> {
-            if (value.getType() == JsonType.NULL) {
-                setSplitterPosition(defaultSplitterPosition);
-            }
-            else {
+            if (value.getType() != JsonType.NULL) {
                 setSplitterPosition(value.asNumber());
             }
         });

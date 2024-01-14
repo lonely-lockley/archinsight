@@ -1,21 +1,19 @@
-// interface LinkerMessage {
-//     level: string,
-//     msg: string,
-//     line: number,
-//     charPosition: number
-//     startIndex: number
-//     stopIndex: number
-// }
-//
-// interface TranslatedSource {
-//     source: string,
-//     messages: LinkerMessage[]
-// }
-
 class Renderer {
 
-    public remoteRender(container: HTMLElement, code: string) {
-        (container as any).$server.render(code);
+    public remoteRender(container: HTMLElement, tab: string, code: string) {
+        this.digestMessage(code).then((digest) => (container as any).$server.render(digest, tab, code));
+    }
+
+    public remoteCache(container: HTMLElement, tab: string, code: string) {
+        this.digestMessage(code).then((digest) => (container as any).$server.cache(digest, tab, code));
+    }
+
+    private async digestMessage(message: string): Promise<string> {
+        const msgUint8 = new TextEncoder().encode(message);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer))
+        const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+        return hashHex;
     }
 }
 

@@ -75,12 +75,17 @@ public class Authentication {
         var session = VaadinSession.getCurrent();
         assert session != null;
         session.setAttribute(Userdata.class, null);
+        clearAuthToken();
+    }
+
+    public static void clearAuthToken() {
         var response = VaadinServletResponse.getCurrent();
         assert response != null;
         var accessTokenReset = new Cookie("auth_token", "");
+        accessTokenReset.setPath("/");
+        accessTokenReset.setHttpOnly(true);
         accessTokenReset.setMaxAge(0);
         response.addCookie(accessTokenReset);
-        UI.getCurrent().getSession().close();
     }
 
 }

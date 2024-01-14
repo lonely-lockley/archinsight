@@ -13,34 +13,47 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
  */
 public abstract class BasicEditorView extends AppLayout implements BaseView {
 
-    protected void initView(String titleSuffix, boolean readOnly) {
+    protected void initView(String titleSuffix, boolean readOnly, int menuMargin) {
         registerNotificationListener();
-        Communication.getBus().post(new RepositoryCloseEvent(CloseReason.CLOSED));
-        DrawerToggle toggle = new DrawerToggle();
-
-        var title = createTitle(titleSuffix);
+        Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
 
         /* =============================================================================================================
          * a hidden element to spawn download links
          * without it, download activation script triggering anchor click, triggers menu item click again causing
          * endless cycle
          */
-        var invisible = new Div();
+        final var invisible = new Div();
         invisible.getElement().getStyle().set("display", "none");
         addToDrawer(invisible);
         // =============================================================================================================
 
+        final var content = new WorkAreaComponent(invisible, readOnly);
+        final var menu = content.getMenuControls();
+        menu.getStyle().set("margin-left", menuMargin + "px");
+        final var title = createTitle(titleSuffix, menu);
+
+        final var toggle = new DrawerToggle();
+        toggle.addClickListener(e -> {
+            if (isDrawerOpened()) {
+                menu.getStyle().set("margin-left", menuMargin + "px");
+            }
+            else {
+                menu.getStyle().set("margin-left", "20px");
+            }
+        });
+
         // create content first to register all event listeners
-        var contentLayout = new VerticalLayout();
-        var content = new WorkAreaComponent(invisible, readOnly);
+        final var contentLayout = new VerticalLayout();
+        contentLayout.setSpacing(false);
+        contentLayout.setPadding(false);
         contentLayout.add(content);
         contentLayout.setSizeFull();
         setContent(contentLayout);
 
-        // and repository component second because it sends event
-        var nav = new RepositoryComponent(readOnly);
+        // and repository component second because it sends openRepository event
+        final var nav = new RepositoryComponent(readOnly);
         addToDrawer(nav);
-        addToNavbar(toggle, title);
+        addToNavbar(toggle, title, new UserMenuComponent());
         setDrawerOpened(true);
 
         applyDarkTheme(getElement());

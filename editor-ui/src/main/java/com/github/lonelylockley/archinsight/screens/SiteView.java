@@ -12,6 +12,7 @@ import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -31,8 +32,8 @@ public class SiteView extends VerticalLayout implements BaseView {
 
     private static final Logger logger = LoggerFactory.getLogger(SiteView.class);
 
-    private static final int grossContentWidth = 1000;
-    private static final String marginLeft = "100px";
+    private static final int grossContentWidth = 1350;
+    private static final String marginLeft = "150px";
 
     private final Config conf;
 
@@ -70,35 +71,58 @@ public class SiteView extends VerticalLayout implements BaseView {
         var lb = new Div();
         lb.getElement().getStyle()
                 .set("text-align", "justify")
-                .set("font-size", "var(--lumo-font-size-l)");
+                .set("font-size", "var(--lumo-font-size-l)")
+                .set("margin-left", "10px");
         try {
             lb.getElement().setProperty("innerHTML", IOUtils.toString(this.getClass().getResourceAsStream("/description.html"), StandardCharsets.UTF_8));
         }
         catch (Exception ex) {
             logger.error("Could not load site description", ex);
         }
-        // first line actions ==========================================================================================
         var actionsFirstLine = new HorizontalLayout();
         actionsFirstLine.setMargin(false);
-        actionsFirstLine.add(new DockerhubTile());
-        actionsFirstLine.add(new GithubTile());
-        actionsFirstLine.add(new InsightLanguageTile());
-        // second line actions =========================================================================================
-        var actionsSecondLine = new HorizontalLayout();
-        actionsSecondLine.setMargin(false);
-        var login = new LoginTile(conf.getLoginUrl());
-        if (Authentication.authenticated()) {
-            login.flipTile(Authentication.getAuthenticatedUser());
-        }
-        actionsSecondLine.add(login);
-        actionsSecondLine.add(new PlaygroundTile());
-        // third line actions ==========================================================================================
+        // unused currently
+//        var actionsSecondLine = new HorizontalLayout();
+//        actionsSecondLine.setMargin(false);
         var actionsThirdLine = new HorizontalLayout();
         actionsThirdLine.setMargin(false);
-        actionsThirdLine.add(new MailtoTile());
-        actionsThirdLine.add(new ArchinsightTile());
-        // third line actions ==========================================================================================
         var actionsFourthLine = new HorizontalLayout();
+        actionsFourthLine.setMargin(false);
+        // first line actions =========================================================================================
+        var loginFirstLine = new LoginTile(conf.getLoginUrl());
+        var editor = new EditorTile();
+        editor.setVisible(false);
+        actionsFirstLine.add(loginFirstLine);
+        actionsFirstLine.add(editor);
+        actionsFirstLine.add(new PlaygroundTile());
+        // logout actions ==============================================================================================
+        var logoutFirstLine = new LoginTile(conf.getLoginUrl());
+        logoutFirstLine.setWidth(LoginTile.singleWidth, Unit.PIXELS);
+        logoutFirstLine.setVisible(false);
+        actionsFirstLine.add(logoutFirstLine);
+        loginFirstLine.onTileFlip(e -> {
+            if (Authentication.authenticated()) {
+                editor.setVisible(true);
+                loginFirstLine.setVisible(false);
+                logoutFirstLine.setVisible(true);
+            }
+            else {
+                editor.setVisible(false);
+                loginFirstLine.setVisible(true);
+                logoutFirstLine.setVisible(false);
+
+            }
+        });
+        if (Authentication.authenticated()) {
+            loginFirstLine.flipTile(Authentication.getAuthenticatedUser());
+            logoutFirstLine.flipTile(Authentication.getAuthenticatedUser());
+        }
+        // third line actions ==========================================================================================
+        actionsThirdLine.add(new DockerhubTile());
+        actionsThirdLine.add(new GithubTile());
+        actionsThirdLine.add(new InsightLanguageTile());
+        // fourth line actions =========================================================================================
+        actionsFourthLine.add(new MailtoTile());
         if (conf.getDevMode()) {
             actionsFourthLine.add(new DevModeLocalLoginTile(conf.getLoginUrl()));
         }
@@ -106,11 +130,11 @@ public class SiteView extends VerticalLayout implements BaseView {
         var right = new VerticalLayout();
         right.setMargin(false);
         right.add(actionsFirstLine);
-        right.add(actionsSecondLine);
+       // right.add(actionsSecondLine);
         right.add(actionsThirdLine);
         right.add(actionsFourthLine);
         content.add(bg);
-        content.add(contentSplit(783, lb, right));
+        content.add(contentSplit(600, lb, right));
         return content;
     }
 
@@ -119,7 +143,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         dl.setWidth(leftWidth, Unit.PIXELS);
         dl.add(left);
         var dr = new Div();
-        dr.setWidth(100, Unit.PERCENTAGE);
+        dr.setWidth(grossContentWidth - leftWidth, Unit.PIXELS);
         dr.add(right);
         var res = new HorizontalLayout();
         res.add(dl);
@@ -127,15 +151,20 @@ public class SiteView extends VerticalLayout implements BaseView {
         return res;
     }
 
-    private FlexLayout createGreeting() {
-        var layout = new FlexLayout();
-        layout.setAlignItems(Alignment.END);
-        var greeting = new Div();
-        greeting.add(new Text("Archinsight"));
-        greeting.getElement().getStyle().set("font-size", "58px");
-        greeting.getElement().getStyle().set("margin-top", "150px");
-        greeting.getElement().getStyle().set("margin-left", marginLeft);
+    private VerticalLayout createGreeting() {
+        var layout = new VerticalLayout();
+        layout.getStyle()
+                .set("margin-top", "150px")
+                .set("margin-left", marginLeft);
+        layout.setSpacing(false);
+        var greeting = new Div("Archinsight");
+        greeting.getElement().getStyle()
+                .set("font-size", "58px");
         layout.add(greeting);
+        var tagline = new Div("Simplicity in Code, Power in Design");
+        tagline.getElement().getStyle()
+                .set("font-size", "32px");
+        layout.add(tagline);
         return layout;
     }
 

@@ -11,6 +11,7 @@ import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterListener;
 import com.vaadin.flow.server.VaadinServletRequest;
+import com.vaadin.flow.server.VaadinServletResponse;
 import com.vaadin.flow.server.VaadinSession;
 import io.micronaut.security.authentication.AuthenticationProvider;
 import org.eclipse.jetty.security.authentication.BasicAuthenticator;
@@ -102,6 +103,7 @@ public class AuthFilter implements BeforeEnterListener {
                     if (verifyToken(decoded, sessionId)) {
                         var user = remoteSource.identity.getUser(UUID.fromString(decoded.getSubject()));
                         session.setAttribute(Userdata.class, user);
+                        Authentication.clearAuthToken();
                         // change session ID to protect against session fixation and token replay
                         request.getHttpServletRequest().changeSessionId();
                     }
