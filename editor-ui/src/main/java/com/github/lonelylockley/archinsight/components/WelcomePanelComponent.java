@@ -73,16 +73,12 @@ public class WelcomePanelComponent extends HorizontalLayout {
                     You can see Insight language specification with examples at <a target="_blank" href="https://github.com/lonely-lockley/archinsight/wiki/Insight-language">project wiki</a>
                   </p>
                   <p>
-                    Playground mode has a limited functionality:
-                    <ul>
-                      <li>The access is read-only. You can't save your code in playground.</li>
-                      <li>A file with components to be imported MUST be saved first. Thus, you can import components from existing project files only.</li>
-                    </ul>
+                    Playground mode has a limited functionality: The access is read-only - you can't save your code.
                     To remove any limitations you can create own repository. It's absolutely free.
                   </p>
                 </text>
                 """));
-        res.setHeight(380, Unit.PIXELS);
+        res.setHeight(300, Unit.PIXELS);
         return res;
     }
 

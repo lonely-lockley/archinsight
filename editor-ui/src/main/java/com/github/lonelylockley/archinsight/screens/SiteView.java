@@ -12,6 +12,7 @@ import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
@@ -32,7 +33,7 @@ public class SiteView extends VerticalLayout implements BaseView {
     private static final Logger logger = LoggerFactory.getLogger(SiteView.class);
 
     private static final int grossContentWidth = 1350;
-    private static final String marginLeft = "130px";
+    private static final String marginLeft = "150px";
 
     private final Config conf;
 
@@ -70,7 +71,8 @@ public class SiteView extends VerticalLayout implements BaseView {
         var lb = new Div();
         lb.getElement().getStyle()
                 .set("text-align", "justify")
-                .set("font-size", "var(--lumo-font-size-l)");
+                .set("font-size", "var(--lumo-font-size-l)")
+                .set("margin-left", "10px");
         try {
             lb.getElement().setProperty("innerHTML", IOUtils.toString(this.getClass().getResourceAsStream("/description.html"), StandardCharsets.UTF_8));
         }
@@ -149,15 +151,20 @@ public class SiteView extends VerticalLayout implements BaseView {
         return res;
     }
 
-    private FlexLayout createGreeting() {
-        var layout = new FlexLayout();
-        layout.setAlignItems(Alignment.END);
-        var greeting = new Div();
-        greeting.add(new Text("Archinsight"));
-        greeting.getElement().getStyle().set("font-size", "58px");
-        greeting.getElement().getStyle().set("margin-top", "150px");
-        greeting.getElement().getStyle().set("margin-left", marginLeft);
+    private VerticalLayout createGreeting() {
+        var layout = new VerticalLayout();
+        layout.getStyle()
+                .set("margin-top", "150px")
+                .set("margin-left", marginLeft);
+        layout.setSpacing(false);
+        var greeting = new Div("Archinsight");
+        greeting.getElement().getStyle()
+                .set("font-size", "58px");
         layout.add(greeting);
+        var tagline = new Div("Simplicity in Code, Power in Design");
+        tagline.getElement().getStyle()
+                .set("font-size", "32px");
+        layout.add(tagline);
         return layout;
     }
 

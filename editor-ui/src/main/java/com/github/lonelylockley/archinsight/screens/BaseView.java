@@ -45,7 +45,7 @@ public interface BaseView {
         // Actual footer content
         var layout = new HorizontalLayout();
         var footer = new Div();
-        footer.add(new Span("Copyright © 2023 lonely-lockley"));
+        footer.add(new Span("Copyright © 2022-2024 Alexey Zaytsev"));
         footer.getElement().getStyle().set("font-size", "12px");
         footer.getElement().getStyle().set("margin-left", "auto");
         footer.getElement().getStyle().set("margin-right", "0");
