@@ -141,6 +141,12 @@ project('translator') {
 
     tasks.named("dockerfile") {
         baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
+        instruction "ARG USERNAME=duke"
+        instruction "ARG UID=1000"
+        instruction "ARG GID=1000"
+        instruction """RUN addgroup --system --gid "\$GID" \$USERNAME"""
+        instruction """RUN adduser --disabled-password --gecos "" --home "/home/app" --ingroup "\$USERNAME" --no-create-home --uid "\$UID" \$USERNAME"""
+        instruction "USER \$USERNAME"
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.TranslatorService')
     }
 }
@@ -163,6 +169,12 @@ project('renderer') {
         // https://gitlab.com/graphviz/graphviz/-/issues/1408
         baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
         runCommand('apk add --update --no-cache graphviz ttf-freefont')
+        instruction "ARG USERNAME=duke"
+        instruction "ARG UID=1000"
+        instruction "ARG GID=1000"
+        instruction """RUN addgroup --system --gid "\$GID" \$USERNAME"""
+        instruction """RUN adduser --disabled-password --gecos "" --home "/home/app" --ingroup "\$USERNAME" --no-create-home --uid "\$UID" \$USERNAME"""
+        instruction "USER \$USERNAME"
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RenderService')
     }
 }
@@ -183,6 +195,12 @@ project('repository') {
 
     tasks.named("dockerfile") {
         baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
+        instruction "ARG USERNAME=duke"
+        instruction "ARG UID=1000"
+        instruction "ARG GID=1000"
+        instruction """RUN addgroup --system --gid "\$GID" \$USERNAME"""
+        instruction """RUN adduser --disabled-password --gecos "" --home "/home/app" --ingroup "\$USERNAME" --no-create-home --uid "\$UID" \$USERNAME"""
+        instruction "USER \$USERNAME"
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.RepositoryService')
     }
 }
@@ -267,6 +285,12 @@ project('editor-ui') {
 
     tasks.named("dockerfile") {
         baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
+        instruction "ARG USERNAME=duke"
+        instruction "ARG UID=1000"
+        instruction "ARG GID=1000"
+        instruction """RUN addgroup --system --gid "\$GID" \$USERNAME"""
+        instruction """RUN adduser --disabled-password --gecos "" --home "/home/app" --ingroup "\$USERNAME" --no-create-home --uid "\$UID" \$USERNAME"""
+        instruction "USER \$USERNAME"
         copyFile('layers/editor-ui', '/home/app/editor-ui')
         entryPoint("java", "-cp", "/home/app/application.jar:libs/*", 'com.github.lonelylockley.archinsight.Launcher')
     }
@@ -313,6 +337,12 @@ project('identity') {
 
     tasks.named("dockerfile") {
         baseImage = "bellsoft/liberica-openjdk-alpine:21-cds"
+        instruction "ARG USERNAME=duke"
+        instruction "ARG UID=1000"
+        instruction "ARG GID=1000"
+        instruction """RUN addgroup --system --gid "\$GID" \$USERNAME"""
+        instruction """RUN adduser --disabled-password --gecos "" --home "/home/app" --ingroup "\$USERNAME" --no-create-home --uid "\$UID" \$USERNAME"""
+        instruction "USER \$USERNAME"
         entryPoint("java", "-cp", "/home/app/application.jar", 'com.github.lonelylockley.archinsight.IdentityService')
     }
 }
