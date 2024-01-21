@@ -32,9 +32,14 @@ export class InsightTokensProvider implements TokensProvider {
     'ACTOR',
     'SERVICE',
     'STORAGE',
-    'MODULE',
-    'CONTAINS',
-    'BOUNDARY'
+    'BOUNDARY',
+    'IMPORT',
+    'CONTEXT_IMPORT',
+    'CONTAINER_IMPORT',
+    'CONTEXT_ELEMENT_IMPORT',
+    'CONTAINER_ELEMENT_IMPORT',
+    'FROM',
+    'AS'
   ]);
   parameters = new Set(['NAME', 'DESCRIPTION', 'TECHNOLOGY']);
   identifier = new Set(['PROJECTNAME', 'IDENTIFIER']);

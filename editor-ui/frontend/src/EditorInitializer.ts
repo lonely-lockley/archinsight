@@ -27,7 +27,7 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
                                                                   automaticLayout: true,
                                                                   autoIndent: 'full',
                                                                   theme: 'vs-dark',
-                                                                  fixedOverflowWidgets: true,
+                                                                  fixedOverflowWidgets: false
                                                               });
     // source highlight listener
     let timeout: number | undefined;
