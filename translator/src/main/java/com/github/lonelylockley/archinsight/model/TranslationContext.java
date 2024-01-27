@@ -4,10 +4,11 @@ import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class TranslationContext {
 
-    private HashMap<String, ParsedFileDescriptor> descriptors = new HashMap<>();
+    private ConcurrentHashMap<String, ParsedFileDescriptor> descriptors = new ConcurrentHashMap<>();
     private ArrayList<TranslatorMessage> messages = new ArrayList<>();
     private boolean hasErrors = false;
 

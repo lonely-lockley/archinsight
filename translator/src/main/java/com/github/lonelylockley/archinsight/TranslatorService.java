@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
 import com.github.lonelylockley.archinsight.model.TabBoundedFileData;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.translator.TabData;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
 import com.github.lonelylockley.archinsight.link.Linker;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -54,10 +56,14 @@ public class TranslatorService {
     @Measured
     public TranslationResult translate(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @Body TranslationRequest data) throws Exception {
         var ctx = new TranslationContext();
-        var fs = new FileSystem(repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()));
-        var files = mergeSources(data, ownerId, ownerRole);
+        var fsFuture = CompletableFuture
+                .supplyAsync(() -> repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()))
+                .thenApply(FileSystem::new);
+        var allFilesFuture = CompletableFuture
+                .supplyAsync(() -> repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()))
+                .thenApply(files -> mergeSources(data, files));
         // parse the whole repository
-        new Parser(ctx).parseRepository(ctx, fs, files);
+        new Parser(ctx).parseRepository(ctx, fsFuture.get(), allFilesFuture.get());
         // check integrity
         new Linker(ctx).checkIntegrity();
         // translate to DOT
@@ -73,8 +79,8 @@ public class TranslatorService {
         return result;
     }
 
-    private List<TabBoundedFileData> mergeSources(TranslationRequest data, UUID ownerId, String ownerRole) {
-        final var files = repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId())
+    private List<TabBoundedFileData> mergeSources(TranslationRequest data, List<FileData> allFiles) {
+        final var files = allFiles
                         .stream()
                         .map(TabBoundedFileData::new)
                         .collect(Collectors.toMap(TabBoundedFileData::getId, Function.identity()));

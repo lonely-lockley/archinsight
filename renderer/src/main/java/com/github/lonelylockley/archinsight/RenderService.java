@@ -59,7 +59,7 @@ public class RenderService {
     @Produces(MediaType.APPLICATION_JSON)
     @Measured
     public List<Source> renderSVGBatch(HttpRequest<?> request, List<Source> data) throws Exception {
-        return data.stream().map(tr -> {
+        return data.stream().parallel().map(tr -> {
             var src = new String(render(request, tr, "svg", null), StandardCharsets.UTF_8);
             var res = new Source();
             res.setTabId(tr.getTabId());

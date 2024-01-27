@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
+import com.vaadin.flow.component.PushConfiguration;
 import com.vaadin.flow.server.VaadinServlet;
 import org.eclipse.jetty.ee10.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.ee10.plus.webapp.EnvConfiguration;
