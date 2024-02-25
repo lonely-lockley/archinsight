@@ -101,6 +101,7 @@ public class LoginTile extends SiteViewTile {
         @Override
         public void onComponentEvent(ClickEvent<VerticalLayout> event) {
             if (enabled) {
+                LoginTile.this.setVisible(false);
                 if (Authentication.authenticated()) {
                     Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
                     Authentication.deauthenticate();

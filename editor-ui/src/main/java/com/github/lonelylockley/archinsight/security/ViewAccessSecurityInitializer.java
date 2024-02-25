@@ -25,8 +25,11 @@ public class ViewAccessSecurityInitializer implements VaadinServiceInitListener 
     @Override
     public void serviceInit(ServiceInitEvent serviceInitEvent) {
         serviceInitEvent.getSource().addUIInitListener(uiInitEvent -> {
-            uiInitEvent.getUI().addBeforeEnterListener(new AuthFilter());
-            uiInitEvent.getUI().addBeforeEnterListener(accessControl);
+            var ui = uiInitEvent.getUI();
+            var authFilter = new AuthFilter();
+            ui.addBeforeEnterListener(authFilter);
+            ui.addHeartbeatListener(authFilter);
+            ui.addBeforeEnterListener(accessControl);
         });
     }
 }

@@ -8,8 +8,11 @@ import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
+import com.vaadin.flow.component.HeartbeatEvent;
+import com.vaadin.flow.component.HeartbeatListener;
 import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.BeforeEnterListener;
+import com.vaadin.flow.router.ListenerPriority;
 import com.vaadin.flow.server.VaadinServletRequest;
 import com.vaadin.flow.server.VaadinServletResponse;
 import com.vaadin.flow.server.VaadinSession;
@@ -28,7 +31,8 @@ import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 
-public class AuthFilter implements BeforeEnterListener {
+@ListenerPriority(1000)
+public class AuthFilter implements BeforeEnterListener, HeartbeatListener {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthFilter.class);
 
@@ -118,5 +122,10 @@ public class AuthFilter implements BeforeEnterListener {
         catch (Exception ex) {
             logger.error("Could not verify authentication", ex);
         }
+    }
+
+    @Override
+    public void heartbeat(HeartbeatEvent event) {
+        beforeEnter(null);
     }
 }

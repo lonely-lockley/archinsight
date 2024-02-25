@@ -17,7 +17,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 
-@JsModule("./src/remote/LoginCallback.ts")
+@JsModule("./src/remote/LoginCallback.js")
 public class UserMenuComponent extends MenuBar {
 
     private static final String iconSrc = "static/user-svgrepo-com.svg";
@@ -32,7 +32,7 @@ public class UserMenuComponent extends MenuBar {
     private boolean redirectNeeded = false;
 
     public UserMenuComponent() {
-        setId("content-presentation"); // for LoginCallback.ts to initialize and work properly
+        setId("content-presentation"); // for LoginCallback.js to initialize and work properly
         getStyle().set("margin-right", "10px");
         setThemeName("");
         icon.setHeight("24px");
@@ -144,19 +144,16 @@ public class UserMenuComponent extends MenuBar {
     @ClientCallable
     public void loginCallback() {
         // called from browser when login sequence finishes
-        if (Authentication.completedLogin()) {
-            Authentication.authenticate();
-            if (Authentication.authenticated()) {
-                Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
-                loggedIn();
-                if (redirectNeeded) {
-                    UI.getCurrent().navigate(EditorView.class);
-                }
-                else {
-                    UI.getCurrent().getPage().reload();
-                }
-                redirectNeeded = false;
+        if (Authentication.authenticated()) {
+            Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
+            loggedIn();
+            if (redirectNeeded) {
+                UI.getCurrent().navigate(EditorView.class);
             }
+            else {
+                UI.getCurrent().getPage().reload();
+            }
+            redirectNeeded = false;
         }
     }
 }

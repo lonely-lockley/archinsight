@@ -75,7 +75,6 @@ public class Authentication {
         var session = VaadinSession.getCurrent();
         assert session != null;
         session.setAttribute(Userdata.class, null);
-        clearAuthToken();
     }
 
     public static void clearAuthToken() {
