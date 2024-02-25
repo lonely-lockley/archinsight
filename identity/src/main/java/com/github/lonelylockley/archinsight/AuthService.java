@@ -129,14 +129,22 @@ public class AuthService {
          * Notify parent window about login result
          * and close this window
          */
-        var sb = new StringBuilder();
-        sb.append("<html><header><script>");
-        sb.append("try {");
-        sb.append("window.opener.loginCallback();");
-        sb.append("} catch (error) {console.error(error);}");
-        sb.append("window.close();");
-        sb.append("</script></header><body></body></html>");
-        return sb.toString();
+        return """
+               <html>
+                 <header>
+                   <script>
+                     try {
+                       window.opener.loginCallback();
+                     }
+                     catch (error) {
+                       console.error(error);
+                     }
+                     window.close();
+                   </script>
+                 </header>
+                 <body></body>
+               </html>
+                """;
     }
 
     private String createJWT(String subject, String keyId, TemporalAmount ttl, Tuple2<String, String>... claims) {

@@ -30,9 +30,10 @@ public class ExportSource {
     @Inject
     private Config conf;
 
-    private TranslationRequest prepareTranslationRequest(UUID repositoryId, Collection<EditorTabComponent> tabs) {
+    private TranslationRequest prepareTranslationRequest(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
         var res = new TranslationRequest();
         res.setRepositoryId(repositoryId);
+        res.setTabId(tabId);
         var tmp = new ArrayList<TabData>(tabs.size());
         for (EditorTabComponent tab: tabs) {
             var td = new TabData();
@@ -47,7 +48,7 @@ public class ExportSource {
     }
 
     private TranslationResult translateInternal(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-        final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(repositoryId, tabs));
+        final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, tabs));
         final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
         final var filesWithErrors = new HashSet<UUID>();
         final var messagesByFile = messages

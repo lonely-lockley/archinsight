@@ -8,12 +8,10 @@ import com.github.lonelylockley.archinsight.events.UserAuthenticatedEvent;
 import com.github.lonelylockley.archinsight.security.Authentication;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.Text;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.Unit;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Image;
-import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.*;
@@ -27,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 @Route("")
 @PageTitle("Archinsight")
 @AnonymousAllowed
-@JsModule("./src/remote/LoginCallback.ts")
+@JsModule("./src/remote/LoginCallback.js")
 public class SiteView extends VerticalLayout implements BaseView {
 
     private static final Logger logger = LoggerFactory.getLogger(SiteView.class);
@@ -171,11 +169,8 @@ public class SiteView extends VerticalLayout implements BaseView {
     @ClientCallable
     public void loginCallback() {
         // called from browser when login sequence finishes
-        if (Authentication.completedLogin()) {
-            Authentication.authenticate();
-            if (Authentication.authenticated()) {
-                Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
-            }
+        if (Authentication.authenticated()) {
+            Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
         }
     }
 }
