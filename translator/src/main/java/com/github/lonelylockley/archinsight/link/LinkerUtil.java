@@ -1,12 +1,33 @@
 package com.github.lonelylockley.archinsight.link;
 
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
+import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.parse.WithSource;
 import org.antlr.v4.runtime.Token;
 
 public class LinkerUtil {
+
+    public static String stringify(ArchLevel level) {
+        if (level == null) {
+            return "";
+        }
+        else {
+            return level.toString().toLowerCase();
+        }
+    }
+
+    public static String stringify(ElementType et) {
+        if (et == null) {
+            return "";
+        }
+        else {
+            return et.toString().toLowerCase();
+        }
+    }
+
     public static void copyPosition(TranslatorMessage lm, WithSource el) {
         lm.setCharPosition(el.getCharPosition());
         lm.setLine(el.getLine());

@@ -65,7 +65,9 @@ public class TranslatorService {
         // parse the whole repository
         new Parser(ctx).parseRepository(ctx, fsFuture.get(), allFilesFuture.get());
         // check integrity
-        new Linker(ctx).checkIntegrity();
+        if (!ctx.hasErrors()) {
+            new Linker(ctx).checkIntegrity();
+        }
         // translate to DOT
         var result = new TranslationResult();
         result.setTabId(data.getTabId());
