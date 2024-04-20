@@ -1,22 +1,16 @@
 package com.github.lonelylockley.archinsight.link;
 
-import com.github.lonelylockley.archinsight.model.Functional;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.imports.NamedImport;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
-import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.elements.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.Function;
 
 public class Linker {
 
-    private static final Logger logger = LoggerFactory.getLogger(Linker.class);
 
     private final Map<String, ParsedFileDescriptor> namespaces = new HashMap<>();
     private final TranslationContext ctx;
@@ -168,9 +162,23 @@ public class Linker {
                 descriptor.declare(id, el);
             }
         }
+        if (el instanceof WithImports hasImports) {
+            for (AbstractImport imported : hasImports.getImports()) {
+                if (imported instanceof NamedImport namedImport) {
+                    String id = namedImport.getAlias();
+                    if (descriptor.isDeclared(id)) {
+                        var tm = LinkerUtil.newError(descriptor, el, String.format("Identifier %s is already defined", id));
+                        ctx.addMessage(tm);
+                    } else {
+                        descriptor.declare(id, el);
+                    }
+                }
+            }
+        }
         el.hasImports().foreach(descriptor::declareForeign);
         el.hasChildren().foreach(hasChildren -> hasChildren.getChildren().forEach(ch -> checkDeclarations(descriptor, ch)));
     }
+
 
     private void checkConnections(ParsedFileDescriptor descriptor) {
         descriptor.getConnections()
