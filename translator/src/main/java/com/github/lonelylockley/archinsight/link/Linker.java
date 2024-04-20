@@ -11,7 +11,6 @@ import java.util.function.Function;
 
 public class Linker {
 
-
     private final Map<String, ParsedFileDescriptor> namespaces = new HashMap<>();
     private final TranslationContext ctx;
 
@@ -38,7 +37,7 @@ public class Linker {
                 // check namespace exists
                 if (!namespaces.containsKey(namespaceLId)) {
                     var tm = LinkerUtil.newError(descriptor,
-                        String.format("Unsatisfied import: %s %s not found", imported.getLevel().toString().toLowerCase(), imported.getNamespace())
+                        String.format("Unsatisfied import: %s %s not found", LinkerUtil.stringify(imported.getLevel()), imported.getNamespace())
                     );
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
                     ctx.addMessage(tm);
@@ -47,19 +46,19 @@ public class Linker {
                 // check that imported element is declared in namespace
                 if (!namespaces.get(namespaceLId).isDeclared(imported.getIdentifier())) {
                     var tm = LinkerUtil.newError(descriptor,
-                        String.format("Unsatisfied import: %s%s not found in %s %s", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), imported.getLevel().toString().toLowerCase(), imported.getNamespace())
+                        String.format("Unsatisfied import: %s%s not found in %s %s", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), LinkerUtil.stringify(imported.getLevel()), imported.getNamespace())
                     );
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
                 // check optional element type if it is set
-                if (imported.getElement() != null && !Objects.equals(imported.getElement(), namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType().toString().toLowerCase())) {
+                if (imported.getElement() != null && !Objects.equals(imported.getElement(), LinkerUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType()))) {
                     var tm = LinkerUtil.newError(descriptor,
                         String.format("Unsatisfied import: %s%s not found in %s %s. Did you mean %s?",
                                 imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(),
-                                imported.getLevel().toString().toLowerCase(), imported.getNamespace(),
-                                namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType().toString().toLowerCase()
+                                LinkerUtil.stringify(imported.getLevel()), imported.getNamespace(),
+                                LinkerUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType())
                         )
                     );
                     LinkerUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
@@ -67,7 +66,7 @@ public class Linker {
                 }
                 else
                 // check imported element is not a boundary
-                if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(namespaces.get(namespaceLId).getDeclared(imported.getAlias()).getType().toString().toLowerCase(), ElementType.BOUNDARY.toString().toLowerCase())) {
+                if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(LinkerUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getAlias()).getType()), LinkerUtil.stringify(ElementType.BOUNDARY))) {
                     var tm = LinkerUtil.newError(descriptor,
                             "Boundary cannot be imported"
                     );
@@ -126,13 +125,6 @@ public class Linker {
         }
     }
 
-    private void checkNamespaces(List<ParsedFileDescriptor> projectDescriptors, ParsedFileDescriptor edited) {
-        for (ParsedFileDescriptor descriptor: projectDescriptors) {
-            checkNamespace(descriptor);
-        }
-        checkNamespace(edited);
-    }
-
     private void checkDeclarations(ParsedFileDescriptor descriptor, AbstractElement el) {
         if (el.getType() == ElementType.LINK) {
             ElementType.LINK.capture(el).foreach(link -> {
@@ -162,23 +154,20 @@ public class Linker {
                 descriptor.declare(id, el);
             }
         }
-        if (el instanceof WithImports hasImports) {
-            for (AbstractImport imported : hasImports.getImports()) {
-                if (imported instanceof NamedImport namedImport) {
-                    String id = namedImport.getAlias();
+        el.hasImports().foreach(imports -> {
+            imports.getImports().forEach(imp -> {
+                    var id = imp.getAlias();
                     if (descriptor.isDeclared(id)) {
                         var tm = LinkerUtil.newError(descriptor, el, String.format("Identifier %s is already defined", id));
                         ctx.addMessage(tm);
                     } else {
                         descriptor.declare(id, el);
                     }
-                }
-            }
-        }
-        el.hasImports().foreach(descriptor::declareForeign);
+                });
+            descriptor.declareForeign(imports);
+        });
         el.hasChildren().foreach(hasChildren -> hasChildren.getChildren().forEach(ch -> checkDeclarations(descriptor, ch)));
     }
-
 
     private void checkConnections(ParsedFileDescriptor descriptor) {
         descriptor.getConnections()

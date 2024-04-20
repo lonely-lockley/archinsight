@@ -39,8 +39,8 @@ public class Parser {
     }
 
     private ParseResult parse(String source, String tabId, UUID fileId, String location) {
+        var listener = new InsightParseTreeListener(ctx);
         try {
-            var listener = new InsightParseTreeListener(ctx);
             if (!StringUtils.isBlank(source)) {
                 var errorListener = new InsightParseErrorListener(ctx, tabId, fileId, location);
                 var inputStream = CharStreams.fromReader(new StringReader(source));
@@ -54,12 +54,11 @@ public class Parser {
                 parser.addParseListener(listener);
                 parser.insight();
             }
-            return listener.getResult();
         }
         catch (Exception ex) {
-            logger.error("Error parsing source", ex);
-            throw new ServiceException(new ErrorMessage("Error parsing source"));
+            logger.warn("Error parsing source", ex);
         }
+        return listener.getResult();
     }
 
 }
