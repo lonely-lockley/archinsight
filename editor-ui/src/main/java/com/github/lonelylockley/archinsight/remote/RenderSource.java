@@ -87,7 +87,7 @@ public class RenderSource {
                 for (Source svg : diagrams) {
                     Communication.getBus().post(new SvgDataEvent(svg.getTabId(), svg.getSource()));
                 }
-                Communication.getBus().post(new SourceCompilationEvent(tabId, true));
+                Communication.getBus().post(new SourceCompilationEvent(tabId, true, messagesByFile));
             }
             else {
                 Communication.getBus().post(new SourceCompilationEvent(tabId, false, messagesByFile, filesWithErrors));

@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight.parse;
 
-import com.github.lonelylockley.archinsight.link.LinkerUtil;
+import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
@@ -37,7 +37,7 @@ public class InsightParseErrorListener implements ANTLRErrorListener {
                 location,
                 String.format("line %d:%d %s", line, charPositionInLine, msg)
         );
-        LinkerUtil.copyPosition(lm, line, charPositionInLine, 0, 0);
+        TranslationUtil.copyPosition(lm, line, charPositionInLine, 0, 0);
         ctx.addMessage(lm);
     }
 

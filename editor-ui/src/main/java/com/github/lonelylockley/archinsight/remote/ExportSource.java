@@ -72,7 +72,7 @@ public class ExportSource {
                     })
                 );
         if (!translated.isHasErrors()) {
-            Communication.getBus().post(new SourceCompilationEvent(tabId, true));
+            Communication.getBus().post(new SourceCompilationEvent(tabId, true, messagesByFile));
         }
         else {
             Communication.getBus().post(new SourceCompilationEvent(tabId, false, messagesByFile, filesWithErrors));

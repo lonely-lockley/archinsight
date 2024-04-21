@@ -1,9 +1,9 @@
 package com.github.lonelylockley.archinsight.link;
 
+import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
-import com.github.lonelylockley.archinsight.model.imports.NamedImport;
 import com.github.lonelylockley.archinsight.model.elements.*;
 
 import java.util.*;
@@ -27,50 +27,50 @@ public class Linker {
                 var namespaceLId = String.format("%s_%s", imported.getLevel(), imported.getNamespace());
                 // check for imports from the same namespace
                 if (Objects.equals(descriptor.getNamespace(), imported.getNamespace())) {
-                    var tm = LinkerUtil.newError(descriptor,
+                    var tm = TranslationUtil.newError(descriptor,
                         "Cyclic import detected"
                     );
-                    LinkerUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
+                    TranslationUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
                 // check namespace exists
                 if (!namespaces.containsKey(namespaceLId)) {
-                    var tm = LinkerUtil.newError(descriptor,
-                        String.format("Unsatisfied import: %s %s not found", LinkerUtil.stringify(imported.getLevel()), imported.getNamespace())
+                    var tm = TranslationUtil.newError(descriptor,
+                        String.format("Unsatisfied import: %s %s not found", TranslationUtil.stringify(imported.getLevel()), imported.getNamespace())
                     );
-                    LinkerUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
+                    TranslationUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getNamespaceSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
                 // check that imported element is declared in namespace
                 if (!namespaces.get(namespaceLId).isDeclared(imported.getIdentifier())) {
-                    var tm = LinkerUtil.newError(descriptor,
-                        String.format("Unsatisfied import: %s%s not found in %s %s", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), LinkerUtil.stringify(imported.getLevel()), imported.getNamespace())
+                    var tm = TranslationUtil.newError(descriptor,
+                        String.format("Unsatisfied import: %s%s not found in %s %s", imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(), TranslationUtil.stringify(imported.getLevel()), imported.getNamespace())
                     );
-                    LinkerUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
+                    TranslationUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
                 // check optional element type if it is set
-                if (imported.getElement() != null && !Objects.equals(imported.getElement(), LinkerUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType()))) {
-                    var tm = LinkerUtil.newError(descriptor,
+                if (imported.getElement() != null && !Objects.equals(imported.getElement(), TranslationUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType()))) {
+                    var tm = TranslationUtil.newError(descriptor,
                         String.format("Unsatisfied import: %s%s not found in %s %s. Did you mean %s?",
                                 imported.getElement() == null ? "" : imported.getElement() + " ", imported.getIdentifier(),
-                                LinkerUtil.stringify(imported.getLevel()), imported.getNamespace(),
-                                LinkerUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType())
+                                TranslationUtil.stringify(imported.getLevel()), imported.getNamespace(),
+                                TranslationUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType())
                         )
                     );
-                    LinkerUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
+                    TranslationUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else
                 // check imported element is not a boundary
-                if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(LinkerUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getAlias()).getType()), LinkerUtil.stringify(ElementType.BOUNDARY))) {
-                    var tm = LinkerUtil.newError(descriptor,
+                if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(TranslationUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getAlias()).getType()), TranslationUtil.stringify(ElementType.BOUNDARY))) {
+                    var tm = TranslationUtil.newError(descriptor,
                             "Boundary cannot be imported"
                     );
-                    LinkerUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
+                    TranslationUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
                     ctx.addMessage(tm);
                 }
                 else {
@@ -78,16 +78,16 @@ public class Linker {
                     var el = namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());
                     copy = el.clone();
                     copy.hasExternal().filter(WithExternal::isExternal).foreach(external -> {
-                        var tm = LinkerUtil.newError(descriptor,
+                        var tm = TranslationUtil.newError(descriptor,
                             "External element imported"
                         );
-                        LinkerUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
+                        TranslationUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
                         ctx.addMessage(tm);
                     });
                 }
 
                 // copy position and fix copied attributes if needed
-                LinkerUtil.copyPosition(copy, imported.getIdentifierSource());
+                TranslationUtil.copyPosition(copy, imported.getIdentifierSource());
                 copy.hasId().foreach(c -> c.setId(imported.getAlias()));
                 copy.hasChildren().foreach(c -> c.getChildren().clear());
                 copy.hasExternal().foreach(WithExternal::setExternal);
@@ -115,7 +115,7 @@ public class Linker {
         // LId - level id
         var namespaceLId = String.format("%s_%s", descriptor.getLevel(), descriptor.getNamespace());
         if (namespaces.containsKey(namespaceLId)) {
-            var tm = LinkerUtil.newError(descriptor, descriptor.getParseResult().getRoot(),
+            var tm = TranslationUtil.newError(descriptor, descriptor.getParseResult().getRoot(),
                 String.format("Duplicate namespace definition declared in file %s", namespaces.get(namespaceLId).getLocation())
             );
             ctx.addMessage(tm);
@@ -129,7 +129,7 @@ public class Linker {
         if (el.getType() == ElementType.LINK) {
             ElementType.LINK.capture(el).foreach(link -> {
                 if (descriptor.getConnections().contains(link)) {
-                    var tm = LinkerUtil.newWarning(descriptor, el,
+                    var tm = TranslationUtil.newWarning(descriptor, el,
                             "Possible link duplication"
                     );
                     ctx.addMessage(tm);
@@ -145,7 +145,7 @@ public class Linker {
                 throw new RuntimeException(String.format("Element of type %s is not supposed to have an identifier", el.getType()));
             });
             if (descriptor.isDeclared(id)) {
-                var tm = LinkerUtil.newError(descriptor, el,
+                var tm = TranslationUtil.newError(descriptor, el,
                     String.format("Identifier %s is already defined", id)
                 );
                 ctx.addMessage(tm);
@@ -158,7 +158,7 @@ public class Linker {
             imports.getImports().forEach(imp -> {
                     var id = imp.getAlias();
                     if (descriptor.isDeclared(id)) {
-                        var tm = LinkerUtil.newError(descriptor, el, String.format("Identifier %s is already defined", id));
+                        var tm = TranslationUtil.newError(descriptor, el, String.format("Identifier %s is already defined", id));
                         ctx.addMessage(tm);
                     } else {
                         descriptor.declare(id, el);
@@ -175,7 +175,7 @@ public class Linker {
             .filter(c ->
                     !descriptor.isDeclared(c.getTo()))
             .forEach(el -> {
-                var tm = LinkerUtil.newError(descriptor, el,
+                var tm = TranslationUtil.newError(descriptor, el,
                     String.format("Undeclared identifier %s", el.getTo())
                 );
                 ctx.addMessage(tm);

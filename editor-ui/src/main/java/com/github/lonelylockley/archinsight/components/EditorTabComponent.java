@@ -111,9 +111,13 @@ public class EditorTabComponent extends Tab {
     }
 
     public void setModelMarkers(List<TranslatorMessage> messages, int errorCount) {
-        assert errorCount > 0;
-        badge.setText(String.valueOf(errorCount));
-        badge.setVisible(true);
+        if (errorCount > 0) {
+            badge.setText(String.valueOf(errorCount));
+            badge.setVisible(true);
+        }
+        else {
+            badge.setVisible(false);
+        }
         editor.setModelMarkers(messages);
     }
 
