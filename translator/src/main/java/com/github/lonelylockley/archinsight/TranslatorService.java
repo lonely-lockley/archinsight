@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
+import com.github.lonelylockley.archinsight.introspect.Introspection;
 import com.github.lonelylockley.archinsight.model.TabBoundedFileData;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
@@ -67,6 +68,7 @@ public class TranslatorService {
         // check integrity
         if (!ctx.hasErrors()) {
             new Linker(ctx).checkIntegrity();
+            new Introspection(ctx).suggest();
         }
         // translate to DOT
         var result = new TranslationResult();

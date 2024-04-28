@@ -1,4 +1,4 @@
-package com.github.lonelylockley.archinsight.link;
+package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
@@ -8,7 +8,7 @@ import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMe
 import com.github.lonelylockley.archinsight.parse.WithSource;
 import org.antlr.v4.runtime.Token;
 
-public class LinkerUtil {
+public class TranslationUtil {
 
     public static String stringify(ArchLevel level) {
         if (level == null) {
@@ -86,4 +86,27 @@ public class LinkerUtil {
         copyPosition(tm, position);
         return tm;
     }
+
+    public static TranslatorMessage newNotice(ParsedFileDescriptor descriptor, String message) {
+        return new TranslatorMessage(
+                MessageLevel.NOTICE,
+                descriptor.getId(),
+                descriptor.getFileId().orElse(null),
+                descriptor.getLocation(),
+                message
+        );
+    }
+
+    public static TranslatorMessage newNotice(ParsedFileDescriptor descriptor, WithSource position, String message) {
+        var tm = new TranslatorMessage(
+                MessageLevel.NOTICE,
+                descriptor.getId(),
+                descriptor.getFileId().orElse(null),
+                descriptor.getLocation(),
+                message
+        );
+        copyPosition(tm, position);
+        return tm;
+    }
+
 }

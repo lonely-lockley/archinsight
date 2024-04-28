@@ -27,7 +27,8 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
                                                                   automaticLayout: true,
                                                                   autoIndent: 'full',
                                                                   theme: 'vs-dark',
-                                                                  fixedOverflowWidgets: false
+                                                                  fixedOverflowWidgets: true,
+                                                                  overflowWidgetsDomNode: document.getElementById('monaco-editor-overflow-widgets-root')!,
                                                               });
     // source highlight listener
     let timeout: number | undefined;
@@ -40,14 +41,20 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
 
     // monkey patch editor to pass errors
     (editor as any).setModelMarkers = (linkerErrors: string) => {
+        let levels = new Map<string, monaco.MarkerSeverity>([
+            ["ERROR", monaco.MarkerSeverity.Error],
+            ["WARNING", monaco.MarkerSeverity.Warning],
+            ["NOTICE", monaco.MarkerSeverity.Info]
+        ]);
         var model = editor.getModel()!;
         var errors: any[] = [];
         (JSON.parse(linkerErrors) as LinkerMessage[]).forEach(lm => {
+            var severity = monaco.MarkerSeverity.Error;
             errors.push({
                 "resource": model.uri!,
                 "owner": languageID,
                 "code": "1", // random number
-                "severity": monaco.MarkerSeverity.Error,
+                "severity": levels.get(lm.level!),
                 "message": lm.msg!,
                 "startLineNumber": lm.line,
                 "startColumn": lm.charPosition + 1,

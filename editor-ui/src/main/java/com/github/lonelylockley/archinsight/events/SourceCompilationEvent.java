@@ -17,6 +17,13 @@ public class SourceCompilationEvent extends BaseEvent {
         this.filesWithErrors = new HashSet<>();
     }
 
+    public SourceCompilationEvent(String tabId, boolean success, Map<String, List<TranslatorMessage>> messagesByTab) {
+        this.tabId = tabId;
+        this.success = success;
+        this.messagesByTab = messagesByTab;
+        this.filesWithErrors = new HashSet<>();
+    }
+
     public SourceCompilationEvent(String tabId, boolean success, Map<String, List<TranslatorMessage>> messagesByTab, Set<UUID> filesWithErrors) {
         this.tabId = tabId;
         this.success = success;

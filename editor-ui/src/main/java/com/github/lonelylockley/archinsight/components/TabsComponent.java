@@ -238,7 +238,7 @@ public class TabsComponent extends TabSheet {
         for (EditorTabComponent tab : tabs.values()) {
             if (messages.containsKey(tab.getTabId())) {
                 var entry = messages.get(tab.getTabId());
-                tab.setModelMarkers(entry, summary.get(tab.getTabId()).get(MessageLevel.ERROR));
+                tab.setModelMarkers(entry, summary.get(tab.getTabId()).getOrDefault(MessageLevel.ERROR, 0));
             }
             else {
                 tab.resetModelMarkers();
@@ -269,7 +269,7 @@ public class TabsComponent extends TabSheet {
             }
         }
         if (!msg.isEmpty()) {
-            new NotificationComponent("Project linking failed:" + msg, level, 5000);
+            new NotificationComponent("Project linking complete:" + msg, level, 5000);
         }
     }
 
