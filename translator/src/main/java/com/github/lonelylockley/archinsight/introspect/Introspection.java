@@ -3,10 +3,8 @@ package com.github.lonelylockley.archinsight.introspect;
 import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
-import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 
@@ -27,9 +25,9 @@ public class Introspection {
         });
         declarations.forEach(id -> {
             final var el = descriptor.getDeclarations().get(id);
-            if (el.getType() != ElementType.BOUNDARY) { // boundaries are never connected
+            if (el.getType() != ElementType.BOUNDARY && el.getType() != ElementType.EMPTY) { // boundaries are never connected
                 el.hasId().foreach(withId -> {
-                    var tm = TranslationUtil.newNotice(descriptor, String.format("Element %s is not connected to a diagram", withId.getId()));
+                    var tm = TranslationUtil.newNotice(descriptor, String.format("Element %s has no connections with other elements", withId.getId()));
                     TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
                     ctx.addMessage(tm);
                 });
@@ -47,16 +45,11 @@ public class Introspection {
         });
     }
 
-    private void searchForMirroringLinks(String modifiedTabId, Collection<ParsedFileDescriptor> descriptors) {
-
-    }
-
-    public void suggest(String tabId) {
+    public void suggest() {
         for (ParsedFileDescriptor descriptor : ctx.getDescriptors()) {
             searchForIsolatedElements(descriptor);
             searchForSelfTargetingLinks(descriptor);
         }
-        searchForMirroringLinks(tabId, ctx.getDescriptors());
     }
 
 }

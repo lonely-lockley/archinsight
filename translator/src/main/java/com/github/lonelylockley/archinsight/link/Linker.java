@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.link;
 import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.elements.*;
 
@@ -12,10 +13,24 @@ import java.util.function.Function;
 public class Linker {
 
     private final Map<String, ParsedFileDescriptor> namespaces = new HashMap<>();
+    private final Map<String, Tuple2<String, AbstractImport>> declaredImports = new HashMap<>();
     private final TranslationContext ctx;
 
     public Linker(TranslationContext ctx) {
         this.ctx = ctx;
+    }
+
+    private WithChildElements transformToImported(AbstractElement copy, AbstractImport imported, AbstractElement root, ParsedFileDescriptor descriptor) {
+        TranslationUtil.copyPosition(copy, imported.getIdentifierSource());
+        copy.hasId().foreach(c -> c.setId(imported.getAlias()));
+        copy.hasChildren().foreach(c -> c.getChildren().clear());
+        copy.hasExternal().foreach(WithExternal::setExternal);
+        // attach named imports to current container and anonymous imports to root container
+        var container = root.hasChildren().mapOrElse(
+                Function.identity(),
+                () -> descriptor.getParseResult().getRoot().hasChildren().mapOrElse(Function.identity(), () -> { throw new RuntimeException("Could not find a suitable candidate to add imports"); })
+        );
+        return container;
     }
 
     private void rewriteImportsInternal(AbstractElement root, ParsedFileDescriptor descriptor) {
@@ -25,6 +40,8 @@ public class Linker {
                 // to satisfy declarations check for anonymous imports
                 AbstractElement copy = new EmptyElement(imported.getAlias());
                 var namespaceLId = String.format("%s_%s", imported.getLevel(), imported.getNamespace());
+                // create map for future use in mirroring
+                declaredImports.put(imported.getAlias(), new Tuple2<>(namespaceLId, imported));
                 // check for imports from the same namespace
                 if (Objects.equals(descriptor.getNamespace(), imported.getNamespace())) {
                     var tm = TranslationUtil.newError(descriptor,
@@ -66,7 +83,7 @@ public class Linker {
                 }
                 else
                 // check imported element is not a boundary
-                if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(TranslationUtil.stringify(namespaces.get(namespaceLId).getDeclared(imported.getAlias()).getType()), TranslationUtil.stringify(ElementType.BOUNDARY))) {
+                if (namespaces.get(namespaceLId) != null && namespaces.get(namespaceLId).getDeclared(imported.getAlias()) != null && Objects.equals(namespaces.get(namespaceLId).getDeclared(imported.getIdentifier()).getType(), ElementType.BOUNDARY)) {
                     var tm = TranslationUtil.newError(descriptor,
                             "Boundary cannot be imported"
                     );
@@ -75,8 +92,10 @@ public class Linker {
                 }
                 else {
                     // finally, if no problems found, create element copy
-                    var el = namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());
-                    copy = el.clone();
+                    var originalDescriptor = namespaces.get(namespaceLId);
+                    var originalElement = namespaces.get(namespaceLId).getDeclared(imported.getIdentifier());
+                    imported.setOrigination(originalDescriptor, originalElement);
+                    copy = originalElement.clone();
                     copy.hasExternal().filter(WithExternal::isExternal).foreach(external -> {
                         var tm = TranslationUtil.newError(descriptor,
                             "External element imported"
@@ -85,19 +104,12 @@ public class Linker {
                         ctx.addMessage(tm);
                     });
                 }
-
-                // copy position and fix copied attributes if needed
-                TranslationUtil.copyPosition(copy, imported.getIdentifierSource());
-                copy.hasId().foreach(c -> c.setId(imported.getAlias()));
-                copy.hasChildren().foreach(c -> c.getChildren().clear());
-                copy.hasExternal().foreach(WithExternal::setExternal);
-                // attach named imports to current container and anonymous imports to root container
-                var container = root.hasChildren().mapOrElse(
-                        Function.identity(),
-                        () -> descriptor.getParseResult().getRoot().hasChildren().mapOrElse(Function.identity(), () -> { throw new RuntimeException("Could not find a suitable candidate to add imports"); })
-                    );
-                container.addChild(copy);
-                descriptor.declare(copy.hasId().mapOrElse(WithId::getId, null), copy);
+                if (copy.getType() != ElementType.EMPTY) {
+                    // copy position and fix copied attributes if needed
+                    var container = transformToImported(copy, imported, root, descriptor);
+                    container.addChild(copy);
+                    descriptor.declare(copy.hasId().mapOrElse(WithId::getId, null), copy);
+                }
             }
         }
         root.hasChildren().foreach(hasChildren -> {
@@ -109,6 +121,58 @@ public class Linker {
 
     private void rewriteImports(ParsedFileDescriptor descriptor) {
         rewriteImportsInternal(descriptor.getParseResult().getRoot(), descriptor);
+    }
+
+    private void addMirrorConnections(ParsedFileDescriptor descriptor) {
+        // original descriptor with import statement that has to be mirrored
+        descriptor
+                .getConnections()
+                .stream()
+                .filter(le -> declaredImports.containsKey(le.getTo()))
+                .forEach(le -> {
+                    // original_to alias -> (namespaceLId, original import)
+                    var namespaceAndImportStatement = declaredImports.get(le.getTo());
+                    // original element referencing imported element
+                    var originalFromElement = descriptor.getDeclared(le.getFrom());
+                    // mirrored element
+                    var mirrored = originalFromElement.clone();
+                    // target descriptor to mirror element and link
+                    var targetDescriptor = namespaces.get(namespaceAndImportStatement._1);
+                    if (targetDescriptor != null) {
+                        // container element in target descriptor with mirror element added
+                        var container = transformToImported(mirrored, namespaceAndImportStatement._2, targetDescriptor.getParseResult().getRoot(), targetDescriptor);
+                        var alreadyImported = targetDescriptor
+                                .getImports()
+                                .stream()
+                                .filter(imp -> {
+                                    return Objects.equals(imp.getNamespace(), descriptor.getNamespace()) && Objects.equals(imp.getLevel(), descriptor.getLevel()) && Objects.equals(imp.getIdentifier(), le.getFrom());
+                                })
+                                .findFirst();
+                        String newId;
+                        if (alreadyImported.isPresent()) {
+                            newId = alreadyImported.get().getAlias();
+                        }
+                        else {
+                            newId = String.format("%s_%s_%s", descriptor.getLevel(), descriptor.getNamespace(), le.getFrom());
+                        }
+                        mirrored.hasId().foreach(withId -> withId.setId(newId));
+                        // - if original element is imported into target namespace
+                        if (!targetDescriptor.isDeclared(newId)) {
+                            container.addChild(mirrored);
+//                            mirrored.hasId().foreach(withId -> targetDescriptor.declare(withId.getId(), mirrored));
+                            targetDescriptor.declare(newId, mirrored);
+                        }
+                        // create a reversed link from mirrored element to imported one
+                        var reverseLink = (LinkElement) le.clone();
+                        // copy link and reverse direction
+//                        mirrored.hasId().foreach(withId -> reverseLink.setFrom(withId.getId()));
+                        reverseLink.setFrom(newId);
+                        reverseLink.setTo(namespaceAndImportStatement._2.getOriginalElement().hasId().mapOrElse(WithId::getId, null));
+                        targetDescriptor.connect(reverseLink);
+                        container.addChild(reverseLink);
+                    }
+                });
+        declaredImports.clear();
     }
 
     private void checkNamespace(ParsedFileDescriptor descriptor) {
@@ -189,6 +253,7 @@ public class Linker {
         }
         for (ParsedFileDescriptor descriptor : ctx.getDescriptors()) {
             rewriteImports(descriptor);
+            addMirrorConnections(descriptor);
             checkConnections(descriptor);
         }
     }

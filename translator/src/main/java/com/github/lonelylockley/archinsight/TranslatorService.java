@@ -68,7 +68,7 @@ public class TranslatorService {
         // check integrity
         if (!ctx.hasErrors()) {
             new Linker(ctx).checkIntegrity();
-            new Introspection(ctx).suggest(data.getTabId());
+            new Introspection(ctx).suggest();
         }
         // translate to DOT
         var result = new TranslationResult();

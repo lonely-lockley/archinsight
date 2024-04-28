@@ -27,7 +27,8 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
                                                                   automaticLayout: true,
                                                                   autoIndent: 'full',
                                                                   theme: 'vs-dark',
-                                                                  fixedOverflowWidgets: false
+                                                                  fixedOverflowWidgets: true,
+                                                                  overflowWidgetsDomNode: document.getElementById('monaco-editor-overflow-widgets-root')!,
                                                               });
     // source highlight listener
     let timeout: number | undefined;
@@ -49,7 +50,6 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
         var errors: any[] = [];
         (JSON.parse(linkerErrors) as LinkerMessage[]).forEach(lm => {
             var severity = monaco.MarkerSeverity.Error;
-
             errors.push({
                 "resource": model.uri!,
                 "owner": languageID,

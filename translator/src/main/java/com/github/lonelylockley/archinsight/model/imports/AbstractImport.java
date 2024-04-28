@@ -1,6 +1,8 @@
 package com.github.lonelylockley.archinsight.model.imports;
 
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
+import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.parse.WithSource;
 import org.antlr.v4.runtime.CommonToken;
 
@@ -18,6 +20,8 @@ public abstract class AbstractImport extends WithSource {
     private WithSource aliasSource;
     private String element;
     private WithSource elementSource;
+    private ParsedFileDescriptor originalDescriptor;
+    private AbstractElement originalElement;
 
     public abstract String getVisibleIdentifier();
 
@@ -104,6 +108,19 @@ public abstract class AbstractImport extends WithSource {
     public void setElementSource(CommonToken tkn) {
         this.elementSource = new WithSource() {};
         this.elementSource.setSource(tkn);
+    }
+
+    public AbstractElement getOriginalElement() {
+        return originalElement;
+    }
+
+    public ParsedFileDescriptor getOriginalDescriptor() {
+        return originalDescriptor;
+    }
+
+    public void setOrigination(ParsedFileDescriptor originalDescriptor, AbstractElement originalElement) {
+        this.originalDescriptor = originalDescriptor;
+        this.originalElement = originalElement;
     }
 
     public void setLine(int line) {
