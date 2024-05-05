@@ -1,4 +1,4 @@
-import { ANTLRInputStream, CommonTokenStream } from 'antlr4ts';
+import { CharStream, CommonTokenStream } from 'antlr4ng';
 
 import { InsightLexer } from '../../generated/insight-lang/InsightLexer';
 import { InsightContext, InsightParser } from '../../generated/insight-lang/InsightParser';
@@ -10,7 +10,7 @@ const parse = (
   ast: InsightContext;
   errors: InsightError[];
 } => {
-  const inputStream = new ANTLRInputStream(code);
+  const inputStream = CharStream.fromString(code);
   const lexer = new InsightLexer(inputStream);
 
   lexer.removeErrorListeners();

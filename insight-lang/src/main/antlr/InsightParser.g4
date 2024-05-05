@@ -19,12 +19,20 @@ levelDeclaration
         )
     ;
 
+identifierDeclaration
+    :    IDENTIFIER
+    ;
+
+identifierUsage
+    :    IDENTIFIER
+    ;
+
 contextDeclaration
-    :    CONTEXT IDENTIFIER EOL
+    :    CONTEXT identifierDeclaration EOL
     ;
 
 containerDeclaration
-    :    CONTAINER IDENTIFIER EOL
+    :    CONTAINER identifierDeclaration EOL
     ;
 
 namedImportDeclaration
@@ -32,7 +40,7 @@ namedImportDeclaration
     ;
 
 importAliasDeclaration
-    :   AS IDENTIFIER
+    :   AS identifierDeclaration
     ;
 
 anonymousImportDeclaration
@@ -46,19 +54,19 @@ importElementDeclaration
     ;
 
 importContextElementDeclaration
-    :   CONTEXT_ELEMENT_IMPORT? IDENTIFIER FROM importContextDeclaration
+    :   CONTEXT_ELEMENT_IMPORT? identifierUsage FROM importContextDeclaration
     ;
 
 importContextDeclaration
-    :   CONTEXT_IMPORT IDENTIFIER
+    :   CONTEXT_IMPORT identifierUsage
     ;
 
 importContainerElementDeclaration
-    :   CONTAINER_ELEMENT_IMPORT? IDENTIFIER FROM importContainerDeclaration
+    :   CONTAINER_ELEMENT_IMPORT? identifierUsage FROM importContainerDeclaration
     ;
 
 importContainerDeclaration
-    :   CONTAINER_IMPORT IDENTIFIER
+    :   CONTAINER_IMPORT identifierUsage
     ;
 
 contextElementDeclaration
@@ -70,7 +78,7 @@ contextElementDeclaration
     ;
 
 systemDeclaration
-    :    annotationDeclaration* EXTERNAL? SYSTEM IDENTIFIER (noteDeclaration | EOL) systemParameters
+    :    annotationDeclaration* EXTERNAL? SYSTEM identifierDeclaration (noteDeclaration | EOL) systemParameters
     ;
 
 systemParameters
@@ -78,7 +86,7 @@ systemParameters
     ;
 
 actorDeclaration
-    :    annotationDeclaration* ACTOR IDENTIFIER (noteDeclaration | EOL) actorParameters
+    :    annotationDeclaration* ACTOR identifierDeclaration (noteDeclaration | EOL) actorParameters
     ;
 
 actorParameters
@@ -86,11 +94,11 @@ actorParameters
     ;
 
 boundaryForContextDeclaration
-    :    BOUNDARY IDENTIFIER EOL boundaryContext
+    :    BOUNDARY identifierDeclaration EOL boundaryContext
     ;
 
 boundaryForContainerDeclaration
-    :    BOUNDARY IDENTIFIER EOL boundaryContainer
+    :    BOUNDARY identifierDeclaration EOL boundaryContainer
     ;
 
 boundaryContext
@@ -114,7 +122,7 @@ containerElementDeclaration
     ;
 
 serviceDeclaration
-    :    annotationDeclaration* EXTERNAL? SERVICE IDENTIFIER (noteDeclaration | EOL) serviceParameters
+    :    annotationDeclaration* EXTERNAL? SERVICE identifierDeclaration (noteDeclaration | EOL) serviceParameters
     ;
 
 serviceParameters
@@ -122,7 +130,7 @@ serviceParameters
     ;
 
 storageDeclaration
-    :    annotationDeclaration* EXTERNAL? STORAGE IDENTIFIER (noteDeclaration | EOL) storageParameters
+    :    annotationDeclaration* EXTERNAL? STORAGE identifierDeclaration (noteDeclaration | EOL) storageParameters
     ;
 
 storageParameters
@@ -182,7 +190,7 @@ wireList
     ;
 
 wireDeclaration
-    :    annotationDeclaration? WIRE (anonymousImportDeclaration | IDENTIFIER) EOL? wireParameters? EOL?
+    :    annotationDeclaration? WIRE (anonymousImportDeclaration | identifierUsage) EOL? wireParameters? EOL?
     ;
 
 wireParameters

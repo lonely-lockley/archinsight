@@ -27,9 +27,9 @@ import java.util.function.Consumer;
 
 @NpmPackage(value = "monaco-editor-core", version = "^0.40.0")
 @NpmPackage(value = "monaco-editor", version = "^0.40.0")
-@NpmPackage(value = "linked-list-typescript", version = "^1.0.15")
-@NpmPackage(value = "antlr4ts", version = "^0.5.0-alpha.4")
-@NpmPackage(value = "antlr4ts-cli", version = "^0.5.0-alpha.4")
+@NpmPackage(value = "antlr4ng", version = "3.0.4")
+@NpmPackage(value = "antlr4ng-cli", version = "2.0.0")
+@NpmPackage(value = "antlr4-c3", version = "3.4.1")
 @JsModule("./src/EditorInitializer.ts")
 public class EditorComponent extends Div {
 

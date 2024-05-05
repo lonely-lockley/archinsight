@@ -2,7 +2,7 @@ import * as monaco from 'monaco-editor-core';
 import DiagnosticsAdapter from './DiagnosticsAdapter';
 import InsightFormattingProvider from './InsightFormattingProvider';
 import { InsightTokensProvider } from '../InsightHighlight';
-import { InsightAutocomplete } from '../InsightAutocomplete';
+import { InsightAutocomplete } from '../autocompletion/InsightAutocomplete';
 import { InsightWorker } from './InsightWorker';
 import { WorkerManager } from './WorkerManager';
 import { languageExtensionPoint, languageID } from './config';

@@ -1,6 +1,12 @@
 import { editor, languages } from 'monaco-editor';
 import * as monaco from 'monaco-editor-core';
-import { languageID } from './lang-service/config';
+import { Token, BufferedTokenStream, CharStream, CommonTokenStream } from 'antlr4ng';
+import { InsightLexer } from '../../generated/insight-lang/InsightLexer';
+import { InsightParser } from '../../generated/insight-lang/InsightParser';
+import { CodeCompletionCore } from 'antlr4-c3'
+
+import EOF = Token.EOF;
+import IToken = languages.IToken;
 
 import ITextModel = editor.ITextModel;
 import IWordAtPosition = editor.IWordAtPosition;
@@ -14,6 +20,19 @@ import CompletionContext = languages.CompletionContext
 import CompletionList = languages.CompletionList;
 
 export class InsightAutocomplete implements CompletionItemProvider {
+
+  private suggest(source: string, line: number, col: number, range: IRange, endOfLine: boolean): CompletionList | undefined {
+    const inputStream = CharStream.fromString(source);
+    const lexer = new InsightLexer(inputStream);
+    lexer.removeErrorListeners();
+    const parser = new InsightParser(new CommonTokenStream(lexer));
+    parser.insight();
+    var core = new CodeCompletionCore(parser);
+    console.log("================================================");
+    console.log(core.collectCandidates(2));
+    console.log("================================================");
+    return undefined;
+  }
 
   private items(range: IRange, endOfLine: boolean): CompletionList {
       return {
@@ -319,18 +338,18 @@ export class InsightAutocomplete implements CompletionItemProvider {
       };
   };
 
-  public triggerCharacters: string[] = Array.from("@abcdefghijklmnopqrstuvwxyz");
+  public triggerCharacters: string[] = Array.from("@abcdefghijklmnopqrstuvwxyz ");
 
   public provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken): languages.ProviderResult<CompletionList> {
         var word: IWordAtPosition = model.getWordUntilPosition(position);
         var endOfLine: boolean = model.getLineMaxColumn(position.lineNumber) == position.column;
 		var range: IRange = {
-		  startLineNumber: position.lineNumber,
+		  startLineNumber: 0,
 		  endLineNumber: position.lineNumber,
-		  startColumn: word.startColumn,
+		  startColumn: 0,
 		  endColumn: word.endColumn
 		};
-		return this.items(range, endOfLine);
+		return this.suggest(model.getValueInRange(range), position.lineNumber, position.column, range, endOfLine);
   }
 
 }

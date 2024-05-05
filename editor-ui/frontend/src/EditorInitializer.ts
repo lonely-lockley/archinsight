@@ -29,6 +29,9 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
                                                                   theme: 'vs-dark',
                                                                   fixedOverflowWidgets: true,
                                                                   overflowWidgetsDomNode: document.getElementById('monaco-editor-overflow-widgets-root')!,
+                                                                  suggest: {
+                                                                    showWords: false
+                                                                  },
                                                               });
     // source highlight listener
     let timeout: number | undefined;

@@ -64,7 +64,7 @@ public class LexerState {
     }
 
     @Override
-    protected Object clone() throws CloneNotSupportedException {
+    public Object clone() {
         return new LexerState(this.wasText, this.indentation, this.TEXT);
     }
 

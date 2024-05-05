@@ -148,13 +148,13 @@ public class IndentHelper {
     }
 
     public LexerState snapshotState() {
-        return state;
+        return (LexerState) state.clone();
     }
 
     public void restoreState(LexerState state) {
         Token tkn = tokenSupplier.get();
         lexer.reset();
-        this.state = state;
+        this.state = (LexerState) state.clone();
         indentation = state.getIndentation();
         if (state.wasText() && (tkn.getType() == InsightLexer.INDENTATION && !checkTextBlockBound(tkn.getText()))) {
             lexer.pushMode(InsightLexer.VALUE_MODE);
