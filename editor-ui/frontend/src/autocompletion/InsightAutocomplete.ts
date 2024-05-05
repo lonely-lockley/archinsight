@@ -1,8 +1,9 @@
 import { editor, languages } from 'monaco-editor';
 import * as monaco from 'monaco-editor-core';
-import { Token, BufferedTokenStream, CharStream, CommonTokenStream } from 'antlr4ng';
+import { Token, BufferedTokenStream, CharStream, CommonTokenStream, ParseTree, TerminalNode } from 'antlr4ng';
 import { InsightLexer } from '../../generated/insight-lang/InsightLexer';
 import { InsightParser } from '../../generated/insight-lang/InsightParser';
+import { CompletionTokenSource } from './CompletionTokenSource';
 import { CodeCompletionCore } from 'antlr4-c3'
 
 import EOF = Token.EOF;
@@ -25,13 +26,74 @@ export class InsightAutocomplete implements CompletionItemProvider {
     const inputStream = CharStream.fromString(source);
     const lexer = new InsightLexer(inputStream);
     lexer.removeErrorListeners();
-    const parser = new InsightParser(new CommonTokenStream(lexer));
-    parser.insight();
+    lexer.enableSingleLineMode();
+    const tknSrc = new CompletionTokenSource(lexer, line, col);
+    const parser = new InsightParser(new BufferedTokenStream(tknSrc));
+    parser.removeErrorListeners();
+    var tree: ParseTree | null = null;
+    try {
+        tree = parser.insight();
+    }
+    catch (e) {}
     var core = new CodeCompletionCore(parser);
+    console.log(source);
     console.log("================================================");
-    console.log(core.collectCandidates(2));
-    console.log("================================================");
+    var index = this.computeTokenIndex(tree, range);
+    index = tknSrc.ttt(line, col, index);
+    if (index != undefined) {
+        var suggestions = core.collectCandidates(index);
+        if (suggestions != undefined && suggestions.tokens.size > 0) {
+            return {
+                // @ts-ignore
+                suggestions: Array.from(suggestions.tokens.keys()).map((key) => {
+                                        return {
+                                            label: lexer.vocabulary.getSymbolicName(key),
+                                            kind: monaco.languages.CompletionItemKind.Keyword,
+                                            insertText: "???"
+                                        }
+                                    })
+            }
+        }
+    }
     return undefined;
+  }
+
+  private computeTokenIndex(parseTree: ParseTree | null, range: IRange): number | undefined {
+      if (parseTree == undefined) {
+          return undefined;
+      }
+      else
+      if (parseTree instanceof TerminalNode) {
+          return this.computeTokenIndexOfTerminalNode(parseTree, range);
+      }
+      else {
+          return this.computeTokenIndexOfChildNode(parseTree, range);
+      }
+  }
+
+  private computeTokenIndexOfTerminalNode(parseTree: TerminalNode, range: IRange): number | undefined {
+      var start = parseTree.symbol.column;
+      var stop = parseTree.symbol.column + (parseTree.symbol.stop - parseTree.symbol.start);
+      console.log("dbg: " + parseTree.symbol + " [idx=" + parseTree.symbol.tokenIndex + ", line=" + parseTree.symbol.line + ", start=" + parseTree.symbol.start, ", stop=" + parseTree.symbol.stop + "]  range: [startLineNumber=" + range.startLineNumber + ", endLineNumber=" + range.endLineNumber + ", startColumn=" + range.startColumn + ", endColumn=" + range.endColumn + "]\nEOF=" + parseTree.symbol.type + " || (" + parseTree.symbol.line + "==" + range.endLineNumber + " && " + start + "<=" + (range.endColumn - 2) + " && " + stop + ">=" + (range.endColumn - 2));
+      if (parseTree.symbol.type == InsightLexer.EOF || (parseTree.symbol.line == range.endLineNumber && start <= (range.endColumn - 2) && stop >= (range.endColumn - 2))) {
+          return parseTree.symbol.tokenIndex;
+      }
+      else {
+          return undefined;
+      }
+  }
+
+  private computeTokenIndexOfChildNode(parseTree: ParseTree | null, range: IRange): number | undefined {
+      if (parseTree == null) {
+          return undefined;
+      }
+      for (var i = 0; i < parseTree.getChildCount(); i++) {
+          var index = this.computeTokenIndex(parseTree.getChild(i), range);
+          if (index !== undefined) {
+              return index;
+          }
+      }
+      return undefined;
   }
 
   private items(range: IRange, endOfLine: boolean): CompletionList {
@@ -344,10 +406,10 @@ export class InsightAutocomplete implements CompletionItemProvider {
         var word: IWordAtPosition = model.getWordUntilPosition(position);
         var endOfLine: boolean = model.getLineMaxColumn(position.lineNumber) == position.column;
 		var range: IRange = {
-		  startLineNumber: 0,
+		  startLineNumber: 1,
 		  endLineNumber: position.lineNumber,
-		  startColumn: 0,
-		  endColumn: word.endColumn
+		  startColumn: 1,
+		  endColumn: position.column
 		};
 		return this.suggest(model.getValueInRange(range), position.lineNumber, position.column, range, endOfLine);
   }

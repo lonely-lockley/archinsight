@@ -4,12 +4,10 @@ import { InsightLexer } from '../../generated/insight-lang/InsightLexer';
 import { InsightContext, InsightParser } from '../../generated/insight-lang/InsightParser';
 import InsightErrorListener, { InsightError } from './InsightErrorListener';
 
-const parse = (
-  code: string,
-): {
-  ast: InsightContext;
-  errors: InsightError[];
-} => {
+const parse = (code: string): {
+                                ast: InsightContext;
+                                errors: InsightError[];
+                              } => {
   const inputStream = CharStream.fromString(code);
   const lexer = new InsightLexer(inputStream);
 

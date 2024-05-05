@@ -81,7 +81,7 @@ fragment CloseBracket : ')' ;
 COLON            : ':' ;
 EQ               : '=' Ws* -> pushMode(VALUE_MODE) ;
 EOL              : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Nl ;
-EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Nl -> skip  ;
+EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Nl -> skip ;
 BLANK            : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Ws+ -> channel(HIDDEN) ;
 INDENTATION      : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Ws+ -> channel(HIDDEN) ;
 ANNOTATION_VALUE : OpenBracket ( ~[)] )* CloseBracket ;
