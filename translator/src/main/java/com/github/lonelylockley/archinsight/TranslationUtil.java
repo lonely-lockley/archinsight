@@ -75,6 +75,18 @@ public class TranslationUtil {
         return tm;
     }
 
+    public static TranslatorMessage newError(WithSource position, String message) {
+        var tm = new TranslatorMessage(
+                MessageLevel.ERROR,
+                null,
+                null,
+                null,
+                message
+        );
+        copyPosition(tm, position);
+        return tm;
+    }
+
     public static TranslatorMessage newWarning(ParsedFileDescriptor descriptor, WithSource position, String message) {
         var tm = new TranslatorMessage(
                 MessageLevel.WARNING,

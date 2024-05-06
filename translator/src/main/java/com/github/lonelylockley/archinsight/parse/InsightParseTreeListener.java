@@ -191,12 +191,20 @@ public class InsightParseTreeListener implements ParseTreeListener {
 //        String ruleName = parser.getRuleNames()[ruleContext.getRuleIndex()];
 //        System.out.println("<<< " + ruleName);
         switch (ruleContext.getRuleIndex()) {
-            case InsightParser.RULE_boundaryContext:
-            case InsightParser.RULE_boundaryContainer:
             case InsightParser.RULE_systemDeclaration:
-            case InsightParser.RULE_wireDeclaration:
             case InsightParser.RULE_actorDeclaration:
             case InsightParser.RULE_serviceDeclaration:
+                if (ctx.getCurrentElementWithParams().getName() == null) {
+                    // name is required error
+                    ctx.addMessage(TranslationUtil.newError(
+                        ctx.getCurrentElement(), "`name` parameter is required"
+                    ));
+                }
+                ctx.finishElement();
+                break;
+            case InsightParser.RULE_boundaryContext:
+            case InsightParser.RULE_boundaryContainer:
+            case InsightParser.RULE_wireDeclaration:
             case InsightParser.RULE_storageDeclaration:
                 ctx.finishElement();
                 break;
