@@ -51,7 +51,7 @@ CONTAINER   : 'container' -> pushMode(NAMESPACE_MODE) ;
 /* Keywords */
 EXTERNAL    : ('external' | 'ext') ;
 SYSTEM      : ('system')           -> pushMode(IDENTIFIER_MODE) ;
-ACTOR       : ('person' | 'actor') -> pushMode(IDENTIFIER_MODE) ;
+ACTOR       : ('actor')            -> pushMode(IDENTIFIER_MODE) ;
 NAME        : ('name') ;
 DESCRIPTION : ('description' | 'desc') ;
 TECHNOLOGY  : ('technology' | 'tech') ;

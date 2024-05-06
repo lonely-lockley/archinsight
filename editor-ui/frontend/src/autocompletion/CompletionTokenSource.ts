@@ -18,6 +18,16 @@ export class CompletionTokenSource implements TokenSource {
 
   constructor(lexer: InsightLexer, line: number, col: number) {
     this.allTokens = lexer.getAllTokens();
+    for (var i = this.allTokens.length - 1; i >= 0; i--) {
+        var tkn = this.allTokens[i];
+        // remove last ephemeral dedents
+        if (tkn.type == InsightLexer.DEDENT && tkn.start == tkn.stop) {
+            this.allTokens.pop();
+        }
+        else {
+            break;
+        }
+    }
     var eof = CommonToken.fromType(EOF, "<EOF>");
     eof.line = line;
     eof.column = col;
@@ -42,9 +52,8 @@ export class CompletionTokenSource implements TokenSource {
     return this.setCurrentToken()!;
   }
 
-  public ttt(line: number, col: number, other: number | undefined): number {
-        console.log("Suggested tokenIndex: " + other);
-        console.log("Looking for line=" + line + " and column=" + col);
+  public computeTokenIndex(line: number, col: number): number {
+//         console.log("Looking for line=" + line + " and column=" + col);
 //         console.log(this.allTokens);
 //         for (var i = 0; i < this.allTokens.length; i++) {
 //           if (this.allTokens[i].line == line) {
@@ -52,7 +61,7 @@ export class CompletionTokenSource implements TokenSource {
 //           }
 //         }
 //         console.log("-----");
-        console.log("Override tokenIndex: " + this.allTokens[this.allTokens.length - 1].tokenIndex);
+//         console.log("Override tokenIndex: " + this.allTokens[this.allTokens.length - 1].tokenIndex);
         return this.allTokens[this.allTokens.length - 1].tokenIndex;
     }
 
