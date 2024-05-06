@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.parse;
 import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
 import com.github.lonelylockley.archinsight.model.TabBoundedFileData;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.insight.lang.InsightLexer;
 import com.github.lonelylockley.insight.lang.InsightParser;
@@ -31,12 +32,14 @@ public class Parser {
         tabs.stream().parallel().forEach(tab -> {
             var location = tab.getId() == null ? tab.getFileName() : fs.getPath(tab.getId());
             var pr = parse(tab.getContent(), tab.getTabId(), tab.getId(), location);
-            ctx.addDescriptor(new ParsedFileDescriptor(pr, location, Optional.ofNullable(tab.getTabId()), Optional.ofNullable(tab.getId())));
+            var descriptor = new ParsedFileDescriptor(pr, location, Optional.ofNullable(tab.getTabId()), Optional.ofNullable(tab.getId()));
+            copyParserMessages(descriptor, ctx, pr.getMessages());
+            ctx.addDescriptor(descriptor);
         });
     }
 
     private ParseResult parse(String source, String tabId, UUID fileId, String location) {
-        var listener = new InsightParseTreeListener(ctx);
+        var listener = new InsightParseTreeListener();
         try {
             if (!StringUtils.isBlank(source)) {
                 var errorListener = new InsightParseErrorListener(ctx, tabId, fileId, location);
@@ -56,6 +59,15 @@ public class Parser {
             logger.warn("Error parsing source", ex);
         }
         return listener.getResult();
+    }
+
+    private void copyParserMessages(ParsedFileDescriptor descriptor, TranslationContext ctx, List<TranslatorMessage> messages) {
+        for (TranslatorMessage msg : messages) {
+            msg.setTabId(descriptor.getId());
+            msg.setFileId(descriptor.getFileId().orElse(null));
+            msg.setLocation(descriptor.getLocation());
+            ctx.addMessage(msg);
+        }
     }
 
 }
