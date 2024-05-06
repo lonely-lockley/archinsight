@@ -1,4 +1,4 @@
-import { ANTLRInputStream, Token } from 'antlr4ts';
+import { CharStream, Token } from 'antlr4ng';
 import { languages } from 'monaco-editor';
 import * as monaco from 'monaco-editor-core';
 
@@ -50,7 +50,7 @@ export class InsightTokensProvider implements TokensProvider {
   }
 
   tokenize(line: string, state: IState): languages.ILineTokens {
-    const inputStream = new ANTLRInputStream(line);
+    const inputStream = CharStream.fromString(line);
     const lexer = new InsightLexer(inputStream);
     lexer.enableSingleLineMode();
     lexer.removeErrorListeners();
@@ -85,7 +85,7 @@ export class InsightTokensProvider implements TokensProvider {
 
         const token = new InsightToken(
           editorType,
-          grammarToken.charPositionInLine,
+          grammarToken.column,
           grammarToken.line,
         );
 

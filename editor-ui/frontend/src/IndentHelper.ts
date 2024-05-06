@@ -1,26 +1,6 @@
-import { ANTLRInputStream, CommonToken, Token } from 'antlr4ts';
-import { LinkedList } from 'linked-list-typescript';
+import { CommonToken, Token } from 'antlr4ng';
 import LexerState from './LexerState';
 import { InsightLexer } from '../generated/insight-lang/InsightLexer';
-
-class Queue<T> extends LinkedList<T> {
-  constructor(...values: T[]) {
-    super(...values);
-  }
-
-  get front() {
-    return this.head;
-  }
-
-  add(val: T) {
-    this.append(val);
-  }
-
-  pop(): T {
-    var tmp = this.removeHead();
-    return tmp;
-  }
-}
 
 class IndentationException extends Error {
 
@@ -29,7 +9,7 @@ class IndentationException extends Error {
     }
 
     public static createErrorMsg(tkn: CommonToken, actual: number, expected: number): string {
-        return "line " + tkn.line + ":" + tkn.charPositionInLine + " incorrect indentation. current position: " + actual + ", expected: " + expected;
+        return "line " + tkn.line + ":" + tkn.column + " incorrect indentation. current position: " + actual + ", expected: " + expected;
     }
 
 }
@@ -39,16 +19,17 @@ class IndentHelper {
     INDENT_LENGTH: number = 4;
 
     private lexer: InsightLexer;
-    private _waitlist: Queue<Token>;
+    private _waitlist: Token[];
     private state: LexerState;
     private singleLineMode: boolean = false;
 
     private indentation: number = 0;
     private line: number = 0;
+    private idx = 0;
 
     constructor(lexer: InsightLexer) {
         this.lexer = lexer;
-        this._waitlist = new Queue<Token>();
+        this._waitlist = [];
         this.state = new LexerState(InsightLexer.TEXT);
     }
 
@@ -56,21 +37,38 @@ class IndentHelper {
         this.singleLineMode = true;
     }
 
-    private emitIndentToken(tkn: CommonToken) {
+    private emitIndentToken(tkn: CommonToken, ephemeral: boolean) {
         this.indentation++;
         this.state.incIndentation();
-        var idt = new CommonToken(InsightLexer.INDENT, "<INDENT>");
+        var idt = CommonToken.fromType(InsightLexer.INDENT, "<INDENT>");
         idt.line = tkn.line;
-        idt.charPositionInLine = (this.indentation - 1) * this.INDENT_LENGTH;
-        this._waitlist.add(idt);
+        if (ephemeral) {
+            idt.setCharPositionInLine(tkn.column + (tkn.stop - tkn.start));
+            idt.start = tkn.stop;
+            idt.stop = tkn.stop;
+        }
+        else {
+            idt.setCharPositionInLine((this.indentation - 1) * this.INDENT_LENGTH);
+            idt.start = tkn.start;
+            idt.stop = tkn.stop;
+        }
+        this._waitlist.push(idt);
     }
 
-    private emitDedentTokens(tkn: CommonToken, curIndentation: number) {
+    private emitDedentTokens(tkn: CommonToken, curIndentation: number, ephemeral: boolean) {
         while (this.indentation > curIndentation) {
-            var ddt = new CommonToken(InsightLexer.DEDENT, "<DEDENT>");
+            var ddt = CommonToken.fromType(InsightLexer.DEDENT, "<DEDENT>");
             ddt.line = tkn.line;
-            ddt.charPositionInLine = (this.indentation - 1) * this.INDENT_LENGTH;
-            this._waitlist.add(ddt);
+            ddt.setCharPositionInLine((this.indentation - 1) * this.INDENT_LENGTH);
+            if (ephemeral) {
+                ddt.start = tkn.start;
+                ddt.stop = tkn.start;
+            }
+            else {
+                ddt.start = tkn.start;
+                ddt.stop = tkn.stop;
+            }
+            this._waitlist.push(ddt);
             this.indentation--;
             this.state.decIndentation();
             if (this.state.wasText()) {
@@ -103,18 +101,17 @@ class IndentHelper {
             position = this.expandTabCharacter(this.stripNewlineCharacters(tkn.text)).length;
         }
         else {
-            position = tkn.charPositionInLine;
+            position = tkn.column;
         }
         var tmp: number = position / this.INDENT_LENGTH;
         if (tmp % 1 != 0) {
-//             throw new IndentationException(tkn, position, this.indentation * this.INDENT_LENGTH);
-               this.lexer.getErrorListenerDispatch().syntaxError?.(
+               this.lexer.errorListenerDispatch.syntaxError?.(
                    this.lexer,
-                   undefined,
+                   null,
                    this.line,
                    position,
                    IndentationException.createErrorMsg(tkn, position, this.indentation * this.INDENT_LENGTH),
-                   undefined
+                   null
                );
         }
         return Math.floor(tmp);
@@ -123,47 +120,58 @@ class IndentHelper {
     private handleIndentation(tkn: CommonToken) {
         var curIndentation: number = this.calculateCurrentIndentation(tkn);
         if (curIndentation == this.indentation + 1) {
-            this.emitIndentToken(tkn);
+            this.emitIndentToken(tkn, false);
         }
         else
         if (curIndentation < this.indentation && this.indentation > 0) {
             if ((tkn.type == Token.EOF && !this.singleLineMode) || tkn.type != Token.EOF) {
-                this.emitDedentTokens(tkn, curIndentation);
+                this.emitDedentTokens(tkn, curIndentation, false);
             }
         }
-//         else
-//         if (this.indentation == curIndentation) {
-//             // nothing to do here
-//         }
-//         else {
-//             throw new IndentationException(tkn, curIndentation * this.INDENT_LENGTH, this.indentation * this.INDENT_LENGTH);
-//         }
+        else
+        if (this.indentation == curIndentation) {
+            // nothing to do here
+        }
+        else {
+            this.lexer.errorListenerDispatch.syntaxError?.(
+               this.lexer,
+               null,
+               this.line,
+               curIndentation * this.INDENT_LENGTH,
+               IndentationException.createErrorMsg(tkn, curIndentation * this.INDENT_LENGTH, this.indentation * this.INDENT_LENGTH),
+               null
+            );
+        }
     }
 
     private handleText(tkn: CommonToken) {
         if (tkn.type == Token.EOF && !this.singleLineMode) {
-            this.emitDedentTokens(tkn, 0);
-            this._waitlist.add(tkn);
+            this.emitDedentTokens(tkn, 0, true);
+            this._waitlist.push(tkn);
         }
         else
         if (tkn.type == InsightLexer.EQ) {
-            this._waitlist.add(tkn);
-            this.emitIndentToken(tkn);
+            this._waitlist.push(tkn);
+            this.emitIndentToken(tkn, true);
         }
         else
         if (tkn.type == InsightLexer.EOL_VALUE) {
-            var eol: CommonToken = new CommonToken(InsightLexer.EOL, "\n");
+            var eol: CommonToken = CommonToken.fromType(InsightLexer.TEXT, "\n");
             eol.line = tkn.line;
-            this._waitlist.add(eol);
+            eol.column = tkn.column;
+            eol.start = tkn.start;
+            eol.stop = tkn.stop;
+            this._waitlist.push(eol);
         }
-        else {
-            this._waitlist.add(tkn);
+        else
+        if (tkn.channel == 0) {
+            this._waitlist.push(tkn);
         }
     }
 
     public nextToken(): Token {
-        var rawToken: Token = this.lexer.supplyToken();
         do {
+            var rawToken: Token = this.lexer.supplyToken();
             var tkn: CommonToken = rawToken as CommonToken;
             if (tkn.line > this.line) {
                 this.line = tkn.line;
@@ -173,13 +181,13 @@ class IndentHelper {
             this.state.updateToken(tkn);
         }
         while (this._waitlist.length == 0);
-        return this._waitlist.pop();
+        var result = this._waitlist.shift()!;
+        result.tokenIndex = this.idx;
+        this.idx++;
+        return result;
     }
 
     public checkTextBlockBound(indentationValue: string | undefined): boolean {
-        if (indentationValue == undefined) {
-            throw Error("Empty text to check for indentation");
-        }
         var curIndentation: number = this.expandTabCharacter(this.stripNewlineCharacters(indentationValue)).length / this.INDENT_LENGTH;
         return curIndentation < this.indentation;
     }

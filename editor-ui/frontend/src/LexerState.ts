@@ -1,4 +1,4 @@
-import { Token } from 'antlr4ts';
+import { Token } from 'antlr4ng';
 import { languages } from 'monaco-editor';
 import IState = languages.IState;
 

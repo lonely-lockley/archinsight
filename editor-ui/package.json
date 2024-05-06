@@ -7,7 +7,7 @@
   "license": "AGPL-3.0",
   "type": "module",
   "scripts": {
-    "antlr": "rimraf frontend/generated/insight-lang && mkdir -p frontend/generated/insight-lang && antlr4ts ../insight-lang/src/main/antlr/InsightLexer.g4 ../insight-lang/src/main/antlr/InsightParser.g4 -Xexact-output-dir -o frontend/generated/insight-lang",
+    "antlr": "rimraf frontend/generated/insight-lang && mkdir -p frontend/generated/insight-lang && antlr4ng -Dlanguage=TypeScript -visitor -listener ../insight-lang/src/main/antlr/InsightLexer.g4 ../insight-lang/src/main/antlr/InsightParser.g4 -Xexact-output-dir -o frontend/generated/insight-lang",
     "build:prod": "webpack",
     "report": "webpack-bundle-analyzer --port 4200 ./dist/stats.json",
     "format": "prettier --write \"src/**/*.{ts,tsx,js}\"",
@@ -80,8 +80,9 @@
     "@vaadin/vaadin-usage-statistics": "2.1.2",
     "@vaadin/vertical-layout": "24.3.0",
     "@vaadin/virtual-list": "24.3.0",
-    "antlr4ts": "0.5.0-alpha.4",
-    "antlr4ts-cli": "0.5.0-alpha.4",
+    "antlr4-c3": "3.4.1",
+    "antlr4ng": "3.0.4",
+    "antlr4ng-cli": "2.0.0",
     "compression-webpack-plugin": "^10.0.0",
     "construct-style-sheets-polyfill": "3.1.0",
     "date-fns": "2.29.3",
@@ -89,7 +90,6 @@
     "extra-watch-webpack-plugin": "^1.0.3",
     "fork-ts-checker-webpack-plugin": "^9.0.2",
     "html-webpack-plugin": "^5.5.4",
-    "linked-list-typescript": "1.0.15",
     "lit": "3.1.0",
     "mini-css-extract-plugin": "^2.7.6",
     "monaco-editor": "^0.40.0",
@@ -195,8 +195,9 @@
       "@vaadin/vaadin-usage-statistics": "2.1.2",
       "@vaadin/vertical-layout": "24.3.0",
       "@vaadin/virtual-list": "24.3.0",
-      "antlr4ts": "^0.5.0-alpha.4",
-      "antlr4ts-cli": "^0.5.0-alpha.4",
+      "antlr4-c3": "3.4.1",
+      "antlr4ng": "3.0.4",
+      "antlr4ng-cli": "2.0.0",
       "construct-style-sheets-polyfill": "3.1.0",
       "date-fns": "2.29.3",
       "linked-list-typescript": "^1.0.15",
@@ -222,7 +223,7 @@
       "workbox-core": "7.0.0",
       "workbox-precaching": "7.0.0"
     },
-    "hash": "0d4c7a8fc8aff275f215d9e8dfc6a9a0466eb3a8de485238b8fc87cd5ae28c35"
+    "hash": "d0a30e9e3c08b866614258ef633fa6f11500b97bbd97d9eca3d974e9b7229df9"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -305,19 +306,19 @@
     "node": "$node",
     "rimraf": "$rimraf",
     "vite-plugin-node-polyfills": "$vite-plugin-node-polyfills",
-    "antlr4ts": "$antlr4ts",
-    "antlr4ts-cli": "$antlr4ts-cli",
     "compression-webpack-plugin": "$compression-webpack-plugin",
     "extra-watch-webpack-plugin": "$extra-watch-webpack-plugin",
     "fork-ts-checker-webpack-plugin": "$fork-ts-checker-webpack-plugin",
     "html-webpack-plugin": "$html-webpack-plugin",
-    "linked-list-typescript": "$linked-list-typescript",
     "rollup-plugin-copy": "$rollup-plugin-copy",
     "schema-utils": "$schema-utils",
     "webpack": "$webpack",
     "webpack-cli": "$webpack-cli",
     "webpack-merge": "$webpack-merge",
     "workbox-webpack-plugin": "$workbox-webpack-plugin",
-    "mini-css-extract-plugin": "$mini-css-extract-plugin"
+    "mini-css-extract-plugin": "$mini-css-extract-plugin",
+    "antlr4-c3": "$antlr4-c3",
+    "antlr4ng": "$antlr4ng",
+    "antlr4ng-cli": "$antlr4ng-cli"
   }
 }

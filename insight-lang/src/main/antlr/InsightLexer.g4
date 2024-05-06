@@ -51,7 +51,7 @@ CONTAINER   : 'container' -> pushMode(NAMESPACE_MODE) ;
 /* Keywords */
 EXTERNAL    : ('external' | 'ext') ;
 SYSTEM      : ('system')           -> pushMode(IDENTIFIER_MODE) ;
-ACTOR       : ('person' | 'actor') -> pushMode(IDENTIFIER_MODE) ;
+ACTOR       : ('actor')            -> pushMode(IDENTIFIER_MODE) ;
 NAME        : ('name') ;
 DESCRIPTION : ('description' | 'desc') ;
 TECHNOLOGY  : ('technology' | 'tech') ;
@@ -81,7 +81,7 @@ fragment CloseBracket : ')' ;
 COLON            : ':' ;
 EQ               : '=' Ws* -> pushMode(VALUE_MODE) ;
 EOL              : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Nl ;
-EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Nl -> skip  ;
+EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Nl -> skip ;
 BLANK            : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Ws+ -> channel(HIDDEN) ;
 INDENTATION      : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Ws+ -> channel(HIDDEN) ;
 ANNOTATION_VALUE : OpenBracket ( ~[)] )* CloseBracket ;
@@ -99,7 +99,7 @@ mode VALUE_MODE;
 WORD               : NonWs+ -> type(TEXT) ;
 BLANK_VALUE        : BLANK -> type(TEXT), channel(DEFAULT_TOKEN_CHANNEL) ;
 INDENTATION_VALUE  : INDENTATION -> type(INDENTATION), channel(HIDDEN) ;
-EOL_VALUE          : EOL INDENTATION? { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
+EOL_VALUE          : EOL Ws* { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
 EOF_VALUE          : EOF -> type(EOF), popMode ;
 
 mode IMPORT_MODE;
