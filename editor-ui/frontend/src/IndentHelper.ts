@@ -60,7 +60,6 @@ class IndentHelper {
             var ddt = CommonToken.fromType(InsightLexer.DEDENT, "<DEDENT>");
             ddt.line = tkn.line;
             ddt.setCharPositionInLine((this.indentation - 1) * this.INDENT_LENGTH);
-            ddt.line = tkn.line;
             if (ephemeral) {
                 ddt.start = tkn.start;
                 ddt.stop = tkn.start;

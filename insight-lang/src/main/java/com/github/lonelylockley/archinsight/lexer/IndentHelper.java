@@ -19,6 +19,7 @@ public class IndentHelper {
     private boolean singleLineMode = false;
     private int indentation = 0;
     private int line = 0;
+    private int idx = 0;
     private LexerState state;
 
     public IndentHelper(Supplier<Token> tokenSupplier, InsightLexer lexer) {
@@ -36,20 +37,37 @@ public class IndentHelper {
         return String.format("line %d:%d incorrect indentation. current position: %d, expected: %d", tkn.getLine(), tkn.getCharPositionInLine(), actual, expected);
     }
 
-    private void emitIndentToken(CommonToken tkn) {
+    private void emitIndentToken(CommonToken tkn, boolean ephemeral) {
         indentation++;
         state.incIndentation();
         CommonToken idt = new CommonToken(InsightLexer.INDENT, "<INDENT>");
         idt.setLine(tkn.getLine());
-        idt.setCharPositionInLine((indentation - 1) * INDENT_LENGTH);
+        if (ephemeral) {
+            idt.setCharPositionInLine(tkn.getCharPositionInLine() + (tkn.getStartIndex() - tkn.getStopIndex()));
+            idt.setStartIndex(tkn.getStopIndex());
+            idt.setStopIndex(tkn.getStopIndex());
+        }
+        else {
+            idt.setCharPositionInLine((indentation - 1) * INDENT_LENGTH);
+            idt.setStartIndex(tkn.getStartIndex());
+            idt.setStopIndex(tkn.getStopIndex());
+        }
         waitlist.add(idt);
     }
 
-    private void emitDedentTokens(CommonToken tkn, int curIndentation) {
+    private void emitDedentTokens(CommonToken tkn, int curIndentation, boolean ephemeral) {
         while (indentation > curIndentation) {
             CommonToken ddt = new CommonToken(InsightLexer.DEDENT, "<DEDENT>");
             ddt.setLine(tkn.getLine());
             ddt.setCharPositionInLine((indentation - 1) * INDENT_LENGTH);
+            if (ephemeral) {
+                ddt.setStartIndex(tkn.getStartIndex());
+                ddt.setStopIndex(tkn.getStartIndex());
+            }
+            else {
+                ddt.setStartIndex(tkn.getStartIndex());
+                ddt.setStopIndex(tkn.getStopIndex());
+            }
             waitlist.add(ddt);
             indentation--;
             state.decIndentation();
@@ -87,12 +105,12 @@ public class IndentHelper {
     private void handleIndentation(CommonToken tkn) {
         int curIndentation = calculateCurrentIndentation(tkn);
         if (curIndentation == indentation + 1) {
-            emitIndentToken(tkn);
+            emitIndentToken(tkn, false);
         }
         else
         if (curIndentation < indentation && indentation > 0) {
             if ((tkn.getType() == Token.EOF && !singleLineMode) || tkn.getType() != Token.EOF) {
-                emitDedentTokens(tkn, curIndentation);
+                emitDedentTokens(tkn, curIndentation, false);
             }
         }
         else
@@ -108,18 +126,21 @@ public class IndentHelper {
 
     private void handleText(CommonToken tkn) {
         if (tkn.getType() == Token.EOF && !singleLineMode) {
-            emitDedentTokens(tkn, 0);
+            emitDedentTokens(tkn, 0, true);
             waitlist.add(tkn);
         }
         else
         if (tkn.getType() == InsightLexer.EQ) {
             waitlist.add(tkn);
-            emitIndentToken(tkn);
+            emitIndentToken(tkn, true);
         }
         else
         if (tkn.getType() == InsightLexer.EOL_VALUE) {
             CommonToken eol = new CommonToken(InsightLexer.TEXT, "\n");
             eol.setLine(tkn.getLine());
+            eol.setCharPositionInLine(tkn.getCharPositionInLine());
+            eol.setStartIndex(tkn.getStartIndex());
+            eol.setStopIndex(tkn.getStopIndex());
             waitlist.add(eol);
         }
         else
@@ -139,7 +160,10 @@ public class IndentHelper {
             state.updateToken(tkn);
         }
         while (waitlist.size() == 0);
-        return waitlist.pollFirst();
+        var result = (CommonToken) waitlist.pollFirst();
+        result.setTokenIndex(idx);
+        idx++;
+        return result;
     }
 
     public boolean checkTextBlockBound(String indentationValue) {

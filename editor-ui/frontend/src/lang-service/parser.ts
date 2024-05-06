@@ -10,18 +10,14 @@ const parse = (code: string): {
                               } => {
   const inputStream = CharStream.fromString(code);
   const lexer = new InsightLexer(inputStream);
-
   lexer.removeErrorListeners();
-
   const insightErrorListener = new InsightErrorListener();
   lexer.addErrorListener(insightErrorListener);
 
   const tokenStream = new CommonTokenStream(lexer);
   const parser = new InsightParser(tokenStream);
-
   parser.removeErrorListeners();
   parser.addErrorListener(insightErrorListener);
-
   const ast = parser.insight();
   const errors: InsightError[] = insightErrorListener.getErrors();
 

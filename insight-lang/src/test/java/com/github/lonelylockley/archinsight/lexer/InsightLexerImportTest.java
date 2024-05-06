@@ -16,14 +16,14 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxLongContextAnonymous() throws Exception {
         setup(
                 """
-                -> system ggg in context hhh
+                -> system ggg from context hhh
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("WIRE", "->"),
                 new Pair<>("CONTEXT_ELEMENT_IMPORT", "system"),
                 new Pair<>("IDENTIFIER", "ggg"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n")
@@ -42,13 +42,13 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxShortContextAnonymous() throws Exception {
         setup(
                 """
-                -> ggg in context hhh
+                -> ggg from context hhh
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("WIRE", "->"),
                 new Pair<>("IDENTIFIER", "ggg"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n")
@@ -67,7 +67,7 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxLongContextAnonymousWithParameters() throws Exception {
         setup(
                 """
-                -> system ggg in context hhh
+                -> system ggg from context hhh
                     name = Test
                 """
         );
@@ -75,7 +75,7 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("WIRE", "->"),
                 new Pair<>("CONTEXT_ELEMENT_IMPORT", "system"),
                 new Pair<>("IDENTIFIER", "ggg"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n"),
@@ -105,8 +105,8 @@ public class InsightLexerImportTest extends TestCommon {
                 service test
                     name = Test system
                     links:
-                        -> person ggg in context hhh
-                        -> kkk in context lll
+                        -> person ggg from context hhh
+                        -> kkk from context lll
                         ~> ttt
                 """
         );
@@ -133,13 +133,13 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("WIRE", "->"),
                 new Pair<>("CONTEXT_ELEMENT_IMPORT", "person"),
                 new Pair<>("IDENTIFIER", "ggg"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("WIRE", "->"),
                 new Pair<>("IDENTIFIER", "kkk"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "lll"),
                 new Pair<>("EOL", "\n"),
@@ -161,14 +161,14 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxLongContainerNamed() throws Exception {
         setup(
                 """
-                import service ggg in container hhh as ttt
+                import service ggg from container hhh as ttt
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("CONTAINER_ELEMENT_IMPORT", "service"),
                 new Pair<>("IDENTIFIER", "ggg"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTAINER_IMPORT", "container"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("AS", "as"),
@@ -189,13 +189,13 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxShortContainerNamed() throws Exception {
         setup(
                 """
-                import ggg in container hhh as ttt
+                import ggg from container hhh as ttt
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("IDENTIFIER", "ggg"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTAINER_IMPORT", "container"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("AS", "as"),
@@ -218,7 +218,7 @@ public class InsightLexerImportTest extends TestCommon {
                 """
                 container tms
                 
-                import jjj in context lll as ttt
+                import jjj from context lll as ttt
                 
                 service test
                     name = Test system
@@ -232,7 +232,7 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("EOL", "\n"),
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("IDENTIFIER", "jjj"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "lll"),
                 new Pair<>("AS", "as"),
@@ -275,7 +275,7 @@ public class InsightLexerImportTest extends TestCommon {
                         boundary bb
                             desc = 888
                                         
-                            import translator in container archinsight
+                            import translator from container archinsight
                         """
         );
         List<Pair<String, String>> exp = Stream.of(
@@ -291,7 +291,7 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("DEDENT", "<DEDENT>"),
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("IDENTIFIER", "translator"),
-                new Pair<>("IN", "in"),
+                new Pair<>("FROM", "from"),
                 new Pair<>("CONTAINER_IMPORT", "container"),
                 new Pair<>("IDENTIFIER", "archinsight"),
                 new Pair<>("EOL", "\n")

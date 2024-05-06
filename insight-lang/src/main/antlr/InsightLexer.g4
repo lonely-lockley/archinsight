@@ -99,7 +99,7 @@ mode VALUE_MODE;
 WORD               : NonWs+ -> type(TEXT) ;
 BLANK_VALUE        : BLANK -> type(TEXT), channel(DEFAULT_TOKEN_CHANNEL) ;
 INDENTATION_VALUE  : INDENTATION -> type(INDENTATION), channel(HIDDEN) ;
-EOL_VALUE          : EOL INDENTATION? { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
+EOL_VALUE          : EOL Ws* { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
 EOF_VALUE          : EOF -> type(EOF), popMode ;
 
 mode IMPORT_MODE;

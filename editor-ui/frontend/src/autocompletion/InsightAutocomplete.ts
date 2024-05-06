@@ -26,7 +26,6 @@ export class InsightAutocomplete implements CompletionItemProvider {
     const inputStream = CharStream.fromString(source);
     const lexer = new InsightLexer(inputStream);
     lexer.removeErrorListeners();
-    lexer.enableSingleLineMode();
     const tknSrc = new CompletionTokenSource(lexer, line, col);
     const parser = new InsightParser(new BufferedTokenStream(tknSrc));
     parser.removeErrorListeners();
@@ -49,7 +48,7 @@ export class InsightAutocomplete implements CompletionItemProvider {
                                         return {
                                             label: lexer.vocabulary.getSymbolicName(key),
                                             kind: monaco.languages.CompletionItemKind.Keyword,
-                                            insertText: "???"
+                                            insertText: lexer.vocabulary.getSymbolicName(key)!.toLowerCase()
                                         }
                                     })
             }
@@ -74,7 +73,7 @@ export class InsightAutocomplete implements CompletionItemProvider {
   private computeTokenIndexOfTerminalNode(parseTree: TerminalNode, range: IRange): number | undefined {
       var start = parseTree.symbol.column;
       var stop = parseTree.symbol.column + (parseTree.symbol.stop - parseTree.symbol.start);
-      console.log("dbg: " + parseTree.symbol + " [idx=" + parseTree.symbol.tokenIndex + ", line=" + parseTree.symbol.line + ", start=" + parseTree.symbol.start, ", stop=" + parseTree.symbol.stop + "]  range: [startLineNumber=" + range.startLineNumber + ", endLineNumber=" + range.endLineNumber + ", startColumn=" + range.startColumn + ", endColumn=" + range.endColumn + "]\nEOF=" + parseTree.symbol.type + " || (" + parseTree.symbol.line + "==" + range.endLineNumber + " && " + start + "<=" + (range.endColumn - 2) + " && " + stop + ">=" + (range.endColumn - 2));
+      //console.log("dbg: " + parseTree.symbol + " [idx=" + parseTree.symbol.tokenIndex + ", line=" + parseTree.symbol.line + ", start=" + parseTree.symbol.start, ", stop=" + parseTree.symbol.stop + "]  range: [startLineNumber=" + range.startLineNumber + ", endLineNumber=" + range.endLineNumber + ", startColumn=" + range.startColumn + ", endColumn=" + range.endColumn + "]\nEOF=" + parseTree.symbol.type + " || (" + parseTree.symbol.line + "==" + range.endLineNumber + " && " + start + "<=" + (range.endColumn - 2) + " && " + stop + ">=" + (range.endColumn - 2));
       if (parseTree.symbol.type == InsightLexer.EOF || (parseTree.symbol.line == range.endLineNumber && start <= (range.endColumn - 2) && stop >= (range.endColumn - 2))) {
           return parseTree.symbol.tokenIndex;
       }
