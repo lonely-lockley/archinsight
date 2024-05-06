@@ -82,7 +82,7 @@ systemDeclaration
     ;
 
 systemParameters
-    :    INDENT namedEntityParametersDeclaration connectionDeclaration? DEDENT
+    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
     ;
 
 actorDeclaration
@@ -90,7 +90,7 @@ actorDeclaration
     ;
 
 actorParameters
-    :    INDENT namedEntityParametersDeclaration connectionDeclaration? DEDENT
+    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
     ;
 
 boundaryForContextDeclaration
@@ -126,7 +126,7 @@ serviceDeclaration
     ;
 
 serviceParameters
-    :    INDENT namedEntityParametersDeclaration connectionDeclaration? DEDENT
+    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
     ;
 
 storageDeclaration
@@ -135,16 +135,6 @@ storageDeclaration
 
 storageParameters
     :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
-    ;
-
-namedEntityParametersDeclaration
-    :    ( nameParameter descriptionParameter? technologyParameter?
-         | descriptionParameter? nameParameter technologyParameter?
-         | descriptionParameter? technologyParameter? nameParameter
-         | nameParameter technologyParameter? descriptionParameter?
-         | technologyParameter? nameParameter descriptionParameter?
-         | technologyParameter? descriptionParameter? nameParameter
-         )
     ;
 
 singleEntityParametersDefinition

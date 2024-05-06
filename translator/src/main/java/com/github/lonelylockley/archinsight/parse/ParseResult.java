@@ -5,20 +5,24 @@ import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.elements.EmptyElement;
 import com.github.lonelylockley.archinsight.model.elements.WithParameters;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ParseResult {
 
     private final AbstractElement root;
+    private final List<TranslatorMessage> messages;
 
-    public ParseResult(AbstractElement root) {
+    public ParseResult(AbstractElement root, List<TranslatorMessage> messages) {
         if (root == null) {
             this.root = new EmptyElement();
         }
         else {
             this.root = root;
         }
+        this.messages = messages;
     }
 
     public AbstractElement getRoot() {
@@ -30,8 +34,8 @@ public class ParseResult {
         return "ParseResult{\n%s\n}".format(root.toString());
     }
 
-    public List<Tuple2<String, WithParameters>> getElements() {
-        throw new UnsupportedOperationException();
+    public List<TranslatorMessage> getMessages() {
+        return messages;
     }
 
 }

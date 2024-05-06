@@ -3,13 +3,17 @@ package com.github.lonelylockley.archinsight.parse;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
+import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import org.antlr.v4.runtime.CommonToken;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 
 public class ParseContext {
 
     private final LinkedList<AbstractElement> tree = new LinkedList<>();
+    private ArrayList<TranslatorMessage> messages = new ArrayList<>();
     private AbstractElement currentElement = null;
     private AbstractAnnotation currentAnnotation = null;
     private AbstractImport currentImport = null;
@@ -116,4 +120,13 @@ public class ParseContext {
     public void setPreviousToken(CommonToken previousToken) {
         this.previousToken = previousToken;
     }
+
+    public ArrayList<TranslatorMessage> getMessages() {
+        return messages;
+    }
+
+    public void addMessage(TranslatorMessage message) {
+        this.messages.add(message);
+    }
+
 }

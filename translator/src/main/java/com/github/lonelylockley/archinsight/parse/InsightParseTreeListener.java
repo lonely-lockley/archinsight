@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.parse;
 
+import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
@@ -25,11 +26,6 @@ public class InsightParseTreeListener implements ParseTreeListener {
     private final InsightParser parser = new InsightParser(null);
 
     private final ParseContext ctx = new ParseContext();
-    private final TranslationContext translationContext;
-
-    public InsightParseTreeListener(TranslationContext translationContext) {
-        this.translationContext = translationContext;
-    }
 
     protected void handleToken(CommonToken tkn) {
         switch (tkn.getType()) {
@@ -195,22 +191,56 @@ public class InsightParseTreeListener implements ParseTreeListener {
 //        String ruleName = parser.getRuleNames()[ruleContext.getRuleIndex()];
 //        System.out.println("<<< " + ruleName);
         switch (ruleContext.getRuleIndex()) {
-            case InsightParser.RULE_boundaryContext:
-            case InsightParser.RULE_boundaryContainer:
             case InsightParser.RULE_systemDeclaration:
-            case InsightParser.RULE_wireDeclaration:
             case InsightParser.RULE_actorDeclaration:
             case InsightParser.RULE_serviceDeclaration:
+                if (ctx.getCurrentElementWithParams().getName() == null) {
+                    // name is required error
+                    ctx.addMessage(TranslationUtil.newError(
+                        ctx.getCurrentElement(), "`name` parameter is required"
+                    ));
+                }
+                ctx.finishElement();
+                break;
+            case InsightParser.RULE_boundaryContext:
+            case InsightParser.RULE_boundaryContainer:
+            case InsightParser.RULE_wireDeclaration:
             case InsightParser.RULE_storageDeclaration:
                 ctx.finishElement();
                 break;
             case InsightParser.RULE_descriptionParameter:
+                if (ctx.getCurrentElementWithParams().getDescription() != null) {
+                    // duplicate descriptor warning
+                    var descriptorParameter = new WithSource() {};
+                    descriptorParameter.setSource((CommonToken) ruleContext.getStart());
+                    ctx.addMessage(TranslationUtil.newWarning(
+                        descriptorParameter, "Duplicate `descriptor` parameter declared. It will overwrite previous value"
+                    ));
+                }
                 ctx.getCurrentElementWithParams().setDescription(ctx.getCurrentText());
                 break;
             case InsightParser.RULE_nameParameter:
+                if (ctx.getCurrentElementWithParams().getName() != null) {
+                    // duplicate name warning
+                    var nameParameter = new WithSource() {
+                    };
+                    nameParameter.setSource((CommonToken) ruleContext.getStart());
+                    ctx.addMessage(TranslationUtil.newWarning(
+                        nameParameter, "Duplicate `name` parameter declared. It will overwrite previous value"
+                    ));
+                }
                 ctx.getCurrentElementWithParams().setName(ctx.getCurrentText());
                 break;
             case InsightParser.RULE_technologyParameter:
+                if (ctx.getCurrentElementWithParams().getTechnology() != null) {
+                    // duplicate descriptor warning
+                    var technologyParameter = new WithSource() {
+                    };
+                    technologyParameter.setSource((CommonToken) ruleContext.getStart());
+                    ctx.addMessage(TranslationUtil.newWarning(
+                        technologyParameter, "Duplicate `technology` parameter declared. It will overwrite previous value"
+                    ));
+                }
                 ctx.getCurrentElementWithParams().setTechnology(ctx.getCurrentText());
                 break;
             case InsightParser.RULE_attributeAnnotationDeclaration:
@@ -234,7 +264,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
     }
 
     public ParseResult getResult() {
-        return new ParseResult(ctx.getCurrentElement());
+        return new ParseResult(ctx.getCurrentElement(), ctx.getMessages());
     }
 
 }
