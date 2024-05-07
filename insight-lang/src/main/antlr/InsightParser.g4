@@ -204,9 +204,9 @@ deprecatedAnnotationDeclaration
     ;
 
 commentDeclaration
-    :    COMMENT
+    :    COMMENT EOL?
     ;
 
 noteDeclaration
-    :    COMMENT
+    :    COMMENT EOL?
     ;
