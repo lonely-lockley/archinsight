@@ -62,6 +62,7 @@ export class CompletionTokenSource implements TokenSource {
 //         }
 //         console.log("-----");
 //         console.log("Override tokenIndex: " + this.allTokens[this.allTokens.length - 1].tokenIndex);
+//         return (window as any).ttt == undefined ? this.allTokens[this.allTokens.length - 1].tokenIndex : (window as any).ttt;
         return this.allTokens[this.allTokens.length - 1].tokenIndex;
     }
 
