@@ -85,7 +85,7 @@ EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ 
 BLANK            : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Ws+ -> channel(HIDDEN) ;
 INDENTATION      : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Ws+ -> channel(HIDDEN) ;
 ANNOTATION_VALUE : OpenBracket ( ~[)] )* CloseBracket ;
-COMMENT          : '#' ~[\r\n]+ ;
+COMMENT          : '#' ~[\r\n]* ;
 
 mode NAMESPACE_MODE;
 NAMESPACE           : (LowerLetter (LowerLetter | Digit | '_')*) -> type(IDENTIFIER), popMode ;

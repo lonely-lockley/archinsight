@@ -159,15 +159,15 @@ public class Linker {
                         // - if original element is imported into target namespace
                         if (!targetDescriptor.isDeclared(newId)) {
                             container.addChild(mirrored);
-//                            mirrored.hasId().foreach(withId -> targetDescriptor.declare(withId.getId(), mirrored));
                             targetDescriptor.declare(newId, mirrored);
                         }
                         // create a reversed link from mirrored element to imported one
                         var reverseLink = (LinkElement) le.clone();
                         // copy link and reverse direction
-//                        mirrored.hasId().foreach(withId -> reverseLink.setFrom(withId.getId()));
                         reverseLink.setFrom(newId);
-                        reverseLink.setTo(namespaceAndImportStatement._2.getOriginalElement().hasId().mapOrElse(WithId::getId, null));
+                        if (namespaceAndImportStatement._2.getOriginalElement() != null) {
+                            reverseLink.setTo(namespaceAndImportStatement._2.getOriginalElement().hasId().mapOrElse(WithId::getId, null));
+                        }
                         targetDescriptor.connect(reverseLink);
                         container.addChild(reverseLink);
                     }
@@ -236,8 +236,8 @@ public class Linker {
     private void checkConnections(ParsedFileDescriptor descriptor) {
         descriptor.getConnections()
             .stream()
-            .filter(c ->
-                    !descriptor.isDeclared(c.getTo()))
+            .filter(c -> !descriptor.isDeclared(c.getTo()))
+            .filter(c -> !(c.getTo().startsWith("CONTEXT_") || c.getTo().startsWith("CONTAINER_")))
             .forEach(el -> {
                 var tm = TranslationUtil.newError(descriptor, el,
                     String.format("Undeclared identifier %s", el.getTo())
