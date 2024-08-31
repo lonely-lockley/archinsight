@@ -1,5 +1,5 @@
 import { editor, languages } from 'monaco-editor';
-import * as monaco from 'monaco-editor-core';
+import * as monaco from 'monaco-editor';
 /*
 import { Token, BufferedTokenStream, CharStream, CommonTokenStream, ParseTree, TerminalNode } from 'antlr4ng';
 import { InsightLexer } from '../../generated/insight-lang/InsightLexer';

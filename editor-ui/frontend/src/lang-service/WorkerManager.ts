@@ -1,4 +1,4 @@
-import * as monaco from 'monaco-editor-core';
+import * as monaco from 'monaco-editor';
 
 import Uri = monaco.Uri;
 import { InsightWorker } from './InsightWorker';

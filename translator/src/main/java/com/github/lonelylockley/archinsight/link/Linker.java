@@ -100,7 +100,10 @@ public class Linker {
                         var tm = TranslationUtil.newError(descriptor,
                             "External element imported"
                         );
-                        TranslationUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
+                        var charPosition = imported.getElementSource() == null ? imported.getIdentifierSource().getCharPosition() : imported.getElementSource().getCharPosition();
+                        var start = imported.getElementSource() == null ? imported.getIdentifierSource().getStartIndex() : imported.getElementSource().getStartIndex();
+                        var stop = imported.getIdentifierSource().getStopIndex();
+                        TranslationUtil.copyPosition(tm, imported.getLine(), charPosition, start, stop);
                         ctx.addMessage(tm);
                     });
                 }

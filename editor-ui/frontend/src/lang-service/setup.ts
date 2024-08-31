@@ -1,4 +1,4 @@
-import * as monaco from 'monaco-editor-core';
+import * as monaco from 'monaco-editor';
 import DiagnosticsAdapter from './DiagnosticsAdapter';
 import InsightFormattingProvider from './InsightFormattingProvider';
 import { InsightTokensProvider } from '../InsightHighlight';
