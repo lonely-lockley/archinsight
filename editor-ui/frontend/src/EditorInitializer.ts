@@ -1,4 +1,4 @@
-import * as monaco from 'monaco-editor-core';
+import * as monaco from 'monaco-editor';
 import { languageID } from './lang-service/config';
 import setupLanguage from './lang-service/setup';
 import Renderer from './remote/Renderer';

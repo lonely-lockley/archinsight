@@ -93,7 +93,6 @@
     "lit": "3.1.0",
     "mini-css-extract-plugin": "^2.7.6",
     "monaco-editor": "^0.40.0",
-    "monaco-editor-core": "^0.40.0",
     "node": "^21.2.0",
     "node-polyfill-webpack-plugin": "^2.0.1",
     "npm": "^10.2.5",
@@ -202,8 +201,7 @@
       "date-fns": "2.29.3",
       "linked-list-typescript": "^1.0.15",
       "lit": "3.1.0",
-      "monaco-editor": "^0.40.0",
-      "monaco-editor-core": "^0.40.0"
+      "monaco-editor": "^0.40.0"
     },
     "devDependencies": {
       "@rollup/plugin-replace": "5.0.4",
@@ -223,7 +221,7 @@
       "workbox-core": "7.0.0",
       "workbox-precaching": "7.0.0"
     },
-    "hash": "d0a30e9e3c08b866614258ef633fa6f11500b97bbd97d9eca3d974e9b7229df9"
+    "hash": "2fc265f56c651d7c5b991dc2d6cd53ae89abad29111cc2bdc23e721b6351d40c"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
@@ -294,7 +292,6 @@
     "webpack-bundle-analyzer": "$webpack-bundle-analyzer",
     "ts-loader": "$ts-loader",
     "monaco-editor": "$monaco-editor",
-    "monaco-editor-core": "$monaco-editor-core",
     "@vaadin/a11y-base": "$@vaadin/a11y-base",
     "@vaadin/overlay": "$@vaadin/overlay",
     "@vaadin/side-nav": "$@vaadin/side-nav",

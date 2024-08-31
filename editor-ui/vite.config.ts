@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import path from 'path'
-import type { UserConfigFn } from 'vite'
+import {UserConfigFn} from 'vite'
 import { overrideVaadinConfig } from './vite.generated';
 import settings from './build/vaadin-dev-server-settings.json';
 import { spawn } from 'child_process';
+import {visualizer} from "rollup-plugin-visualizer";
 
 const devBundle = !!process.env.devBundle;
 const frontendBundleFolder = path.resolve(__dirname, settings.frontendBundleOutput);
@@ -27,7 +28,11 @@ const customConfig: UserConfigFn = (env) => ({
         console.log("Copied workers to " + buildOutputFolder);
       }
     },
-  ]
+    // visualizer({
+    //     open: true,
+    //     filename: 'bundle-visualization.html'
+    // }),
+  ],
 });
 
 export default overrideVaadinConfig(customConfig);

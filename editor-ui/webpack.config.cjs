@@ -10,7 +10,7 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin');
  */
 module.exports = {
        entry: {
-         'editor.worker': 'monaco-editor-core/esm/vs/editor/editor.worker.js',
+         'editor.worker': 'monaco-editor/esm/vs/editor/editor.worker.js',
          'insight.worker': './frontend/src/lang-service/insight.worker.ts',
        },
        mode: 'production',

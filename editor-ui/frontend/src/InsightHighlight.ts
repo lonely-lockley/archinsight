@@ -1,6 +1,5 @@
 import { CharStream, Token } from 'antlr4ng';
 import { languages } from 'monaco-editor';
-import * as monaco from 'monaco-editor-core';
 
 import { InsightLexer } from '../generated/insight-lang/InsightLexer';
 import LexerState from './LexerState';

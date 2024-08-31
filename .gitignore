@@ -30,6 +30,7 @@ dev-bundle
 generated
 vite.generated.ts
 webpack.generated.js
+bundle-visualization.html
 
 # Ignore mac-related
 .DS_Store

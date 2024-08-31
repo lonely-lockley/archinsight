@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 
-@Route("")
+@Route(value = "")
 @PageTitle("Archinsight")
 @AnonymousAllowed
 @JsModule("./src/remote/LoginCallback.js")
