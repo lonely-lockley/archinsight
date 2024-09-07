@@ -97,6 +97,9 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     @Override
     public AbstractElement clone() {
         var res = new LinkElement();
+        if (isImported()) {
+            res.setImported();
+        }
         res.name = this.name;
         res.description = this.description;
         res.technology = this.technology;

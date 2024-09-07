@@ -139,6 +139,26 @@ public class TabsComponent extends TabSheet {
         };
         Communication.getBus().register(requestRender);
 
+        final var editorInsertListener = new BaseListener<EditorInsertEvent>() {
+            @Override
+            @Subscribe
+            public void receive(EditorInsertEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    var tab = getSelectedTab();
+                    if (tab != null) {
+                        tab.getEditor().getElement().executeJs("""
+                            var selection = this.editor.getSelection();
+                            console.log(selection);
+                            var op = {range: selection, text: $0, forceMoveMarkers: true};
+                            this.editor.executeEdits('', [op]);
+                            """, e.getCodeToInsert()
+                        );
+                    }
+                }
+            }
+        };
+        Communication.getBus().register(editorInsertListener);
+
         addDetachListener(e -> {
             Communication.getBus().unregister(svgDataListener);
             Communication.getBus().unregister(zoomEventListener);
@@ -147,6 +167,7 @@ public class TabsComponent extends TabSheet {
             Communication.getBus().unregister(fileChangeListener);
             Communication.getBus().unregister(sourceCompilationListener);
             Communication.getBus().unregister(requestRender);
+            Communication.getBus().unregister(editorInsertListener);
         });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {

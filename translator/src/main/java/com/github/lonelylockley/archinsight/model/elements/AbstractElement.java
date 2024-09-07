@@ -6,6 +6,16 @@ import com.github.lonelylockley.archinsight.parse.WithSource;
 
 public abstract class AbstractElement extends WithSource implements HasType, Cloneable {
 
+    private boolean imported = false;
+
+    public boolean isImported() {
+        return imported;
+    }
+
+    public void setImported() {
+        this.imported = true;
+    }
+
     @Override
     public AbstractElement clone() {
         return this;

@@ -3,11 +3,10 @@ package com.github.lonelylockley.archinsight.remote;
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.components.EditorTabComponent;
 import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.DeclarationsParsedEvent;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
-import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
 import com.github.lonelylockley.archinsight.model.remote.translator.*;
-import com.vaadin.flow.component.UI;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -49,6 +48,7 @@ public class ExportSource {
 
     private TranslationResult translateInternal(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
         final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, tabs));
+        Communication.getBus().post(new DeclarationsParsedEvent(translated.getDeclarations()));
         final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
         final var filesWithErrors = new HashSet<UUID>();
         final var messagesByFile = messages
