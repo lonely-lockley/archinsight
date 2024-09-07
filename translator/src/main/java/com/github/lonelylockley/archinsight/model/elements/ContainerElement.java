@@ -13,6 +13,9 @@ public class ContainerElement extends ContextElement {
     @Override
     public AbstractElement clone() {
         var res = new ContainerElement();
+        if (isImported()) {
+            res.setImported();
+        }
         res.setId(this.getId());
         res.getImports().addAll(this.getImports());
         res.getChildren().addAll(this.getChildren());

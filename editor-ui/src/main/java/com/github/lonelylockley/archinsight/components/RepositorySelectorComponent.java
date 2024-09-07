@@ -24,7 +24,8 @@ public class RepositorySelectorComponent extends VerticalLayout {
     public RepositorySelectorComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setWidth("100%");
-        add(initLabel());
+        setPadding(false);
+        setSpacing(false);
 
         var items = listRepositories();
         if (Authentication.playgroundModeEnabled()) {
@@ -38,14 +39,6 @@ public class RepositorySelectorComponent extends VerticalLayout {
         else {
             add(initRepositorySelector(false, items));
         }
-    }
-
-    private Span initLabel() {
-        var label = new Span("Repository");
-        label.getStyle().set("color", "var(--lumo-secondary-text-color)");
-        label.getStyle().set("font-size", "var(--lumo-font-size-s)");
-        label.getStyle().set("font-weight", "500");
-        return label;
     }
 
     private List<RepositoryInfo> listRepositories() {
@@ -64,7 +57,12 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private Button initRepositorySelector(boolean lockedOut, List<RepositoryInfo> items) {
         final var manageRepositoryButton = new Button("<Choose Repository>");
-        manageRepositoryButton.setWidth("100%");
+        manageRepositoryButton.getStyle()
+                .setHeight("40px")
+                .setMarginTop("5px")
+                .setWidth("94%")
+                .setMarginLeft("3%")
+                .setMarginBottom("10px");
         manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         if (items.size() == 1) {
             var item = items.iterator().next();

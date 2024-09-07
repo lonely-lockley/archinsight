@@ -1,12 +1,12 @@
 package com.github.lonelylockley.archinsight.model.remote.translator;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class TranslationResult extends TranslationRequest {
 
     private List<TranslatorMessage> messages = Collections.emptyList();
+    private List<DeclarationContext> declarations = Collections.emptyList();
     private boolean hasErrors = false;
     private TabData edited;
 
@@ -32,5 +32,13 @@ public class TranslationResult extends TranslationRequest {
 
     public void setEdited(TabData edited) {
         this.edited = edited;
+    }
+
+    public List<DeclarationContext> getDeclarations() {
+        return declarations;
+    }
+
+    public void setDeclarations(List<DeclarationContext> declarations) {
+        this.declarations = declarations;
     }
 }

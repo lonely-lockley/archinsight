@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.remote;
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.components.EditorTabComponent;
 import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.DeclarationsParsedEvent;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
 import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
@@ -12,7 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class RenderSource {
@@ -60,6 +60,7 @@ public class RenderSource {
         else {
             long startTime = System.nanoTime();
             final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, tabs));
+            Communication.getBus().post(new DeclarationsParsedEvent(translated.getDeclarations()));
             final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
             final var filesWithErrors = new HashSet<UUID>();
             final var messagesByFile = messages

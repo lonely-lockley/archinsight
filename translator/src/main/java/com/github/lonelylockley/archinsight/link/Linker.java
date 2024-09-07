@@ -25,6 +25,7 @@ public class Linker {
         copy.hasId().foreach(c -> c.setId(imported.getAlias()));
         copy.hasChildren().foreach(c -> c.getChildren().clear());
         copy.hasExternal().foreach(WithExternal::setExternal);
+        copy.setImported();
         // attach named imports to current container and anonymous imports to root container
         var container = root.hasChildren().mapOrElse(
                 Function.identity(),
