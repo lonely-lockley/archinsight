@@ -2,7 +2,6 @@ package com.github.lonelylockley.archinsight.parse;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
-import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.DeprecatedAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.PlannedAnnotation;
@@ -52,7 +51,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
                     }
                 }
                 else {
-                    ctx.getCurrentElementWithId().setId(tkn.getText());
+                    ctx.getCurrentElementWithId().setDeclaredId(tkn.getText());
                     ctx.getCurrentElement().setSource(tkn);
                 }
                 break;
@@ -156,7 +155,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 break;
             case InsightParser.RULE_wireDeclaration:
                 LinkElement le = new LinkElement();
-                le.setFrom(ctx.getCurrentElementWithId().getId());
+                le.setFrom(ctx.getCurrentElementWithId().getDeclaredId());
                 ctx.getCurrentElementWithChildren().addChild(le);
                 ctx.startNewElement(le);
                 break;

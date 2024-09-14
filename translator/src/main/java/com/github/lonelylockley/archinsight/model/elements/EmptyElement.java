@@ -4,13 +4,13 @@ import java.util.UUID;
 
 public class EmptyElement extends AbstractElement implements WithId {
 
-    private String id = "empty_" + UUID.randomUUID();
+    private String declaredId = "empty_" + UUID.randomUUID();
 
     public EmptyElement() {
     }
 
-    public EmptyElement(String id) {
-        this.id = id;
+    public EmptyElement(String declaredId) {
+        this.declaredId = declaredId;
     }
 
     @Override
@@ -24,12 +24,12 @@ public class EmptyElement extends AbstractElement implements WithId {
     }
 
     @Override
-    public void setId(String id) {
-        this.id = id;
+    public void setDeclaredId(String id) {
+        this.declaredId = id;
     }
 
     @Override
-    public String getId() {
-        return id;
+    public String getDeclaredId() {
+        return declaredId;
     }
 }

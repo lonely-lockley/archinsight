@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.components;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.translator.Declaration;
 import com.github.lonelylockley.archinsight.model.remote.translator.DeclarationContext;
+import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.google.common.collect.Ordering;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.UI;
@@ -20,36 +21,40 @@ import com.vaadin.flow.data.provider.hierarchy.TreeData;
 import java.util.*;
 
 @CssImport("./styles/shared-styles.css")
-public class StructureViewComponent extends TreeGrid<Declaration> {
+public class StructureViewComponent extends TreeGrid<StructureViewComponent.DeclarationWithParent> {
 
-    public StructureViewComponent(boolean readOnly) {
+    private final Map<String, Declaration> uniqueMappings = new HashMap<>();
+    private final FileSystem fs;
+
+    public StructureViewComponent(boolean readOnly, FileSystem fs) {
+        this.fs = fs;
         setTreeData(new TreeData<>() {
             @Override
-            public List<Declaration> getChildren(Declaration item) {
+            public List<DeclarationWithParent> getChildren(DeclarationWithParent item) {
             var result = super.getChildren(item);
             if (result.size() > 1) {
-                result = result.stream().sorted((left, right) -> Ordering.natural().compare(left.getName(), right.getName())).toList();
+                result = result.stream().sorted((left, right) -> Ordering.natural().compare(left.declaration.getName(), right.declaration.getName())).toList();
             }
             return result;
             }
         });
         setClassName("prevent-select");
-        setSelectionMode(SelectionMode.NONE);
+        setSelectionMode(SelectionMode.SINGLE);
         initContextMenu(readOnly);
         addComponentHierarchyColumn(node -> {
             var tt = new VerticalLayout();
             tt.setPadding(false);
             tt.setSpacing(false);
-            tt.add(new Span(node.getName()));
+            tt.add(new Span(node.declaration.getName()));
             String text;
             Icon icon;
-            if (node.getExternal() == null) {
+            if (node.declaration.getExternal() == null) {
                 icon = VaadinIcon.LIST.create();
-                text = node.getDeclaredId();
+                text = node.declaration.getDeclaredId();
             }
             else {
                 icon = VaadinIcon.CODE.create();
-                text = String.format("%s%s [%s]", node.getExternal() ? "ext " : "", node.getElementType().toLowerCase(), node.getDeclaredId());
+                text = String.format("%s%s [%s]", node.declaration.getExternal() ? "ext " : "", node.declaration.getElementType().toLowerCase(), node.declaration.getDeclaredId());
             }
             var yy = new Span(text);
             yy.getStyle()
@@ -60,10 +65,7 @@ public class StructureViewComponent extends TreeGrid<Declaration> {
             row.setAlignItems(FlexComponent.Alignment.CENTER);
             row.setHeight("40px");
             row.setSpacing(true);
-            row.setId("gridnode_" + node.getDeclaredId());
-//            if (filesWithErrors.contains(node.getId())) {
-//                text.setClassName("contains-errors");
-//            }
+            row.setId("gridnode_" + node.declaration.getDeclaredId());
             return row;
         }).setAutoWidth(true);
 
@@ -76,15 +78,18 @@ public class StructureViewComponent extends TreeGrid<Declaration> {
             @Subscribe
             public void receive(DeclarationsParsedEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
+                    uniqueMappings.clear();
                     getTreeData().clear();
                     for (DeclarationContext dc : e.getDeclarations()) {
-                        var root = new Declaration();
-                        root.setName(String.format("%s %s", dc.getLevel().toLowerCase(), dc.getDeclaredId()));
-                        root.setDeclaredId(dc.getLocation());
-                        root.setElementType(dc.getLevel());
+                        var tmp = new Declaration();
+                        tmp.setName(String.format("%s %s", dc.getLevel().toLowerCase(), dc.getDeclaredId()));
+                        tmp.setDeclaredId(dc.getLocation());
+                        tmp.setElementType(dc.getLevel());
+                        var root = new DeclarationWithParent(dc, tmp);
                         getTreeData().addItem(null, root);
                         for (Declaration decl : dc.getDeclarations()) {
-                            getTreeData().addItem(root, decl);
+                            uniqueMappings.put(decl.getId().toString(), decl);
+                            getTreeData().addItem(root, new DeclarationWithParent(dc, decl));
                         }
                     }
                     getDataProvider().refreshAll();
@@ -94,8 +99,23 @@ public class StructureViewComponent extends TreeGrid<Declaration> {
         };
         Communication.getBus().register(declarationsParsedListener);
 
+        final var svgElementClickedListener = new BaseListener<SVGElementClickedEvent>() {
+            @Override
+            @Subscribe
+            public void receive(SVGElementClickedEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    var declaration = uniqueMappings.get(e.getElementId());
+                    if (declaration != null) {
+                        Communication.getBus().post(new GotoSourceEvent(declaration));
+                    }
+                }
+            }
+        };
+        Communication.getBus().register(svgElementClickedListener);
+
         addDetachListener(e -> {
             Communication.getBus().unregister(declarationsParsedListener);
+            Communication.getBus().unregister(svgElementClickedListener);
         });
 
         addItemClickListener(e -> {
@@ -105,7 +125,7 @@ public class StructureViewComponent extends TreeGrid<Declaration> {
         });
     }
 
-    private GridContextMenu<Declaration> initContextMenu(boolean readOnly) {
+    private GridContextMenu<DeclarationWithParent> initContextMenu(boolean readOnly) {
         var menu = addContextMenu();
         // =============================================================================================================
        var lb = new Span("Goto declaration");
@@ -116,40 +136,73 @@ public class StructureViewComponent extends TreeGrid<Declaration> {
         lb.setId("repository-tree-view-id");
         final var insertId = menu.addItem(lb, event -> event.getItem().ifPresent(this::insertId));
         // =============================================================================================================
-        lb = new Span("Insert full import");
+        lb = new Span("Insert import statement");
         lb.setId("structure-tree-view-full-import");
         final var insertImportFull = menu.addItem(lb, event -> event.getItem().ifPresent(this::insertFullImport));
         // =============================================================================================================
-        lb = new Span("Insert short import");
+        lb = new Span("Insert anonymous import");
         lb.setId("structure-tree-view-short-import");
         final var insertImportShort = menu.addItem(lb, event -> event.getItem().ifPresent(this::insertShortImport));
         // =============================================================================================================
         return menu;
     }
 
-    private void gotoSource(Declaration selection) {
-        var root = getTreeData().getParent(selection);
-
+    /**
+     * WARNING!!!
+     * This component does not know about tab and file system changes, so in DeclarationContext class information may be stale at some point
+     * Files may be removed at the moment of menu activation
+     * Tabs may be closed
+     */
+    private void gotoSource(StructureViewComponent.DeclarationWithParent selection) {
+        // if file open or activate a tab, then navigate to declaration
+        if (selection.getContext().getFileId() != null) {
+            Communication.getBus().post(new FileOpenRequestEvent(fs.getNode(selection.getContext().getFileId())));
+            Communication.getBus().post(new GotoSourceEvent(selection.getDeclaration()));
+        }
+        // if this is a new tab that was not persisted
+        else {
+            Communication.getBus().post(new TabActivationRequestEvent(selection.getContext().getTabId()));
+            Communication.getBus().post(new GotoSourceEvent(selection.getDeclaration()));
+        }
     }
 
-    private void insertId(Declaration selection) {
-        Communication.getBus().post(new EditorInsertEvent(selection.getDeclaredId()));
+    private void insertId(StructureViewComponent.DeclarationWithParent selection) {
+        Communication.getBus().post(new EditorInsertEvent(selection.declaration.getDeclaredId()));
     }
 
-    private void insertFullImport(Declaration selection) {
+    private void insertFullImport(StructureViewComponent.DeclarationWithParent selection) {
         var root = getTreeData().getParent(selection);
-        Communication.getBus().post(new EditorInsertEvent(String.format("import %s %s from %s", selection.getElementType().toLowerCase(), selection.getDeclaredId(), root.getName())));
+        Communication.getBus().post(new EditorInsertEvent(String.format("import %s %s from %s", selection.declaration.getElementType().toLowerCase(), selection.declaration.getDeclaredId(), root.declaration.getName())));
     }
 
-    private void insertShortImport(Declaration selection) {
+    private void insertShortImport(StructureViewComponent.DeclarationWithParent selection) {
         var root = getTreeData().getParent(selection);
-        Communication.getBus().post(new EditorInsertEvent(String.format("%s %s from %s", selection.getElementType().toLowerCase(), selection.getDeclaredId(), root.getName())));
+        Communication.getBus().post(new EditorInsertEvent(String.format("%s %s from %s", selection.declaration.getElementType().toLowerCase(), selection.declaration.getDeclaredId(), root.declaration.getName())));
     }
 
     public void fixTreeGridRowHeightCalculationBux() {
         UI.getCurrent().access(() -> {
             getElement().executeJs("setTimeout(() => { this.recalculateColumnWidths(); }, 100)");
         });
+    }
+
+    public static class DeclarationWithParent {
+
+        private final DeclarationContext context;
+        private final Declaration declaration;
+
+        public DeclarationWithParent(DeclarationContext context, Declaration declaration) {
+            this.context = context;
+            this.declaration = declaration;
+        }
+
+        public DeclarationContext getContext() {
+            return context;
+        }
+
+        public Declaration getDeclaration() {
+            return declaration;
+        }
     }
 
 }
