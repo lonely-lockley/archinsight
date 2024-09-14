@@ -152,6 +152,7 @@ public class TranslatorService {
                 var le = entry.getValue();
                 if (!le.isImported() && (le.getType() == SYSTEM || le.getType() == ACTOR || le.getType() == SERVICE || le.getType() == STORAGE)) {
                     var decl = new Declaration();
+                    decl.setId(le.getUniqueId());
                     decl.setDeclaredId(entry.getKey());
                     le.hasParameters().foreach(withParameters -> decl.setName(withParameters.getName()));
                     le.hasParameters().foreach(withParameters -> {

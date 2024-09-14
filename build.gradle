@@ -116,6 +116,7 @@ project('insight-lang') {
     }
 
     generateGrammarSource {
+        arguments += ["-visitor"]
         outputDirectory = new File("${project.buildDir}/$GEN_JAVA_SRC/$GEN_JAVA_PKG".toString())
     }
 

@@ -159,6 +159,20 @@ public class TabsComponent extends TabSheet {
         };
         Communication.getBus().register(editorInsertListener);
 
+        final var gotoSource = new BaseListener<GotoSourceEvent>() {
+            @Override
+            @Subscribe
+            public void receive(GotoSourceEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    var tab = getSelectedTab();
+                    if (tab != null) {
+                        tab.getEditor().putCursorInPosition(e.getDeclaration().getLine(), e.getDeclaration().getStartIndex());
+                    }
+                }
+            }
+        };
+        Communication.getBus().register(gotoSource);
+
         addDetachListener(e -> {
             Communication.getBus().unregister(svgDataListener);
             Communication.getBus().unregister(zoomEventListener);
@@ -168,6 +182,7 @@ public class TabsComponent extends TabSheet {
             Communication.getBus().unregister(sourceCompilationListener);
             Communication.getBus().unregister(requestRender);
             Communication.getBus().unregister(editorInsertListener);
+            Communication.getBus().unregister(gotoSource);
         });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
@@ -181,7 +196,7 @@ public class TabsComponent extends TabSheet {
                 var file = new RepositoryNode();
                 file.setType(RepositoryNode.TYPE_FILE);
                 file.setName(restored.getName());
-                Communication.getBus().post(new FileOpenRequestEvent(null, file, Optional.ofNullable(restored.getCode())));
+                Communication.getBus().post(new FileOpenRequestEvent(file, Optional.ofNullable(restored.getCode())));
             }
         });
         clientStorage.restoreOpenedFileLegacy();
@@ -245,6 +260,13 @@ public class TabsComponent extends TabSheet {
 
     public EditorTabComponent getSelectedTab() {
         return (EditorTabComponent) super.getSelectedTab();
+    }
+
+    public void activateTab(String tabId) {
+        var candidate = tabs.get(tabId);
+        if (candidate != null) {
+            setSelectedTab(candidate);
+        }
     }
 
     private Map<String, Map<MessageLevel, Integer>> collectSummary(Map<String, List<TranslatorMessage>> messages) {

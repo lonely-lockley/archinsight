@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public class Declaration {
 
+    private UUID id;
     private String declaredId;
     private String elementType;
     private String name;
@@ -13,6 +14,14 @@ public class Declaration {
     private int startIndex = 0;
     private int stopIndex = 0;
     private int line = 0;
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
     public String getDeclaredId() {
         return declaredId;

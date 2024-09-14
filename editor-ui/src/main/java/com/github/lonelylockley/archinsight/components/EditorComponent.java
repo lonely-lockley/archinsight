@@ -149,4 +149,9 @@ public class EditorComponent extends Div {
         clientCodeCache = code;
     }
 
+    public void putCursorInPosition(int line, int column) {
+        getElement().executeJs("this.editor.setPosition({column: $0, lineNumber: $1})", column, line);
+        getElement().executeJs("this.editor.revealLineInCenter($0)", line);
+    }
+
 }

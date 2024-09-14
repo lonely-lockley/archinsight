@@ -204,7 +204,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
             if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
-                Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
+                Communication.getBus().post(new FileOpenRequestEvent(node));
             }
             else {
                 RepositoryViewComponent.this.expand(selection);
@@ -217,7 +217,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         node.setName(ensureFileExtensionAdded(name));
         node.setType(RepositoryNode.TYPE_FILE);
         node = createNode(node);
-        Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
+        Communication.getBus().post(new FileOpenRequestEvent(node));
     }
 
     private void createDirectory(String name) {
@@ -277,7 +277,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                 var node = fileSystem.getNode(fileId);
                 // open all menu items and select current file
                 select(node);
-                Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node, source));
+                Communication.getBus().post(new FileOpenRequestEvent(node, source));
                 while (node.getParentId() != null) {
                     node = fileSystem.getNode(node.getParentId());
                     expand(node);
@@ -286,4 +286,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         }
     }
 
+    public FileSystem getFileSystem() {
+        return fileSystem;
+    }
 }

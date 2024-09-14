@@ -22,7 +22,7 @@ public class Linker {
 
     private WithChildElements transformToImported(AbstractElement copy, AbstractImport imported, AbstractElement root, ParsedFileDescriptor descriptor) {
         TranslationUtil.copyPosition(copy, imported.getIdentifierSource());
-        copy.hasId().foreach(c -> c.setId(imported.getAlias()));
+        copy.hasId().foreach(c -> c.setDeclaredId(imported.getAlias()));
         copy.hasChildren().foreach(c -> c.getChildren().clear());
         copy.hasExternal().foreach(WithExternal::setExternal);
         copy.setImported();
@@ -112,7 +112,7 @@ public class Linker {
                     // copy position and fix copied attributes if needed
                     var container = transformToImported(copy, imported, root, descriptor);
                     container.addChild(copy);
-                    descriptor.declare(copy.hasId().mapOrElse(WithId::getId, null), copy);
+                    descriptor.declare(copy.hasId().mapOrElse(WithId::getDeclaredId, null), copy);
                 }
             }
         }
@@ -159,7 +159,7 @@ public class Linker {
                         else {
                             newId = String.format("%s_%s_%s", descriptor.getLevel(), descriptor.getNamespace(), le.getFrom());
                         }
-                        mirrored.hasId().foreach(withId -> withId.setId(newId));
+                        mirrored.hasId().foreach(withId -> withId.setDeclaredId(newId));
                         // - if original element is imported into target namespace
                         if (!targetDescriptor.isDeclared(newId)) {
                             container.addChild(mirrored);
@@ -170,7 +170,7 @@ public class Linker {
                         // copy link and reverse direction
                         reverseLink.setFrom(newId);
                         if (namespaceAndImportStatement._2.getOriginalElement() != null) {
-                            reverseLink.setTo(namespaceAndImportStatement._2.getOriginalElement().hasId().mapOrElse(WithId::getId, null));
+                            reverseLink.setTo(namespaceAndImportStatement._2.getOriginalElement().hasId().mapOrElse(WithId::getDeclaredId, null));
                         }
                         targetDescriptor.connect(reverseLink);
                         container.addChild(reverseLink);
@@ -209,7 +209,7 @@ public class Linker {
         }
         else
         if (el.getType() != ElementType.CONTEXT && el.getType() != ElementType.CONTAINER) {
-            var id = el.hasId().mapOrElse(WithId::getId, () -> {
+            var id = el.hasId().mapOrElse(WithId::getDeclaredId, () -> {
                 throw new RuntimeException(String.format("Element of type %s is not supposed to have an identifier", el.getType()));
             });
             if (descriptor.isDeclared(id)) {

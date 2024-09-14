@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 import org.apache.commons.text.WordUtils;
 
 import java.util.Map;
+import java.util.UUID;
 
 public abstract class TranslatorBase {
 
@@ -89,11 +90,18 @@ public abstract class TranslatorBase {
         sb.append("}");
     }
 
-    protected void writeBlock(StringBuilder sb, String id, String name, String tech, String desc, int level, Map<String, String> properties) {
+    protected void writeBlock(StringBuilder sb, UUID uniqueId, String declaredId, String name, String tech, String desc, int level, Map<String, String> properties) {
         String indent = "  ".repeat(level);
         sb.append(indent);
-        sb.append(id);
-        sb.append(" [label=<<table border=\"0\">");
+        sb.append(declaredId);
+        sb.append(" [");
+        if (uniqueId != null) {
+            sb.append("id=\"");
+            sb.append(uniqueId);
+            sb.append("\",");
+        }
+        sb.append("tooltip=\"Alt/Option + Left Mouse Button click - go to declaration\",");
+        sb.append("label=<<table border=\"0\">");
         writeLabelRow(sb, name, true, false);
         writeLabelRow(sb, tech, "point-size=\"10px\"", false, true);
         writeLabelRow(sb, desc, "point-size=\"10px\"", false, false);
@@ -123,7 +131,7 @@ public abstract class TranslatorBase {
         String indent = "  ".repeat(level);
         sb.append(indent);
         sb.append("subgraph cluster_");
-        sb.append(be.getId());
+        sb.append(be.getDeclaredId());
         sb.append(" {\n");
         sb.append(indent);
         if (be.getName() != null || be.getDescription() != null || be.getTechnology() != null) {

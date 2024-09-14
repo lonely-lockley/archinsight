@@ -93,16 +93,28 @@ public class WorkAreaComponent extends VerticalLayout {
             @Override
             @Subscribe
             public void receive(SvgDataEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                menu.enableDiagramBlock();
-            }
+                if (eventWasProducedForCurrentUiId(e)) {
+                    menu.enableDiagramBlock();
+                }
             }
         };
         Communication.getBus().register(svgDataListener);
 
+        final var tabActivationRequestListener = new BaseListener<TabActivationRequestEvent>() {
+            @Override
+            @Subscribe
+            public void receive(TabActivationRequestEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    tabs.activateTab(e.getTabId());
+                }
+            }
+        };
+        Communication.getBus().register(tabActivationRequestListener);
+
         addDetachListener(e -> {
             Communication.getBus().unregister(sourceCompilationListener);
             Communication.getBus().unregister(svgDataListener);
+            Communication.getBus().unregister(tabActivationRequestListener);
         });
     }
 

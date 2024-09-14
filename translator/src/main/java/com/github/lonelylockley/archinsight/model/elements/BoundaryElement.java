@@ -12,7 +12,7 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     private final List<AbstractElement> children = new ArrayList<>();
     private final List<AbstractImport> imports = new ArrayList<>();
 
-    private String id = null;
+    private String declaredId = null;
     private String name = null;
     private String desc = null;
     private String tech = null;
@@ -28,13 +28,13 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     }
 
     @Override
-    public void setId(String id) {
-        this.id = id;
+    public void setDeclaredId(String id) {
+        this.declaredId = id;
     }
 
     @Override
-    public String getId() {
-        return id;
+    public String getDeclaredId() {
+        return declaredId;
     }
 
     @Override
@@ -78,7 +78,7 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
         if (isImported()) {
             res.setImported();
         }
-        res.id = this.id;
+        res.declaredId = this.declaredId;
         res.name = this.name;
         res.desc = this.desc;
         res.tech = this.tech;
@@ -91,7 +91,7 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     @Override
     public String toString() {
         return "BoundaryElement{" +
-                "id='" + id + '\'' +
+                "declaredId='" + declaredId + '\'' +
                 ", name='" + name + '\'' +
                 ", desc='" + desc + '\'' +
                 ", tech='" + tech + '\'' +
@@ -104,12 +104,12 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof WithId that)) return false;
-        return id.equals(that.getId());
+        return declaredId.equals(that.getDeclaredId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(declaredId);
     }
 
     @Override

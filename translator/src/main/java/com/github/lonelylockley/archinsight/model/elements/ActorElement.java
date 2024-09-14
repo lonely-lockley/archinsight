@@ -11,7 +11,7 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
     private final List<AbstractElement> children = new ArrayList<>();
 
-    private String id;
+    private String declaredId;
     private String name;
     private String description;
     private String technology;
@@ -28,13 +28,13 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     }
 
     @Override
-    public void setId(String id) {
-        this.id = id;
+    public void setDeclaredId(String id) {
+        this.declaredId = id;
     }
 
     @Override
-    public String getId() {
-        return id;
+    public String getDeclaredId() {
+        return declaredId;
     }
 
     @Override
@@ -94,7 +94,7 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
             res.setImported();
         }
         res.note = this.note;
-        res.id = this.id;
+        res.declaredId = this.declaredId;
         res.name = this.name;
         res.description = this.description;
         res.technology = this.technology;
@@ -107,7 +107,7 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     @Override
     public String toString() {
         return "SystemElement{" +
-                "id='" + id + '\'' +
+                "declaredId='" + declaredId + '\'' +
                 ", name='" + name + '\'' +
                 ", description='" + description + '\'' +
                 ", technology='" + technology + '\'' +
@@ -119,12 +119,12 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof WithId that)) return false;
-        return id.equals(that.getId());
+        return declaredId.equals(that.getDeclaredId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(declaredId);
     }
 
     @Override
