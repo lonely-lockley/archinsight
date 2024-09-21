@@ -23,11 +23,12 @@ import java.util.*;
 @CssImport("./styles/shared-styles.css")
 public class StructureViewComponent extends TreeGrid<StructureViewComponent.DeclarationWithParent> {
 
-    private final Map<String, Declaration> uniqueMappings = new HashMap<>();
-    private final FileSystem fs;
+    private final Map<String, DeclarationWithParent> uniqueMappingsById = new HashMap<>();
+    private final Map<UUID, DeclarationWithParent> uniqueMappingsByFile = new HashMap<>();
 
-    public StructureViewComponent(boolean readOnly, FileSystem fs) {
-        this.fs = fs;
+    private FileSystem fs;
+
+    public StructureViewComponent(boolean readOnly) {
         setTreeData(new TreeData<>() {
             @Override
             public List<DeclarationWithParent> getChildren(DeclarationWithParent item) {
@@ -78,7 +79,8 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
             @Subscribe
             public void receive(DeclarationsParsedEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    uniqueMappings.clear();
+                    uniqueMappingsById.clear();
+                    uniqueMappingsByFile.clear();
                     getTreeData().clear();
                     for (DeclarationContext dc : e.getDeclarations()) {
                         var tmp = new Declaration();
@@ -86,10 +88,12 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
                         tmp.setDeclaredId(dc.getLocation());
                         tmp.setElementType(dc.getLevel());
                         var root = new DeclarationWithParent(dc, tmp);
+                        uniqueMappingsByFile.put(dc.getFileId(), root);
                         getTreeData().addItem(null, root);
                         for (Declaration decl : dc.getDeclarations()) {
-                            uniqueMappings.put(decl.getId().toString(), decl);
-                            getTreeData().addItem(root, new DeclarationWithParent(dc, decl));
+                            var dwp = new DeclarationWithParent(dc, decl);
+                            uniqueMappingsById.put(decl.getId().toString(), dwp);
+                            getTreeData().addItem(root, dwp);
                         }
                     }
                     getDataProvider().refreshAll();
@@ -104,18 +108,71 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
             @Subscribe
             public void receive(SVGElementClickedEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    var declaration = uniqueMappings.get(e.getElementId());
-                    if (declaration != null) {
-                        Communication.getBus().post(new GotoSourceEvent(declaration));
+                    var dwp = uniqueMappingsById.get(e.getElementId());
+                    if (dwp != null) {
+                        Communication.getBus().post(new GotoSourceEvent(dwp.getDeclaration()));
                     }
                 }
             }
         };
         Communication.getBus().register(svgElementClickedListener);
 
+        final var fileChangeListener = new BaseListener<FileChangeEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileChangeEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    var dwp = uniqueMappingsByFile.get(e.getUpdatedFile().getId());
+                    if (dwp != null) {
+                        dwp.getContext().setLocation(e.getUpdatedFile().getName());
+                        dwp.getDeclaration().setDeclaredId(e.getUpdatedFile().getName());
+                    }
+                    getDataProvider().refreshAll();
+                }
+            }
+        };
+        Communication.getBus().register(fileChangeListener);
+
+        final var fileCloseListener = new BaseListener<FileCloseRequestEvent>() {
+            @Override
+            @Subscribe
+            public void receive(FileCloseRequestEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    if (e.getReason() == FileChangeReason.DELETED) {
+                        for (UUID fileId : e.getDeletedObjects()) {
+                            if (uniqueMappingsByFile.containsKey(fileId)) {
+                                var dwp = uniqueMappingsByFile.remove(fileId);
+                                getTreeData().removeItem(dwp);
+                                for (Declaration decl : dwp.getContext().getDeclarations()) {
+                                    uniqueMappingsById.remove(decl.getId().toString());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        Communication.getBus().register(fileCloseListener);
+
+        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
+            @Override
+            @Subscribe
+            public void receive(RepositoryCloseEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    getTreeData().clear();
+                    uniqueMappingsByFile.clear();
+                    uniqueMappingsById.clear();
+                }
+            }
+        };
+        Communication.getBus().register(repositoryCloseListener);
+
         addDetachListener(e -> {
             Communication.getBus().unregister(declarationsParsedListener);
             Communication.getBus().unregister(svgElementClickedListener);
+            Communication.getBus().unregister(fileChangeListener);
+            Communication.getBus().unregister(fileCloseListener);
+            Communication.getBus().unregister(repositoryCloseListener);
         });
 
         addItemClickListener(e -> {
@@ -144,6 +201,20 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
         lb.setId("structure-tree-view-short-import");
         final var insertImportShort = menu.addItem(lb, event -> event.getItem().ifPresent(this::insertShortImport));
         // =============================================================================================================
+        menu.addGridContextMenuOpenedListener(event -> {
+            if (getTreeData().getRootItems().isEmpty()) {
+                goTo.setEnabled(false);
+                insertId.setEnabled(false);
+                insertImportFull.setEnabled(false);
+                insertImportShort.setEnabled(false);
+            }
+            else {
+                goTo.setEnabled(true);
+                insertId.setEnabled(true);
+                insertImportFull.setEnabled(true);
+                insertImportShort.setEnabled(true);
+            }
+        });
         return menu;
     }
 
