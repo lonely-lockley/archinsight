@@ -286,7 +286,4 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         }
     }
 
-    public FileSystem getFileSystem() {
-        return fileSystem;
-    }
 }

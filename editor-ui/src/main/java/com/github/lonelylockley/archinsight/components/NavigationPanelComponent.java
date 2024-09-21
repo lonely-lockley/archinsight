@@ -11,8 +11,8 @@ public class NavigationPanelComponent extends TabSheet {
         setId("navigation-panel");
         setHeight("100%");
         //getStyle().setMarginRight("-10px").setMarginLeft("-10px");
-        var fileTree = initRepositoryLayout(readOnly);
-        var struct = initStructureLayout(readOnly, fileTree);
+        initRepositoryLayout(readOnly);
+        var struct = initStructureLayout(readOnly);
         addSelectedChangeListener(e -> {
             if (e.getSelectedTab() == struct._1) {
                 // call row height recalculation because of some bug in TreeGrid. This causes flicker, but no solution is known for now
@@ -21,7 +21,7 @@ public class NavigationPanelComponent extends TabSheet {
         });
     }
 
-    private RepositoryViewComponent initRepositoryLayout(boolean readOnly) {
+    private void initRepositoryLayout(boolean readOnly) {
         var layout = new VerticalLayout();
         layout.setPadding(false);
         layout.setSpacing(false);
@@ -34,10 +34,9 @@ public class NavigationPanelComponent extends TabSheet {
         layout.add(repositorySelector);
         layout.add(treeView);
         this.add("Repository", layout);
-        return treeView;
     }
 
-    private Tuple2<Tab, StructureViewComponent> initStructureLayout(boolean readOnly, RepositoryViewComponent fileTree) {
+    private Tuple2<Tab, StructureViewComponent> initStructureLayout(boolean readOnly) {
         var layout = new VerticalLayout();
         layout.setPadding(false);
         layout.setSpacing(false);
@@ -45,7 +44,7 @@ public class NavigationPanelComponent extends TabSheet {
         layout.getStyle().setMarginLeft("-10px").setMarginRight("-10px");
         layout.setHeightFull();
         layout.getStyle().setMarginTop("-6px");
-        var treeView = new StructureViewComponent(readOnly, fileTree.getFileSystem());
+        var treeView = new StructureViewComponent(readOnly);
         layout.add(new StructureExplorerComponent(treeView));
         var tab = this.add("Structure", layout);
         return new Tuple2<>(tab, treeView);
