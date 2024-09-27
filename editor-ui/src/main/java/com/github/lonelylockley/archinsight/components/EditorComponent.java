@@ -26,7 +26,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 @NpmPackage(value = "monaco-editor", version = "^0.40.0")
-@NpmPackage(value = "antlr4ng", version = "3.0.4")
+@NpmPackage(value = "antlr4ng", version = "3.0.5")
 @NpmPackage(value = "antlr4ng-cli", version = "2.0.0")
 @NpmPackage(value = "antlr4-c3", version = "3.4.1")
 @JsModule("./src/EditorInitializer.ts")

@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight.lexer;
 
-import com.github.lonelylockley.insight.lang.InsightLexer2;
-import com.github.lonelylockley.insight.lang.InsightParser2;
+import com.github.lonelylockley.insight.lang.InsightLexer;
+import com.github.lonelylockley.insight.lang.InsightParser;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.ParseTreeListener;
@@ -15,6 +15,8 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.io.StringReader;
 import java.util.Enumeration;
 import java.util.LinkedList;
@@ -37,7 +39,12 @@ public class GrammarDebugger {
         final var txt = new JTextArea("""
                 system test
                     name = yuyuyu
-                \s\s\s
+                
+                    service kocoo
+                        name = bird is a word
+                        links:
+                            -> ff
+                
                 """);
         final var scroll = new JScrollPane(txt);
         final var listener = new DocumentListener() {
@@ -62,7 +69,7 @@ public class GrammarDebugger {
             // </editor-fold>
 
             private long lastUpdate = System.currentTimeMillis();
-            private boolean changed = false;
+            private boolean changed = true;
 
             public void suggest() {
                 if (changed && System.currentTimeMillis() - lastUpdate > 1000) {
@@ -85,6 +92,15 @@ public class GrammarDebugger {
             }
         };
         txt.getDocument().addDocumentListener(listener);
+        txt.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_META) {
+                    listener.changed = true;
+                }
+                super.keyReleased(e);
+            }
+        });
         exec.scheduleAtFixedRate(listener::suggest, 100, 100, TimeUnit.MILLISECONDS);
         wnd.add(scroll);
         wnd.add(treeScroll);
@@ -97,9 +113,9 @@ public class GrammarDebugger {
         System.out.printf("Parsing text until %d:%d. Text length: %d%n", line, column, source.length());
         try {
             CodePointCharStream inputStream = CharStreams.fromReader(new StringReader(source));
-            final var lexer = new InsightLexer2(inputStream);
+            final var lexer = new InsightLexer(inputStream);
 //        lexer.removeErrorListeners();
-            final var parser = new InsightParser2(new CommonTokenStream(lexer));
+            final var parser = new InsightParser(new CommonTokenStream(lexer));
 //        parser.removeErrorListeners();
             final var listener = new ParseTreeListener() {
 

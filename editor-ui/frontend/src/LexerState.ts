@@ -4,13 +4,10 @@ import IState = languages.IState;
 
 class LexerState implements IState {
 
-    TEXT: number;
-
     private _wasText: boolean = false;
     private indentation: number = 0;
 
-     constructor(TEXT: number) {
-        this.TEXT = TEXT;
+     constructor() {
      }
 
      public wasText(): boolean {
@@ -37,14 +34,8 @@ class LexerState implements IState {
          this.indentation--;
      }
 
-     public updateToken(tkn: Token) {
-         if (tkn.type == this.TEXT) {
-             this.setWasText();
-         }
-     }
-
      public clone(): IState {
-         var res = new LexerState(this.TEXT);
+         var res = new LexerState();
          res._wasText = this._wasText;
          res.indentation = this.indentation;
          return res;

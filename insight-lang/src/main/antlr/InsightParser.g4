@@ -8,205 +8,111 @@ package com.github.lonelylockley.insight.lang;
 
 options { tokenVocab = InsightLexer; }
 
-/* This will be the entry point of our parser. */
 insight
-    :    commentDeclaration* levelDeclaration? EOF
+    :   statement* EOF
     ;
 
-levelDeclaration
-    :   ( contextDeclaration namedImportDeclaration* contextElementDeclaration*
-        | containerDeclaration namedImportDeclaration* containerElementDeclaration*
-        )
+importStatement
+    :   IMPORT identifierUsage FROM SYSTEM identifierUsage (AS identifierDeclaration)? EOL
+    |   COMMENT EOL
+    |   EOL
     ;
 
-identifierDeclaration
-    :    IDENTIFIER
+statement
+    :   contextExpression
+    |   annotation EOL
+    |   COMMENT EOL
+    |   EOL
     ;
 
-identifierUsage
-    :    IDENTIFIER
+contextExpression
+    :   EXTERNAL? SYSTEM identifierDeclaration EOL contextDefinition
+    |   ACTOR identifierDeclaration EOL contextParameters
     ;
 
-contextDeclaration
-    :    CONTEXT identifierDeclaration EOL
+contextDefinition
+    :   INDENT nameParameter descriptionParameter? containerExpression* DEDENT
     ;
 
-containerDeclaration
-    :    CONTAINER identifierDeclaration EOL
+containerExpression
+    :   SERVICE identifierDeclaration EOL containerParameters
+    |   STORAGE identifierDeclaration EOL containerParameters
+    |   annotation EOL
+    |   COMMENT EOL
     ;
 
-namedImportDeclaration
-    :   commentDeclaration* IMPORT importElementDeclaration importAliasDeclaration? EOL?
+contextParameters
+    :   INDENT nameParameter descriptionParameter? linksDeclaration? DEDENT
     ;
 
-importAliasDeclaration
-    :   AS identifierDeclaration
+containerParameters
+    :   INDENT (nameParameter | descriptionParameter | technologyParameter)+ linksDeclaration? DEDENT
     ;
 
-anonymousImportDeclaration
-    :   importElementDeclaration
+syncWireParameters
+    :   INDENT (callParameter | descriptionParameter | technologyParameter)+ DEDENT
     ;
 
-importElementDeclaration
-    :   ( importContextElementDeclaration
-        | importContainerElementDeclaration
-        )
+asyncWireParameters
+    :   INDENT (formatParameter | descriptionParameter | technologyParameter | viaParameter)+ DEDENT
     ;
 
-importContextElementDeclaration
-    :   CONTEXT_ELEMENT_IMPORT? identifierUsage FROM importContextDeclaration
-    ;
-
-importContextDeclaration
-    :   CONTEXT_IMPORT identifierUsage
-    ;
-
-importContainerElementDeclaration
-    :   CONTAINER_ELEMENT_IMPORT? identifierUsage FROM importContainerDeclaration
-    ;
-
-importContainerDeclaration
-    :   CONTAINER_IMPORT identifierUsage
-    ;
-
-contextElementDeclaration
-    :    ( systemDeclaration EOL?
-         | actorDeclaration EOL?
-         | boundaryForContextDeclaration EOL?
-         | commentDeclaration
-         )
-    ;
-
-systemDeclaration
-    :    annotationDeclaration* EXTERNAL? SYSTEM identifierDeclaration (noteDeclaration | EOL) systemParameters
-    ;
-
-systemParameters
-    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
-    ;
-
-actorDeclaration
-    :    annotationDeclaration* ACTOR identifierDeclaration (noteDeclaration | EOL) actorParameters
-    ;
-
-actorParameters
-    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
-    ;
-
-boundaryForContextDeclaration
-    :    BOUNDARY identifierDeclaration EOL boundaryContext
-    ;
-
-boundaryForContainerDeclaration
-    :    BOUNDARY identifierDeclaration EOL boundaryContainer
-    ;
-
-boundaryContext
-    :    INDENT boundaryParameters? namedImportDeclaration* contextElementDeclaration+ DEDENT
-    ;
-
-boundaryContainer
-    :    INDENT boundaryParameters? namedImportDeclaration* containerElementDeclaration+ DEDENT
-    ;
-
-boundaryParameters
-    :    entityParametersDefinition
-    ;
-
-containerElementDeclaration
-    :    ( serviceDeclaration EOL?
-         | storageDeclaration EOL?
-         | boundaryForContainerDeclaration EOL?
-         | INDENT* commentDeclaration
-         )
-    ;
-
-serviceDeclaration
-    :    annotationDeclaration* EXTERNAL? SERVICE identifierDeclaration (noteDeclaration | EOL) serviceParameters
-    ;
-
-serviceParameters
-    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
-    ;
-
-storageDeclaration
-    :    annotationDeclaration* EXTERNAL? STORAGE identifierDeclaration (noteDeclaration | EOL) storageParameters
-    ;
-
-storageParameters
-    :    INDENT singleEntityParametersDefinition connectionDeclaration? DEDENT
-    ;
-
-singleEntityParametersDefinition
-    :    ( nameParameter
-         | descriptionParameter
-         | technologyParameter
-         )+
-    ;
-
-entityParametersDefinition
-    :    ( nameParameter
-         | descriptionParameter
-         | technologyParameter
-         )*
-    ;
-
-nameParameter
-    :    NAME EQ parameterValue
-    ;
-
-descriptionParameter
-    :    DESCRIPTION EQ parameterValue
-    ;
-
-technologyParameter
-    :    TECHNOLOGY EQ parameterValue
-    ;
-
-parameterValue
-    :    INDENT textLine+ DEDENT
-    ;
-
-textLine
-    :    TEXT+ EOL?
-    ;
-
-connectionDeclaration
-    :    LINKS COLON EOL wireList
+linksDeclaration
+    :   LINKS COLON EOL wireList
     ;
 
 wireList
-    :    INDENT wireDeclaration+ DEDENT
+    :   INDENT wireDeclaration+ DEDENT
     ;
 
 wireDeclaration
-    :    annotationDeclaration? WIRE (anonymousImportDeclaration | identifierUsage) EOL? wireParameters? EOL?
+    :   annotation
+    |   SWIRE identifierUsage EOL syncWireParameters?
+    |   AWIRE identifierUsage EOL asyncWireParameters?
     ;
 
-wireParameters
-    :    INDENT entityParametersDefinition DEDENT
+nameParameter
+    :   NAME EQ parameterValue EOL
     ;
 
-annotationDeclaration
-    :   (attributeAnnotationDeclaration | plannedAnnotationDeclaration | deprecatedAnnotationDeclaration) (commentDeclaration | EOL)
+descriptionParameter
+    :   DESCRIPTION EQ parameterValue EOL
     ;
 
-attributeAnnotationDeclaration
-    :   ATTRIBUTE ANNOTATION_VALUE
+technologyParameter
+    :   TECHNOLOGY EQ parameterValue EOL
     ;
 
-plannedAnnotationDeclaration
-    :   PLANNED
+viaParameter
+    :   VIA EQ parameterValue EOL
     ;
 
-deprecatedAnnotationDeclaration
-    :   DEPRECATED
+callParameter
+    :   CALL EQ parameterValue EOL
     ;
 
-commentDeclaration
-    :    COMMENT EOL?
+formatParameter
+    :   FORMAT EQ parameterValue EOL
     ;
 
-noteDeclaration
-    :    COMMENT EOL?
+parameterValue
+    :   WRAP TEXT+ UNWRAP
+    ;
+
+identifierDeclaration
+    :   IDENTIFIER
+    ;
+
+identifierUsage
+    :   IDENTIFIER
+    ;
+
+annotation
+    :   ATTRIBUTE annotationValue
+    |   PLANNED annotationValue
+    |   DEPRECATED annotationValue
+    ;
+
+annotationValue
+    :   LPAREN TEXT? RPAREN
     ;
