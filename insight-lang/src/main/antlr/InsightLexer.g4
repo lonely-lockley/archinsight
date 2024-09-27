@@ -23,46 +23,49 @@ import com.github.lonelylockley.archinsight.lexer.*;
     return tkn;
   }
 
-  public LexerState snapshotState() {
-    return helper.snapshotState();
-  }
-
-  public void restoreState(LexerState state) {
-    helper.restoreState(state);
-  }
-
-  public void enableSingleLineMode() {
-    helper.enableSingleLineMode();
+  public Pair<TokenSource, CharStream> getTokenFactorySourcePair() {
+    return super._tokenFactorySourcePair;
   }
 
   private void debugPrinter(Token tkn) {
       final String rawType = getVocabulary().getSymbolicName(tkn.getType());
       System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",mode=" + _mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
   }
+
+  public LexerState snapshotState() {
+      return helper.snapshotState();
+  }
+
+  public void restoreState(LexerState state) {
+      helper.restoreState(state);
+  }
+
+  public void enableSingleLineMode() {
+      helper.enableSingleLineMode();
+  }
 /* </override> */
 }
 
-tokens { INDENT, DEDENT, IDENTIFIER, TEXT }
-
-/* Levels */
-CONTEXT     : 'context'   -> pushMode(NAMESPACE_MODE) ;
-CONTAINER   : 'container' -> pushMode(NAMESPACE_MODE) ;
+tokens { INDENT, DEDENT, WRAP, UNWRAP, TEXT }
 
 /* Keywords */
-EXTERNAL    : ('external' | 'ext') ;
-SYSTEM      : ('system')           -> pushMode(IDENTIFIER_MODE) ;
-ACTOR       : ('actor')            -> pushMode(IDENTIFIER_MODE) ;
+EXTERNAL    : ('external') ;
+SYSTEM      : ('system') ;
+ACTOR       : ('actor') ;
+SERVICE     : ('service') ;
+STORAGE     : ('storage') ;
 NAME        : ('name') ;
-DESCRIPTION : ('description' | 'desc') ;
-TECHNOLOGY  : ('technology' | 'tech') ;
+DESCRIPTION : ('description') ;
+TECHNOLOGY  : ('technology') ;
+VIA         : ('via') ;
+CALL        : ('call') ;
+FORMAT      : ('format') ;
 LINKS       : ('links') ;
-WIRE        : ('->' | '~>')        -> pushMode(IMPORT_MODE) ;
-SERVICE     : ('service')          -> pushMode(IDENTIFIER_MODE) ;
-STORAGE     : ('storage')          -> pushMode(IDENTIFIER_MODE) ;
-BOUNDARY    : ('boundary')         -> pushMode(IDENTIFIER_MODE) ;
-IMPORT      : ('import')           -> pushMode(IMPORT_MODE) ;
-AS          : ('as')               -> pushMode(IMPORT_MODE) ;
-FROM        : ('from')             -> pushMode(IMPORT_MODE);
+SWIRE       : ('->') ;
+AWIRE       : ('~>') ;
+IMPORT      : ('import') ;
+FROM        : ('from') ;
+AS          : ('as') ;
 
 /* Annotations */
 ATTRIBUTE  : ('@attribute') ;
@@ -75,37 +78,19 @@ fragment Digit        : '0'..'9' ;
 fragment Nl           : ('\r'?'\n' | '\n')  ;
 fragment Ws           : (' ' | '\t' | '\u000C') ;
 fragment NonWs        : ~(' ' | '\t' | '\u000C' | '\r' | '\n') ;
-fragment OpenBracket  : '(' ;
-fragment CloseBracket : ')' ;
 
-COLON            : ':' ;
-EQ               : '=' Ws* -> pushMode(VALUE_MODE) ;
-EOL              : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Nl ;
-EMPTY_LINE       : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Nl -> skip ;
-BLANK            : { /* <position> */ getCharPositionInLine() /* </position> */ > 0 }? Ws+ -> channel(HIDDEN) ;
-INDENTATION      : { /* <position> */ getCharPositionInLine() /* </position> */ == 0 }? Ws+ -> channel(HIDDEN) ;
-ANNOTATION_VALUE : OpenBracket ( ~[)] )* CloseBracket ;
-COMMENT          : '#' ~[\r\n]* ;
-
-mode NAMESPACE_MODE;
-NAMESPACE           : (LowerLetter (LowerLetter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
-BLANK_NAMESPACE     : BLANK -> skip ;
-
-mode IDENTIFIER_MODE;
-ID                : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
-BLANK_INDENTIFIER : BLANK -> skip ;
+EOL        : Nl+ (Ws+)? { this.helper.checkIndentation(); } ;
+COMMENT    : '#' ~[\r\n]* ;
+IDENTIFIER : (LowerLetter (Letter | Digit | '_')*) ;
+BLANK      : Ws+ -> skip ;
+EQ         : '=' Ws* -> pushMode(VALUE_MODE) ;
+LPAREN     : '(' -> pushMode(ANNOTATION_PARAMETERS) ;
+COLON      : ':' ;
 
 mode VALUE_MODE;
-WORD               : NonWs+ -> type(TEXT) ;
-BLANK_VALUE        : BLANK -> type(TEXT), channel(DEFAULT_TOKEN_CHANNEL) ;
-INDENTATION_VALUE  : INDENTATION -> type(INDENTATION), channel(HIDDEN) ;
-EOL_VALUE          : EOL Ws* { /* <helper> */ if (helper.checkTextBlockBound(getText())) { popMode(); } /* </helper> */ } ;
-EOF_VALUE          : EOF -> type(EOF), popMode ;
+VALUE_TEXT :  NonWs ~[\r\n]* { this.helper.wrapValue(); }  -> type(TEXT) ;
+VALUE_EOL  :  Nl+ (Ws+)? { this.helper.unwrapValue(); } -> type(EOL);
 
-mode IMPORT_MODE;
-CONTEXT_IMPORT           : CONTEXT -> popMode, pushMode(NAMESPACE_MODE) ;
-CONTAINER_IMPORT         : CONTAINER -> popMode, pushMode(NAMESPACE_MODE) ;
-CONTEXT_ELEMENT_IMPORT   : (SYSTEM | ACTOR) ;
-CONTAINER_ELEMENT_IMPORT : (SERVICE | STORAGE) ;
-IDENTIFIER_IMPORT        : (LowerLetter (Letter | Digit | '_')*) -> type(IDENTIFIER), popMode ;
-BLANK_IMPORT             : BLANK -> skip ;
+mode ANNOTATION_PARAMETERS;
+PARAMETERS_TEXT : ~[()]+ -> type(TEXT);
+RPAREN          : ')' -> popMode;

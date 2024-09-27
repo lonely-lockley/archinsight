@@ -27,7 +27,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
     private final ParseContext ctx = new ParseContext();
 
     protected void handleToken(CommonToken tkn) {
-        switch (tkn.getType()) {
+        /*switch (tkn.getType()) {
             case InsightLexer.IDENTIFIER:
                 if (ctx.getCurrentElement().getType() == LINK && ctx.getCurrentImport() == null) {
                     ctx.getCurrentElementAsLink().setTo(tkn.getText());
@@ -98,7 +98,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
             default:
                 break;
         }
-        ctx.setPreviousToken(tkn);
+        ctx.setPreviousToken(tkn);*/
     }
 
     @Override
@@ -115,7 +115,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
     public void enterEveryRule(ParserRuleContext ruleContext) {
 //        String ruleName = parser.getRuleNames()[ruleContext.getRuleIndex()];
 //        System.out.println(">>> " + ruleName);
-        switch (ruleContext.getRuleIndex()) {
+/*        switch (ruleContext.getRuleIndex()) {
             case InsightParser.RULE_contextDeclaration:
                 ctx.startNewElement(new ContextElement());
                 break;
@@ -182,14 +182,14 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 break;
             default:
                 break;
-        }
+        }*/
     }
 
     @Override
     public void exitEveryRule(ParserRuleContext ruleContext) {
 //        String ruleName = parser.getRuleNames()[ruleContext.getRuleIndex()];
 //        System.out.println("<<< " + ruleName);
-        switch (ruleContext.getRuleIndex()) {
+   /*     switch (ruleContext.getRuleIndex()) {
             case InsightParser.RULE_systemDeclaration:
             case InsightParser.RULE_actorDeclaration:
             case InsightParser.RULE_serviceDeclaration:
@@ -259,7 +259,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 break;
             default:
                 break;
-        }
+        }*/
     }
 
     public ParseResult getResult() {

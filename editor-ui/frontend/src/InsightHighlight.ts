@@ -45,11 +45,11 @@ export class InsightTokensProvider implements TokensProvider {
   operator = new Set(['EQ', 'LINKS']);
 
   getInitialState(): languages.IState {
-    return new LexerState(InsightLexer.TEXT);
+    return new LexerState();
   }
 
   tokenize(line: string, state: IState): languages.ILineTokens {
-    const inputStream = CharStream.fromString(line);
+    const inputStream = CharStream.fromString('\n' + line);
     const lexer = new InsightLexer(inputStream);
     lexer.enableSingleLineMode();
     lexer.removeErrorListeners();
@@ -93,8 +93,8 @@ export class InsightTokensProvider implements TokensProvider {
     }
 
     var tt = lexer.snapshotState();
-    //var st = state as LexerState;
-    //console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
+    var st = state as LexerState;
+    console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
     return { tokens: tokens, endState: tt };
   }
 }

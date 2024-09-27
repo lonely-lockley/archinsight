@@ -1,18 +1,10 @@
 package com.github.lonelylockley.archinsight.lexer;
 
-import com.github.lonelylockley.insight.lang.InsightLexer;
-import com.github.lonelylockley.insight.lang.InsightParser;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.misc.Pair;
-import org.antlr.v4.runtime.tree.ErrorNode;
-import org.antlr.v4.runtime.tree.ParseTreeListener;
-import org.antlr.v4.runtime.tree.TerminalNode;
 import org.testng.Assert;
-import org.testng.Assert.*;
 import org.testng.annotations.*;
 
-import java.io.StringReader;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
@@ -22,11 +14,11 @@ public class InsightLexerContextBasicTest extends TestCommon {
     @Test
     public void testContextDefinition() throws Exception {
         setup("""
-                context tms
+                system tms
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
+                new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n")
         ).toList();
@@ -43,24 +35,25 @@ public class InsightLexerContextBasicTest extends TestCommon {
     @Test
     public void testSystemDefinition() throws Exception {
         setup("""
-                context tms
-                system test
-                    name = Test
+                system tms
+                    service test
+                        name = Test
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
+                new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
-                new Pair<>("SYSTEM", "system"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("SERVICE", "service"),
                 new Pair<>("IDENTIFIER", "test"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -75,25 +68,26 @@ public class InsightLexerContextBasicTest extends TestCommon {
     @Test
     public void testSystemDefinitionWithEmptyLine() throws Exception {
         setup("""
-                context tms
+                system tms
                 
-                system test
-                    name = Test
+                    service test
+                        name = Test
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
+                new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
-                new Pair<>("SYSTEM", "system"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("SERVICE", "service"),
                 new Pair<>("IDENTIFIER", "test"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -107,27 +101,28 @@ public class InsightLexerContextBasicTest extends TestCommon {
     }
 
     @Test
-    public void testExtSystemDefinitionWithEmptyLine() throws Exception {
+    public void testExtSystemDefinition() throws Exception {
         setup("""
-                context tms
-                ext system test
-                    name = Test
+                external system tms
+                    service test
+                        name = Test
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
+                new Pair<>("EXTERNAL", "external"),
+                new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
-                new Pair<>("EXTERNAL", "ext"),
-                new Pair<>("SYSTEM", "system"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("SERVICE", "service"),
                 new Pair<>("IDENTIFIER", "test"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -139,27 +134,29 @@ public class InsightLexerContextBasicTest extends TestCommon {
         Assert.assertTrue(state.wasText());
     }
     @Test
-    public void testExtSystemDefinitionWithoutEmptyLine() throws Exception {
+    public void testExtSystemDefinitionWithEmptyLine() throws Exception {
         setup("""
-                context tms
-                external system test
-                    name = Test
+                external system tms
+                
+                    storage test
+                        name = Test
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
-                new Pair<>("IDENTIFIER", "tms"),
-                new Pair<>("EOL", "\n"),
                 new Pair<>("EXTERNAL", "external"),
                 new Pair<>("SYSTEM", "system"),
+                new Pair<>("IDENTIFIER", "tms"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("STORAGE", "storage"),
                 new Pair<>("IDENTIFIER", "test"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -174,29 +171,28 @@ public class InsightLexerContextBasicTest extends TestCommon {
     @Test
     public void testSystemDefinitionMultilineText() throws Exception {
         setup("""
-                context tms
-                system test
-                    name = Test
-                        Uuu TTT
+                system tms
+                    storage test
+                        name = Test
+                            Uuu TTT
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
+                new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
-                new Pair<>("SYSTEM", "system"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("STORAGE", "storage"),
                 new Pair<>("IDENTIFIER", "test"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
                 new Pair<>("TEXT", "\n"),
-                new Pair<>("TEXT", "Uuu"),
-                new Pair<>("TEXT", " "),
-                new Pair<>("TEXT", "TTT"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("TEXT", "Uuu TTT"),
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -211,56 +207,55 @@ public class InsightLexerContextBasicTest extends TestCommon {
     @Test
     public void testSystemDefinitionWithLinks() throws Exception {
         setup("""
-                context tms
-                system test
-                    name = Test
-                        Uuu TTT
-                    links:
-                        -> kkk
-                            tech = aa
-                            desc = oo
-                                ll
+                system tms
+                    service test
+                        name = Test
+                            Uuu TTT
+                        links:
+                            -> kkk
+                                technology = aa
+                                description = oo
+                                    ll
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
+                new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
-                new Pair<>("SYSTEM", "system"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("SERVICE", "service"),
                 new Pair<>("IDENTIFIER", "test"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
                 new Pair<>("TEXT", "\n"),
-                new Pair<>("TEXT", "Uuu"),
-                new Pair<>("TEXT", " "),
-                new Pair<>("TEXT", "TTT"),
-                new Pair<>("TEXT", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("TEXT", "Uuu TTT"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
                 new Pair<>("LINKS", "links"),
                 new Pair<>("COLON", ":"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("WIRE", "->"),
+                new Pair<>("SWIRE", "->"),
                 new Pair<>("IDENTIFIER", "kkk"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("TECHNOLOGY", "tech"),
+                new Pair<>("TECHNOLOGY", "technology"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "aa"),
-                new Pair<>("TEXT", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DESCRIPTION", "desc"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DESCRIPTION", "description"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "oo"),
                 new Pair<>("TEXT", "\n"),
                 new Pair<>("TEXT", "ll"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();

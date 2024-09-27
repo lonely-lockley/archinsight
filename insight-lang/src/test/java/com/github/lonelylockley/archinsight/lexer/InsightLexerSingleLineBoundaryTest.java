@@ -38,7 +38,7 @@ public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testBoundaryDefinition() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
         setup(
                 """
                 boundary bb
@@ -62,7 +62,7 @@ public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testBoundaryDescription() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
         setup(
                 """
                     desc = klfvb  dlkfvb
@@ -91,7 +91,7 @@ public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testBoundaryEmptyLine() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
         setup(
                 """
                 
@@ -111,7 +111,7 @@ public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testSystemDefinition() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
 //        state.incIndentation();
 //        state.incIndentation();
 //        state.setWasText();
@@ -139,7 +139,7 @@ public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testSystemDefinitionMultilineText() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
         state.incIndentation();
         setup(
                 """
@@ -169,7 +169,7 @@ public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testSystemDefinitionSingleLineTextCorrectExit() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
         state.incIndentation();
         state.incIndentation();
         state.setWasText();
@@ -201,7 +201,7 @@ public class InsightLexerSingleLineBoundaryTest extends TestCommon {
 
     @Test
     public void testSystemDefinitionMultilineTextCorrectExit() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
         state.incIndentation();
         state.incIndentation();
         state.setWasText();

@@ -1,6 +1,5 @@
 package com.github.lonelylockley.archinsight.lexer;
 
-import com.github.lonelylockley.insight.lang.InsightLexer;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.misc.Pair;
 import org.testng.Assert;
@@ -16,11 +15,13 @@ public class InsightLexerSingleLineBasicTest extends TestCommon {
     public void testContextDefinition() throws Exception {
         setup(
                 """
-                context tms
+                
+                system tms
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n")
         ).toList();
@@ -35,45 +36,23 @@ public class InsightLexerSingleLineBasicTest extends TestCommon {
     }
 
     @Test
-    public void testSystemDefinitionRequiresName() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
-        setup(
-                """
-                system test
-                """
-        );
-        lexer.restoreState(state);
-        List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("SYSTEM", "system"),
-                new Pair<>("IDENTIFIER", "test"),
-                new Pair<>("EOL", "\n")
-        ).toList();
-        Iterator<Pair<String, String>> it1 = exp.iterator();
-        List<? extends Token> act = lexer.getAllTokens();
-        Assert.assertEquals(act.size(), exp.size());
-        act.forEach(tkn ->  checkElement((CommonToken) tkn, it1.next()));
-        Assert.assertFalse(it1.hasNext());
-        state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 0);
-        Assert.assertFalse(state.wasText());
-    }
-
-    @Test
     public void testSystemDefinition() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
+        LexerState state = new LexerState();
         setup(
                 """
+                
                     name = Test
                 """
         );
         lexer.restoreState(state);
         List<Pair<String, String>> exp = Stream.of(
+                new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it2 = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -81,27 +60,26 @@ public class InsightLexerSingleLineBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it2.next()));
         Assert.assertFalse(it2.hasNext());
         state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertEquals(state.getIndentation(), 1);
         Assert.assertTrue(state.wasText());
     }
 
     @Test
     public void testSystemDefinitionMultilineText() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
-        state.incIndentation();
+        LexerState state = new LexerState();
         state.incIndentation();
         state.setWasText();
         setup(
                 """
+                
                         Uuu TTT
                 """
         );
         lexer.restoreState(state);
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("TEXT", "Uuu"),
-                new Pair<>("TEXT", " "),
-                new Pair<>("TEXT", "TTT"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("TEXT", "\n"),
+                new Pair<>("TEXT", "Uuu TTT"),
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it3 = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -109,31 +87,30 @@ public class InsightLexerSingleLineBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it3.next()));
         Assert.assertFalse(it3.hasNext());
         state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertEquals(state.getIndentation(), 1);
         Assert.assertTrue(state.wasText());
     }
 
     @Test
     public void testSystemDefinitionSingleLineTextCorrectExit() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
-        state.incIndentation();
+        LexerState state = new LexerState();
         state.incIndentation();
         state.setWasText();
         setup(
                 """
-                    desc = vvv g
+                
+                    description = vvv g
                 """
         );
         lexer.restoreState(state);
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DESCRIPTION", "desc"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DESCRIPTION", "description"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("TEXT", "vvv"),
-                new Pair<>("TEXT", " "),
-                new Pair<>("TEXT", "g"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "vvv g"),
+                new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it3 = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -141,24 +118,25 @@ public class InsightLexerSingleLineBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it3.next()));
         Assert.assertFalse(it3.hasNext());
         state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertEquals(state.getIndentation(), 1);
         Assert.assertTrue(state.wasText());
     }
 
     @Test
     public void testSystemDefinitionMultilineTextCorrectExit() throws Exception {
-        LexerState state = new LexerState(InsightLexer.TEXT);
-        state.incIndentation();
+        LexerState state = new LexerState();
         state.incIndentation();
         state.setWasText();
         setup(
                 """
+                
                 system nnn
                 """
         );
         lexer.restoreState(state);
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
                 new Pair<>("DEDENT", "<DEDENT>"),
                 new Pair<>("SYSTEM", "system"),
                 new Pair<>("IDENTIFIER", "nnn"),

@@ -81,7 +81,7 @@
     "@vaadin/vertical-layout": "24.3.0",
     "@vaadin/virtual-list": "24.3.0",
     "antlr4-c3": "3.4.1",
-    "antlr4ng": "3.0.4",
+    "antlr4ng": "3.0.5",
     "antlr4ng-cli": "2.0.0",
     "compression-webpack-plugin": "^10.0.0",
     "construct-style-sheets-polyfill": "3.1.0",
@@ -195,7 +195,7 @@
       "@vaadin/vertical-layout": "24.3.0",
       "@vaadin/virtual-list": "24.3.0",
       "antlr4-c3": "3.4.1",
-      "antlr4ng": "3.0.4",
+      "antlr4ng": "3.0.5",
       "antlr4ng-cli": "2.0.0",
       "construct-style-sheets-polyfill": "3.1.0",
       "date-fns": "2.29.3",
@@ -221,7 +221,7 @@
       "workbox-core": "7.0.0",
       "workbox-precaching": "7.0.0"
     },
-    "hash": "2fc265f56c651d7c5b991dc2d6cd53ae89abad29111cc2bdc23e721b6351d40c"
+    "hash": "fff7ed5601e6e611fd8fb07d7f1e8849491d4394fde697f821c3e87175a02aad"
   },
   "overrides": {
     "@vaadin/bundles": "$@vaadin/bundles",
