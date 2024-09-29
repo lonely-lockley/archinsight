@@ -38,13 +38,16 @@ public class GrammarDebugger {
         treeScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         final var txt = new JTextArea("""
                 system test
-                    name = yuyuyu
+                    name = TEST
                 
-                    service kocoo
-                        name = bird is a word
+                    @attribute(123)
+                    service rr
+                        name = RR
                         links:
-                            -> ff
-                
+                            -> jjj
+                                call = /api/test
+
+                system yyy
                 """);
         final var scroll = new JScrollPane(txt);
         final var listener = new DocumentListener() {

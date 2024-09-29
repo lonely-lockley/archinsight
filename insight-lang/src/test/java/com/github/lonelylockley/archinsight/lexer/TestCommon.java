@@ -19,6 +19,11 @@ public abstract class TestCommon {
     protected void setup(String text) throws Exception {
         CodePointCharStream inputStream = CharStreams.fromReader(new StringReader(text));
         lexer = new InsightLexer(inputStream);
+    }
+
+    protected void setupSingleLine(String text) throws Exception {
+        CodePointCharStream inputStream = CharStreams.fromReader(new StringReader(text));
+        lexer = new InsightLexer(inputStream);
         lexer.enableSingleLineMode();
     }
 

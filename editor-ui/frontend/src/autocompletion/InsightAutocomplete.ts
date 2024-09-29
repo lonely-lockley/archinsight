@@ -1,12 +1,12 @@
 import { editor, languages } from 'monaco-editor';
 import * as monaco from 'monaco-editor';
-/*
+
 import { Token, BufferedTokenStream, CharStream, CommonTokenStream, ParseTree, TerminalNode } from 'antlr4ng';
 import { InsightLexer } from '../../generated/insight-lang/InsightLexer';
 import { InsightParser } from '../../generated/insight-lang/InsightParser';
 import { CompletionTokenSource } from './CompletionTokenSource';
 import { CodeCompletionCore } from 'antlr4-c3'
-*/
+
 
 import ITextModel = editor.ITextModel;
 import IWordAtPosition = editor.IWordAtPosition;
@@ -21,7 +21,7 @@ import CompletionList = languages.CompletionList;
 import CompletionItem = languages.CompletionItem;
 
 export class InsightAutocomplete implements CompletionItemProvider {
-/*
+
   private suggest(source: string, line: number, col: number, range: IRange, context: CompletionContext, endOfLine: boolean): CompletionList | undefined {
     const inputStream = CharStream.fromString(source);
     const lexer = new InsightLexer(inputStream);
@@ -37,8 +37,7 @@ export class InsightAutocomplete implements CompletionItemProvider {
     var core = new CodeCompletionCore(parser);
     core.ignoredTokens = new Set([
       InsightLexer.INDENT, InsightLexer.DEDENT, InsightLexer.EOL, InsightLexer.EOF, InsightLexer.COMMENT,
-      InsightLexer.COLON, InsightLexer.EQ, InsightLexer.ANNOTATION_VALUE, InsightLexer.BLANK, InsightLexer.TEXT,
-      InsightLexer.IDENTIFIER
+      InsightLexer.COLON, InsightLexer.EQ, InsightLexer.BLANK, InsightLexer.TEXT, InsightLexer.IDENTIFIER
     ]);
     var index = tknSrc.computeTokenIndex(line, col);
     var suggestions = core.collectCandidates(index);
@@ -52,7 +51,8 @@ export class InsightAutocomplete implements CompletionItemProvider {
                 case InsightLexer.ACTOR: {
                     return this.suggestKeywordWithParameters(name, range, endOfLine);
                 }
-                case InsightLexer.WIRE: {
+                case InsightLexer.SWIRE:
+                case InsightLexer.AWIRE: {
                     return this.suggestWireWithParameters(name, range, context, endOfLine);
                 }
                 case InsightLexer.NAME:
@@ -70,12 +70,12 @@ export class InsightAutocomplete implements CompletionItemProvider {
                 case InsightLexer.IMPORT: {
                     return this.suggestImports(name, range, endOfLine);
                 }
-                case InsightLexer.CONTEXT_ELEMENT_IMPORT: {
-                    return this.suggestImportFromContext(name, range, endOfLine);
-                }
-                case InsightLexer.CONTAINER_ELEMENT_IMPORT: {
-                    return this.suggestImportFromContainer(name, range, endOfLine);
-                }
+                // case InsightLexer.CONTEXT_ELEMENT_IMPORT: {
+                //     return this.suggestImportFromContext(name, range, endOfLine);
+                // }
+                // case InsightLexer.CONTAINER_ELEMENT_IMPORT: {
+                //     return this.suggestImportFromContainer(name, range, endOfLine);
+                // }
                 case InsightLexer.LINKS: {
                     return this.suggestLinks(name, range, endOfLine);
                 }
@@ -333,8 +333,8 @@ export class InsightAutocomplete implements CompletionItemProvider {
         };
 		return this.suggest(model.getValueInRange(textRange), position.lineNumber, position.column, completionRange, context, endOfLine);
   }
-*/
 
+/*
     private items(range: IRange, endOfLine: boolean): CompletionList {
         return {
             suggestions: [
@@ -652,5 +652,5 @@ export class InsightAutocomplete implements CompletionItemProvider {
         };
         return this.items(range, endOfLine);
     }
-
+*/
 }

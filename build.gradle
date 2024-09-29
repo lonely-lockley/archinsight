@@ -247,8 +247,6 @@ project('editor-ui') {
                 content = content.replaceAll(/(\/\* <package>)(.|\n)+?(<\/package> \*\/)/, substs.getProperty("package"))
                 content = content.replaceAll(/(\/\* <import>)(.|\n)+?(<\/import> \*\/)/, substs.getProperty("import"))
                 content = content.replaceAll(/(\/\* <override>)(.|\n)+?(<\/override> \*\/)/, substs.getProperty("override"))
-                content = content.replaceAll(/(\/\* <helper>)(.|\n)+?(<\/helper> \*\/)/, substs.getProperty("helper"))
-                content = content.replaceAll(/(\/\* <position>)(.|\n)+?(<\/position> \*\/)/, substs.getProperty("position"))
                 antlrSrc.setText(content)
             }
         }

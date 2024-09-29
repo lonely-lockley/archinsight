@@ -93,8 +93,8 @@ export class InsightTokensProvider implements TokensProvider {
     }
 
     var tt = lexer.snapshotState();
-    var st = state as LexerState;
-    console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
+    // var st = state as LexerState;
+    // console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
     return { tokens: tokens, endState: tt };
   }
 }
