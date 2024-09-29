@@ -1,10 +1,7 @@
 package com.github.lonelylockley.archinsight.components.helpers;
 
-import com.github.lonelylockley.archinsight.components.MenuBarComponent;
-import com.github.lonelylockley.archinsight.components.WorkAreaComponent;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
-import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.Component;
 

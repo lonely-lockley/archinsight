@@ -1,7 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.events.*;
-import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.*;
 import com.vaadin.flow.component.dependency.JsModule;
 import org.slf4j.Logger;
@@ -11,6 +10,7 @@ import java.util.UUID;
 
 @Tag("div")
 @JsModule("./src/PanZoomControl.ts")
+@JsModule("./src/remote/SvgClickListener.ts")
 public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVGViewComponent> {
 
     private static final Logger logger = LoggerFactory.getLogger(SVGViewComponent.class);
@@ -22,7 +22,7 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
 
     public SVGViewComponent() {
         this.id = String.format("svg-view-component-%s", UUID.randomUUID());
-        this.svgTag = String.format("<svg id=\"%s\" version=\"1.1\"", id);
+        this.svgTag = String.format("<svg onClick=\"window.svgClickListener(event, this)\" id=\"%s\" version=\"1.1\"", id);
     }
 
     private String filterSVG(String svgData) {
@@ -60,4 +60,16 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
     public boolean hasImage() {
         return hasImage;
     }
+
+    /**
+     * Triggers on left click with ALT/OPTION key pressed
+     * @param elementId
+     */
+    @ClientCallable
+    public void elementSelected(String elementId) {
+        if (elementId != null) {
+            Communication.getBus().post(new SVGElementClickedEvent(elementId));
+        }
+    }
+
 }

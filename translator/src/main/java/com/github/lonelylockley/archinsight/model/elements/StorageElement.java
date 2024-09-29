@@ -12,8 +12,11 @@ public class StorageElement extends SystemElement {
     @Override
     public AbstractElement clone() {
         var res = new StorageElement();
+        if (isImported()) {
+            res.setImported();
+        }
         res.setNote(this.getNote());
-        res.setId(this.getId());
+        res.setDeclaredId(this.getDeclaredId());
         res.setName(this.getName());
         res.setDescription(this.getDescription());
         res.setTechnology(this.getTechnology());
@@ -27,7 +30,7 @@ public class StorageElement extends SystemElement {
     @Override
     public String toString() {
         return "StorageElement{" +
-                "id='" + getId() + '\'' +
+                "declaredId='" + getDeclaredId() + '\'' +
                 ", name='" + getName() + '\'' +
                 ", description='" + getDescription() + '\'' +
                 ", technology='" + getTechnology() + '\'' +

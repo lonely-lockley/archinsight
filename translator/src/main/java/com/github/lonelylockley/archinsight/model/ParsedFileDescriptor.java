@@ -35,7 +35,7 @@ public class ParsedFileDescriptor {
         if (el.getType() == ElementType.CONTAINER) {
             this.level = ArchLevel.CONTAINER;
         }
-        el.hasId().foreach(wid -> this.namespace = wid.getId());
+        el.hasId().foreach(wid -> this.namespace = wid.getDeclaredId());
     }
 
     public void declare(String id, AbstractElement el) {

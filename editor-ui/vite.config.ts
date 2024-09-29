@@ -3,23 +3,22 @@ import path from 'path'
 import {UserConfigFn} from 'vite'
 import { overrideVaadinConfig } from './vite.generated';
 import settings from './build/vaadin-dev-server-settings.json';
-import { spawn } from 'child_process';
 import {visualizer} from "rollup-plugin-visualizer";
+import {spawnSync} from "node:child_process";
 
 const devBundle = !!process.env.devBundle;
 const frontendBundleFolder = path.resolve(__dirname, settings.frontendBundleOutput);
 const devBundleFolder = path.resolve(__dirname, settings.devBundleOutput);
 const buildOutputFolder = devBundle ? devBundleFolder : frontendBundleFolder;
 
+console.log("Starting Gradle to generate web workers");
+let result = spawnSync(path.join(__dirname, '../gradlew'), ['antlr', 'webWorkers'], { stdio: 'inherit' });
+if (result.status == 0) {
+    console.log("Generated antlr parser and web workers to " + path.join(__dirname, 'frontend/generated'));
+}
+
 const customConfig: UserConfigFn = (env) => ({
   plugins: [
-     {
-        name: 'prebuild-commands',
-        buildStart: async () => {
-          spawn(path.join(__dirname, '../gradlew'), ['antlr', 'webWorkers'], { stdio: 'inherit' });
-          console.log("Generated antlr parser and web workers to " + path.join(__dirname, 'frontend/generated'));
-        }
-    },
     {
       name: 'postbuild-commands',
       closeBundle: async () => {

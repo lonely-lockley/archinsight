@@ -217,7 +217,7 @@ public class MenuBarComponent extends MenuBar {
         var node = new RepositoryNode();
         node.setType(RepositoryNode.TYPE_FILE);
         node.setName("<New File>");
-        Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
+        Communication.getBus().post(new FileOpenRequestEvent(node));
     }
 
     private void saveSource(RepositoryNode file) {

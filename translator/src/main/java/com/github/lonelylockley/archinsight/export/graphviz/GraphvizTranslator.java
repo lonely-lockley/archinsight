@@ -47,7 +47,7 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeSystemElement(SystemElement se, StringBuilder sb, int level) {
         if (se.isExternal()) {
-            writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getUniqueId(), se.getDeclaredId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
@@ -56,7 +56,7 @@ public class GraphvizTranslator extends TranslatorBase {
             );
         }
         else {
-            writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getUniqueId(), se.getDeclaredId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
@@ -74,7 +74,7 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeActorElement(ActorElement act, StringBuilder sb, int level) {
-        writeBlock(sb, act.getId(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
+        writeBlock(sb, act.getUniqueId(), act.getDeclaredId(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
                 act.getType(),
                 act.getAnnotations(),
                 new Tuple2<>("shape", "egg"),
@@ -88,7 +88,7 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeStorageElement(StorageElement stor, StringBuilder sb, int level) {
         if (stor.isExternal()) {
-            writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
@@ -97,7 +97,7 @@ public class GraphvizTranslator extends TranslatorBase {
             );
         }
         else {
-            writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
@@ -111,9 +111,9 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeNote(WithId wid, WithNote wn, StringBuilder sb, int level) {
-        var id = wid.getId() + "_note";
+        var id = wid.getDeclaredId() + "_note";
         var text = wn.getNote().substring(1).trim();
-        writeBlock(sb, id, null, null, text, level, Stream.of(
+        writeBlock(sb, null, id, null, null, text, level, Stream.of(
                             new Tuple2<>("shape", "note"),
                             new Tuple2<>("style", "filled"),
                             new Tuple2<>("fillcolor", "#faf6a2"),
@@ -124,7 +124,7 @@ public class GraphvizTranslator extends TranslatorBase {
         );
         var c = new LinkElement();
         c.setFrom(id);
-        c.setTo(wid.getId());
+        c.setTo(wid.getDeclaredId());
         writeConnection(sb, c, Stream.of(
                                 new Tuple2<>("color", "#edce07"),
                                 new Tuple2<>("dir", "none"),
@@ -145,7 +145,7 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
         if (el.getType() == ElementType.CONTEXT || el.getType() == ElementType.CONTAINER) {
-            ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getId()));
+            ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId()));
         }
         else
         if (el.getType() == ElementType.BOUNDARY) {

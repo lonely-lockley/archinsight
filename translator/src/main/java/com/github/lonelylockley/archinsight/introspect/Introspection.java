@@ -27,7 +27,7 @@ public class Introspection {
             final var el = descriptor.getDeclarations().get(id);
             if (el.getType() != ElementType.BOUNDARY && el.getType() != ElementType.EMPTY) { // boundaries are never connected
                 el.hasId().foreach(withId -> {
-                    var tm = TranslationUtil.newNotice(descriptor, String.format("Element %s has no connections with other elements", withId.getId()));
+                    var tm = TranslationUtil.newNotice(descriptor, String.format("Element %s has no connections with other elements", withId.getDeclaredId()));
                     TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
                     ctx.addMessage(tm);
                 });

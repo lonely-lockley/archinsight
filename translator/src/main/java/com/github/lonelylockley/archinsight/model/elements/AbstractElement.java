@@ -4,7 +4,25 @@ import com.github.lonelylockley.archinsight.model.Functional;
 import com.github.lonelylockley.archinsight.parse.HasType;
 import com.github.lonelylockley.archinsight.parse.WithSource;
 
+import java.util.UUID;
+
 public abstract class AbstractElement extends WithSource implements HasType, Cloneable {
+
+    private final UUID uniqueId = UUID.randomUUID();
+
+    private boolean imported = false;
+
+    public boolean isImported() {
+        return imported;
+    }
+
+    public void setImported() {
+        this.imported = true;
+    }
+
+    public UUID getUniqueId() {
+        return uniqueId;
+    }
 
     @Override
     public AbstractElement clone() {
