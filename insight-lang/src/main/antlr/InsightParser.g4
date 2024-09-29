@@ -39,6 +39,7 @@ containerExpression
     |   STORAGE identifierDeclaration EOL containerParameters
     |   annotation EOL
     |   COMMENT EOL
+    |   EOL
     ;
 
 contextParameters
@@ -66,7 +67,7 @@ wireList
     ;
 
 wireDeclaration
-    :   annotation
+    :   annotation EOL
     |   SWIRE identifierUsage EOL syncWireParameters?
     |   AWIRE identifierUsage EOL asyncWireParameters?
     ;

@@ -53,7 +53,10 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -61,8 +64,8 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
-        Assert.assertTrue(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
     }
 
     @Test
@@ -87,7 +90,10 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -95,8 +101,8 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
-        Assert.assertTrue(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
 
     }
 
@@ -122,7 +128,10 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -130,8 +139,8 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn -> checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
-        Assert.assertTrue(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
     }
     @Test
     public void testExtSystemDefinitionWithEmptyLine() throws Exception {
@@ -156,7 +165,10 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -164,8 +176,8 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
-        Assert.assertTrue(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
     }
 
     @Test
@@ -192,7 +204,10 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("TEXT", "Test"),
                 new Pair<>("TEXT", "\n"),
                 new Pair<>("TEXT", "Uuu TTT"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -200,8 +215,8 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
-        Assert.assertTrue(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
     }
 
     @Test
@@ -255,7 +270,12 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("TEXT", "oo"),
                 new Pair<>("TEXT", "\n"),
                 new Pair<>("TEXT", "ll"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -263,9 +283,69 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 4);
-        Assert.assertTrue(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
+    }
 
+    @Test
+    public void testAnnotation() throws Exception {
+        setup("""
+                system tms
+                
+                    @attribute(test)
+                    storage test
+                        name = Test
+                            Uuu TTT
+                        links:
+                            @planned()
+                            -> kkk
+                """
+        );
+        List<Pair<String, String>> exp = Stream.of(
+                new Pair<>("SYSTEM", "system"),
+                new Pair<>("IDENTIFIER", "tms"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("ATTRIBUTE", "@attribute"),
+                new Pair<>("LPAREN", "("),
+                new Pair<>("TEXT", "test"),
+                new Pair<>("RPAREN", ")"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("STORAGE", "storage"),
+                new Pair<>("IDENTIFIER", "test"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("NAME", "name"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "Test"),
+                new Pair<>("TEXT", "\n"),
+                new Pair<>("TEXT", "Uuu TTT"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("LINKS", "links"),
+                new Pair<>("COLON", ":"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("PLANNED", "@planned"),
+                new Pair<>("LPAREN", "("),
+                new Pair<>("RPAREN", ")"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("SWIRE", "->"),
+                new Pair<>("IDENTIFIER", "kkk"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
     }
 
 }

@@ -12,7 +12,6 @@ import com.github.lonelylockley.archinsight.lexer.*;
 @members {
 /* <override> */
   private final IndentHelper helper = new IndentHelper(
-      InsightLexer.super::nextToken,
       this
     );
 
@@ -21,6 +20,10 @@ import com.github.lonelylockley.archinsight.lexer.*;
     Token tkn = helper.nextToken();
     //debugPrinter(tkn);
     return tkn;
+  }
+
+  public Token supplyToken() {
+    return super.nextToken();
   }
 
   public Pair<TokenSource, CharStream> getTokenFactorySourcePair() {
@@ -79,7 +82,7 @@ fragment Nl           : ('\r'?'\n' | '\n')  ;
 fragment Ws           : (' ' | '\t' | '\u000C') ;
 fragment NonWs        : ~(' ' | '\t' | '\u000C' | '\r' | '\n') ;
 
-EOL        : Nl+ (Ws+)? { this.helper.checkIndentation(); } ;
+EOL        : Nl+ (Ws+)? { this.helper.checkIndentation(); } -> skip ;
 COMMENT    : '#' ~[\r\n]* ;
 IDENTIFIER : (LowerLetter (Letter | Digit | '_')*) ;
 BLANK      : Ws+ -> skip ;
@@ -89,7 +92,7 @@ COLON      : ':' ;
 
 mode VALUE_MODE;
 VALUE_TEXT :  NonWs ~[\r\n]* { this.helper.wrapValue(); }  -> type(TEXT) ;
-VALUE_EOL  :  Nl+ (Ws+)? { this.helper.unwrapValue(); } -> type(EOL);
+VALUE_EOL  :  Nl+ (Ws+)? { this.helper.unwrapValue(); } -> skip;
 
 mode ANNOTATION_PARAMETERS;
 PARAMETERS_TEXT : ~[()]+ -> type(TEXT);

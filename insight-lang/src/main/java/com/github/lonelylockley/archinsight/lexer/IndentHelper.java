@@ -6,7 +6,6 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 
 import java.util.LinkedList;
-import java.util.function.Supplier;
 
 import static org.antlr.v4.runtime.Lexer.DEFAULT_TOKEN_CHANNEL;
 
@@ -15,7 +14,6 @@ public class IndentHelper {
     public static final int INDENT_LENGTH = 4;
 
     private final InsightLexer lexer;
-    private final Supplier<Token> tokenSupplier;
     private final LinkedList<Token> waitlist;
 
     private int indentation = 0;
@@ -23,8 +21,7 @@ public class IndentHelper {
     private boolean singleLineMode = false;
     private LexerState state;
 
-    public IndentHelper(Supplier<Token> tokenSupplier, InsightLexer lexer) {
-        this.tokenSupplier = tokenSupplier;
+    public IndentHelper(InsightLexer lexer) {
         this.lexer = lexer;
         this.waitlist = new LinkedList<>();
         this.state = new LexerState();
@@ -70,13 +67,12 @@ public class IndentHelper {
             indentation++;
             state.incIndentation();
             waitlist.add(createToken(InsightLexer.EOL, "\n"));
-            lexer.emit(createToken(InsightLexer.INDENT, "<INDENT>"));
+            waitlist.add(createToken(InsightLexer.INDENT, "<INDENT>"));
         }
         else {
-            lexer._token = createToken(InsightLexer.EOL, "\n");
+            waitlist.add(createToken(InsightLexer.EOL, "\n"));
             while (indentation > newIndentation && !singleLineMode) {
-                waitlist.add(lexer.getToken());
-                lexer.emit(createToken(InsightLexer.DEDENT, "<DEDENT>"));
+                waitlist.add(createToken(InsightLexer.DEDENT, "<DEDENT>"));
                 indentation--;
                 state.decIndentation();
             }
@@ -94,7 +90,7 @@ public class IndentHelper {
     public void unwrapValue() {
         var newIndentation = calculateIndentation(stripNewlineCharacters(lexer.getText()));
         if (newIndentation == indentation + 1) {
-            lexer.emit(createToken(InsightLexer.TEXT, "\n"));
+            waitlist.add(createToken(InsightLexer.TEXT, "\n"));
         }
         else
         if ((newIndentation <= indentation) && wrapped) {
@@ -102,11 +98,10 @@ public class IndentHelper {
             if (!(singleLineMode && lexer.getInputStream().LA(1) == -1)) {
                 state.resetWasText();
                 waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>"));
-                lexer.emit(createToken(InsightLexer.EOL, "\n"));
+                waitlist.add(createToken(InsightLexer.EOL, "\n"));
                 lexer.popMode();
                 while (indentation > newIndentation) {
-                    waitlist.add(lexer.getToken());
-                    lexer.emit(createToken(InsightLexer.DEDENT, "<DEDENT>"));
+                    waitlist.add(createToken(InsightLexer.DEDENT, "<DEDENT>"));
                     indentation--;
                     state.decIndentation();
                 }
@@ -121,19 +116,17 @@ public class IndentHelper {
 
     public void processEOF(Token eof) {
         if (wrapped) {
-            lexer.emit(createToken(InsightLexer.EOL, "\n"));
+            waitlist.add(createToken(InsightLexer.EOL, "\n"));
             lexer.setText("\n");
             unwrapValue();
-            waitlist.add(lexer.getToken());
-            lexer.emit(eof);
+            waitlist.add(eof);
         }
         else
         if (lexer.getInputStream().LA(-1) != 10 && lexer.getText() == null) {
-            lexer.emit(createToken(InsightLexer.EOL, "\n"));
+            waitlist.add(createToken(InsightLexer.EOL, "\n"));
             lexer.setText("\n");
             checkIndentation();
-            waitlist.add(lexer.getToken());
-            lexer.emit(eof);
+            waitlist.add(eof);
         }
     }
 
@@ -143,7 +136,7 @@ public class IndentHelper {
             tkn = waitlist.pollFirst();
         }
         else {
-            tkn = tokenSupplier.get();
+            tkn = lexer.supplyToken();
             if (!waitlist.isEmpty()) {
                 waitlist.add(tkn);
                 tkn = waitlist.pollFirst();
