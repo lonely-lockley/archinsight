@@ -40,9 +40,10 @@ export class InsightTokensProvider implements TokensProvider {
     'FROM',
     'AS'
   ]);
-  parameters = new Set(['NAME', 'DESCRIPTION', 'TECHNOLOGY']);
-  identifier = new Set(['PROJECTNAME', 'IDENTIFIER']);
-  operator = new Set(['EQ', 'LINKS']);
+  parameters = new Set(['NAME', 'DESCRIPTION', 'TECHNOLOGY', 'LINKS', 'VIA', 'CALL', 'FORMAT']);
+  identifier = new Set(['IDENTIFIER']);
+  operator = new Set(['EQ', 'SWIRE', 'AWIRE']);
+  annotation = new Set(['ATTRIBUTE', 'PLANNED', 'DEPRECATED', 'LPAREN', 'RPAREN']);
 
   getInitialState(): languages.IState {
     return new LexerState();
@@ -76,6 +77,8 @@ export class InsightTokensProvider implements TokensProvider {
           editorType = 'string';
         } else if (tokenTypeName === 'COMMENT') {
           editorType = 'comment';
+        } else if (this.annotation.has(tokenTypeName)) {
+          editorType = 'constant';
         } else if (this.operator.has(tokenTypeName)) {
           editorType = 'operator';
         } else {

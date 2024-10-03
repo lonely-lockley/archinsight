@@ -13,12 +13,15 @@ class InsightErrorListener implements ANTLRErrorListener {
   private errors: InsightError[] = [];
 
   syntaxError<S extends Token, T extends ATNSimulator>(recognizer: Recognizer<T>, offendingSymbol: S | null, line: number, charPositionInLine: number, msg: string, e: RecognitionException | null): void {
+    let from = (offendingSymbol == null ? charPositionInLine : offendingSymbol.column) + 1;
+    let to = offendingSymbol == null ? from + 1 : (offendingSymbol.text == null ? from + 1 : from + offendingSymbol.text.length);
+    console.log("checkme!!!");
     this.errors.push({
       startLineNumber: line,
       endLineNumber: line,
-      startColumn: offendingSymbol == null ? charPositionInLine : offendingSymbol.start,
+      startColumn: from,
       // Let's suppose the length of the error is only 1 char for simplicity
-      endColumn: offendingSymbol == null ? charPositionInLine + 1 : offendingSymbol.stop,
+      endColumn: to,
       message: msg,
       // This the error code you can customize them as you want
       code: '1',

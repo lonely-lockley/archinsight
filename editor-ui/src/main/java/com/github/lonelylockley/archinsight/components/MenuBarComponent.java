@@ -19,6 +19,7 @@ import com.vaadin.flow.server.StreamResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -34,6 +35,9 @@ public class MenuBarComponent extends MenuBar {
     private final MenuItem newButton;
     private final MenuItem sourceDropdown;
     private final MenuItem exportDropdown;
+    private final MenuItem codePanel;
+    private final MenuItem diagramPanel;
+    private final MenuItem bothPanels;
     private final MenuItem zoomInButton;
     private final MenuItem zoomResetButton;
     private final MenuItem zoomOutButton;
@@ -59,6 +63,9 @@ public class MenuBarComponent extends MenuBar {
             createItem(exportSubMenu, "menu_btn_export_as_png",  new Icon(VaadinIcon.DOWNLOAD), "Export as PNG", null, true, true, listener);
             createItem(exportSubMenu, "menu_btn_export_as_json", new Icon(VaadinIcon.DOWNLOAD), "Export as JSON", null, true, true, listener);
             createItem(exportSubMenu, "menu_btn_export_as_dot",  new Icon(VaadinIcon.DOWNLOAD), "Export as DOT", null, true, true, listener);
+        codePanel       = createItem(this, "menu_btn_panel_code", new Icon(VaadinIcon.PADDING_LEFT), null, null, false, true, listener);
+        diagramPanel    = createItem(this, "menu_btn_panel_diagram", new Icon(VaadinIcon.PADDING_RIGHT), null, null, false, true, listener);
+        bothPanels      = createItem(this, "menu_btn_panel_both", new Icon(VaadinIcon.SPLIT_H), null, null, false, true, listener);
         zoomInButton    = createItem(this, "menu_btn_zoom_plus", new Icon(VaadinIcon.PLUS), null, null, false, false, listener);
         zoomResetButton = createItem(this, "menu_btn_zoom_reset", new Icon(VaadinIcon.PLUS_MINUS), null, null, false, false, listener);
         zoomOutButton   = createItem(this, "menu_btn_zoom_minus", new Icon(VaadinIcon.MINUS), null, null, false, false, listener);
