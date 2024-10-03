@@ -1,6 +1,8 @@
 import { CommonToken, Token } from 'antlr4ng';
 import LexerState from './LexerState';
 import { InsightLexer } from '../generated/insight-lang/InsightLexer';
+import {editor} from "monaco-editor";
+import create = editor.create;
 
 class IndentationException extends Error {
 
@@ -25,6 +27,7 @@ class IndentHelper {
     private wrapped: boolean = false;
     private singleLineMode: boolean = false;
     private state: LexerState;
+    private tokenId: number = 0;
 
     constructor(lexer: InsightLexer) {
         this.lexer = lexer;
@@ -36,11 +39,32 @@ class IndentHelper {
         return src == undefined ? "" : src.replace(/\r?\n/g, "");
     }
 
-    private createToken(type: number, text: string): CommonToken {
-        let stop = this.lexer.getCharIndex() - 1;
-        let start = text.length == 0 ? stop : stop - text.length + 1;
+    private countNewLines(src: string): number {
+        let lastIndex = 0;
+        let count = 0;
+        while(lastIndex != -1){
+            lastIndex = src.indexOf('\n', lastIndex);
+            if(lastIndex != -1){
+                count++;
+                lastIndex += 1;
+            }
+        }
+        return count;
+    }
+
+    private calculateLengthCorrection(): number {
+        return this.lexer.text == null ? 0 : -this.lexer.text.length;
+    }
+
+    private createToken(type: number, text: string, tokenLength: number, lineCorrection = 0, offsetCorrection = 0, column: number | undefined = undefined): CommonToken {
+        let stop = this.lexer.getCharIndex() + offsetCorrection;
+        let start = stop - tokenLength + 1;
         let tkn = CommonToken.fromSource([this.lexer, this.lexer.inputStream], type, InsightLexer.DEFAULT_TOKEN_CHANNEL, start, stop);
+        tkn.setLine(this.lexer.line + lineCorrection);
         tkn.setText(text);
+        if (column != undefined) {
+            tkn.setCharPositionInLine(column);
+        }
         return tkn;
     }
 
@@ -57,10 +81,10 @@ class IndentHelper {
         if (count % this.INDENT_LENGTH != 0) {
             this.lexer.errorListenerDispatch.syntaxError?.(
                 this.lexer,
-                this.lexer.emit(),
+                this.createToken(InsightLexer.INDENT, " ".repeat(this.lexer.column), this.lexer.column, 0, 0, 0),
                 this.lexer.line,
-                this.lexer.getCharIndex(),
-                IndentationException.createErrorMsg(this.lexer, this.lexer.getCharIndex(), this.indentation * this.INDENT_LENGTH),
+                0,
+                IndentationException.createErrorMsg(this.lexer, this.lexer.column, this.indentation * this.INDENT_LENGTH),
                 null
             );
         }
@@ -68,17 +92,18 @@ class IndentHelper {
     }
 
     public checkIndentation() {
+        let newLines = this.countNewLines(this.lexer.text);
         let newIndentation = this.calculateIndentation(this.stripNewlineCharacters(this.lexer.text));
         if (newIndentation > this.indentation) {
             this.indentation++;
             this.state.incIndentation();
-            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n"));
-            this.waitlist.push(this.createToken(InsightLexer.INDENT, "<INDENT>"));
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines, this.calculateLengthCorrection()));
+            this.waitlist.push(this.createToken(InsightLexer.INDENT, "<INDENT>", this.INDENT_LENGTH, 0, -newLines));
         }
         else {
-            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n"));
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines, this.calculateLengthCorrection()));
             while (this.indentation > newIndentation && !this.singleLineMode) {
-                this.waitlist.push(this.createToken(InsightLexer.DEDENT, "<DEDENT>"));
+                this.waitlist.push(this.createToken(InsightLexer.DEDENT, "<DEDENT>", 0, -newLines, 0));
                 this.indentation--;
                 this.state.decIndentation();
             }
@@ -89,25 +114,26 @@ class IndentHelper {
         if (!this.wrapped) {
             this.wrapped = true;
             this.state.setWasText();
-            this.waitlist.push(this.createToken(InsightLexer.WRAP, "<WRAP>"));
+            this.waitlist.push(this.createToken(InsightLexer.WRAP, "<WRAP>", 0, 0, this.calculateLengthCorrection()));
         }
     }
 
     public unwrapValue() {
+        let newLines = this.countNewLines(this.lexer.text);
         let newIndentation = this.calculateIndentation(this.stripNewlineCharacters(this.lexer.text));
         if (newIndentation == this.indentation + 1) {
-            this.waitlist.push(this.createToken(InsightLexer.TEXT, "\n"));
+            this.waitlist.push(this.createToken(InsightLexer.TEXT, "\n", 1, -newLines, this.calculateLengthCorrection()));
         }
         else
         if ((newIndentation <= this.indentation) && this.wrapped) {
             this.wrapped = false;
             if (!(this.singleLineMode && this.lexer.inputStream.LA(1) == -1)) {
                 this.state.resetWasText();
-                this.waitlist.push(this.createToken(InsightLexer.UNWRAP, "<UNWRAP>"));
-                this.waitlist.push(this.createToken(InsightLexer.EOL, "\n"));
+                this.waitlist.push(this.createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, this.calculateLengthCorrection()));
+                this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines,  this.calculateLengthCorrection()));
                 this.lexer.popMode();
                 while (this.indentation > newIndentation) {
-                    this.waitlist.push(this.createToken(InsightLexer.DEDENT, "<DEDENT>"));
+                    this.waitlist.push(this.createToken(InsightLexer.DEDENT, "<DEDENT>", 0, -newLines, 0));
                     this.indentation--;
                     this.state.decIndentation();
                 }
@@ -116,10 +142,10 @@ class IndentHelper {
         else {
             this.lexer.errorListenerDispatch.syntaxError?.(
                 this.lexer,
-                this.lexer.emit(),
+                this.createToken(InsightLexer.INDENT, " ".repeat(this.lexer.column), this.lexer.column, 0, 0, 0),
                 this.lexer.line,
-                this.lexer.getCharIndex(),
-                IndentationException.createErrorMsg(this.lexer, this.lexer.getCharIndex(), this.indentation * this.INDENT_LENGTH),
+                0,
+                IndentationException.createErrorMsg(this.lexer, this.lexer.column, this.indentation * this.INDENT_LENGTH),
                 null
             );
         }
@@ -127,14 +153,14 @@ class IndentHelper {
 
     public processEOF(eof: Token) {
         if (this.wrapped) {
-            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n"));
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             this.lexer.text = "\n";
             this.unwrapValue();
             this.waitlist.push(eof);
         }
         else
         if (this.lexer.inputStream.LA(-1) != 10 && this.lexer.text == undefined) {
-            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n"));
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             this.lexer.text = "\n";
             this.checkIndentation();
             this.waitlist.push(eof);
@@ -160,8 +186,10 @@ class IndentHelper {
                 tkn =this.waitlist.shift()!;
             }
         }
+        tkn.tokenIndex = this.tokenId;
+        this.tokenId++;
         const rawType = this.lexer.vocabulary.getSymbolicName(tkn.type);
-        console.log("---- " + rawType + " [idx=" + tkn.tokenIndex + "line=" + tkn.line + ",mode=" + this.lexer.mode + ",channel=" + tkn.channel + "] = `" + tkn.text + "`");
+        console.log("---- " + rawType + " [idx=" + tkn.tokenIndex + "line=" + tkn.line + ",from=" + tkn.start + ",to=" + tkn.stop + ",mode=" + this.lexer.mode + ",channel=" + tkn.channel + "] = `" + tkn.text + "`");
         return tkn;
     }
 
