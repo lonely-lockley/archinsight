@@ -15,7 +15,6 @@ class InsightErrorListener implements ANTLRErrorListener {
   syntaxError<S extends Token, T extends ATNSimulator>(recognizer: Recognizer<T>, offendingSymbol: S | null, line: number, charPositionInLine: number, msg: string, e: RecognitionException | null): void {
     let from = (offendingSymbol == null ? charPositionInLine : offendingSymbol.column) + 1;
     let to = offendingSymbol == null ? from + 1 : (offendingSymbol.text == null ? from + 1 : from + offendingSymbol.text.length);
-    console.log("checkme!!!");
     this.errors.push({
       startLineNumber: line,
       endLineNumber: line,

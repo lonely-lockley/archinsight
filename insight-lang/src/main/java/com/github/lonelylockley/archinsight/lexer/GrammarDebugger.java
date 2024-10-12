@@ -37,6 +37,10 @@ public class GrammarDebugger {
         final var treeScroll = new JScrollPane(tree);
         treeScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         final var txt = new JTextArea("""
+                context debug
+                
+                import system hhh from context ddd
+                
                 system test
                     name = TEST
                 
@@ -44,7 +48,7 @@ public class GrammarDebugger {
                     service rr
                         name = RR
                         links:
-                            -> jjj
+                            -> jjj from hhh
                                 call = /api/test
 
                 system yyy

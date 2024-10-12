@@ -1,8 +1,6 @@
 import { CommonToken, Token } from 'antlr4ng';
 import LexerState from './LexerState';
 import { InsightLexer } from '../generated/insight-lang/InsightLexer';
-import {editor} from "monaco-editor";
-import create = editor.create;
 
 class IndentationException extends Error {
 
@@ -188,8 +186,8 @@ class IndentHelper {
         }
         tkn.tokenIndex = this.tokenId;
         this.tokenId++;
-        const rawType = this.lexer.vocabulary.getSymbolicName(tkn.type);
-        console.log("---- " + rawType + " [idx=" + tkn.tokenIndex + "line=" + tkn.line + ",from=" + tkn.start + ",to=" + tkn.stop + ",mode=" + this.lexer.mode + ",channel=" + tkn.channel + "] = `" + tkn.text + "`");
+        // const rawType = this.lexer.vocabulary.getSymbolicName(tkn.type);
+        // console.log("---- " + rawType + " [idx=" + tkn.tokenIndex + "line=" + tkn.line + ",from=" + tkn.start + ",to=" + tkn.stop + ",mode=" + this.lexer.mode + ",channel=" + tkn.channel + "] = `" + tkn.text + "`");
         return tkn;
     }
 
