@@ -9,20 +9,23 @@ package com.github.lonelylockley.insight.lang;
 options { tokenVocab = InsightLexer; }
 
 insight
-    :   statement* EOF
+    :   boundedContextDeclaration? EOF
     ;
 
-importStatement
-    :   IMPORT identifierUsage FROM SYSTEM identifierUsage (AS identifierDeclaration)? EOL
-    |   COMMENT EOL
-    |   EOL
+boundedContextDeclaration
+    :   (COMMENT EOL | EOL)* CONTEXT identifierDeclaration EOL statement*
     ;
 
 statement
     :   contextExpression
     |   annotation EOL
+    |   importStatement EOL
     |   COMMENT EOL
     |   EOL
+    ;
+
+importStatement
+    :   IMPORT SYSTEM identifierUsage FROM CONTEXT identifierUsage (AS identifierDeclaration)?
     ;
 
 contextExpression
@@ -68,8 +71,8 @@ wireList
 
 wireDeclaration
     :   annotation EOL
-    |   SWIRE identifierUsage EOL syncWireParameters?
-    |   AWIRE identifierUsage EOL asyncWireParameters?
+    |   SWIRE identifierUsage (FROM identifierUsage)? EOL syncWireParameters?
+    |   AWIRE identifierUsage (FROM identifierUsage)? EOL asyncWireParameters?
     ;
 
 nameParameter

@@ -52,6 +52,7 @@ import com.github.lonelylockley.archinsight.lexer.*;
 tokens { INDENT, DEDENT, WRAP, UNWRAP, TEXT }
 
 /* Keywords */
+CONTEXT     : ('context') ;
 EXTERNAL    : ('external') ;
 SYSTEM      : ('system') ;
 ACTOR       : ('actor') ;
