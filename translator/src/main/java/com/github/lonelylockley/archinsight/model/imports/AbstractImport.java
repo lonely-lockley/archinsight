@@ -1,7 +1,8 @@
 package com.github.lonelylockley.archinsight.model.imports;
 
 import com.github.lonelylockley.archinsight.model.ArchLevel;
-import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
+import com.github.lonelylockley.archinsight.model.Origin;
+import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.parse.WithSource;
 import org.antlr.v4.runtime.CommonToken;
@@ -10,8 +11,8 @@ import java.util.Objects;
 
 public abstract class AbstractImport extends WithSource {
 
-    private String namespace;
-    private WithSource namespaceSource;
+    private String boundedContext;
+    private WithSource boundedContextSource;
     private ArchLevel level;
     private WithSource levelSource;
     private String identifier;
@@ -20,26 +21,30 @@ public abstract class AbstractImport extends WithSource {
     private WithSource aliasSource;
     private String element;
     private WithSource elementSource;
-    private ParsedFileDescriptor originalDescriptor;
+    private ParseDescriptor originalDescriptor;
     private AbstractElement originalElement;
 
     public abstract String getVisibleIdentifier();
 
-    public String getNamespace() {
-        return namespace;
+    public String getBoundedContext() {
+        return boundedContext;
     }
 
-    public void setNamespace(String namespace) {
-        this.namespace = namespace;
+    public void setBoundedContext(String boundedContext) {
+        this.boundedContext = boundedContext;
     }
 
-    public WithSource getNamespaceSource() {
-        return namespaceSource;
+    public WithSource getBoundedContextSource() {
+        return boundedContextSource;
     }
 
-    public void setNamespaceSource(CommonToken tkn) {
-        this.namespaceSource = new WithSource() {};
-        this.namespaceSource.setSource(tkn);
+    public void setBoundedContextSource(Origin origin, CommonToken tkn) {
+        this.boundedContextSource = new WithSource() {};
+        this.boundedContextSource.setSource(origin, tkn);
+    }
+
+    public void setBoundedContextSource(WithSource source) {
+        this.boundedContextSource = source;
     }
 
     public ArchLevel getLevel() {
@@ -54,9 +59,13 @@ public abstract class AbstractImport extends WithSource {
         return levelSource;
     }
 
-    public void setLevelSource(CommonToken tkn) {
+    public void setLevelSource(Origin origin, CommonToken tkn) {
         this.levelSource = new WithSource() {};
-        this.levelSource.setSource(tkn);
+        this.levelSource.setSource(origin, tkn);
+    }
+
+    public void setLevelSource(WithSource source) {
+        this.levelSource = source;
     }
 
     public String getIdentifier() {
@@ -71,9 +80,9 @@ public abstract class AbstractImport extends WithSource {
         return identifierSource;
     }
 
-    public void setIdentifierSource(CommonToken tkn) {
+    public void setIdentifierSource(Origin origin, CommonToken tkn) {
         this.identifierSource = new WithSource() {};
-        this.identifierSource.setSource(tkn);
+        this.identifierSource.setSource(origin, tkn);
     }
 
     public String getAlias() {
@@ -88,9 +97,9 @@ public abstract class AbstractImport extends WithSource {
         return aliasSource;
     }
 
-    public void setAliasSource(CommonToken tkn) {
+    public void setAliasSource(Origin origin, CommonToken tkn) {
         this.aliasSource = new WithSource() {};
-        this.aliasSource.setSource(tkn);
+        this.aliasSource.setSource(origin, tkn);
     }
 
     public String getElement() {
@@ -105,20 +114,20 @@ public abstract class AbstractImport extends WithSource {
         return elementSource;
     }
 
-    public void setElementSource(CommonToken tkn) {
+    public void setElementSource(Origin origin, CommonToken tkn) {
         this.elementSource = new WithSource() {};
-        this.elementSource.setSource(tkn);
+        this.elementSource.setSource(origin, tkn);
     }
 
     public AbstractElement getOriginalElement() {
         return originalElement;
     }
 
-    public ParsedFileDescriptor getOriginalDescriptor() {
+    public ParseDescriptor getOriginalDescriptor() {
         return originalDescriptor;
     }
 
-    public void setOrigination(ParsedFileDescriptor originalDescriptor, AbstractElement originalElement) {
+    public void setOrigination(ParseDescriptor originalDescriptor, AbstractElement originalElement) {
         this.originalDescriptor = originalDescriptor;
         this.originalElement = originalElement;
     }
@@ -127,10 +136,12 @@ public abstract class AbstractImport extends WithSource {
         super.line = line;
     }
 
+    public abstract boolean isAnonymous();
+
     @Override
     public String toString() {
         return "AbstractImport{" +
-                "namespace='" + namespace + '\'' +
+                "namespace='" + boundedContext + '\'' +
                 ", level=" + level +
                 ", identifier='" + identifier + '\'' +
                 ", alias='" + alias + '\'' +
@@ -143,11 +154,11 @@ public abstract class AbstractImport extends WithSource {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AbstractImport that = (AbstractImport) o;
-        return Objects.equals(namespace, that.namespace) && level == that.level && Objects.equals(identifier, that.identifier) && Objects.equals(alias, that.alias) && Objects.equals(element, that.element);
+        return Objects.equals(boundedContext, that.boundedContext) && level == that.level && Objects.equals(identifier, that.identifier) && Objects.equals(alias, that.alias) && Objects.equals(element, that.element);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(namespace, level, identifier, alias, element);
+        return Objects.hash(boundedContext, level, identifier, alias, element);
     }
 }

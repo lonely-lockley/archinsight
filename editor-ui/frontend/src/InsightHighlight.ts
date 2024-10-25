@@ -73,7 +73,7 @@ export class InsightTokensProvider implements TokensProvider {
           editorType = 'parameter';
         } else if (this.identifier.has(tokenTypeName)) {
           editorType = 'variable';
-        } else if (tokenTypeName === 'TEXT') {
+        } else if (tokenTypeName === 'TEXT' || tokenTypeName === 'ANNOTATION_VALUE') {
           editorType = 'string';
         } else if (tokenTypeName === 'COMMENT') {
           editorType = 'comment';

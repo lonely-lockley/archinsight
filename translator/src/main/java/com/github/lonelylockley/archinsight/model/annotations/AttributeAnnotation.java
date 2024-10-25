@@ -24,7 +24,7 @@ public class AttributeAnnotation extends AbstractAnnotation {
                 .withKvDelimiter('=')
                 .withEntryDelimiter(',')
                 .build();
-        parsedValue = parser.parse(value.substring(1, value.length() - 1), StandardCharsets.UTF_8).next();
+        parsedValue = parser.parse(value, StandardCharsets.UTF_8).next();
     }
 
     public Map<String, String> getParsedValue() {

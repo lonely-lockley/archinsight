@@ -8,30 +8,35 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TranslationContext {
 
-    private ConcurrentHashMap<String, ParsedFileDescriptor> descriptors = new ConcurrentHashMap<>();
-    private ArrayList<TranslatorMessage> messages = new ArrayList<>();
+    private final ConcurrentHashMap<String, ParseDescriptor> descriptors = new ConcurrentHashMap<>();
+    private final Set<TranslatorMessage> messages = new HashSet<>();
     private boolean hasErrors = false;
 
-    public Collection<ParsedFileDescriptor> getDescriptors() {
+    public Collection<ParseDescriptor> getDescriptors() {
         return descriptors.values();
     }
 
-    public ParsedFileDescriptor getDescriptor(String id) {
+    public ParseDescriptor getDescriptor(String id) {
         return descriptors.get(id);
     }
 
-    public ArrayList<TranslatorMessage> getMessages() {
+    public boolean hasDescriptor(String id) {
+        return descriptors.containsKey(id);
+    }
+
+    public Set<TranslatorMessage> getMessages() {
         return messages;
     }
 
-    public void addDescriptors(ArrayList<ParsedFileDescriptor> descriptors) {
-        for (ParsedFileDescriptor descriptor : descriptors){
+    public void addDescriptors(ArrayList<ParseDescriptor> descriptors) {
+        for (ParseDescriptor descriptor : descriptors){
             this.descriptors.put(descriptor.getId(), descriptor);
         }
     }
 
-    public void addDescriptor(ParsedFileDescriptor descriptor) {
-        this.descriptors.put(descriptor.getId(), descriptor);
+    public void addDescriptor(ParseDescriptor descriptor) {
+        var origin = descriptor.getRoot().getOrigin();
+        this.descriptors.put(String.format("%s__%s", descriptor.getLevel(),  origin.getTab().isPresent() ? origin.getTabId() : origin.getFileId().toString()), descriptor);
     }
 
     public void addMessages(ArrayList<TranslatorMessage> messages) {
@@ -45,7 +50,7 @@ public class TranslationContext {
         this.messages.add(message);
     }
 
-    public boolean hasErrors() {
-        return hasErrors;
+    public boolean noErrors() {
+        return !hasErrors;
     }
 }

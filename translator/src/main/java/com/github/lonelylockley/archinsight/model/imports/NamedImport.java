@@ -11,4 +11,9 @@ public class NamedImport extends AbstractImport {
     public String getAlias() {
         return super.getAlias() == null ? getIdentifier() : super.getAlias();
     }
+
+    @Override
+    public boolean isAnonymous() {
+        return false;
+    }
 }

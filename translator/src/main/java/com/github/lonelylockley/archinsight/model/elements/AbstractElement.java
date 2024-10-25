@@ -10,16 +10,6 @@ public abstract class AbstractElement extends WithSource implements HasType, Clo
 
     private final UUID uniqueId = UUID.randomUUID();
 
-    private boolean imported = false;
-
-    public boolean isImported() {
-        return imported;
-    }
-
-    public void setImported() {
-        this.imported = true;
-    }
-
     public UUID getUniqueId() {
         return uniqueId;
     }

@@ -169,8 +169,8 @@ public class IndentHelper {
                 tkn = waitlist.pollFirst();
             }
         }
-        final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
-        System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",from=" + tkn.getStartIndex() + ",to=" + tkn.getStopIndex() + ",mode=" + lexer._mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
+//        final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
+//        System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",from=" + tkn.getStartIndex() + ",to=" + tkn.getStopIndex() + ",mode=" + lexer._mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
         return tkn;
     }
 

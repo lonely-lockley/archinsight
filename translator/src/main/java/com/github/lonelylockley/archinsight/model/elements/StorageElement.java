@@ -12,9 +12,6 @@ public class StorageElement extends SystemElement {
     @Override
     public AbstractElement clone() {
         var res = new StorageElement();
-        if (isImported()) {
-            res.setImported();
-        }
         res.setNote(this.getNote());
         res.setDeclaredId(this.getDeclaredId());
         res.setName(this.getName());

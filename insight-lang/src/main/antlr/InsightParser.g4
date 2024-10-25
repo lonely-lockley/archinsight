@@ -9,40 +9,71 @@ package com.github.lonelylockley.insight.lang;
 options { tokenVocab = InsightLexer; }
 
 insight
-    :   boundedContextDeclaration? EOF
+    :   boundedContextStatement? EOF
+    ;
+
+boundedContextStatement
+    :   (commentStatement | EOL)* boundedContextDeclaration EOL statement*
+    ;
+
+commentStatement
+    :   COMMENT EOL
+    ;
+
+noteStatement
+    :   COMMENT
     ;
 
 boundedContextDeclaration
-    :   (COMMENT EOL | EOL)* CONTEXT identifierDeclaration EOL statement*
+    :   CONTEXT identifierDeclaration
     ;
 
 statement
-    :   contextExpression
-    |   annotation EOL
-    |   importStatement EOL
-    |   COMMENT EOL
+    :   contextStatement
+    |   annotationStatement EOL
+    |   namedImportStatement EOL
+    |   commentStatement
     |   EOL
     ;
 
-importStatement
-    :   IMPORT SYSTEM identifierUsage FROM CONTEXT identifierUsage (AS identifierDeclaration)?
+namedImportStatement
+    :   IMPORT identifierUsage FROM CONTEXT identifierUsage (AS identifierDeclaration)?
     ;
 
-contextExpression
-    :   EXTERNAL? SYSTEM identifierDeclaration EOL contextDefinition
-    |   ACTOR identifierDeclaration EOL contextParameters
+anonymousImportDeclaration
+    :   FROM identifierUsage
+    ;
+
+contextStatement
+    :   systemDeclaration
+    |   actorDeclaration
     ;
 
 contextDefinition
-    :   INDENT nameParameter descriptionParameter? containerExpression* DEDENT
+    :   INDENT nameParameter descriptionParameter? linksDeclaration? containerStatement* DEDENT
     ;
 
-containerExpression
-    :   SERVICE identifierDeclaration EOL containerParameters
-    |   STORAGE identifierDeclaration EOL containerParameters
-    |   annotation EOL
-    |   COMMENT EOL
+containerStatement
+    :   serviceDeclaration
+    |   storageDeclaration
+    |   commentStatement
     |   EOL
+    ;
+
+systemDeclaration
+    :   annotationStatement? EXTERNAL? SYSTEM identifierDeclaration noteStatement? EOL contextDefinition
+    ;
+
+actorDeclaration
+    :   annotationStatement? ACTOR identifierDeclaration noteStatement? EOL contextParameters
+    ;
+
+serviceDeclaration
+    :   annotationStatement? SERVICE identifierDeclaration noteStatement? EOL containerParameters
+    ;
+
+storageDeclaration
+    :   annotationStatement? STORAGE identifierDeclaration noteStatement? EOL containerParameters
     ;
 
 contextParameters
@@ -70,9 +101,16 @@ wireList
     ;
 
 wireDeclaration
-    :   annotation EOL
-    |   SWIRE identifierUsage (FROM identifierUsage)? EOL syncWireParameters?
-    |   AWIRE identifierUsage (FROM identifierUsage)? EOL asyncWireParameters?
+    :   syncWireStatement
+    |   asyncWireStatement
+    ;
+
+syncWireStatement
+    :   annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL syncWireParameters?
+    ;
+
+asyncWireStatement
+    :   annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL asyncWireParameters?
     ;
 
 nameParameter
@@ -111,12 +149,24 @@ identifierUsage
     :   IDENTIFIER
     ;
 
-annotation
+annotationStatement
+    :   (attributeAnnotationDeclaration EOL
+    |   plannedAnnotationDeclaration EOL
+    |   deprecatedAnnotationDeclaration EOL)+
+    ;
+
+attributeAnnotationDeclaration
     :   ATTRIBUTE annotationValue
-    |   PLANNED annotationValue
-    |   DEPRECATED annotationValue
+    ;
+
+plannedAnnotationDeclaration
+    :   PLANNED
+    ;
+
+deprecatedAnnotationDeclaration
+    :   DEPRECATED
     ;
 
 annotationValue
-    :   LPAREN TEXT? RPAREN
+    :   LPAREN ANNOTATION_VALUE RPAREN
     ;

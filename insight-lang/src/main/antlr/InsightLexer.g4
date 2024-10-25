@@ -49,7 +49,7 @@ import com.github.lonelylockley.archinsight.lexer.*;
 /* </override> */
 }
 
-tokens { INDENT, DEDENT, WRAP, UNWRAP, TEXT }
+tokens { INDENT, DEDENT, WRAP, UNWRAP, TEXT, ANNOTATION_VALUE }
 
 /* Keywords */
 CONTEXT     : ('context') ;
@@ -96,5 +96,5 @@ VALUE_TEXT :  NonWs ~[\r\n]* { this.helper.wrapValue(); }  -> type(TEXT) ;
 VALUE_EOL  :  Nl+ (Ws+)? { this.helper.unwrapValue(); } -> skip;
 
 mode ANNOTATION_PARAMETERS;
-PARAMETERS_TEXT : ~[()]+ -> type(TEXT);
+PARAMETERS_TEXT : ~[()]+ -> type(ANNOTATION_VALUE);
 RPAREN          : ')' -> popMode;

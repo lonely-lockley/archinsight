@@ -109,6 +109,11 @@ public class ParseContext {
         return currentAnnotation;
     }
 
+    public void finishAnnotation() {
+        getCurrentElementsWithAnnotations().addAnnotation(currentAnnotation);
+        currentAnnotation = null;
+    }
+
     public AbstractImport getCurrentImport() {
         return currentImport;
     }

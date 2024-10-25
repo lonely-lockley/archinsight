@@ -1,8 +1,9 @@
 package com.github.lonelylockley.archinsight.introspect;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
-import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
+import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 
 import java.util.HashSet;
@@ -16,18 +17,18 @@ public class Introspection {
         this.ctx = ctx;
     }
 
-    private void searchForIsolatedElements(ParsedFileDescriptor descriptor) {
-        final var declarations = new HashSet<String>(descriptor.getDeclarations().size());
-        declarations.addAll(descriptor.getDeclarations().keySet());
+    private void searchForIsolatedElements(ParseDescriptor descriptor) {
+        final var declarations = new HashSet<String>(descriptor.getAllExisting().size());
+        declarations.addAll(descriptor.getAllExisting().keySet());
         descriptor.getConnections().forEach(link -> {
             declarations.remove(link.getFrom());
             declarations.remove(link.getTo());
         });
         declarations.forEach(id -> {
-            final var el = descriptor.getDeclarations().get(id);
+            final var el = descriptor.getAllExisting().get(id);
             if (el.getType() != ElementType.BOUNDARY && el.getType() != ElementType.EMPTY) { // boundaries are never connected
                 el.hasId().foreach(withId -> {
-                    var tm = TranslationUtil.newNotice(descriptor, String.format("Element %s has no connections with other elements", withId.getDeclaredId()));
+                    var tm = TranslationUtil.newNotice(el.getOrigin(), String.format("Element %s has no connections with other elements", withId.getDeclaredId()));
                     TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
                     ctx.addMessage(tm);
                 });
@@ -35,10 +36,10 @@ public class Introspection {
         });
     }
 
-    private void searchForSelfTargetingLinks(ParsedFileDescriptor descriptor) {
+    private void searchForSelfTargetingLinks(ParseDescriptor descriptor) {
         descriptor.getConnections().forEach(link -> {
             if (Objects.equals(link.getFrom(), link.getTo())) {
-                var tm = TranslationUtil.newNotice(descriptor, "Element links to itself");
+                var tm = TranslationUtil.newNotice(link.getOrigin(), "Element links to itself");
                 TranslationUtil.copyPosition(tm, link.getLine(), link.getCharPosition(), link.getStartIndex(), link.getStopIndex());
                 ctx.addMessage(tm);
             }
@@ -46,7 +47,7 @@ public class Introspection {
     }
 
     public void suggest() {
-        for (ParsedFileDescriptor descriptor : ctx.getDescriptors()) {
+        for (ParseDescriptor descriptor : ctx.getDescriptors()) {
             searchForIsolatedElements(descriptor);
             searchForSelfTargetingLinks(descriptor);
         }

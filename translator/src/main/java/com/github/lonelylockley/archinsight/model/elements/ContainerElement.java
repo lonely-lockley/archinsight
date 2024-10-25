@@ -4,6 +4,15 @@ import java.util.stream.Collectors;
 
 public class ContainerElement extends ContextElement {
 
+    private ContainerElement() {}
+
+    public ContainerElement(SystemElement se, ContextElement ce) {
+        this.setDeclaredId(se.getDeclaredId());
+        this.getImports().addAll(ce.getImports());
+        this.getChildren().addAll(se.getChildren());
+        se.clonePositionTo(this);
+    }
+
 
     @Override
     public ElementType getType() {
@@ -13,9 +22,6 @@ public class ContainerElement extends ContextElement {
     @Override
     public AbstractElement clone() {
         var res = new ContainerElement();
-        if (isImported()) {
-            res.setImported();
-        }
         res.setDeclaredId(this.getDeclaredId());
         res.getImports().addAll(this.getImports());
         res.getChildren().addAll(this.getChildren());

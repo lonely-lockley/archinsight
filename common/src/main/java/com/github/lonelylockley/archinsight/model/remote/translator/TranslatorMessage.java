@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.model.remote.translator;
 
 import java.io.Serializable;
+import java.util.Objects;
 import java.util.UUID;
 
 public class TranslatorMessage implements Serializable {
@@ -95,6 +96,19 @@ public class TranslatorMessage implements Serializable {
 
     public void setLocation(String location) {
         this.location = location;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TranslatorMessage that = (TranslatorMessage) o;
+        return charPosition == that.charPosition && startIndex == that.startIndex && stopIndex == that.stopIndex && line == that.line && level == that.level && Objects.equals(msg, that.msg) && Objects.equals(tabId, that.tabId) && Objects.equals(fileId, that.fileId) && Objects.equals(location, that.location);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(level, msg, tabId, fileId, location, charPosition, startIndex, stopIndex, line);
     }
 
     @Override

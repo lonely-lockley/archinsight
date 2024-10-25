@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.model.elements;
 
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
+import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -101,9 +102,6 @@ public class SystemElement extends AbstractElement implements WithId, WithParame
     @Override
     public AbstractElement clone() {
         var res = new SystemElement();
-        if (isImported()) {
-            res.setImported();
-        }
         res.note = this.note;
         res.declaredId = this.declaredId;
         res.name = this.name;

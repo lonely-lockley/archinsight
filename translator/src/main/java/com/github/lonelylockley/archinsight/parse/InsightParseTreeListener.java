@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.parse;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.Origin;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.DeprecatedAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.PlannedAnnotation;
@@ -18,50 +19,57 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 
 import static com.github.lonelylockley.archinsight.model.elements.ElementType.*;
 
-public class InsightParseTreeListener implements ParseTreeListener {
+public class  InsightParseTreeListener implements ParseTreeListener {
     /*
      * Debug only - source of rule names
      */
     private final InsightParser parser = new InsightParser(null);
 
     private final ParseContext ctx = new ParseContext();
+    private final Origin origin;
+
+    public InsightParseTreeListener(Origin origin) {
+        this.origin = origin;
+    }
 
     protected void handleToken(CommonToken tkn) {
-        /*switch (tkn.getType()) {
+        switch (tkn.getType()) {
             case InsightLexer.IDENTIFIER:
                 if (ctx.getCurrentElement().getType() == LINK && ctx.getCurrentImport() == null) {
                     ctx.getCurrentElementAsLink().setTo(tkn.getText());
-                    ctx.getCurrentElement().setSource(tkn);
+                    ctx.getCurrentElement().setSource(origin, tkn);
                 }
                 else
                 if (ctx.getCurrentImport() != null) {
                     var imp = ctx.getCurrentImport();
                     if (ctx.getPreviousToken().getType() == InsightLexer.AS) {
                         imp.setAlias(tkn.getText());
-                        imp.setAliasSource(tkn);
+                        imp.setAliasSource(origin, tkn);
                     }
-                    else if (ctx.getPreviousToken().getType() == InsightLexer.CONTEXT_IMPORT || ctx.getPreviousToken().getType() == InsightLexer.CONTAINER_IMPORT) {
-                        imp.setNamespace(tkn.getText());
-                        imp.setNamespaceSource(tkn);
+                    else if (ctx.getPreviousToken().getType() == InsightLexer.CONTEXT) {
+                        imp.setBoundedContext(tkn.getText());
+                        imp.setBoundedContextSource(origin, tkn);
+                    }
+                    else if (ctx.getPreviousToken().getType() == InsightLexer.FROM && ctx.getCurrentImport().isAnonymous()) {
+                        imp.setElement(tkn.getText());
+                        imp.setElementSource(origin, tkn);
                     }
                     else {
                         imp.setLine(tkn.getLine());
                         imp.setIdentifier(tkn.getText());
-                        imp.setIdentifierSource(tkn);
+                        imp.setIdentifierSource(origin, tkn);
                     }
                 }
                 else {
                     ctx.getCurrentElementWithId().setDeclaredId(tkn.getText());
-                    ctx.getCurrentElement().setSource(tkn);
+                    ctx.getCurrentElement().setSource(origin, tkn);
                 }
                 break;
             case InsightLexer.TEXT:
                 ctx.addText(tkn.getText());
                 break;
-            case InsightLexer.WIRE:
-                if ("->".equals(tkn.getText())) {
-                    ctx.getCurrentElementAsLink().setSync();
-                }
+            case InsightLexer.ANNOTATION_VALUE:
+                ctx.getCurrentAnnotation().setValue(tkn.getText());
                 break;
             case InsightLexer.EXTERNAL:
                 ctx.getCurrentElementWithExternal().setExternal();
@@ -69,10 +77,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
             case InsightLexer.ATTRIBUTE:
             case InsightLexer.PLANNED:
             case InsightLexer.DEPRECATED:
-                ctx.getCurrentAnnotation().setSource(tkn);
-                break;
-            case InsightLexer.ANNOTATION_VALUE:
-                ctx.getCurrentAnnotation().setValue(tkn.getText());
+                ctx.getCurrentAnnotation().setSource(origin, tkn);
                 break;
             case InsightLexer.COMMENT:
                 if (ctx.commentIsNote()) {
@@ -80,25 +85,22 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 }
                 break;
             case InsightLexer.IMPORT:
-                ctx.getCurrentImport().setSource(tkn);
+                ctx.getCurrentImport().setSource(origin, tkn);
                 break;
-            case InsightLexer.CONTEXT_IMPORT:
-                ctx.getCurrentImport().setLevel(ArchLevel.CONTEXT);
-                ctx.getCurrentImport().setLevelSource(tkn);
+            case InsightLexer.CONTEXT:
+                if (ctx.getCurrentImport() != null) {
+                    ctx.getCurrentImport().setLevel(ArchLevel.CONTEXT);
+                    ctx.getCurrentImport().setLevelSource(origin, tkn);
+                }
                 break;
-            case InsightLexer.CONTAINER_IMPORT:
-                ctx.getCurrentImport().setLevel(ArchLevel.CONTAINER);
-                ctx.getCurrentImport().setLevelSource(tkn);
-                break;
-            case InsightLexer.CONTEXT_ELEMENT_IMPORT:
-            case InsightLexer.CONTAINER_ELEMENT_IMPORT:
-                ctx.getCurrentImport().setElement(tkn.getText());
-                ctx.getCurrentImport().setElementSource(tkn);
-                break;
+            case InsightLexer.FROM:
+                if (ctx.getCurrentImport().isAnonymous()) {
+                    ctx.getCurrentImport().setSource(origin, ctx.getPreviousToken());
+                }
             default:
                 break;
         }
-        ctx.setPreviousToken(tkn);*/
+        ctx.setPreviousToken(tkn);
     }
 
     @Override
@@ -115,19 +117,9 @@ public class InsightParseTreeListener implements ParseTreeListener {
     public void enterEveryRule(ParserRuleContext ruleContext) {
 //        String ruleName = parser.getRuleNames()[ruleContext.getRuleIndex()];
 //        System.out.println(">>> " + ruleName);
-/*        switch (ruleContext.getRuleIndex()) {
-            case InsightParser.RULE_contextDeclaration:
+        switch (ruleContext.getRuleIndex()) {
+            case InsightParser.RULE_boundedContextDeclaration:
                 ctx.startNewElement(new ContextElement());
-                break;
-            case InsightParser.RULE_containerDeclaration:
-                ctx.startNewElement(new ContainerElement());
-                break;
-            case InsightParser.RULE_boundaryForContextDeclaration:
-            case InsightParser.RULE_boundaryForContainerDeclaration:
-                BoundaryElement be = new BoundaryElement();
-                ctx.getCurrentElementWithChildren().addChild(be);
-                ctx.startNewElement(be);
-                break;
             case InsightParser.RULE_descriptionParameter:
             case InsightParser.RULE_nameParameter:
             case InsightParser.RULE_technologyParameter:
@@ -153,11 +145,15 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 ctx.getCurrentElementWithChildren().addChild(ste);
                 ctx.startNewElement(ste);
                 break;
-            case InsightParser.RULE_wireDeclaration:
+            case InsightParser.RULE_syncWireStatement:
+            case InsightParser.RULE_asyncWireStatement:
                 LinkElement le = new LinkElement();
                 le.setFrom(ctx.getCurrentElementWithId().getDeclaredId());
                 ctx.getCurrentElementWithChildren().addChild(le);
                 ctx.startNewElement(le);
+                if (ruleContext.getRuleIndex() == InsightParser.RULE_syncWireStatement) {
+                    le.setSync();
+                }
                 break;
             case InsightParser.RULE_attributeAnnotationDeclaration:
                 AttributeAnnotation aa = new AttributeAnnotation();
@@ -171,25 +167,28 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 DeprecatedAnnotation da = new DeprecatedAnnotation();
                 ctx.startNewAnnotation(da);
                 break;
-            case InsightParser.RULE_noteDeclaration:
-                ctx.nextCommentIsNote();
-                break;
-            case InsightParser.RULE_namedImportDeclaration:
+//            case InsightParser.RULE_noteDeclaration:
+//                ctx.nextCommentIsNote();
+//                break;
+            case InsightParser.RULE_namedImportStatement:
                 ctx.startNewImport(new NamedImport());
                 break;
             case InsightParser.RULE_anonymousImportDeclaration:
-                ctx.startNewImport(new AnonymousImport());
+                var ai = new AnonymousImport();
+                ai.setIdentifier(ctx.getPreviousToken().getText());
+                ai.setIdentifierSource(origin, ctx.getPreviousToken());
+                ctx.startNewImport(ai);
                 break;
             default:
                 break;
-        }*/
+        }
     }
 
     @Override
     public void exitEveryRule(ParserRuleContext ruleContext) {
 //        String ruleName = parser.getRuleNames()[ruleContext.getRuleIndex()];
 //        System.out.println("<<< " + ruleName);
-   /*     switch (ruleContext.getRuleIndex()) {
+        switch (ruleContext.getRuleIndex()) {
             case InsightParser.RULE_systemDeclaration:
             case InsightParser.RULE_actorDeclaration:
             case InsightParser.RULE_serviceDeclaration:
@@ -201,9 +200,8 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 }
                 ctx.finishElement();
                 break;
-            case InsightParser.RULE_boundaryContext:
-            case InsightParser.RULE_boundaryContainer:
-            case InsightParser.RULE_wireDeclaration:
+            case InsightParser.RULE_syncWireStatement:
+            case InsightParser.RULE_asyncWireStatement:
             case InsightParser.RULE_storageDeclaration:
                 ctx.finishElement();
                 break;
@@ -211,7 +209,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
                 if (ctx.getCurrentElementWithParams().getDescription() != null) {
                     // duplicate descriptor warning
                     var descriptorParameter = new WithSource() {};
-                    descriptorParameter.setSource((CommonToken) ruleContext.getStart());
+                    descriptorParameter.setSource(origin, (CommonToken) ruleContext.getStart());
                     ctx.addMessage(TranslationUtil.newWarning(
                         descriptorParameter, "Duplicate `descriptor` parameter declared. It will overwrite previous value"
                     ));
@@ -223,7 +221,7 @@ public class InsightParseTreeListener implements ParseTreeListener {
                     // duplicate name warning
                     var nameParameter = new WithSource() {
                     };
-                    nameParameter.setSource((CommonToken) ruleContext.getStart());
+                    nameParameter.setSource(origin, (CommonToken) ruleContext.getStart());
                     ctx.addMessage(TranslationUtil.newWarning(
                         nameParameter, "Duplicate `name` parameter declared. It will overwrite previous value"
                     ));
@@ -235,35 +233,30 @@ public class InsightParseTreeListener implements ParseTreeListener {
                     // duplicate descriptor warning
                     var technologyParameter = new WithSource() {
                     };
-                    technologyParameter.setSource((CommonToken) ruleContext.getStart());
+                    technologyParameter.setSource(origin, (CommonToken) ruleContext.getStart());
                     ctx.addMessage(TranslationUtil.newWarning(
                         technologyParameter, "Duplicate `technology` parameter declared. It will overwrite previous value"
                     ));
                 }
                 ctx.getCurrentElementWithParams().setTechnology(ctx.getCurrentText());
                 break;
-            case InsightParser.RULE_attributeAnnotationDeclaration:
-            case InsightParser.RULE_plannedAnnotationDeclaration:
-            case InsightParser.RULE_deprecatedAnnotationDeclaration:
-                ctx.getCurrentElementsWithAnnotations().addAnnotation(ctx.getCurrentAnnotation());
-                break;
-            case InsightParser.RULE_noteDeclaration:
-                ctx.resetNoteFlag();
-                break;
-            case InsightParser.RULE_namedImportDeclaration:
+//            case InsightParser.RULE_noteDeclaration:
+//                ctx.resetNoteFlag();
+//                break;
             case InsightParser.RULE_anonymousImportDeclaration:
-                if (ctx.getCurrentElement().getType() == LINK) {
-                    ctx.getCurrentElementAsLink().setTo(ctx.getCurrentImport().getAlias());
-                }
+                ctx.getCurrentElementAsLink().setTo(ctx.getCurrentImport().getAlias());
+                ctx.finishImport();
+                break;
+            case InsightParser.RULE_namedImportStatement:
                 ctx.finishImport();
                 break;
             default:
                 break;
-        }*/
+        }
     }
 
     public ParseResult getResult() {
-        return new ParseResult(ctx.getCurrentElement(), ctx.getMessages());
+        return new ParseResult(origin, ctx.getCurrentElement(), ctx.getMessages());
     }
 
 }

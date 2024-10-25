@@ -90,9 +90,6 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     @Override
     public AbstractElement clone() {
         var res = new ActorElement();
-        if (isImported()) {
-            res.setImported();
-        }
         res.note = this.note;
         res.declaredId = this.declaredId;
         res.name = this.name;

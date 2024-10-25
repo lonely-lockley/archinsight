@@ -75,9 +75,6 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     @Override
     public AbstractElement clone() {
         var res = new BoundaryElement();
-        if (isImported()) {
-            res.setImported();
-        }
         res.declaredId = this.declaredId;
         res.name = this.name;
         res.desc = this.desc;
