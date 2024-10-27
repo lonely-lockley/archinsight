@@ -6,7 +6,6 @@ import com.github.lonelylockley.archinsight.model.elements.SystemElement;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 public class ContainerDescriptor extends ParseDescriptor {
 
@@ -14,11 +13,16 @@ public class ContainerDescriptor extends ParseDescriptor {
     private final ContainerElement root;
     private final ContextDescriptor parent;
 
+    public static String createContainerDescriptorId(ArchLevel level, String boundedContext, String id) {
+        return String.format("%s__%s__%s", level, boundedContext, id);
+    }
+
     public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, SystemElement container) {
         super(parent.getBoundedContext(), ArchLevel.CONTAINER);
-        this.id = String.format("%s__%s__%s", getLevel().toString(), parent.getBoundedContext(), container.getDeclaredId());
+        this.id = createContainerDescriptorId(getLevel(), parent.getBoundedContext(), container.getDeclaredId());
         this.root = root;
         this.parent = parent;
+        getOrigins().add(root.getOrigin());
     }
 
     @Override
@@ -34,11 +38,6 @@ public class ContainerDescriptor extends ParseDescriptor {
     @Override
     public ContextDescriptor getParentContext() {
         return parent;
-    }
-
-    @Override
-    public Collection<Origin> getOrigins() {
-        return Collections.singleton(root.getOrigin());
     }
 
     @Override

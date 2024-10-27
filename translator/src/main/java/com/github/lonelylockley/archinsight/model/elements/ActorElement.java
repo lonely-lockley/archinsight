@@ -103,7 +103,7 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
 
     @Override
     public String toString() {
-        return "SystemElement{" +
+        return "ActorElement{" +
                 "declaredId='" + declaredId + '\'' +
                 ", name='" + name + '\'' +
                 ", description='" + description + '\'' +

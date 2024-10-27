@@ -28,15 +28,8 @@ public class TranslationContext {
         return messages;
     }
 
-    public void addDescriptors(ArrayList<ParseDescriptor> descriptors) {
-        for (ParseDescriptor descriptor : descriptors){
-            this.descriptors.put(descriptor.getId(), descriptor);
-        }
-    }
-
     public void addDescriptor(ParseDescriptor descriptor) {
-        var origin = descriptor.getRoot().getOrigin();
-        this.descriptors.put(String.format("%s__%s", descriptor.getLevel(),  origin.getTab().isPresent() ? origin.getTabId() : origin.getFileId().toString()), descriptor);
+        descriptors.merge(descriptor.getId(), descriptor, AdapterDescriptor::new);
     }
 
     public void addMessages(ArrayList<TranslatorMessage> messages) {
@@ -52,5 +45,9 @@ public class TranslationContext {
 
     public boolean noErrors() {
         return !hasErrors;
+    }
+
+    public boolean hasErrors() {
+        return hasErrors;
     }
 }

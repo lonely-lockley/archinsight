@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.parse;
 
 import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.*;
+import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.insight.lang.InsightLexer;
@@ -14,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class Parser {
@@ -70,38 +72,11 @@ public class Parser {
 
     private void parseResultToDescriptors(TranslationContext ctx, ParseResult result) {
         final var root = result.getRoot();
-        final var boundedContextId = root.hasId().mapOrElse(WithId::getDeclaredId, () -> { throw new RuntimeException("Root element cannot exist without an id"); });
-        if (root instanceof ContextElement ce) {
-            // copy children to temporary list and clear context element to rewrite
-            final var children = new ArrayList<>(ce.getChildren());
-            ce.getChildren().clear();
+        final var boundedContextId = root.hasId().fold(WithId::getDeclaredId, () -> { throw new RuntimeException("Root element cannot exist without an id"); });
+        ElementType.CONTEXT.capture(root).foreach(ce -> {
             final var contextDescriptor = new ContextDescriptor(boundedContextId, ce);
             ctx.addDescriptor(contextDescriptor);
-            // create container contexts and rewrite children of an original element
-            for (AbstractElement child : children) {
-                var copy = child.clone();
-                // remove all children except Connections in a copy to render a context level only
-                copy.hasChildren().foreach(withChildren -> {
-                    withChildren.getChildren().removeIf(ch -> ch.getType() != ElementType.LINK);
-                });
-                ce.addChild(copy);
-                parseResultToDescriptors(ctx, contextDescriptor, child, ce);
-            }
-        }
-    }
-
-    private void parseResultToDescriptors(TranslationContext ctx, ContextDescriptor parent, AbstractElement container, ContextElement root) {
-        if (container instanceof SystemElement se) {
-            final var ce = new ContainerElement(se, root);
-            ce.setDeclaredId(String.format("%s__%s", parent.getBoundedContext(), se.getDeclaredId()));
-            final var containerDescriptor = new ContainerDescriptor(parent, ce, se);
-            if (!ctx.hasDescriptor(containerDescriptor.getId())) {
-                ctx.addDescriptor(containerDescriptor);
-            }
-            else {
-                throw new RuntimeException("Container element is already defined. This situation should be impossible!!!");
-            }
-        }
+        });
     }
 
 }

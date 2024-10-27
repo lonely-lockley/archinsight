@@ -15,7 +15,7 @@ public interface Functional<P, T> {
             }
 
             @Override
-            public <R> R mapOrElse(Function<P, R> lambda, Supplier<R> defaultValue) {
+            public <R> R fold(Function<P, R> lambda, Supplier<R> defaultValue) {
                 return defaultValue.get();
             }
 
@@ -38,7 +38,7 @@ public interface Functional<P, T> {
             }
 
             @Override
-            public <R> R mapOrElse(Function<P, R> lambda, Supplier<R> defaultValue) {
+            public <R> R fold(Function<P, R> lambda, Supplier<R> defaultValue) {
                 return lambda.apply((P) param);
             }
 
@@ -53,7 +53,7 @@ public interface Functional<P, T> {
         throw new RuntimeException("Not implemented");
     }
 
-    default <R> R mapOrElse(Function<P, R> lambda, Supplier<R> defaultValue) {
+    default <R> R fold(Function<P, R> lambda, Supplier<R> defaultValue) {
         throw new RuntimeException("Not implemented");
     }
 

@@ -11,10 +11,15 @@ public class ContextDescriptor extends ParseDescriptor {
     private final String id;
     private final ContextElement root;
 
+    public static String createContextDescriptorId(ArchLevel level, String boundedContext) {
+        return String.format("%s__%s", level, boundedContext);
+    }
+
     public ContextDescriptor(String boundedContext, ContextElement root) {
         super(boundedContext, ArchLevel.CONTEXT);
-        this.id = String.format("%s__%s", getLevel().toString(), boundedContext);
+        this.id = createContextDescriptorId(getLevel(), boundedContext);
         this.root = root;
+        getOrigins().add(root.getOrigin());
     }
 
     @Override
@@ -30,11 +35,6 @@ public class ContextDescriptor extends ParseDescriptor {
     @Override
     public ContextDescriptor getParentContext() {
         return null;
-    }
-
-    @Override
-    public Collection<Origin> getOrigins() {
-        return Collections.singleton(root.getOrigin());
     }
 
     @Override

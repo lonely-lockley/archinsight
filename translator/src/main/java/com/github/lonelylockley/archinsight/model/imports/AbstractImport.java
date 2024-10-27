@@ -9,7 +9,7 @@ import org.antlr.v4.runtime.CommonToken;
 
 import java.util.Objects;
 
-public abstract class AbstractImport extends WithSource {
+public abstract class AbstractImport extends WithSource implements Cloneable {
 
     private String boundedContext;
     private WithSource boundedContextSource;
@@ -80,6 +80,10 @@ public abstract class AbstractImport extends WithSource {
         return identifierSource;
     }
 
+    public void setIdentifierSource(WithSource source) {
+        this.identifierSource = source;
+    }
+
     public void setIdentifierSource(Origin origin, CommonToken tkn) {
         this.identifierSource = new WithSource() {};
         this.identifierSource.setSource(origin, tkn);
@@ -97,6 +101,10 @@ public abstract class AbstractImport extends WithSource {
         return aliasSource;
     }
 
+    public void setAliasSource(WithSource source) {
+        this.aliasSource = source;
+    }
+
     public void setAliasSource(Origin origin, CommonToken tkn) {
         this.aliasSource = new WithSource() {};
         this.aliasSource.setSource(origin, tkn);
@@ -112,6 +120,10 @@ public abstract class AbstractImport extends WithSource {
 
     public WithSource getElementSource() {
         return elementSource;
+    }
+
+    public void setElementSource(WithSource source) {
+        this.elementSource = source;
     }
 
     public void setElementSource(Origin origin, CommonToken tkn) {
@@ -160,5 +172,10 @@ public abstract class AbstractImport extends WithSource {
     @Override
     public int hashCode() {
         return Objects.hash(boundedContext, level, identifier, alias, element);
+    }
+
+    @Override
+    public AbstractImport clone() {
+        return this;
     }
 }

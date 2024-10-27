@@ -136,20 +136,9 @@ public class GraphvizTranslator extends TranslatorBase {
         );
     }
 
-    private void traverseImports(ParseDescriptor descriptor, StringBuilder sb) {
-        descriptor.getImports().forEach(i -> {
-            var el = descriptor.getExisting(i.getAlias());
-            traverseDeclarations(el, sb, 1);
-        });
-    }
-
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
         if (el.getType() == ElementType.CONTEXT || el.getType() == ElementType.CONTAINER) {
             ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId()));
-        }
-        else
-        if (el.getType() == ElementType.BOUNDARY) {
-            ElementType.BOUNDARY.capture(el).foreach(be -> startAggregate(sb, be, level));
         }
         else
         if (el.getType() == ElementType.LINK) {
@@ -199,15 +188,14 @@ public class GraphvizTranslator extends TranslatorBase {
         });
     }
 
-    public String translate(List<ParseDescriptor> descriptor) {
-        var root = descriptor.getFirst().getRoot();
+    public String translate(ParseDescriptor descriptor) {
+        var root = descriptor.getRoot();
         if (root.getType() == ElementType.EMPTY) {
             return empty("empty");
         }
         else {
             var res = new StringBuilder();
             traverseDeclarations(root, res, 0);
-            traverseImports(descriptor.getFirst(), res);
             res.append('\n');
             traverseConnections(res);
             finish(res);

@@ -15,14 +15,20 @@ public abstract class ParseDescriptor {
     private final Map<String, AbstractElement> imported = new HashMap<>();
     private final Map<String, AbstractElement> mirrored = new HashMap<>();
     private final Set<LinkElement> connections = new HashSet<>();
+    private final Set<Origin> origins = new HashSet<>();
 
     public ParseDescriptor(String boundedContext, ArchLevel level) {
         this.boundedContext = boundedContext;
         this.level = level;
     }
 
-    public void addImports(WithImports el) {
-        imports.addAll(el.getImports());
+    public void addImport(AbstractImport el) {
+        imports.add(el);
+    }
+
+    public void replaceImport(AbstractImport from, AbstractImport to) {
+        imports.remove(from);
+        imports.add(to);
     }
 
     public void addConnection(LinkElement el) {
@@ -60,6 +66,10 @@ public abstract class ParseDescriptor {
         return declared.containsKey(id);
     }
 
+    public AbstractElement getDeclared(String id) {
+        return declared.get(id);
+    }
+
     public boolean isImported(String id) {
         return imported.containsKey(id);
     }
@@ -70,6 +80,13 @@ public abstract class ParseDescriptor {
 
     public boolean exists(String id) {
         return existing.containsKey(id);
+    }
+
+    public void removeExisting(String id) {
+        existing.remove(id);
+        declared.remove(id);
+        imported.remove(id);
+        mirrored.remove(id);
     }
 
     public AbstractElement getExisting(String id) {
@@ -88,12 +105,14 @@ public abstract class ParseDescriptor {
         return boundedContext;
     }
 
+    public Collection<Origin> getOrigins() {
+        return origins;
+    }
+
     public abstract String getId();
 
     public abstract AbstractElement getRoot();
 
     public abstract ContextDescriptor getParentContext();
-
-    public abstract Collection<Origin> getOrigins();
 
 }

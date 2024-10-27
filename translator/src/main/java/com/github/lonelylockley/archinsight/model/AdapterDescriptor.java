@@ -1,37 +1,19 @@
 package com.github.lonelylockley.archinsight.model;
 
-import com.github.lonelylockley.archinsight.model.elements.ContextElement;
+import com.github.lonelylockley.archinsight.model.elements.*;
 
-import java.util.*;
+import java.util.function.Function;
 
 public class AdapterDescriptor extends ContextDescriptor {
 
-    private final List<Origin> origins = new ArrayList<>();
-
     public AdapterDescriptor(ParseDescriptor left, ParseDescriptor right) {
         super(left.getBoundedContext(), (ContextElement) left.getRoot().clone());
-        var root = getRoot();
-        origins.addAll(left.getOrigins());
-        origins.addAll(right.getOrigins());
-        right.getRoot().hasImports().foreach(withImports -> root.hasImports().foreach(wi -> {
-            wi // remove imports pointing to this bounded context
-                .getImports()
-                .removeIf(imp -> Objects.equals(imp.getBoundedContext(), getBoundedContext()));
-            withImports // do the same for the right descriptor
-                .getImports()
-                .stream()
-                .filter(imp -> !Objects.equals(imp.getBoundedContext(), getBoundedContext()))
-                .forEach(imp -> wi.getImports().add(imp));
-        }));
-        right.getRoot().hasChildren().foreach(withChildElements ->
-                root
-                    .hasChildren()
-                    .foreach(wc -> wc.getChildren().addAll(withChildElements.getChildren()))
-            );
+        getOrigins().addAll(left.getOrigins());
+        getOrigins().addAll(right.getOrigins());
+        var l = ElementType.CONTEXT.capture(getRoot()).fold(Function.identity(), () -> { throw new RuntimeException("Unexpected descriptor type " + getRoot().getType()); });
+        var r = ElementType.CONTEXT.capture(right.getRoot()).fold(Function.identity(), () -> { throw new RuntimeException("Unexpected descriptor type " + getRoot().getType()); });
+        l.getImports().addAll(r.getImports());
+        l.getChildren().addAll(r.getChildren());
     }
 
-    @Override
-    public Collection<Origin> getOrigins() {
-        return origins;
-    }
 }

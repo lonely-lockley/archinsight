@@ -2,9 +2,7 @@ package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
 import com.github.lonelylockley.archinsight.introspect.Introspection;
-import com.github.lonelylockley.archinsight.model.ArchLevel;
-import com.github.lonelylockley.archinsight.model.Origin;
-import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.translator.*;
 import com.github.lonelylockley.archinsight.link.Linker;
@@ -121,22 +119,41 @@ public class TranslatorService {
         return res;
     }
 
+//    private void translateParsed(TranslationRequest data, TranslationResult result, TranslationContext ctx) {
+//        result.setTabs(data.getTabs());
+//        var tabToDescriptor = ctx
+//            .getDescriptors()
+//            .stream()
+//            .filter(desc -> desc.getLevel() == data.getLevel() && desc.getRoot().getOrigin().getTab().isPresent())
+//            .collect(Collectors.groupingBy(
+//                desc -> desc.getRoot().getOrigin().getTab().get().getTabId(),
+//                Collectors.mapping(
+//                        Function.identity(), Collectors.toList()
+//                )
+//            ));
+//        for (TabData tab : result.getTabs()) {
+//            var tr = new GraphvizTranslator();
+//            var desc = tabToDescriptor.get(tab.getTabId());
+//            tab.setSource(desc == null ? GraphvizTranslator.empty("empty") : tr.translate(desc));
+//            if (Objects.equals(tab.getTabId(), data.getTabId())) {
+//                result.setEdited(tab);
+//            }
+//        }
+//    }
+
     private void translateParsed(TranslationRequest data, TranslationResult result, TranslationContext ctx) {
         result.setTabs(data.getTabs());
         var tabToDescriptor = ctx
-            .getDescriptors()
-            .stream()
-            .filter(desc -> desc.getLevel() == data.getLevel() && desc.getRoot().getOrigin().getTab().isPresent())
-            .collect(Collectors.groupingBy(
-                desc -> desc.getRoot().getOrigin().getTab().get().getTabId(),
-                Collectors.mapping(
-                        Function.identity(), Collectors.toList()
-                )
-            ));
+                .getDescriptors()
+                .stream()
+                .filter(desc -> desc.getLevel() == data.getLevel())
+                .flatMap(desc -> desc.getOrigins().stream().map(origin -> new Tuple2<>(origin, desc)))
+                .filter(t -> t._1.getTab().isPresent())
+                .collect(Collectors.groupingBy(t -> t._1.getTabId(), Collectors.toList()));
         for (TabData tab : result.getTabs()) {
             var tr = new GraphvizTranslator();
             var desc = tabToDescriptor.get(tab.getTabId());
-            tab.setSource(desc == null ? GraphvizTranslator.empty("empty") : tr.translate(desc));
+            tab.setSource(desc == null ? GraphvizTranslator.empty("empty") : tr.translate(desc.getFirst()._2));
             if (Objects.equals(tab.getTabId(), data.getTabId())) {
                 result.setEdited(tab);
             }

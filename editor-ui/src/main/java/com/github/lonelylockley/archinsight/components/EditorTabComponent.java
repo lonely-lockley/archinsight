@@ -1,6 +1,5 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.lonelylockley.archinsight.events.FileChangeReason;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;

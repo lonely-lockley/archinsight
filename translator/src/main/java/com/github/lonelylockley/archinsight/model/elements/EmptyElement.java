@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.Origin;
+
 import java.util.UUID;
 
 public class EmptyElement extends AbstractElement implements WithId {
@@ -11,6 +13,10 @@ public class EmptyElement extends AbstractElement implements WithId {
 
     public EmptyElement(String declaredId) {
         this.declaredId = declaredId;
+    }
+
+    public void setOrigin(Origin origin) {
+        super.origin = origin;
     }
 
     @Override
@@ -31,5 +37,12 @@ public class EmptyElement extends AbstractElement implements WithId {
     @Override
     public String getDeclaredId() {
         return declaredId;
+    }
+
+    @Override
+    public String toString() {
+        return "EmptyElement{" +
+                "declaredId='" + declaredId + '\'' +
+                '}';
     }
 }

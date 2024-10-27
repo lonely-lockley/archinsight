@@ -6,6 +6,7 @@ import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 

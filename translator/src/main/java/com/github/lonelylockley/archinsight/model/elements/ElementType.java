@@ -76,4 +76,14 @@ public class ElementType<T extends AbstractElement> implements Functional<T, Abs
     public int hashCode() {
         return Objects.hash(id);
     }
+
+    @Override
+    public Functional<T, AbstractElement> capture(AbstractElement param) {
+        if (param.getType() == byId.get(id)) {
+            return Functional.super.capture(param);
+        }
+        else {
+            return Functional.super.noop();
+        }
+    }
 }
