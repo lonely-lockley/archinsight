@@ -27,7 +27,7 @@ class LinkHelper {
         copy.hasId().foreach(c -> c.setDeclaredId(newId));
         copy.hasChildren().foreach(c -> c.getChildren().clear());
         copy.hasExternal().foreach(WithExternal::setExternal);
-        descriptor.getRoot().hasChildren().foreach(withChildElements -> withChildElements.addChild(copy));
+        descriptor.getRootWithChildren().addChild(copy);
         return copy;
     }
 }

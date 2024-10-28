@@ -10,7 +10,7 @@ public interface Declarations {
     default void declareConnection(LinkElement link, ParseDescriptor descriptor, TranslationContext ctx) {
         if (descriptor.getConnections().contains(link)) {
             var tm = TranslationUtil.newWarning(link,
-                    "Link is already defined"
+                    String.format("Link from %s to %s is already defined", link.getFrom(), link.getTo())
             );
             ctx.addMessage(tm);
         }

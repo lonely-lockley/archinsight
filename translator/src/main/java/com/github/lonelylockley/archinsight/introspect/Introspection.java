@@ -3,10 +3,8 @@ package com.github.lonelylockley.archinsight.introspect;
 import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
-import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 
@@ -19,14 +17,14 @@ public class Introspection {
     }
 
     private void searchForIsolatedElements(ParseDescriptor descriptor) {
-        final var declarations = new HashSet<String>(descriptor.getAllExisting().size());
-        declarations.addAll(descriptor.getAllExisting().keySet());
+        final var declarations = new HashSet<String>(descriptor.listExisting().size());
+        declarations.addAll(descriptor.listExisting().keySet());
         descriptor.getConnections().forEach(link -> {
             declarations.remove(link.getFrom());
             declarations.remove(link.getTo());
         });
         declarations.forEach(id -> {
-            final var el = descriptor.getAllExisting().get(id);
+            final var el = descriptor.listExisting().get(id);
             if (el.getType() != ElementType.BOUNDARY && el.getType() != ElementType.EMPTY) { // boundaries are never connected
                 el.hasId().foreach(withId -> {
                     var tm = TranslationUtil.newNotice(el.getOrigin(), String.format("Element %s has no connections with other elements", withId.getDeclaredId()));

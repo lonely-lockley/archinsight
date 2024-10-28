@@ -74,6 +74,14 @@ public abstract class ParseDescriptor {
         return imported.containsKey(id);
     }
 
+    public AbstractElement getImported(String id) {
+        return imported.get(id);
+    }
+
+    public Collection<String> listImported() {
+        return imported.keySet();
+    }
+
     public boolean isMirrored(String id) {
         return mirrored.containsKey(id);
     }
@@ -93,7 +101,7 @@ public abstract class ParseDescriptor {
         return existing.get(id);
     }
 
-    public Map<String, AbstractElement> getAllExisting() {
+    public Map<String, AbstractElement> listExisting() {
         return existing;
     }
 
@@ -112,6 +120,12 @@ public abstract class ParseDescriptor {
     public abstract String getId();
 
     public abstract AbstractElement getRoot();
+
+    public abstract WithId getRootWithId();
+
+    public abstract WithChildElements getRootWithChildren();
+
+    public abstract WithImports getRootWithImports();
 
     public abstract ContextDescriptor getParentContext();
 

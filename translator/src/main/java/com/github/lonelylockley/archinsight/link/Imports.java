@@ -71,7 +71,7 @@ public interface Imports {
                 res.setBoundedContextSource(system.getBoundedContextSource());
                 res.setIdentifier(system.getIdentifier());
                 res.setIdentifierSource(system.getIdentifierSource());
-                res.setAlias(anon.getElement());
+                res.setAlias(anon.getAlias());
                 res.setAliasSource(anon.getAliasSource());
                 res.setElement(anon.getIdentifier());
                 res.setElementSource(anon.getElementSource());
@@ -88,7 +88,7 @@ public interface Imports {
                 res.setLevel(anon.getLevel());
                 res.setBoundedContext(descriptor.getBoundedContext());
                 res.setIdentifier(anon.getElement());
-                res.setAlias(anon.getElement());
+                res.setAlias(anon.getAlias());
                 res.setAliasSource(anon.getAliasSource());
                 res.setElement(anon.getIdentifier());
                 res.setElementSource(anon.getElementSource());
@@ -105,13 +105,37 @@ public interface Imports {
                 ctx.addMessage(tm);
             }
         });
+        remapConnections(descriptor, remapping, named, ctx);
+    }
+
+    private void remapConnections(ParseDescriptor descriptor, Map<String, String> remapping, Map<String, AbstractImport> named, TranslationContext ctx) {
         // remap connections to correct anonymous aliases and declare named imports
         descriptor.getConnections().forEach(connection -> {
             if (remapping.containsKey(connection.getTo())) {
                 connection.setTo(remapping.get(connection.getTo()));
             }
-            if (named.containsKey(connection.getTo()) && !descriptor.exists(connection.getTo())) {
-                descriptor.declareImported(connection.getTo(), new EmptyElement());
+            if (named.containsKey(connection.getTo())) {
+                if (descriptor.isDeclared(connection.getTo()) && !Objects.equals(descriptor.getDeclared(connection.getTo()).getOrigin(), connection.getOrigin())) {
+                    // element exists in context, but declared in another origin and must not be shared
+                    var tm = TranslationUtil.newError(connection,
+                            String.format("Undeclared identifier %s", connection.getTo())
+                    );
+                    TranslationUtil.copyPosition(tm, connection);
+                    ctx.addMessage(tm);
+                }
+                else
+                if (descriptor.exists(connection.getTo()) && !Objects.equals(named.get(connection.getTo()).getOrigin(), connection.getOrigin())) {
+                    // import exists in context, but declared in another origin and must not be shared
+                    var tm = TranslationUtil.newError(connection,
+                            String.format("Undeclared identifier %s", connection.getTo())
+                    );
+                    TranslationUtil.copyPosition(tm, connection);
+                    ctx.addMessage(tm);
+                }
+                else
+                if (!descriptor.exists(connection.getTo())) {
+                    descriptor.declareImported(connection.getTo(), new EmptyElement());
+                }
             }
         });
     }

@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.model.imports;
 
+import com.github.lonelylockley.archinsight.model.Origin;
+
 public class GeneratedImport extends NamedImport {
 
     @Override
@@ -18,6 +20,10 @@ public class GeneratedImport extends NamedImport {
         res.setOrigination(this.getOriginalDescriptor(), this.getOriginalElement());
         this.clonePositionTo(res);
         return res;
+    }
+
+    public void setOrigin(Origin origin) {
+        this.origin = origin;
     }
 
     @Override

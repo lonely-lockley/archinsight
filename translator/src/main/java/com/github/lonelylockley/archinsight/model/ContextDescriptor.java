@@ -1,7 +1,6 @@
 package com.github.lonelylockley.archinsight.model;
 
-import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
-import com.github.lonelylockley.archinsight.model.elements.ContextElement;
+import com.github.lonelylockley.archinsight.model.elements.*;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -29,6 +28,21 @@ public class ContextDescriptor extends ParseDescriptor {
 
     @Override
     public AbstractElement getRoot() {
+        return root;
+    }
+
+    @Override
+    public WithId getRootWithId() {
+        return root;
+    }
+
+    @Override
+    public WithChildElements getRootWithChildren() {
+        return root;
+    }
+
+    @Override
+    public WithImports getRootWithImports() {
         return root;
     }
 

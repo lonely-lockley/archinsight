@@ -64,7 +64,7 @@ public class TranslatorService {
         new Parser(ctx).parseRepository(ctx, fsFuture.get(), allFilesFuture.get());
         // check integrity
         if (ctx.noErrors()) {
-            new Linker(ctx).checkIntegrity();
+            new Linker(ctx).checkIntegrity(data.getLevel());
             new Introspection(ctx).suggest();
         }
         // translate to DOT

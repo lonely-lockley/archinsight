@@ -247,6 +247,9 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                 ctx.getCurrentElementAsLink().setTo(ctx.getCurrentImport().getAlias());
                 ctx.finishImport();
                 break;
+            case InsightParser.RULE_annotationStatement:
+                ctx.finishAnnotation();
+                break;
             case InsightParser.RULE_namedImportStatement:
                 ctx.finishImport();
                 break;

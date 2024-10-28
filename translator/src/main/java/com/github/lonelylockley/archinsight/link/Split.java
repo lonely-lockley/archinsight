@@ -74,6 +74,7 @@ public interface Split {
         imp.setLevel(descriptor.getLevel());
         imp.setIdentifier(id);
         imp.setOrigination(descriptor, el);
+        imp.setOrigin(el.getOrigin());
         descriptor.addImport(imp);
     }
 
@@ -96,7 +97,7 @@ public interface Split {
                 });
         src.getImports()
                 .stream()
-                .filter(AbstractImport::isAnonymous)
+                //.filter(AbstractImport::isAnonymous)
                 .forEach(imp -> dst.addImport(imp.clone()));
         src.clonePositionTo(dst);
         return dst;

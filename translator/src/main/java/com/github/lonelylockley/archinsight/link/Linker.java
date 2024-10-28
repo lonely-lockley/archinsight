@@ -19,78 +19,6 @@ public class Linker implements Declarations, Split, Imports, Mirror, Relocation,
         this.ctx = ctx;
     }
 
-    /*
-    private void addMirrorConnections(ParseDescriptor descriptor) {
-        // original descriptor with import statement that has to be mirrored
-        descriptor
-                .getConnections()
-                .stream()
-                .filter(le -> declaredImports.containsKey(le.getTo()))
-                .forEach(le -> {
-                    // original_to alias -> (namespaceLId, original import)
-                    var namespaceAndImportStatement = declaredImports.get(le.getTo());
-                    // original element referencing imported element
-                    var originalFromElement = descriptor.getExisting(le.getFrom());
-                    if (originalFromElement == null) {
-                        return;
-                    }
-                    // mirrored element
-                    var mirrored = originalFromElement.clone();
-                    // target descriptor to mirror element and link
-                    var targetDescriptor = ctx.getDescriptor(namespaceAndImportStatement._1);
-                    if (targetDescriptor != null) {
-                        // container element in target descriptor with mirror element added
-                        var container = LinkHelper.transformToImported(mirrored, namespaceAndImportStatement._2, targetDescriptor.getRoot(), targetDescriptor);
-                        var alreadyImported = targetDescriptor
-                                .getImports()
-                                .stream()
-                                .filter(imp -> {
-                                    return Objects.equals(imp.getBoundedContext(), descriptor.getBoundedContext()) && Objects.equals(imp.getIdentifier(), le.getFrom());
-                                })
-                                .findFirst();
-                        String newId;
-                        if (alreadyImported.isPresent()) {
-                            newId = alreadyImported.get().getAlias();
-                        }
-                        else {
-                            newId = String.format("%s__%s", descriptor.getId(), le.getFrom());
-                        }
-                        mirrored.hasId().foreach(withId -> withId.setDeclaredId(newId));
-                        // - if original element is imported into target namespace
-                        if (!targetDescriptor.exists(newId)) {
-                            container.addChild(mirrored);
-                            targetDescriptor.declareMirrored(newId, mirrored);
-                        }
-                        // create a reversed link from mirrored element to imported one
-                        var reverseLink = (LinkElement) le.clone();
-                        // copy link and reverse direction
-                        reverseLink.setFrom(newId);
-                        if (namespaceAndImportStatement._2.getOriginalElement() != null) {
-                            reverseLink.setTo(namespaceAndImportStatement._2.getOriginalElement().hasId().fold(WithId::getDeclaredId, null));
-                        }
-                        targetDescriptor.addConnection(reverseLink);
-                        container.addChild(reverseLink);
-                    }
-                });
-        declaredImports.clear();
-    }
-    */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     private void splitLevels() {
         // copy descriptors to temporary collection because it's not a good idea to change context while iterating over it
         var tmp = new ArrayList<>(ctx.getDescriptors());
@@ -112,16 +40,12 @@ public class Linker implements Declarations, Split, Imports, Mirror, Relocation,
             .hasChildren()
             .<List<AbstractElement>>fold(WithChildElements::getChildren, Collections::emptyList)
             .forEach(child -> {
-                ElementType.LINK.capture(child).foreach(le -> descriptor.getConnections().add(le));
+                ElementType.LINK.capture(child).foreach(le -> declareConnection(le, descriptor, ctx));
                 initializeDescriptor(descriptor, child);
             });
     }
 
     private void makeDeclarations(ParseDescriptor descriptor, AbstractElement el) {
-        if (el.getType() == ElementType.LINK) {
-            ElementType.LINK.capture(el).foreach(link -> declareConnection(link, descriptor, ctx));
-        }
-        else
         if (el.getType() == ElementType.ACTOR) {
             ElementType.ACTOR.capture(el).foreach(actor -> declareElement(actor, descriptor, ctx));
         }
@@ -148,9 +72,6 @@ public class Linker implements Declarations, Split, Imports, Mirror, Relocation,
         if (el.getType() == ElementType.CONTAINER) {
             ElementType.CONTAINER.capture(el).foreach(container -> container.getChildren().forEach(child -> makeDeclarations(descriptor, child)));
         }
-        else {
-            logger.warn("Don't know how to declare element type {}", el.getType());
-        }
     }
 
     private void processImports() {
@@ -164,14 +85,16 @@ public class Linker implements Declarations, Split, Imports, Mirror, Relocation,
         }
     }
 
-    private void processConnections() {
+    private void processConnections(ArchLevel targetLevel) {
         for (ParseDescriptor descriptor : ctx.getDescriptors()) {
-            //addMirrorConnections(descriptor);
-            checkConnections(descriptor, ctx);
+            if (descriptor.getLevel() == targetLevel) {
+                addMirrorConnections(descriptor, ctx);
+                checkConnections(descriptor, ctx);
+            }
         }
     }
 
-    public void checkIntegrity() {
+    public void checkIntegrity(ArchLevel targetLevel) {
         splitLevels();
         for (ParseDescriptor descriptor : ctx.getDescriptors()) {
             // populate imports and connections
@@ -180,7 +103,7 @@ public class Linker implements Declarations, Split, Imports, Mirror, Relocation,
             makeDeclarations(descriptor, descriptor.getRoot());
         }
         processImports();
-        processConnections();
+        processConnections(targetLevel);
     }
 
 }
