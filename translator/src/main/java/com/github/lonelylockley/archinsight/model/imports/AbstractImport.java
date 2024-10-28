@@ -151,17 +151,6 @@ public abstract class AbstractImport extends WithSource implements Cloneable {
     public abstract boolean isAnonymous();
 
     @Override
-    public String toString() {
-        return "AbstractImport{" +
-                "namespace='" + boundedContext + '\'' +
-                ", level=" + level +
-                ", identifier='" + identifier + '\'' +
-                ", alias='" + alias + '\'' +
-                ", element='" + element + '\'' +
-                '}';
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

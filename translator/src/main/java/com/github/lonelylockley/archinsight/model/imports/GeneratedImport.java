@@ -1,31 +1,10 @@
 package com.github.lonelylockley.archinsight.model.imports;
 
-import com.github.lonelylockley.archinsight.model.ArchLevel;
-
-public class AnonymousImport extends AbstractImport {
-
-    public AnonymousImport() {
-        setLevel(ArchLevel.CONTAINER);
-    }
-
-    @Override
-    public String getVisibleIdentifier() {
-        return null;
-    }
-
-    @Override
-    public String getAlias() {
-        return String.format("%s__%s__%s", getLevel(), getElement(), getIdentifier());
-    }
-
-    @Override
-    public boolean isAnonymous() {
-        return true;
-    }
+public class GeneratedImport extends NamedImport {
 
     @Override
     public AbstractImport clone() {
-        var res = new AnonymousImport();
+        var res = new GeneratedImport();
         res.setLevel(this.getLevel());
         res.setLevelSource(this.getLevelSource());
         res.setBoundedContext(this.getBoundedContext());
@@ -43,7 +22,7 @@ public class AnonymousImport extends AbstractImport {
 
     @Override
     public String toString() {
-        return "AnonymousImport{" +
+        return "GeneratedImport{" +
                 "boundedContext='" + getBoundedContext() + '\'' +
                 ", level=" + getLevel() +
                 ", identifier='" + getIdentifier() + '\'' +

@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.model;
 
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
+import com.github.lonelylockley.archinsight.model.elements.ActorElement;
 import com.github.lonelylockley.archinsight.model.elements.ContainerElement;
 import com.github.lonelylockley.archinsight.model.elements.SystemElement;
 
@@ -18,6 +19,14 @@ public class ContainerDescriptor extends ParseDescriptor {
     }
 
     public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, SystemElement container) {
+        super(parent.getBoundedContext(), ArchLevel.CONTAINER);
+        this.id = createContainerDescriptorId(getLevel(), parent.getBoundedContext(), container.getDeclaredId());
+        this.root = root;
+        this.parent = parent;
+        getOrigins().add(root.getOrigin());
+    }
+
+    public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, ActorElement container) {
         super(parent.getBoundedContext(), ArchLevel.CONTAINER);
         this.id = createContainerDescriptorId(getLevel(), parent.getBoundedContext(), container.getDeclaredId());
         this.root = root;

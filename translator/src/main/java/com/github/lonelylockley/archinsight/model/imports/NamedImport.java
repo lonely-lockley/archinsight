@@ -34,4 +34,15 @@ public class NamedImport extends AbstractImport implements Cloneable {
         this.clonePositionTo(res);
         return res;
     }
+
+    @Override
+    public String toString() {
+        return "NamedImport{" +
+                "boundedContext='" + getBoundedContext() + '\'' +
+                ", level=" + getLevel() +
+                ", identifier='" + getIdentifier() + '\'' +
+                ", alias='" + getAlias() + '\'' +
+                ", element='" + getElement() + '\'' +
+                '}';
+    }
 }

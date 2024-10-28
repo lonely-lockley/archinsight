@@ -4,13 +4,11 @@ import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
+import com.github.lonelylockley.archinsight.model.imports.GeneratedImport;
 import com.github.lonelylockley.archinsight.model.imports.NamedImport;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -44,8 +42,12 @@ public interface Imports {
     }
 
     default void rewriteImports(ParseDescriptor descriptor, TranslationContext ctx) {
-        final var split = descriptor
-                        .getImports()
+        final var imports = new ArrayList<AbstractImport>();
+        imports.addAll(descriptor.getImports());
+        if (descriptor.getParentContext() != null) {
+            imports.addAll(descriptor.getParentContext().getImports());
+        }
+        final var split = imports
                         .stream()
                         .collect(Collectors.groupingBy(
                                 AbstractImport::isAnonymous,
@@ -55,14 +57,14 @@ public interface Imports {
         final var named = split
                         .getOrDefault(false, Collections.emptyList())
                         .stream()
-                        .collect(Collectors.toMap(AbstractImport::getAlias, Function.identity()));
+                        .collect(Collectors.toMap(AbstractImport::getAlias, Function.identity(), (left, right) -> right));
         // fix anonymous imports aliases by adding missing information from named
         final var remapping = new HashMap<String, String>();
         split.getOrDefault(true, Collections.emptyList()).forEach(anon -> {
             if (named.containsKey(anon.getElement())) {
                 // anonymous imports from container element imported with named import
                 var system = named.get(anon.getElement());
-                var res = new NamedImport();
+                var res = new GeneratedImport();
                 res.setLevel(anon.getLevel());
                 res.setLevelSource(system.getLevelSource());
                 res.setBoundedContext(system.getBoundedContext());
@@ -70,7 +72,6 @@ public interface Imports {
                 res.setIdentifier(system.getIdentifier());
                 res.setIdentifierSource(system.getIdentifierSource());
                 res.setAlias(anon.getElement());
-                res.setAliasSource(anon.getElementSource());
                 res.setAliasSource(anon.getAliasSource());
                 res.setElement(anon.getIdentifier());
                 res.setElementSource(anon.getElementSource());
@@ -80,9 +81,10 @@ public interface Imports {
                 descriptor.replaceImport(anon, res);
             }
             else
-            if (descriptor.exists(anon.getElement()) && Objects.equals(descriptor.getExisting(anon.getElement()).getOrigin(), anon.getOrigin())) {
+            if ((descriptor.getLevel() == ArchLevel.CONTEXT && descriptor.exists(anon.getElement()) && Objects.equals(descriptor.getExisting(anon.getElement()).getOrigin(), anon.getOrigin())) ||
+                    (descriptor.getLevel() == ArchLevel.CONTAINER && descriptor.exists(anon.getIdentifier()) && Objects.equals(descriptor.getExisting(anon.getIdentifier()).getOrigin(), anon.getOrigin()))) {
                 // anonymous imports in the same file without corresponding named import
-                var res = new NamedImport();
+                var res = new GeneratedImport();
                 res.setLevel(anon.getLevel());
                 res.setBoundedContext(descriptor.getBoundedContext());
                 res.setIdentifier(anon.getElement());
@@ -103,10 +105,13 @@ public interface Imports {
                 ctx.addMessage(tm);
             }
         });
-        // remap connections to correct anonymous aliases
+        // remap connections to correct anonymous aliases and declare named imports
         descriptor.getConnections().forEach(connection -> {
             if (remapping.containsKey(connection.getTo())) {
                 connection.setTo(remapping.get(connection.getTo()));
+            }
+            if (named.containsKey(connection.getTo()) && !descriptor.exists(connection.getTo())) {
+                descriptor.declareImported(connection.getTo(), new EmptyElement());
             }
         });
     }
