@@ -2,7 +2,6 @@ package com.github.lonelylockley.archinsight.link;
 
 import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.*;
-import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.imports.GeneratedImport;
 
 import java.util.List;
@@ -32,7 +31,7 @@ public interface Split {
                         if (child.getType() == ElementType.SYSTEM) {
                             ElementType.SYSTEM.capture(child).foreach(system -> {
                                 final var newContainer = stripContainer(system, context);
-                                final var newContainerDescriptor = new ContainerDescriptor(newContextDescriptor, newContainer, system);
+                                final var newContainerDescriptor = new ContainerDescriptor(newContextDescriptor, newContainer, system.getDeclaredId());
                                 createImport(newContextDescriptor, system.getDeclaredId(), system);
                                 ctx.addDescriptor(newContainerDescriptor);
                             });
@@ -41,7 +40,7 @@ public interface Split {
                         if (child.getType() == ElementType.ACTOR) {
                             ElementType.ACTOR.capture(child).foreach(actor -> {
                                 final var newContainer = stripContainer(actor, context);
-                                final var newContainerDescriptor = new ContainerDescriptor(newContextDescriptor, newContainer, actor);
+                                final var newContainerDescriptor = new ContainerDescriptor(newContextDescriptor, newContainer, actor.getDeclaredId());
                                 createImport(newContextDescriptor, actor.getDeclaredId(), actor);
                                 ctx.addDescriptor(newContainerDescriptor);
                             });
@@ -95,11 +94,11 @@ public interface Split {
                 .forEach(child -> {
                     dst.addChild(child.clone());
                 });
-        src.getImports()
-                .stream()
-                //.filter(AbstractImport::isAnonymous)
-                .forEach(imp -> dst.addImport(imp.clone()));
-        src.clonePositionTo(dst);
+        src.getImports().forEach(imp -> dst.addImport(imp.clone()));
+        src.getChildren()
+                .forEach(child -> {
+                    child.hasId().filter(withId -> id.equals(withId.getDeclaredId())).foreach(withId -> child.clonePositionTo(dst));
+                });
         return dst;
     }
 

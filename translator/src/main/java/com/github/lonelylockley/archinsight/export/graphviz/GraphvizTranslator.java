@@ -77,8 +77,8 @@ public class GraphvizTranslator extends TranslatorBase {
         writeBlock(sb, act.getUniqueId(), act.getDeclaredId(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
                 act.getType(),
                 act.getAnnotations(),
-                new Tuple2<>("shape", "egg"),
-                new Tuple2<>("style", "filled"),
+                new Tuple2<>("shape", "box"),
+                new Tuple2<>("style", "filled,rounded"),
                 new Tuple2<>("fillcolor", "#08427B"))
         );
         if (act.getNote() != null) {
@@ -136,9 +136,26 @@ public class GraphvizTranslator extends TranslatorBase {
         );
     }
 
+    private void writeInvisibleElement(WithId wid, StringBuilder sb, int level) {
+        writeBlock(sb, null, wid.getDeclaredId(), "", null, null, level, mergeProperties(
+                wid.getType(),
+                Collections.emptyMap(),
+                new Tuple2<>("shape", "point"),
+                new Tuple2<>("style", "invis"))
+        );
+    }
+
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
-        if (el.getType() == ElementType.CONTEXT || el.getType() == ElementType.CONTAINER) {
+        if (el.getType() == ElementType.CONTEXT) {
             ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId()));
+        }
+        else
+        if (el.getType() == ElementType.CONTAINER) {
+            ElementType.CONTAINER.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId()));
+        }
+        else
+        if (el.getType() == ElementType.BOUNDARY) {
+            ElementType.BOUNDARY.capture(el).foreach(be -> startAggregate(sb, be, level));
         }
         else
         if (el.getType() == ElementType.LINK) {
@@ -159,6 +176,10 @@ public class GraphvizTranslator extends TranslatorBase {
         else
         if (el.getType() == ElementType.STORAGE) {
             ElementType.STORAGE.capture(el).foreach(se -> writeStorageElement(se, sb, level));
+        }
+        else
+        if (el.getType() == ElementType.EMPTY) {
+            ElementType.EMPTY.capture(el).foreach(em -> writeInvisibleElement(em, sb, level));
         }
 
         el.hasChildren().foreach(hasChildren -> hasChildren.getChildren().forEach(ch -> traverseDeclarations(ch, sb, level + 1)));

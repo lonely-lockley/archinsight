@@ -2,9 +2,9 @@ package com.github.lonelylockley.archinsight.model;
 
 import com.github.lonelylockley.archinsight.model.elements.*;
 
-public class AdapterDescriptor extends ContextDescriptor {
+public class ContextAdapterDescriptor extends ContextDescriptor {
 
-    public AdapterDescriptor(ParseDescriptor left, ParseDescriptor right) {
+    public ContextAdapterDescriptor(ParseDescriptor left, ParseDescriptor right) {
         super(left.getBoundedContext(), (ContextElement) left.getRoot().clone());
         getOrigins().addAll(left.getOrigins());
         getOrigins().addAll(right.getOrigins());
@@ -14,7 +14,7 @@ public class AdapterDescriptor extends ContextDescriptor {
 
     @Override
     public String toString() {
-        return "AdapterDescriptor{" +
+        return "ContextAdapterDescriptor{" +
                 "id='" + getId() + '\'' +
                 '}';
     }

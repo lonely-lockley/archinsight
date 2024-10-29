@@ -51,8 +51,8 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                         imp.setBoundedContextSource(origin, tkn);
                     }
                     else if (ctx.getPreviousToken().getType() == InsightLexer.FROM && ctx.getCurrentImport().isAnonymous()) {
-                        imp.setElement(tkn.getText());
-                        imp.setElementSource(origin, tkn);
+                        imp.setIdentifier(tkn.getText());
+                        imp.setIdentifierSource(origin, tkn);
                     }
                     else {
                         imp.setLine(tkn.getLine());
@@ -175,8 +175,8 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                 break;
             case InsightParser.RULE_anonymousImportDeclaration:
                 var ai = new AnonymousImport();
-                ai.setIdentifier(ctx.getPreviousToken().getText());
-                ai.setIdentifierSource(origin, ctx.getPreviousToken());
+                ai.setElement(ctx.getPreviousToken().getText());
+                ai.setElementSource(origin, ctx.getPreviousToken());
                 ctx.startNewImport(ai);
                 break;
             default:

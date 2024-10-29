@@ -5,28 +5,25 @@ import com.github.lonelylockley.archinsight.model.elements.*;
 
 public class ContainerDescriptor extends ParseDescriptor {
 
-    private final String id;
     private final ContainerElement root;
     private final ContextDescriptor parent;
+
+    private String id;
 
     public static String createContainerDescriptorId(ArchLevel level, String boundedContext, String id) {
         return String.format("%s__%s__%s", level, boundedContext, id);
     }
 
-    public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, SystemElement container) {
+    public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, String id) {
         super(parent.getBoundedContext(), ArchLevel.CONTAINER);
-        this.id = createContainerDescriptorId(getLevel(), parent.getBoundedContext(), container.getDeclaredId());
+        this.id = createContainerDescriptorId(getLevel(), parent.getBoundedContext(), id);
         this.root = root;
         this.parent = parent;
         getOrigins().add(root.getOrigin());
     }
 
-    public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, ActorElement container) {
-        super(parent.getBoundedContext(), ArchLevel.CONTAINER);
-        this.id = createContainerDescriptorId(getLevel(), parent.getBoundedContext(), container.getDeclaredId());
-        this.root = root;
-        this.parent = parent;
-        getOrigins().add(root.getOrigin());
+    protected void overrideId(String id) {
+        this.id = id;
     }
 
     @Override

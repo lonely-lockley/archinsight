@@ -23,7 +23,7 @@ public abstract class TranslatorBase {
     }
 
     private String wrapTextIfNotFormatted(String text) {
-        if (text ==null || text.contains("\n")) {
+        if (text == null || text.contains("\n")) {
             return text;
         }
         else {

@@ -61,9 +61,9 @@ public interface Imports {
         // fix anonymous imports aliases by adding missing information from named
         final var remapping = new HashMap<String, String>();
         split.getOrDefault(true, Collections.emptyList()).forEach(anon -> {
-            if (named.containsKey(anon.getElement())) {
+            if (named.containsKey(anon.getIdentifier())) {
                 // anonymous imports from container element imported with named import
-                var system = named.get(anon.getElement());
+                var system = named.get(anon.getIdentifier());
                 var res = new GeneratedImport();
                 res.setLevel(anon.getLevel());
                 res.setLevelSource(system.getLevelSource());
@@ -73,26 +73,24 @@ public interface Imports {
                 res.setIdentifierSource(system.getIdentifierSource());
                 res.setAlias(anon.getAlias());
                 res.setAliasSource(anon.getAliasSource());
-                res.setElement(anon.getIdentifier());
+                res.setElement(anon.getElement());
                 res.setElementSource(anon.getElementSource());
-                res.setOrigination(anon.getOriginalDescriptor(), anon.getOriginalElement());
                 anon.clonePositionTo(res);
                 remapping.put(anon.getAlias(), res.getAlias());
                 descriptor.replaceImport(anon, res);
             }
             else
-            if ((descriptor.getLevel() == ArchLevel.CONTEXT && descriptor.exists(anon.getElement()) && Objects.equals(descriptor.getExisting(anon.getElement()).getOrigin(), anon.getOrigin())) ||
-                    (descriptor.getLevel() == ArchLevel.CONTAINER && descriptor.exists(anon.getIdentifier()) && Objects.equals(descriptor.getExisting(anon.getIdentifier()).getOrigin(), anon.getOrigin()))) {
+            if (descriptor.exists(anon.getIdentifier()) && Objects.equals(descriptor.getExisting(anon.getIdentifier()).getOrigin(), anon.getOrigin())) {
                 // anonymous imports in the same file without corresponding named import
                 var res = new GeneratedImport();
                 res.setLevel(anon.getLevel());
                 res.setBoundedContext(descriptor.getBoundedContext());
-                res.setIdentifier(anon.getElement());
+                res.setIdentifier(anon.getIdentifier());
+                res.setIdentifierSource(anon.getIdentifierSource());
                 res.setAlias(anon.getAlias());
                 res.setAliasSource(anon.getAliasSource());
-                res.setElement(anon.getIdentifier());
+                res.setElement(anon.getElement());
                 res.setElementSource(anon.getElementSource());
-                res.setOrigination(anon.getOriginalDescriptor(), anon.getOriginalElement());
                 anon.clonePositionTo(res);
                 remapping.put(anon.getAlias(), res.getAlias());
                 descriptor.replaceImport(anon, res);
@@ -164,11 +162,19 @@ public interface Imports {
             }
             else
             // check that imported element is declared in namespace
-            if (!ctx.getDescriptor(namespaceId).exists(imported.getLevel() == ArchLevel.CONTEXT ? imported.getIdentifier() : imported.getElement())) {
+            if (imported.getLevel() == ArchLevel.CONTEXT && !ctx.getDescriptor(namespaceId).exists(imported.getIdentifier())) {
                 var tm = TranslationUtil.newError(imported,
                         String.format("Unsatisfied import: %s not found in %s %s", imported.getIdentifier(), TranslationUtil.stringify(imported.getLevel()), imported.getBoundedContext())
                 );
                 TranslationUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
+                ctx.addMessage(tm);
+            }
+            else
+            if (imported.getLevel() == ArchLevel.CONTAINER && !ctx.getDescriptor(namespaceId).exists(imported.getElement())) {
+                var tm = TranslationUtil.newError(imported,
+                        String.format("Unsatisfied import: %s not found in %s %s", imported.getElement(), TranslationUtil.stringify(imported.getLevel()), imported.getIdentifier())
+                );
+                TranslationUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
                 ctx.addMessage(tm);
             }
         }

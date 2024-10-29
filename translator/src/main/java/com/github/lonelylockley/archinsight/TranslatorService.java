@@ -1,6 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
+import com.github.lonelylockley.archinsight.export.Exporter;
 import com.github.lonelylockley.archinsight.introspect.Introspection;
 import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
@@ -51,7 +51,8 @@ public class TranslatorService {
     @Measured
     public TranslationResult translate(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @Body TranslationRequest data) throws Exception {
         // !!!! temporarily set arch level
-        data.setLevel(ArchLevel.CONTEXT);
+//        data.setLevel(ArchLevel.CONTEXT);
+        data.setLevel(ArchLevel.CONTAINER);
         // ===============================
         var ctx = new TranslationContext();
         var fsFuture = CompletableFuture
@@ -71,7 +72,7 @@ public class TranslatorService {
         var result = new TranslationResult();
         result.setTabId(data.getTabId());
         if (ctx.noErrors()) {
-            translateParsed(data, result, ctx);
+            new Exporter().exportParsed(data, result, ctx);
         }
         else {
             result.setHasErrors(true);
@@ -117,47 +118,6 @@ public class TranslatorService {
         res.addAll(files.values());
         res.addAll(tabs);
         return res;
-    }
-
-//    private void translateParsed(TranslationRequest data, TranslationResult result, TranslationContext ctx) {
-//        result.setTabs(data.getTabs());
-//        var tabToDescriptor = ctx
-//            .getDescriptors()
-//            .stream()
-//            .filter(desc -> desc.getLevel() == data.getLevel() && desc.getRoot().getOrigin().getTab().isPresent())
-//            .collect(Collectors.groupingBy(
-//                desc -> desc.getRoot().getOrigin().getTab().get().getTabId(),
-//                Collectors.mapping(
-//                        Function.identity(), Collectors.toList()
-//                )
-//            ));
-//        for (TabData tab : result.getTabs()) {
-//            var tr = new GraphvizTranslator();
-//            var desc = tabToDescriptor.get(tab.getTabId());
-//            tab.setSource(desc == null ? GraphvizTranslator.empty("empty") : tr.translate(desc));
-//            if (Objects.equals(tab.getTabId(), data.getTabId())) {
-//                result.setEdited(tab);
-//            }
-//        }
-//    }
-
-    private void translateParsed(TranslationRequest data, TranslationResult result, TranslationContext ctx) {
-        result.setTabs(data.getTabs());
-        var tabToDescriptor = ctx
-                .getDescriptors()
-                .stream()
-                .filter(desc -> desc.getLevel() == data.getLevel())
-                .flatMap(desc -> desc.getOrigins().stream().map(origin -> new Tuple2<>(origin, desc)))
-                .filter(t -> t._1.getTab().isPresent())
-                .collect(Collectors.groupingBy(t -> t._1.getTabId(), Collectors.toList()));
-        for (TabData tab : result.getTabs()) {
-            var tr = new GraphvizTranslator();
-            var desc = tabToDescriptor.get(tab.getTabId());
-            tab.setSource(desc == null ? GraphvizTranslator.empty("empty") : tr.translate(desc.getFirst()._2));
-            if (Objects.equals(tab.getTabId(), data.getTabId())) {
-                result.setEdited(tab);
-            }
-        }
     }
 
     private List<DeclarationContext> extractDeclarations(TranslationContext ctx) {

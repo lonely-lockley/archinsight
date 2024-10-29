@@ -15,7 +15,7 @@ public class AnonymousImport extends AbstractImport {
 
     @Override
     public String getAlias() {
-        return String.format("%s__%s__%s", getLevel(), getElement(), getIdentifier());
+        return String.format("%s__%s__%s", getLevel(), getIdentifier(), getElement());
     }
 
     @Override

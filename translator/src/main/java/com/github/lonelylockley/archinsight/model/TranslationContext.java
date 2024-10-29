@@ -29,7 +29,7 @@ public class TranslationContext {
     }
 
     public void addDescriptor(ParseDescriptor descriptor) {
-        descriptors.merge(descriptor.getId(), descriptor, AdapterDescriptor::new);
+        descriptors.merge(descriptor.getId(), descriptor, ContextAdapterDescriptor::new);
     }
 
     public void addMessages(ArrayList<TranslatorMessage> messages) {

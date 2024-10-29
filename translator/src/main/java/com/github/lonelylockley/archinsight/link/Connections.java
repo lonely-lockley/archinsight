@@ -11,11 +11,8 @@ public interface Connections {
                 .stream()
                 .filter(link ->
                         !(descriptor.exists(link.getTo())))
-//                .filter(link ->
-//                        !(descriptor.getParentContext() != null && descriptor.getParentContext().exists(link.getTo()))
-//                )
-//                .filter(link ->
-//                        !(link.getTo().startsWith("CONTEXT_") || link.getTo().startsWith("CONTAINER_")))
+                .filter(link ->
+                        !(link.getTo().startsWith("CONTEXT_") || link.getTo().startsWith("CONTAINER_")))
                 .forEach(link -> {
                     var tm = TranslationUtil.newError(link,
                             String.format("Undeclared identifier %s", link.getTo())
