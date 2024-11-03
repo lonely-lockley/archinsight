@@ -137,8 +137,8 @@ public abstract class TranslatorBase {
         if (be.getName() != null || be.getDescription() != null || be.getTechnology() != null) {
             sb.append("  label=<<table border=\"0\">");
             writeLabelRow(sb, be.getName(), true, false);
-            writeLabelRow(sb, be.getTechnology(), false, true);
-            writeLabelRow(sb, be.getDescription(), false, false);
+//            writeLabelRow(sb, be.getTechnology(), false, true);
+//            writeLabelRow(sb, be.getDescription(), false, false);
             sb.append("</table>>\n");
         }
         else {

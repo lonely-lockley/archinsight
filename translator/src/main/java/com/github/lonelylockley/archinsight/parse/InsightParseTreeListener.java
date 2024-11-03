@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.parse;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.Origin;
 import com.github.lonelylockley.archinsight.model.annotations.AttributeAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.DeprecatedAnnotation;
@@ -36,7 +37,7 @@ public class  InsightParseTreeListener implements ParseTreeListener {
         switch (tkn.getType()) {
             case InsightLexer.IDENTIFIER:
                 if (ctx.getCurrentElement().getType() == LINK && ctx.getCurrentImport() == null) {
-                    ctx.getCurrentElementAsLink().setTo(tkn.getText());
+                    ctx.getCurrentElementAsLink().setTo(DynamicId.fromElementId(tkn.getText()));
                     ctx.getCurrentElement().setSource(origin, tkn);
                 }
                 else
@@ -61,7 +62,7 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                     }
                 }
                 else {
-                    ctx.getCurrentElementWithId().setDeclaredId(tkn.getText());
+                    ctx.getCurrentElementWithId().setDeclaredId(DynamicId.fromElementId(tkn.getText()));
                     ctx.getCurrentElement().setSource(origin, tkn);
                 }
                 break;

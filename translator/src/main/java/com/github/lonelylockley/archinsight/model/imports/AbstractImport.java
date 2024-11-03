@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.model.imports;
 
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.Origin;
 import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
@@ -89,9 +90,11 @@ public abstract class AbstractImport extends WithSource implements Cloneable {
         this.identifierSource.setSource(origin, tkn);
     }
 
-    public String getAlias() {
+    protected String getAliasInternal() {
         return alias;
     }
+
+    public abstract DynamicId getAlias();
 
     public void setAlias(String alias) {
         this.alias = alias;

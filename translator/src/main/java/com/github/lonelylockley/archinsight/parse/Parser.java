@@ -73,9 +73,12 @@ public class Parser {
     private void parseResultToDescriptors(TranslationContext ctx, ParseResult result) {
         final var root = result.getRoot();
         final var boundedContextId = root.hasId().fold(WithId::getDeclaredId, () -> { throw new RuntimeException("Root element cannot exist without an id"); });
+        boundedContextId.setBoundedContext(boundedContextId.getElementId());
+        boundedContextId.setElementId(null);
+        boundedContextId.setLevel(ArchLevel.CONTEXT);
         ElementType.CONTEXT.capture(root).foreach(ce -> {
             final var contextDescriptor = new ContextDescriptor(boundedContextId, ce);
-            ctx.addDescriptor(contextDescriptor);
+            ctx.addRaw(result.getOrigin(), contextDescriptor);
         });
     }
 

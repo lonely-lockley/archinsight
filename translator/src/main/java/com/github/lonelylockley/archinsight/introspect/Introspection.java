@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.introspect;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
@@ -17,7 +18,7 @@ public class Introspection {
     }
 
     private void searchForIsolatedElements(ParseDescriptor descriptor) {
-        final var declarations = new HashSet<String>(descriptor.listExisting().size());
+        final var declarations = new HashSet<DynamicId>(descriptor.listExisting().size());
         declarations.addAll(descriptor.listExisting().keySet());
         descriptor.getConnections().forEach(link -> {
             declarations.remove(link.getFrom());

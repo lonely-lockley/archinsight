@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.model.imports;
 
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.DynamicId;
 
 public class AnonymousImport extends AbstractImport {
 
@@ -14,8 +15,8 @@ public class AnonymousImport extends AbstractImport {
     }
 
     @Override
-    public String getAlias() {
-        return String.format("%s__%s__%s", getLevel(), getIdentifier(), getElement());
+    public DynamicId getAlias() {
+        return DynamicId.fromImport(this);
     }
 
     @Override
@@ -34,7 +35,7 @@ public class AnonymousImport extends AbstractImport {
         res.setIdentifierSource(this.getIdentifierSource());
         res.setElement(this.getElement());
         res.setElementSource(this.getElementSource());
-        res.setAlias(this.getAlias());
+        res.setAlias(this.getAliasInternal());
         res.setAliasSource(this.getAliasSource());
         res.setOrigination(this.getOriginalDescriptor(), this.getOriginalElement());
         this.clonePositionTo(res);

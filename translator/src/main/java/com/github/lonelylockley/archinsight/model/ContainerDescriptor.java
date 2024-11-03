@@ -8,26 +8,24 @@ public class ContainerDescriptor extends ParseDescriptor {
     private final ContainerElement root;
     private final ContextDescriptor parent;
 
-    private String id;
+    private DynamicId id;
 
-    public static String createContainerDescriptorId(ArchLevel level, String boundedContext, String id) {
-        return String.format("%s__%s__%s", level, boundedContext, id);
-    }
-
-    public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, String id) {
-        super(parent.getBoundedContext(), ArchLevel.CONTAINER);
-        this.id = createContainerDescriptorId(getLevel(), parent.getBoundedContext(), id);
+    public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, DynamicId id) {
+        super(parent.getBoundedContext(), ArchLevel.CONTAINER, root);
+        parent.mergeTo(this);
+        this.id = id;
         this.root = root;
         this.parent = parent;
+        getOrigins().clear();
         getOrigins().add(root.getOrigin());
     }
 
-    protected void overrideId(String id) {
+    protected void overrideId(DynamicId id) {
         this.id = id;
     }
 
     @Override
-    public String getId() {
+    public DynamicId getId() {
         return id;
     }
 

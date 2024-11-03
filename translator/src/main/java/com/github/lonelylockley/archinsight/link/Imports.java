@@ -5,8 +5,6 @@ import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.*;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.imports.GeneratedImport;
-import com.github.lonelylockley.archinsight.model.imports.NamedImport;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 
 import java.util.*;
 import java.util.function.Function;
@@ -14,128 +12,100 @@ import java.util.stream.Collectors;
 
 public interface Imports {
 
-    default void initializeImports(ContextElement context, ParseDescriptor descriptor, TranslationContext ctx) {
-        initializeImports(context, context.getImports(), descriptor, ctx);
-    }
-
-    default void initializeImports(ContainerElement container, ParseDescriptor descriptor, TranslationContext ctx) {
-        initializeImports(container, container.getImports(), descriptor, ctx);
-    }
-
-    private void initializeImports(AbstractElement el, List<AbstractImport> imports, ParseDescriptor descriptor, TranslationContext ctx) {
-        imports
-            .forEach(imported -> {
-                descriptor.addImport(imported);
-                if (!imported.isAnonymous()) {
-                    var id = imported.getAlias();
-                    if (descriptor.isDeclared(id)) {
-                        var tm = TranslationUtil.newError(el, String.format("Identifier %s is already defined", id));
-                        ctx.addMessage(tm);
-                    }
-                    else {
-                        var ee = new EmptyElement(id);
-                        ee.setOrigin(imported.getOrigin());
-                        descriptor.declareImported(id, ee);
-                    }
-                }
-            });
-    }
-
     default void rewriteImports(ParseDescriptor descriptor, TranslationContext ctx) {
-        final var imports = new ArrayList<AbstractImport>();
-        imports.addAll(descriptor.getImports());
-        if (descriptor.getParentContext() != null) {
-            imports.addAll(descriptor.getParentContext().getImports());
-        }
-        final var split = imports
-                        .stream()
-                        .collect(Collectors.groupingBy(
-                                AbstractImport::isAnonymous,
-                                Collectors.toList()
-                        ));
-        // collect named imports
-        final var named = split
-                        .getOrDefault(false, Collections.emptyList())
-                        .stream()
-                        .collect(Collectors.toMap(AbstractImport::getAlias, Function.identity(), (left, right) -> right));
-        // fix anonymous imports aliases by adding missing information from named
-        final var remapping = new HashMap<String, String>();
-        split.getOrDefault(true, Collections.emptyList()).forEach(anon -> {
-            if (named.containsKey(anon.getIdentifier())) {
-                // anonymous imports from container element imported with named import
-                var system = named.get(anon.getIdentifier());
-                var res = new GeneratedImport();
-                res.setLevel(anon.getLevel());
-                res.setLevelSource(system.getLevelSource());
-                res.setBoundedContext(system.getBoundedContext());
-                res.setBoundedContextSource(system.getBoundedContextSource());
-                res.setIdentifier(system.getIdentifier());
-                res.setIdentifierSource(system.getIdentifierSource());
-                res.setAlias(anon.getAlias());
-                res.setAliasSource(anon.getAliasSource());
-                res.setElement(anon.getElement());
-                res.setElementSource(anon.getElementSource());
-                anon.clonePositionTo(res);
-                remapping.put(anon.getAlias(), res.getAlias());
-                descriptor.replaceImport(anon, res);
+        final var imports = new ArrayList<>(descriptor.getImports());
+        final var named = imports
+                .stream()
+                .filter(imp -> !imp.isAnonymous())
+                .collect(Collectors.toMap(imp -> imp.getAlias().toString(), Function.identity()));
+        final var remapping = new HashMap<DynamicId, DynamicId>();
+        imports
+                .stream()
+                .filter(AbstractImport::isAnonymous)
+                .forEach(anon -> {
+                    if (named.containsKey(anon.getIdentifier())) {
+                        // anonymous imports from container element imported with named import
+                        var system = named.get(anon.getIdentifier());
+                        var res = new GeneratedImport();
+                        res.setLevel(anon.getLevel());
+                        res.setLevelSource(system.getLevelSource());
+                        res.setBoundedContext(system.getBoundedContext());
+                        res.setBoundedContextSource(system.getBoundedContextSource());
+                        res.setIdentifier(system.getIdentifier());
+                        res.setIdentifierSource(system.getIdentifierSource());
+                        res.setAliasSource(anon.getAliasSource());
+                        res.setElement(anon.getElement());
+                        res.setElementSource(anon.getElementSource());
+                        anon.clonePositionTo(res);
+                        remapping.put(anon.getAlias(), DynamicId.fromImport(res));
+                        descriptor.replaceImport(anon, res);
+                    }
+                    else
+                    if (descriptor.isDeclared(anon.getElement()) || descriptor.isImported(anon.getElement())) {
+                        // anonymous imports in the same file without corresponding named import
+                        var res = new GeneratedImport();
+                        res.setLevel(anon.getLevel());
+                        res.setBoundedContext(descriptor.getBoundedContext());
+                        res.setIdentifier(anon.getIdentifier());
+                        res.setIdentifierSource(anon.getIdentifierSource());
+                        res.setAliasSource(anon.getAliasSource());
+                        res.setElement(anon.getElement());
+                        res.setElementSource(anon.getElementSource());
+                        anon.clonePositionTo(res);
+                        remapping.put(anon.getAlias(), DynamicId.fromImport(res));
+                        descriptor.replaceImport(anon, res);
+                    }
+                });
+
+        remapConnections(descriptor, remapping, named, ctx);
+        remapImports(descriptor, ctx);
+    }
+
+    private void remapConnections(ParseDescriptor descriptor, Map<DynamicId, DynamicId> remapping, Map<String, AbstractImport> named, TranslationContext ctx) {
+        descriptor.getConnections().forEach(link -> {
+            if (remapping.containsKey(link.getTo())) {
+                // remap anonymous imports
+                link.setTo(remapping.get(link.getTo()));
             }
             else
-            if (descriptor.exists(anon.getIdentifier()) && Objects.equals(descriptor.getExisting(anon.getIdentifier()).getOrigin(), anon.getOrigin())) {
-                // anonymous imports in the same file without corresponding named import
-                var res = new GeneratedImport();
-                res.setLevel(anon.getLevel());
-                res.setBoundedContext(descriptor.getBoundedContext());
-                res.setIdentifier(anon.getIdentifier());
-                res.setIdentifierSource(anon.getIdentifierSource());
-                res.setAlias(anon.getAlias());
-                res.setAliasSource(anon.getAliasSource());
-                res.setElement(anon.getElement());
-                res.setElementSource(anon.getElementSource());
-                anon.clonePositionTo(res);
-                remapping.put(anon.getAlias(), res.getAlias());
-                descriptor.replaceImport(anon, res);
+            if (named.containsKey(link.getTo().toString())) {
+                // remap named imports
+                link.setTo(DynamicId.fromImport(named.get(link.getTo().toString())));
+            }
+            else
+            if (descriptor.isDeclared(link.getTo().getElementId())) {
+                // remap declared IDs
+                descriptor.getDeclared(link.getTo().getElementId()).hasId().map(WithId::getDeclaredId).foreach(link::setTo);
             }
             else {
-                var tm = TranslationUtil.newError(anon,
-                        String.format("Undeclared identifier %s", anon.getElement())
+                var tm = TranslationUtil.newError(link,
+                        String.format("Undeclared identifier %s", link.getTo().getElementId())
                 );
-                TranslationUtil.copyPosition(tm, anon.getLine(), anon.getElementSource().getCharPosition(), anon.getElementSource().getStartIndex(), anon.getElementSource().getStopIndex());
+                TranslationUtil.copyPosition(tm, link);
                 ctx.addMessage(tm);
             }
         });
-        remapConnections(descriptor, remapping, named, ctx);
     }
 
-    private void remapConnections(ParseDescriptor descriptor, Map<String, String> remapping, Map<String, AbstractImport> named, TranslationContext ctx) {
-        // remap connections to correct anonymous aliases and declare named imports
-        descriptor.getConnections().forEach(connection -> {
-            if (remapping.containsKey(connection.getTo())) {
-                connection.setTo(remapping.get(connection.getTo()));
-            }
-            if (named.containsKey(connection.getTo())) {
-                if (descriptor.isDeclared(connection.getTo()) && !Objects.equals(descriptor.getDeclared(connection.getTo()).getOrigin(), connection.getOrigin())) {
-                    // element exists in context, but declared in another origin and must not be shared
-                    var tm = TranslationUtil.newError(connection,
-                            String.format("Undeclared identifier %s", connection.getTo())
-                    );
-                    TranslationUtil.copyPosition(tm, connection);
-                    ctx.addMessage(tm);
-                }
-                else
-                if (descriptor.exists(connection.getTo()) && !Objects.equals(named.get(connection.getTo()).getOrigin(), connection.getOrigin())) {
-                    // import exists in context, but declared in another origin and must not be shared
-                    var tm = TranslationUtil.newError(connection,
-                            String.format("Undeclared identifier %s", connection.getTo())
-                    );
-                    TranslationUtil.copyPosition(tm, connection);
-                    ctx.addMessage(tm);
-                }
-                else
-                if (!descriptor.exists(connection.getTo())) {
-                    descriptor.declareImported(connection.getTo(), new EmptyElement());
-                }
+    private void remapImports(ParseDescriptor descriptor, TranslationContext ctx) {
+        descriptor.getImports().forEach(imp -> {
+            if (descriptor.isImported(imp.getAlias().toString())) {
+                var id = DynamicId.fromImport(imp);
+                descriptor.removeExisting(imp.getAlias(), imp.getAlias().toString());
+                var element = transformToImported(ctx.getGlobalElement(id).clone());
+                descriptor.getRootWithChildren().addChild(element);
+                //if (!(descriptor.getLevel() == id.getLevel() && Objects.equals(descriptor.getBoundedContext(), id.getBoundedContext()))) {
+                    // do not re-declare imports to the same context
+                    descriptor.declareImported(id, id.toString(), element);
+                //}
             }
         });
+    }
+
+    private AbstractElement transformToImported(AbstractElement imported) {
+        imported.hasChildren().foreach(c -> c.getChildren().clear());
+        imported.hasExternal().foreach(WithExternal::setExternal);
+        return imported;
     }
 
     default void checkImports(ParseDescriptor descriptor, TranslationContext ctx) {
@@ -143,34 +113,29 @@ public interface Imports {
             return;
         }
         for (AbstractImport imported : descriptor.getImports()) {
-            var namespaceId = LinkHelper.createBoundedContextUniqueId(imported.getLevel(), imported);
+            var elementId = DynamicId.fromImport(imported);
+            var containerId = elementId.clone();
+            containerId.setElementId(null);
+            var namespaceId = containerId.clone();
+            namespaceId.setBoundaryId(null);
             // check namespace exists
-            if (!ctx.hasDescriptor(namespaceId)) {
-                TranslatorMessage tm;
-                if (imported.getLevel() == ArchLevel.CONTEXT) {
-                    tm = TranslationUtil.newError(imported,
-                            String.format("Unsatisfied import: %s %s not found", TranslationUtil.stringify(imported.getLevel()), imported.getBoundedContext())
-                    );
-                }
-                else {
-                    tm = TranslationUtil.newError(imported,
-                            String.format("Unsatisfied import: %s not found in %s", imported.getIdentifier(), imported.getElement())
-                    );
-                }
+            if (imported.getLevel() == ArchLevel.CONTEXT && !ctx.isDeclaredGlobally(namespaceId)) {
+                var tm = TranslationUtil.newError(imported,
+                        String.format("Unsatisfied import: %s %s not found", TranslationUtil.stringify(imported.getLevel()), imported.getBoundedContext())
+                );
                 TranslationUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getBoundedContextSource().getStopIndex());
                 ctx.addMessage(tm);
             }
             else
-            // check that imported element is declared in namespace
-            if (imported.getLevel() == ArchLevel.CONTEXT && !ctx.getDescriptor(namespaceId).exists(imported.getIdentifier())) {
+            if (!ctx.isDeclaredGlobally(containerId)) {
                 var tm = TranslationUtil.newError(imported,
-                        String.format("Unsatisfied import: %s not found in %s %s", imported.getIdentifier(), TranslationUtil.stringify(imported.getLevel()), imported.getBoundedContext())
+                        String.format("Unsatisfied import: %s not found in %s %s", containerId.getBoundaryId(), TranslationUtil.stringify(containerId.getLevel()), containerId.getBoundedContext())
                 );
                 TranslationUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
                 ctx.addMessage(tm);
             }
             else
-            if (imported.getLevel() == ArchLevel.CONTAINER && !ctx.getDescriptor(namespaceId).exists(imported.getElement())) {
+            if (!ctx.isDeclaredGlobally(elementId)) {
                 var tm = TranslationUtil.newError(imported,
                         String.format("Unsatisfied import: %s not found in %s %s", imported.getElement(), TranslationUtil.stringify(imported.getLevel()), imported.getIdentifier())
                 );
@@ -179,7 +144,5 @@ public interface Imports {
             }
         }
     }
-
-
 
 }

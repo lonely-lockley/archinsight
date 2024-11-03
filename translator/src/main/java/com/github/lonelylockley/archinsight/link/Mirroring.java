@@ -1,16 +1,7 @@
 package com.github.lonelylockley.archinsight.link;
 
-import com.github.lonelylockley.archinsight.model.ParseDescriptor;
-import com.github.lonelylockley.archinsight.model.TranslationContext;
-import com.github.lonelylockley.archinsight.model.Tuple2;
-import com.github.lonelylockley.archinsight.model.elements.ElementType;
-import com.github.lonelylockley.archinsight.model.elements.LinkElement;
-
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-public interface Mirror {
-
+public interface Mirroring {
+/*
     default void addMirrorConnections(ParseDescriptor descriptor, TranslationContext ctx) {
         // original descriptor with import statement that has to be mirrored
         var descriptorToContextBoundary = descriptor
@@ -72,5 +63,5 @@ public interface Mirror {
                     }
                 });
     }
-
+*/
 }

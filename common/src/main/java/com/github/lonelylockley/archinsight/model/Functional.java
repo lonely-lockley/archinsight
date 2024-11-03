@@ -22,6 +22,11 @@ public interface Functional<P, T> {
             @Override
             public void foreach(Consumer<P> lambda) {
             }
+
+            @Override
+            public <R> Functional<R, T> map(Function<P, R> lambda) {
+                return (Functional<R, T>) this;
+            }
         };
     }
 
@@ -46,10 +51,19 @@ public interface Functional<P, T> {
             public void foreach(Consumer<P> lambda) {
                 lambda.accept((P) param);
             }
+
+            @Override
+            public <R> Functional<R, T> map(Function<P, R> lambda) {
+                return (Functional<R, T>) capture((T) lambda.apply((P) param));
+            }
         };
     }
 
     default Functional<P, T> filter(Predicate<T> predicate) {
+        throw new RuntimeException("Not implemented");
+    }
+
+    default <R> Functional<R, T> map(Function<P, R> lambda) {
         throw new RuntimeException("Not implemented");
     }
 

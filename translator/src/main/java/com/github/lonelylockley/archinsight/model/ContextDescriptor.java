@@ -2,27 +2,20 @@ package com.github.lonelylockley.archinsight.model;
 
 import com.github.lonelylockley.archinsight.model.elements.*;
 
-import java.util.Collection;
-import java.util.Collections;
-
 public class ContextDescriptor extends ParseDescriptor {
 
-    private final String id;
+    private final DynamicId id;
     private final ContextElement root;
 
-    public static String createContextDescriptorId(ArchLevel level, String boundedContext) {
-        return String.format("%s__%s", level, boundedContext);
-    }
-
-    public ContextDescriptor(String boundedContext, ContextElement root) {
-        super(boundedContext, ArchLevel.CONTEXT);
-        this.id = createContextDescriptorId(getLevel(), boundedContext);
+    public ContextDescriptor(DynamicId id, ContextElement root) {
+        super(id.getBoundedContext(), id.getLevel(), root.clone());
+        this.id = id;
         this.root = root;
         getOrigins().add(root.getOrigin());
     }
 
     @Override
-    public String getId() {
+    public DynamicId getId() {
         return id;
     }
 

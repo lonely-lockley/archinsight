@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model;
 
+import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 
@@ -8,7 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TranslationContext {
 
-    private final ConcurrentHashMap<String, ParseDescriptor> descriptors = new ConcurrentHashMap<>();
+    private final HashMap<DynamicId, AbstractElement> globalDeclaration = new HashMap<>();
+    private final ConcurrentHashMap<Origin, ParseDescriptor> raw = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<DynamicId, ParseDescriptor> descriptors = new ConcurrentHashMap<>();
     private final Set<TranslatorMessage> messages = new HashSet<>();
     private boolean hasErrors = false;
 
@@ -16,11 +19,15 @@ public class TranslationContext {
         return descriptors.values();
     }
 
-    public ParseDescriptor getDescriptor(String id) {
+    public Collection<ParseDescriptor> getRaw() {
+        return raw.values();
+    }
+
+    public ParseDescriptor getDescriptor(DynamicId id) {
         return descriptors.get(id);
     }
 
-    public boolean hasDescriptor(String id) {
+    public boolean hasDescriptor(DynamicId id) {
         return descriptors.containsKey(id);
     }
 
@@ -29,7 +36,11 @@ public class TranslationContext {
     }
 
     public void addDescriptor(ParseDescriptor descriptor) {
-        descriptors.merge(descriptor.getId(), descriptor, ContextAdapterDescriptor::new);
+        descriptors.put(descriptor.getId(), descriptor);
+    }
+
+    public void addRaw(Origin origin, ParseDescriptor descriptor) {
+        raw.put(origin, descriptor);
     }
 
     public void addMessages(ArrayList<TranslatorMessage> messages) {
@@ -49,5 +60,17 @@ public class TranslationContext {
 
     public boolean hasErrors() {
         return hasErrors;
+    }
+
+    public void declareGlobalElement(DynamicId id, AbstractElement element) {
+        globalDeclaration.put(id, element);
+    }
+
+    public AbstractElement getGlobalElement(DynamicId id) {
+        return globalDeclaration.get(id);
+    }
+
+    public boolean isDeclaredGlobally(DynamicId id) {
+        return globalDeclaration.containsKey(id);
     }
 }

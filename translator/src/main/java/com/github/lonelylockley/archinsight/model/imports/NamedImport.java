@@ -1,5 +1,7 @@
 package com.github.lonelylockley.archinsight.model.imports;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
+
 public class NamedImport extends AbstractImport implements Cloneable {
 
     @Override
@@ -8,8 +10,8 @@ public class NamedImport extends AbstractImport implements Cloneable {
     }
 
     @Override
-    public String getAlias() {
-        return super.getAlias() == null ? getIdentifier() : super.getAlias();
+    public DynamicId getAlias() {
+        return super.getAliasInternal() == null ? DynamicId.fromElementId(super.getIdentifier()) : DynamicId.fromElementId(super.getAliasInternal());
     }
 
     @Override
@@ -28,7 +30,7 @@ public class NamedImport extends AbstractImport implements Cloneable {
         res.setIdentifierSource(this.getIdentifierSource());
         res.setElement(this.getElement());
         res.setElementSource(this.getElementSource());
-        res.setAlias(this.getAlias());
+        res.setAlias(this.getAliasInternal());
         res.setAliasSource(this.getAliasSource());
         res.setOrigination(this.getOriginalDescriptor(), this.getOriginalElement());
         this.clonePositionTo(res);

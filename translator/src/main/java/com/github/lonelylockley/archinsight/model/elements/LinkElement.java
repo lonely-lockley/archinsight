@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
 
@@ -10,22 +11,22 @@ import java.util.Objects;
 
 public class LinkElement extends AbstractElement implements WithAnnotations, WithParameters {
 
-    private static final ElementType type = ElementType.LINK;
+    private static final ElementType<LinkElement> type = ElementType.LINK;
 
     private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
 
-    private String from;
-    private String to;
+    private DynamicId from;
+    private DynamicId to;
     private String name;
     private String description;
     private String technology;
     private boolean sync;
 
-    public void setFrom(String from) {
+    public void setFrom(DynamicId from) {
         this.from = from;
     }
 
-    public void setTo(String to) {
+    public void setTo(DynamicId to) {
         this.to = to;
     }
 
@@ -33,11 +34,11 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
         this.sync = true;
     }
 
-    public String getFrom() {
+    public DynamicId getFrom() {
         return from;
     }
 
-    public String getTo() {
+    public DynamicId getTo() {
         return to;
     }
 
@@ -100,9 +101,9 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
         res.name = this.name;
         res.description = this.description;
         res.technology = this.technology;
-        res.annotations.putAll(this.annotations);
-        res.from = this.from;
-        res.to = this.to;
+        this.annotations.forEach((key, value) -> res.annotations.put(key, value.clone()));
+        res.from = this.from.clone();
+        res.to = this.to.clone();
         res.sync = this.sync;
         clonePositionTo(res);
         return res;

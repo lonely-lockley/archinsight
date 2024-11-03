@@ -2,7 +2,7 @@ package com.github.lonelylockley.archinsight.model.annotations;
 
 import com.github.lonelylockley.archinsight.parse.WithSource;
 
-public abstract class AbstractAnnotation extends WithSource {
+public abstract class AbstractAnnotation extends WithSource implements Cloneable {
 
     private final AnnotationType type;
 
@@ -22,5 +22,10 @@ public abstract class AbstractAnnotation extends WithSource {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    @Override
+    public AbstractAnnotation clone() {
+        return this;
     }
 }

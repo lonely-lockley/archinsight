@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
-public class Linker implements Declarations, Split, Imports, Mirror, Relocation, Connections {
+public class Linker implements Declarations, Relocation, Imports, Mirroring, Mapping {
 
     private static final Logger logger = LoggerFactory.getLogger(Linker.class);
 
@@ -19,91 +19,63 @@ public class Linker implements Declarations, Split, Imports, Mirror, Relocation,
         this.ctx = ctx;
     }
 
-    private void splitLevels() {
-        // copy descriptors to temporary collection because it's not a good idea to change context while iterating over it
-        var tmp = new ArrayList<>(ctx.getDescriptors());
-        ctx.getDescriptors().clear();
-        for (ParseDescriptor descriptor : tmp) {
-            splitLevel(descriptor, ctx);
-        }
-    }
-
-    private void initializeDescriptor(ParseDescriptor descriptor, AbstractElement root) {
-        if (root.getType() == ElementType.CONTEXT) {
-            ElementType.CONTEXT.capture(root).foreach(context -> initializeImports(context, descriptor, ctx));
-        }
-        else
-        if (root.getType() == ElementType.CONTAINER) {
-            ElementType.CONTAINER.capture(root).foreach(container -> initializeImports(container, descriptor, ctx));
-        }
-        root
-            .hasChildren()
-            .<List<AbstractElement>>fold(WithChildElements::getChildren, Collections::emptyList)
-            .forEach(child -> {
-                ElementType.LINK.capture(child).foreach(le -> declareConnection(le, descriptor, ctx));
-                initializeDescriptor(descriptor, child);
-            });
-    }
-
-    private void makeDeclarations(ParseDescriptor descriptor, AbstractElement el) {
+    private void makeDeclarations(ParseDescriptor descriptor, DynamicId parentId, AbstractElement el) {
         if (el.getType() == ElementType.ACTOR) {
-            ElementType.ACTOR.capture(el).foreach(actor -> declareElement(actor, descriptor, ctx));
+            ElementType.ACTOR.capture(el).foreach(actor -> declareElement(actor, parentId, descriptor, ctx));
         }
         else
         if (el.getType() == ElementType.SYSTEM) {
-            ElementType.SYSTEM.capture(el).foreach(system -> {
-                declareElement(system, descriptor, ctx);
-                system.getChildren().forEach(child -> makeDeclarations(descriptor, child));
-            });
+            ElementType.SYSTEM.capture(el).foreach(system -> declareElement(system, parentId, descriptor, ctx));
         }
         else
         if (el.getType() == ElementType.SERVICE) {
-            ElementType.SERVICE.capture(el).foreach(service -> declareElement(service, descriptor, ctx));
+            ElementType.SERVICE.capture(el).foreach(service -> declareElement(service, parentId, descriptor, ctx));
         }
         else
         if (el.getType() == ElementType.STORAGE) {
-            ElementType.STORAGE.capture(el).foreach(storage -> declareElement(storage, descriptor, ctx));
+            ElementType.STORAGE.capture(el).foreach(storage -> declareElement(storage, parentId, descriptor, ctx));
         }
         else
         if (el.getType() == ElementType.CONTEXT) {
-            ElementType.CONTEXT.capture(el).foreach(context -> context.getChildren().forEach(child -> makeDeclarations(descriptor, child)));
+            ElementType.CONTEXT.capture(el).foreach(context -> {
+                declareGlobalElement(context, parentId, descriptor, ctx);
+                declareImports(context, descriptor, ctx);
+            });
         }
         else
-        if (el.getType() == ElementType.CONTAINER) {
-            ElementType.CONTAINER.capture(el).foreach(container -> container.getChildren().forEach(child -> makeDeclarations(descriptor, child)));
+        if (el.getType() == ElementType.LINK) {
+            ElementType.LINK.capture(el).foreach(link -> declareConnection(link, descriptor, ctx));
         }
-    }
 
-    private void processImports() {
-        for (ParseDescriptor descriptor : ctx.getDescriptors()) {
-            rewriteImports(descriptor, ctx);
-            checkImports(descriptor, ctx);
-        }
-        if (ctx.noErrors()) {
-            // user-defined code is correct. now start making automatic changes
-            remapContexts(ctx);
-        }
-    }
-
-    private void processConnections(ArchLevel targetLevel) {
-        for (ParseDescriptor descriptor : ctx.getDescriptors()) {
-            if (descriptor.getLevel() == targetLevel) {
-                addMirrorConnections(descriptor, ctx);
-                checkConnections(descriptor, ctx);
-            }
-        }
+        el.hasChildren()
+                .fold(WithChildElements::getChildren, Collections::<AbstractElement>emptyList)
+                .forEach(child -> makeDeclarations(descriptor, el.hasId().fold(WithId::getDeclaredId, null), child));
     }
 
     public void checkIntegrity(ArchLevel targetLevel) {
-        splitLevels();
-        for (ParseDescriptor descriptor : ctx.getDescriptors()) {
-            // populate imports and connections
-            initializeDescriptor(descriptor, descriptor.getRoot());
-            // populate declarations
-            makeDeclarations(descriptor, descriptor.getRoot());
+        for (ParseDescriptor descriptor : ctx.getRaw()) {
+            makeDeclarations(descriptor, null, descriptor.getRoot());
         }
-        processImports();
-        processConnections(targetLevel);
+        for (ParseDescriptor descriptor : ctx.getRaw()) {
+            rewriteImports(descriptor, ctx);
+            checkImports(descriptor, ctx);
+        }
+        // all checks are completed by this moment
+        if (ctx.noErrors()) {
+            var tmp = new ArrayList<>(ctx.getRaw());
+            ctx.getRaw().clear();
+            for (ParseDescriptor descriptor : tmp) {
+                splitLevels(descriptor, ctx);
+            }
+            for (ParseDescriptor descriptor : ctx.getRaw()) {
+                remapConnections(descriptor, ctx);
+            }
+            tmp = new ArrayList<>(ctx.getDescriptors());
+            for (ParseDescriptor descriptor : tmp) {
+                mergeContexts(descriptor, ctx);
+            }
+        }
+        System.out.println();
     }
 
 }

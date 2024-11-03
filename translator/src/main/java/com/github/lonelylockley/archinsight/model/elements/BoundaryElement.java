@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     private final List<AbstractElement> children = new ArrayList<>();
     private final List<AbstractImport> imports = new ArrayList<>();
 
-    private String declaredId = null;
+    private DynamicId declaredId = null;
     private String name = null;
     private String desc = null;
     private String tech = null;
@@ -28,12 +29,12 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     }
 
     @Override
-    public void setDeclaredId(String id) {
+    public void setDeclaredId(DynamicId id) {
         this.declaredId = id;
     }
 
     @Override
-    public String getDeclaredId() {
+    public DynamicId getDeclaredId() {
         return declaredId;
     }
 
@@ -75,12 +76,12 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     @Override
     public AbstractElement clone() {
         var res = new BoundaryElement();
-        res.declaredId = this.declaredId;
+        res.declaredId = this.declaredId.clone();
         res.name = this.name;
         res.desc = this.desc;
         res.tech = this.tech;
-        res.imports.addAll(this.imports);
-        res.children.addAll(this.children);
+        this.imports.forEach(imp -> res.imports.add(imp.clone()));
+        this.children.forEach(child -> res.children.add(child.clone()));
         clonePositionTo(res);
         return res;
     }

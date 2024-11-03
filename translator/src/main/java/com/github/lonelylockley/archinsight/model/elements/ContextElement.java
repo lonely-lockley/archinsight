@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 
 import java.util.ArrayList;
@@ -9,19 +10,19 @@ import java.util.stream.Collectors;
 
 public class ContextElement extends AbstractElement implements WithId, WithChildElements, WithImports {
 
-    private String declaredId = null;
+    private DynamicId declaredId = null;
 
     private final List<AbstractElement> children = new ArrayList<>();
 
     private final List<AbstractImport> imports = new ArrayList<>();
 
     @Override
-    public void setDeclaredId(String id) {
+    public void setDeclaredId(DynamicId id) {
         this.declaredId = id;
     }
 
     @Override
-    public String getDeclaredId() {
+    public DynamicId getDeclaredId() {
         return declaredId;
     }
 
@@ -42,9 +43,9 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     @Override
     public AbstractElement clone() {
         var res = new ContextElement();
-        res.declaredId = this.declaredId;
-        res.imports.addAll(this.imports);
-        res.children.addAll(this.children);
+        res.declaredId = this.declaredId.clone();
+        this.imports.forEach(imp -> res.imports.add(imp.clone()));
+        this.children.forEach(child -> res.children.add(child.clone()));
         clonePositionTo(res);
         return res;
     }

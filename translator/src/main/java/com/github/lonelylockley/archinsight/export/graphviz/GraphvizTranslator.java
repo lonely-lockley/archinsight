@@ -13,8 +13,6 @@ import java.util.stream.Stream;
 
 public class GraphvizTranslator extends TranslatorBase {
 
-    private final List<LinkElement> connections = new ArrayList<>();
-
     /*
      * Collects all properties with overrides in such order:
      * - baseProperties
@@ -47,7 +45,7 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeSystemElement(SystemElement se, StringBuilder sb, int level) {
         if (se.isExternal()) {
-            writeBlock(sb, se.getUniqueId(), se.getDeclaredId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getUniqueId(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
@@ -56,7 +54,7 @@ public class GraphvizTranslator extends TranslatorBase {
             );
         }
         else {
-            writeBlock(sb, se.getUniqueId(), se.getDeclaredId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getUniqueId(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
@@ -74,7 +72,7 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeActorElement(ActorElement act, StringBuilder sb, int level) {
-        writeBlock(sb, act.getUniqueId(), act.getDeclaredId(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
+        writeBlock(sb, act.getUniqueId(), act.getDeclaredId().toString(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
                 act.getType(),
                 act.getAnnotations(),
                 new Tuple2<>("shape", "box"),
@@ -88,7 +86,7 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeStorageElement(StorageElement stor, StringBuilder sb, int level) {
         if (stor.isExternal()) {
-            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
@@ -97,7 +95,7 @@ public class GraphvizTranslator extends TranslatorBase {
             );
         }
         else {
-            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
@@ -111,7 +109,7 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeNote(WithId wid, WithNote wn, StringBuilder sb, int level) {
-        var id = wid.getDeclaredId() + "_note";
+        var id = wid.getDeclaredId().toString() + "_note";
         var text = wn.getNote().substring(1).trim();
         writeBlock(sb, null, id, null, null, text, level, Stream.of(
                             new Tuple2<>("shape", "note"),
@@ -123,7 +121,7 @@ public class GraphvizTranslator extends TranslatorBase {
                         .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
         );
         var c = new LinkElement();
-        c.setFrom(id);
+        //c.setFrom(id);
         c.setTo(wid.getDeclaredId());
         writeConnection(sb, c, Stream.of(
                                 new Tuple2<>("color", "#edce07"),
@@ -137,7 +135,7 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeInvisibleElement(WithId wid, StringBuilder sb, int level) {
-        writeBlock(sb, null, wid.getDeclaredId(), "", null, null, level, mergeProperties(
+        writeBlock(sb, null, wid.getDeclaredId().toString(), "", null, null, level, mergeProperties(
                 wid.getType(),
                 Collections.emptyMap(),
                 new Tuple2<>("shape", "point"),
@@ -147,19 +145,15 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
         if (el.getType() == ElementType.CONTEXT) {
-            ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId()));
+            ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId().toString()));
         }
         else
         if (el.getType() == ElementType.CONTAINER) {
-            ElementType.CONTAINER.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId()));
+            ElementType.CONTAINER.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId().toString()));
         }
         else
         if (el.getType() == ElementType.BOUNDARY) {
             ElementType.BOUNDARY.capture(el).foreach(be -> startAggregate(sb, be, level));
-        }
-        else
-        if (el.getType() == ElementType.LINK) {
-            ElementType.LINK.capture(el).foreach(connections::add);
         }
         else
         if (el.getType() == ElementType.SYSTEM) {
@@ -189,7 +183,7 @@ public class GraphvizTranslator extends TranslatorBase {
         }
     }
 
-    private void traverseConnections(StringBuilder sb) {
+    private void traverseConnections(StringBuilder sb, Collection<LinkElement> connections) {
         connections.forEach(c -> {
             if (c.isSync()) {
                 writeConnection(sb, c, mergeProperties(
@@ -218,7 +212,7 @@ public class GraphvizTranslator extends TranslatorBase {
             var res = new StringBuilder();
             traverseDeclarations(root, res, 0);
             res.append('\n');
-            traverseConnections(res);
+            traverseConnections(res, descriptor.getConnections());
             finish(res);
             return res.toString();
         }

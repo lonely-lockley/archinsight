@@ -9,17 +9,19 @@ public abstract class ParseDescriptor {
 
     private final String boundedContext;
     private final ArchLevel level;
+    private final AbstractElement parentElement;
     private final Set<AbstractImport> imports = new HashSet<>();
-    private final Map<String, AbstractElement> existing = new HashMap<>();
+    private final Map<DynamicId, AbstractElement> existing = new HashMap<>();
     private final Map<String, AbstractElement> declared = new HashMap<>();
     private final Map<String, AbstractElement> imported = new HashMap<>();
     private final Map<String, AbstractElement> mirrored = new HashMap<>();
     private final Set<LinkElement> connections = new HashSet<>();
     private final Set<Origin> origins = new HashSet<>();
 
-    public ParseDescriptor(String boundedContext, ArchLevel level) {
+    public ParseDescriptor(String boundedContext, ArchLevel level, AbstractElement parentElement) {
         this.boundedContext = boundedContext;
         this.level = level;
+        this.parentElement = parentElement;
     }
 
     public void addImport(AbstractImport el) {
@@ -39,19 +41,19 @@ public abstract class ParseDescriptor {
         connections.addAll(el);
     }
 
-    public void declareElement(String id, AbstractElement el) {
+    public void declareElement(DynamicId id, String elementId, AbstractElement el) {
         existing.put(id, el);
-        declared.put(id, el);
+        declared.put(elementId, el);
     }
 
-    public void declareImported(String id, AbstractElement el) {
+    public void declareImported(DynamicId id, String importId, AbstractElement el) {
         existing.put(id, el);
-        imported.put(id, el);
+        imported.put(importId, el);
     }
 
-    public void declareMirrored(String id, AbstractElement el) {
+    public void declareMirrored(DynamicId id, String mirrorId, AbstractElement el) {
         existing.put(id, el);
-        mirrored.put(id, el);
+        mirrored.put(mirrorId, el);
     }
 
     public Set<AbstractImport> getImports() {
@@ -86,27 +88,31 @@ public abstract class ParseDescriptor {
         return mirrored.containsKey(id);
     }
 
-    public boolean exists(String id) {
+    public boolean exists(DynamicId id) {
         return existing.containsKey(id);
     }
 
-    public void removeExisting(String id) {
+    public void removeExisting(DynamicId id, String existingId) {
         existing.remove(id);
-        declared.remove(id);
-        imported.remove(id);
-        mirrored.remove(id);
+        declared.remove(existingId);
+        imported.remove(existingId);
+        mirrored.remove(existingId);
     }
 
-    public AbstractElement getExisting(String id) {
+    public AbstractElement getExisting(DynamicId id) {
         return existing.get(id);
     }
 
-    public Map<String, AbstractElement> listExisting() {
+    public Map<DynamicId, AbstractElement> listExisting() {
         return existing;
     }
 
     public ArchLevel getLevel() {
         return level;
+    }
+
+    public AbstractElement getParentElement() {
+        return parentElement;
     }
 
     public String getBoundedContext() {
@@ -117,7 +123,7 @@ public abstract class ParseDescriptor {
         return origins;
     }
 
-    public abstract String getId();
+    public abstract DynamicId getId();
 
     public abstract AbstractElement getRoot();
 
@@ -128,5 +134,15 @@ public abstract class ParseDescriptor {
     public abstract WithImports getRootWithImports();
 
     public abstract ContextDescriptor getParentContext();
+
+    public void mergeTo(ParseDescriptor dst) {
+        dst.imports.addAll(this.imports);
+        dst.declared.putAll(this.declared);
+        dst.imported.putAll(this.imported);
+        dst.mirrored.putAll(this.mirrored);
+        dst.existing.putAll(this.existing);
+        dst.origins.addAll(this.origins);
+        dst.connections.addAll(this.connections);
+    }
 
 }

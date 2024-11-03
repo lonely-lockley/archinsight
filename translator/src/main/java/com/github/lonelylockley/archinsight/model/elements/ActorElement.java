@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
 
@@ -11,7 +12,7 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
     private final List<AbstractElement> children = new ArrayList<>();
 
-    private String declaredId;
+    private DynamicId declaredId;
     private String name;
     private String description;
     private String technology;
@@ -28,12 +29,12 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     }
 
     @Override
-    public void setDeclaredId(String id) {
+    public void setDeclaredId(DynamicId id) {
         this.declaredId = id;
     }
 
     @Override
-    public String getDeclaredId() {
+    public DynamicId getDeclaredId() {
         return declaredId;
     }
 
@@ -91,12 +92,12 @@ public class ActorElement extends AbstractElement implements WithId, WithParamet
     public AbstractElement clone() {
         var res = new ActorElement();
         res.note = this.note;
-        res.declaredId = this.declaredId;
+        res.declaredId = this.declaredId.clone();
         res.name = this.name;
         res.description = this.description;
         res.technology = this.technology;
-        res.annotations.putAll(this.annotations);
-        res.children.addAll(this.children);
+        this.annotations.forEach((key, value) -> res.annotations.put(key, value.clone()));
+        this.children.forEach(child -> res.children.add(child.clone()));
         clonePositionTo(res);
         return res;
     }
