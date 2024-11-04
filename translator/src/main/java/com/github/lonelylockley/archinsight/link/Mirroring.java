@@ -1,8 +1,26 @@
 package com.github.lonelylockley.archinsight.link;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
+import com.github.lonelylockley.archinsight.model.ParseDescriptor;
+import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.Tuple2;
+import com.github.lonelylockley.archinsight.model.elements.ElementType;
+
+import java.util.stream.Collectors;
+
 public interface Mirroring {
-/*
+
     default void addMirrorConnections(ParseDescriptor descriptor, TranslationContext ctx) {
+        // original descriptor with import statement that has to be mirrored
+        descriptor.getImports().forEach(imp -> {
+            var targetId = DynamicId.fromImport(imp);
+            targetId.setElementId(null);
+            System.err.println(targetId + " --- " + ctx.getGlobalElement(targetId));
+        });
+        System.err.println();
+    }
+
+/*
         // original descriptor with import statement that has to be mirrored
         var descriptorToContextBoundary = descriptor
                 .listImported()

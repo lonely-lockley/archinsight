@@ -67,12 +67,9 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
             for (ParseDescriptor descriptor : tmp) {
                 splitLevels(descriptor, ctx);
             }
-            for (ParseDescriptor descriptor : ctx.getRaw()) {
+            for (ParseDescriptor descriptor : ctx.getDescriptors()) {
                 remapConnections(descriptor, ctx);
-            }
-            tmp = new ArrayList<>(ctx.getDescriptors());
-            for (ParseDescriptor descriptor : tmp) {
-                mergeContexts(descriptor, ctx);
+                addMirrorConnections(descriptor, ctx);
             }
         }
         System.out.println();

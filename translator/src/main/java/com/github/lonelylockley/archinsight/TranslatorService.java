@@ -51,8 +51,8 @@ public class TranslatorService {
     @Measured
     public TranslationResult translate(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @Body TranslationRequest data) throws Exception {
         // !!!! temporarily set arch level
-        data.setLevel(ArchLevel.CONTEXT);
-//        data.setLevel(ArchLevel.CONTAINER);
+//        data.setLevel(ArchLevel.CONTEXT);
+        data.setLevel(ArchLevel.CONTAINER);
         // ===============================
         var ctx = new TranslationContext();
         var fsFuture = CompletableFuture
@@ -66,7 +66,7 @@ public class TranslatorService {
         // check integrity
         if (ctx.noErrors()) {
             new Linker(ctx).checkIntegrity(data.getLevel());
-            //new Introspection(ctx).suggest();
+            new Introspection(ctx).suggest();
         }
         // translate to DOT
         var result = new TranslationResult();

@@ -102,7 +102,7 @@ public interface Imports {
         });
     }
 
-    private AbstractElement transformToImported(AbstractElement imported) {
+    static AbstractElement transformToImported(AbstractElement imported) {
         imported.hasChildren().foreach(c -> c.getChildren().clear());
         imported.hasExternal().foreach(WithExternal::setExternal);
         return imported;

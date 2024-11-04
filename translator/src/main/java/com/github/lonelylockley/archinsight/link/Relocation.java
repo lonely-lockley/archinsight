@@ -17,7 +17,6 @@ public interface Relocation {
             var existing = ctx.getDescriptor(descriptor.getId());
             descriptor.mergeTo(existing);
             existing.getRootWithChildren().getChildren().addAll(descriptor.getRootWithChildren().getChildren());
-            ctx.getDescriptors().remove(descriptor);
         }
     }
 
@@ -35,8 +34,8 @@ public interface Relocation {
     private void splitContextAndContainer(final ContextElement context, final ContextDescriptor parent, final TranslationContext ctx) {
         final var newContextDescriptor = stripContext(context, parent);
         final var newContainers = stripContainer(context, newContextDescriptor, parent);
-        ctx.addRaw(newContextDescriptor.getParentElement().getOrigin(), newContextDescriptor);
-        newContainers.forEach(cont -> ctx.addRaw(cont.getParentElement().getOrigin(), cont));
+        mergeContexts(newContextDescriptor, ctx);
+        newContainers.forEach(cont -> mergeContexts(cont, ctx));
     }
 
     private ContextDescriptor stripContext(final ContextElement src, final ContextDescriptor parent) {
