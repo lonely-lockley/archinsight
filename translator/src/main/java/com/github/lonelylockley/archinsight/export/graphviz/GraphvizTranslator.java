@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.export.graphviz;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
@@ -12,6 +13,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class GraphvizTranslator extends TranslatorBase {
+
+    private Set<String> addedNotes = new HashSet<>();
 
     /*
      * Collects all properties with overrides in such order:
@@ -110,28 +113,31 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeNote(WithId wid, WithNote wn, StringBuilder sb, int level) {
         var id = wid.getDeclaredId().toString() + "_note";
-        var text = wn.getNote().substring(1).trim();
-        writeBlock(sb, null, id, null, null, text, level, Stream.of(
-                            new Tuple2<>("shape", "note"),
-                            new Tuple2<>("style", "filled"),
-                            new Tuple2<>("fillcolor", "#faf6a2"),
-                            new Tuple2<>("fontcolor", "#000000"),
-                            new Tuple2<>("color", "#edce07")
-                        )
-                        .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
-        );
-        var c = new LinkElement();
-        //c.setFrom(id);
-        c.setTo(wid.getDeclaredId());
-        writeConnection(sb, c, Stream.of(
-                                new Tuple2<>("color", "#edce07"),
-                                new Tuple2<>("dir", "none"),
-                                new Tuple2<>("penwidth", "1"),
-                                new Tuple2<>("minlen", "0.2"),
-                                new Tuple2<>("maxlen", "1")
+        if (!addedNotes.contains(id)) {
+            var text = wn.getNote().substring(1).trim();
+            writeBlock(sb, null, id, null, null, text, level, Stream.of(
+                                    new Tuple2<>("shape", "note"),
+                                    new Tuple2<>("style", "filled"),
+                                    new Tuple2<>("fillcolor", "#faf6a2"),
+                                    new Tuple2<>("fontcolor", "#000000"),
+                                    new Tuple2<>("color", "#edce07")
                             )
                             .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
-        );
+            );
+            var c = new LinkElement();
+            c.setFrom(DynamicId.fromElementId(id));
+            c.setTo(wid.getDeclaredId());
+            writeConnection(sb, c, Stream.of(
+                                    new Tuple2<>("color", "#edce07"),
+                                    new Tuple2<>("dir", "none"),
+                                    new Tuple2<>("penwidth", "1"),
+                                    new Tuple2<>("minlen", "0.2"),
+                                    new Tuple2<>("maxlen", "1")
+                            )
+                            .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
+            );
+            addedNotes.add(id);
+        }
     }
 
     private void writeInvisibleElement(WithId wid, StringBuilder sb, int level) {

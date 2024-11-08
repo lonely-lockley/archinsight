@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight.components;
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.components.helpers.TabsPersistenceHelper;
 import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
@@ -31,6 +32,8 @@ public class TabsComponent extends TabSheet {
     private final AtomicInteger restoredTabsRenderCountdownLatch = new AtomicInteger(0);
     private final RemoteSource remoteSource;
     private final TabsPersistenceHelper clientStorage;
+
+    private ArchLevel currentLevel = ArchLevel.CONTEXT;
 
     public TabsComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
@@ -132,7 +135,8 @@ public class TabsComponent extends TabSheet {
             public void receive(RequestRenderEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
                 Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                    remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), tabs.values());
+                    currentLevel = e.getLevel();
+                    remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), e.getLevel(), tabs.values());
                 });
             }
             }
@@ -216,7 +220,7 @@ public class TabsComponent extends TabSheet {
                 source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
             }
             final var editorTab = new EditorTabComponent(id, file, source, (tabId) -> {
-                remoteSource.render.render(tabId, repositoryId, tabs.values());
+                remoteSource.render.render(tabId, repositoryId, currentLevel, tabs.values());
             });
             editorTab.setCloseListener(this::closeTab);
             add(editorTab, editorTab.getContent());

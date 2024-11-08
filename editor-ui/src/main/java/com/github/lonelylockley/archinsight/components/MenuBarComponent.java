@@ -4,6 +4,7 @@ import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.components.dialogs.DirectorySelectionDialog;
 import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.vaadin.flow.component.*;
@@ -16,14 +17,12 @@ import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.server.StreamResource;
+import com.vaadin.flow.theme.lumo.LumoIcon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
-import java.util.UUID;
 
 public class MenuBarComponent extends MenuBar {
 
@@ -35,15 +34,19 @@ public class MenuBarComponent extends MenuBar {
     private final MenuItem newButton;
     private final MenuItem sourceDropdown;
     private final MenuItem exportDropdown;
-    private final MenuItem codePanel;
-    private final MenuItem diagramPanel;
-    private final MenuItem bothPanels;
+    private final MenuItem viewDropdown;
     private final MenuItem zoomInButton;
     private final MenuItem zoomResetButton;
     private final MenuItem zoomOutButton;
     private final MenuItem zoomFitButton;
+    private final MenuItem c1;
+    private final MenuItem c2;
+    private final MenuItem c3;
+    private final MenuItem c4;
     private final MenuItem render;
     private final boolean readOnly;
+
+    private ArchLevel currentLevel = ArchLevel.CONTEXT;
 
     public MenuBarComponent(Div invisible, boolean readOnly, SwitchListenerHelper switchListener) {
         this.readOnly = readOnly;
@@ -63,14 +66,26 @@ public class MenuBarComponent extends MenuBar {
             createItem(exportSubMenu, "menu_btn_export_as_png",  new Icon(VaadinIcon.DOWNLOAD), "Export as PNG", null, true, true, listener);
             createItem(exportSubMenu, "menu_btn_export_as_json", new Icon(VaadinIcon.DOWNLOAD), "Export as JSON", null, true, true, listener);
             createItem(exportSubMenu, "menu_btn_export_as_dot",  new Icon(VaadinIcon.DOWNLOAD), "Export as DOT", null, true, true, listener);
-        codePanel       = createItem(this, "menu_btn_panel_code", new Icon(VaadinIcon.PADDING_LEFT), null, null, false, true, listener);
-        diagramPanel    = createItem(this, "menu_btn_panel_diagram", new Icon(VaadinIcon.PADDING_RIGHT), null, null, false, true, listener);
-        bothPanels      = createItem(this, "menu_btn_panel_both", new Icon(VaadinIcon.SPLIT_H), null, null, false, true, listener);
-        zoomInButton    = createItem(this, "menu_btn_zoom_plus", new Icon(VaadinIcon.PLUS), null, null, false, false, listener);
-        zoomResetButton = createItem(this, "menu_btn_zoom_reset", new Icon(VaadinIcon.PLUS_MINUS), null, null, false, false, listener);
-        zoomOutButton   = createItem(this, "menu_btn_zoom_minus", new Icon(VaadinIcon.MINUS), null, null, false, false, listener);
-        zoomFitButton   = createItem(this, "menu_btn_zoom_fit", new Icon(VaadinIcon.EXPAND_SQUARE), null, null, false, false, listener);
-        render          = createItem(this, "menu_btn_render", new Icon(VaadinIcon.CARET_RIGHT), "Render", null, false, false, listener);
+        viewDropdown = createItem(this, "menu_btn_view", null, "View", new Icon(VaadinIcon.ANGLE_DOWN), false, true, listener);
+        var viewSubMenu = viewDropdown.getSubMenu();
+            zoomInButton = createItem(viewSubMenu, "menu_btn_zoom_plus", new Icon(VaadinIcon.PLUS), "Zoom in", null, true, false, listener);
+            zoomInButton.setKeepOpen(true);
+            zoomResetButton = createItem(viewSubMenu, "menu_btn_zoom_reset", new Icon(VaadinIcon.PLUS_MINUS), "Reset zoom", null, true, false, listener);
+            zoomOutButton = createItem(viewSubMenu, "menu_btn_zoom_minus", new Icon(VaadinIcon.MINUS), "Zoom out", null, true, false, listener);
+            zoomOutButton.setKeepOpen(true);
+            zoomFitButton = createItem(viewSubMenu, "menu_btn_zoom_fit", new Icon(VaadinIcon.EXPAND_SQUARE), "Fit to screen", null, true, false, listener);
+            createItem(viewSubMenu, "menu_btn_panel_code", new Icon(VaadinIcon.PADDING_LEFT), "Code only", null, true, true, listener);
+            createItem(viewSubMenu, "menu_btn_panel_diagram", new Icon(VaadinIcon.PADDING_RIGHT), "Diagram only", null, true, true, listener);
+            createItem(viewSubMenu, "menu_btn_panel_both", new Icon(VaadinIcon.SPLIT_H), "Code and diagram", null, true, true, listener);
+        c1 = createItem(this, "menu_btn_level_c1", LumoIcon.ORDERED_LIST.create(), "C1", null, true, false, listener);
+        c1.getElement().setProperty("title", "Context level");
+        c2 = createItem(this, "menu_btn_level_c2", LumoIcon.ORDERED_LIST.create(), "C2", null, true, true, listener);
+        c2.getElement().setProperty("title", "Context level");
+        c3 = createItem(this, "menu_btn_level_c3", LumoIcon.ORDERED_LIST.create(), "C3", null, true, false, listener);
+        c3.getElement().setProperty("title", "");
+        c4 = createItem(this, "menu_btn_level_c4", LumoIcon.ORDERED_LIST.create(), "C4", null, true, false, listener);
+        c4.getElement().setProperty("title", "");
+        render = createItem(this, "menu_btn_render", new Icon(VaadinIcon.CARET_RIGHT), "Render", null, false, false, listener);
 
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.CONTROL);
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.META);
@@ -176,7 +191,11 @@ public class MenuBarComponent extends MenuBar {
         }
         else
         if (id.equals("menu_btn_render")) {
-            refreshButtonClicked();
+            renderButtonClicked();
+        }
+        else
+        if (id.startsWith("menu_btn_level")) {
+            levelButtonClicked(id);
         }
     }
 
@@ -186,19 +205,19 @@ public class MenuBarComponent extends MenuBar {
             StreamResource res;
             switch (id) {
                 case "menu_btn_export_as_png":
-                    final var png = new ByteArrayInputStream(remoteSource.export.exportPng(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
+                    final var png = new ByteArrayInputStream(remoteSource.export.exportPng(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
                     res = new StreamResource("export.png", () -> png);
                     break;
                 case "menu_btn_export_as_json":
-                    final var json =new ByteArrayInputStream(remoteSource.export.exportJson(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
+                    final var json =new ByteArrayInputStream(remoteSource.export.exportJson(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
                     res = new StreamResource(filename + ".json", () -> json);
                     break;
                 case "menu_btn_export_as_svg":
-                    final var svg = new ByteArrayInputStream(remoteSource.export.exportSvg(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
+                    final var svg = new ByteArrayInputStream(remoteSource.export.exportSvg(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
                     res = new StreamResource(filename + ".svg", () -> svg);
                     break;
                 default:
-                    final var dot = new ByteArrayInputStream(remoteSource.export.exportDot(callerTab.getTabId(), switchListener.getActiveRepositoryId(), tabs));
+                    final var dot = new ByteArrayInputStream(remoteSource.export.exportDot(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
                     res = new StreamResource(filename + ".dot", () -> dot);
                     break;
             }
@@ -249,8 +268,8 @@ public class MenuBarComponent extends MenuBar {
         }));
     }
 
-    private void refreshButtonClicked() {
-        Communication.getBus().post(new RequestRenderEvent(switchListener.getActiveRepositoryId()));
+    private void renderButtonClicked() {
+        Communication.getBus().post(new RequestRenderEvent(currentLevel, switchListener.getActiveRepositoryId()));
     }
 
     private void downloadButtonClicked() {
@@ -287,6 +306,43 @@ public class MenuBarComponent extends MenuBar {
                 break;
             default:
                 Communication.getBus().post(new ZoomEvent().reset());
+                break;
+        }
+    }
+
+    private void levelButtonClicked(String id) {
+        switch (id) {
+            case "menu_btn_level_c1":
+                currentLevel = ArchLevel.CONTEXT;
+                c1.setEnabled(false);
+                c2.setEnabled(true);
+//                c3.setEnabled(true);
+//                c4.setEnabled(true);
+                renderButtonClicked();
+                break;
+            case "menu_btn_level_c2":
+                currentLevel = ArchLevel.CONTAINER;
+                c1.setEnabled(true);
+                c2.setEnabled(false);
+//                c3.setEnabled(true);
+//                c4.setEnabled(true);
+                renderButtonClicked();
+                break;
+            case "menu_btn_level_c3":
+//                currentLevel = ArchLevel.;
+                c1.setEnabled(true);
+                c2.setEnabled(true);
+//                c3.setEnabled(false);
+//                c4.setEnabled(true);
+                renderButtonClicked();
+                break;
+            default:
+//                currentLevel = ArchLevel.;
+                c1.setEnabled(true);
+                c2.setEnabled(true);
+//                c3.setEnabled(true);
+//                c4.setEnabled(false);
+                renderButtonClicked();
                 break;
         }
     }

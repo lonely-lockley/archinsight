@@ -168,9 +168,9 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                 DeprecatedAnnotation da = new DeprecatedAnnotation();
                 ctx.startNewAnnotation(da);
                 break;
-//            case InsightParser.RULE_noteDeclaration:
-//                ctx.nextCommentIsNote();
-//                break;
+            case InsightParser.RULE_noteStatement:
+                ctx.nextCommentIsNote();
+                break;
             case InsightParser.RULE_namedImportStatement:
                 ctx.startNewImport(new NamedImport());
                 break;
@@ -241,9 +241,9 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                 }
                 ctx.getCurrentElementWithParams().setTechnology(ctx.getCurrentText());
                 break;
-//            case InsightParser.RULE_noteDeclaration:
-//                ctx.resetNoteFlag();
-//                break;
+            case InsightParser.RULE_noteStatement:
+                ctx.resetNoteFlag();
+                break;
             case InsightParser.RULE_anonymousImportDeclaration:
                 ctx.getCurrentElementAsLink().setTo(ctx.getCurrentImport().getAlias());
                 ctx.finishImport();

@@ -15,7 +15,7 @@ public interface Mirroring {
         descriptor.getImports().forEach(imp -> {
             var targetId = DynamicId.fromImport(imp);
             targetId.setElementId(null);
-            System.err.println(targetId + " --- " + ctx.getGlobalElement(targetId));
+//            System.err.println(targetId + " --- " + ctx.getGlobalElement(targetId));
         });
         System.err.println();
     }

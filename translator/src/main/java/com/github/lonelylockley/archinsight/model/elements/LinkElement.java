@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class LinkElement extends AbstractElement implements WithAnnotations, WithParameters {
+public class LinkElement extends AbstractElement implements WithAnnotations, WithParameters, WithNote {
 
     private static final ElementType<LinkElement> type = ElementType.LINK;
 
@@ -20,6 +20,7 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     private String name;
     private String description;
     private String technology;
+    private String note;
     private boolean sync;
 
     public void setFrom(DynamicId from) {
@@ -88,6 +89,16 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     @Override
     public void addAnnotation(AbstractAnnotation annotation) {
         annotations.put(annotation.getAnnotationType(), annotation);
+    }
+
+    @Override
+    public String getNote() {
+        return note;
+    }
+
+    @Override
+    public void setNote(String note) {
+        this.note = note;
     }
 
     @Override

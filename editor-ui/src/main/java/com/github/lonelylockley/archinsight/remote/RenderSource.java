@@ -6,6 +6,7 @@ import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.DeclarationsParsedEvent;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.events.SvgDataEvent;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
 import com.github.lonelylockley.archinsight.model.remote.translator.*;
 import jakarta.inject.Inject;
@@ -26,10 +27,11 @@ public class RenderSource {
     @Inject
     private Config conf;
 
-    private TranslationRequest prepareTranslationRequest(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+    private TranslationRequest prepareTranslationRequest(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs) {
         var res = new TranslationRequest();
         res.setRepositoryId(repositoryId);
         res.setTabId(tabId);
+        res.setLevel(level);
         var tmp = new ArrayList<TabData>(tabs.size());
         for (EditorTabComponent tab: tabs) {
             var td = new TabData();
@@ -52,14 +54,14 @@ public class RenderSource {
         }).toList();
     }
 
-    public void render(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
+    public void render(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs) {
         var edited = tabs.stream().filter(t -> Objects.equals(t.getTabId(), tabId)).findFirst();
         if (edited.isEmpty() || edited.get().getEditor().getCachedClientCode() == null || edited.get().getEditor().getCachedClientCode().isBlank()) {
             Communication.getBus().post(new SourceCompilationEvent(tabId, false));
         }
         else {
             long startTime = System.nanoTime();
-            final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, tabs));
+            final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, tabs));
             Communication.getBus().post(new DeclarationsParsedEvent(translated.getDeclarations()));
             final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
             final var filesWithErrors = new HashSet<UUID>();
