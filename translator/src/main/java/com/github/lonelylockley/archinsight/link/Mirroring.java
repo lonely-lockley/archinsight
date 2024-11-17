@@ -1,85 +1,68 @@
 package com.github.lonelylockley.archinsight.link;
 
-import com.github.lonelylockley.archinsight.model.DynamicId;
-import com.github.lonelylockley.archinsight.model.ParseDescriptor;
-import com.github.lonelylockley.archinsight.model.TranslationContext;
-import com.github.lonelylockley.archinsight.model.Tuple2;
-import com.github.lonelylockley.archinsight.model.elements.ElementType;
+import com.github.lonelylockley.archinsight.model.*;
+import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
+import com.github.lonelylockley.archinsight.model.elements.LinkElement;
+import com.github.lonelylockley.archinsight.model.elements.WithId;
 
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 public interface Mirroring {
 
-    default void addMirrorConnections(ParseDescriptor descriptor, TranslationContext ctx) {
-        // original descriptor with import statement that has to be mirrored
-        descriptor.getImports().forEach(imp -> {
-            var targetId = DynamicId.fromImport(imp);
-            targetId.setElementId(null);
-//            System.err.println(targetId + " --- " + ctx.getGlobalElement(targetId));
-        });
-        System.err.println();
-    }
-
-/*
-        // original descriptor with import statement that has to be mirrored
-        var descriptorToContextBoundary = descriptor
-                .listImported()
-                .stream()
-                .filter(id -> descriptor.getImported(id).getType() != ElementType.EMPTY)
-                .map(id -> {
-                    var pos = id.lastIndexOf("__");
-                    return new Tuple2<>(id, new Tuple2<>(id.substring(pos + 2), ctx.getDescriptor(id.substring(0, pos))));
-                })
-                .collect(Collectors.toMap(
-                        Tuple2::_1,
-                        Tuple2::_2
-                ));
+    default void addMirrorConnections(final ParseDescriptor descriptor, final TranslationContext ctx) {
         descriptor
                 .getConnections()
                 .stream()
-                .filter(connection -> descriptorToContextBoundary.get(connection.getTo()) != null)
-                .filter(connection -> descriptor.isImported(connection.getTo()))
-                .forEach(connection -> {
-                    // target descriptor to mirror element and link
-                    final var targetId = descriptorToContextBoundary.get(connection.getTo())._1;
-                    final var targetDescriptor = descriptorToContextBoundary.get(connection.getTo())._2;
-                    if (targetDescriptor != null) {
-                        // mirrored element referencing imported element
-                        var mirrored = descriptor.getExisting(connection.getFrom()).clone();
-                        var alreadyImported = targetDescriptor
-                                .getImports()
-                                .stream()
-                                .filter(imp -> {
-                                    return Objects.equals(imp.getBoundedContext(), descriptor.getBoundedContext()) && Objects.equals(imp.getIdentifier(), connection.getFrom());
-                                })
-                                .findFirst();
-                        String newId;
-                        if (alreadyImported.isPresent()) {
-                            newId = alreadyImported.get().getAlias();
-                        }
-                        else {
-                            newId = String.format("%s__%s", descriptor.getId(), connection.getFrom());
-                        }
-                        // - if original element is not imported into target namespace
-                        if (!targetDescriptor.exists(newId)) {
-                            LinkHelper.transformToImported(mirrored, newId, targetDescriptor);
-                            targetDescriptor.declareMirrored(newId, mirrored);
-                        }
-//                        // create a reversed link from mirrored element to imported one
-                        var reverseLink = (LinkElement) connection.clone();
-//                        // copy link and reverse direction
-                        reverseLink.setFrom(newId);
-                        reverseLink.setTo(targetId);
-                        targetDescriptor.addConnection(reverseLink);
-                        targetDescriptor.getRootWithChildren().addChild(reverseLink);
-                        if (targetDescriptor.getParentContext() != null) {
-                            var reverseCopy = (LinkElement) reverseLink.clone();
-                            reverseCopy.setTo("??");
-                            targetDescriptor.getParentContext().addConnection(reverseCopy);
-                            targetDescriptor.getParentContext().getRootWithChildren().addChild(reverseCopy);
-                        }
+                .filter(link -> descriptor.isImported(link.getTo().toString()))
+                .map(link -> new Tuple2<>(link, getTargetDescriptor(link.getTo(), ctx)))
+                .filter(t -> !Objects.equals(descriptor, t._2))
+                .forEach(t -> {
+                    final var link = t._1;
+                    final var targetDescriptor = t._2;
+                    AbstractElement mirrored;
+                    // if source element is not imported or declared in target descriptor, declare it
+                    if (!targetDescriptor.exists(link.getFrom())) {
+                        var sourceElement = getSourceElement(link.getFrom(), ctx);
+                        mirrored = Imports.transformToImported(sourceElement.clone());
+                        targetDescriptor.declareMirrored(link.getFrom(), link.getFrom().toString(), mirrored);
+                        targetDescriptor.getRootWithChildren().addChild(mirrored);
                     }
+                    else {
+                        mirrored = targetDescriptor.getExisting(link.getFrom());
+                    }
+                    var mirroredId = mirrored.hasId().fold(WithId::getDeclaredId, null);
+                    var reversedLink = reverseLink(link, mirroredId);
+                    targetDescriptor.addConnection(reversedLink);
+                    targetDescriptor.getRootWithChildren().addChild(reversedLink);
                 });
     }
-*/
+
+    private LinkElement reverseLink(LinkElement direct, DynamicId from) {
+        var reversed = (LinkElement) direct.clone();
+        reversed.setFrom(from);
+        return reversed;
+    }
+
+    private AbstractElement getSourceElement(DynamicId id, final TranslationContext ctx) {
+        var sourceElementId = id.clone();
+        sourceElementId.setLevel(ArchLevel.CONTAINER);
+        if (sourceElementId.getBoundaryId() != null) {
+            sourceElementId.setElementId(null);
+        }
+        return ctx.getGlobalElement(sourceElementId);
+    }
+
+    private ParseDescriptor getTargetDescriptor(DynamicId targetElementId, final TranslationContext ctx) {
+        var targetDescriptorId = targetElementId.clone();
+        targetDescriptorId.setElementId(null);
+        if (targetDescriptorId.getLevel() == ArchLevel.CONTEXT) {
+            targetDescriptorId.setBoundaryId(null);
+        }
+        var targetDescriptorRealId = ctx.getDescriptorRemapping(targetDescriptorId);
+        if (targetDescriptorRealId == null) {
+            targetDescriptorRealId = targetDescriptorId;
+        }
+        return ctx.getDescriptor(targetDescriptorRealId);
+    }
+
 }

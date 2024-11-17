@@ -4,6 +4,7 @@ import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.WithId;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -39,7 +40,7 @@ public class DynamicId implements Cloneable {
         return res;
     }
 
-    public static DynamicId fromAbstractElements(ArchLevel level, String boundedContext, Set<String> boundaryIds) {
+    public static DynamicId fromAbstractElements(ArchLevel level, String boundedContext, Collection<String> boundaryIds) {
         var res = new DynamicId();
         res.setLevel(level);
         res.setBoundedContext(boundedContext);

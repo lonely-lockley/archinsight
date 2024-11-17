@@ -69,6 +69,8 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
             }
             for (ParseDescriptor descriptor : ctx.getDescriptors()) {
                 remapConnections(descriptor, ctx);
+            }
+            for (ParseDescriptor descriptor : ctx.getDescriptors()) {
                 addMirrorConnections(descriptor, ctx);
             }
         }

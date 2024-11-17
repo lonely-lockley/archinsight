@@ -12,6 +12,7 @@ public class TranslationContext {
     private final HashMap<DynamicId, AbstractElement> globalDeclaration = new HashMap<>();
     private final ConcurrentHashMap<Origin, ParseDescriptor> raw = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<DynamicId, ParseDescriptor> descriptors = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<DynamicId, DynamicId> descriptorRemapping = new ConcurrentHashMap<>();
     private final Set<TranslatorMessage> messages = new HashSet<>();
     private boolean hasErrors = false;
 
@@ -72,5 +73,13 @@ public class TranslationContext {
 
     public boolean isDeclaredGlobally(DynamicId id) {
         return globalDeclaration.containsKey(id);
+    }
+
+    public void remapDescriptors(Collection<DynamicId> from,  DynamicId to) {
+        from.forEach(fromId -> descriptorRemapping.put(fromId, to));
+    }
+
+    public DynamicId getDescriptorRemapping(DynamicId id) {
+        return descriptorRemapping.get(id);
     }
 }
