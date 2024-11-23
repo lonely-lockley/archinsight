@@ -56,6 +56,10 @@ public abstract class ParseDescriptor {
         mirrored.put(mirrorId, el);
     }
 
+    public Set<Map.Entry<String, AbstractElement>> listMirroredEntries() {
+        return mirrored.entrySet();
+    }
+
     public Set<AbstractImport> getImports() {
         return imports;
     }
@@ -92,15 +96,15 @@ public abstract class ParseDescriptor {
         return existing.containsKey(id);
     }
 
+    public AbstractElement getExisting(DynamicId id) {
+        return existing.get(id);
+    }
+
     public void removeExisting(DynamicId id, String existingId) {
         existing.remove(id);
         declared.remove(existingId);
         imported.remove(existingId);
         mirrored.remove(existingId);
-    }
-
-    public AbstractElement getExisting(DynamicId id) {
-        return existing.get(id);
     }
 
     public Map<DynamicId, AbstractElement> listExisting() {

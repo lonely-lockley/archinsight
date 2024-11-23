@@ -23,6 +23,9 @@ public interface Declarations {
 
     default void declareElement(ActorElement act, DynamicId parentId, ParseDescriptor descriptor, TranslationContext ctx) {
         declareElement(act.getDeclaredId(), parentId, ArchLevel.CONTEXT, act, descriptor, ctx);
+        var clone = (ActorElement) act.clone();
+        clone.getDeclaredId().setLevel(ArchLevel.CONTAINER);
+        ctx.declareGlobalElement(clone.getDeclaredId(), clone);
     }
 
     default void declareElement(SystemElement sys, DynamicId parentId, ParseDescriptor descriptor, TranslationContext ctx) {

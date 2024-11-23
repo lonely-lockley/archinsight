@@ -55,7 +55,7 @@ public interface Relocation {
         var existing = new HashMap<>(newDescriptor.listExisting());
         existing.forEach((ee, el) -> {
             // clean context from container-level elements
-            if (!(ee.getLevel() == ArchLevel.CONTEXT || newDescriptor.isImported(ee.toString()))) {
+            if (!(ee.getLevel() == ArchLevel.CONTEXT || newDescriptor.isImported(ee.toString()) || newDescriptor.isMirrored(ee.toString()))) {
                 newDescriptor.removeExisting(ee, ee.getElementId());
             }
         });
@@ -78,7 +78,7 @@ public interface Relocation {
         for (var container : containers.entrySet()) {
             var newContainer = new ContainerElement();
             newContainer.setDeclaredId(src.getDeclaredId());
-            // create a boundary for each system | do nothing with actors
+            // create a boundary for each system | do nothing with actors | keep mirrored
             populateContainerElement(newContainer, descriptor, container.getValue(), ctx);
             var newDescriptor = populateDescriptor(newContainer, descriptor, parent, container.getValue(), ctx);
             result.add(newDescriptor);
@@ -103,9 +103,6 @@ public interface Relocation {
                             link.getTo().setLevel(ArchLevel.CONTAINER);
                         }
                     });
-                    var clone = (ActorElement) actor.clone();
-                    clone.getDeclaredId().setLevel(ArchLevel.CONTAINER);
-                    ctx.declareGlobalElement(clone.getDeclaredId(), clone);
                 });
                 newContainer.addChild(el);
             }
@@ -128,7 +125,7 @@ public interface Relocation {
     }
 
     private ContainerDescriptor populateDescriptor(ContainerElement newContainer, final ContextDescriptor descriptor, final ContextDescriptor parent, List<Tuple2<Origin, AbstractElement>> container, final TranslationContext ctx) {
-        var dynamicIds = container
+        var boundaryIds = container
                 .stream()
                 .map(t -> t._2)
                 .map(el ->
@@ -137,15 +134,19 @@ public interface Relocation {
                 .filter(Objects::nonNull)
                 .map(DynamicId::clone)
                 .peek(id -> id.setLevel(ArchLevel.CONTAINER))
+                .map(DynamicId::getElementId)
                 .collect(Collectors.toSet());
-        var boundaryIds =  dynamicIds.stream().map(DynamicId::getElementId).collect(Collectors.toSet());
         var id = DynamicId.fromAbstractElements(ArchLevel.CONTAINER, descriptor.getBoundedContext(), boundaryIds);
-        ctx.remapDescriptors(dynamicIds, id);
         var result = new ContainerDescriptor(parent, newContainer, id);
         var existing = new HashMap<>(result.listExisting());
         existing.forEach((ee, el) -> {
             // clean container from context-level elements
-            if (!((ee.getLevel() == ArchLevel.CONTAINER && Objects.equals(ee.getBoundedContext(), result.getBoundedContext()) && boundaryIds.contains(ee.getBoundaryId())) || result.isImported(ee.toString()))) {
+            if (!(
+                    result.isMirrored(ee.toString()) ||
+                    (ee.getLevel() == ArchLevel.CONTAINER && Objects.equals(ee.getBoundedContext(), result.getBoundedContext()) && boundaryIds.contains(ee.getBoundaryId())) ||
+                    result.isImported(ee.toString())
+
+            )) {
                 result.removeExisting(ee, ee.getElementId());
             }
         });
@@ -153,6 +154,9 @@ public interface Relocation {
             var imported = result.getImported(impId);
             newContainer.addChild(imported);
         });
+        for (Map.Entry<String, AbstractElement> mirrored : descriptor.listMirroredEntries()) {
+            result.getRootWithChildren().addChild(mirrored.getValue());
+        }
         return result;
     }
 

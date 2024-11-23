@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.link;
 
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
@@ -51,7 +52,7 @@ public interface Mapping {
                         link.getTo().setElementId(null);
                     }
                 })
-                .filter(link -> link.getFrom().getLevel() != ArchLevel.CONTEXT)
+                .filter(link -> link.getFrom().getLevel() != ArchLevel.CONTEXT || (descriptor.isMirrored(DynamicId.fromLink(link).toString()) && link.getTo().getLevel() != ArchLevel.CONTEXT))
                 .toList();
         descriptor.getConnections().clear();
         descriptor.getConnections().addAll(remapped);

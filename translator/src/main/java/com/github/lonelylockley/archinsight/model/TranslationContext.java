@@ -6,18 +6,23 @@ import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMe
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 public class TranslationContext {
 
     private final HashMap<DynamicId, AbstractElement> globalDeclaration = new HashMap<>();
     private final ConcurrentHashMap<Origin, ParseDescriptor> raw = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<DynamicId, ParseDescriptor> descriptors = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<DynamicId, DynamicId> descriptorRemapping = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<DynamicId, List<Origin>> descriptorRemapping = new ConcurrentHashMap<>();
     private final Set<TranslatorMessage> messages = new HashSet<>();
     private boolean hasErrors = false;
 
     public Collection<ParseDescriptor> getDescriptors() {
         return descriptors.values();
+    }
+
+    public Set<Map.Entry<Origin, ParseDescriptor>> getRawEntries() {
+        return raw.entrySet();
     }
 
     public Collection<ParseDescriptor> getRaw() {
@@ -75,11 +80,19 @@ public class TranslationContext {
         return globalDeclaration.containsKey(id);
     }
 
-    public void remapDescriptors(Collection<DynamicId> from,  DynamicId to) {
-        from.forEach(fromId -> descriptorRemapping.put(fromId, to));
+    public void remapDescriptor(DynamicId fromId, Origin toId) {
+        if (!descriptorRemapping.containsKey(fromId)) {
+            var tmp = new ArrayList<Origin>();
+            tmp.add(toId);
+            descriptorRemapping.put(fromId, tmp);
+        }
+        else {
+            descriptorRemapping.get(fromId).add(toId);
+        }
     }
 
-    public DynamicId getDescriptorRemapping(DynamicId id) {
-        return descriptorRemapping.get(id);
+    public Stream<ParseDescriptor> getDescriptorRemapping(DynamicId id) {
+        var origins = descriptorRemapping.getOrDefault(id, null);
+        return origins.stream().map(o -> raw.getOrDefault(o, null));
     }
 }

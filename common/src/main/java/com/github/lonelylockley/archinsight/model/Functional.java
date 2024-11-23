@@ -16,7 +16,7 @@ public interface Functional<P, T> {
 
             @Override
             public <R> R fold(Function<P, R> lambda, Supplier<R> defaultValue) {
-                return defaultValue.get();
+                return defaultValue == null ? null : defaultValue.get();
             }
 
             @Override

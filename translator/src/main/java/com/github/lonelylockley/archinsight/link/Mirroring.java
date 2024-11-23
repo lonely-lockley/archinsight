@@ -6,34 +6,55 @@ import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 import com.github.lonelylockley.archinsight.model.elements.WithId;
 
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 public interface Mirroring {
 
-    default void addMirrorConnections(final ParseDescriptor descriptor, final TranslationContext ctx) {
+    default void declareMirroredElements(final ParseDescriptor descriptor, final TranslationContext ctx) {
         descriptor
                 .getConnections()
                 .stream()
-                .filter(link -> descriptor.isImported(link.getTo().toString()))
-                .map(link -> new Tuple2<>(link, getTargetDescriptor(link.getTo(), ctx)))
+                //.filter(link -> descriptor.isImported(link.getTo().toString()))
+                // an alternative way to check for imported not to mess with ids here
+                .filter(link -> !Objects.equals(descriptor.getExisting(link.getFrom()), descriptor.getExisting(link.getTo())))
+                .flatMap(link -> {
+                    return getTargetDescriptors(link.getTo(), ctx).filter(Objects::nonNull).map(desc -> new Tuple2<>(link, desc));
+                })
                 .filter(t -> !Objects.equals(descriptor, t._2))
                 .forEach(t -> {
                     final var link = t._1;
                     final var targetDescriptor = t._2;
-                    AbstractElement mirrored;
+                    final var sourceElement = getSourceElement(link.getFrom(), ctx);
+                    final var mirrored = Imports.transformToImported(sourceElement.clone());
+                    final var mirroredId = mirrored.hasId().fold(WithId::getDeclaredId, null);
+                    mirroredId.setLevel(ArchLevel.CONTEXT);
                     // if source element is not imported or declared in target descriptor, declare it
-                    if (!targetDescriptor.exists(link.getFrom())) {
-                        var sourceElement = getSourceElement(link.getFrom(), ctx);
-                        mirrored = Imports.transformToImported(sourceElement.clone());
-                        targetDescriptor.declareMirrored(link.getFrom(), link.getFrom().toString(), mirrored);
-                        targetDescriptor.getRootWithChildren().addChild(mirrored);
+                    if (!targetDescriptor.exists(mirroredId)) {
+                        targetDescriptor.declareMirrored(mirroredId, mirroredId.toString(), mirrored);
                     }
-                    else {
-                        mirrored = targetDescriptor.getExisting(link.getFrom());
-                    }
-                    var mirroredId = mirrored.hasId().fold(WithId::getDeclaredId, null);
                     var reversedLink = reverseLink(link, mirroredId);
+                    var reversedLinkId = DynamicId.fromLink(reversedLink);
+                    targetDescriptor.declareMirrored(reversedLinkId, reversedLinkId.toString(), reversedLink);
                     targetDescriptor.addConnection(reversedLink);
                     targetDescriptor.getRootWithChildren().addChild(reversedLink);
+                });
+    }
+
+    default void finishMirroring(final ParseDescriptor descriptor, final TranslationContext ctx) {
+        descriptor.listMirroredEntries().stream()
+                .map(mirrored ->
+                        mirrored
+                                .getValue()
+                                .hasId()
+                                .map(withId -> new Tuple2<>(withId.getDeclaredId(), mirrored.getValue()))
+                                .fold(Function.identity(), null)
+                )
+                .filter(Objects::nonNull)
+                .forEach(mirrored -> {
+                    if (!descriptor.isDeclared(mirrored._1.getElementId())) {
+                        descriptor.getRootWithChildren().addChild(mirrored._2);
+                    }
                 });
     }
 
@@ -52,17 +73,12 @@ public interface Mirroring {
         return ctx.getGlobalElement(sourceElementId);
     }
 
-    private ParseDescriptor getTargetDescriptor(DynamicId targetElementId, final TranslationContext ctx) {
+    private Stream<ParseDescriptor> getTargetDescriptors(DynamicId targetElementId, final TranslationContext ctx) {
         var targetDescriptorId = targetElementId.clone();
         targetDescriptorId.setElementId(null);
-        if (targetDescriptorId.getLevel() == ArchLevel.CONTEXT) {
-            targetDescriptorId.setBoundaryId(null);
-        }
-        var targetDescriptorRealId = ctx.getDescriptorRemapping(targetDescriptorId);
-        if (targetDescriptorRealId == null) {
-            targetDescriptorRealId = targetDescriptorId;
-        }
-        return ctx.getDescriptor(targetDescriptorRealId);
+        targetDescriptorId.setBoundaryId(null);
+        targetDescriptorId.setLevel(ArchLevel.CONTEXT);
+        return ctx.getDescriptorRemapping(targetDescriptorId);
     }
 
 }

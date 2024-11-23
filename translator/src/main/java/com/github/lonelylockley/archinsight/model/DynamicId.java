@@ -1,15 +1,10 @@
 package com.github.lonelylockley.archinsight.model;
 
-import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
-import com.github.lonelylockley.archinsight.model.elements.WithId;
+import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class DynamicId implements Cloneable {
 
@@ -45,6 +40,12 @@ public class DynamicId implements Cloneable {
         res.setLevel(level);
         res.setBoundedContext(boundedContext);
         res.setBoundaryId(String.join("+", boundaryIds));
+        return res;
+    }
+
+    public static DynamicId fromLink(LinkElement link) {
+        var res = new DynamicId();
+        res.setElementId(String.format("%s-->%s", link.getFrom(), link.getTo()));
         return res;
     }
 

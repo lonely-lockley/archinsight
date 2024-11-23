@@ -53,8 +53,9 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
     }
 
     public void checkIntegrity(ArchLevel targetLevel) {
-        for (ParseDescriptor descriptor : ctx.getRaw()) {
-            makeDeclarations(descriptor, null, descriptor.getRoot());
+        for (Map.Entry<Origin, ParseDescriptor> descriptor : ctx.getRawEntries()) {
+            ctx.remapDescriptor(descriptor.getValue().getId(), descriptor.getKey());
+            makeDeclarations(descriptor.getValue(), null, descriptor.getValue().getRoot());
         }
         for (ParseDescriptor descriptor : ctx.getRaw()) {
             rewriteImports(descriptor, ctx);
@@ -62,16 +63,17 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
         }
         // all checks are completed by this moment
         if (ctx.noErrors()) {
+            for (ParseDescriptor descriptor : ctx.getRaw()) {
+                declareMirroredElements(descriptor, ctx);
+            }
             var tmp = new ArrayList<>(ctx.getRaw());
             ctx.getRaw().clear();
             for (ParseDescriptor descriptor : tmp) {
                 splitLevels(descriptor, ctx);
             }
             for (ParseDescriptor descriptor : ctx.getDescriptors()) {
+                finishMirroring(descriptor, ctx);
                 remapConnections(descriptor, ctx);
-            }
-            for (ParseDescriptor descriptor : ctx.getDescriptors()) {
-                addMirrorConnections(descriptor, ctx);
             }
         }
         System.out.println();
