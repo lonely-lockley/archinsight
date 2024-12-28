@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 
 public class Exporter {
 
-    public void exportParsed(TranslationRequest data, TranslationResult result, TranslationContext ctx) {
+    public void exportParsed(TranslationRequest data, TranslationResult result, TranslationContext ctx, ColorScheme colorScheme) {
         result.setTabs(data.getTabs());
         var tabToDescriptor = ctx
                 .getDescriptors()
@@ -25,7 +25,7 @@ public class Exporter {
                         Tuple2::_2
                 ));
         for (TabData tab : result.getTabs()) {
-            var tr = new GraphvizTranslator();
+            var tr = new GraphvizTranslator(colorScheme);
             var desc = tabToDescriptor.get(tab.getTabId());
             tab.setSource(desc == null ? GraphvizTranslator.empty("empty") : tr.translate(desc));
             if (Objects.equals(tab.getTabId(), data.getTabId())) {

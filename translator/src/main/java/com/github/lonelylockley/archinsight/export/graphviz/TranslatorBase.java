@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.export.graphviz;
 
+import com.github.lonelylockley.archinsight.export.ColorScheme;
 import com.github.lonelylockley.archinsight.model.elements.BoundaryElement;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 import org.apache.commons.text.WordUtils;
@@ -8,6 +9,12 @@ import java.util.Map;
 import java.util.UUID;
 
 public abstract class TranslatorBase {
+
+    protected final ColorScheme colorScheme;
+
+    public TranslatorBase(ColorScheme colorScheme) {
+        this.colorScheme = colorScheme;
+    }
 
     public static final String empty(String project) {
         return "digraph \"" + project + "\" {}";
@@ -76,8 +83,19 @@ public abstract class TranslatorBase {
     protected void writeHeader(StringBuilder sb, String projectName) {
         sb.append("digraph " + projectName + " {\n\n");
         sb.append("  labelloc=\"t\"\n");
-        sb.append("  node [fontcolor=\"#ffffff\",fontsize=\"14px\",width=2,height=1,color=\"#ffffff\"]\n");
-        sb.append("  edge [minlen=1.5,color=\"#303030\",fontcolor=\"#303030\",fontsize=\"8px\",penwidth=\"0.7\"]\n");
+        sb.append("  graph [bgcolor=\"");
+        sb.append(colorScheme.getBackground());
+        sb.append("\"]\n");
+        sb.append("  node [fontcolor=\"");
+        sb.append(colorScheme.getElementFontColor());
+        sb.append("\",fontsize=\"14px\",width=2,height=1,color=\"");
+        sb.append(colorScheme.getElementColor());
+        sb.append("\"]\n");
+        sb.append("  edge [minlen=1.5,color=\"");
+        sb.append(colorScheme.getEdgeColor());
+        sb.append("\",fontcolor=\"");
+        sb.append(colorScheme.getEdgeFontColor());
+        sb.append("\",fontsize=\"8px\",penwidth=\"0.7\"]\n");
         sb.append("  overlap=false\n");
         sb.append("  rankdir=TB\n");
         sb.append("  newrank=true\n");
@@ -147,7 +165,12 @@ public abstract class TranslatorBase {
         sb.append(indent);
         sb.append("  margin=50\n");
         sb.append(indent);
-        sb.append("  color=\"#08427B\"\n");
+        sb.append("  color=\"");
+        sb.append(colorScheme.getClusterBorderColor());
+        sb.append("\"\n");
+        sb.append("  fontcolor=\"");
+        sb.append(colorScheme.getClusterFontColor());
+        sb.append("\"\n");
         sb.append(indent);
         sb.append("  style=dotted\n\n");
     }

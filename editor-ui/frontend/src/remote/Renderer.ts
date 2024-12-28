@@ -1,7 +1,7 @@
 class Renderer {
 
-    public remoteRender(container: HTMLElement, tab: string, code: string) {
-        this.digestMessage(code).then((digest) => (container as any).$server.render(digest, tab, code));
+    public remoteRender(container: HTMLElement, tab: string, code: string, darkMode: boolean) {
+        this.digestMessage(code).then((digest) => (container as any).$server.render(digest, tab, code, darkMode));
     }
 
     public remoteCache(container: HTMLElement, tab: string, code: string) {

@@ -269,7 +269,13 @@ public class MenuBarComponent extends MenuBar {
     }
 
     private void renderButtonClicked() {
-        Communication.getBus().post(new RequestRenderEvent(currentLevel, switchListener.getActiveRepositoryId()));
+        this.getElement()
+                .executeJs("""
+                            return window.matchMedia('(prefers-color-scheme: dark)').matches
+                        """)
+                .then(darkMode -> {
+                    Communication.getBus().post(new RequestRenderEvent(currentLevel, switchListener.getActiveRepositoryId(), darkMode.asBoolean()));
+                });
     }
 
     private void downloadButtonClicked() {

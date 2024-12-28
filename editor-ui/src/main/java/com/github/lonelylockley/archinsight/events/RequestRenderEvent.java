@@ -8,10 +8,12 @@ public class RequestRenderEvent extends BaseEvent {
 
     private final ArchLevel level;
     private final UUID repositoryId;
+    private boolean darkMode;
 
-    public RequestRenderEvent(ArchLevel level, UUID repositoryId) {
+    public RequestRenderEvent(ArchLevel level, UUID repositoryId, Boolean darkMode) {
         this.level = level;
         this.repositoryId = repositoryId;
+        this.darkMode = darkMode;
     }
 
     public ArchLevel getLevel() {
@@ -22,4 +24,7 @@ public class RequestRenderEvent extends BaseEvent {
         return repositoryId;
     }
 
+    public boolean darkMode() {
+        return darkMode;
+    }
 }

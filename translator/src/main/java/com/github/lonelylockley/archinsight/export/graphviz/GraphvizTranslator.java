@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.export.graphviz;
 
+import com.github.lonelylockley.archinsight.export.ColorScheme;
 import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.Tuple2;
@@ -14,7 +15,11 @@ import java.util.stream.Stream;
 
 public class GraphvizTranslator extends TranslatorBase {
 
-    private Set<String> addedNotes = new HashSet<>();
+    private final Set<String> addedNotes = new HashSet<>();
+
+    public GraphvizTranslator(ColorScheme colorScheme) {
+        super(colorScheme);
+    }
 
     /*
      * Collects all properties with overrides in such order:
@@ -28,16 +33,16 @@ public class GraphvizTranslator extends TranslatorBase {
                                     .stream(baseProperties)
                                     .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2));
         if (annotations.containsKey(AnnotationType.PLANNED)) {
-            res.put("fillcolor", "#0e8006");
+            res.put("fillcolor", colorScheme.getPlanned());
             if (type == ElementType.LINK) {
-                res.put("color", "#0e8006");
+                res.put("color", colorScheme.getPlanned());
             }
         }
         else
         if (annotations.containsKey(AnnotationType.DEPRECATED)) {
-            res.put("fillcolor", "#a80808");
+            res.put("fillcolor", colorScheme.getDeprecated());
             if (type == ElementType.LINK) {
-                res.put("color", "#a80808");
+                res.put("color", colorScheme.getDeprecated());
             }
         }
         if (annotations.containsKey(AnnotationType.ATTRIBUTE)) {
@@ -53,7 +58,7 @@ public class GraphvizTranslator extends TranslatorBase {
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#999999"))
+                    new Tuple2<>("fillcolor", colorScheme.getExternal()))
             );
         }
         else {
@@ -62,7 +67,7 @@ public class GraphvizTranslator extends TranslatorBase {
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#438dd5"))
+                    new Tuple2<>("fillcolor", colorScheme.getInternal()))
             );
         }
         if (se.getNote() != null) {
@@ -80,7 +85,7 @@ public class GraphvizTranslator extends TranslatorBase {
                 act.getAnnotations(),
                 new Tuple2<>("shape", "box"),
                 new Tuple2<>("style", "filled,rounded"),
-                new Tuple2<>("fillcolor", "#08427B"))
+                new Tuple2<>("fillcolor", colorScheme.getActor()))
         );
         if (act.getNote() != null) {
             writeNote(act, act, sb, level);
@@ -94,7 +99,7 @@ public class GraphvizTranslator extends TranslatorBase {
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#4d4d4d"))
+                    new Tuple2<>("fillcolor", colorScheme.getExternalInfra()))
             );
         }
         else {
@@ -103,7 +108,7 @@ public class GraphvizTranslator extends TranslatorBase {
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#08427B"))
+                    new Tuple2<>("fillcolor", colorScheme.getInternalInfra()))
             );
         }
         if (stor.getNote() != null) {

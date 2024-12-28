@@ -19,7 +19,8 @@ public class CreateRepositoryComponent extends Button {
                 .setMarginTop("5px")
                 .setMarginBottom("10px")
                 .setWidth("94%")
-                .setMarginLeft("3%");
+                .setMarginLeft("3%")
+                .set("background-color", "var(--app-accent-color)");
         final var icon = new Image("static/google-178-svgrepo-com.svg", "G");
         icon.setHeight(20, Unit.PIXELS);
         icon.setWidth(20, Unit.PIXELS);

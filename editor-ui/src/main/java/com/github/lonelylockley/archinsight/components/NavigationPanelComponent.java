@@ -11,6 +11,7 @@ public class NavigationPanelComponent extends TabSheet {
         setId("navigation-panel");
         setHeight("100%");
         //getStyle().setMarginRight("-10px").setMarginLeft("-10px");
+        getStyle().set("background-color", "var(--lumo-contrast-5pct)");
         initRepositoryLayout(readOnly);
         var struct = initStructureLayout(readOnly);
         addSelectedChangeListener(e -> {

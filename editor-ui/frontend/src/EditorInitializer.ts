@@ -6,14 +6,24 @@ import { LinkerMessage } from './model/TranslatorResponse';
 
 const _global = (window) as any
 const renderClient: Renderer = new Renderer();
+const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
 
 function renderCode(container: HTMLElement, tab: string, value: string, uri: monaco.Uri) {
     const errors = monaco.editor.getModelMarkers({ resource: uri })?.length;
     if (!errors && value && value.length > 0) {
-        renderClient.remoteRender(container, tab, value);
+        renderClient.remoteRender(container, tab, value, prefersDarkScheme.matches);
     }
     else {
         renderClient.remoteCache(container, tab, value);
+    }
+}
+
+function updateEditorTheme() {
+    if (prefersDarkScheme.matches) {
+        monaco.editor.setTheme('insight-dark');
+    }
+    else {
+        monaco.editor.setTheme('insight-light');
     }
 }
 
@@ -78,12 +88,26 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
     (container as any).editor = editor;
 
     // set theme
-    fetch('/themes/Cobalt2.json')
-      .then(data => data.json())
-      .then(data => {
-        monaco.editor.defineTheme('cobalt', data);
-        monaco.editor.setTheme('cobalt');
-    })
+    Promise.all([
+        fetch('/themes/monaco/insight_light.json')
+            .then(response => response.json())
+            .then(data => {
+                monaco.editor.defineTheme('insight-light', data);
+            }),
+        fetch('/themes/monaco/insight_dark.json')
+            .then(response => response.json())
+            .then(data => {
+                monaco.editor.defineTheme('insight-dark', data);
+            })
+    ]).then(() => {
+        updateEditorTheme();
+        prefersDarkScheme.onchange = () => {
+            updateEditorTheme();
+
+        }
+    }).catch(error => {
+        console.error('Failed to load themes:', error);
+    });
 
     if (code) {
         editor.setValue(code);

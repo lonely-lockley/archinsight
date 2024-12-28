@@ -29,7 +29,7 @@ public class EditorTabComponent extends Tab {
     private BiConsumer<EditorTabComponent, FileChangeReason> listener;
     private RepositoryNode file;
 
-    public EditorTabComponent(String parentId, RepositoryNode file, Optional<String> source, Consumer<String> renderer) {
+    public EditorTabComponent(String parentId, RepositoryNode file, Optional<String> source, BiConsumer<String, Boolean> renderer) {
         super();
         this.label = new Span(file.getName());
         this.badge = createBadge();

@@ -25,7 +25,7 @@ public interface Declarations {
         declareElement(act.getDeclaredId(), parentId, ArchLevel.CONTEXT, act, descriptor, ctx);
         var clone = (ActorElement) act.clone();
         clone.getDeclaredId().setLevel(ArchLevel.CONTAINER);
-        ctx.declareGlobalElement(clone.getDeclaredId(), clone);
+        declareGlobalElement(clone.getDeclaredId(), clone, ctx);
     }
 
     default void declareElement(SystemElement sys, DynamicId parentId, ParseDescriptor descriptor, TranslationContext ctx) {
@@ -44,14 +44,19 @@ public interface Declarations {
     private void declareGlobalElement(SystemElement container, DynamicId parentId, ParseDescriptor descriptor, TranslationContext ctx) {
         var newId = container.getDeclaredId().clone();
         newId.setLevel(ArchLevel.CONTAINER);
-        if (!ctx.isDeclaredGlobally(newId)) {
-            ctx.declareGlobalElement(newId, container);
-        }
+        declareGlobalElement(newId, container, ctx);
     }
 
-    default void declareGlobalElement(ContextElement context, DynamicId parentId, ParseDescriptor descriptor, TranslationContext ctx) {
-        if (!ctx.isDeclaredGlobally(context.getDeclaredId())) {
-            ctx.declareGlobalElement(context.getDeclaredId(), context);
+    default void declareGlobalElement(DynamicId id, AbstractElement el, TranslationContext ctx) {
+        if (!ctx.isDeclaredGlobally(id)) {
+            ctx.declareGlobalElement(id, el);
+        }
+        else
+        if (id.getElementId() != null) {
+            var tm = TranslationUtil.newError(el,
+                    String.format("Identifier %s is already defined in context %s", id.getElementId(), id.getBoundedContext())
+            );
+            ctx.addMessage(tm);
         }
     }
 
@@ -74,7 +79,7 @@ public interface Declarations {
         }
         else {
             descriptor.declareElement(id, id.getElementId(), el);
-            ctx.declareGlobalElement(id, el);
+            declareGlobalElement(id, el, ctx);
         }
     }
 

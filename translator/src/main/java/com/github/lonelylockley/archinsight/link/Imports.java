@@ -92,12 +92,11 @@ public interface Imports {
             if (descriptor.isImported(imp.getAlias().toString())) {
                 var id = DynamicId.fromImport(imp);
                 descriptor.removeExisting(imp.getAlias(), imp.getAlias().toString());
-                var element = transformToImported(ctx.getGlobalElement(id).clone());
-                descriptor.getRootWithChildren().addChild(element);
-                //if (!(descriptor.getLevel() == id.getLevel() && Objects.equals(descriptor.getBoundedContext(), id.getBoundedContext()))) {
-                    // do not re-declare imports to the same context
+                if (ctx.isDeclaredGlobally(id)) {
+                    var element = transformToImported(ctx.getGlobalElement(id).clone());
+                    descriptor.getRootWithChildren().addChild(element);
                     descriptor.declareImported(id, id.toString(), element);
-                //}
+                }
             }
         });
     }

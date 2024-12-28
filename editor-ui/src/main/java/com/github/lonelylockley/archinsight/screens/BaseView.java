@@ -28,12 +28,21 @@ public interface BaseView {
         title.add(siteIcon);
         var siteName = new Span("Archinsight");
         siteName.getElement().addEventListener("click", event -> UI.getCurrent().navigate(SiteView.class));
-        siteName.getStyle().set("margin-left", "7px").set("margin-top", "7px").set("cursor", "pointer");
+        siteName.getStyle()
+                .set("margin-left", "7px")
+                .set("margin-top", "7px")
+                .set("cursor", "pointer")
+                .set("color", "var(--lumo-primary-color)")
+                .set("font-weight", "500");
         title.add(siteName);
         if (titleSuffix != null) {
             var suffixLabel = new Span(titleSuffix);
             title.add(suffixLabel);
-            suffixLabel.getStyle().set("margin-left", "7px").set("margin-top", "7px");
+            suffixLabel.getStyle()
+                    .set("margin-left", "7px")
+                    .set("margin-top", "6px")
+                    .set("color", "var(--lumo-primary-color)")
+                    .set("font-weight", "500");
         }
         title.add(menu);
         title.setVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
@@ -45,7 +54,7 @@ public interface BaseView {
         // Actual footer content
         var layout = new HorizontalLayout();
         var footer = new Div();
-        footer.add(new Span("Copyright © 2022-2024 Alexey Zaytsev"));
+        footer.add(new Span("Copyright © 2022-2025 Alexey Zaytsev"));
         footer.getElement().getStyle().set("font-size", "12px");
         footer.getElement().getStyle().set("margin-left", "auto");
         footer.getElement().getStyle().set("margin-right", "0");
@@ -61,7 +70,7 @@ public interface BaseView {
     }
 
     default void applyDarkTheme(Element el) {
-        el.executeJs("document.documentElement.setAttribute('theme', $0)", Lumo.DARK);
+        //el.executeJs("document.documentElement.setAttribute('theme', $0)", Lumo.DARK);
     }
 
 }

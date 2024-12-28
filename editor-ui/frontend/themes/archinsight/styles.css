@@ -1,0 +1,50 @@
+:root {
+    --lumo-base-color: #f4f4f4;
+    --lumo-body-text-color: #464646;
+
+    --lumo-primary-color: #2ecc71;
+    --lumo-primary-text-color: #464646;
+
+    --lumo-primary-color-50pct: hsla(135, 49%, 19%, 0.53);
+    --lumo-primary-color-10pct: hsla(82, 81%, 39%, 0.23);
+
+    --lumo-contrast-5pct: #f0f0f0;
+    --lumo-contrast-30pct: hsla(135, 49%, 19%, 0.53);
+
+    --vaadin-grid-cell-background: var(--lumo-contrast-5pct);
+
+    --lumo-font-family: "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+    --lumo-font-family-monospace: Menlo, Courier, monospace;
+
+    --app-accent-color: #ff7043;
+    --app-primary-font-family: "Montserrat", "Roboto", "Helvetica Neue", Arial, sans-serif;
+}
+
+vaadin-menu-bar-button {
+    background-color: #dddddd;
+}
+
+.app-userpic {
+    border-radius: 50%;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --lumo-primary-color: #2ecc71;
+        --lumo-base-color: #2e2e2e;
+        --lumo-body-text-color: #dddddd;
+        --lumo-primary-text-color: #dddddd;
+        --lumo-disabled-text-color: #777777;
+        --lumo-contrast: #dddddd;
+        --lumo-secondary-text-color: #999999;
+        --lumo-contrast-5pct: #232323;
+        --lumo-contrast-10pct: #3a3a3a;
+        --lumo-contrast-20pct: #3a3a3a;
+        --vaadin-grid-cell-background: var(--lumo-contrast-5pct)
+    }
+
+    vaadin-menu-bar-button {
+        background-color: #292929;
+    }
+}
+

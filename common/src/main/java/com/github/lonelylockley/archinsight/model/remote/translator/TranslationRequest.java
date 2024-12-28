@@ -11,6 +11,7 @@ public class TranslationRequest {
     private UUID repositoryId;
     private String tabId;
     private ArchLevel level;
+    private Boolean darkMode;
 
     public List<TabData> getTabs() {
         return tabs;
@@ -42,5 +43,13 @@ public class TranslationRequest {
 
     public void setLevel(ArchLevel level) {
         this.level = level;
+    }
+
+    public Boolean getDarkMode() {
+        return darkMode;
+    }
+
+    public void setDarkMode(Boolean darkMode) {
+        this.darkMode = darkMode;
     }
 }

@@ -33,6 +33,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
     public RepositoryViewComponent(boolean readOnly) {
         this.switchListener = new SwitchListenerHelper(this);
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
+        getStyle().set("background-color", "var(--lumo-contrast-5pct)");
         setTreeData(new TreeData<>() {
             @Override
             public List<RepositoryNode> getChildren(RepositoryNode item) {

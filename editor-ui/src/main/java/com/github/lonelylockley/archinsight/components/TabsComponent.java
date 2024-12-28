@@ -136,7 +136,7 @@ public class TabsComponent extends TabSheet {
             if (eventWasProducedForCurrentUiId(e)) {
                 Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
                     currentLevel = e.getLevel();
-                    remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), e.getLevel(), tabs.values());
+                    remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), e.getLevel(), tabs.values(), e.darkMode());
                 });
             }
             }
@@ -219,8 +219,8 @@ public class TabsComponent extends TabSheet {
             if (!file.isNew() && source.isEmpty()) {
                 source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
             }
-            final var editorTab = new EditorTabComponent(id, file, source, (tabId) -> {
-                remoteSource.render.render(tabId, repositoryId, currentLevel, tabs.values());
+            final var editorTab = new EditorTabComponent(id, file, source, (tabId, darkMode) -> {
+                remoteSource.render.render(tabId, repositoryId, currentLevel, tabs.values(), darkMode);
             });
             editorTab.setCloseListener(this::closeTab);
             add(editorTab, editorTab.getContent());
@@ -321,14 +321,14 @@ public class TabsComponent extends TabSheet {
     }
 
     @ClientCallable
-    public void render(String digest, String tabId, String code) {
+    public void render(String digest, String tabId, String code, Boolean darkMode) {
         // each restored tab requests render. run it only once when counter reaches 0
         if (restoredTabsRenderCountdownLatch.get() > 0) {
             restoredTabsRenderCountdownLatch.decrementAndGet();
         }
         if (restoredTabsRenderCountdownLatch.get() == 0) {
             Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
-                tab.getEditor().render(tab.getTabId(), digest, code);
+                tab.getEditor().render(tab.getTabId(), digest, code, darkMode);
             });
         }
     }

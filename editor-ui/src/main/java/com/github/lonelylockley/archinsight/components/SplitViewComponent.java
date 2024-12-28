@@ -17,7 +17,6 @@ public class SplitViewComponent extends SplitLayout {
         setSizeFull();
         var svgBackground = new Div();
         svgBackground.add(right);
-        svgBackground.getElement().getStyle().set("background-color", "#ffffff");
         addToPrimary(left);
         addToSecondary(svgBackground);
         setOrientation(Orientation.HORIZONTAL);

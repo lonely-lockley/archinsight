@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
+import com.github.lonelylockley.archinsight.export.ColorScheme;
 import com.github.lonelylockley.archinsight.export.Exporter;
 import com.github.lonelylockley.archinsight.introspect.Introspection;
 import com.github.lonelylockley.archinsight.model.*;
@@ -62,13 +63,13 @@ public class TranslatorService {
         // check integrity
         if (ctx.noErrors()) {
             new Linker(ctx).checkIntegrity(data.getLevel());
-            //new Introspection(ctx).suggest();
+            new Introspection(ctx).suggest();
         }
         // translate to DOT
         var result = new TranslationResult();
         result.setTabId(data.getTabId());
         if (ctx.noErrors()) {
-            new Exporter().exportParsed(data, result, ctx);
+            new Exporter().exportParsed(data, result, ctx, new ColorScheme(conf, data.getDarkMode()));
         }
         else {
             result.setHasErrors(true);

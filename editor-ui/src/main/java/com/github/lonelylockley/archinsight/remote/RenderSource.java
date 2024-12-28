@@ -27,11 +27,12 @@ public class RenderSource {
     @Inject
     private Config conf;
 
-    private TranslationRequest prepareTranslationRequest(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs) {
+    private TranslationRequest prepareTranslationRequest(String tabId, UUID repositoryId, ArchLevel level, boolean darkMode, Collection<EditorTabComponent> tabs) {
         var res = new TranslationRequest();
         res.setRepositoryId(repositoryId);
         res.setTabId(tabId);
         res.setLevel(level);
+        res.setDarkMode(darkMode);
         var tmp = new ArrayList<TabData>(tabs.size());
         for (EditorTabComponent tab: tabs) {
             var td = new TabData();
@@ -54,14 +55,14 @@ public class RenderSource {
         }).toList();
     }
 
-    public void render(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs) {
+    public void render(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, boolean darkMode) {
         var edited = tabs.stream().filter(t -> Objects.equals(t.getTabId(), tabId)).findFirst();
         if (edited.isEmpty() || edited.get().getEditor().getCachedClientCode() == null || edited.get().getEditor().getCachedClientCode().isBlank()) {
             Communication.getBus().post(new SourceCompilationEvent(tabId, false));
         }
         else {
             long startTime = System.nanoTime();
-            final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, tabs));
+            final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, darkMode, tabs));
             Communication.getBus().post(new DeclarationsParsedEvent(translated.getDeclarations()));
             final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
             final var filesWithErrors = new HashSet<UUID>();

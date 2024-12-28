@@ -38,7 +38,7 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
         else
         if (el.getType() == ElementType.CONTEXT) {
             ElementType.CONTEXT.capture(el).foreach(context -> {
-                declareGlobalElement(context, parentId, descriptor, ctx);
+                declareGlobalElement(context.getDeclaredId(), context, ctx);
                 declareImports(context, descriptor, ctx);
             });
         }
@@ -76,7 +76,6 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
                 remapConnections(descriptor, ctx);
             }
         }
-        System.out.println();
     }
 
 }

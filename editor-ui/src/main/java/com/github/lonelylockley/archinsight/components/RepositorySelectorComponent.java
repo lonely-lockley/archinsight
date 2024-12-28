@@ -62,7 +62,8 @@ public class RepositorySelectorComponent extends VerticalLayout {
                 .setMarginTop("5px")
                 .setWidth("94%")
                 .setMarginLeft("3%")
-                .setMarginBottom("10px");
+                .setMarginBottom("10px")
+                .setColor("var(--lumo-body-text-color)");
         manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         if (items.size() == 1) {
             var item = items.iterator().next();

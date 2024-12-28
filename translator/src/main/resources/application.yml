@@ -13,3 +13,34 @@ micronaut:
         url: ${REPOSITORY:`http://repository:8080`}
 archinsight:
   repositoryAuthToken: ${REPOSITORY_TOKEN}
+  diagram:
+    light:
+      element_color: "#f4f4f4"
+      element_font_color: "#f4f4f4"
+      edge_color: "#4a4a4a"
+      edge_font_color: "#4a4a4a"
+      cluster_font_color: "#1e1e1e"
+      cluster_border: "#08427B"
+      graph_background: "#f4f4f4"
+      element_internal: "#438dd5"
+      element_external: "#999999"
+      infra_internal: "#08427B"
+      infra_external: "#4d4d4d"
+      planned: "#0e8006"
+      deprecated: "#a80808"
+      actor: "#08427B"
+    dark:
+      element_color: "#2e2e2e"
+      element_font_color: "#f4f4f4"
+      edge_color: "#aaaaaa"
+      edge_font_color: "#f4f4f4"
+      cluster_font_color: "#f4f4f4"
+      cluster_border: "#999999"
+      graph_background: "#2e2e2e"
+      element_internal: "#438dd5"
+      element_external: "#999999"
+      infra_internal: "#08427B"
+      infra_external: "#4d4d4d"
+      planned: "#0e8006"
+      deprecated: "#a80808"
+      actor: "#08427B"

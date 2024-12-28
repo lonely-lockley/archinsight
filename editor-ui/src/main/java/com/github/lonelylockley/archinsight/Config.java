@@ -1,8 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
 import io.micronaut.context.annotation.ConfigurationProperties;
-import io.micronaut.http.client.ServiceHttpClientConfiguration;
-import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 @Singleton
@@ -16,6 +14,7 @@ public class Config {
     private String translatorAuthToken;
     private String rendererAuthToken;
     private String repositoryAuthToken;
+    private String contextPath;
 
     public Boolean getDevMode() {
         return devMode != null && devMode;
@@ -71,5 +70,13 @@ public class Config {
 
     public void setRepositoryAuthToken(String repositoryAuthToken) {
         this.repositoryAuthToken = repositoryAuthToken;
+    }
+
+    public String getContextPath() {
+        return contextPath;
+    }
+
+    public void setContextPath(String contextPath) {
+        this.contextPath = contextPath;
     }
 }

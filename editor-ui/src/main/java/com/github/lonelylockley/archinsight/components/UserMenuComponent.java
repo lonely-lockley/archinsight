@@ -14,15 +14,18 @@ import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.SvgIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.server.StreamResource;
 
 @JsModule("./src/remote/LoginCallback.js")
 public class UserMenuComponent extends MenuBar {
 
-    private static final String iconSrc = "static/user-svgrepo-com.svg";
+    private static final String iconSrc = "/icons/user-svgrepo-com.svg";
 
-    private final Image icon = new Image(iconSrc, "-");
+    private final SvgIcon icon = new SvgIcon(new StreamResource("user-svgrepo-com.svg", () -> this.getClass().getResourceAsStream(iconSrc)));
+    private final Image userpic = new Image(iconSrc, "-");
     private final Span username = new Span("User");
     private final Config conf = MicronautContext.getInstance().getConf();
     private final MenuItem login;
@@ -35,10 +38,15 @@ public class UserMenuComponent extends MenuBar {
         setId("content-presentation"); // for LoginCallback.js to initialize and work properly
         getStyle().set("margin-right", "10px");
         setThemeName("");
-        icon.setHeight("24px");
-        icon.setWidth("24px");
-        username.getStyle().set("margin-top", "5px").set("margin-left", "3px").set("color", "#ffffff");
-        var container =new HorizontalLayout(icon, username);
+        userpic.setHeight("24px");
+        userpic.setWidth("24px");
+        userpic.setVisible(false);
+        userpic.setClassName("app-userpic");
+        username.getStyle()
+                .set("margin-top", "3px")
+                .set("margin-left", "3px")
+                .set("color", "var(--lumo-body-text-color)");
+        var container =new HorizontalLayout(icon, userpic, username);
         container.setSpacing(false);
         var item = addItem(container);
         var sub = item.getSubMenu();
@@ -51,7 +59,9 @@ public class UserMenuComponent extends MenuBar {
         login.setId("user_menu_login");
         if (Authentication.authenticated()) {
             var user = Authentication.getAuthenticatedUser();
-            icon.setSrc(user.getAvatar());
+            userpic.setSrc(user.getAvatar());
+            icon.setVisible(false);
+            userpic.setVisible(true);
             username.setText(user.getDisplayName());
             login.setVisible(false);
             logout.setVisible(true);
@@ -123,7 +133,9 @@ public class UserMenuComponent extends MenuBar {
     public void loggedIn() {
         assert Authentication.authenticated();
         var user = Authentication.getAuthenticatedUser();
-        icon.setSrc(user.getAvatar());
+        userpic.setSrc(user.getAvatar());
+        userpic.setVisible(true);
+        icon.setVisible(false);
         username.setText(user.getDisplayName());
         login.setVisible(false);
         logout.setVisible(true);
@@ -134,7 +146,8 @@ public class UserMenuComponent extends MenuBar {
 
     public void loggedOut() {
         assert !Authentication.authenticated();
-        icon.setSrc(iconSrc);
+        icon.setVisible(true);
+        userpic.setVisible(false);
         username.setText("User");
         login.setVisible(true);
         logout.setVisible(false);

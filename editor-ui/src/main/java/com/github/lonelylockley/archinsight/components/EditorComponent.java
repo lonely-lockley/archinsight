@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @NpmPackage(value = "monaco-editor", version = "^0.40.0")
@@ -35,7 +36,7 @@ public class EditorComponent extends Div {
     private static final Logger logger = LoggerFactory.getLogger(EditorComponent.class);
 
     private final RemoteSource remoteSource;
-    private final Consumer<String> renderer;
+    private final BiConsumer<String, Boolean> renderer;
     private final String id;
 
     private String originalHash;
@@ -44,7 +45,7 @@ public class EditorComponent extends Div {
 
     private boolean hasErrors = false;
 
-    public EditorComponent(String rootId, String tabId, Consumer<String> renderer, String content) {
+    public EditorComponent(String rootId, String tabId, BiConsumer<String, Boolean> renderer, String content) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         this.renderer = renderer;
         this.clientCodeCache = content;
@@ -135,11 +136,13 @@ public class EditorComponent extends Div {
         getElement().executeJs("this.editor.resetModelMarkers()");
     }
 
-    public void render(String tabId, String digest, String code) {
+    public void render(String tabId, String digest, String code, boolean darkMode) {
         hasErrors = false;
-        clientHash = digest;
+        if (digest != null) {
+            clientHash = digest;
+        }
         clientCodeCache = code;
-        renderer.accept(tabId);
+        renderer.accept(tabId, darkMode);
     }
 
     public void cache(String tabId, String digest, String code) {
