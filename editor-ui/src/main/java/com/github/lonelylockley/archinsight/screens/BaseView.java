@@ -69,7 +69,6 @@ public interface BaseView {
     }
 
     default void setupFrontend(Element el) {
-        // "document.documentElement.setAttribute('theme', $0)", Lumo.DARK
         el.executeJs("""
                 window.frontendSettings = {
                     contextPath: $0

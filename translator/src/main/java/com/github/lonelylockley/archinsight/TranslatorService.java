@@ -4,6 +4,8 @@ import com.github.lonelylockley.archinsight.export.ColorScheme;
 import com.github.lonelylockley.archinsight.export.Exporter;
 import com.github.lonelylockley.archinsight.introspect.Introspection;
 import com.github.lonelylockley.archinsight.model.*;
+import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
+import com.github.lonelylockley.archinsight.model.elements.WithExternal;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.translator.*;
 import com.github.lonelylockley.archinsight.link.Linker;
@@ -28,6 +30,8 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static com.github.lonelylockley.archinsight.model.elements.ElementType.*;
 
 @Controller("/translate")
 @Secured(SecurityRule.IS_AUTHENTICATED)
@@ -118,45 +122,40 @@ public class TranslatorService {
     }
 
     private List<DeclarationContext> extractDeclarations(TranslationContext ctx) {
-        var result = new ArrayList<DeclarationContext>(ctx.getDescriptors().size());
-//        for (ParseDescriptor pfd : ctx.getDescriptors()) {
-//            var dc = new DeclarationContext();
-//            dc.setFileId(pfd.getFileId().orElse(null));
-//            dc.setTabId(pfd.getTabId().orElse(null));
-////            dc.setLevel(pfd.getLevel().name());
-//            dc.setDeclaredId(pfd.getContext());
-//            dc.setLocation(pfd.getLocation());
-//            var sub = new ArrayList<Declaration>(ctx.getDescriptors().size());
-//            for (Map.Entry<String, AbstractElement> entry : pfd.getDeclarations().entrySet()) {
-//                var le = entry.getValue();
-//                if (!le.isImported() && (le.getType() == SYSTEM || le.getType() == ACTOR || le.getType() == SERVICE || le.getType() == STORAGE)) {
-//                    var decl = new Declaration();
-//                    decl.setId(le.getUniqueId());
-//                    decl.setDeclaredId(entry.getKey());
-//                    le.hasParameters().foreach(withParameters -> decl.setName(withParameters.getName()));
-//                    le.hasParameters().foreach(withParameters -> {
-//                        if (withParameters.getName() != null) {
-//                            decl.setName(withParameters.getName());
-//                        }
-//                        else {
-//                            decl.setName(withParameters.getTechnology());
-//                        }
-//                    });
-//                    decl.setExternal(le.hasExternal().mapOrElse(WithExternal::isExternal, () -> false));
-//                    decl.setElementType(le.getType().getId());
-//                    decl.setLine(le.getLine());
-//                    decl.setCharPosition(le.getCharPosition());
-//                    decl.setStartIndex(le.getStartIndex());
-//                    decl.setStopIndex(le.getStopIndex());
-//                    sub.add(decl);
-//                }
-//            }
-//            if (!sub.isEmpty()) {
-//                dc.setDeclarations(sub);
-//                result.add(dc);
-//            }
-//        }
-        return result;
+        var result = new HashMap<Origin, DeclarationContext>();
+        for (AbstractElement ae : ctx.getGlobalDeclaration()) {
+            var dc = result.computeIfAbsent(ae.getOrigin(), origin -> {
+                final var tmp = new DeclarationContext();
+                tmp.setFileId(ae.getOrigin().getFileId());
+                tmp.setTabId(ae.getOrigin().getTabId());
+                tmp.setLocation(ae.getOrigin().getLocation());
+                tmp.setLevel("context");
+                ae.hasId().foreach(withId -> tmp.setDeclaredId(withId.getDeclaredId().toString()));
+                return tmp;
+            });
+            if (ae.getType() == SYSTEM || ae.getType() == ACTOR || ae.getType() == SERVICE || ae.getType() == STORAGE) {
+                var decl = new Declaration();
+                decl.setId(ae.getUniqueId());
+                ae.hasId().foreach(withId -> decl.setDeclaredId(withId.getDeclaredId().toString()));
+                ae.hasParameters().foreach(withParameters -> decl.setName(withParameters.getName()));
+                ae.hasParameters().foreach(withParameters -> {
+                    if (withParameters.getName() != null) {
+                        decl.setName(withParameters.getName());
+                    }
+                    else {
+                        decl.setName(withParameters.getTechnology());
+                    }
+                });
+                decl.setExternal(ae.hasExternal().fold(WithExternal::isExternal, () -> false));
+                decl.setElementType(ae.getType().getId());
+                decl.setLine(ae.getLine());
+                decl.setCharPosition(ae.getCharPosition());
+                decl.setStartIndex(ae.getStartIndex());
+                decl.setStopIndex(ae.getStopIndex());
+                dc.getDeclarations().add(decl);
+            }
+        }
+        return new ArrayList<>(result.values());
     }
 
 }

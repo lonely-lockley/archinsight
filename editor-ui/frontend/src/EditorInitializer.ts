@@ -89,12 +89,12 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
 
     // set theme
     Promise.all([
-        fetch('/themes/monaco/insight_light.json')
+        fetch(_global.frontendSettings.contextPath + '/themes/monaco/insight_light.json')
             .then(response => response.json())
             .then(data => {
                 monaco.editor.defineTheme('insight-light', data);
             }),
-        fetch('/themes/monaco/insight_dark.json')
+        fetch(_global.frontendSettings.contextPath + '/themes/monaco/insight_dark.json')
             .then(response => response.json())
             .then(data => {
                 monaco.editor.defineTheme('insight-dark', data);

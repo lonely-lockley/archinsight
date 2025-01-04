@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.tiles.LoginTile;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.screens.EditorView;
 import com.github.lonelylockley.archinsight.screens.SiteView;
@@ -83,17 +84,11 @@ public class UserMenuComponent extends MenuBar {
         login.addClickListener(this::googleClickListener);
         logout.addClickListener(e -> {
             if (Authentication.authenticated()) {
-                if (!Authentication.playgroundModeEnabled()) {
-                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
-                }
-                Authentication.deauthenticate();
-            }
-            loggedOut();
-            if (Authentication.playgroundModeEnabled()) {
-                UI.getCurrent().getPage().reload();
-            }
-            else {
-                UI.getCurrent().getPage().setLocation("/");
+//                if (!Authentication.playgroundModeEnabled()) {
+//                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
+//                }
+                loggedOut();
+                UserMenuComponent.this.getElement().executeJs("window.logoutFlow()");
             }
         });
 
@@ -155,9 +150,9 @@ public class UserMenuComponent extends MenuBar {
     public void loginCallback() {
         // called from browser when login sequence finishes
         if (Authentication.authenticated()) {
+            UI.getCurrent().getPage().setLocation("/app/editor");
             Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
             loggedIn();
-            UI.getCurrent().navigate(EditorView.class);
         }
     }
 }

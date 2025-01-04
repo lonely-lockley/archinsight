@@ -17,6 +17,10 @@ public class TranslationContext {
     private final Set<TranslatorMessage> messages = new HashSet<>();
     private boolean hasErrors = false;
 
+    public Collection<AbstractElement> getGlobalDeclaration() {
+        return globalDeclaration.values();
+    }
+
     public Collection<ParseDescriptor> getDescriptors() {
         return descriptors.values();
     }

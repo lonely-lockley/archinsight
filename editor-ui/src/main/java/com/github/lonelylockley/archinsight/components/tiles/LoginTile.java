@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.components.tiles;
 
 import com.github.lonelylockley.archinsight.Config;
+import com.github.lonelylockley.archinsight.components.UserMenuComponent;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.security.Authentication;
@@ -39,9 +40,9 @@ public class LoginTile extends SiteViewTile {
             @Override
             @Subscribe
             public void receive(UserAuthenticatedEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                flipTile(e.getUser());
-            }
+                if (eventWasProducedForCurrentUiId(e)) {
+                    flipTile(e.getUser());
+                }
             }
         };
         Communication.getBus().register(authListener);
@@ -104,13 +105,12 @@ public class LoginTile extends SiteViewTile {
         @Override
         public void onComponentEvent(ClickEvent<VerticalLayout> event) {
             if (enabled) {
-                LoginTile.this.setVisible(false);
-                if (Authentication.authenticated()) {
-                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
-                    Authentication.deauthenticate();
-                }
+//                if (Authentication.authenticated()) {
+//                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
+//                }
                 flipBackTile();
-                UI.getCurrent().getPage().reload();
+                UI.getCurrent().getPage().executeJs("window.logoutFlow()");
+                setVisible(false);
             }
         }
 

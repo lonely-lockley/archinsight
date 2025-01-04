@@ -177,6 +177,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         // called from browser when login sequence finishes
         if (Authentication.authenticated()) {
             Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
+            UI.getCurrent().getPage().reload();
         }
     }
 }

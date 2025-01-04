@@ -129,6 +129,18 @@ public class AuthService {
         }
     }
 
+    @Get("/logout")
+    @Secured(SecurityRule.IS_ANONYMOUS)
+    @Produces(MediaType.APPLICATION_JSON)
+    @Measured
+    public HttpResponse<String> logout(HttpRequest<TranslationRequest> request) throws Exception {
+        var result = HttpResponse.ok(createFinalPage())
+                .cookie(clearCookie("JSESSIONID"))
+                .cookie(clearCookie("ghost-members-ssr"))
+                .cookie(clearCookie("ghost-members-ssr.sig"));
+        return result;
+    }
+
     private NettyCookie createCookie(String name, String value, String domain, TemporalAmount ttl) {
         var res = new NettyCookie(name, value);
         if (domain != null) {
@@ -167,6 +179,9 @@ public class AuthService {
                          else {
                            window.opener.location.reload();
                          }
+                       }
+                       else {
+                         console.error("No opener for this window!");
                        }
                      }
                      catch (error) {

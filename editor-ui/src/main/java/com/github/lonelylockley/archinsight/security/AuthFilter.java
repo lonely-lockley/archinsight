@@ -1,6 +1,8 @@
 package com.github.lonelylockley.archinsight.security;
 
-import com.auth0.jwk.*;
+import com.auth0.jwk.Jwk;
+import com.auth0.jwk.JwkException;
+import com.auth0.jwk.JwkProvider;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
@@ -8,27 +10,17 @@ import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
-import com.vaadin.flow.component.HeartbeatEvent;
-import com.vaadin.flow.component.HeartbeatListener;
-import com.vaadin.flow.router.BeforeEnterEvent;
-import com.vaadin.flow.router.BeforeEnterListener;
-import com.vaadin.flow.router.ListenerPriority;
-import com.vaadin.flow.server.VaadinServletRequest;
-import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.flow.server.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.security.interfaces.ECPublicKey;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
-@ListenerPriority(1000)
-public class AuthFilter implements BeforeEnterListener, HeartbeatListener {
+public class AuthFilter implements RequestHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthFilter.class);
 
@@ -73,6 +65,18 @@ public class AuthFilter implements BeforeEnterListener, HeartbeatListener {
         };
     }
 
+    private void identityJWTFlow(VaadinServletRequest request, VaadinSession session) throws Exception {
+        var sessionId = session.getSession().getId();
+        var token = Arrays.stream(request.getCookies()).filter(c -> "auth_token".equals(c.getName())).findFirst();
+        if (token.isPresent()) {
+            var decoded = JWT.decode(token.get().getValue());
+            if (verifyToken(decoded, sessionId)) {
+                var user = remoteSource.identity.getUserById(UUID.fromString(decoded.getSubject()));
+                onSuccessfulLogin(request, session, user);
+            }
+        }
+    }
+
     private boolean verifyToken(DecodedJWT decoded, String sessionId) throws Exception {
         var key = provider.get(decoded.getKeyId());
         if (key != null) {
@@ -94,42 +98,6 @@ public class AuthFilter implements BeforeEnterListener, HeartbeatListener {
         else {
             logger.warn("Authentication with non-existent key ID {} [user id={}]", decoded.getKeyId(), decoded.getSubject());
             return false;
-        }
-    }
-
-    @Override
-    public void beforeEnter(BeforeEnterEvent event) {
-        try {
-            var session = VaadinSession.getCurrent();
-            if (!Authentication.authenticated()) {
-                var request = VaadinServletRequest.getCurrent();
-                if (conf.getGhostSsrEnabled()) {
-                    ssrSignatureFlow(request, session);
-                }
-                else {
-                    identityJWTFlow(request, session);
-                }
-            }
-            else {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("User already logged in with session {}", session.getSession().getId());
-                }
-            }
-        }
-        catch (Exception ex) {
-            logger.error("Could not verify authentication", ex);
-        }
-    }
-
-    private void identityJWTFlow(VaadinServletRequest request, VaadinSession session) throws Exception {
-        var sessionId = session.getSession().getId();
-        var token = Arrays.stream(request.getCookies()).filter(c -> "auth_token".equals(c.getName())).findFirst();
-        if (token.isPresent()) {
-            var decoded = JWT.decode(token.get().getValue());
-            if (verifyToken(decoded, sessionId)) {
-                var user = remoteSource.identity.getUserById(UUID.fromString(decoded.getSubject()));
-                onSuccessfulLogin(request, session, user);
-            }
         }
     }
 
@@ -160,8 +128,29 @@ public class AuthFilter implements BeforeEnterListener, HeartbeatListener {
     }
 
     @Override
-    public void heartbeat(HeartbeatEvent event) {
-        beforeEnter(null);
+    public boolean handleRequest(VaadinSession session, VaadinRequest request, VaadinResponse response) throws IOException {
+        session.lock();
+        try {
+            if (!Authentication.authenticated()) {
+                if (conf.getGhostSsrEnabled()) {
+                    ssrSignatureFlow((VaadinServletRequest) request, session);
+                }
+                else {
+                    identityJWTFlow((VaadinServletRequest) request, session);
+                }
+            }
+            else {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("User already logged in with session {}", session.getSession().getId());
+                }
+            }
+        }
+        catch (Exception ex) {
+            logger.error("Could not verify authentication", ex);
+        }
+        finally {
+            session.unlock();
+        }
+        return false;
     }
-
 }
