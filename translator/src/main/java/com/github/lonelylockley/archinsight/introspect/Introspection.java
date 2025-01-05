@@ -40,18 +40,21 @@ public class Introspection {
     }
 
     private void searchForIsolatedElements(ParseDescriptor descriptor) {
-        final var declarations = collectDeclarations(descriptor);
-        declarations.putAll(collectDeclarations(ctx.getDescriptor(descriptor.getParentContextId())));
-        removeConnectedElements(declarations, descriptor.getConnections());
-        removeConnectedElements(declarations, ctx.getDescriptor(descriptor.getParentContextId()).getConnections());
-        declarations
-                .forEach((key, el) -> {
-                    if (el.getType() != ElementType.EMPTY) {
-                        var tm = TranslationUtil.newNotice(el.getOrigin(), String.format("Element %s has no connections with other elements", key.getElementId()));
-                        TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
-                        ctx.addMessage(tm);
-                    }
-                });
+        // no need to check contexts separately as it checks parents of all containers
+        if (descriptor.getLevel() == ArchLevel.CONTAINER) {
+            final var declarations = collectDeclarations(descriptor);
+            declarations.putAll(collectDeclarations(ctx.getDescriptor(descriptor.getParentContextId())));
+            removeConnectedElements(declarations, descriptor.getConnections());
+            removeConnectedElements(declarations, ctx.getDescriptor(descriptor.getParentContextId()).getConnections());
+            declarations
+                    .forEach((key, el) -> {
+                        if (el.getType() != ElementType.EMPTY) {
+                            var tm = TranslationUtil.newNotice(el.getOrigin(), String.format("Element %s has no connections with other elements", key.getElementId()));
+                            TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
+                            ctx.addMessage(tm);
+                        }
+                    });
+        }
     }
 
     private void searchForSelfTargetingLinks(ParseDescriptor descriptor) {
@@ -65,13 +68,10 @@ public class Introspection {
     }
 
     public void suggest() {
-        ctx.getDescriptors()
-                .stream()
-                .filter(descriptor -> descriptor.getLevel() == ArchLevel.CONTAINER)
-                .forEach(descriptor -> {
-                    searchForIsolatedElements(descriptor);
-                    searchForSelfTargetingLinks(descriptor);
-                });
+        for (ParseDescriptor descriptor : ctx.getDescriptors()) {
+            searchForIsolatedElements(descriptor);
+            searchForSelfTargetingLinks(descriptor);
+        }
     }
 
 }

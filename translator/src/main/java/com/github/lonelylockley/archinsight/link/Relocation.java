@@ -10,8 +10,6 @@ import java.util.stream.Collectors;
 public interface Relocation {
 
     private void mergeDescriptors(final ParseDescriptor descriptor, final TranslationContext ctx) {
-        // remap descriptor ids to origins for mirroring
-        ctx.remapDescriptor(descriptor.getId(), descriptor.getRoot().getOrigin());
         if (!ctx.hasDescriptor(descriptor.getId())) {
             ctx.addDescriptor(descriptor);
         }

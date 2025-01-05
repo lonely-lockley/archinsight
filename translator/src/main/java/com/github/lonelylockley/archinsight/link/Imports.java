@@ -58,7 +58,7 @@ public interface Imports {
                 });
 
         remapConnections(descriptor, remapping, named, ctx);
-        remapImports(descriptor, ctx);
+        remapImports(named, descriptor, ctx);
     }
 
     private void remapConnections(ParseDescriptor descriptor, Map<DynamicId, DynamicId> remapping, Map<String, AbstractImport> named, TranslationContext ctx) {
@@ -87,8 +87,8 @@ public interface Imports {
         });
     }
 
-    private void remapImports(ParseDescriptor descriptor, TranslationContext ctx) {
-        descriptor.getImports().forEach(imp -> {
+    private void remapImports(Map<String, AbstractImport> named, ParseDescriptor descriptor, TranslationContext ctx) {
+        named.values().forEach(imp -> {
             if (descriptor.isImported(imp.getAlias().toString())) {
                 var id = DynamicId.fromImport(imp);
                 descriptor.removeExisting(imp.getAlias(), imp.getAlias().toString());
