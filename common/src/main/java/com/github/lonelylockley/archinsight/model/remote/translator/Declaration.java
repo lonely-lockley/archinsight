@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.remote.translator;
 
+import java.util.Objects;
 import java.util.UUID;
 
 public class Declaration {
@@ -85,6 +86,19 @@ public class Declaration {
 
     public void setLine(int line) {
         this.line = line;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Declaration that = (Declaration) o;
+        return Objects.equals(declaredId, that.declaredId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(declaredId);
     }
 
     @Override

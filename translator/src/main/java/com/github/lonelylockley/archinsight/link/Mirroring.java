@@ -11,6 +11,10 @@ import java.util.stream.Stream;
 
 public interface Mirroring {
 
+    /*
+     * First stage makes declarations only. Adding elements to the root elements will be made at the second stage
+     * For all links from element A to imported element B (A -> ext B) create a mirrored link (ext A -> B) in B's diagram
+     */
     default void declareMirroredElements(final ParseDescriptor descriptor, final TranslationContext ctx) {
         descriptor
                 .getConnections()
@@ -18,10 +22,11 @@ public interface Mirroring {
                 //.filter(link -> descriptor.isImported(link.getTo().toString()))
                 // an alternative way to check for imported not to mess with ids here
                 .filter(link -> !Objects.equals(descriptor.getExisting(link.getFrom()), descriptor.getExisting(link.getTo())))
-                .flatMap(link -> {
-                    return getTargetDescriptors(link.getTo(), ctx).filter(Objects::nonNull).map(desc -> new Tuple2<>(link, desc));
+                .map(link -> {
+                    return new Tuple2<>(link, getTargetDescriptor(link.getTo(), ctx));
                 })
                 .filter(t -> !Objects.equals(descriptor, t._2))
+                .filter(t -> !(Objects.equals(descriptor.getBoundedContext(), t._2.getBoundedContext()) && Objects.equals(descriptor.getRoot().getOrigin(), t._2.getRoot().getOrigin())))
                 .forEach(t -> {
                     final var link = t._1;
                     final var targetDescriptor = t._2;
@@ -41,6 +46,9 @@ public interface Mirroring {
                 });
     }
 
+    /**
+     * Second and final stage. Now add mirrored elements to parsed structure for exporter
+     */
     default void finishMirroring(final ParseDescriptor descriptor, final TranslationContext ctx) {
         descriptor.listMirroredEntries().stream()
                 .map(mirrored ->
@@ -73,12 +81,13 @@ public interface Mirroring {
         return ctx.getGlobalElement(sourceElementId);
     }
 
-    private Stream<ParseDescriptor> getTargetDescriptors(DynamicId targetElementId, final TranslationContext ctx) {
+    private ParseDescriptor getTargetDescriptor(DynamicId targetElementId, final TranslationContext ctx) {
         var targetDescriptorId = targetElementId.clone();
         targetDescriptorId.setElementId(null);
-        targetDescriptorId.setBoundaryId(null);
-        targetDescriptorId.setLevel(ArchLevel.CONTEXT);
-        return ctx.getDescriptorRemapping(targetDescriptorId);
+        if (targetElementId.getLevel() == ArchLevel.CONTEXT) {
+            targetDescriptorId.setBoundaryId(null);
+        }
+        return ctx.getDescriptor(targetDescriptorId);
     }
 
 }

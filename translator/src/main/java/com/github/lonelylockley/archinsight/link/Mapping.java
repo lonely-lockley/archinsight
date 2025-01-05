@@ -10,6 +10,9 @@ import java.util.Objects;
 
 public interface Mapping {
 
+    /*
+     * Push connections from lower levels to higher (e.g. container --> context)
+     */
     default void remapConnections(ParseDescriptor descriptor, TranslationContext ctx) {
         if (descriptor.getLevel() == ArchLevel.CONTEXT) {
             remapContext(descriptor);
@@ -38,6 +41,7 @@ public interface Mapping {
                 })
                 .filter(link -> !Objects.equals(link.getFrom(), link.getTo()))
                 .toList();
+        // a potential optimisation here is not to copy connections if remapping did not happen
         descriptor.getConnections().clear();
         descriptor.getConnections().addAll(remapped);
     }

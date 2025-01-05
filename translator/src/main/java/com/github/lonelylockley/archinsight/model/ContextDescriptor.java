@@ -8,7 +8,7 @@ public class ContextDescriptor extends ParseDescriptor {
     private final ContextElement root;
 
     public ContextDescriptor(DynamicId id, ContextElement root) {
-        super(id.getBoundedContext(), id.getLevel(), root.clone());
+        super(null, id.getBoundedContext(), id.getLevel(), root.clone());
         this.id = id;
         this.root = root;
         getOrigins().add(root.getOrigin());
@@ -37,11 +37,6 @@ public class ContextDescriptor extends ParseDescriptor {
     @Override
     public WithImports getRootWithImports() {
         return root;
-    }
-
-    @Override
-    public ContextDescriptor getParentContext() {
-        return null;
     }
 
     @Override

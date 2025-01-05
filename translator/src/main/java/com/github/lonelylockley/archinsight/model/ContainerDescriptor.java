@@ -6,16 +6,13 @@ import com.github.lonelylockley.archinsight.model.elements.*;
 public class ContainerDescriptor extends ParseDescriptor {
 
     private final ContainerElement root;
-    private final ContextDescriptor parent;
 
     private DynamicId id;
 
     public ContainerDescriptor(ContextDescriptor parent, ContainerElement root, DynamicId id) {
-        super(parent.getBoundedContext(), ArchLevel.CONTAINER, root);
-        parent.mergeTo(this);
+        super(parent.getId(), parent.getBoundedContext(), ArchLevel.CONTAINER, root);
         this.id = id;
         this.root = root;
-        this.parent = parent;
         getOrigins().clear();
         getOrigins().add(root.getOrigin());
     }
@@ -47,11 +44,6 @@ public class ContainerDescriptor extends ParseDescriptor {
     @Override
     public WithImports getRootWithImports() {
         return root;
-    }
-
-    @Override
-    public ContextDescriptor getParentContext() {
-        return parent;
     }
 
     @Override

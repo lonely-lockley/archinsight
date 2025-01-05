@@ -66,7 +66,7 @@ public class TranslatorService {
         new Parser(ctx).parseRepository(ctx, fsFuture.get(), allFilesFuture.get());
         // check integrity
         if (ctx.noErrors()) {
-            new Linker(ctx).checkIntegrity(data.getLevel());
+            new Linker(ctx).checkIntegrity();
             new Introspection(ctx).suggest();
         }
         // translate to DOT
@@ -129,14 +129,14 @@ public class TranslatorService {
                 tmp.setFileId(ae.getOrigin().getFileId());
                 tmp.setTabId(ae.getOrigin().getTabId());
                 tmp.setLocation(ae.getOrigin().getLocation());
-                tmp.setLevel("context");
-                ae.hasId().foreach(withId -> tmp.setDeclaredId(withId.getDeclaredId().toString()));
+                tmp.setLevel(ArchLevel.CONTEXT.name().toLowerCase());
+                ae.hasId().foreach(withId -> tmp.setDeclaredId(withId.getDeclaredId().getBoundedContext()));
                 return tmp;
             });
             if (ae.getType() == SYSTEM || ae.getType() == ACTOR || ae.getType() == SERVICE || ae.getType() == STORAGE) {
                 var decl = new Declaration();
                 decl.setId(ae.getUniqueId());
-                ae.hasId().foreach(withId -> decl.setDeclaredId(withId.getDeclaredId().toString()));
+                ae.hasId().foreach(withId -> decl.setDeclaredId(withId.getDeclaredId().getElementId()));
                 ae.hasParameters().foreach(withParameters -> decl.setName(withParameters.getName()));
                 ae.hasParameters().foreach(withParameters -> {
                     if (withParameters.getName() != null) {

@@ -8,6 +8,7 @@ import java.util.*;
 public abstract class ParseDescriptor {
 
     private final String boundedContext;
+    private final DynamicId parentContextId;
     private final ArchLevel level;
     private final AbstractElement parentElement;
     private final Set<AbstractImport> imports = new HashSet<>();
@@ -18,7 +19,8 @@ public abstract class ParseDescriptor {
     private final Set<LinkElement> connections = new HashSet<>();
     private final Set<Origin> origins = new HashSet<>();
 
-    public ParseDescriptor(String boundedContext, ArchLevel level, AbstractElement parentElement) {
+    public ParseDescriptor(DynamicId parentContextId, String boundedContext, ArchLevel level, AbstractElement parentElement) {
+        this.parentContextId = parentContextId;
         this.boundedContext = boundedContext;
         this.level = level;
         this.parentElement = parentElement;
@@ -127,6 +129,10 @@ public abstract class ParseDescriptor {
         return origins;
     }
 
+    public DynamicId getParentContextId() {
+        return parentContextId;
+    }
+
     public abstract DynamicId getId();
 
     public abstract AbstractElement getRoot();
@@ -136,8 +142,6 @@ public abstract class ParseDescriptor {
     public abstract WithChildElements getRootWithChildren();
 
     public abstract WithImports getRootWithImports();
-
-    public abstract ContextDescriptor getParentContext();
 
     public void mergeTo(ParseDescriptor dst) {
         dst.imports.addAll(this.imports);

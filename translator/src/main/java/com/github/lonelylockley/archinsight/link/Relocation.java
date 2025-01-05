@@ -9,7 +9,9 @@ import java.util.stream.Collectors;
 
 public interface Relocation {
 
-    default void mergeContexts(final ParseDescriptor descriptor, final TranslationContext ctx) {
+    private void mergeDescriptors(final ParseDescriptor descriptor, final TranslationContext ctx) {
+        // remap descriptor ids to origins for mirroring
+        ctx.remapDescriptor(descriptor.getId(), descriptor.getRoot().getOrigin());
         if (!ctx.hasDescriptor(descriptor.getId())) {
             ctx.addDescriptor(descriptor);
         }
@@ -20,6 +22,10 @@ public interface Relocation {
         }
     }
 
+    /*
+     * Split elements of a descriptor into context and container
+     * a new context descriptor is created here!
+     */
     default void splitLevels(final ParseDescriptor descriptor, final TranslationContext ctx) {
         if (descriptor.getRoot().getType() == ElementType.CONTEXT) {
             ElementType.CONTEXT.capture(descriptor.getRoot()).foreach(context -> {
@@ -31,13 +37,25 @@ public interface Relocation {
         }
     }
 
+    /**
+     * Creates new context descriptor and a container per each system declared in this context
+     * @param context original context element
+     * @param parent original descriptor
+     * @param ctx translation context
+     */
     private void splitContextAndContainer(final ContextElement context, final ContextDescriptor parent, final TranslationContext ctx) {
         final var newContextDescriptor = stripContext(context, parent);
         final var newContainers = stripContainer(context, newContextDescriptor, parent, ctx);
-        mergeContexts(newContextDescriptor, ctx);
-        newContainers.forEach(cont -> mergeContexts(cont, ctx));
+        mergeDescriptors(newContextDescriptor, ctx);
+        newContainers.forEach(cont -> mergeDescriptors(cont, ctx));
     }
 
+    /**
+     * Populates new context descriptor with context level elements
+     * @param src original context element
+     * @param parent original descriptor
+     * @return
+     */
     private ContextDescriptor stripContext(final ContextElement src, final ContextDescriptor parent) {
         var newContext = new ContextElement();
         newContext.setDeclaredId(src.getDeclaredId());
@@ -62,6 +80,13 @@ public interface Relocation {
         return newDescriptor;
     }
 
+    /**
+     * Creates a new container descriptor per each declared system
+     * @param src original context element
+     * @param descriptor new context descriptor created from parent
+     * @param ctx translation context
+     * @return
+     */
     private List<ContainerDescriptor> stripContainer(final ContextElement src, final ContextDescriptor descriptor, final ContextDescriptor parent, final TranslationContext ctx) {
         // group future containers by origin
         var containers = parent.listExisting()
@@ -79,14 +104,20 @@ public interface Relocation {
             var newContainer = new ContainerElement();
             newContainer.setDeclaredId(src.getDeclaredId());
             // create a boundary for each system | do nothing with actors | keep mirrored
-            populateContainerElement(newContainer, descriptor, container.getValue(), ctx);
-            var newDescriptor = populateDescriptor(newContainer, descriptor, parent, container.getValue(), ctx);
+            populateContainerElement(newContainer, descriptor, container.getValue());
+            var newDescriptor = populateDescriptor(newContainer, descriptor, parent, container.getValue());
             result.add(newDescriptor);
         }
         return result;
     }
 
-    private void populateContainerElement(ContainerElement newContainer, final ContextDescriptor descriptor, List<Tuple2<Origin, AbstractElement>> container, final TranslationContext ctx) {
+    /**
+     * Populates new container root element with children
+     * @param newContainer new container descriptor created from parent context
+     * @param descriptor new context descriptor created from parent
+     * @param container container root element with origin
+     */
+    private void populateContainerElement(ContainerElement newContainer, final ContextDescriptor descriptor, List<Tuple2<Origin, AbstractElement>> container) {
         var i = new AtomicInteger();
         for (var entry : container) {
             var el = entry._2;
@@ -124,30 +155,31 @@ public interface Relocation {
         }
     }
 
-    private ContainerDescriptor populateDescriptor(ContainerElement newContainer, final ContextDescriptor descriptor, final ContextDescriptor parent, List<Tuple2<Origin, AbstractElement>> container, final TranslationContext ctx) {
+    /**
+     * Populates new container descriptor with container level elements
+     * @param newContainer new container descriptor created from parent context
+     * @param descriptor new context descriptor created from parent
+     * @param container container root element with origin
+     */
+    private ContainerDescriptor populateDescriptor(ContainerElement newContainer, final ContextDescriptor descriptor, final ContextDescriptor parent, List<Tuple2<Origin, AbstractElement>> container) {
         var boundaryIds = container
                 .stream()
                 .map(t -> t._2)
-                .map(el ->
-                        el.hasId().fold(WithId::getDeclaredId, null)
-                )
+                .map(el -> el.hasId().fold(WithId::getDeclaredId, null))
                 .filter(Objects::nonNull)
                 .map(DynamicId::clone)
                 .peek(id -> id.setLevel(ArchLevel.CONTAINER))
                 .map(DynamicId::getElementId)
                 .collect(Collectors.toSet());
-        var id = DynamicId.fromAbstractElements(ArchLevel.CONTAINER, descriptor.getBoundedContext(), boundaryIds);
-        var result = new ContainerDescriptor(parent, newContainer, id);
-        var existing = new HashMap<>(result.listExisting());
-        existing.forEach((ee, el) -> {
+        var containerId = DynamicId.fromAbstractElements(ArchLevel.CONTAINER, descriptor.getBoundedContext(), boundaryIds);
+        var result = new ContainerDescriptor(descriptor, newContainer, containerId);
+        parent.mergeTo(result);
+        var existing = new HashMap<>(parent.listExisting());
+        existing.forEach((id, el) -> {
             // clean container from context-level elements
-            if (!(
-                    result.isMirrored(ee.toString()) ||
-                    (ee.getLevel() == ArchLevel.CONTAINER && Objects.equals(ee.getBoundedContext(), result.getBoundedContext()) && boundaryIds.contains(ee.getBoundaryId())) ||
-                    result.isImported(ee.toString())
-
-            )) {
-                result.removeExisting(ee, ee.getElementId());
+            //    keep imported elements               keep container elements in the same boundary
+            if (!(result.isImported(id.toString()) || (id.getLevel() == ArchLevel.CONTAINER && checkIdPointsToTheSameContainer(id, result, boundaryIds)))) {
+                result.removeExisting(id, id.getElementId());
             }
         });
         result.listImported().forEach(impId -> {
@@ -158,6 +190,10 @@ public interface Relocation {
             result.getRootWithChildren().addChild(mirrored.getValue());
         }
         return result;
+    }
+
+    private boolean checkIdPointsToTheSameContainer(DynamicId id, ContainerDescriptor descriptor, Set<String> boundaryIds) {
+        return Objects.equals(id.getBoundedContext(), descriptor.getBoundedContext()) && boundaryIds.contains(id.getBoundaryId());
     }
 
 }

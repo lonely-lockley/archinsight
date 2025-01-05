@@ -1,8 +1,6 @@
 package com.github.lonelylockley.archinsight.model.remote.translator;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 public class DeclarationContext {
 
@@ -12,7 +10,7 @@ public class DeclarationContext {
     private String declaredId;
     private String level;
     private String location;
-    private List<Declaration> declarations = new ArrayList<>();
+    private Set<Declaration> declarations = new HashSet<>();
 
     public String getTabId() {
         return tabId;
@@ -46,11 +44,11 @@ public class DeclarationContext {
         this.level = level;
     }
 
-    public List<Declaration> getDeclarations() {
+    public Set<Declaration> getDeclarations() {
         return declarations;
     }
 
-    public void setDeclarations(List<Declaration> declarations) {
+    public void setDeclarations(Set<Declaration> declarations) {
         this.declarations = declarations;
     }
 

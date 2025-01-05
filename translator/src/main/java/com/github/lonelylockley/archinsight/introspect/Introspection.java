@@ -1,13 +1,19 @@
 package com.github.lonelylockley.archinsight.introspect;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
+import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class Introspection {
 
@@ -17,23 +23,35 @@ public class Introspection {
         this.ctx = ctx;
     }
 
-    private void searchForIsolatedElements(ParseDescriptor descriptor) {
-        final var declarations = new HashSet<DynamicId>(descriptor.listExisting().size());
-        declarations.addAll(descriptor.listExisting().keySet());
-        descriptor.getConnections().forEach(link -> {
+    private Map<DynamicId, AbstractElement> collectDeclarations(ParseDescriptor descriptor) {
+        return descriptor.
+                listExisting()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue().getType() != ElementType.BOUNDARY && e.getValue().getType() != ElementType.LINK && e.getValue().getType() != ElementType.EMPTY)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private void removeConnectedElements(Map<DynamicId, AbstractElement> declarations, Set<LinkElement> connections) {
+       connections.forEach(link -> {
             declarations.remove(link.getFrom());
             declarations.remove(link.getTo());
         });
-        declarations.forEach(id -> {
-            final var el = descriptor.listExisting().get(id);
-            if (el.getType() != ElementType.BOUNDARY && el.getType() != ElementType.EMPTY) { // boundaries are never connected
-                el.hasId().foreach(withId -> {
-                    var tm = TranslationUtil.newNotice(el.getOrigin(), String.format("Element %s has no connections with other elements", withId.getDeclaredId()));
-                    TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
-                    ctx.addMessage(tm);
+    }
+
+    private void searchForIsolatedElements(ParseDescriptor descriptor) {
+        final var declarations = collectDeclarations(descriptor);
+        declarations.putAll(collectDeclarations(ctx.getDescriptor(descriptor.getParentContextId())));
+        removeConnectedElements(declarations, descriptor.getConnections());
+        removeConnectedElements(declarations, ctx.getDescriptor(descriptor.getParentContextId()).getConnections());
+        declarations
+                .forEach((key, el) -> {
+                    if (el.getType() != ElementType.EMPTY) {
+                        var tm = TranslationUtil.newNotice(el.getOrigin(), String.format("Element %s has no connections with other elements", key.getElementId()));
+                        TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
+                        ctx.addMessage(tm);
+                    }
                 });
-            }
-        });
     }
 
     private void searchForSelfTargetingLinks(ParseDescriptor descriptor) {
@@ -47,10 +65,13 @@ public class Introspection {
     }
 
     public void suggest() {
-        for (ParseDescriptor descriptor : ctx.getDescriptors()) {
-            searchForIsolatedElements(descriptor);
-            searchForSelfTargetingLinks(descriptor);
-        }
+        ctx.getDescriptors()
+                .stream()
+                .filter(descriptor -> descriptor.getLevel() == ArchLevel.CONTAINER)
+                .forEach(descriptor -> {
+                    searchForIsolatedElements(descriptor);
+                    searchForSelfTargetingLinks(descriptor);
+                });
     }
 
 }

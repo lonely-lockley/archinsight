@@ -96,7 +96,7 @@ public class TranslationContext {
     }
 
     public Stream<ParseDescriptor> getDescriptorRemapping(DynamicId id) {
-        var origins = descriptorRemapping.getOrDefault(id, null);
+        var origins = descriptorRemapping.getOrDefault(id, Collections.emptyList());
         return origins.stream().map(o -> raw.getOrDefault(o, null));
     }
 }

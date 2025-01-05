@@ -52,27 +52,34 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
                 .forEach(child -> makeDeclarations(descriptor, el.hasId().fold(WithId::getDeclaredId, null), child));
     }
 
-    public void checkIntegrity(ArchLevel targetLevel) {
+    /**
+     * This one is a really complicated thing
+     */
+    public void checkIntegrity() {
         for (Map.Entry<Origin, ParseDescriptor> descriptor : ctx.getRawEntries()) {
-            ctx.remapDescriptor(descriptor.getValue().getId(), descriptor.getKey());
+            // declare elements from parsed sources
             makeDeclarations(descriptor.getValue(), null, descriptor.getValue().getRoot());
         }
         for (ParseDescriptor descriptor : ctx.getRaw()) {
+            // declare imported elements
             rewriteImports(descriptor, ctx);
+            // check integrity
             checkImports(descriptor, ctx);
         }
         // all checks are completed by this moment
         if (ctx.noErrors()) {
             for (ParseDescriptor descriptor : ctx.getRaw()) {
-                declareMirroredElements(descriptor, ctx);
-            }
-            var tmp = new ArrayList<>(ctx.getRaw());
-            ctx.getRaw().clear();
-            for (ParseDescriptor descriptor : tmp) {
+                // strip containers from contexts
                 splitLevels(descriptor, ctx);
             }
+            for (ParseDescriptor descriptor : ctx.getRaw()) {
+                // declare mirrored elements, so they would appear at both levels after split
+                declareMirroredElements(descriptor, ctx);
+            }
             for (ParseDescriptor descriptor : ctx.getDescriptors()) {
+                // the mirrored elements are only declared now. this will push them to the parsed tree structure for exporter
                 finishMirroring(descriptor, ctx);
+                // trim `from` and `to` connection id's to match a desired level
                 remapConnections(descriptor, ctx);
             }
         }
