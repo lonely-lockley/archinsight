@@ -83,10 +83,12 @@ public class IndentHelper {
         var newLines = countNewLines(lexer.getText());
         var newIndentation = calculateIndentation(stripNewlineCharacters(lexer.getText()));
         if (newIndentation > indentation) {
-            indentation++;
-            state.incIndentation();
             waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
-            waitlist.add(createToken(InsightLexer.INDENT, "<INDENT>", INDENT_LENGTH, 0, -newLines));
+            while (indentation < newIndentation) {
+                indentation++;
+                state.incIndentation();
+                waitlist.add(createToken(InsightLexer.INDENT, "<INDENT>", INDENT_LENGTH, 0, -newLines));
+            }
         }
         else {
             waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));

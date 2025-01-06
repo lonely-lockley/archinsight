@@ -93,10 +93,12 @@ class IndentHelper {
         let newLines = this.countNewLines(this.lexer.text);
         let newIndentation = this.calculateIndentation(this.stripNewlineCharacters(this.lexer.text));
         if (newIndentation > this.indentation) {
-            this.indentation++;
-            this.state.incIndentation();
             this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines, this.calculateLengthCorrection()));
-            this.waitlist.push(this.createToken(InsightLexer.INDENT, "<INDENT>", this.INDENT_LENGTH, 0, -newLines));
+            while (this.indentation < newIndentation) {
+                this.indentation++;
+                this.state.incIndentation();
+                this.waitlist.push(this.createToken(InsightLexer.INDENT, "<INDENT>", this.INDENT_LENGTH, 0, -newLines));
+            }
         }
         else {
             this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines, this.calculateLengthCorrection()));
