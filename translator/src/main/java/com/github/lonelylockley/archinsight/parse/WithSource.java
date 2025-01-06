@@ -19,6 +19,14 @@ public abstract class WithSource {
         line = tkn.getLine();
     }
 
+    public void setSource(Origin origin, int charPositionInLine, int startIndex, int stopIndex, int line) {
+        this.origin = origin;
+        this.charPosition = charPositionInLine;
+        this.startIndex = startIndex;
+        this.stopIndex = stopIndex;
+        this.line = line;
+    }
+
     public Origin getOrigin() {
         return origin;
     }

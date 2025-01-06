@@ -1,18 +1,12 @@
 package com.github.lonelylockley.archinsight.introspect;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
-import com.github.lonelylockley.archinsight.model.ArchLevel;
-import com.github.lonelylockley.archinsight.model.DynamicId;
-import com.github.lonelylockley.archinsight.model.ParseDescriptor;
-import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Introspection {
@@ -49,7 +43,7 @@ public class Introspection {
             declarations
                     .forEach((key, el) -> {
                         if (el.getType() != ElementType.EMPTY) {
-                            var tm = TranslationUtil.newNotice(el.getOrigin(), String.format("Element %s has no connections with other elements", key.getElementId()));
+                            var tm = TranslationUtil.newNotice(el, String.format("Element %s has no connections with other elements", key.getElementId()));
                             TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
                             ctx.addMessage(tm);
                         }
@@ -58,20 +52,49 @@ public class Introspection {
     }
 
     private void searchForSelfTargetingLinks(ParseDescriptor descriptor) {
+        // self referencing is ok at sequence diagrams, but looks strange at container level
         descriptor.getConnections().forEach(link -> {
             if (Objects.equals(link.getFrom(), link.getTo())) {
-                var tm = TranslationUtil.newNotice(link.getOrigin(), "Element links to itself");
+                var tm = TranslationUtil.newNotice(link, "Element links to itself");
                 TranslationUtil.copyPosition(tm, link.getLine(), link.getCharPosition(), link.getStartIndex(), link.getStopIndex());
                 ctx.addMessage(tm);
             }
         });
     }
 
+    private void searchConnectionErasures() {
+        ctx.getRaw().forEach(descriptor -> {
+                    var res = descriptor.getConnections()
+                            .stream()
+                            .map(link -> new Tuple2<>(link.getFrom().getLevel(), link))
+                            .collect(Collectors.groupingBy(
+                                    Tuple2::_1,
+                                    Collectors.toList()
+                            ));
+                    if (res.size() == 2) {
+                        res.get(ArchLevel.CONTEXT)
+                                .stream()
+                                .map(Tuple2::_2)
+                                .forEach(link -> {
+                                    var tm = TranslationUtil.newWarning(link, "Connection will be erased in container level diagram");
+                                    TranslationUtil.copyPosition(tm, link.getLine(), link.getCharPosition(), link.getStartIndex(), link.getStopIndex());
+                                    ctx.addMessage(tm);
+                                });
+                    }
+                    else
+                    if (res.size() > 2) {
+                        throw new IllegalArgumentException("Levels beyond context and containers are not supported");
+                    }
+                });
+    }
+
     public void suggest() {
         for (ParseDescriptor descriptor : ctx.getDescriptors()) {
             searchForIsolatedElements(descriptor);
             searchForSelfTargetingLinks(descriptor);
+
         }
+        searchConnectionErasures();
     }
 
 }

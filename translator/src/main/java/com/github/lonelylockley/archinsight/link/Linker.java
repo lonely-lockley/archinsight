@@ -72,7 +72,7 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
                 // strip containers from contexts
                 splitLevels(descriptor, ctx);
             }
-            for (ParseDescriptor descriptor : ctx.getRaw()) {
+            for (ParseDescriptor descriptor : ctx.getDescriptors()) {
                 // declare mirrored elements, so they would appear at both levels after split
                 declareMirroredElements(descriptor, ctx);
             }

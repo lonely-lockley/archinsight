@@ -37,8 +37,9 @@ public class  InsightParseTreeListener implements ParseTreeListener {
         switch (tkn.getType()) {
             case InsightLexer.IDENTIFIER:
                 if (ctx.getCurrentElement().getType() == LINK && ctx.getCurrentImport() == null) {
-                    ctx.getCurrentElementAsLink().setTo(DynamicId.fromElementId(tkn.getText()));
-                    ctx.getCurrentElement().setSource(origin, tkn);
+                    var le = ctx.getCurrentElementAsLink();
+                    le.setTo(DynamicId.fromElementId(tkn.getText()));
+                    le.setSource(le.getOrigin(), le.getCharPosition(), le.getStartIndex(), tkn.getStopIndex(), le.getLine());
                 }
                 else
                 if (ctx.getCurrentImport() != null) {
@@ -54,6 +55,8 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                     else if (ctx.getPreviousToken().getType() == InsightLexer.FROM && ctx.getCurrentImport().isAnonymous()) {
                         imp.setIdentifier(tkn.getText());
                         imp.setIdentifierSource(origin, tkn);
+                        var le = ctx.getCurrentElementAsLink();
+                        le.setSource(le.getOrigin(), le.getCharPosition(), le.getStartIndex(), tkn.getStopIndex(), le.getLine());
                     }
                     else {
                         imp.setLine(tkn.getLine());
@@ -98,6 +101,11 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                 if (ctx.getCurrentImport().isAnonymous()) {
                     ctx.getCurrentImport().setSource(origin, ctx.getPreviousToken());
                 }
+                break;
+            case InsightLexer.AWIRE:
+            case InsightLexer.SWIRE:
+                ctx.getCurrentElement().setSource(origin, tkn);
+                break;
             default:
                 break;
         }

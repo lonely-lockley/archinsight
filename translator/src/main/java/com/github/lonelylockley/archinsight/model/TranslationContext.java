@@ -15,7 +15,7 @@ public class TranslationContext {
     private final Set<TranslatorMessage> messages = new HashSet<>();
     private boolean hasErrors = false;
 
-    public Collection<AbstractElement> getGlobalDeclaration() {
+    public Collection<AbstractElement> getGlobalDeclarations() {
         return globalDeclaration.values();
     }
 

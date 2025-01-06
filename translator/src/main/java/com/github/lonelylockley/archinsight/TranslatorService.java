@@ -101,19 +101,6 @@ public class TranslatorService {
                     }
                     return tmp;
                 })
-                .sorted((left, right) -> {  // sorting to put selected tab on top of stack. not very efficient though
-                    if (Objects.equals(left.getTabId(), data.getTabId())) {
-                        return 1;
-                    }
-                    else
-                    if (Objects.equals(right.getTabId(), data.getTabId())) {
-                        return -1;
-                    }
-                    else {
-                        return 0;
-                    }
-
-                })
                 .toList();
         var res = new ArrayList<Origin>(files.size() + tabs.size());
         res.addAll(files.values());
@@ -123,7 +110,7 @@ public class TranslatorService {
 
     private List<DeclarationContext> extractDeclarations(TranslationContext ctx) {
         var result = new HashMap<Origin, DeclarationContext>();
-        for (AbstractElement ae : ctx.getGlobalDeclaration()) {
+        for (AbstractElement ae : ctx.getGlobalDeclarations()) {
             var dc = result.computeIfAbsent(ae.getOrigin(), origin -> {
                 final var tmp = new DeclarationContext();
                 tmp.setFileId(ae.getOrigin().getFileId());
