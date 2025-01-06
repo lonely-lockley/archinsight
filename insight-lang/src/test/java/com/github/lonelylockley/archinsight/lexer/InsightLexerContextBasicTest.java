@@ -103,7 +103,6 @@ public class InsightLexerContextBasicTest extends TestCommon {
         LexerState state = lexer.snapshotState();
         Assert.assertEquals(state.getIndentation(), 0);
         Assert.assertFalse(state.wasText());
-
     }
 
     @Test
@@ -308,7 +307,7 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("ATTRIBUTE", "@attribute"),
                 new Pair<>("LPAREN", "("),
-                new Pair<>("TEXT", "test"),
+                new Pair<>("ANNOTATION_VALUE", "test"),
                 new Pair<>("RPAREN", ")"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("STORAGE", "storage"),
@@ -346,6 +345,57 @@ public class InsightLexerContextBasicTest extends TestCommon {
         LexerState state = lexer.snapshotState();
         Assert.assertEquals(state.getIndentation(), 0);
         Assert.assertFalse(state.wasText());
+    }
+
+    @Test
+    public void testTextProcessesEOFAsEOL() throws Exception {
+        setup("system tms\n    service test\n        name = Test"
+        );
+        List<Pair<String, String>> exp = Stream.of(
+                new Pair<>("SYSTEM", "system"),
+                new Pair<>("IDENTIFIER", "tms"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("SERVICE", "service"),
+                new Pair<>("IDENTIFIER", "test"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("NAME", "name"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "Test"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        //Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
+
+    }
+
+    @Test
+    public void testStatementProcessesEOFAsEOL() throws Exception {
+        setup("context tms");
+        List<Pair<String, String>> exp = Stream.of(
+                new Pair<>("CONTEXT", "context"),
+                new Pair<>("IDENTIFIER", "tms")
+        ).toList();
+        Iterator<Pair<String, String>> it = exp.iterator();
+        List<? extends Token> act = lexer.getAllTokens();
+        Assert.assertEquals(act.size(), exp.size());
+        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
+        Assert.assertFalse(it.hasNext());
+        LexerState state = lexer.snapshotState();
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
+
     }
 
 }

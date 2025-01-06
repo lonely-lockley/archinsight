@@ -13,7 +13,7 @@ insight
     ;
 
 boundedContextStatement
-    :   (commentStatement | EOL)* boundedContextDeclaration EOL statement*
+    :   (commentStatement | EOL)* boundedContextDeclaration (EOL statement*)?
     ;
 
 commentStatement
