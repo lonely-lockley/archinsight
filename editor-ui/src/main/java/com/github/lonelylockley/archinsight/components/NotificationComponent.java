@@ -30,7 +30,7 @@ public class NotificationComponent extends Notification {
                 addThemeVariants(NotificationVariant.LUMO_CONTRAST);
                 break;
             case WARNING:
-                addThemeVariants(NotificationVariant.LUMO_PRIMARY);
+                addThemeVariants(NotificationVariant.LUMO_WARNING);
                 break;
             case ERROR:
                 addThemeVariants(NotificationVariant.LUMO_ERROR);

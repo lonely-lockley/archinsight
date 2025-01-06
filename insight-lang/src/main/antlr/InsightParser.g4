@@ -17,7 +17,7 @@ boundedContextStatement
     ;
 
 commentStatement
-    :   COMMENT EOL
+    :   COMMENT EOL?
     ;
 
 noteStatement
@@ -31,7 +31,7 @@ boundedContextDeclaration
 statement
     :   contextStatement
     |   annotationStatement EOL
-    |   namedImportStatement EOL
+    |   namedImportStatement EOL?
     |   commentStatement
     |   EOL
     ;
@@ -85,11 +85,11 @@ containerParameters
     ;
 
 syncWireParameters
-    :   INDENT (callParameter | descriptionParameter | technologyParameter)+ DEDENT
+    :   INDENT (modelParameter | descriptionParameter | technologyParameter | callParameter)+ DEDENT
     ;
 
 asyncWireParameters
-    :   INDENT (formatParameter | descriptionParameter | technologyParameter | viaParameter)+ DEDENT
+    :   INDENT (modelParameter | descriptionParameter | technologyParameter | viaParameter)+ DEDENT
     ;
 
 linksDeclaration
@@ -106,11 +106,11 @@ wireDeclaration
     ;
 
 syncWireStatement
-    :   annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL syncWireParameters?
+    :   annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL? syncWireParameters?
     ;
 
 asyncWireStatement
-    :   annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL asyncWireParameters?
+    :   annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL? asyncWireParameters?
     ;
 
 nameParameter
@@ -133,8 +133,8 @@ callParameter
     :   CALL EQ parameterValue EOL
     ;
 
-formatParameter
-    :   FORMAT EQ parameterValue EOL
+modelParameter
+    :   MODEL EQ parameterValue EOL
     ;
 
 parameterValue

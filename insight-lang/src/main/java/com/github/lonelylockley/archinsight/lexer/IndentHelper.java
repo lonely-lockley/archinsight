@@ -79,24 +79,32 @@ public class IndentHelper {
         return count / INDENT_LENGTH;
     }
 
+    private void fireIndents(int desiredIndentation, int linesCorrection) {
+        while (indentation < desiredIndentation) {
+            indentation++;
+            state.incIndentation();
+            waitlist.add(createToken(InsightLexer.INDENT, "<INDENT>", INDENT_LENGTH, 0, -linesCorrection));
+        }
+    }
+
+    private void fireDedents(int desiredIndentation, int linesCorrection) {
+        while (indentation > desiredIndentation) {
+            waitlist.add(createToken(InsightLexer.DEDENT, "<DEDENT>", 0, -linesCorrection, 0));
+            indentation--;
+            state.decIndentation();
+        }
+    }
+
     public void checkIndentation() {
         var newLines = countNewLines(lexer.getText());
         var newIndentation = calculateIndentation(stripNewlineCharacters(lexer.getText()));
+        waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
         if (newIndentation > indentation) {
-            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
-            while (indentation < newIndentation) {
-                indentation++;
-                state.incIndentation();
-                waitlist.add(createToken(InsightLexer.INDENT, "<INDENT>", INDENT_LENGTH, 0, -newLines));
-            }
+            fireIndents(newIndentation, newLines);
         }
-        else {
-            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
-            while (indentation > newIndentation && !singleLineMode) {
-                waitlist.add(createToken(InsightLexer.DEDENT, "<DEDENT>", 0, -newLines, 0));
-                indentation--;
-                state.decIndentation();
-            }
+        else
+        if (!singleLineMode) {
+            fireDedents(newIndentation, newLines);
         }
     }
 
@@ -122,11 +130,7 @@ public class IndentHelper {
                 waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, calculateLengthCorrection()));
                 waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
                 lexer.popMode();
-                while (indentation > newIndentation) {
-                    waitlist.add(createToken(InsightLexer.DEDENT, "<DEDENT>", 0, -newLines, 0));
-                    indentation--;
-                    state.decIndentation();
-                }
+                fireDedents(newIndentation, newLines);
             }
         }
         else {
@@ -146,6 +150,11 @@ public class IndentHelper {
         if (lexer.getInputStream().LA(-1) != 10 && lexer.getText() == null) {
             lexer.setText("\n");
             checkIndentation();
+            waitlist.add(eof);
+        }
+        else
+        if (!singleLineMode && !(waitlist.size() > 0 && waitlist.getLast().getType() == InsightLexer.EOF)) {
+            fireDedents(0, 0);
             waitlist.add(eof);
         }
     }

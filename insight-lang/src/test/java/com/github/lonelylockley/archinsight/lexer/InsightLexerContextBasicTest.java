@@ -382,10 +382,39 @@ public class InsightLexerContextBasicTest extends TestCommon {
 
     @Test
     public void testStatementProcessesEOFAsEOL() throws Exception {
-        setup("context tms");
+        setup("""
+                external system tms
+                
+                    storage test
+                        name = Test
+                        links:
+                            -> g"""
+        );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTEXT", "context"),
-                new Pair<>("IDENTIFIER", "tms")
+                new Pair<>("EXTERNAL", "external"),
+                new Pair<>("SYSTEM", "system"),
+                new Pair<>("IDENTIFIER", "tms"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("STORAGE", "storage"),
+                new Pair<>("IDENTIFIER", "test"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("NAME", "name"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "Test"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("LINKS", "links"),
+                new Pair<>("COLON", ":"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("SWIRE", "->"),
+                new Pair<>("IDENTIFIER", "g"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();

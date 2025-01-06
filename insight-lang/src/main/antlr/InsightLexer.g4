@@ -63,7 +63,7 @@ DESCRIPTION : ('description') ;
 TECHNOLOGY  : ('technology') ;
 VIA         : ('via') ;
 CALL        : ('call') ;
-FORMAT      : ('format') ;
+MODEL       : ('model') ;
 LINKS       : ('links') ;
 SWIRE       : ('->') ;
 AWIRE       : ('~>') ;
