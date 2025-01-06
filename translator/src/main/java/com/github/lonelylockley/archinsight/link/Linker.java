@@ -8,7 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
-public class Linker implements Declarations, Relocation, Imports, Mirroring, Mapping {
+public class Linker implements Declarations, Relocation, Imports, Mirroring, Mapping, Integrity {
 
     private static final Logger logger = LoggerFactory.getLogger(Linker.class);
 
@@ -64,6 +64,7 @@ public class Linker implements Declarations, Relocation, Imports, Mirroring, Map
             // declare imported elements
             rewriteImports(descriptor, ctx);
             // check integrity
+            checkConnections(descriptor, ctx);
             checkImports(descriptor, ctx);
         }
         // all checks are completed by this moment

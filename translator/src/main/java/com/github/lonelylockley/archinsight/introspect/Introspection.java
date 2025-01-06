@@ -76,7 +76,7 @@ public class Introspection {
                                 .stream()
                                 .map(Tuple2::_2)
                                 .forEach(link -> {
-                                    var tm = TranslationUtil.newWarning(link, "Connection will be erased in container level diagram");
+                                    var tm = TranslationUtil.newWarning(link, "Link will be erased in container level diagram");
                                     TranslationUtil.copyPosition(tm, link.getLine(), link.getCharPosition(), link.getStartIndex(), link.getStopIndex());
                                     ctx.addMessage(tm);
                                 });

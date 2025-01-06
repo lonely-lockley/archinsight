@@ -108,41 +108,4 @@ public interface Imports {
         return imported;
     }
 
-    default void checkImports(ParseDescriptor descriptor, TranslationContext ctx) {
-        if (ctx.hasErrors()) {
-            return;
-        }
-        for (AbstractImport imported : descriptor.getImports()) {
-            var elementId = DynamicId.fromImport(imported);
-            var containerId = elementId.clone();
-            containerId.setElementId(null);
-            var namespaceId = containerId.clone();
-            namespaceId.setBoundaryId(null);
-            // check namespace exists
-            if (imported.getLevel() == ArchLevel.CONTEXT && !ctx.isDeclaredGlobally(namespaceId)) {
-                var tm = TranslationUtil.newError(imported,
-                        String.format("Unsatisfied import: %s %s not found", TranslationUtil.stringify(imported.getLevel()), imported.getBoundedContext())
-                );
-                TranslationUtil.copyPosition(tm, imported.getLine(), imported.getLevelSource().getCharPosition(), imported.getLevelSource().getStartIndex(), imported.getBoundedContextSource().getStopIndex());
-                ctx.addMessage(tm);
-            }
-            else
-            if (!ctx.isDeclaredGlobally(containerId)) {
-                var tm = TranslationUtil.newError(imported,
-                        String.format("Unsatisfied import: %s not found in %s %s", containerId.getBoundaryId(), TranslationUtil.stringify(containerId.getLevel()), containerId.getBoundedContext())
-                );
-                TranslationUtil.copyPosition(tm, imported.getLine(), imported.getIdentifierSource().getCharPosition(), imported.getIdentifierSource().getStartIndex(), imported.getIdentifierSource().getStopIndex());
-                ctx.addMessage(tm);
-            }
-            else
-            if (!ctx.isDeclaredGlobally(elementId)) {
-                var tm = TranslationUtil.newError(imported,
-                        String.format("Unsatisfied import: %s not found in %s %s", imported.getElement(), TranslationUtil.stringify(imported.getLevel()), imported.getIdentifier())
-                );
-                TranslationUtil.copyPosition(tm, imported.getLine(), imported.getElementSource().getCharPosition(), imported.getElementSource().getStartIndex(), imported.getElementSource().getStopIndex());
-                ctx.addMessage(tm);
-            }
-        }
-    }
-
 }
