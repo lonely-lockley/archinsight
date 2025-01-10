@@ -21,30 +21,11 @@ public class RenderSource {
     private static final Logger logger = LoggerFactory.getLogger(RenderSource.class);
 
     @Inject
-    private TranslatorClient translator;
+    private TranslatorSource translator;
     @Inject
     private RendererClient renderer;
     @Inject
     private Config conf;
-
-    private TranslationRequest prepareTranslationRequest(String tabId, UUID repositoryId, ArchLevel level, boolean darkMode, Collection<EditorTabComponent> tabs) {
-        var res = new TranslationRequest();
-        res.setRepositoryId(repositoryId);
-        res.setTabId(tabId);
-        res.setLevel(level);
-        res.setDarkMode(darkMode);
-        var tmp = new ArrayList<TabData>(tabs.size());
-        for (EditorTabComponent tab: tabs) {
-            var td = new TabData();
-            td.setFileName(tab.getFile().getName());
-            td.setTabId(tab.getTabId());
-            td.setFileId(tab.getFileId());
-            td.setSource(tab.getEditor().getCachedClientCode());
-            tmp.add(td);
-        }
-        res.setTabs(tmp);
-        return res;
-    }
 
     private List<Source> prepareRendererRequest(TranslationResult translated) {
         return translated.getTabs().stream().map(td -> {
@@ -62,7 +43,7 @@ public class RenderSource {
         }
         else {
             long startTime = System.nanoTime();
-            final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, darkMode, tabs));
+            final var translated = translator.translate(tabId, repositoryId, level, darkMode, tabs);
             Communication.getBus().post(new DeclarationsParsedEvent(translated.getDeclarations()));
             final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
             final var filesWithErrors = new HashSet<UUID>();

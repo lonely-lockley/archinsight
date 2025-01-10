@@ -6,9 +6,12 @@ import com.github.lonelylockley.archinsight.model.remote.translator.DeclarationC
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.google.common.collect.Ordering;
 import com.google.common.eventbus.Subscribe;
+import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -42,6 +45,7 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
         setClassName("prevent-select");
         setSelectionMode(SelectionMode.SINGLE);
         initContextMenu(readOnly);
+        setAllRowsVisible(true);
         addComponentHierarchyColumn(node -> {
             var tt = new VerticalLayout();
             tt.setPadding(false);
@@ -82,12 +86,14 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
                     uniqueMappingsById.clear();
                     uniqueMappingsByFile.clear();
                     getTreeData().clear();
+                    final var roots = new ArrayList<DeclarationWithParent>(e.getDeclarations().size());
                     for (DeclarationContext dc : e.getDeclarations()) {
                         var tmp = new Declaration();
                         tmp.setName(String.format("%s %s", dc.getLevel().toLowerCase(), dc.getDeclaredId()));
                         tmp.setDeclaredId(dc.getLocation());
                         tmp.setElementType(dc.getLevel());
                         var root = new DeclarationWithParent(dc, tmp);
+                        roots.add(root);
                         uniqueMappingsByFile.put(dc.getFileId(), root);
                         getTreeData().addItem(null, root);
                         for (Declaration decl : dc.getDeclarations()) {
@@ -97,7 +103,7 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
                         }
                     }
                     getDataProvider().refreshAll();
-                    expandRecursively(Collections.singletonList(null), 1);
+                    expand(roots);
                 }
             }
         };

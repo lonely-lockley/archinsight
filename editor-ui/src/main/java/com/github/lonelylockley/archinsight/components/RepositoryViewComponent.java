@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.components.dialogs.ConfirmDialog;
 import com.github.lonelylockley.archinsight.components.dialogs.ResultReturningDialog;
 import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
@@ -72,6 +73,8 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
         switchListener.setRepositorySelectionCallback(e -> {
             var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
+            var tr = remoteSource.translator.translate(null, e.getNewValue().getId(), ArchLevel.CONTEXT, false, Collections.EMPTY_LIST);
+            Communication.getBus().post(new DeclarationsParsedEvent(tr.getDeclarations()));
             var fs = new FileSystem(activeRepositoryStructure);
             fileSystem = fs;
             getTreeData().clear();
