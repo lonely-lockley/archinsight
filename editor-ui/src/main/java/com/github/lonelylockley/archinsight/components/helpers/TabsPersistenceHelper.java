@@ -79,22 +79,6 @@ public class TabsPersistenceHelper {
         });
     }
 
-    /**
-     * @Deprectated migrate old clients from single file to tabs. remove after 01.02.2024
-     */
-    @Deprecated
-    public void restoreOpenedFileLegacy() {
-        var key = Authentication.playgroundModeEnabled() ? "org.archinsight.playground.file" : "org.archinsight.editor.file";
-        self.executeJs("return (localStorage.getItem($0) || '')", key).then(String.class, fileId -> {
-            if (fileId != null && !fileId.isBlank()) {
-                Communication.getBus().post(new FileRestoreEvent(UUID.fromString(fileId)));
-            }
-            self.executeJs("localStorage.removeItem($0)", key);
-            self.executeJs("localStorage.removeItem('org.archinsight.playground.sourcecode')");
-            self.executeJs("localStorage.removeItem('org.archinsight.editor.sourcecode')");
-        });
-    }
-
     public static class StoredTab implements Serializable {
         private String name;
         private String fid;

@@ -13,6 +13,7 @@ import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.tabs.TabSheet;
+import org.apache.directory.api.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -152,7 +153,6 @@ public class TabsComponent extends TabSheet {
                     if (tab != null) {
                         tab.getEditor().getElement().executeJs("""
                             var selection = this.editor.getSelection();
-                            console.log(selection);
                             var op = {range: selection, text: $0, forceMoveMarkers: true};
                             this.editor.executeEdits('', [op]);
                             """, e.getCodeToInsert()
@@ -190,7 +190,9 @@ public class TabsComponent extends TabSheet {
         });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
-            restoredTabsRenderCountdownLatch.incrementAndGet();
+            if (Strings.isNotEmpty(restored.getCode())) {
+                restoredTabsRenderCountdownLatch.incrementAndGet();
+            }
             if (restored.getFid() != null) {
                 // restore file
                 Communication.getBus().post(new FileRestoreEvent(UUID.fromString(restored.getFid()), Optional.ofNullable(restored.getCode())));
@@ -203,7 +205,6 @@ public class TabsComponent extends TabSheet {
                 Communication.getBus().post(new FileOpenRequestEvent(file, Optional.ofNullable(restored.getCode())));
             }
         });
-        clientStorage.restoreOpenedFileLegacy();
     }
 
     private int nonNull(Integer value) {

@@ -59,8 +59,8 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
             ["WARNING", monaco.MarkerSeverity.Warning],
             ["NOTICE", monaco.MarkerSeverity.Info]
         ]);
-        var model = editor.getModel()!;
-        var errors: any[] = [];
+        let model = editor.getModel()!;
+        let errors: any[] = [];
         (JSON.parse(linkerErrors) as LinkerMessage[]).forEach(lm => {
             var severity = monaco.MarkerSeverity.Error;
             errors.push({
@@ -80,7 +80,7 @@ function initializeEditor(anchorId: string, remoteId: string, tab: string, local
     }
 
     (editor as any).resetModelMarkers = () => {
-        var model = editor.getModel()!;
+        let model = editor.getModel()!;
         monaco.editor.setModelMarkers(model, languageID, []);
     }
 
