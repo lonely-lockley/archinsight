@@ -12,9 +12,17 @@ public class StructureExplorerComponent extends VerticalLayout {
     public StructureExplorerComponent(final StructureViewComponent treeView) {
         final var providerWithFilterSupport = (TreeDataProvider<StructureViewComponent.DeclarationWithParent>) treeView.getDataProvider();
         final var filter = new TextField();
-        filter.getStyle().setMarginLeft("3%").setWidth("94%").setMarginTop("10px").setMarginBottom("10px");
+        filter.getStyle()
+                .setMarginLeft("3%")
+                .setWidth("94%")
+                .setMarginTop("10px")
+                .setMarginBottom("10px");
         filter.setClearButtonVisible(true);
-        filter.setPrefixComponent(VaadinIcon.FILTER.create());
+        final var filterIcon = VaadinIcon.FILTER.create();
+        filterIcon.getStyle()
+                .set("color", "var(--lumo-body-text-color)")
+                .set("fill", "var(--lumo-body-text-color)");
+        filter.setPrefixComponent(filterIcon);
         filter.setValueChangeMode(ValueChangeMode.LAZY);
         filter.addValueChangeListener(e -> {
             if (StringUtils.isBlank(e.getValue())) {

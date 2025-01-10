@@ -1,8 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
-import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.TabSheet;
 
 public class NavigationPanelComponent extends TabSheet {

@@ -6,12 +6,9 @@ import com.github.lonelylockley.archinsight.model.remote.translator.DeclarationC
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.google.common.collect.Ordering;
 import com.google.common.eventbus.Subscribe;
-import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
-import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.html.Label;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;

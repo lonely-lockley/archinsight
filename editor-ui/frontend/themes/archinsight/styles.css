@@ -40,7 +40,11 @@ vaadin-menu-bar-button {
         --lumo-contrast-5pct: #232323;
         --lumo-contrast-10pct: #3a3a3a;
         --lumo-contrast-20pct: #3a3a3a;
-        --vaadin-grid-cell-background: var(--lumo-contrast-5pct)
+        --lumo-contrast-50pct: #dddddd;
+        --lumo-contrast-60pct: #dddddd;
+        --lumo-contrast-80pct: hsla(0, 0%, 87%, 0.65);
+        --lumo-contrast-90pct: hsla(0, 100%, 50%, 0.65);
+        --vaadin-grid-cell-background: var(--lumo-contrast-5pct);
     }
 
     vaadin-menu-bar-button {
