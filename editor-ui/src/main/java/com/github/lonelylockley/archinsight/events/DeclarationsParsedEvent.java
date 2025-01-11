@@ -1,17 +1,21 @@
 package com.github.lonelylockley.archinsight.events;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.Declaration;
 import com.github.lonelylockley.archinsight.model.remote.translator.DeclarationContext;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class DeclarationsParsedEvent extends BaseEvent {
 
-    private List<DeclarationContext> declarations = new ArrayList<>();
+    private boolean success = false;
+    private List<DeclarationContext> declarations = null;
 
-    public DeclarationsParsedEvent(List<DeclarationContext> declarations) {
+    public DeclarationsParsedEvent(boolean success, List<DeclarationContext> declarations) {
+        this.success = success;
         this.declarations = declarations;
+    }
+
+    public boolean isSuccess() {
+        return success;
     }
 
     public List<DeclarationContext> getDeclarations() {

@@ -10,7 +10,7 @@ const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
 
 function renderCode(container: HTMLElement, tab: string, value: string, uri: monaco.Uri) {
     const errors = monaco.editor.getModelMarkers({ resource: uri })?.length;
-    if (!errors && value && value.length > 0) {
+    if (!errors) {
         renderClient.remoteRender(container, tab, value, prefersDarkScheme.matches);
     }
     else {

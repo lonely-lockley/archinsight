@@ -74,7 +74,6 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         switchListener.setRepositorySelectionCallback(e -> {
             var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
             var tr = remoteSource.translator.translate(null, e.getNewValue().getId(), ArchLevel.CONTEXT, false, Collections.EMPTY_LIST);
-            Communication.getBus().post(new DeclarationsParsedEvent(tr.getDeclarations()));
             var fs = new FileSystem(activeRepositoryStructure);
             fileSystem = fs;
             getTreeData().clear();

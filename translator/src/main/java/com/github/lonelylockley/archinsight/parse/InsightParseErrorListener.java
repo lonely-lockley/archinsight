@@ -34,7 +34,7 @@ public class InsightParseErrorListener implements ANTLRErrorListener {
                 origin.getLocation(),
                 String.format("line %d:%d %s", line, charPositionInLine, msg)
         );
-        TranslationUtil.copyPosition(lm, line, charPositionInLine, 0, 0);
+        TranslationUtil.copyPosition(lm, line, charPositionInLine, e.getOffendingToken().getStartIndex(), e.getOffendingToken().getStopIndex());
         ctx.addMessage(lm);
     }
 

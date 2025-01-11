@@ -50,7 +50,6 @@ public class ExportSource {
 
     private TranslationResult translateInternal(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs) {
         final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, tabs));
-        Communication.getBus().post(new DeclarationsParsedEvent(translated.getDeclarations()));
         final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
         final var filesWithErrors = new HashSet<UUID>();
         final var messagesByFile = messages

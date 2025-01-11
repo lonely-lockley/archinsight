@@ -80,27 +80,29 @@ public class StructureViewComponent extends TreeGrid<StructureViewComponent.Decl
             @Subscribe
             public void receive(DeclarationsParsedEvent e) {
                 if (eventWasProducedForCurrentUiId(e)) {
-                    uniqueMappingsById.clear();
-                    uniqueMappingsByFile.clear();
-                    getTreeData().clear();
-                    final var roots = new ArrayList<DeclarationWithParent>(e.getDeclarations().size());
-                    for (DeclarationContext dc : e.getDeclarations()) {
-                        var tmp = new Declaration();
-                        tmp.setName(String.format("%s %s", dc.getLevel().toLowerCase(), dc.getDeclaredId()));
-                        tmp.setDeclaredId(dc.getLocation());
-                        tmp.setElementType(dc.getLevel());
-                        var root = new DeclarationWithParent(dc, tmp);
-                        roots.add(root);
-                        uniqueMappingsByFile.put(dc.getFileId(), root);
-                        getTreeData().addItem(null, root);
-                        for (Declaration decl : dc.getDeclarations()) {
-                            var dwp = new DeclarationWithParent(dc, decl);
-                            uniqueMappingsById.put(decl.getId().toString(), dwp);
-                            getTreeData().addItem(root, dwp);
+                    if (e.isSuccess() || !(e.isSuccess() && e.getDeclarations().isEmpty())) {
+                        uniqueMappingsById.clear();
+                        uniqueMappingsByFile.clear();
+                        getTreeData().clear();
+                        final var roots = new ArrayList<DeclarationWithParent>(e.getDeclarations().size());
+                        for (DeclarationContext dc : e.getDeclarations()) {
+                            var tmp = new Declaration();
+                            tmp.setName(String.format("%s %s", dc.getLevel().toLowerCase(), dc.getDeclaredId()));
+                            tmp.setDeclaredId(dc.getLocation());
+                            tmp.setElementType(dc.getLevel());
+                            var root = new DeclarationWithParent(dc, tmp);
+                            roots.add(root);
+                            uniqueMappingsByFile.put(dc.getFileId(), root);
+                            getTreeData().addItem(null, root);
+                            for (Declaration decl : dc.getDeclarations()) {
+                                var dwp = new DeclarationWithParent(dc, decl);
+                                uniqueMappingsById.put(decl.getId().toString(), dwp);
+                                getTreeData().addItem(root, dwp);
+                            }
                         }
+                        getDataProvider().refreshAll();
+                        expand(roots);
                     }
-                    getDataProvider().refreshAll();
-                    expand(roots);
                 }
             }
         };

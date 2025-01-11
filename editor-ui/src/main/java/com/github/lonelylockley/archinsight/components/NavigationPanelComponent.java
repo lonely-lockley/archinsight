@@ -41,7 +41,7 @@ public class NavigationPanelComponent extends TabSheet {
         layout.setHeightFull();
         layout.getStyle().setMarginTop("-6px");
         var treeView = new StructureViewComponent(readOnly);
-        layout.add(new StructureExplorerComponent(treeView));
+        layout.add(new StructureFilterComponent(treeView));
         return layout;
     }
 

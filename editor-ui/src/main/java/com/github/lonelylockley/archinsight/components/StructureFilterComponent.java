@@ -7,9 +7,9 @@ import com.vaadin.flow.data.provider.hierarchy.TreeDataProvider;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import org.apache.commons.lang3.StringUtils;
 
-public class StructureExplorerComponent extends VerticalLayout {
+public class StructureFilterComponent extends VerticalLayout {
 
-    public StructureExplorerComponent(final StructureViewComponent treeView) {
+    public StructureFilterComponent(final StructureViewComponent treeView) {
         final var providerWithFilterSupport = (TreeDataProvider<StructureViewComponent.DeclarationWithParent>) treeView.getDataProvider();
         final var filter = new TextField();
         filter.getStyle()

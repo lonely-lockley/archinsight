@@ -2,6 +2,8 @@ package com.github.lonelylockley.archinsight.remote;
 
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.components.EditorTabComponent;
+import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.DeclarationsParsedEvent;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TabData;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
@@ -45,8 +47,9 @@ public class TranslatorSource {
 
     public TranslationResult translate(String tabId, UUID repositoryId, ArchLevel level, boolean darkMode, Collection<EditorTabComponent> tabs) {
         long startTime = System.nanoTime();
-        var result = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, darkMode, tabs));
+        var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, darkMode, tabs));
         logger.info("Translation for {} required {}ms", tabId == null ? "repository " + repositoryId : tabId, (System.nanoTime() - startTime) / 1000000);
-        return result;
+        Communication.getBus().post(new DeclarationsParsedEvent(!translated.isHasErrors(), translated.getDeclarations()));
+        return translated;
     }
 }
