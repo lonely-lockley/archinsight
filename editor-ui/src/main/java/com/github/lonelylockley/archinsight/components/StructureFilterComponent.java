@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.components;
 
+import com.github.lonelylockley.archinsight.model.remote.translator.Symbol;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
@@ -10,7 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 public class StructureFilterComponent extends VerticalLayout {
 
     public StructureFilterComponent(final StructureViewComponent treeView) {
-        final var providerWithFilterSupport = (TreeDataProvider<StructureViewComponent.DeclarationWithParent>) treeView.getDataProvider();
+        final var providerWithFilterSupport = (TreeDataProvider<Symbol>) treeView.getDataProvider();
         final var filter = new TextField();
         filter.getStyle()
                 .setMarginLeft("3%")
@@ -30,9 +31,9 @@ public class StructureFilterComponent extends VerticalLayout {
             }
             else {
                 providerWithFilterSupport.setFilter(item ->
-                        StringUtils.containsIgnoreCase(item.getDeclaration().getDeclaredId(), e.getValue()) ||
-                        StringUtils.containsIgnoreCase(item.getDeclaration().getName(), e.getValue() ) ||
-                        StringUtils.containsIgnoreCase(item.getDeclaration().getElementType(), e.getValue())
+                        StringUtils.containsIgnoreCase(item.getDeclaredId(), e.getValue()) ||
+                        StringUtils.containsIgnoreCase(item.getName(), e.getValue() ) ||
+                        StringUtils.containsIgnoreCase(item.getElementType(), e.getValue())
                 );
             }
             treeView.expandRecursively(treeView.getTreeData().getRootItems(), 256);

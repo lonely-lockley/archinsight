@@ -3,9 +3,8 @@ package com.github.lonelylockley.archinsight;
 import com.github.lonelylockley.archinsight.export.ColorScheme;
 import com.github.lonelylockley.archinsight.export.Exporter;
 import com.github.lonelylockley.archinsight.introspect.Introspection;
+import com.github.lonelylockley.archinsight.link.SymbolCollector;
 import com.github.lonelylockley.archinsight.model.*;
-import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
-import com.github.lonelylockley.archinsight.model.elements.WithExternal;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
 import com.github.lonelylockley.archinsight.model.remote.translator.*;
 import com.github.lonelylockley.archinsight.link.Linker;
@@ -55,15 +54,16 @@ public class TranslatorService {
     @ExecuteOn(TaskExecutors.BLOCKING)
     @Measured
     public TranslationResult translate(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @Body TranslationRequest data) throws Exception {
-        var ctx = new TranslationContext();
-        var fsFuture = CompletableFuture
+        final var ctx = new TranslationContext();
+        final var fsFuture = CompletableFuture
                 .supplyAsync(() -> repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()))
                 .thenApply(FileSystem::new);
-        var allFilesFuture = CompletableFuture
+        final var allFilesFuture = CompletableFuture
                 .supplyAsync(() -> repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()))
                 .thenApply(files -> mergeSources(data, files));
         // parse the whole repository
-        new Parser(ctx).parseRepository(ctx, fsFuture.get(), allFilesFuture.get());
+        final var fs = fsFuture.join();
+        new Parser(ctx).parseRepository(ctx, fs, allFilesFuture.join());
         // check integrity
         if (ctx.noErrors()) {
             new Linker(ctx).checkIntegrity();
@@ -78,7 +78,7 @@ public class TranslatorService {
         else {
             result.setHasErrors(true);
         }
-        result.setDeclarations(extractDeclarations(ctx));
+        result.setSymbols(new SymbolCollector(fs, ctx).collect());
         result.setMessages(ctx.getMessages());
         return result;
     }
@@ -106,43 +106,6 @@ public class TranslatorService {
         res.addAll(files.values());
         res.addAll(tabs);
         return res;
-    }
-
-    private List<DeclarationContext> extractDeclarations(TranslationContext ctx) {
-        var result = new HashMap<Origin, DeclarationContext>();
-        for (AbstractElement ae : ctx.getGlobalDeclarations()) {
-            var dc = result.computeIfAbsent(ae.getOrigin(), origin -> {
-                final var tmp = new DeclarationContext();
-                tmp.setFileId(ae.getOrigin().getFileId());
-                tmp.setTabId(ae.getOrigin().getTabId());
-                tmp.setLocation(ae.getOrigin().getLocation());
-                tmp.setLevel(ArchLevel.CONTEXT.name().toLowerCase());
-                ae.hasId().foreach(withId -> tmp.setDeclaredId(withId.getDeclaredId().getBoundedContext()));
-                return tmp;
-            });
-            if (ae.getType() == SYSTEM || ae.getType() == ACTOR || ae.getType() == SERVICE || ae.getType() == STORAGE) {
-                var decl = new Declaration();
-                decl.setId(ae.getUniqueId());
-                ae.hasId().foreach(withId -> decl.setDeclaredId(withId.getDeclaredId().getElementId()));
-                ae.hasParameters().foreach(withParameters -> decl.setName(withParameters.getName()));
-                ae.hasParameters().foreach(withParameters -> {
-                    if (withParameters.getName() != null) {
-                        decl.setName(withParameters.getName());
-                    }
-                    else {
-                        decl.setName(withParameters.getTechnology());
-                    }
-                });
-                decl.setExternal(ae.hasExternal().fold(WithExternal::isExternal, () -> false));
-                decl.setElementType(ae.getType().getId());
-                decl.setLine(ae.getLine());
-                decl.setCharPosition(ae.getCharPosition());
-                decl.setStartIndex(ae.getStartIndex());
-                decl.setStopIndex(ae.getStopIndex());
-                dc.getDeclarations().add(decl);
-            }
-        }
-        return new ArrayList<>(result.values());
     }
 
 }

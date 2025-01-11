@@ -1,16 +1,16 @@
 package com.github.lonelylockley.archinsight.events;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.Declaration;
+import com.github.lonelylockley.archinsight.model.remote.translator.Symbol;
 
 public class GotoSourceEvent extends BaseEvent {
 
-    private final Declaration declaration;
+    private final Symbol symbol;
 
-    public GotoSourceEvent(Declaration declaration) {
-        this.declaration = declaration;
+    public GotoSourceEvent(Symbol declaration) {
+        this.symbol = declaration;
     }
 
-    public Declaration getDeclaration() {
-        return declaration;
+    public Symbol getSymbol() {
+        return symbol;
     }
 }

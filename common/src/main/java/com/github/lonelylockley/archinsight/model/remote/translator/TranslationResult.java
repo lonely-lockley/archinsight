@@ -7,7 +7,7 @@ import java.util.Set;
 public class TranslationResult extends TranslationRequest {
 
     private Set<TranslatorMessage> messages = Collections.emptySet();
-    private List<DeclarationContext> declarations = Collections.emptyList();
+    private List<Symbol> symbols = Collections.emptyList();
     private boolean hasErrors = false;
     private TabData edited;
 
@@ -35,11 +35,11 @@ public class TranslationResult extends TranslationRequest {
         this.edited = edited;
     }
 
-    public List<DeclarationContext> getDeclarations() {
-        return declarations;
+    public List<Symbol> getSymbols() {
+        return symbols;
     }
 
-    public void setDeclarations(List<DeclarationContext> declarations) {
-        this.declarations = declarations;
+    public void setSymbols(List<Symbol> symbols) {
+        this.symbols = symbols;
     }
 }

@@ -49,7 +49,7 @@ public class TranslatorSource {
         long startTime = System.nanoTime();
         var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, darkMode, tabs));
         logger.info("Translation for {} required {}ms", tabId == null ? "repository " + repositoryId : tabId, (System.nanoTime() - startTime) / 1000000);
-        Communication.getBus().post(new DeclarationsParsedEvent(!translated.isHasErrors(), translated.getDeclarations()));
+        Communication.getBus().post(new DeclarationsParsedEvent(!translated.isHasErrors(), translated.getSymbols()));
         return translated;
     }
 }

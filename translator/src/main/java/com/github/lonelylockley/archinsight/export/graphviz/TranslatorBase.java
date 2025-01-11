@@ -108,7 +108,7 @@ public abstract class TranslatorBase {
         sb.append("}");
     }
 
-    protected void writeBlock(StringBuilder sb, UUID uniqueId, String declaredId, String name, String tech, String desc, int level, Map<String, String> properties) {
+    protected void writeBlock(StringBuilder sb, String uniqueId, String declaredId, String name, String tech, String desc, int level, Map<String, String> properties) {
         String indent = "  ".repeat(level);
         sb.append(indent);
         sb.append(declaredId);

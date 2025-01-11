@@ -1,26 +1,36 @@
 package com.github.lonelylockley.archinsight.model.remote.translator;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public class Declaration {
+public class Symbol {
 
-    private UUID id;
-    private String declaredId;
+    private String id; // global id
+    private String declaredId; // local id declared in source
     private String elementType;
-    private String name;
     private Boolean external;
+    private String name;
+    private String technology;
+
+    private String fileName;
+    private UUID fileId;
+    private String location;
+    private String tabId;
 
     private int charPosition = 0;
     private int startIndex = 0;
     private int stopIndex = 0;
     private int line = 0;
 
-    public UUID getId() {
+    private List<Symbol> children = new ArrayList<>();
+
+    public String getId() {
         return id;
     }
 
-    public void setId(UUID id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -88,30 +98,85 @@ public class Declaration {
         this.line = line;
     }
 
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public UUID getFileId() {
+        return fileId;
+    }
+
+    public void setFileId(UUID fileId) {
+        this.fileId = fileId;
+    }
+
+    public String getTabId() {
+        return tabId;
+    }
+
+    public void setTabId(String tabId) {
+        this.tabId = tabId;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
+    public List<Symbol> getChildren() {
+        return children;
+    }
+
+    public void setChildren(List<Symbol> children) {
+        this.children = children;
+    }
+
+    public String getTechnology() {
+        return technology;
+    }
+
+    public void setTechnology(String technology) {
+        this.technology = technology;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Declaration that = (Declaration) o;
-        return Objects.equals(declaredId, that.declaredId);
+        Symbol that = (Symbol) o;
+        return Objects.equals(id, that.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(declaredId);
+        return Objects.hashCode(id);
     }
 
     @Override
     public String toString() {
-        return "Declaration{" +
-                "declaredId='" + declaredId + '\'' +
+        return "Symbol{" +
+                "id='" + id + '\'' +
+                ", declaredId='" + declaredId + '\'' +
                 ", elementType='" + elementType + '\'' +
                 ", name='" + name + '\'' +
+                ", technology='" + technology + '\'' +
                 ", external=" + external +
+                ", fileName='" + fileName + '\'' +
+                ", fileId=" + fileId +
+                ", location='" + location + '\'' +
+                ", tabId='" + tabId + '\'' +
                 ", charPosition=" + charPosition +
                 ", startIndex=" + startIndex +
                 ", stopIndex=" + stopIndex +
                 ", line=" + line +
+                ", children=" + children +
                 '}';
     }
 }

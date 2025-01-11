@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -43,7 +44,7 @@ public class Introspection {
             declarations
                     .forEach((key, el) -> {
                         if (el.getType() != ElementType.EMPTY) {
-                            var tm = TranslationUtil.newNotice(el, String.format("Element %s has no connections with other elements", key.getElementId()));
+                            var tm = TranslationUtil.newNotice(el, String.format("%s %s has no connections with other elements", StringUtils.capitalize(el.getType().toString().toLowerCase()), key.getElementId()));
                             TranslationUtil.copyPosition(tm, el.getLine(), el.getCharPosition(), el.getStartIndex(), el.getStopIndex());
                             ctx.addMessage(tm);
                         }
@@ -83,7 +84,7 @@ public class Introspection {
                     }
                     else
                     if (res.size() > 2) {
-                        throw new IllegalArgumentException("Levels beyond context and containers are not supported");
+                        throw new IllegalArgumentException("Levels beyond context and containers are not supported currently");
                     }
                 });
     }

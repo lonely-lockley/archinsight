@@ -53,7 +53,7 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeSystemElement(SystemElement se, StringBuilder sb, int level) {
         if (se.isExternal()) {
-            writeBlock(sb, se.getUniqueId(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getDeclaredId().toString(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
@@ -62,7 +62,7 @@ public class GraphvizTranslator extends TranslatorBase {
             );
         }
         else {
-            writeBlock(sb, se.getUniqueId(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getDeclaredId().toString(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
@@ -80,7 +80,7 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeActorElement(ActorElement act, StringBuilder sb, int level) {
-        writeBlock(sb, act.getUniqueId(), act.getDeclaredId().toString(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
+        writeBlock(sb, act.getDeclaredId().toString(), act.getDeclaredId().toString(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
                 act.getType(),
                 act.getAnnotations(),
                 new Tuple2<>("shape", "box"),
@@ -94,7 +94,7 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeStorageElement(StorageElement stor, StringBuilder sb, int level) {
         if (stor.isExternal()) {
-            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getDeclaredId().toString(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
@@ -103,7 +103,7 @@ public class GraphvizTranslator extends TranslatorBase {
             );
         }
         else {
-            writeBlock(sb, stor.getUniqueId(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getDeclaredId().toString(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),

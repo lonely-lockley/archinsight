@@ -170,7 +170,7 @@ public class TabsComponent extends TabSheet {
                 if (eventWasProducedForCurrentUiId(e)) {
                     var tab = getSelectedTab();
                     if (tab != null) {
-                        tab.getEditor().putCursorInPosition(e.getDeclaration().getLine(), e.getDeclaration().getStartIndex());
+                        tab.getEditor().putCursorInPosition(e.getSymbol().getLine(), e.getSymbol().getStartIndex());
                     }
                 }
             }

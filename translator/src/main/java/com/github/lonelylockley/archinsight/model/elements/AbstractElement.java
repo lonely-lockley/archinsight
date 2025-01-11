@@ -8,12 +8,6 @@ import java.util.UUID;
 
 public abstract class AbstractElement extends WithSource implements HasType, Cloneable {
 
-    private final UUID uniqueId = UUID.randomUUID();
-
-    public UUID getUniqueId() {
-        return uniqueId;
-    }
-
     @Override
     public AbstractElement clone() {
         return this;

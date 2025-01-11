@@ -1,24 +1,24 @@
 package com.github.lonelylockley.archinsight.events;
 
-import com.github.lonelylockley.archinsight.model.remote.translator.DeclarationContext;
+import com.github.lonelylockley.archinsight.model.remote.translator.Symbol;
 
 import java.util.List;
 
 public class DeclarationsParsedEvent extends BaseEvent {
 
     private boolean success = false;
-    private List<DeclarationContext> declarations = null;
+    private List<Symbol> symbols = null;
 
-    public DeclarationsParsedEvent(boolean success, List<DeclarationContext> declarations) {
+    public DeclarationsParsedEvent(boolean success, List<Symbol> declarations) {
         this.success = success;
-        this.declarations = declarations;
+        this.symbols = declarations;
     }
 
     public boolean isSuccess() {
         return success;
     }
 
-    public List<DeclarationContext> getDeclarations() {
-        return declarations;
+    public List<Symbol> getSymbols() {
+        return symbols;
     }
 }
