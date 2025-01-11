@@ -296,10 +296,12 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
 
     private void insertFullImport(Symbol selection) {
         var root = getTreeData().getParent(selection);
-        if (!"CONTEXT".equals(root.getElementType())) {
-            root = getTreeData().getParent(root);
+        if ("SYSTEM".equals(selection.getElementType())) {
+            Communication.getBus().post(new EditorInsertEvent(String.format("import %s from context %s", selection.getDeclaredId(), root.getDeclaredId())));
         }
-        Communication.getBus().post(new EditorInsertEvent(String.format("import %s from context %s", selection.getDeclaredId(), root.getDeclaredId())));
+        else {
+            Communication.getBus().post(new EditorInsertEvent(String.format("%s from %s", selection.getDeclaredId(), root.getDeclaredId())));
+        }
     }
 
 }

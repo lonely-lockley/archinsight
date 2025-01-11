@@ -15,8 +15,6 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
 
     private DynamicId declaredId = null;
     private String name = null;
-    private String desc = null;
-    private String tech = null;
 
     @Override
     public void addChild(AbstractElement child) {
@@ -49,26 +47,6 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
     }
 
     @Override
-    public void setDescription(String description) {
-        this.desc = description;
-    }
-
-    @Override
-    public String getDescription() {
-        return desc;
-    }
-
-    @Override
-    public void setTechnology(String tech) {
-        this.tech = tech;
-    }
-
-    @Override
-    public String getTechnology() {
-        return tech;
-    }
-
-    @Override
     public ElementType<BoundaryElement> getType() {
         return ElementType.BOUNDARY;
     }
@@ -78,8 +56,6 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
         var res = new BoundaryElement();
         res.declaredId = this.declaredId.clone();
         res.name = this.name;
-        res.desc = this.desc;
-        res.tech = this.tech;
         this.imports.forEach(imp -> res.imports.add(imp.clone()));
         this.children.forEach(child -> res.children.add(child.clone()));
         clonePositionTo(res);
@@ -91,8 +67,6 @@ public class BoundaryElement extends AbstractElement implements WithId, WithChil
         return "BoundaryElement{" +
                 "declaredId='" + declaredId + '\'' +
                 ", name='" + name + '\'' +
-                ", desc='" + desc + '\'' +
-                ", tech='" + tech + '\'' +
                 "', imports=[\n" + imports.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 ", children=[\n" + children.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 "]}";

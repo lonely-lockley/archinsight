@@ -34,11 +34,11 @@ public abstract class TranslatorBase {
         }
     }
 
-    private void writeLabelRow(StringBuilder sb, String text, boolean bold, boolean bracketed) {
-        writeLabelRow(sb, text, null, bold, bracketed);
+    private void writeLabelRow(StringBuilder sb, String text, boolean bold, String openBracket, String closeBracket) {
+        writeLabelRow(sb, text, null, bold, openBracket, closeBracket);
     }
 
-    private void writeLabelRow(StringBuilder sb, String text, String fontStyle, boolean bold, boolean bracketed) {
+    private void writeLabelRow(StringBuilder sb, String text, String fontStyle, boolean bold, String openBracket, String closeBracket) {
         if (text != null) {
             sb.append("<tr><td>");
             if (bold) {
@@ -49,12 +49,14 @@ public abstract class TranslatorBase {
                 sb.append(fontStyle);
                 sb.append(">");
             }
-            if (bracketed) {
-                sb.append("[ ");
+            if (openBracket != null) {
+                sb.append(openBracket);
+                sb.append(" ");
             }
             sb.append(multilineEscape(wrapTextIfNotFormatted(text)));
-            if (bracketed) {
-                sb.append(" ]");
+            if (closeBracket != null) {
+                sb.append(" ");
+                sb.append(closeBracket);
             }
             if (fontStyle != null) {
                 sb.append("</font>");
@@ -116,9 +118,9 @@ public abstract class TranslatorBase {
         }
         sb.append("tooltip=\"Alt/Option + Left Mouse Button click - go to declaration\",");
         sb.append("label=<<table border=\"0\">");
-        writeLabelRow(sb, name, true, false);
-        writeLabelRow(sb, tech, "point-size=\"10px\"", false, true);
-        writeLabelRow(sb, desc, "point-size=\"10px\"", false, false);
+        writeLabelRow(sb, name, true, null, null);
+        writeLabelRow(sb, tech, "point-size=\"10px\"", false, "[", "]");
+        writeLabelRow(sb, desc, "point-size=\"10px\"", false, null, null);
         sb.append("</table>>,");
         writeProperties(sb, properties);
         sb.append("]\n");
@@ -131,11 +133,13 @@ public abstract class TranslatorBase {
         sb.append(lm.getTo());
         sb.append(" [");
         writeProperties(sb, properties);
-        if (lm.getName() != null || lm.getDescription() != null || lm.getTechnology() != null) {
+        if (lm.getCall() != null || lm.getVia() != null || lm.getTechnology() != null || lm.getModel() != null || lm.getDescription() != null ) {
             sb.append(",label=<<table border=\"0\">");
-            writeLabelRow(sb, lm.getName(), true, false);
-            writeLabelRow(sb, lm.getTechnology(), false, true);
-            writeLabelRow(sb, lm.getDescription(), false, false);
+            writeLabelRow(sb, lm.getCall(), true, null, null);
+            writeLabelRow(sb, lm.getVia(), true, null, null);
+            writeLabelRow(sb, lm.getTechnology(), false, "[", "]");
+            writeLabelRow(sb, lm.getModel(), false, "{", "}");
+            writeLabelRow(sb, lm.getDescription(), false, null, null);
             sb.append("</table>>");
         }
         sb.append("]\n");
@@ -150,9 +154,7 @@ public abstract class TranslatorBase {
         sb.append(indent);
         if (be.getName() != null || be.getDescription() != null || be.getTechnology() != null) {
             sb.append("  label=<<table border=\"0\">");
-            writeLabelRow(sb, be.getName(), true, false);
-//            writeLabelRow(sb, be.getTechnology(), false, true);
-//            writeLabelRow(sb, be.getDescription(), false, false);
+            writeLabelRow(sb, be.getName(), true, null, null);
             sb.append("</table>>\n");
         }
         else {

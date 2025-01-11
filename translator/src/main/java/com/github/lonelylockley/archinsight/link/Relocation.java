@@ -140,8 +140,6 @@ public interface Relocation {
                     var boundary = new BoundaryElement();
                     boundary.setDeclaredId(sys.getDeclaredId());
                     boundary.setName(sys.getName());
-                    boundary.setTechnology(sys.getTechnology());
-                    boundary.setDescription(sys.getDescription());
                     sys.getChildren().stream().filter(child -> child.getType() != ElementType.LINK).forEach(boundary::addChild);
                     sys.clonePositionTo(boundary);
                     if (boundary.getChildren().isEmpty()) {

@@ -132,6 +132,9 @@ public class  InsightParseTreeListener implements ParseTreeListener {
             case InsightParser.RULE_descriptionParameter:
             case InsightParser.RULE_nameParameter:
             case InsightParser.RULE_technologyParameter:
+            case InsightParser.RULE_modelParameter:
+            case InsightParser.RULE_callParameter:
+            case InsightParser.RULE_viaParameter:
                 ctx.startText();
                 break;
             case InsightParser.RULE_systemDeclaration:
@@ -248,6 +251,42 @@ public class  InsightParseTreeListener implements ParseTreeListener {
                     ));
                 }
                 ctx.getCurrentElementWithParams().setTechnology(ctx.getCurrentText());
+                break;
+            case InsightParser.RULE_modelParameter:
+                if (ctx.getCurrentElementWithParams().getModel() != null) {
+                    // duplicate descriptor warning
+                    var modelParameter = new WithSource() {
+                    };
+                    modelParameter.setSource(origin, (CommonToken) ruleContext.getStart());
+                    ctx.addMessage(TranslationUtil.newWarning(
+                            modelParameter, "Duplicate `model` parameter declared. It will overwrite previous value"
+                    ));
+                }
+                ctx.getCurrentElementWithParams().setModel(ctx.getCurrentText());
+                break;
+            case InsightParser.RULE_callParameter:
+                if (ctx.getCurrentElementWithParams().getCall() != null) {
+                    // duplicate descriptor warning
+                    var callParameter = new WithSource() {
+                    };
+                    callParameter.setSource(origin, (CommonToken) ruleContext.getStart());
+                    ctx.addMessage(TranslationUtil.newWarning(
+                            callParameter, "Duplicate `call` parameter declared. It will overwrite previous value"
+                    ));
+                }
+                ctx.getCurrentElementWithParams().setCall(ctx.getCurrentText());
+                break;
+            case InsightParser.RULE_viaParameter:
+                if (ctx.getCurrentElementWithParams().getVia() != null) {
+                    // duplicate descriptor warning
+                    var viaParameter = new WithSource() {
+                    };
+                    viaParameter.setSource(origin, (CommonToken) ruleContext.getStart());
+                    ctx.addMessage(TranslationUtil.newWarning(
+                            viaParameter, "Duplicate `via` parameter declared. It will overwrite previous value"
+                    ));
+                }
+                ctx.getCurrentElementWithParams().setVia(ctx.getCurrentText());
                 break;
             case InsightParser.RULE_noteStatement:
                 ctx.resetNoteFlag();
