@@ -52,18 +52,24 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
             String secondLineText;
             Icon icon;
             if ("CONTEXT".equals(symbol.getElementType())) {
-                icon = VaadinIcon.LIST.create();
+                icon = VaadinIcon.FILE_CODE.create();
                 firstLineText = String.format("%s %s", symbol.getElementType().toLowerCase(), symbol.getDeclaredId());
                 secondLineText = symbol.getFileName() == null ? "<New File>" : symbol.getLocation();
             }
             else {
                 if ("STORAGE".equals(symbol.getElementType())) {
+                    icon = VaadinIcon.DATABASE.create();
                     firstLineText = symbol.getTechnology();
                 }
-                else {
+                else
+                if ("SYSTEM".equals(symbol.getElementType())) {
+                    icon = VaadinIcon.CLUSTER.create();
                     firstLineText = symbol.getName();
                 }
-                icon = VaadinIcon.CODE.create();
+                else {
+                    icon = VaadinIcon.CODE.create();
+                    firstLineText = symbol.getName();
+                }
                 secondLineText = String.format("%s%s [%s]", symbol.getExternal() ? "external " : "", symbol.getElementType().toLowerCase(), symbol.getDeclaredId());
             }
             final var firstLine = new Span(firstLineText);
@@ -97,7 +103,6 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                             expand(symbol);
                             expand(symbol.getChildren());
                         }
-
                     }
                 }
             }
@@ -242,6 +247,12 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
         final var insertImportFull = menu.addItem(lb, event -> event.getItem().ifPresent(this::insertFullImport));
         // =============================================================================================================
         menu.addGridContextMenuOpenedListener(event -> {
+            if (event.getItem().stream().allMatch(symbol -> "CONTEXT".equals(symbol.getElementType()))) {
+                insertImportFull.setVisible(false);
+            }
+            else {
+                insertImportFull.setVisible(true);
+            }
             if (getTreeData().getRootItems().isEmpty()) {
                 goTo.setEnabled(false);
                 insertId.setEnabled(false);

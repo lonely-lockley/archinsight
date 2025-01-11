@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 
 public class MenuBarComponent extends MenuBar {
 
@@ -200,29 +201,31 @@ public class MenuBarComponent extends MenuBar {
     }
 
     private void exportButtonClicked(String id) {
-        Communication.getBus().post(new DoWithSourceEvent((callerTab, source, tabs) -> {
-            var filename = callerTab.getFile().isNew() ? "export" : callerTab.getFile().getName().substring(0, callerTab.getFile().getName().length() - 3);
-            StreamResource res;
-            switch (id) {
-                case "menu_btn_export_as_png":
-                    final var png = new ByteArrayInputStream(remoteSource.export.exportPng(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
-                    res = new StreamResource("export.png", () -> png);
-                    break;
-                case "menu_btn_export_as_json":
-                    final var json =new ByteArrayInputStream(remoteSource.export.exportJson(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
-                    res = new StreamResource(filename + ".json", () -> json);
-                    break;
-                case "menu_btn_export_as_svg":
-                    final var svg = new ByteArrayInputStream(remoteSource.export.exportSvg(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
-                    res = new StreamResource(filename + ".svg", () -> svg);
-                    break;
-                default:
-                    final var dot = new ByteArrayInputStream(remoteSource.export.exportDot(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs));
-                    res = new StreamResource(filename + ".dot", () -> dot);
-                    break;
-            }
-            startDownload(res);
-        }));
+        withColorModeSupport(darkMode -> {
+            Communication.getBus().post(new DoWithSourceEvent((callerTab, source, tabs) -> {
+                var filename = callerTab.getFile().isNew() ? "export" : callerTab.getFile().getName().substring(0, callerTab.getFile().getName().length() - 3);
+                StreamResource res;
+                switch (id) {
+                    case "menu_btn_export_as_png":
+                        final var png = new ByteArrayInputStream(remoteSource.export.exportPng(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs, darkMode));
+                        res = new StreamResource("export.png", () -> png);
+                        break;
+                    case "menu_btn_export_as_json":
+                        final var json = new ByteArrayInputStream(remoteSource.export.exportJson(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs, darkMode));
+                        res = new StreamResource(filename + ".json", () -> json);
+                        break;
+                    case "menu_btn_export_as_svg":
+                        final var svg = new ByteArrayInputStream(remoteSource.export.exportSvg(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs, darkMode));
+                        res = new StreamResource(filename + ".svg", () -> svg);
+                        break;
+                    default:
+                        final var dot = new ByteArrayInputStream(remoteSource.export.exportDot(callerTab.getTabId(), switchListener.getActiveRepositoryId(), currentLevel, tabs, darkMode));
+                        res = new StreamResource(filename + ".dot", () -> dot);
+                        break;
+                }
+                startDownload(res);
+            }));
+        });
     }
 
     private void fileButtonClicked(String id) {
@@ -268,14 +271,18 @@ public class MenuBarComponent extends MenuBar {
         }));
     }
 
-    private void renderButtonClicked() {
+    private void withColorModeSupport(Consumer<Boolean> continuation) {
         this.getElement()
                 .executeJs("""
                             return window.matchMedia('(prefers-color-scheme: dark)').matches
                         """)
-                .then(darkMode -> {
-                    Communication.getBus().post(new RequestRenderEvent(currentLevel, switchListener.getActiveRepositoryId(), darkMode.asBoolean()));
-                });
+                .then(darkMode -> continuation.accept(darkMode.asBoolean()));
+    }
+
+    private void renderButtonClicked() {
+        withColorModeSupport(darkMode -> {
+            Communication.getBus().post(new RequestRenderEvent(currentLevel, switchListener.getActiveRepositoryId(), darkMode));
+        });
     }
 
     private void downloadButtonClicked() {
