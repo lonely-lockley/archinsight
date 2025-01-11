@@ -217,7 +217,7 @@ public class GraphvizTranslator extends TranslatorBase {
     public String translate(ParseDescriptor descriptor) {
         var root = descriptor.getRoot();
         if (root.getType() == ElementType.EMPTY) {
-            return empty("empty");
+            return empty();
         }
         else {
             var res = new StringBuilder();
@@ -227,5 +227,12 @@ public class GraphvizTranslator extends TranslatorBase {
             finish(res);
             return res.toString();
         }
+    }
+
+    public String empty() {
+        var res = new StringBuilder();
+        writeHeader(res, "empty");
+        finish(res);
+        return res.toString();
     }
 }

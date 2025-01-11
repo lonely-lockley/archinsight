@@ -27,7 +27,7 @@ public class Exporter {
         for (TabData tab : result.getTabs()) {
             var tr = new GraphvizTranslator(colorScheme);
             var desc = tabToDescriptor.get(tab.getTabId());
-            tab.setSource(desc == null ? GraphvizTranslator.empty("empty") : tr.translate(desc));
+            tab.setSource(desc == null ? tr.empty() : tr.translate(desc));
             if (Objects.equals(tab.getTabId(), data.getTabId())) {
                 result.setEdited(tab);
             }

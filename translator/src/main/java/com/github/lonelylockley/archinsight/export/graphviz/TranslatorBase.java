@@ -16,10 +16,6 @@ public abstract class TranslatorBase {
         this.colorScheme = colorScheme;
     }
 
-    public static final String empty(String project) {
-        return "digraph \"" + project + "\" {}";
-    }
-
     protected String multilineEscape(String source) {
         if (source == null || source.isEmpty()) {
             return " ";
