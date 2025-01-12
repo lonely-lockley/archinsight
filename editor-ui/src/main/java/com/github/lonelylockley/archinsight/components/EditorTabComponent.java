@@ -122,6 +122,10 @@ public class EditorTabComponent extends Tab {
         return file.isNew();
     }
 
+    public String getName() {
+        return file.getName();
+    }
+
     public void updateFile(RepositoryNode file) {
         this.file = file;
         label.setText(file.getName());

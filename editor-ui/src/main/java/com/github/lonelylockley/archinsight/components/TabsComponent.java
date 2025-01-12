@@ -90,6 +90,7 @@ public class TabsComponent extends TabSheet {
                         e.getUIContext().access(() -> {
                             Optional.ofNullable(files.get(e.getUpdatedFile().getId())).ifPresent(tab -> {
                                 tab.updateFile(e.getUpdatedFile());
+                                Communication.getBus().post(new TabUpdateEvent(tab.getTabId(), tab.getFileId(), tab.getName()));
                             });
                         });
                     }
@@ -127,6 +128,7 @@ public class TabsComponent extends TabSheet {
                                 if (tab.isNew()) {
                                     tab.updateFile(e.getFile());
                                     files.put(e.getFile().getId(), tab);
+                                    Communication.getBus().post(new TabUpdateEvent(tab.getTabId(), tab.getFileId(), tab.getName()));
                                 }
                                 tab.saveSource();
                             });
@@ -233,6 +235,7 @@ public class TabsComponent extends TabSheet {
             }
             setSelectedTab(editorTab);
             clientStorage.storeTab(editorTab, source);
+            Communication.getBus().post(new TabOpenEvent(editorTab.getTabId(), file.getId(), editorTab.getName()));
         }
     }
 
@@ -250,6 +253,7 @@ public class TabsComponent extends TabSheet {
                 files.remove(tab.getFileId());
             }
             clientStorage.removeTab(tab);
+            Communication.getBus().post(new TabCloseEvent(tab.getTabId()));
         });
     }
 

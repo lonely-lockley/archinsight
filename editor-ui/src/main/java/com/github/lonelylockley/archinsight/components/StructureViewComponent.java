@@ -85,8 +85,8 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                                 else {
                                     symbol.setLocation(e.getUpdatedFile().getName());
                                 }
+                                getDataProvider().refreshItem(symbol);
                             }
-                            getDataProvider().refreshAll();
                         });
                     }
                 },
@@ -100,6 +100,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                                 for (UUID fileId : e.getDeletedObjects()) {
                                     if (uniqueMappingsByFile.containsKey(fileId)) {
                                         var root = uniqueMappingsByFile.remove(fileId);
+                                        uniqueMappingsById.remove(root.getId());
                                         getTreeData().removeItem(root);
                                         for (Symbol system : root.getChildren()) {
                                             uniqueMappingsById.remove(system.getId());
@@ -109,6 +110,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                                         }
                                     }
                                 }
+                                getDataProvider().refreshAll();
                             }
                         });
                     }
@@ -123,6 +125,46 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                             uniqueMappingsByFile.clear();
                             uniqueMappingsById.clear();
                             uniqueMappingsByTab.clear();
+                        });
+                    }
+                },
+
+                new BaseListener<TabCloseEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(TabCloseEvent e) {
+                        e.getUIContext().access(() -> {
+                            var root = uniqueMappingsByTab.remove(e.getTabId());
+                            if (root != null && root.getFileId() == null) {
+                                getTreeData().removeItem(root);
+                                uniqueMappingsById.remove(root.getId());
+                                for (Symbol system : root.getChildren()) {
+                                    uniqueMappingsById.remove(system.getId());
+                                    for (Symbol container : system.getChildren()) {
+                                        uniqueMappingsById.remove(container.getId());
+                                    }
+                                }
+                                getDataProvider().refreshAll();
+                            }
+                        });
+                    }
+                },
+
+                new BaseListener<TabUpdateEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(TabUpdateEvent e) {
+                        e.getUIContext().access(() -> {
+                            var root = uniqueMappingsByTab.remove(e.getTabId());
+                            if (root != null) {
+                                root.setFileName(e.getName());
+                                root.setLocation(e.getName());
+                                root.setFileId(e.getFileId());
+                                if (!uniqueMappingsByFile.containsKey(e.getFileId())) {
+                                    uniqueMappingsByFile.put(e.getFileId(), root);
+                                }
+                                getDataProvider().refreshItem(root);
+                            }
                         });
                     }
                 });
