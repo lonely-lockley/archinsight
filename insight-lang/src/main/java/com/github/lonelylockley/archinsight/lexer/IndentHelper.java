@@ -20,6 +20,7 @@ public class IndentHelper {
     private boolean wrapped = false;
     private boolean singleLineMode = false;
     private LexerState state;
+    private boolean eofReached = false;
 
     public IndentHelper(InsightLexer lexer) {
         this.lexer = lexer;
@@ -125,7 +126,7 @@ public class IndentHelper {
         else
         if ((newIndentation <= indentation) && wrapped) {
             wrapped = false;
-            if (!(singleLineMode && lexer.getInputStream().LA(1) == -1)) {
+            if (!singleLineMode) {
                 state.resetWasText();
                 waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, calculateLengthCorrection()));
                 waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
@@ -154,11 +155,6 @@ public class IndentHelper {
             checkIndentation();
             waitlist.add(eof);
         }
-//        else
-//        if (!singleLineMode && !(waitlist.size() > 0 && waitlist.getLast().getType() == InsightLexer.EOF)) {
-//            fireDedents(0, 0);
-//            waitlist.add(eof);
-//        }
     }
 
     public Token nextToken() {
@@ -173,15 +169,15 @@ public class IndentHelper {
                 tkn = waitlist.pollFirst();
             }
         }
-        if (tkn.getType() == Token.EOF) {
+        if (tkn.getType() == Token.EOF && !eofReached) {
+            eofReached = true;
             processEOF(tkn);
             if (!waitlist.isEmpty()) {
-                waitlist.add(tkn);
                 tkn = waitlist.pollFirst();
             }
         }
-//        final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
-//        System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",from=" + tkn.getStartIndex() + ",to=" + tkn.getStopIndex() + ",mode=" + lexer._mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
+        final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
+        System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",from=" + tkn.getStartIndex() + ",to=" + tkn.getStopIndex() + ",mode=" + lexer._mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
         return tkn;
     }
 

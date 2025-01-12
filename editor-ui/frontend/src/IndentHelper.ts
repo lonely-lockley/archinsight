@@ -26,6 +26,7 @@ class IndentHelper {
     private singleLineMode: boolean = false;
     private state: LexerState;
     private tokenId: number = 0;
+    private eofReached: boolean = false;
 
     constructor(lexer: InsightLexer) {
         this.lexer = lexer;
@@ -162,20 +163,14 @@ class IndentHelper {
             this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             this.lexer.text = "\n";
             this.unwrapValue();
-            this.waitlist.push(eof);
         }
         else
         if (this.lexer.inputStream.LA(-1) != 10 && this.lexer.text == undefined) {
             this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             this.lexer.text = "\n";
             this.checkIndentation();
-            this.waitlist.push(eof);
         }
-        // else
-        // if (!this.singleLineMode && !(this.waitlist.length > 0 && this.waitlist[this.waitlist.length - 1].type == InsightLexer.EOF)) {
-        //     this.fireDedents(0, 0);
-        //     this.waitlist.push(eof);
-        // }
+        this.waitlist.push(eof);
     }
 
     public nextToken(): Token {
@@ -190,10 +185,10 @@ class IndentHelper {
                 tkn = this.waitlist.shift()!;
             }
         }
-        if (tkn.type == Token.EOF) {
+        if (tkn.type == Token.EOF && !this.eofReached) {
+            this.eofReached = true;
             this.processEOF(tkn);
             if (this.waitlist.length > 0) {
-                this.waitlist.push(tkn);
                 tkn =this.waitlist.shift()!;
             }
         }
