@@ -159,21 +159,23 @@ class IndentHelper {
 
     public processEOF(eof: Token) {
         if (this.wrapped) {
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             this.lexer.text = "\n";
             this.unwrapValue();
             this.waitlist.push(eof);
         }
         else
         if (this.lexer.inputStream.LA(-1) != 10 && this.lexer.text == undefined) {
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             this.lexer.text = "\n";
             this.checkIndentation();
             this.waitlist.push(eof);
         }
-        else
-        if (!this.singleLineMode && !(this.waitlist.length > 0 && this.waitlist[this.waitlist.length - 1].type == InsightLexer.EOF)) {
-            this.fireDedents(0, 0);
-            this.waitlist.push(eof);
-        }
+        // else
+        // if (!this.singleLineMode && !(this.waitlist.length > 0 && this.waitlist[this.waitlist.length - 1].type == InsightLexer.EOF)) {
+        //     this.fireDedents(0, 0);
+        //     this.waitlist.push(eof);
+        // }
     }
 
     public nextToken(): Token {

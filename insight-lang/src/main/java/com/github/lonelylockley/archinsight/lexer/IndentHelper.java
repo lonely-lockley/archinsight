@@ -142,21 +142,23 @@ public class IndentHelper {
 
     public void processEOF(Token eof) {
         if (wrapped) {
+            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             lexer.setText("\n");
             unwrapValue();
             waitlist.add(eof);
         }
         else
-        if (lexer.getInputStream().LA(-1) != 10 && lexer.getText() == null) {
+        if (lexer.getInputStream().LA(-1) != 10) {
+            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             lexer.setText("\n");
             checkIndentation();
             waitlist.add(eof);
         }
-        else
-        if (!singleLineMode && !(waitlist.size() > 0 && waitlist.getLast().getType() == InsightLexer.EOF)) {
-            fireDedents(0, 0);
-            waitlist.add(eof);
-        }
+//        else
+//        if (!singleLineMode && !(waitlist.size() > 0 && waitlist.getLast().getType() == InsightLexer.EOF)) {
+//            fireDedents(0, 0);
+//            waitlist.add(eof);
+//        }
     }
 
     public Token nextToken() {

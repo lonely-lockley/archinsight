@@ -13,11 +13,11 @@ insight
     ;
 
 boundedContextStatement
-    :   (commentStatement | EOL)* boundedContextDeclaration (EOL statement*)?
+    :   (commentStatement | EOL)* boundedContextDeclaration EOL statement*
     ;
 
 commentStatement
-    :   COMMENT EOL?
+    :   COMMENT EOL
     ;
 
 noteStatement
@@ -31,7 +31,7 @@ boundedContextDeclaration
 statement
     :   contextStatement
     |   annotationStatement EOL
-    |   namedImportStatement EOL?
+    |   namedImportStatement EOL
     |   commentStatement
     |   EOL
     ;
@@ -106,11 +106,11 @@ wireDeclaration
     ;
 
 syncWireStatement
-    :   annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL? syncWireParameters?
+    :   annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL syncWireParameters?
     ;
 
 asyncWireStatement
-    :   annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL? asyncWireParameters?
+    :   annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL asyncWireParameters?
     ;
 
 nameParameter

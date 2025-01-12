@@ -37,22 +37,7 @@ public class GrammarDebugger {
         final var treeScroll = new JScrollPane(tree);
         treeScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         final var txt = new JTextArea("""
-                context debug
-                
-                import system hhh from context ddd
-                
-                system test
-                    name = TEST
-                
-                    @attribute(123)
-                    service rr
-                        name = RR
-                        links:
-                            -> jjj from hhh
-                                call = /api/test
-
-                system yyy
-                """);
+                context debug""");
         final var scroll = new JScrollPane(txt);
         final var listener = new DocumentListener() {
             // <editor-fold defaultstate="collapsed">
