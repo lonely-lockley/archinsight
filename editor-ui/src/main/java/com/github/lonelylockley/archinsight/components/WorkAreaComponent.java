@@ -70,52 +70,43 @@ public class WorkAreaComponent extends VerticalLayout {
                 }
             }
         });
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SourceCompilationEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
-                    if (e.success()) {
-                        menu.enableExportBlock();
+        Communication.getBus().register(this,
+                new BaseListener<SourceCompilationEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SourceCompilationEvent e) {
+                        e.getUIContext().access(() -> {
+                            Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
+                                if (e.success()) {
+                                    menu.enableExportBlock();
+                                }
+                                else {
+                                    menu.disableExportBlock();
+                                }
+                            });
+                        });
                     }
-                    else {
-                        menu.disableExportBlock();
+                },
+
+                new BaseListener<SvgDataEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SvgDataEvent e) {
+                        e.getUIContext().access(() -> {
+                            menu.enableDiagramBlock();
+                        });
+                    }
+                },
+
+                new BaseListener<TabActivationRequestEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(TabActivationRequestEvent e) {
+                        e.getUIContext().access(() -> {
+                            tabs.activateTab(e.getTabId());
+                        });
                     }
                 });
-
-            }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
-
-        final var svgDataListener = new BaseListener<SvgDataEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SvgDataEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    menu.enableDiagramBlock();
-                }
-            }
-        };
-        Communication.getBus().register(svgDataListener);
-
-        final var tabActivationRequestListener = new BaseListener<TabActivationRequestEvent>() {
-            @Override
-            @Subscribe
-            public void receive(TabActivationRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    tabs.activateTab(e.getTabId());
-                }
-            }
-        };
-        Communication.getBus().register(tabActivationRequestListener);
-
-        addDetachListener(e -> {
-            Communication.getBus().unregister(sourceCompilationListener);
-            Communication.getBus().unregister(svgDataListener);
-            Communication.getBus().unregister(tabActivationRequestListener);
-        });
     }
 
     public MenuBarComponent getMenuControls() {

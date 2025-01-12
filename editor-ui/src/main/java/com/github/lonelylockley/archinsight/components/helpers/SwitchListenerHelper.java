@@ -10,94 +10,77 @@ import java.util.function.Consumer;
 
 public class SwitchListenerHelper {
 
-    private final BaseListener<TabSwitchEvent> tabSwitchListener;
     private Consumer<TabSwitchEvent> tabSwitchCallback = null;
-    private final BaseListener<RepositorySelectionEvent> repositorySelectionListener;
     private Consumer<RepositorySelectionEvent> repositorySelectionCallback = null;
-    private final BaseListener<FileOpenRequestEvent> fileSelectionListener;
     private Consumer<FileOpenRequestEvent> fileSelectionCallback = null;
-    private final BaseListener<FileCloseRequestEvent> fileCloseListener;
     private Consumer<FileCloseRequestEvent> fileCloseCallback = null;
-    private final BaseListener<RepositoryCloseEvent> repositoryCloseListener;
     private Consumer<RepositoryCloseEvent> repositoryCloseCallback = null;
 
     private RepositoryInfo activeRepository;
 
     public SwitchListenerHelper(Component parent) {
-        repositoryCloseListener = new BaseListener<>() {
-            @Override
-            @Subscribe
-            public void receive(RepositoryCloseEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (repositoryCloseCallback != null) {
-                        repositoryCloseCallback.accept(e);
+        Communication.getBus().register(parent,
+                new BaseListener<RepositoryCloseEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RepositoryCloseEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (repositoryCloseCallback != null) {
+                                repositoryCloseCallback.accept(e);
+                            }
+                            activeRepository = null;
+                        });
                     }
-                    activeRepository = null;
-                }
-            }
-        };
-        Communication.getBus().register(repositoryCloseListener);
+                },
 
-        fileCloseListener = new BaseListener<>() {
-            @Override
-            @Subscribe
-            public void receive(FileCloseRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (fileCloseCallback != null) {
-                        fileCloseCallback.accept(e);
+                new BaseListener<FileCloseRequestEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileCloseRequestEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (fileCloseCallback != null) {
+                                fileCloseCallback.accept(e);
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(fileCloseListener);
+                },
 
-        fileSelectionListener = new BaseListener<>() {
-            @Override
-            @Subscribe
-            public void receive(FileOpenRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (fileSelectionCallback != null) {
-                        fileSelectionCallback.accept(e);
+                new BaseListener<FileOpenRequestEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileOpenRequestEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (fileSelectionCallback != null) {
+                                fileSelectionCallback.accept(e);
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(fileSelectionListener);
+                },
 
-        repositorySelectionListener = new BaseListener<>() {
-            @Override
-            @Subscribe
-            public void receive(RepositorySelectionEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (repositorySelectionCallback != null) {
-                        repositorySelectionCallback.accept(e);
+                new BaseListener<RepositorySelectionEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RepositorySelectionEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (repositorySelectionCallback != null) {
+                                repositorySelectionCallback.accept(e);
+                            }
+                            activeRepository = e.getNewValue();
+                        });
                     }
-                    activeRepository = e.getNewValue();
-                }
-            }
-        };
-        Communication.getBus().register(repositorySelectionListener);
+                },
 
-        tabSwitchListener = new BaseListener<>() {
-            @Override
-            @Subscribe
-            public void receive(TabSwitchEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (tabSwitchCallback != null) {
-                        tabSwitchCallback.accept(e);
+                new BaseListener<TabSwitchEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(TabSwitchEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (tabSwitchCallback != null) {
+                                tabSwitchCallback.accept(e);
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(tabSwitchListener);
-
-        parent.addDetachListener(e -> {
-            Communication.getBus().unregister(repositoryCloseListener);
-            Communication.getBus().unregister(fileCloseListener);
-            Communication.getBus().unregister(fileSelectionListener);
-            Communication.getBus().unregister(repositorySelectionListener);
-            Communication.getBus().unregister(tabSwitchListener);
-        });
+                });
     }
 
     public void setTabSwitchCallback(Consumer<TabSwitchEvent> tabSwitchCallback) {

@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNo
 import com.github.lonelylockley.archinsight.model.remote.translator.Symbol;
 import com.google.common.collect.Ordering;
 import com.google.common.eventbus.Subscribe;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.contextmenu.GridContextMenu;
 import com.vaadin.flow.component.html.Span;
@@ -26,178 +27,171 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
     private final Map<String, Symbol> uniqueMappingsByTab = new HashMap<>();
 
     public StructureViewComponent(boolean readOnly) {
-        setTreeData(new TreeData<>() {
-            @Override
-            public List<Symbol> getChildren(Symbol item) {
-            var result = super.getChildren(item);
-            if (result.size() > 1) {
-                result = result.stream().sorted((left, right) -> {
-                    final var l = left.getName() == null ? left.getDeclaredId() : left.getName();
-                    final var r = right.getName() == null ? right.getDeclaredId() : right.getName();
-                    return Ordering.natural().compare(l, r);
-                }).toList();
-            }
-            return result;
-            }
-        });
+        setTreeData(sortedData());
         setClassName("prevent-select");
         setSelectionMode(SelectionMode.SINGLE);
         initContextMenu(readOnly);
         setAllRowsVisible(true);
         setHeightFull();
-        addComponentHierarchyColumn(symbol -> {
-            final var label = new VerticalLayout();
-            label.setPadding(false);
-            label.setSpacing(false);
-            String firstLineText;
-            String secondLineText;
-            Icon icon;
-            if ("CONTEXT".equals(symbol.getElementType())) {
-                icon = VaadinIcon.FILE_CODE.create();
-                firstLineText = String.format("%s %s", symbol.getElementType().toLowerCase(), symbol.getDeclaredId());
-                secondLineText = symbol.getFileName() == null ? "<New File>" : symbol.getLocation();
-            }
-            else {
-                if ("STORAGE".equals(symbol.getElementType())) {
-                    icon = VaadinIcon.DATABASE.create();
-                    firstLineText = symbol.getTechnology();
-                }
-                else
-                if ("SYSTEM".equals(symbol.getElementType())) {
-                    icon = VaadinIcon.CLUSTER.create();
-                    firstLineText = symbol.getName();
-                }
-                else {
-                    icon = VaadinIcon.CODE.create();
-                    firstLineText = symbol.getName();
-                }
-                secondLineText = String.format("%s%s [%s]", symbol.getExternal() ? "external " : "", symbol.getElementType().toLowerCase(), symbol.getDeclaredId());
-            }
-            final var firstLine = new Span(firstLineText);
-            final var secondLine = new Span(secondLineText);
-            secondLine.getStyle()
-                    .set("font-size", "var(--lumo-font-size-s)")
-                    .set("color", "var(--lumo-secondary-text-color)");
-            label.add(firstLine);
-            label.add(secondLine);
-            final var row = new HorizontalLayout(icon, label);
-            row.setAlignItems(FlexComponent.Alignment.CENTER);
-            row.setHeight("40px");
-            row.setSpacing(true);
-            row.setId("gridnode_" + symbol.getDeclaredId());
-            return row;
-        }).setAutoWidth(true);
-
+        addComponentHierarchyColumn(this::setupView).setAutoWidth(true);
         addExpandListener((event) -> {
             recalculateColumnWidths();
         });
 
-        final var declarationsParsedListener = new BaseListener<DeclarationsParsedEvent>() {
-            @Override
-            @Subscribe
-            public void receive(DeclarationsParsedEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (e.isSuccess()) {
-                        refreshTreeData(e);
-                        getDataProvider().refreshAll();
-                        for (Symbol symbol : e.getSymbols()) {
-                            expand(symbol);
-                            expand(symbol.getChildren());
-                        }
+        Communication.getBus().register(this,
+                new BaseListener<DeclarationsParsedEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(DeclarationsParsedEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (e.isSuccess()) {
+                                refreshTreeData(e);
+                                getDataProvider().refreshAll();
+                                for (Symbol symbol : e.getSymbols()) {
+                                    expand(symbol);
+                                    expand(symbol.getChildren());
+                                }
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(declarationsParsedListener);
+                },
 
-        final var svgElementClickedListener = new BaseListener<SVGElementClickedEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SVGElementClickedEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    var symbol = uniqueMappingsById.get(e.getElementId());
-                    if (symbol != null) {
-                        gotoSource(symbol);
+                new BaseListener<SVGElementClickedEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SVGElementClickedEvent e) {
+                        e.getUIContext().access(() -> {
+                            var symbol = uniqueMappingsById.get(e.getElementId());
+                            if (symbol != null) {
+                                gotoSource(symbol);
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(svgElementClickedListener);
+                },
 
-        final var fileChangeListener = new BaseListener<FileChangeEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileChangeEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    var symbol = uniqueMappingsByFile.get(e.getUpdatedFile().getId());
-                    if (symbol != null) {
-                        final var oldName = symbol.getName();
-                        symbol.setName(e.getUpdatedFile().getName());
-                        if (oldName != null) {
-                            final var newLocation = symbol.getLocation().substring(0, symbol.getLocation().length() - oldName.length());
-                            symbol.setLocation(newLocation + e.getUpdatedFile().getName());
-                        }
-                        else {
-                            symbol.setLocation(e.getUpdatedFile().getName());
-                        }
+                new BaseListener<FileChangeEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileChangeEvent e) {
+                        e.getUIContext().access(() -> {
+                            var symbol = uniqueMappingsByFile.get(e.getUpdatedFile().getId());
+                            if (symbol != null) {
+                                final var oldName = symbol.getName();
+                                symbol.setName(e.getUpdatedFile().getName());
+                                if (oldName != null) {
+                                    final var newLocation = symbol.getLocation().substring(0, symbol.getLocation().length() - oldName.length());
+                                    symbol.setLocation(newLocation + e.getUpdatedFile().getName());
+                                }
+                                else {
+                                    symbol.setLocation(e.getUpdatedFile().getName());
+                                }
+                            }
+                            getDataProvider().refreshAll();
+                        });
                     }
-                    getDataProvider().refreshAll();
-                }
-            }
-        };
-        Communication.getBus().register(fileChangeListener);
+                },
 
-        final var fileCloseListener = new BaseListener<FileCloseRequestEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileCloseRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    if (e.getReason() == FileChangeReason.DELETED) {
-                        for (UUID fileId : e.getDeletedObjects()) {
-                            if (uniqueMappingsByFile.containsKey(fileId)) {
-                                var root = uniqueMappingsByFile.remove(fileId);
-                                getTreeData().removeItem(root);
-                                for (Symbol system : root.getChildren()) {
-                                    uniqueMappingsById.remove(system.getId());
-                                    for (Symbol container : system.getChildren()) {
-                                        uniqueMappingsById.remove(container.getId());
+                new BaseListener<FileCloseRequestEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileCloseRequestEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (e.getReason() == FileChangeReason.DELETED) {
+                                for (UUID fileId : e.getDeletedObjects()) {
+                                    if (uniqueMappingsByFile.containsKey(fileId)) {
+                                        var root = uniqueMappingsByFile.remove(fileId);
+                                        getTreeData().removeItem(root);
+                                        for (Symbol system : root.getChildren()) {
+                                            uniqueMappingsById.remove(system.getId());
+                                            for (Symbol container : system.getChildren()) {
+                                                uniqueMappingsById.remove(container.getId());
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(fileCloseListener);
+                },
 
-        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositoryCloseEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    getTreeData().clear();
-                    uniqueMappingsByFile.clear();
-                    uniqueMappingsById.clear();
-                    uniqueMappingsByTab.clear();
-                }
-            }
-        };
-        Communication.getBus().register(repositoryCloseListener);
-
-        addDetachListener(e -> {
-            Communication.getBus().unregister(declarationsParsedListener);
-            Communication.getBus().unregister(svgElementClickedListener);
-            Communication.getBus().unregister(fileChangeListener);
-            Communication.getBus().unregister(fileCloseListener);
-            Communication.getBus().unregister(repositoryCloseListener);
-        });
+                new BaseListener<RepositoryCloseEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RepositoryCloseEvent e) {
+                        e.getUIContext().access(() -> {
+                            getTreeData().clear();
+                            uniqueMappingsByFile.clear();
+                            uniqueMappingsById.clear();
+                            uniqueMappingsByTab.clear();
+                        });
+                    }
+                });
 
         addItemClickListener(e -> {
             if (e.getClickCount() == 2) {
                 gotoSource(e.getItem());
             }
         });
+    }
+
+    private TreeData<Symbol> sortedData() {
+        return new TreeData<>() {
+            @Override
+            public List<Symbol> getChildren(Symbol item) {
+                var result = super.getChildren(item);
+                if (result.size() > 1) {
+                    result = result.stream().sorted((left, right) -> {
+                        final var l = left.getName() == null ? left.getDeclaredId() : left.getName();
+                        final var r = right.getName() == null ? right.getDeclaredId() : right.getName();
+                        return Ordering.natural().compare(l, r);
+                    }).toList();
+                }
+                return result;
+            }
+        };
+    }
+
+    private Component setupView(Symbol symbol) {
+        final var label = new VerticalLayout();
+        label.setPadding(false);
+        label.setSpacing(false);
+        String firstLineText;
+        String secondLineText;
+        Icon icon;
+        if ("CONTEXT".equals(symbol.getElementType())) {
+            icon = VaadinIcon.FILE_CODE.create();
+            firstLineText = String.format("%s %s", symbol.getElementType().toLowerCase(), symbol.getDeclaredId());
+            secondLineText = symbol.getFileName() == null ? "<New File>" : symbol.getLocation();
+        }
+        else {
+            if ("STORAGE".equals(symbol.getElementType())) {
+                icon = VaadinIcon.DATABASE.create();
+                firstLineText = symbol.getTechnology();
+            }
+            else
+            if ("SYSTEM".equals(symbol.getElementType())) {
+                icon = VaadinIcon.CLUSTER.create();
+                firstLineText = symbol.getName();
+            }
+            else {
+                icon = VaadinIcon.CODE.create();
+                firstLineText = symbol.getName();
+            }
+            secondLineText = String.format("%s%s [%s]", symbol.getExternal() ? "external " : "", symbol.getElementType().toLowerCase(), symbol.getDeclaredId());
+        }
+        final var firstLine = new Span(firstLineText);
+        final var secondLine = new Span(secondLineText);
+        secondLine.getStyle()
+                .set("font-size", "var(--lumo-font-size-s)")
+                .set("color", "var(--lumo-secondary-text-color)");
+        label.add(firstLine);
+        label.add(secondLine);
+        final var row = new HorizontalLayout(icon, label);
+        row.setAlignItems(FlexComponent.Alignment.CENTER);
+        row.setHeight("40px");
+        row.setSpacing(true);
+        row.setId("gridnode_" + symbol.getDeclaredId());
+        return row;
     }
 
     private void refreshMappings(Symbol parent, Symbol symbol) {

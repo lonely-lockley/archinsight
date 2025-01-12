@@ -16,17 +16,17 @@ public class EditorTile extends SiteViewTile {
         addClickListener(e -> {
             UI.getCurrent().navigate(EditorView.class);
         });
-        var authListener = new BaseListener<UserAuthenticatedEvent>() {
-            @Override
-            @Subscribe
-            public void receive(UserAuthenticatedEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    setVisible(true);
-                }
-            }
-        };
-        Communication.getBus().register(authListener);
-        addDetachListener(e -> Communication.getBus().unregister(authListener));
+        Communication.getBus().register(this,
+                new BaseListener<UserAuthenticatedEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(UserAuthenticatedEvent e) {
+                        e.getUIContext().access(() -> {
+                            setVisible(true);
+                        });
+                    }
+                });
+
         if (Authentication.authenticated()) {
             setVisible(true);
         }

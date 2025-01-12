@@ -85,53 +85,45 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             expandRecursively(Collections.singletonList(null), 1);
         });
 
-        final var fileRestorationListener = new BaseListener<FileRestoreEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileRestoreEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    fileRestorationCallback(e.getRestoredFileId(), e.getSource());
-                }
-            }
-        };
-        Communication.getBus().register(fileRestorationListener);
+        Communication.getBus().register(this,
+                new BaseListener<FileRestoreEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileRestoreEvent e) {
+                        e.getUIContext().access(() -> {
+                            fileRestorationCallback(e.getRestoredFileId(), e.getSource());
+                        });
+                    }
+                },
 
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SourceCompilationEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                if (e.success()) {
-                    filesWithErrors.clear();
-                }
-                else
-                if (e.failure() && !e.getFilesWithErrors().isEmpty()) {
-                    filesWithErrors = e.getFilesWithErrors();
-                }
-                getDataProvider().refreshAll();
-            }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
+                new BaseListener<SourceCompilationEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SourceCompilationEvent e) {
+                        e.getUIContext().access(() -> {
+                            if (e.success()) {
+                                filesWithErrors.clear();
+                            }
+                            else
+                            if (e.failure() && !e.getFilesWithErrors().isEmpty()) {
+                                filesWithErrors = e.getFilesWithErrors();
+                            }
+                            getDataProvider().refreshAll();
+                        });
+                    }
+                },
 
-        final var fileCreatedListener = new BaseListener<FileCreatedEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileCreatedEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                getTreeData().addItem(e.getParent(), e.getCreatedFile());
-                fileSystem.createNode(e.getCreatedFile());
-                getDataProvider().refreshAll();
-            }
-            }
-        };
-        Communication.getBus().register(fileCreatedListener);
-
-        addDetachListener(e -> {
-            Communication.getBus().unregister(fileRestorationListener);
-            Communication.getBus().unregister(sourceCompilationListener);
-            Communication.getBus().unregister(fileCreatedListener);
-        });
+                new BaseListener<FileCreatedEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileCreatedEvent e) {
+                        e.getUIContext().access(() -> {
+                            getTreeData().addItem(e.getParent(), e.getCreatedFile());
+                            fileSystem.createNode(e.getCreatedFile());
+                            getDataProvider().refreshAll();
+                        });
+                    }
+                });
 
         addItemClickListener(e -> {
             if (e.getClickCount() == 2) {

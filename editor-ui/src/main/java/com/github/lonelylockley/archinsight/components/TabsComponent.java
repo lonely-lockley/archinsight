@@ -50,165 +50,147 @@ public class TabsComponent extends TabSheet {
             Communication.getBus().post(new TabSwitchEvent((EditorTabComponent) e.getPreviousTab(), (EditorTabComponent) e.getSelectedTab()));
         });
 
-        final var svgDataListener = new BaseListener<SvgDataEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SvgDataEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                Optional.ofNullable(tabs.get(e.getTabId())).ifPresent(tab -> tab.getView().update(e.getSvgData()));
-            }
-            }
-        };
-        Communication.getBus().register(svgDataListener);
-        final var zoomEventListener = new BaseListener<ZoomEvent>() {
-            @Override
-            @Subscribe
-            public void receive(ZoomEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                Optional.ofNullable(getSelectedTab()).ifPresent(tab -> tab.getView().zoom(e));
-            }
-            }
-        };
-        Communication.getBus().register(zoomEventListener);
-        final var saveEventListener = new BaseListener<FileSaveRequestEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileSaveRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                        if (tab.isNew()) {
-                            tab.updateFile(e.getFile());
-                            files.put(e.getFile().getId(), tab);
-                        }
-                        tab.saveSource();
-                    });
-                }
-            }
-        };
-        Communication.getBus().register(saveEventListener);
-        final var sourceActionEventListener = new BaseListener<DoWithSourceEvent>() {
-            @Override
-            @Subscribe
-            public void receive(DoWithSourceEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                        tab.getEditor().doWithCode(tab, tabs.values(), e.getCallback());
-                    });
-                }
-            }
-        };
-        Communication.getBus().register(sourceActionEventListener);
-        final var fileChangeListener = new BaseListener<FileChangeEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileChangeEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    Optional.ofNullable(files.get(e.getUpdatedFile().getId())).ifPresent(tab -> {
-                        tab.updateFile(e.getUpdatedFile());
-                    });
-                }
-            }
-        };
-        Communication.getBus().register(fileChangeListener);
-
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Subscribe
-            @Override
-            public void receive(SourceCompilationEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    try {
-                        // skip technical failed compilation events that don't have message errors as this
-                        // causes errors blinking on frontend
-                        if (e.success() || (e.failure() && !e.getMessagesByTab().isEmpty())) {
-                            var messages = e.getMessagesByTab();
-                            var summary = collectSummary(messages);
-                            updateBadges(messages, summary);
-                            createMessage(messages, summary);
-                        }
+        Communication.getBus().register(this,
+                new BaseListener<SvgDataEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SvgDataEvent e) {
+                        e.getUIContext().access(() -> {
+                            Optional.ofNullable(tabs.get(e.getTabId())).ifPresent(tab -> tab.getView().update(e.getSvgData()));
+                        });
                     }
-                    catch (Exception ex) {
-                        new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
-                        logger.error("Could not render source", ex);
+                },
+
+                new BaseListener<ZoomEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(ZoomEvent e) {
+                        e.getUIContext().access(() -> {
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> tab.getView().zoom(e));
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
+                },
 
-        final var requestRender = new BaseListener<RequestRenderEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RequestRenderEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                currentLevel = e.getLevel();
-                tabs.forEach((key, value) -> value.setRenderer(createRenderer(switchListener.getActiveRepositoryId() , currentLevel)));
-                Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                    remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), e.getLevel(), tabs.values(), e.darkMode());
-                });
-            }
-            }
-        };
-        Communication.getBus().register(requestRender);
+                new BaseListener<DoWithSourceEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(DoWithSourceEvent e) {
+                        e.getUIContext().access(() -> {
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
+                                tab.getEditor().doWithCode(tab, tabs.values(), e.getCallback());
+                            });
+                        });
+                    }
+                },
 
-        final var editorInsertListener = new BaseListener<EditorInsertEvent>() {
-            @Override
-            @Subscribe
-            public void receive(EditorInsertEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    var tab = getSelectedTab();
-                    if (tab != null) {
-                        tab.getEditor().getElement().executeJs("""
+                new BaseListener<FileChangeEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileChangeEvent e) {
+                        e.getUIContext().access(() -> {
+                            Optional.ofNullable(files.get(e.getUpdatedFile().getId())).ifPresent(tab -> {
+                                tab.updateFile(e.getUpdatedFile());
+                            });
+                        });
+                    }
+                },
+
+                new BaseListener<SourceCompilationEvent>() {
+                    @Subscribe
+                    @Override
+                    public void receive(SourceCompilationEvent e) {
+                        e.getUIContext().access(() -> {
+                            try {
+                                // skip technical failed compilation events that don't have message errors as this
+                                // causes errors blinking on frontend
+                                if (e.success() || (e.failure() && !e.getMessagesByTab().isEmpty())) {
+                                    var messages = e.getMessagesByTab();
+                                    var summary = collectSummary(messages);
+                                    updateBadges(messages, summary);
+                                    createMessage(messages, summary);
+                                }
+                            }
+                            catch (Exception ex) {
+                                new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
+                                logger.error("Could not render source", ex);
+                            }
+                        });
+                    }
+                },
+
+                new BaseListener<FileSaveRequestEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileSaveRequestEvent e) {
+                        e.getUIContext().access(() -> {
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
+                                if (tab.isNew()) {
+                                    tab.updateFile(e.getFile());
+                                    files.put(e.getFile().getId(), tab);
+                                }
+                                tab.saveSource();
+                            });
+                        });
+                    }
+                },
+
+                new BaseListener<RequestRenderEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RequestRenderEvent e) {
+                        e.getUIContext().access(() -> {
+                            currentLevel = e.getLevel();
+                            tabs.forEach((key, value) -> value.setRenderer(createRenderer(switchListener.getActiveRepositoryId() , currentLevel)));
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
+                                remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), e.getLevel(), tabs.values(), e.darkMode());
+                            });
+                        });
+                    }
+                },
+
+                new BaseListener<EditorInsertEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(EditorInsertEvent e) {
+                        e.getUIContext().access(() -> {
+                            var tab = getSelectedTab();
+                            if (tab != null) {
+                                tab.getEditor().getElement().executeJs("""
                             var selection = this.editor.getSelection();
                             var op = {range: selection, text: $0, forceMoveMarkers: true};
                             this.editor.executeEdits('', [op]);
                             """, e.getCodeToInsert()
-                        );
+                                );
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(editorInsertListener);
+                },
 
-        final var gotoSource = new BaseListener<GotoSourceEvent>() {
-            @Override
-            @Subscribe
-            public void receive(GotoSourceEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    var tab = getSelectedTab();
-                    if (tab != null) {
-                        tab.getEditor().putCursorInPosition(e.getSymbol().getLine(), e.getSymbol().getStartIndex());
+                new BaseListener<GotoSourceEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(GotoSourceEvent e) {
+                        e.getUIContext().access(() -> {
+                            var tab = getSelectedTab();
+                            if (tab != null) {
+                                tab.getEditor().putCursorInPosition(e.getSymbol().getLine(), e.getSymbol().getStartIndex());
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(gotoSource);
+                },
 
-        final var viewMode = new BaseListener<ViewModeEvent>() {
-            @Override
-            @Subscribe
-            public void receive(ViewModeEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    var tab = getSelectedTab();
-                    if (tab != null) {
-                        tab.setViewMode(e.getMode());
+                new BaseListener<ViewModeEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(ViewModeEvent e) {
+                        e.getUIContext().access(() -> {
+                            var tab = getSelectedTab();
+                            if (tab != null) {
+                                tab.setViewMode(e.getMode());
+                            }
+                        });
                     }
-                }
-            }
-        };
-        Communication.getBus().register(viewMode);
-
-        addDetachListener(e -> {
-            Communication.getBus().unregister(svgDataListener);
-            Communication.getBus().unregister(zoomEventListener);
-            Communication.getBus().unregister(saveEventListener);
-            Communication.getBus().unregister(sourceActionEventListener);
-            Communication.getBus().unregister(fileChangeListener);
-            Communication.getBus().unregister(sourceCompilationListener);
-            Communication.getBus().unregister(requestRender);
-            Communication.getBus().unregister(editorInsertListener);
-            Communication.getBus().unregister(gotoSource);
-            Communication.getBus().unregister(viewMode);
-        });
+                });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
             if (Strings.isNotEmpty(restored.getCode())) {

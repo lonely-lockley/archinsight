@@ -61,19 +61,16 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
 
     private void registerNotificationListener() {
         // Common notification controller
-        final var notificationListener = new BaseListener<NotificationEvent>() {
-            @Override
-            @Subscribe
-            public void receive(NotificationEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    new NotificationComponent(e.getMessage(), e.getLevel(), e.getDuration());
-                }
-            }
-        };
-        Communication.getBus().register(notificationListener);
-        addDetachListener(e -> {
-            Communication.getBus().unregister(notificationListener);
-        });
+        Communication.getBus().register(this,
+                new BaseListener<NotificationEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(NotificationEvent e) {
+                        e.getUIContext().access(() -> {
+                            new NotificationComponent(e.getMessage(), e.getLevel(), e.getDuration());
+                        });
+                    }
+                });
     }
 
 }

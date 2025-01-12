@@ -93,24 +93,21 @@ public class UserMenuComponent extends MenuBar {
         });
 
         if (Authentication.playgroundModeEnabled()) {
-            final var fileCloseListener = new BaseListener<CreateRepositoryEvent>() {
-                @Override
-                @Subscribe
-                public void receive(CreateRepositoryEvent e) {
-                    if (eventWasProducedForCurrentUiId(e)) {
-                        if (conf.getDevMode()) {
-                            debugClickListener(null);
+            Communication.getBus().register(this,
+                    new BaseListener<CreateRepositoryEvent>() {
+                        @Override
+                        @Subscribe
+                        public void receive(CreateRepositoryEvent e) {
+                            e.getUIContext().access(() -> {
+                                if (conf.getDevMode()) {
+                                    debugClickListener(null);
+                                }
+                                else {
+                                    googleClickListener(null);
+                                }
+                            });
                         }
-                        else {
-                            googleClickListener(null);
-                        }
-                    }
-                }
-            };
-            Communication.getBus().register(fileCloseListener);
-            addDetachListener(e -> {
-                Communication.getBus().unregister(fileCloseListener);
-            });
+                    });
         }
     }
 

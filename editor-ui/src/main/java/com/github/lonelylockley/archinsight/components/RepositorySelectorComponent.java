@@ -84,33 +84,30 @@ public class RepositorySelectorComponent extends VerticalLayout {
             manageRepositoryButton.setEnabled(false);
         }
 
-        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositoryCloseEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                manageRepositoryButton.setText("<Choose Repository>");
-                RepositorySelectorComponent.this.selected = null;
-                storeSelectedRepository(null);
-            }
-            }
-        };
-        Communication.getBus().register(repositoryCloseListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
+        Communication.getBus().register(this,
+                new BaseListener<RepositoryCloseEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RepositoryCloseEvent e) {
+                        e.getUIContext().access(() -> {
+                            manageRepositoryButton.setText("<Choose Repository>");
+                            RepositorySelectorComponent.this.selected = null;
+                            storeSelectedRepository(null);
+                        });
+                    }
+                },
 
-        final var repositorySelectionListener = new BaseListener<RepositorySelectionEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositorySelectionEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                manageRepositoryButton.setText(String.format("[ %s ]", e.getNewValue().getName()));
-                RepositorySelectorComponent.this.selected = e.getNewValue();
-                storeSelectedRepository(e.getNewValue().getId());
-            }
-            }
-        };
-        Communication.getBus().register(repositorySelectionListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositorySelectionListener); });
+                new BaseListener<RepositorySelectionEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RepositorySelectionEvent e) {
+                        e.getUIContext().access(() -> {
+                            manageRepositoryButton.setText(String.format("[ %s ]", e.getNewValue().getName()));
+                            RepositorySelectorComponent.this.selected = e.getNewValue();
+                            storeSelectedRepository(e.getNewValue().getId());
+                        });
+                    }
+                });
 
         return manageRepositoryButton;
     }

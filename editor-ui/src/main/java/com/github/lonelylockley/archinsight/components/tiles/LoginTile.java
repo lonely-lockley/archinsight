@@ -36,17 +36,16 @@ public class LoginTile extends SiteViewTile {
         logoutClickListener = new LogoutClickListener();
         addClickListener(logoutClickListener);
 
-        final var authListener = new BaseListener<UserAuthenticatedEvent>() {
-            @Override
-            @Subscribe
-            public void receive(UserAuthenticatedEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    flipTile(e.getUser());
-                }
-            }
-        };
-        Communication.getBus().register(authListener);
-        addDetachListener(e -> Communication.getBus().unregister(authListener));
+        Communication.getBus().register(this,
+                new BaseListener<UserAuthenticatedEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(UserAuthenticatedEvent e) {
+                        e.getUIContext().access(() -> {
+                            flipTile(e.getUser());
+                        });
+                    }
+                });
     }
 
     public void onTileFlip(Consumer<Userdata> listener) {
