@@ -76,11 +76,11 @@ public class WorkAreaComponent extends VerticalLayout {
             public void receive(SourceCompilationEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
                 Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
-                    if (tab.getEditor().hasErrors()) {
-                        menu.disableExportBlock();
+                    if (e.success()) {
+                        menu.enableExportBlock();
                     }
                     else {
-                        menu.enableExportBlock();
+                        menu.disableExportBlock();
                     }
                 });
 
