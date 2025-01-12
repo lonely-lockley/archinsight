@@ -1,6 +1,7 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.components.helpers.TabsPersistenceHelper;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
@@ -13,6 +14,7 @@ import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.tabs.TabSheet;
+import org.apache.commons.lang3.function.TriConsumer;
 import org.apache.directory.api.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 @JsModule("./src/StatePersistence.ts")
@@ -35,9 +38,11 @@ public class TabsComponent extends TabSheet {
     private final TabsPersistenceHelper clientStorage;
 
     private ArchLevel currentLevel = ArchLevel.CONTEXT;
+    SwitchListenerHelper switchListener = null;
 
-    public TabsComponent() {
+    public TabsComponent(SwitchListenerHelper switchListener) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
+        this.switchListener = switchListener;
         clientStorage = new TabsPersistenceHelper(this.getElement());
         setId(id);
         setSizeFull();
@@ -135,8 +140,9 @@ public class TabsComponent extends TabSheet {
             @Subscribe
             public void receive(RequestRenderEvent e) {
             if (eventWasProducedForCurrentUiId(e)) {
+                currentLevel = e.getLevel();
+                tabs.forEach((key, value) -> value.setRenderer(createRenderer(switchListener.getActiveRepositoryId() , currentLevel)));
                 Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                    currentLevel = e.getLevel();
                     remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), e.getLevel(), tabs.values(), e.darkMode());
                 });
             }
@@ -177,6 +183,20 @@ public class TabsComponent extends TabSheet {
         };
         Communication.getBus().register(gotoSource);
 
+        final var viewMode = new BaseListener<ViewModeEvent>() {
+            @Override
+            @Subscribe
+            public void receive(ViewModeEvent e) {
+                if (eventWasProducedForCurrentUiId(e)) {
+                    var tab = getSelectedTab();
+                    if (tab != null) {
+                        tab.setViewMode(e.getMode());
+                    }
+                }
+            }
+        };
+        Communication.getBus().register(viewMode);
+
         addDetachListener(e -> {
             Communication.getBus().unregister(svgDataListener);
             Communication.getBus().unregister(zoomEventListener);
@@ -187,6 +207,7 @@ public class TabsComponent extends TabSheet {
             Communication.getBus().unregister(requestRender);
             Communication.getBus().unregister(editorInsertListener);
             Communication.getBus().unregister(gotoSource);
+            Communication.getBus().unregister(viewMode);
         });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
@@ -211,7 +232,7 @@ public class TabsComponent extends TabSheet {
         return value == null ? 0 : value;
     }
 
-    public void openTab(UUID repositoryId, RepositoryNode file, Optional<String> source) {
+    public void openTab(RepositoryNode file, Optional<String> source) {
         if (!file.isNew() && files.containsKey(file.getId())) {
             var tab = files.get(file.getId());
             setSelectedTab(tab);
@@ -220,9 +241,8 @@ public class TabsComponent extends TabSheet {
             if (!file.isNew() && source.isEmpty()) {
                 source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
             }
-            final var editorTab = new EditorTabComponent(id, file, source, (tabId, darkMode) -> {
-                remoteSource.render.render(tabId, repositoryId, currentLevel, tabs.values(), darkMode);
-            });
+            final var editorTab = new EditorTabComponent(id, file, source);
+            editorTab.setRenderer(this.createRenderer(switchListener.getActiveRepositoryId(), currentLevel));
             editorTab.setCloseListener(this::closeTab);
             add(editorTab, editorTab.getContent());
             tabs.put(editorTab.getTabId(), editorTab);
@@ -232,6 +252,12 @@ public class TabsComponent extends TabSheet {
             setSelectedTab(editorTab);
             clientStorage.storeTab(editorTab, source);
         }
+    }
+
+    private BiConsumer<String, Boolean> createRenderer(UUID repositoryId, ArchLevel level) {
+        return (tabId, darkMode) -> {
+            remoteSource.render.render(tabId, repositoryId, level, tabs.values(), darkMode);
+        };
     }
 
     private void closeTab(EditorTabComponent tab, FileChangeReason reason) {

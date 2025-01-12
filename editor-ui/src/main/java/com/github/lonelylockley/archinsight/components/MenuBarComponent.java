@@ -198,6 +198,10 @@ public class MenuBarComponent extends MenuBar {
         if (id.startsWith("menu_btn_level")) {
             levelButtonClicked(id);
         }
+        else
+        if (id.startsWith("menu_btn_panel")) {
+            vewModeButtonClicked(id);
+        }
     }
 
     private void exportButtonClicked(String id) {
@@ -358,6 +362,15 @@ public class MenuBarComponent extends MenuBar {
                 renderButtonClicked();
                 break;
         }
+    }
+
+    private void vewModeButtonClicked(String id) {
+        ViewMode panelMode = switch (id) {
+            case "menu_btn_panel_code" -> ViewMode.EDITOR;
+            case "menu_btn_panel_diagram" -> ViewMode.DIAGRAM;
+            default -> ViewMode.BOTH;
+        };
+        Communication.getBus().post(new ViewModeEvent(panelMode));
     }
 
 }

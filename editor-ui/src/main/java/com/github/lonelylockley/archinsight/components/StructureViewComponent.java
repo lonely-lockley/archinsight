@@ -44,6 +44,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
         setSelectionMode(SelectionMode.SINGLE);
         initContextMenu(readOnly);
         setAllRowsVisible(true);
+        setHeightFull();
         addComponentHierarchyColumn(symbol -> {
             final var label = new VerticalLayout();
             label.setPadding(false);

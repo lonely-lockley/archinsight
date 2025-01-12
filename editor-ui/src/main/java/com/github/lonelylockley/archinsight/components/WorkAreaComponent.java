@@ -17,7 +17,7 @@ public class WorkAreaComponent extends VerticalLayout {
     public WorkAreaComponent(Div invisible, boolean readOnly) {
         switchListener = new SwitchListenerHelper(this);
         menu = new MenuBarComponent(invisible, readOnly, switchListener);
-        final var tabs = new TabsComponent();
+        final var tabs = new TabsComponent(switchListener);
         hideComponent(tabs);
         final var welcome = new WelcomePanelComponent(switchListener);
         add(tabs);
@@ -39,7 +39,7 @@ public class WorkAreaComponent extends VerticalLayout {
         switchListener.setFileSelectionCallback(e -> {
             hideComponent(welcome);
             showComponent(tabs);
-            tabs.openTab(switchListener.getActiveRepositoryId(), e.getFile(), e.getSource());
+            tabs.openTab(e.getFile(), e.getSource());
             menu.enableSourceBlock();
         });
         switchListener.setRepositorySelectionCallback(e -> {

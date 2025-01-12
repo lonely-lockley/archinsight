@@ -1,6 +1,8 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.events.FileChangeReason;
+import com.github.lonelylockley.archinsight.events.ViewMode;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.vaadin.flow.component.button.Button;
@@ -8,6 +10,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.tabs.Tab;
+import org.apache.commons.lang3.function.TriConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,21 +32,24 @@ public class EditorTabComponent extends Tab {
     private BiConsumer<EditorTabComponent, FileChangeReason> listener;
     private RepositoryNode file;
 
-    public EditorTabComponent(String parentId, RepositoryNode file, Optional<String> source, BiConsumer<String, Boolean> renderer) {
+    public EditorTabComponent(String parentId, RepositoryNode file, Optional<String> source) {
         super();
         this.label = new Span(file.getName());
         this.badge = createBadge();
         add(label);
         this.file = file;
         this.id = String.format("editor-tab-%s", UUID.randomUUID());
-        this.editor = new EditorComponent(parentId, id, renderer, source.orElse(""));
+        this.editor = new EditorComponent(parentId, id, source.orElse(""));
         this.view = new SVGViewComponent();
         this.content = new SplitViewComponent(editor, view);
-        getStyle().set("padding-top", "0px").set("padding-bottom", "0px");
+        getStyle()
+                .set("padding-top", "0px")
+                .set("padding-bottom", "0px");
         var closeButton = new Button(VaadinIcon.CLOSE_SMALL.create());
         closeButton.addThemeVariants(ButtonVariant.LUMO_SMALL);
-        closeButton.getStyle().set("padding", "0px");
-        closeButton.getStyle().set("margin-left", "5px");
+        closeButton.getStyle()
+                .set("padding", "0px")
+                .set("margin-left", "5px");
         closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ICON);
         closeButton.addClickListener(e -> {
             if (listener != null) {
@@ -62,6 +68,18 @@ public class EditorTabComponent extends Tab {
         badge.getStyle().set("margin-inline-start", "var(--lumo-space-m)");
         badge.setVisible(false);
         return badge;
+    }
+
+    public void setViewMode(ViewMode viewMode) {
+        switch (viewMode) {
+            case DIAGRAM -> content.displayRightOnly();
+            case EDITOR -> content.displayLeftOnly();
+            default -> content.displayBoth();
+        }
+    }
+
+    public void setRenderer(BiConsumer<String, Boolean> renderer) {
+        editor.setRenderer(renderer);
     }
 
     public void setCloseListener(BiConsumer<EditorTabComponent, FileChangeReason> listener) {

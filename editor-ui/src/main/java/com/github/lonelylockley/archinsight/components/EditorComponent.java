@@ -36,23 +36,26 @@ public class EditorComponent extends Div {
     private static final Logger logger = LoggerFactory.getLogger(EditorComponent.class);
 
     private final RemoteSource remoteSource;
-    private final BiConsumer<String, Boolean> renderer;
     private final String id;
 
+    private BiConsumer<String, Boolean> renderer;
     private String originalHash;
     private String clientHash;
     private String clientCodeCache;
 
     private boolean hasErrors = false;
 
-    public EditorComponent(String rootId, String tabId, BiConsumer<String, Boolean> renderer, String content) {
+    public EditorComponent(String rootId, String tabId, String content) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
-        this.renderer = renderer;
         this.clientCodeCache = content;
         this.originalHash = DigestUtils.sha256Hex(content);
         this.id = String.format("editor-%s", UUID.randomUUID());
         setId(id);
         UI.getCurrent().getPage().executeJs("initializeEditor($0, $1, $2, $3, $4)", id, rootId, tabId, getKey(), content);
+    }
+
+    public void setRenderer(BiConsumer<String, Boolean> renderer) {
+        this.renderer = renderer;
     }
 
     private String getKey() {
