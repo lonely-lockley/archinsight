@@ -43,7 +43,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                     @Override
                     @Subscribe
                     public void receive(DeclarationsParsedEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (e.isSuccess()) {
                                 refreshTreeData(e);
                                 getDataProvider().refreshAll();
@@ -60,7 +60,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                     @Override
                     @Subscribe
                     public void receive(SVGElementClickedEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             var symbol = uniqueMappingsById.get(e.getElementId());
                             if (symbol != null) {
                                 gotoSource(symbol);
@@ -73,7 +73,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                     @Override
                     @Subscribe
                     public void receive(FileChangeEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             var symbol = uniqueMappingsByFile.get(e.getUpdatedFile().getId());
                             if (symbol != null) {
                                 final var oldName = symbol.getName();
@@ -95,7 +95,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                     @Override
                     @Subscribe
                     public void receive(FileCloseRequestEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (e.getReason() == FileChangeReason.DELETED) {
                                 for (UUID fileId : e.getDeletedObjects()) {
                                     if (uniqueMappingsByFile.containsKey(fileId)) {
@@ -120,7 +120,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                     @Override
                     @Subscribe
                     public void receive(RepositoryCloseEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             getTreeData().clear();
                             uniqueMappingsByFile.clear();
                             uniqueMappingsById.clear();
@@ -133,7 +133,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                     @Override
                     @Subscribe
                     public void receive(TabCloseEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             var root = uniqueMappingsByTab.remove(e.getTabId());
                             if (root != null && root.getFileId() == null) {
                                 getTreeData().removeItem(root);
@@ -154,7 +154,7 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
                     @Override
                     @Subscribe
                     public void receive(TabUpdateEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             var root = uniqueMappingsByTab.remove(e.getTabId());
                             if (root != null) {
                                 root.setFileName(e.getName());

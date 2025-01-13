@@ -90,7 +90,6 @@ class IndentHelper {
         return count / this.INDENT_LENGTH;
     }
 
-
     private fireIndents(desiredIndentation: number, linesCorrection: number) {
         while (this.indentation < desiredIndentation) {
             this.indentation++;
@@ -159,14 +158,16 @@ class IndentHelper {
     }
 
     public processEOF(eof: Token) {
-        if (this.wrapped) {
-            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
+        console.log("::::::: " + this.lexer.text + " --- " + this.singleLineMode);
+        if (this.wrapped && !this.singleLineMode) {
+            this.waitlist.push(this.createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, 0, this.calculateLengthCorrection()));
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 1, 0));
             this.lexer.text = "\n";
-            this.unwrapValue();
+            //this.checkIndentation();
         }
         else
         if (this.lexer.inputStream.LA(-1) != 10 && this.lexer.text == undefined) {
-            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
+            //this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
             this.lexer.text = "\n";
             this.checkIndentation();
         }
@@ -194,8 +195,8 @@ class IndentHelper {
         }
         tkn.tokenIndex = this.tokenId;
         this.tokenId++;
-        // const rawType = this.lexer.vocabulary.getSymbolicName(tkn.type);
-        // console.log("---- " + rawType + " [idx=" + tkn.tokenIndex + "line=" + tkn.line + ",from=" + tkn.start + ",to=" + tkn.stop + ",mode=" + this.lexer.mode + ",channel=" + tkn.channel + "] = `" + tkn.text + "`");
+        const rawType = this.lexer.vocabulary.getSymbolicName(tkn.type);
+        console.log("---- " + rawType + " [idx=" + tkn.tokenIndex + "line=" + tkn.line + ",from=" + tkn.start + ",to=" + tkn.stop + ",mode=" + this.lexer.mode + ",channel=" + tkn.channel + "] = `" + tkn.text + "`");
         return tkn;
     }
 

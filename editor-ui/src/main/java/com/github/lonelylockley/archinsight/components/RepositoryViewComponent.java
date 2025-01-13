@@ -90,7 +90,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                     @Override
                     @Subscribe
                     public void receive(FileRestoreEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             fileRestorationCallback(e.getRestoredFileId(), e.getSource());
                         });
                     }
@@ -100,7 +100,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                     @Override
                     @Subscribe
                     public void receive(SourceCompilationEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (e.success()) {
                                 filesWithErrors.clear();
                             }
@@ -117,7 +117,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                     @Override
                     @Subscribe
                     public void receive(FileCreatedEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             getTreeData().addItem(e.getParent(), e.getCreatedFile());
                             fileSystem.createNode(e.getCreatedFile());
                             getDataProvider().refreshAll();

@@ -21,7 +21,7 @@ public class EditorTile extends SiteViewTile {
                     @Override
                     @Subscribe
                     public void receive(UserAuthenticatedEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             setVisible(true);
                         });
                     }

@@ -24,7 +24,7 @@ public class SwitchListenerHelper {
                     @Override
                     @Subscribe
                     public void receive(RepositoryCloseEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (repositoryCloseCallback != null) {
                                 repositoryCloseCallback.accept(e);
                             }
@@ -37,7 +37,7 @@ public class SwitchListenerHelper {
                     @Override
                     @Subscribe
                     public void receive(FileCloseRequestEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (fileCloseCallback != null) {
                                 fileCloseCallback.accept(e);
                             }
@@ -49,7 +49,7 @@ public class SwitchListenerHelper {
                     @Override
                     @Subscribe
                     public void receive(FileOpenRequestEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (fileSelectionCallback != null) {
                                 fileSelectionCallback.accept(e);
                             }
@@ -61,7 +61,7 @@ public class SwitchListenerHelper {
                     @Override
                     @Subscribe
                     public void receive(RepositorySelectionEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (repositorySelectionCallback != null) {
                                 repositorySelectionCallback.accept(e);
                             }
@@ -74,7 +74,7 @@ public class SwitchListenerHelper {
                     @Override
                     @Subscribe
                     public void receive(TabSwitchEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             if (tabSwitchCallback != null) {
                                 tabSwitchCallback.accept(e);
                             }

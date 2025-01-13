@@ -9,11 +9,11 @@ package com.github.lonelylockley.insight.lang;
 options { tokenVocab = InsightLexer; }
 
 insight
-    :   boundedContextStatement? EOF
+    :   (commentStatement | EOL)* boundedContextStatement? EOF
     ;
 
 boundedContextStatement
-    :   (commentStatement | EOL)* boundedContextDeclaration EOL statement*
+    :   boundedContextDeclaration EOL statement*
     ;
 
 commentStatement

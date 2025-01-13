@@ -75,7 +75,7 @@ public class WorkAreaComponent extends VerticalLayout {
                     @Override
                     @Subscribe
                     public void receive(SourceCompilationEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
                                 if (e.success()) {
                                     menu.enableExportBlock();
@@ -92,7 +92,7 @@ public class WorkAreaComponent extends VerticalLayout {
                     @Override
                     @Subscribe
                     public void receive(SvgDataEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             menu.enableDiagramBlock();
                         });
                     }
@@ -102,7 +102,7 @@ public class WorkAreaComponent extends VerticalLayout {
                     @Override
                     @Subscribe
                     public void receive(TabActivationRequestEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             tabs.activateTab(e.getTabId());
                         });
                     }

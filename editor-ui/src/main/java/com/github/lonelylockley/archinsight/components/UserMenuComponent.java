@@ -98,7 +98,7 @@ public class UserMenuComponent extends MenuBar {
                         @Override
                         @Subscribe
                         public void receive(CreateRepositoryEvent e) {
-                            e.getUIContext().access(() -> {
+                            e.withCurrentUI(this, () -> {
                                 if (conf.getDevMode()) {
                                     debugClickListener(null);
                                 }

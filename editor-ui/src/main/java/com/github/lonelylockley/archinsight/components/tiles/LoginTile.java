@@ -41,7 +41,7 @@ public class LoginTile extends SiteViewTile {
                     @Override
                     @Subscribe
                     public void receive(UserAuthenticatedEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             flipTile(e.getUser());
                         });
                     }

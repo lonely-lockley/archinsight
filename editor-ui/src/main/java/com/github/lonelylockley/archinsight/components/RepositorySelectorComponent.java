@@ -89,7 +89,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
                     @Override
                     @Subscribe
                     public void receive(RepositoryCloseEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             manageRepositoryButton.setText("<Choose Repository>");
                             RepositorySelectorComponent.this.selected = null;
                             storeSelectedRepository(null);
@@ -101,7 +101,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
                     @Override
                     @Subscribe
                     public void receive(RepositorySelectionEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             manageRepositoryButton.setText(String.format("[ %s ]", e.getNewValue().getName()));
                             RepositorySelectorComponent.this.selected = e.getNewValue();
                             storeSelectedRepository(e.getNewValue().getId());

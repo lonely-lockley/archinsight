@@ -12,9 +12,9 @@ import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMe
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.tabs.TabSheet;
-import org.apache.commons.lang3.function.TriConsumer;
 import org.apache.directory.api.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,9 +36,9 @@ public class TabsComponent extends TabSheet {
     private final AtomicInteger restoredTabsRenderCountdownLatch = new AtomicInteger(0);
     private final RemoteSource remoteSource;
     private final TabsPersistenceHelper clientStorage;
+    private final SwitchListenerHelper switchListener;
 
     private ArchLevel currentLevel = ArchLevel.CONTEXT;
-    SwitchListenerHelper switchListener = null;
 
     public TabsComponent(SwitchListenerHelper switchListener) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
@@ -55,7 +55,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(SvgDataEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             Optional.ofNullable(tabs.get(e.getTabId())).ifPresent(tab -> tab.getView().update(e.getSvgData()));
                         });
                     }
@@ -65,7 +65,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(ZoomEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             Optional.ofNullable(getSelectedTab()).ifPresent(tab -> tab.getView().zoom(e));
                         });
                     }
@@ -75,7 +75,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(DoWithSourceEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
                                 tab.getEditor().doWithCode(tab, tabs.values(), e.getCallback());
                             });
@@ -87,7 +87,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(FileChangeEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             Optional.ofNullable(files.get(e.getUpdatedFile().getId())).ifPresent(tab -> {
                                 tab.updateFile(e.getUpdatedFile());
                                 Communication.getBus().post(new TabUpdateEvent(tab.getTabId(), tab.getFileId(), tab.getName()));
@@ -100,7 +100,7 @@ public class TabsComponent extends TabSheet {
                     @Subscribe
                     @Override
                     public void receive(SourceCompilationEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             try {
                                 // skip technical failed compilation events that don't have message errors as this
                                 // causes errors blinking on frontend
@@ -123,7 +123,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(FileSaveRequestEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
                                 if (tab.isNew()) {
                                     tab.updateFile(e.getFile());
@@ -140,7 +140,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(RequestRenderEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             currentLevel = e.getLevel();
                             tabs.forEach((key, value) -> value.setRenderer(createRenderer(switchListener.getActiveRepositoryId() , currentLevel)));
                             Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
@@ -154,7 +154,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(EditorInsertEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             var tab = getSelectedTab();
                             if (tab != null) {
                                 tab.getEditor().getElement().executeJs("""
@@ -172,7 +172,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(GotoSourceEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             var tab = getSelectedTab();
                             if (tab != null) {
                                 tab.getEditor().putCursorInPosition(e.getSymbol().getLine(), e.getSymbol().getStartIndex());
@@ -185,7 +185,7 @@ public class TabsComponent extends TabSheet {
                     @Override
                     @Subscribe
                     public void receive(ViewModeEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             var tab = getSelectedTab();
                             if (tab != null) {
                                 tab.setViewMode(e.getMode());

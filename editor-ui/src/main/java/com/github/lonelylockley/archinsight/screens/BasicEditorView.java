@@ -66,7 +66,7 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
                     @Override
                     @Subscribe
                     public void receive(NotificationEvent e) {
-                        e.getUIContext().access(() -> {
+                        e.withCurrentUI(this, () -> {
                             new NotificationComponent(e.getMessage(), e.getLevel(), e.getDuration());
                         });
                     }
