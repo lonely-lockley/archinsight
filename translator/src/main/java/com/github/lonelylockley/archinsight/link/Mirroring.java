@@ -26,6 +26,7 @@ public interface Mirroring {
                     return new Tuple2<>(link, getTargetDescriptor(link.getTo(), ctx));
                 })
                 .filter(t -> !Objects.equals(descriptor, t._2))
+                .filter(t -> t._2 != null)
                 .filter(t -> !(Objects.equals(descriptor.getBoundedContext(), t._2.getBoundedContext()) && Objects.equals(descriptor.getRoot().getOrigin(), t._2.getRoot().getOrigin())))
                 .forEach(t -> {
                     final var link = t._1;

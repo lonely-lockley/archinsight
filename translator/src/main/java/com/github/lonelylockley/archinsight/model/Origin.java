@@ -55,7 +55,16 @@ public class Origin {
     }
 
     public String getContent() {
-        return tab.map(TabData::getSource).orElse(file.map(FileData::getContent).orElse(null));
+        if (tab.isPresent()) {
+            return tab.map(TabData::getSource).orElse(null);
+        }
+        else
+        if (file.isPresent()) {
+            return file.map(FileData::getContent).orElse(null);
+        }
+        else {
+            return null;
+        }
     }
 
     @Override
