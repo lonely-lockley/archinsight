@@ -5,10 +5,8 @@ import com.github.lonelylockley.archinsight.model.Origin;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
-import org.antlr.v4.runtime.ANTLRErrorListener;
+import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.Parser;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.dfa.DFA;
 
@@ -27,6 +25,7 @@ public class InsightParseErrorListener implements ANTLRErrorListener {
 
     @Override
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
+        final var tkn = (CommonToken) offendingSymbol;
         TranslatorMessage lm = new TranslatorMessage(
                 MessageLevel.ERROR,
                 origin.getTabId(),
@@ -34,7 +33,12 @@ public class InsightParseErrorListener implements ANTLRErrorListener {
                 origin.getLocation(),
                 String.format("line %d:%d %s", line, charPositionInLine, msg)
         );
-        TranslationUtil.copyPosition(lm, line, charPositionInLine, e.getOffendingToken().getStartIndex(), e.getOffendingToken().getStopIndex());
+        if (tkn == null) {
+            TranslationUtil.copyPosition(lm, line, charPositionInLine, e.getInputStream().index(), e.getInputStream().index() + 1);
+        }
+        else {
+            TranslationUtil.copyPosition(lm, line, charPositionInLine, tkn.getStartIndex(), tkn.getStopIndex());
+        }
         ctx.addMessage(lm);
     }
 

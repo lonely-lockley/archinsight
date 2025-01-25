@@ -160,11 +160,11 @@ attributeAnnotationDeclaration
     ;
 
 plannedAnnotationDeclaration
-    :   PLANNED
+    :   PLANNED annotationValue?
     ;
 
 deprecatedAnnotationDeclaration
-    :   DEPRECATED
+    :   DEPRECATED annotationValue?
     ;
 
 annotationValue

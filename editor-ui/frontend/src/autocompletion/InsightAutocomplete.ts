@@ -49,9 +49,11 @@ export class InsightAutocomplete implements CompletionItemProvider {
                 case InsightLexer.ACTOR: {
                     return this.suggestKeywordWithParameters(name, range, endOfLine);
                 }
-                case InsightLexer.SWIRE:
+                case InsightLexer.SWIRE: {
+                    return this.suggestSyncWire(name, range, context, endOfLine);
+                }
                 case InsightLexer.AWIRE: {
-                    return this.suggestWireWithParameters(name, range, context, endOfLine);
+                    return this.suggestAsyncWire(name, range, context, endOfLine);
                 }
                 case InsightLexer.NAME:
                 case InsightLexer.DESCRIPTION:
@@ -105,29 +107,11 @@ export class InsightAutocomplete implements CompletionItemProvider {
               insertText: endOfLine ? lower + " " : lower,
               sortText: lower,
               range: range,
-           },
-           {
-              label: lower + " name",
-              kind: monaco.languages.CompletionItemKind.Struct,
-              insertText: lower + " ${1:id}\n    name = ${2:name}",
-              filterText: lower,
-              sortText: lower + "a",
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              range: range,
-          },
-          {
-              label: lower + " name tech desc",
-              kind: monaco.languages.CompletionItemKind.Struct,
-              insertText: lower + " ${1:id}\n    name = ${2:name}\n    tech = ${3:technology}\n    desc = ${4:description}",
-              filterText: lower,
-              sortText: lower + "b",
-              insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-              range: range,
-          }
+           }
       ];
   }
 
-  private suggestWireWithParameters(name: string, range: IRange, context: CompletionContext, endOfLine: boolean): CompletionItem[] {
+  private suggestSyncWire(name: string, range: IRange, context: CompletionContext, endOfLine: boolean): CompletionItem[] {
       var triggeredWithCharacter = context.triggerCharacter == '-' || context.triggerCharacter == '~'
         return [
             {
@@ -136,52 +120,22 @@ export class InsightAutocomplete implements CompletionItemProvider {
                 insertText: triggeredWithCharacter ? (endOfLine ? "> " : ">") : (endOfLine ? "-> " : "->"),
                 sortText: "a",
                 range: range,
-            },
-            {
-               label: "-> tech",
-               kind: monaco.languages.CompletionItemKind.Struct,
-               insertText: triggeredWithCharacter ? "> ${1:id}\n    technology = ${2:name}" : "-> ${1:id}\n    technology = ${2:name}",
-               filterText: "-> ",
-               sortText: "b",
-               insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-               range: range,
-           },
-           {
-               label: "-> tech desc",
-               kind: monaco.languages.CompletionItemKind.Struct,
-               insertText: triggeredWithCharacter ? "> ${1:id}\n    tech = ${2:technology}\n    desc = ${3:description}" : "-> ${1:id}\n    tech = ${2:technology}\n    desc = ${3:description}",
-               filterText: "->",
-               sortText: "c",
-               insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-               range: range,
-           },
-           {
-               label: "~>",
-               kind: monaco.languages.CompletionItemKind.Operator,
-               insertText: triggeredWithCharacter ? (endOfLine ? "> " : ">") : (endOfLine ? "~> " : "~>"),
-               sortText: "c",
-               range: range,
-           },
-           {
-               label: "~> tech",
-               kind: monaco.languages.CompletionItemKind.Struct,
-               insertText: triggeredWithCharacter ? "> ${1:id}\n    technology = ${2:name}" : "~> ${1:id}\n    technology = ${2:name}",
-               filterText: "~> ",
-               sortText: "e",
-               insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-               range: range,
-           },
-           {
-               label: "~> tech desc",
-               kind: monaco.languages.CompletionItemKind.Struct,
-               insertText: triggeredWithCharacter ? "> ${1:id}\n    tech = ${2:technology}\n    desc = ${3:description}" : "~> ${1:id}\n    tech = ${2:technology}\n    desc = ${3:description}",
-               filterText: "~>",
-               sortText: "f",
-               insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-               range: range,
-           }
+            }
         ];
   }
+
+    private suggestAsyncWire(name: string, range: IRange, context: CompletionContext, endOfLine: boolean): CompletionItem[] {
+        var triggeredWithCharacter = context.triggerCharacter == '-' || context.triggerCharacter == '~'
+        return [
+            {
+                label: "~>",
+                kind: monaco.languages.CompletionItemKind.Operator,
+                insertText: triggeredWithCharacter ? (endOfLine ? "> " : ">") : (endOfLine ? "~> " : "~>"),
+                sortText: "c",
+                range: range,
+            }
+        ];
+    }
 
   private suggestParameters(name: string, range: IRange, endOfLine: boolean): CompletionItem[] {
       const lower = name.toLowerCase();
@@ -252,44 +206,7 @@ export class InsightAutocomplete implements CompletionItemProvider {
               sortText: lower + "context",
               insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
               range: range,
-           },
-           {
-               label: lower + " from container",
-               kind: monaco.languages.CompletionItemKind.Struct,
-               insertText: "import ${1:id} from container ${2:contextId}",
-               filterText: lower,
-               sortText: lower + "container",
-               insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-               range: range,
            }
-      ];
-  }
-
-  private suggestImportFromContext(name: string, range: IRange, endOfLine: boolean): CompletionItem[] {
-      return [
-          {
-             label: "import from context",
-             kind: monaco.languages.CompletionItemKind.Struct,
-             insertText: "${1:id} from context ${2:contextId}",
-             filterText: "context",
-             sortText: "context",
-             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-             range: range,
-          }
-      ];
-  }
-
-  private suggestImportFromContainer(name: string, range: IRange, endOfLine: boolean): CompletionItem[] {
-      return [
-          {
-             label: "import from container",
-             kind: monaco.languages.CompletionItemKind.Struct,
-             insertText: "${1:id} from container ${2:contextId}",
-             filterText: "container",
-             sortText: "container",
-             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-             range: range,
-          }
       ];
   }
 

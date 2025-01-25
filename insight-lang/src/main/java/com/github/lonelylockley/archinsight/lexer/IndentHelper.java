@@ -142,16 +142,14 @@ public class IndentHelper {
     }
 
     public void processEOF(Token eof) {
-        if (wrapped) {
-            //waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, 0));
-            lexer.setText("\n");
-            unwrapValue();
+        if (wrapped && !singleLineMode) {
+            waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, 0, calculateLengthCorrection()));
+            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, calculateLengthCorrection()));
         }
         else
         if (lexer.getInputStream().LA(-1) != 10 && lexer.getText() == null) {
-            //waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, 0));
-            lexer.setText("\n");
-            checkIndentation();
+            fireDedents(0, 0);
+            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, 0));
         }
         waitlist.add(eof);
     }
@@ -175,8 +173,8 @@ public class IndentHelper {
                 tkn = waitlist.pollFirst();
             }
         }
-        final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
-        System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",from=" + tkn.getStartIndex() + ",to=" + tkn.getStopIndex() + ",mode=" + lexer._mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
+//        final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
+//        System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",from=" + tkn.getStartIndex() + ",to=" + tkn.getStopIndex() + ",mode=" + lexer._mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
         return tkn;
     }
 

@@ -29,7 +29,7 @@ public class Parser {
     }
 
     private ParseResult parse(Origin origin) {
-        var source = origin.getContent();
+        var source = origin.getContent() == null ? "" : origin.getContent().replaceAll("[ \\t]+$", "");
         var listener = new InsightParseTreeListener(origin);
         try {
             if (!StringUtils.isBlank(source)) {

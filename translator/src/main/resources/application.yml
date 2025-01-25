@@ -38,7 +38,7 @@ archinsight:
       cluster_border: "#999999"
       graph_background: "#2e2e2e"
       element_internal: "#5A189A"
-      element_external: "#444466"
+      element_external: "#737C67"
       infra_internal: "#3A0E6E"
       infra_external: "#555570"
       planned: "#0e8006"
