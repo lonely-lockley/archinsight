@@ -12,11 +12,19 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 
 public class NotificationComponent extends Notification {
 
-    public NotificationComponent(String message, MessageLevel level) {
-        new NotificationComponent(message, level, -1);
+    public NotificationComponent(String html, MessageLevel level) {
+        show(html, level, -1);
     }
 
     public NotificationComponent(String message, MessageLevel level, int durationMillis) {
+        final var html = String.format("<div>%s</div>", message
+                                .replaceAll("<", "&lt;")
+                                .replaceAll(">", "&gt;")
+                                .replaceAll("\n", "<br/>"));
+        show(html, level, durationMillis);
+    }
+
+    private void show(String html, MessageLevel level, int durationMillis) {
         switch (level) {
             case NOTICE:
                 addThemeVariants(NotificationVariant.LUMO_CONTRAST);
@@ -28,11 +36,7 @@ public class NotificationComponent extends Notification {
                 addThemeVariants(NotificationVariant.LUMO_ERROR);
                 break;
         }
-        var text = new Html(String.format("<div>%s</div>", message
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll("\n", "<br/>")
-        ));
+        var text = new Html(html);
 
         Button closeButton = new Button(new Icon("lumo", "cross"));
         closeButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
