@@ -4,6 +4,7 @@ import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.UUID;
 
@@ -12,6 +13,9 @@ public interface UserdataMapper {
 
     @Select("select * from public.userdata where id = #{id}")
     public Userdata getById(UUID id);
+
+    @Select("select * from public.userdata where ssr_session = #{ssr}")
+    public Userdata getBySsrSession(String ssr);
 
     @Select("select * from public.userdata where email = #{email}")
     public Userdata getByEmail(String email);
@@ -22,5 +26,8 @@ public interface UserdataMapper {
 
     @Select("select id from public.userdata where email = #{email}")
     public UUID getIdByEmail(String email);
+
+    @Update("update public.userdata set ssr_session = #{ssr} where email = #{email}")
+    public void storeSsrSession(String ssr, String email);
 
 }

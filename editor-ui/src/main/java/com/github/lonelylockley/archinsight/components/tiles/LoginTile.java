@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.components.tiles;
 
+import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.security.Authentication;
@@ -19,15 +20,17 @@ public class LoginTile extends SiteViewTile {
 
     private final LoginClickListener loginClickListener;
     private final LogoutClickListener logoutClickListener;
+    private final Config conf;
 
     private Consumer<Userdata> listener = null;
 
-    public LoginTile(String loginUrl) {
+    public LoginTile(Config conf) {
         super("Sign in with Google", iconSrc, baseColor, doubleWidth, singleHeight);
+        this.conf = conf;
         getElement().setAttribute("router-ignore", true);
         setClassName("tile_action");
         makeTextBold();
-        loginClickListener = new LoginClickListener(loginUrl);
+        loginClickListener = new LoginClickListener(conf.getLoginUrl());
         addClickListener(loginClickListener);
         logoutClickListener = new LogoutClickListener();
         addClickListener(logoutClickListener);

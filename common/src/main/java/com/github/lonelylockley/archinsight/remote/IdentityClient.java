@@ -18,6 +18,10 @@ public interface IdentityClient {
     @Header(name = ACCEPT, value = MediaType.APPLICATION_JSON)
     Userdata getUserById(@Header String authorization, UUID id);
 
+    @Get("/identity/ssr/{ssr}")
+    @Header(name = ACCEPT, value = MediaType.APPLICATION_JSON)
+    Userdata getUserBySsrSession(@Header String authorization, String ssr);
+
     @Get("/identity/email/{email}")
     @Header(name = ACCEPT, value = MediaType.APPLICATION_JSON)
     Userdata getUserByEmail(@Header String authorization, String email);

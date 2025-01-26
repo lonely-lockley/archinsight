@@ -15,6 +15,9 @@ public class Config {
     private String rendererAuthToken;
     private String repositoryAuthToken;
     private String contextPath;
+    private Boolean siteEnabled;
+    private Boolean ghostSsrEnabled;
+    private String ghostSsrSecretKey;
 
     public Boolean getDevMode() {
         return devMode != null && devMode;
@@ -78,5 +81,29 @@ public class Config {
 
     public void setContextPath(String contextPath) {
         this.contextPath = contextPath;
+    }
+
+    public Boolean getSiteEnabled() {
+        return siteEnabled;
+    }
+
+    public void setSiteEnabled(Boolean siteEnabled) {
+        this.siteEnabled = siteEnabled;
+    }
+
+    public Boolean getGhostSsrEnabled() {
+        return ghostSsrEnabled;
+    }
+
+    public void setGhostSsrEnabled(Boolean ghostSsrEnabled) {
+        this.ghostSsrEnabled = ghostSsrEnabled;
+    }
+
+    public String getGhostSsrSecretKey() {
+        return ghostSsrSecretKey;
+    }
+
+    public void setGhostSsrSecretKey(String ghostSsrSecretKey) {
+        this.ghostSsrSecretKey = ghostSsrSecretKey;
     }
 }

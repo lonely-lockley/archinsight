@@ -6,6 +6,7 @@ import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.security.Authentication;
+import com.google.common.base.Strings;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -120,7 +121,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private void restoreSelectedRepository(List<RepositoryInfo> items) {
         getElement().executeJs("return localStorage.getItem($0)", "org.archinsight.editor.project").then(String.class, repositoryId -> {
-            if (repositoryId != null) {
+            if (!Strings.isNullOrEmpty(repositoryId)) {
                 var uuid = UUID.fromString(repositoryId);
                 items.stream().filter(repo -> repo.getId().equals(uuid)).forEach(repo -> {
                     Communication.getBus().post(new RepositorySelectionEvent(RepositorySelectorComponent.this.selected, repo));

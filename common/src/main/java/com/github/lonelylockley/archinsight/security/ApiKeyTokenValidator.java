@@ -18,8 +18,10 @@ class ApiKeyTokenValidator implements TokenValidator<HttpRequest<?>> {
 
     @Override
     public Publisher<Authentication> validateToken(String token, HttpRequest<?> request) {
-        return apiKeyConfiguration.findByApiKey(token)
+        return apiKeyConfiguration
+                .findByApiKey(token)
                 .map(principal -> Authentication.build(principal._2))
-                .map(Publishers::just).orElseGet(Publishers::empty);
+                .map(Publishers::just)
+                .orElseGet(Publishers::empty);
     }
 }

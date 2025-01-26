@@ -32,8 +32,6 @@ public class UserMenuComponent extends MenuBar {
     private final MenuItem editor;
     private final MenuItem logout;
 
-    private boolean redirectNeeded = false;
-
     public UserMenuComponent() {
         setId("content-presentation"); // for LoginCallback.js to initialize and work properly
         getStyle().set("margin-right", "10px");
@@ -53,7 +51,7 @@ public class UserMenuComponent extends MenuBar {
         editor = sub.addItem("My projects");
         editor.setId("user_menu_editor");
         editor.setVisible(false);
-        logout = sub.addItem("Logout");
+        logout = sub.addItem("Sign out");
         logout.setId("user_menu_logout");
         login = sub.addItem("Sign in with Google");
         login.setId("user_menu_login");
@@ -95,7 +93,7 @@ public class UserMenuComponent extends MenuBar {
                 UI.getCurrent().getPage().reload();
             }
             else {
-                UI.getCurrent().navigate(SiteView.class);
+                UI.getCurrent().getPage().setLocation("/");
             }
         });
 
@@ -105,7 +103,6 @@ public class UserMenuComponent extends MenuBar {
                 @Subscribe
                 public void receive(CreateRepositoryEvent e) {
                     if (eventWasProducedForCurrentUiId(e)) {
-                        redirectNeeded = true;
                         if (conf.getDevMode()) {
                             debugClickListener(null);
                         }
@@ -160,13 +157,7 @@ public class UserMenuComponent extends MenuBar {
         if (Authentication.authenticated()) {
             Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
             loggedIn();
-            if (redirectNeeded) {
-                UI.getCurrent().navigate(EditorView.class);
-            }
-            else {
-                UI.getCurrent().getPage().reload();
-            }
-            redirectNeeded = false;
+            UI.getCurrent().navigate(EditorView.class);
         }
     }
 }

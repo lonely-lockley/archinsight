@@ -23,6 +23,10 @@ micronaut:
       prior-to-login: false
       login-success: '${PUBLIC_HOST}/auth/ok'
       login-failure: '${PUBLIC_HOST}/auth/fail'
+  http:
+    services: # private network only
+      external_ssr:
+        url: ${EXTERNAL_SSR:``}
 datasources:
   default:
     db-type: POSTGRES
@@ -47,3 +51,6 @@ archinsight:
   kid: '${KID}'
   apiToken: '${SECURITY_TOKEN}'
   redirect-uri: '${PUBLIC_HOST}/oauth/callback/google'
+  ghostSsrEnabled: false
+  ghostSsrSecretKey: ''
+  ghostApiKey: ''

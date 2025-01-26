@@ -54,6 +54,7 @@ public final class Launcher {
 
         // Context path of the application
         context.setContextPath(conf.getContextPath() == null ? "/" : conf.getContextPath());
+        context.getSessionHandler().getSessionCookieConfig().setPath("/");
 
         // Exploded WAR or not
         context.setExtractWAR(false);

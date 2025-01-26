@@ -18,7 +18,7 @@ public class NotFoundErrorView extends VerticalLayout implements BaseView/*, Has
         add(new Span("The requested resource was not found on the server"));
         addFooter(this);
         setHeight("100%");
-        applyDarkTheme(getElement());
+        setupFrontend(getElement());
         return HttpServletResponse.SC_NOT_FOUND;
     }
 }

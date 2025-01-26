@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.security;
 
+import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinServletRequest;

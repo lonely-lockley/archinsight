@@ -3,6 +3,7 @@ package com.github.lonelylockley.archinsight;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.github.lonelylockley.archinsight.auth.Keychain;
+import com.github.lonelylockley.archinsight.external.ExternalSsrPlugin;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.persistence.SqlSessionFactoryBean;
@@ -12,8 +13,11 @@ import io.micronaut.http.*;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
 import io.micronaut.http.annotation.Produces;
+import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.netty.cookies.NettyCookie;
 import io.micronaut.http.server.util.HttpClientAddressResolver;
+import io.micronaut.scheduling.TaskExecutors;
+import io.micronaut.scheduling.annotation.ExecuteOn;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 import org.slf4j.Logger;
@@ -23,6 +27,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAmount;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Controller("/auth")
@@ -34,8 +40,9 @@ public class AuthService {
     private final Keychain keychain;
     private final SqlSessionFactoryBean sqlSessionFactory;
     private final HttpClientAddressResolver addressResolver;
+    private final ExternalSsrPlugin plugin;
 
-    public AuthService(Keychain keychain, Config conf, SqlSessionFactoryBean sqlSessionFactory, HttpClientAddressResolver addressResolver) {
+    public AuthService(Keychain keychain, Config conf, SqlSessionFactoryBean sqlSessionFactory, HttpClientAddressResolver addressResolver, ExternalSsrPlugin plugin) {
         if (conf.getKid() == null) {
             throw new IllegalArgumentException("JWT key id (env KID) is not set. This setting is required in production mode");
         }
@@ -43,9 +50,10 @@ public class AuthService {
         this.conf = conf;
         this.sqlSessionFactory = sqlSessionFactory;
         this.addressResolver = addressResolver;
+        this.plugin = plugin;
     }
 
-    private HttpResponse<String> onSuccess(String email, String sessionId) {
+    private HttpResponse<String> onSuccess(String email, String sessionId, List<Cookie> additionalCookies) {
         UUID userId = null;
         try (var session = sqlSessionFactory.getSession()) {
             var sql = session.getMapper(UserdataMapper.class);
@@ -59,20 +67,32 @@ public class AuthService {
             return HttpResponse.notFound("User not found");
         }
         var accessToken = createJWT(userId.toString(), conf.getKid(), Duration.of(5, ChronoUnit.MINUTES), new Tuple2<>("session", sessionId));
-        return HttpResponse.ok(createFinalPage())
-                .cookie(createCookie("auth_token", accessToken, null, Duration.of(5, ChronoUnit.MINUTES)))
-                .cookie(clearCookie("JWT"))
-                .cookie(clearCookie("OAUTH2_STATE"))
-                .cookie(clearCookie("OPENID_NONCE"))
-                .cookie(clearCookie("OAUTH2_PKCE"));
+        var result =  HttpResponse.ok(createFinalPage())
+                                    .cookie(createCookie("auth_token", accessToken, null, Duration.of(5, ChronoUnit.MINUTES)))
+                                    .cookie(clearCookie("JWT"))
+                                    .cookie(clearCookie("OAUTH2_STATE"))
+                                    .cookie(clearCookie("OPENID_NONCE"))
+                                    .cookie(clearCookie("OAUTH2_PKCE"));
+        for (Cookie cookie : additionalCookies) {
+            result.cookie(cookie);
+        }
+        return result;
     }
 
     @Get("/ok")
     @Secured(SecurityRule.IS_AUTHENTICATED)
     @Produces(MediaType.TEXT_HTML)
+    @ExecuteOn(TaskExecutors.BLOCKING)
     @Measured
     public HttpResponse<String> ok(HttpRequest<TranslationRequest> request) throws Exception {
-        return onSuccess(getEmailFromToken(request), getSessionId(request));
+        var email = getEmailFromToken(request);
+        if (conf.getGhostSsrEnabled()) {
+            var additionalCookies = plugin.synchronizeWithExternalProvider(email);
+            return onSuccess(email, getSessionId(request), additionalCookies);
+        }
+        else {
+            return onSuccess(email, getSessionId(request), Collections.emptyList());
+        }
     }
 
     @Get("/fail")
@@ -91,16 +111,22 @@ public class AuthService {
     @Get("/testOk")
     @Secured(SecurityRule.IS_ANONYMOUS)
     @Produces(MediaType.TEXT_HTML)
+    @ExecuteOn(TaskExecutors.BLOCKING)
     @Measured
     public HttpResponse<String> testOk(HttpRequest<TranslationRequest> request) throws Exception {
-        HttpResponse<String> result = null;
         if (!conf.getDevMode()) {
-            result = HttpResponse.notFound();
+            return HttpResponse.notFound();
         }
         else {
-            result = onSuccess("y_menya@emaila.net", getSessionId(request));
+            var email = "y_menya@emaila.net";
+            if (conf.getGhostSsrEnabled()) {
+                var additionalCookies = plugin.synchronizeWithExternalProvider(email);
+                return onSuccess(email, getSessionId(request), additionalCookies);
+            }
+            else {
+                return onSuccess(email, getSessionId(request), Collections.emptyList());
+            }
         }
-        return result;
     }
 
     private NettyCookie createCookie(String name, String value, String domain, TemporalAmount ttl) {
@@ -134,7 +160,14 @@ public class AuthService {
                  <header>
                    <script>
                      try {
-                       window.opener.loginCallback();
+                       if (window.opener && !window.opener.closed) {
+                         if (window.opener.loginCallback) {
+                           window.opener.loginCallback();
+                         }
+                         else {
+                           window.opener.location.reload();
+                         }
+                       }
                      }
                      catch (error) {
                        console.error(error);

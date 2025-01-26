@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
+import com.github.lonelylockley.archinsight.external.ExternalSsrPlugin;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.github.lonelylockley.archinsight.persistence.MigratorRunner;
@@ -53,7 +54,37 @@ public class IdentityService {
             try (var session = sqlSessionFactory.getSession()) {
                 var sql = session.getMapper(UserdataMapper.class);
                 var user = sql.getById(id);
-                result = HttpResponse.ok(user);
+                if (user == null) {
+                    result = HttpResponse.notFound();
+                }
+                else {
+                    result = HttpResponse.ok(user);
+                }
+            }
+            catch (Exception ex) {
+                logger.error("Error accessing user data", ex);
+                result = HttpResponse.serverError();
+            }
+        }
+        return result;
+    }
+
+    @Get("/ssr/{ssr}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Secured(SecurityRule.IS_ANONYMOUS)
+    @Measured
+    public HttpResponse<Userdata> getBySSrSession(HttpRequest<TranslationRequest> request, String ssr) {
+        HttpResponse<Userdata> result = HttpResponse.unauthorized();
+        if (checkToken(request) && conf.getGhostSsrEnabled()) {
+            try (var session = sqlSessionFactory.getSession()) {
+                var sql = session.getMapper(UserdataMapper.class);
+                var user = sql.getBySsrSession(ssr);
+                if (user == null) {
+                    result = HttpResponse.notFound();
+                }
+                else {
+                    result = HttpResponse.ok(user);
+                }
             }
             catch (Exception ex) {
                 logger.error("Error accessing user data", ex);
@@ -73,7 +104,12 @@ public class IdentityService {
             try (var session = sqlSessionFactory.getSession()) {
                 var sql = session.getMapper(UserdataMapper.class);
                 var user = sql.getByEmail(email);
-                result = HttpResponse.ok(user);
+                if (user == null) {
+                    result = HttpResponse.notFound();
+                }
+                else {
+                    result = HttpResponse.ok(user);
+                }
             }
             catch (Exception ex) {
                 logger.error("Error accessing user data", ex);
@@ -83,6 +119,10 @@ public class IdentityService {
         return result;
     }
 
+    /**
+     * Token auth is auxiliary here. Service is set up to check google jwt by default in a single method
+     * @todo Maybe this behavior needs to be changed
+     */
     private boolean checkToken(HttpRequest<TranslationRequest> request) {
         var auth = request.getHeaders().get(HttpHeaders.AUTHORIZATION);
         // cut Bearer_ - 7 characters
