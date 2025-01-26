@@ -8,7 +8,7 @@ const parse = (code: string): {
                                 ast: InsightContext;
                                 errors: InsightError[];
                               } => {
-  const inputStream = CharStream.fromString(code);
+  const inputStream = CharStream.fromString(code.replace(/[ \t]+$/, ''));
   const lexer = new InsightLexer(inputStream);
   lexer.removeErrorListeners();
   const insightErrorListener = new InsightErrorListener();

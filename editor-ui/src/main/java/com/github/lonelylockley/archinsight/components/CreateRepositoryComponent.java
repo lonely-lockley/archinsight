@@ -11,14 +11,20 @@ public class CreateRepositoryComponent extends Button {
 
     public CreateRepositoryComponent() {
         super("Create own repository");
-        final var conf = MicronautContext.getInstance().getConf();
         addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         setId("menu_btn_create_acc");
         setWidthFull();
+        getStyle()
+                .setHeight("40px")
+                .setMarginTop("5px")
+                .setMarginBottom("10px")
+                .setWidth("94%")
+                .setMarginLeft("3%")
+                .set("background-color", "var(--app-accent-color)");
         final var icon = new Image("static/google-178-svgrepo-com.svg", "G");
         icon.setHeight(20, Unit.PIXELS);
         icon.setWidth(20, Unit.PIXELS);
-        icon.getStyle().set("margin-right", "5px").set("margin-top", "2px");
+        icon.getStyle().setMarginRight("5px").setMarginTop("2px");
         setPrefixComponent(icon);
         addClickListener(e -> {
             Communication.getBus().post(new CreateRepositoryEvent());

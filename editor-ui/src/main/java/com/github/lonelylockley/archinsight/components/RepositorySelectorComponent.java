@@ -6,6 +6,7 @@ import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryInfo;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.security.Authentication;
+import com.google.common.base.Strings;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -24,7 +25,8 @@ public class RepositorySelectorComponent extends VerticalLayout {
     public RepositorySelectorComponent() {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
         setWidth("100%");
-        add(initLabel());
+        setPadding(false);
+        setSpacing(false);
 
         var items = listRepositories();
         if (Authentication.playgroundModeEnabled()) {
@@ -38,14 +40,6 @@ public class RepositorySelectorComponent extends VerticalLayout {
         else {
             add(initRepositorySelector(false, items));
         }
-    }
-
-    private Span initLabel() {
-        var label = new Span("Repository");
-        label.getStyle().set("color", "var(--lumo-secondary-text-color)");
-        label.getStyle().set("font-size", "var(--lumo-font-size-s)");
-        label.getStyle().set("font-weight", "500");
-        return label;
     }
 
     private List<RepositoryInfo> listRepositories() {
@@ -64,7 +58,13 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private Button initRepositorySelector(boolean lockedOut, List<RepositoryInfo> items) {
         final var manageRepositoryButton = new Button("<Choose Repository>");
-        manageRepositoryButton.setWidth("100%");
+        manageRepositoryButton.getStyle()
+                .setHeight("40px")
+                .setMarginTop("5px")
+                .setWidth("94%")
+                .setMarginLeft("3%")
+                .setMarginBottom("10px")
+                .setColor("var(--lumo-body-text-color)");
         manageRepositoryButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         if (items.size() == 1) {
             var item = items.iterator().next();
@@ -84,33 +84,30 @@ public class RepositorySelectorComponent extends VerticalLayout {
             manageRepositoryButton.setEnabled(false);
         }
 
-        final var repositoryCloseListener = new BaseListener<RepositoryCloseEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositoryCloseEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                manageRepositoryButton.setText("<Choose Repository>");
-                RepositorySelectorComponent.this.selected = null;
-                storeSelectedRepository(null);
-            }
-            }
-        };
-        Communication.getBus().register(repositoryCloseListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositoryCloseListener); });
+        Communication.getBus().register(this,
+                new BaseListener<RepositoryCloseEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RepositoryCloseEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            manageRepositoryButton.setText("<Choose Repository>");
+                            RepositorySelectorComponent.this.selected = null;
+                            storeSelectedRepository(null);
+                        });
+                    }
+                },
 
-        final var repositorySelectionListener = new BaseListener<RepositorySelectionEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RepositorySelectionEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                manageRepositoryButton.setText(String.format("[ %s ]", e.getNewValue().getName()));
-                RepositorySelectorComponent.this.selected = e.getNewValue();
-                storeSelectedRepository(e.getNewValue().getId());
-            }
-            }
-        };
-        Communication.getBus().register(repositorySelectionListener);
-        addDetachListener(e -> { Communication.getBus().unregister(repositorySelectionListener); });
+                new BaseListener<RepositorySelectionEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RepositorySelectionEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            manageRepositoryButton.setText(String.format("[ %s ]", e.getNewValue().getName()));
+                            RepositorySelectorComponent.this.selected = e.getNewValue();
+                            storeSelectedRepository(e.getNewValue().getId());
+                        });
+                    }
+                });
 
         return manageRepositoryButton;
     }
@@ -121,7 +118,7 @@ public class RepositorySelectorComponent extends VerticalLayout {
 
     private void restoreSelectedRepository(List<RepositoryInfo> items) {
         getElement().executeJs("return localStorage.getItem($0)", "org.archinsight.editor.project").then(String.class, repositoryId -> {
-            if (repositoryId != null) {
+            if (!Strings.isNullOrEmpty(repositoryId)) {
                 var uuid = UUID.fromString(repositoryId);
                 items.stream().filter(repo -> repo.getId().equals(uuid)).forEach(repo -> {
                     Communication.getBus().post(new RepositorySelectionEvent(RepositorySelectorComponent.this.selected, repo));

@@ -1,8 +1,8 @@
 package com.github.lonelylockley.archinsight.parse;
 
-import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
-import com.github.lonelylockley.archinsight.model.TabBoundedFileData;
-import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.model.*;
+import com.github.lonelylockley.archinsight.model.elements.*;
+import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.insight.lang.InsightLexer;
@@ -14,9 +14,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 public class Parser {
 
@@ -28,21 +28,12 @@ public class Parser {
         this.ctx = ctx;
     }
 
-    public void parseRepository(TranslationContext ctx, FileSystem fs, List<TabBoundedFileData> tabs) {
-        tabs.stream().parallel().forEach(tab -> {
-            var location = tab.getId() == null ? tab.getFileName() : fs.getPath(tab.getId());
-            var pr = parse(tab.getContent(), tab.getTabId(), tab.getId(), location);
-            var descriptor = new ParsedFileDescriptor(pr, location, Optional.ofNullable(tab.getTabId()), Optional.ofNullable(tab.getId()));
-            copyParserMessages(descriptor, ctx, pr.getMessages());
-            ctx.addDescriptor(descriptor);
-        });
-    }
-
-    private ParseResult parse(String source, String tabId, UUID fileId, String location) {
-        var listener = new InsightParseTreeListener();
+    private ParseResult parse(Origin origin) {
+        var source = origin.getContent() == null ? "" : origin.getContent().replaceAll("[ \\t]+$", "");
+        var listener = new InsightParseTreeListener(origin);
         try {
             if (!StringUtils.isBlank(source)) {
-                var errorListener = new InsightParseErrorListener(ctx, tabId, fileId, location);
+                var errorListener = new InsightParseErrorListener(ctx, origin);
                 var inputStream = CharStreams.fromReader(new StringReader(source));
                 var lexer = new InsightLexer(inputStream);
                 lexer.removeErrorListeners();
@@ -61,13 +52,34 @@ public class Parser {
         return listener.getResult();
     }
 
-    private void copyParserMessages(ParsedFileDescriptor descriptor, TranslationContext ctx, List<TranslatorMessage> messages) {
+    private void copyParserMessages(Origin origin, TranslationContext ctx, List<TranslatorMessage> messages) {
         for (TranslatorMessage msg : messages) {
-            msg.setTabId(descriptor.getId());
-            msg.setFileId(descriptor.getFileId().orElse(null));
-            msg.setLocation(descriptor.getLocation());
+            msg.setTabId(origin.getTabId());
+            msg.setFileId(origin.getFileId());
+            msg.setLocation(origin.getLocation());
             ctx.addMessage(msg);
         }
+    }
+
+    public void parseRepository(TranslationContext ctx, FileSystem fs, List<Origin> origins) {
+        origins.stream().parallel().forEach(origin -> {
+            origin.defineLocation(fs);
+            var pr = parse(origin);
+            parseResultToDescriptors(ctx, pr);
+            copyParserMessages(origin, ctx, pr.getMessages());
+        });
+    }
+
+    private void parseResultToDescriptors(TranslationContext ctx, ParseResult result) {
+        final var root = result.getRoot();
+        final var boundedContextId = root.hasId().fold(WithId::getDeclaredId, () -> { throw new RuntimeException("Root element cannot exist without an id"); });
+        boundedContextId.setBoundedContext(boundedContextId.getElementId());
+        boundedContextId.setElementId(null);
+        boundedContextId.setLevel(ArchLevel.CONTEXT);
+        ElementType.CONTEXT.capture(root).foreach(ce -> {
+            final var contextDescriptor = new ContextDescriptor(boundedContextId, ce);
+            ctx.addRaw(result.getOrigin(), contextDescriptor);
+        });
     }
 
 }

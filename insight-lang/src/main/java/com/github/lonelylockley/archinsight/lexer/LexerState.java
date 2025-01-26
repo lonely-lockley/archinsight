@@ -1,23 +1,18 @@
 package com.github.lonelylockley.archinsight.lexer;
 
-import org.antlr.v4.runtime.Token;
-
 import java.util.Objects;
 
 public class LexerState {
-    private final int TEXT;
 
     private boolean wasText = false;
     private int indentation = 0;
 
-    public LexerState(int TEXT) {
-        this.TEXT = TEXT;
+    public LexerState() {
     }
 
-    protected LexerState(boolean wasText, int indentation, int TEXT) {
+    protected LexerState(boolean wasText, int indentation) {
         this.wasText = wasText;
         this.indentation = indentation;
-        this.TEXT = TEXT;
     }
 
     public boolean wasText() {
@@ -44,12 +39,6 @@ public class LexerState {
         this.indentation--;
     }
 
-    public void updateToken(Token tkn) {
-        if (tkn.getType() == TEXT) {
-            setWasText();
-        }
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -65,7 +54,7 @@ public class LexerState {
 
     @Override
     public Object clone() {
-        return new LexerState(this.wasText, this.indentation, this.TEXT);
+        return new LexerState(this.wasText, this.indentation);
     }
 
 }

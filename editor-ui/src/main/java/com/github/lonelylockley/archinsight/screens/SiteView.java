@@ -15,6 +15,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.*;
+import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -37,6 +38,11 @@ public class SiteView extends VerticalLayout implements BaseView {
 
     public SiteView() {
         this.conf = MicronautContext.getInstance().getConf();
+        if (!conf.getSiteEnabled()) {
+            // site view disabled (if editor is built into some other resource)
+            UI.getCurrent().getPage().setLocation("/");
+            return;
+        }
         setId("content-presentation");
         setAlignItems(Alignment.CENTER);
         var holder = new Div();
@@ -48,7 +54,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         setSizeFull();
         add(holder);
         addFooter(this);
-        applyDarkTheme(getElement());
+        setupFrontend(getElement());
     }
 
     private Component createContent() {
@@ -87,14 +93,14 @@ public class SiteView extends VerticalLayout implements BaseView {
         var actionsFourthLine = new HorizontalLayout();
         actionsFourthLine.setMargin(false);
         // first line actions =========================================================================================
-        var loginFirstLine = new LoginTile(conf.getLoginUrl());
+        var loginFirstLine = new LoginTile(conf);
         var editor = new EditorTile();
         editor.setVisible(false);
         actionsFirstLine.add(loginFirstLine);
         actionsFirstLine.add(editor);
         actionsFirstLine.add(new PlaygroundTile());
         // logout actions ==============================================================================================
-        var logoutFirstLine = new LoginTile(conf.getLoginUrl());
+        var logoutFirstLine = new LoginTile(conf);
         logoutFirstLine.setWidth(LoginTile.singleWidth, Unit.PIXELS);
         logoutFirstLine.setVisible(false);
         actionsFirstLine.add(logoutFirstLine);
@@ -171,6 +177,7 @@ public class SiteView extends VerticalLayout implements BaseView {
         // called from browser when login sequence finishes
         if (Authentication.authenticated()) {
             Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
+            UI.getCurrent().getPage().reload();
         }
     }
 }

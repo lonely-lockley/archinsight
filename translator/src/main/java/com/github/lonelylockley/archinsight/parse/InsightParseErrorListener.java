@@ -1,13 +1,12 @@
 package com.github.lonelylockley.archinsight.parse;
 
 import com.github.lonelylockley.archinsight.TranslationUtil;
+import com.github.lonelylockley.archinsight.model.Origin;
 import com.github.lonelylockley.archinsight.model.TranslationContext;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
-import org.antlr.v4.runtime.ANTLRErrorListener;
+import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.Parser;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
 import org.antlr.v4.runtime.dfa.DFA;
 
@@ -17,27 +16,29 @@ import java.util.UUID;
 public class InsightParseErrorListener implements ANTLRErrorListener {
 
     private final TranslationContext ctx;
-    private final String tabId;
-    private final UUID fileId;
-    private final String location;
+    private final Origin origin;
 
-    public InsightParseErrorListener(TranslationContext ctx, String tabId, UUID fileId, String location) {
+    public InsightParseErrorListener(TranslationContext ctx, Origin origin) {
         this.ctx = ctx;
-        this.tabId = tabId;
-        this.fileId = fileId;
-        this.location = location;
+        this.origin = origin;
     }
 
     @Override
     public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line, int charPositionInLine, String msg, RecognitionException e) {
+        final var tkn = (CommonToken) offendingSymbol;
         TranslatorMessage lm = new TranslatorMessage(
                 MessageLevel.ERROR,
-                tabId,
-                fileId,
-                location,
+                origin.getTabId(),
+                origin.getFileId(),
+                origin.getLocation(),
                 String.format("line %d:%d %s", line, charPositionInLine, msg)
         );
-        TranslationUtil.copyPosition(lm, line, charPositionInLine, 0, 0);
+        if (tkn == null) {
+            TranslationUtil.copyPosition(lm, line, charPositionInLine, e.getInputStream().index(), e.getInputStream().index() + 1);
+        }
+        else {
+            TranslationUtil.copyPosition(lm, line, charPositionInLine, tkn.getStartIndex(), tkn.getStopIndex());
+        }
         ctx.addMessage(lm);
     }
 

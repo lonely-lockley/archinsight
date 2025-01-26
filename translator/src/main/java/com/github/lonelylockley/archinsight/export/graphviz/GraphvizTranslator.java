@@ -1,6 +1,8 @@
 package com.github.lonelylockley.archinsight.export.graphviz;
 
-import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
+import com.github.lonelylockley.archinsight.export.ColorScheme;
+import com.github.lonelylockley.archinsight.model.DynamicId;
+import com.github.lonelylockley.archinsight.model.ParseDescriptor;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
@@ -13,7 +15,11 @@ import java.util.stream.Stream;
 
 public class GraphvizTranslator extends TranslatorBase {
 
-    private final List<LinkElement> connections = new ArrayList<>();
+    private final Set<String> addedNotes = new HashSet<>();
+
+    public GraphvizTranslator(ColorScheme colorScheme) {
+        super(colorScheme);
+    }
 
     /*
      * Collects all properties with overrides in such order:
@@ -27,16 +33,16 @@ public class GraphvizTranslator extends TranslatorBase {
                                     .stream(baseProperties)
                                     .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2));
         if (annotations.containsKey(AnnotationType.PLANNED)) {
-            res.put("fillcolor", "#0e8006");
+            res.put("fillcolor", colorScheme.getPlanned());
             if (type == ElementType.LINK) {
-                res.put("color", "#0e8006");
+                res.put("color", colorScheme.getPlanned());
             }
         }
         else
         if (annotations.containsKey(AnnotationType.DEPRECATED)) {
-            res.put("fillcolor", "#a80808");
+            res.put("fillcolor", colorScheme.getDeprecated());
             if (type == ElementType.LINK) {
-                res.put("color", "#a80808");
+                res.put("color", colorScheme.getDeprecated());
             }
         }
         if (annotations.containsKey(AnnotationType.ATTRIBUTE)) {
@@ -47,21 +53,21 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeSystemElement(SystemElement se, StringBuilder sb, int level) {
         if (se.isExternal()) {
-            writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getDeclaredId().toString(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#999999"))
+                    new Tuple2<>("fillcolor", colorScheme.getExternal()))
             );
         }
         else {
-            writeBlock(sb, se.getId(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
+            writeBlock(sb, se.getDeclaredId().toString(), se.getDeclaredId().toString(), se.getName(), se.getTechnology(), se.getDescription(), level, mergeProperties(
                     se.getType(),
                     se.getAnnotations(),
                     new Tuple2<>("shape", "box"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#438dd5"))
+                    new Tuple2<>("fillcolor", colorScheme.getInternal()))
             );
         }
         if (se.getNote() != null) {
@@ -74,12 +80,12 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeActorElement(ActorElement act, StringBuilder sb, int level) {
-        writeBlock(sb, act.getId(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
+        writeBlock(sb, act.getDeclaredId().toString(), act.getDeclaredId().toString(), act.getName(), act.getTechnology(), act.getDescription(), level, mergeProperties(
                 act.getType(),
                 act.getAnnotations(),
-                new Tuple2<>("shape", "egg"),
-                new Tuple2<>("style", "filled"),
-                new Tuple2<>("fillcolor", "#08427B"))
+                new Tuple2<>("shape", "box"),
+                new Tuple2<>("style", "filled,rounded"),
+                new Tuple2<>("fillcolor", colorScheme.getActor()))
         );
         if (act.getNote() != null) {
             writeNote(act, act, sb, level);
@@ -88,21 +94,21 @@ public class GraphvizTranslator extends TranslatorBase {
 
     private void writeStorageElement(StorageElement stor, StringBuilder sb, int level) {
         if (stor.isExternal()) {
-            writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getDeclaredId().toString(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#4d4d4d"))
+                    new Tuple2<>("fillcolor", colorScheme.getExternalInfra()))
             );
         }
         else {
-            writeBlock(sb, stor.getId(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
+            writeBlock(sb, stor.getDeclaredId().toString(), stor.getDeclaredId().toString(), stor.getName(), stor.getTechnology(), stor.getDescription(), level, mergeProperties(
                     stor.getType(),
                     stor.getAnnotations(),
                     new Tuple2<>("shape", "cylinder"),
                     new Tuple2<>("style", "filled"),
-                    new Tuple2<>("fillcolor", "#08427B"))
+                    new Tuple2<>("fillcolor", colorScheme.getInternalInfra()))
             );
         }
         if (stor.getNote() != null) {
@@ -111,49 +117,54 @@ public class GraphvizTranslator extends TranslatorBase {
     }
 
     private void writeNote(WithId wid, WithNote wn, StringBuilder sb, int level) {
-        var id = wid.getId() + "_note";
-        var text = wn.getNote().substring(1).trim();
-        writeBlock(sb, id, null, null, text, level, Stream.of(
-                            new Tuple2<>("shape", "note"),
-                            new Tuple2<>("style", "filled"),
-                            new Tuple2<>("fillcolor", "#faf6a2"),
-                            new Tuple2<>("fontcolor", "#000000"),
-                            new Tuple2<>("color", "#edce07")
-                        )
-                        .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
-        );
-        var c = new LinkElement();
-        c.setFrom(id);
-        c.setTo(wid.getId());
-        writeConnection(sb, c, Stream.of(
-                                new Tuple2<>("color", "#edce07"),
-                                new Tuple2<>("dir", "none"),
-                                new Tuple2<>("penwidth", "1"),
-                                new Tuple2<>("minlen", "0.2"),
-                                new Tuple2<>("maxlen", "1")
+        var id = wid.getDeclaredId().toString() + "_note";
+        if (!addedNotes.contains(id)) {
+            var text = wn.getNote().substring(1).trim();
+            writeBlock(sb, null, id, null, null, text, level, Stream.of(
+                                    new Tuple2<>("shape", "note"),
+                                    new Tuple2<>("style", "filled"),
+                                    new Tuple2<>("fillcolor", "#faf6a2"),
+                                    new Tuple2<>("fontcolor", "#000000"),
+                                    new Tuple2<>("color", "#edce07")
                             )
                             .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
-        );
+            );
+            var c = new LinkElement();
+            c.setFrom(DynamicId.fromElementId(id));
+            c.setTo(wid.getDeclaredId());
+            writeConnection(sb, c, Stream.of(
+                                    new Tuple2<>("color", "#edce07"),
+                                    new Tuple2<>("dir", "none"),
+                                    new Tuple2<>("penwidth", "1"),
+                                    new Tuple2<>("minlen", "0.2"),
+                                    new Tuple2<>("maxlen", "1")
+                            )
+                            .collect(Collectors.toMap(Tuple2::_1, Tuple2::_2))
+            );
+            addedNotes.add(id);
+        }
     }
 
-    private void traverseImports(ParsedFileDescriptor descriptor, StringBuilder sb) {
-        descriptor.getImports().forEach(i -> {
-            var el = descriptor.getDeclared(i.getAlias());
-            traverseDeclarations(el, sb, 1);
-        });
+    private void writeInvisibleElement(WithId wid, StringBuilder sb, int level) {
+        writeBlock(sb, null, wid.getDeclaredId().toString(), "", null, null, level, mergeProperties(
+                wid.getType(),
+                Collections.emptyMap(),
+                new Tuple2<>("shape", "point"),
+                new Tuple2<>("style", "invis"))
+        );
     }
 
     private void traverseDeclarations(AbstractElement el, StringBuilder sb, int level) {
-        if (el.getType() == ElementType.CONTEXT || el.getType() == ElementType.CONTAINER) {
-            ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getId()));
+        if (el.getType() == ElementType.CONTEXT) {
+            ElementType.CONTEXT.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId().toString()));
+        }
+        else
+        if (el.getType() == ElementType.CONTAINER) {
+            ElementType.CONTAINER.capture(el).foreach(c -> writeHeader(sb, c.getDeclaredId().toString()));
         }
         else
         if (el.getType() == ElementType.BOUNDARY) {
             ElementType.BOUNDARY.capture(el).foreach(be -> startAggregate(sb, be, level));
-        }
-        else
-        if (el.getType() == ElementType.LINK) {
-            ElementType.LINK.capture(el).foreach(connections::add);
         }
         else
         if (el.getType() == ElementType.SYSTEM) {
@@ -171,6 +182,10 @@ public class GraphvizTranslator extends TranslatorBase {
         if (el.getType() == ElementType.STORAGE) {
             ElementType.STORAGE.capture(el).foreach(se -> writeStorageElement(se, sb, level));
         }
+        else
+        if (el.getType() == ElementType.EMPTY) {
+            ElementType.EMPTY.capture(el).foreach(em -> writeInvisibleElement(em, sb, level));
+        }
 
         el.hasChildren().foreach(hasChildren -> hasChildren.getChildren().forEach(ch -> traverseDeclarations(ch, sb, level + 1)));
 
@@ -179,7 +194,7 @@ public class GraphvizTranslator extends TranslatorBase {
         }
     }
 
-    private void traverseConnections(StringBuilder sb) {
+    private void traverseConnections(StringBuilder sb, Collection<LinkElement> connections) {
         connections.forEach(c -> {
             if (c.isSync()) {
                 writeConnection(sb, c, mergeProperties(
@@ -199,19 +214,25 @@ public class GraphvizTranslator extends TranslatorBase {
         });
     }
 
-    public String translate(ParsedFileDescriptor descriptor) {
-        var root = descriptor.getParseResult().getRoot();
+    public String translate(ParseDescriptor descriptor) {
+        var root = descriptor.getRoot();
         if (root.getType() == ElementType.EMPTY) {
-            return empty("empty");
+            return empty();
         }
         else {
             var res = new StringBuilder();
             traverseDeclarations(root, res, 0);
-            traverseImports(descriptor, res);
             res.append('\n');
-            traverseConnections(res);
+            traverseConnections(res, descriptor.getConnections());
             finish(res);
             return res.toString();
         }
+    }
+
+    public String empty() {
+        var res = new StringBuilder();
+        writeHeader(res, "empty");
+        finish(res);
+        return res.toString();
     }
 }

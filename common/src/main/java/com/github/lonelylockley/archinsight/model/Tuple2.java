@@ -20,4 +20,15 @@ public class Tuple2<T, K> {
         return _2;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Tuple2<?, ?> tuple2)) return false;
+        return Objects.equals(_1, tuple2._1) && Objects.equals(_2, tuple2._2);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(_1, _2);
+    }
 }

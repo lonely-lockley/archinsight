@@ -17,7 +17,7 @@ public class WorkAreaComponent extends VerticalLayout {
     public WorkAreaComponent(Div invisible, boolean readOnly) {
         switchListener = new SwitchListenerHelper(this);
         menu = new MenuBarComponent(invisible, readOnly, switchListener);
-        final var tabs = new TabsComponent();
+        final var tabs = new TabsComponent(switchListener);
         hideComponent(tabs);
         final var welcome = new WelcomePanelComponent(switchListener);
         add(tabs);
@@ -39,7 +39,7 @@ public class WorkAreaComponent extends VerticalLayout {
         switchListener.setFileSelectionCallback(e -> {
             hideComponent(welcome);
             showComponent(tabs);
-            tabs.openTab(switchListener.getActiveRepositoryId(), e.getFile(), e.getSource());
+            tabs.openTab(e.getFile(), e.getSource());
             menu.enableSourceBlock();
         });
         switchListener.setRepositorySelectionCallback(e -> {
@@ -70,40 +70,43 @@ public class WorkAreaComponent extends VerticalLayout {
                 }
             }
         });
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SourceCompilationEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
-                    if (tab.getEditor().hasErrors()) {
-                        menu.disableExportBlock();
+        Communication.getBus().register(this,
+                new BaseListener<SourceCompilationEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SourceCompilationEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            Optional.ofNullable(tabs.getSelectedTab()).ifPresent(tab -> {
+                                if (e.success()) {
+                                    menu.enableExportBlock();
+                                }
+                                else {
+                                    menu.disableExportBlock();
+                                }
+                            });
+                        });
                     }
-                    else {
-                        menu.enableExportBlock();
+                },
+
+                new BaseListener<SvgDataEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SvgDataEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            menu.enableDiagramBlock();
+                        });
+                    }
+                },
+
+                new BaseListener<TabActivationRequestEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(TabActivationRequestEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            tabs.activateTab(e.getTabId());
+                        });
                     }
                 });
-
-            }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
-
-        final var svgDataListener = new BaseListener<SvgDataEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SvgDataEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                menu.enableDiagramBlock();
-            }
-            }
-        };
-        Communication.getBus().register(svgDataListener);
-
-        addDetachListener(e -> {
-            Communication.getBus().unregister(sourceCompilationListener);
-            Communication.getBus().unregister(svgDataListener);
-        });
     }
 
     public MenuBarComponent getMenuControls() {

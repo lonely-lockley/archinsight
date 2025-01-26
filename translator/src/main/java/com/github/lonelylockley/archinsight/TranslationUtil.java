@@ -1,7 +1,7 @@
 package com.github.lonelylockley.archinsight;
 
 import com.github.lonelylockley.archinsight.model.ArchLevel;
-import com.github.lonelylockley.archinsight.model.ParsedFileDescriptor;
+import com.github.lonelylockley.archinsight.model.Origin;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
@@ -53,46 +53,22 @@ public class TranslationUtil {
         lm.setStopIndex(stopIndex);
     }
 
-    public static TranslatorMessage newError(ParsedFileDescriptor descriptor, String message) {
+    public static TranslatorMessage newError(Origin origin, String message) {
         return new TranslatorMessage(
                 MessageLevel.ERROR,
-                descriptor.getId(),
-                descriptor.getFileId().orElse(null),
-                descriptor.getLocation(),
+                origin.getTabId(),
+                origin.getFileId(),
+                origin.getLocation(),
                 message
                 );
-    }
-
-    public static TranslatorMessage newError(ParsedFileDescriptor descriptor, WithSource position, String message) {
-        var tm = new TranslatorMessage(
-                MessageLevel.ERROR,
-                descriptor.getId(),
-                descriptor.getFileId().orElse(null),
-                descriptor.getLocation(),
-                message
-        );
-        copyPosition(tm, position);
-        return tm;
     }
 
     public static TranslatorMessage newError(WithSource position, String message) {
         var tm = new TranslatorMessage(
                 MessageLevel.ERROR,
-                null,
-                null,
-                null,
-                message
-        );
-        copyPosition(tm, position);
-        return tm;
-    }
-
-    public static TranslatorMessage newWarning(ParsedFileDescriptor descriptor, WithSource position, String message) {
-        var tm = new TranslatorMessage(
-                MessageLevel.WARNING,
-                descriptor.getId(),
-                descriptor.getFileId().orElse(null),
-                descriptor.getLocation(),
+                position.getOrigin().getTabId(),
+                position.getOrigin().getFileId(),
+                position.getOrigin().getLocation(),
                 message
         );
         copyPosition(tm, position);
@@ -102,31 +78,31 @@ public class TranslationUtil {
     public static TranslatorMessage newWarning(WithSource position, String message) {
         var tm = new TranslatorMessage(
                 MessageLevel.WARNING,
-                null,
-                null,
-                null,
+                position.getOrigin().getTabId(),
+                position.getOrigin().getFileId(),
+                position.getOrigin().getLocation(),
                 message
         );
         copyPosition(tm, position);
         return tm;
     }
 
-    public static TranslatorMessage newNotice(ParsedFileDescriptor descriptor, String message) {
+    public static TranslatorMessage newNotice(Origin origin, String message) {
         return new TranslatorMessage(
                 MessageLevel.NOTICE,
-                descriptor.getId(),
-                descriptor.getFileId().orElse(null),
-                descriptor.getLocation(),
+                origin.getTabId(),
+                origin.getFileId(),
+                origin.getLocation(),
                 message
         );
     }
 
-    public static TranslatorMessage newNotice(ParsedFileDescriptor descriptor, WithSource position, String message) {
+    public static TranslatorMessage newNotice(WithSource position, String message) {
         var tm = new TranslatorMessage(
                 MessageLevel.NOTICE,
-                descriptor.getId(),
-                descriptor.getFileId().orElse(null),
-                descriptor.getLocation(),
+                position.getOrigin().getTabId(),
+                position.getOrigin().getFileId(),
+                position.getOrigin().getLocation(),
                 message
         );
         copyPosition(tm, position);

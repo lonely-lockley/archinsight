@@ -3,11 +3,11 @@ package com.github.lonelylockley.archinsight.remote;
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.components.EditorTabComponent;
 import com.github.lonelylockley.archinsight.events.Communication;
+import com.github.lonelylockley.archinsight.events.DeclarationsParsedEvent;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
-import com.github.lonelylockley.archinsight.events.SvgDataEvent;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
 import com.github.lonelylockley.archinsight.model.remote.translator.*;
-import com.vaadin.flow.component.UI;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.slf4j.Logger;
@@ -24,31 +24,14 @@ public class ExportSource {
     private static final Logger logger = LoggerFactory.getLogger(RenderSource.class);
 
     @Inject
-    private TranslatorClient translator;
+    private TranslatorSource translator;
     @Inject
     private RendererClient renderer;
     @Inject
     private Config conf;
 
-    private TranslationRequest prepareTranslationRequest(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-        var res = new TranslationRequest();
-        res.setRepositoryId(repositoryId);
-        res.setTabId(tabId);
-        var tmp = new ArrayList<TabData>(tabs.size());
-        for (EditorTabComponent tab: tabs) {
-            var td = new TabData();
-            td.setFileName(tab.getFile().getName());
-            td.setTabId(tab.getTabId());
-            td.setFileId(tab.getFileId());
-            td.setSource(tab.getEditor().getCachedClientCode());
-            tmp.add(td);
-        }
-        res.setTabs(tmp);
-        return res;
-    }
-
-    private TranslationResult translateInternal(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-        final var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, tabs));
+    private TranslationResult translateInternal(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, boolean darkMode) {
+        final var translated = translator.translate(tabId, repositoryId, level, darkMode, tabs);
         final var messages = translated.getMessages() == null ? Collections.<TranslatorMessage>emptyList() : translated.getMessages();
         final var filesWithErrors = new HashSet<UUID>();
         final var messagesByFile = messages
@@ -86,10 +69,10 @@ public class ExportSource {
         return res;
     }
 
-    private byte[] exportInternal(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs, String format, Function<Source, byte[]> renderer) {
+    private byte[] exportInternal(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, String format, Function<Source, byte[]> renderer, boolean darkMode) {
         long startTime = System.nanoTime();
         byte[] data;
-        var translated = translateInternal(tabId, repositoryId, tabs);
+        var translated = translateInternal(tabId, repositoryId, level, tabs, darkMode);
         if (!translated.isHasErrors()) {
             data = renderer.apply(prepareRendererRequest(translated));
         }
@@ -103,20 +86,20 @@ public class ExportSource {
         return data;
     }
 
-    public byte[] exportPng(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-        return exportInternal(tabId, repositoryId, tabs, "PNG", src -> renderer.exportPng(conf.getRendererAuthToken(), src));
+    public byte[] exportPng(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, boolean darkMode) {
+        return exportInternal(tabId, repositoryId, level, tabs, "PNG", src -> renderer.exportPng(conf.getRendererAuthToken(), src), darkMode);
     }
 
-    public byte[] exportSvg(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-        return exportInternal(tabId, repositoryId, tabs, "SVG", src -> renderer.exportSvg(conf.getRendererAuthToken(), src));
+    public byte[] exportSvg(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, boolean darkMode) {
+        return exportInternal(tabId, repositoryId, level, tabs, "SVG", src -> renderer.exportSvg(conf.getRendererAuthToken(), src), darkMode);
     }
 
-    public byte[] exportJson(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-        return exportInternal(tabId, repositoryId, tabs, "SVG", src -> renderer.exportJson(conf.getRendererAuthToken(), src));
+    public byte[] exportJson(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, boolean darkMode) {
+        return exportInternal(tabId, repositoryId, level, tabs, "SVG", src -> renderer.exportJson(conf.getRendererAuthToken(), src), darkMode);
     }
 
-    public byte[] exportDot(String tabId, UUID repositoryId, Collection<EditorTabComponent> tabs) {
-        return translateInternal(tabId, repositoryId, tabs).getEdited().getSource().getBytes(StandardCharsets.UTF_8);
+    public byte[] exportDot(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, boolean darkMode) {
+        return translateInternal(tabId, repositoryId, level, tabs, darkMode).getEdited().getSource().getBytes(StandardCharsets.UTF_8);
     }
 
 }

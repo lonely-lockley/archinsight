@@ -4,6 +4,8 @@ import com.github.lonelylockley.archinsight.model.Functional;
 import com.github.lonelylockley.archinsight.parse.HasType;
 import com.github.lonelylockley.archinsight.parse.WithSource;
 
+import java.util.UUID;
+
 public abstract class AbstractElement extends WithSource implements HasType, Cloneable {
 
     @Override

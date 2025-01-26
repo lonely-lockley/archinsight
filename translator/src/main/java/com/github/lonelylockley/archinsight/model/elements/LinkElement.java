@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.annotations.AbstractAnnotation;
 import com.github.lonelylockley.archinsight.model.annotations.AnnotationType;
 
@@ -8,24 +9,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class LinkElement extends AbstractElement implements WithAnnotations, WithParameters {
+public class LinkElement extends AbstractElement implements WithAnnotations, WithParameters, WithNote {
 
-    private static final ElementType type = ElementType.LINK;
+    private static final ElementType<LinkElement> type = ElementType.LINK;
 
     private final Map<AnnotationType, AbstractAnnotation> annotations = new EnumMap<>(AnnotationType.class);
 
-    private String from;
-    private String to;
-    private String name;
+    private DynamicId from;
+    private DynamicId to;
     private String description;
     private String technology;
+    private String model;
+    private String call;
+    private String via;
+    private String note;
     private boolean sync;
 
-    public void setFrom(String from) {
+    public void setFrom(DynamicId from) {
         this.from = from;
     }
 
-    public void setTo(String to) {
+    public void setTo(DynamicId to) {
         this.to = to;
     }
 
@@ -33,25 +37,16 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
         this.sync = true;
     }
 
-    public String getFrom() {
+    public DynamicId getFrom() {
         return from;
     }
 
-    public String getTo() {
+    public DynamicId getTo() {
         return to;
     }
 
     public boolean isSync() {
         return sync;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    @Override
-    public String getName() {
-        return name;
     }
 
     @Override
@@ -90,6 +85,46 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     }
 
     @Override
+    public String getModel() {
+        return model;
+    }
+
+    @Override
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    @Override
+    public String getCall() {
+        return call;
+    }
+
+    @Override
+    public void setCall(String call) {
+        this.call = call;
+    }
+
+    @Override
+    public String getVia() {
+        return via;
+    }
+
+    @Override
+    public void setVia(String via) {
+        this.via = via;
+    }
+
+    @Override
+    public String getNote() {
+        return note;
+    }
+
+    @Override
+    public void setNote(String note) {
+        this.note = note;
+    }
+
+    @Override
     public Map<AnnotationType, AbstractAnnotation> getAnnotations() {
         return annotations;
     }
@@ -97,12 +132,14 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     @Override
     public AbstractElement clone() {
         var res = new LinkElement();
-        res.name = this.name;
         res.description = this.description;
         res.technology = this.technology;
-        res.annotations.putAll(this.annotations);
-        res.from = this.from;
-        res.to = this.to;
+        res.model = this.model;
+        res.call = this.call;
+        res.via = this.via;
+        this.annotations.forEach((key, value) -> res.annotations.put(key, value.clone()));
+        res.from = this.from.clone();
+        res.to = this.to.clone();
         res.sync = this.sync;
         clonePositionTo(res);
         return res;
@@ -113,9 +150,11 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
         return "LinkElement{" +
                 "from='" + from + '\'' +
                 ", to='" + to + '\'' +
-                ", name='" + name + '\'' +
                 ", description='" + description + '\'' +
                 ", technology='" + technology + '\'' +
+                ", model='" + model + '\'' +
+                ", call='" + call + '\'' +
+                ", via='" + via + '\'' +
                 ", sync=" + sync +
                 '}';
     }
@@ -123,13 +162,12 @@ public class LinkElement extends AbstractElement implements WithAnnotations, Wit
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        LinkElement that = (LinkElement) o;
-        return sync == that.sync && from.equals(that.from) && to.equals(that.to) && Objects.equals(name, that.name) && Objects.equals(description, that.description) && Objects.equals(technology, that.technology);
+        if (!(o instanceof LinkElement that)) return false;
+        return sync == that.sync && Objects.equals(from, that.from) && Objects.equals(to, that.to) && Objects.equals(description, that.description) && Objects.equals(technology, that.technology) && Objects.equals(model, that.model) && Objects.equals(call, that.call) && Objects.equals(via, that.via);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(from, to, name, description, technology, sync);
+        return Objects.hash(from, to, description, technology, model, call, via, sync);
     }
 }

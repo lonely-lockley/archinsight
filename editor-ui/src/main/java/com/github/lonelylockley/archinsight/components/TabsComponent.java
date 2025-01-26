@@ -1,8 +1,10 @@
 package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.components.helpers.TabsPersistenceHelper;
 import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.Tuple2;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
@@ -10,14 +12,17 @@ import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMe
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.ClientCallable;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.tabs.TabSheet;
+import org.apache.directory.api.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 @JsModule("./src/StatePersistence.ts")
@@ -31,9 +36,13 @@ public class TabsComponent extends TabSheet {
     private final AtomicInteger restoredTabsRenderCountdownLatch = new AtomicInteger(0);
     private final RemoteSource remoteSource;
     private final TabsPersistenceHelper clientStorage;
+    private final SwitchListenerHelper switchListener;
 
-    public TabsComponent() {
+    private ArchLevel currentLevel = ArchLevel.CONTEXT;
+
+    public TabsComponent(SwitchListenerHelper switchListener) {
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
+        this.switchListener = switchListener;
         clientStorage = new TabsPersistenceHelper(this.getElement());
         setId(id);
         setSizeFull();
@@ -41,116 +50,154 @@ public class TabsComponent extends TabSheet {
             Communication.getBus().post(new TabSwitchEvent((EditorTabComponent) e.getPreviousTab(), (EditorTabComponent) e.getSelectedTab()));
         });
 
-        final var svgDataListener = new BaseListener<SvgDataEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SvgDataEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                Optional.ofNullable(tabs.get(e.getTabId())).ifPresent(tab -> tab.getView().update(e.getSvgData()));
-            }
-            }
-        };
-        Communication.getBus().register(svgDataListener);
-        final var zoomEventListener = new BaseListener<ZoomEvent>() {
-            @Override
-            @Subscribe
-            public void receive(ZoomEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                Optional.ofNullable(getSelectedTab()).ifPresent(tab -> tab.getView().zoom(e));
-            }
-            }
-        };
-        Communication.getBus().register(zoomEventListener);
-        final var saveEventListener = new BaseListener<FileSaveRequestEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileSaveRequestEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                        if (tab.isNew()) {
-                            tab.updateFile(e.getFile());
-                            files.put(e.getFile().getId(), tab);
-                        }
-                        tab.saveSource();
-                    });
-                }
-            }
-        };
-        Communication.getBus().register(saveEventListener);
-        final var sourceActionEventListener = new BaseListener<DoWithSourceEvent>() {
-            @Override
-            @Subscribe
-            public void receive(DoWithSourceEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                        tab.getEditor().doWithCode(tab, tabs.values(), e.getCallback());
-                    });
-                }
-            }
-        };
-        Communication.getBus().register(sourceActionEventListener);
-        final var fileChangeListener = new BaseListener<FileChangeEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileChangeEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    Optional.ofNullable(files.get(e.getUpdatedFile().getId())).ifPresent(tab -> {
-                        tab.updateFile(e.getUpdatedFile());
-                    });
-                }
-            }
-        };
-        Communication.getBus().register(fileChangeListener);
-
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Subscribe
-            @Override
-            public void receive(SourceCompilationEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    try {
-                        // skip technical failed compilation events that don't have message errors as this
-                        // causes errors blinking on frontend
-                        if (e.success() || (e.failure() && !e.getMessagesByTab().isEmpty())) {
-                            var messages = e.getMessagesByTab();
-                            var summary = collectSummary(messages);
-                            updateBadges(messages, summary);
-                            createMessage(messages, summary);
-                        }
+        Communication.getBus().register(this,
+                new BaseListener<SvgDataEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SvgDataEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            Optional.ofNullable(tabs.get(e.getTabId())).ifPresent(tab -> tab.getView().update(e.getSvgData()));
+                        });
                     }
-                    catch (Exception ex) {
-                        new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
-                        logger.error("Could not render source", ex);
-                    }
-                }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
+                },
 
-        final var requestRender = new BaseListener<RequestRenderEvent>() {
-            @Override
-            @Subscribe
-            public void receive(RequestRenderEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
-                    remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), tabs.values());
+                new BaseListener<ZoomEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(ZoomEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> tab.getView().zoom(e));
+                        });
+                    }
+                },
+
+                new BaseListener<DoWithSourceEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(DoWithSourceEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
+                                tab.getEditor().doWithCode(tab, tabs.values(), e.getCallback());
+                            });
+                        });
+                    }
+                },
+
+                new BaseListener<FileChangeEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileChangeEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            Optional.ofNullable(files.get(e.getUpdatedFile().getId())).ifPresent(tab -> {
+                                tab.updateFile(e.getUpdatedFile());
+                                Communication.getBus().post(new TabUpdateEvent(tab.getTabId(), tab.getFileId(), tab.getName()));
+                            });
+                        });
+                    }
+                },
+
+                new BaseListener<SourceCompilationEvent>() {
+                    @Subscribe
+                    @Override
+                    public void receive(SourceCompilationEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            try {
+                                // skip technical failed compilation events that don't have message errors as this
+                                // causes errors blinking on frontend
+                                if (e.success() || (e.failure() && !e.getMessagesByTab().isEmpty())) {
+                                    var messages = e.getMessagesByTab();
+                                    var summary = collectSummary(messages);
+                                    updateBadges(messages, summary);
+                                    createMessage(messages, summary);
+                                }
+                            }
+                            catch (Exception ex) {
+                                new NotificationComponent(ex.getMessage(), MessageLevel.ERROR, 5000);
+                                logger.error("Could not render source", ex);
+                            }
+                        });
+                    }
+                },
+
+                new BaseListener<FileSaveRequestEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileSaveRequestEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
+                                if (tab.isNew()) {
+                                    tab.updateFile(e.getFile());
+                                    files.put(e.getFile().getId(), tab);
+                                    Communication.getBus().post(new TabUpdateEvent(tab.getTabId(), tab.getFileId(), tab.getName()));
+                                }
+                                tab.saveSource();
+                            });
+                        });
+                    }
+                },
+
+                new BaseListener<RequestRenderEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(RequestRenderEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            currentLevel = e.getLevel();
+                            tabs.forEach((key, value) -> value.setRenderer(createRenderer(switchListener.getActiveRepositoryId() , currentLevel)));
+                            Optional.ofNullable(getSelectedTab()).ifPresent(tab -> {
+                                remoteSource.render.render(tab.getTabId(), e.getRepositoryId(), e.getLevel(), tabs.values(), e.darkMode());
+                            });
+                        });
+                    }
+                },
+
+                new BaseListener<EditorInsertEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(EditorInsertEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            var tab = getSelectedTab();
+                            if (tab != null) {
+                                tab.getEditor().getElement().executeJs("""
+                            var selection = this.editor.getSelection();
+                            var op = {range: selection, text: $0, forceMoveMarkers: true};
+                            this.editor.executeEdits('', [op]);
+                            """, e.getCodeToInsert()
+                                );
+                            }
+                        });
+                    }
+                },
+
+                new BaseListener<GotoSourceEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(GotoSourceEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            var tab = getSelectedTab();
+                            if (tab != null) {
+                                tab.getEditor().putCursorInPosition(e.getSymbol().getLine(), e.getSymbol().getStartIndex());
+                            }
+                        });
+                    }
+                },
+
+                new BaseListener<ViewModeEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(ViewModeEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            var tab = getSelectedTab();
+                            if (tab != null) {
+                                tab.setViewMode(e.getMode());
+                            }
+                        });
+                    }
                 });
-            }
-            }
-        };
-        Communication.getBus().register(requestRender);
-
-        addDetachListener(e -> {
-            Communication.getBus().unregister(svgDataListener);
-            Communication.getBus().unregister(zoomEventListener);
-            Communication.getBus().unregister(saveEventListener);
-            Communication.getBus().unregister(sourceActionEventListener);
-            Communication.getBus().unregister(fileChangeListener);
-            Communication.getBus().unregister(sourceCompilationListener);
-            Communication.getBus().unregister(requestRender);
-        });
 
         clientStorage.restoreOpenedTabs((tabId, restored) -> {
-            restoredTabsRenderCountdownLatch.incrementAndGet();
+            if (Strings.isNotEmpty(restored.getCode())) {
+                restoredTabsRenderCountdownLatch.incrementAndGet();
+            }
             if (restored.getFid() != null) {
                 // restore file
                 Communication.getBus().post(new FileRestoreEvent(UUID.fromString(restored.getFid()), Optional.ofNullable(restored.getCode())));
@@ -160,17 +207,16 @@ public class TabsComponent extends TabSheet {
                 var file = new RepositoryNode();
                 file.setType(RepositoryNode.TYPE_FILE);
                 file.setName(restored.getName());
-                Communication.getBus().post(new FileOpenRequestEvent(null, file, Optional.ofNullable(restored.getCode())));
+                Communication.getBus().post(new FileOpenRequestEvent(file, Optional.ofNullable(restored.getCode())));
             }
         });
-        clientStorage.restoreOpenedFileLegacy();
     }
 
     private int nonNull(Integer value) {
         return value == null ? 0 : value;
     }
 
-    public void openTab(UUID repositoryId, RepositoryNode file, Optional<String> source) {
+    public void openTab(RepositoryNode file, Optional<String> source) {
         if (!file.isNew() && files.containsKey(file.getId())) {
             var tab = files.get(file.getId());
             setSelectedTab(tab);
@@ -179,9 +225,8 @@ public class TabsComponent extends TabSheet {
             if (!file.isNew() && source.isEmpty()) {
                 source = Optional.ofNullable(remoteSource.repository.openFile(file.getId()));
             }
-            final var editorTab = new EditorTabComponent(id, file, source, (tabId) -> {
-                remoteSource.render.render(tabId, repositoryId, tabs.values());
-            });
+            final var editorTab = new EditorTabComponent(id, file, source);
+            editorTab.setRenderer(this.createRenderer(switchListener.getActiveRepositoryId(), currentLevel));
             editorTab.setCloseListener(this::closeTab);
             add(editorTab, editorTab.getContent());
             tabs.put(editorTab.getTabId(), editorTab);
@@ -190,7 +235,14 @@ public class TabsComponent extends TabSheet {
             }
             setSelectedTab(editorTab);
             clientStorage.storeTab(editorTab, source);
+            Communication.getBus().post(new TabOpenEvent(editorTab.getTabId(), file.getId(), editorTab.getName()));
         }
+    }
+
+    private BiConsumer<String, Boolean> createRenderer(UUID repositoryId, ArchLevel level) {
+        return (tabId, darkMode) -> {
+            remoteSource.render.render(tabId, repositoryId, level, tabs.values(), darkMode);
+        };
     }
 
     private void closeTab(EditorTabComponent tab, FileChangeReason reason) {
@@ -201,6 +253,7 @@ public class TabsComponent extends TabSheet {
                 files.remove(tab.getFileId());
             }
             clientStorage.removeTab(tab);
+            Communication.getBus().post(new TabCloseEvent(tab.getTabId()));
         });
     }
 
@@ -224,6 +277,13 @@ public class TabsComponent extends TabSheet {
 
     public EditorTabComponent getSelectedTab() {
         return (EditorTabComponent) super.getSelectedTab();
+    }
+
+    public void activateTab(String tabId) {
+        var candidate = tabs.get(tabId);
+        if (candidate != null) {
+            setSelectedTab(candidate);
+        }
     }
 
     private Map<String, Map<MessageLevel, Integer>> collectSummary(Map<String, List<TranslatorMessage>> messages) {
@@ -274,14 +334,14 @@ public class TabsComponent extends TabSheet {
     }
 
     @ClientCallable
-    public void render(String digest, String tabId, String code) {
+    public void render(String digest, String tabId, String code, Boolean darkMode) {
         // each restored tab requests render. run it only once when counter reaches 0
         if (restoredTabsRenderCountdownLatch.get() > 0) {
             restoredTabsRenderCountdownLatch.decrementAndGet();
         }
         if (restoredTabsRenderCountdownLatch.get() == 0) {
             Optional.ofNullable(tabs.get(tabId)).ifPresent(tab -> {
-                tab.getEditor().render(tab.getTabId(), digest, code);
+                tab.getEditor().render(tab.getTabId(), digest, code, darkMode);
             });
         }
     }

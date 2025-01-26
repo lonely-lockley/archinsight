@@ -2,6 +2,7 @@ package com.github.lonelylockley.archinsight.components;
 
 import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.MicronautContext;
+import com.github.lonelylockley.archinsight.components.tiles.LoginTile;
 import com.github.lonelylockley.archinsight.events.*;
 import com.github.lonelylockley.archinsight.screens.EditorView;
 import com.github.lonelylockley.archinsight.screens.SiteView;
@@ -14,44 +15,52 @@ import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.SvgIcon;
 import com.vaadin.flow.component.menubar.MenuBar;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.server.StreamResource;
 
 @JsModule("./src/remote/LoginCallback.js")
 public class UserMenuComponent extends MenuBar {
 
-    private static final String iconSrc = "static/user-svgrepo-com.svg";
+    private static final String iconSrc = "/icons/user-svgrepo-com.svg";
 
-    private final Image icon = new Image(iconSrc, "-");
+    private final SvgIcon icon = new SvgIcon(new StreamResource("user-svgrepo-com.svg", () -> this.getClass().getResourceAsStream(iconSrc)));
+    private final Image userpic = new Image(iconSrc, "-");
     private final Span username = new Span("User");
     private final Config conf = MicronautContext.getInstance().getConf();
     private final MenuItem login;
     private final MenuItem editor;
     private final MenuItem logout;
 
-    private boolean redirectNeeded = false;
-
     public UserMenuComponent() {
         setId("content-presentation"); // for LoginCallback.js to initialize and work properly
         getStyle().set("margin-right", "10px");
         setThemeName("");
-        icon.setHeight("24px");
-        icon.setWidth("24px");
-        username.getStyle().set("margin-top", "5px").set("margin-left", "3px").set("color", "#ffffff");
-        var container =new HorizontalLayout(icon, username);
+        userpic.setHeight("24px");
+        userpic.setWidth("24px");
+        userpic.setVisible(false);
+        userpic.setClassName("app-userpic");
+        username.getStyle()
+                .set("margin-top", "3px")
+                .set("margin-left", "3px")
+                .set("color", "var(--lumo-body-text-color)");
+        var container =new HorizontalLayout(icon, userpic, username);
         container.setSpacing(false);
         var item = addItem(container);
         var sub = item.getSubMenu();
         editor = sub.addItem("My projects");
         editor.setId("user_menu_editor");
         editor.setVisible(false);
-        logout = sub.addItem("Logout");
+        logout = sub.addItem("Sign out");
         logout.setId("user_menu_logout");
         login = sub.addItem("Sign in with Google");
         login.setId("user_menu_login");
         if (Authentication.authenticated()) {
             var user = Authentication.getAuthenticatedUser();
-            icon.setSrc(user.getAvatar());
+            userpic.setSrc(user.getAvatar());
+            icon.setVisible(false);
+            userpic.setVisible(true);
             username.setText(user.getDisplayName());
             login.setVisible(false);
             logout.setVisible(true);
@@ -75,40 +84,30 @@ public class UserMenuComponent extends MenuBar {
         login.addClickListener(this::googleClickListener);
         logout.addClickListener(e -> {
             if (Authentication.authenticated()) {
-                if (!Authentication.playgroundModeEnabled()) {
-                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
-                }
-                Authentication.deauthenticate();
-            }
-            loggedOut();
-            if (Authentication.playgroundModeEnabled()) {
-                UI.getCurrent().getPage().reload();
-            }
-            else {
-                UI.getCurrent().navigate(SiteView.class);
+//                if (!Authentication.playgroundModeEnabled()) {
+//                    Communication.getBus().post(new RepositoryCloseEvent(FileChangeReason.CLOSED));
+//                }
+                loggedOut();
+                UserMenuComponent.this.getElement().executeJs("window.logoutFlow()");
             }
         });
 
         if (Authentication.playgroundModeEnabled()) {
-            final var fileCloseListener = new BaseListener<CreateRepositoryEvent>() {
-                @Override
-                @Subscribe
-                public void receive(CreateRepositoryEvent e) {
-                    if (eventWasProducedForCurrentUiId(e)) {
-                        redirectNeeded = true;
-                        if (conf.getDevMode()) {
-                            debugClickListener(null);
+            Communication.getBus().register(this,
+                    new BaseListener<CreateRepositoryEvent>() {
+                        @Override
+                        @Subscribe
+                        public void receive(CreateRepositoryEvent e) {
+                            e.withCurrentUI(this, () -> {
+                                if (conf.getDevMode()) {
+                                    debugClickListener(null);
+                                }
+                                else {
+                                    googleClickListener(null);
+                                }
+                            });
                         }
-                        else {
-                            googleClickListener(null);
-                        }
-                    }
-                }
-            };
-            Communication.getBus().register(fileCloseListener);
-            addDetachListener(e -> {
-                Communication.getBus().unregister(fileCloseListener);
-            });
+                    });
         }
     }
 
@@ -123,7 +122,9 @@ public class UserMenuComponent extends MenuBar {
     public void loggedIn() {
         assert Authentication.authenticated();
         var user = Authentication.getAuthenticatedUser();
-        icon.setSrc(user.getAvatar());
+        userpic.setSrc(user.getAvatar());
+        userpic.setVisible(true);
+        icon.setVisible(false);
         username.setText(user.getDisplayName());
         login.setVisible(false);
         logout.setVisible(true);
@@ -134,7 +135,8 @@ public class UserMenuComponent extends MenuBar {
 
     public void loggedOut() {
         assert !Authentication.authenticated();
-        icon.setSrc(iconSrc);
+        icon.setVisible(true);
+        userpic.setVisible(false);
         username.setText("User");
         login.setVisible(true);
         logout.setVisible(false);
@@ -145,15 +147,9 @@ public class UserMenuComponent extends MenuBar {
     public void loginCallback() {
         // called from browser when login sequence finishes
         if (Authentication.authenticated()) {
+            UI.getCurrent().getPage().setLocation("/app/editor");
             Communication.getBus().post(new UserAuthenticatedEvent(Authentication.getAuthenticatedUser()));
             loggedIn();
-            if (redirectNeeded) {
-                UI.getCurrent().navigate(EditorView.class);
-            }
-            else {
-                UI.getCurrent().getPage().reload();
-            }
-            redirectNeeded = false;
         }
     }
 }

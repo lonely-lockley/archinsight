@@ -25,7 +25,7 @@ public final class Launcher {
         Server server = new Server(8080);
         var mc = MicronautContext.getInstance();
         var tempDir = setupTemporaryDirectory();
-        var context = setupContext(tempDir, mc.getConf().getDevMode());
+        var context = setupContext(tempDir, mc.getConf());
         server.setHandler(context);
 
         setupAccessLogs(server, mc.getConf().getDevMode());
@@ -47,13 +47,14 @@ public final class Launcher {
         return tempDir;
     }
 
-    private static WebAppContext setupContext(File tempDir, boolean devMode) throws IOException {
+    private static WebAppContext setupContext(File tempDir, Config conf) throws IOException {
         final var context = new WebAppContext();
         final var resourceFactory = ResourceFactory.of(context);
-        context.setInitParameter("productionMode", String.valueOf(!devMode));
+        context.setInitParameter("productionMode", String.valueOf(!conf.getDevMode()));
 
         // Context path of the application
-        context.setContextPath("/");
+        context.setContextPath(conf.getContextPath() == null ? "/" : conf.getContextPath());
+        context.getSessionHandler().getSessionCookieConfig().setPath("/");
 
         // Exploded WAR or not
         context.setExtractWAR(false);

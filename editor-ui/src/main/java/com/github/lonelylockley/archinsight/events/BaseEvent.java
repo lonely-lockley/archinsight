@@ -1,17 +1,16 @@
 package com.github.lonelylockley.archinsight.events;
 
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.server.Command;
 
 public abstract class BaseEvent {
 
-    private final String sessionId = UI.getCurrent().getSession().getSession().getId();
-    private final int uiId = UI.getCurrent().getUIId();
+    private final UI ui = UI.getCurrent();
 
-    public String getSessionId() {
-        return sessionId;
+    public void withCurrentUI(BaseListener<?> listener, Command action) {
+        if (ui.getUIId() == listener.getUiId()) {
+            ui.access(action);
+        }
     }
 
-    public int getUiId() {
-        return uiId;
-    }
 }

@@ -23,4 +23,7 @@ public class RemoteSource {
     @Inject
     public RepositorySource repository;
 
+    @Inject
+    public TranslatorSource translator;
+
 }

@@ -59,24 +59,23 @@ public class WelcomePanelComponent extends HorizontalLayout {
     private Component showForPlayground() {
         final var res = initPanel("Archinsight playground");
         res.add(new Html("""
-                <text>
-                  <p>
-                    Here you can explore Insight language and editor features. In order to help you get used to the interface, 
-                    and editor features an example project describing the current solution has been added. You
-                    can view and edit files in this project. Use a double click on the file entry to open it.
-                  </p>
-                  <p>
-                    You can create a new file and start writing your own code. If you need more horizontal space click the "sandwich"
-                    button in the top left corner of the screen to hide project structure.
-                  </p>
-                  <p>
-                    You can see Insight language specification with examples at <a target="_blank" href="https://github.com/lonely-lockley/archinsight/wiki/Insight-language">project wiki</a>
-                  </p>
-                  <p>
-                    Playground mode has a limited functionality: The access is read-only - you can't save your code.
-                    To remove any limitations you can create own repository. It's absolutely free.
-                  </p>
-                </text>
+                <ul style="padding-right: 20px;">
+                  <li>
+                    Here you can explore the Insight editor and language. An example project is preloaded for you to view and edit.
+                    Double-click a file to open it.
+                  </li>
+                  <li style="padding-top: 15px;">
+                    Create new files or write your own code. Need more space? Hide the project structure with the top-left "sandwich" button
+                    or read <a target="_blank" href="https://archinsight.org/doc/archinsight-editor/"><u>the editor documentation</u></a>.
+                  </li>
+                  <li style="padding-top: 15px;">
+                    Check out the <a target="_blank" href="https://archinsight.org/doc/insight-language/"><u>Insight language spec</u></a>
+                    for examples.
+                  </li>
+                  <li style="padding-top: 15px;">
+                    In Playground mode, edits are read-only. Want full functionality? Create your own repository for free!
+                  </li>
+                </ul>
                 """));
         res.setHeight(300, Unit.PIXELS);
         return res;
@@ -85,12 +84,11 @@ public class WelcomePanelComponent extends HorizontalLayout {
     private Component showForNoRepo() {
         final var res = initPanel("Choose or create a repository");
         res.add(new Html("""
-                <text>
+                <text style="padding-left: 20px; padding-right: 20px;">
                   <p>
                     If you want to create a new repository
                     <ul>
-                      <li>Click a blue <i>repository</i> button. If no repository selected, it will have <b>&lt;Create Repository&gt;</b> 
-                      label or current repository name in square brackets otherwise</li>
+                      <li>Click a <i>Create Repository</i> button.</li>
                       <li>Enter the new repository name in the text field at the top of the dialog.</li>
                       <li>Click <b>Create</b> button to create a new repository and a <b>Select</b> button to open it</li>
                       <li>The repository button will change it's name to the desired one enclosed in square brackets</li>
@@ -99,21 +97,25 @@ public class WelcomePanelComponent extends HorizontalLayout {
                   <p>
                     If you want to choose an existing repository
                     <ul>
-                      <li>Click a blue <i>repository</i> button. If no repository selected, it will have <b>&lt;Create Repository&gt;</b> 
-                      label or current repository name in square brackets otherwise</li>
+                      <li>Click a <i>repository selection</i> button.
                       <li>Choose an existing repository in the list and click <b>Select</b> button.</li>
                     </ul>
                   </p>
+                  <p>
+                    <a target="_blank" href="https://archinsight.org/doc/insight-language/"><u>Insight language spec</u></a>
+                    &nbsp;&nbsp;&nbsp;
+                    <a target="_blank" href="https://archinsight.org/doc/archinsight-editor/"><u>Editor documentation</u></a>
+                  </p>
                 </text>
                 """));
-        res.setHeight(340, Unit.PIXELS);
+        res.setHeight(360, Unit.PIXELS);
         return res;
     }
 
     private Component showForRepo() {
         final var res = initPanel("Create file or directory");
         res.add(new Html("""
-                <text>
+                <text style="padding-left: 20px; padding-right: 20px;">
                   <p>
                     To start editing a new file and save it later
                     <ul>
@@ -136,7 +138,9 @@ public class WelcomePanelComponent extends HorizontalLayout {
                     </ul>
                   </p>
                   <p>
-                    You can see Insight language specification with examples at <a target="_blank" href="https://github.com/lonely-lockley/archinsight/wiki/Insight-language">project wiki</a>
+                    <a target="_blank" href="https://archinsight.org/doc/insight-language/"><u>Insight language spec</u></a>
+                    &nbsp;&nbsp;&nbsp;
+                    <a target="_blank" href="https://archinsight.org/doc/archinsight-editor/"><u>Editor documentation</u></a>
                   </p>
                 </text>
                 """));

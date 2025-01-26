@@ -1,16 +1,25 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
+import com.github.lonelylockley.archinsight.model.Origin;
+
 import java.util.UUID;
 
 public class EmptyElement extends AbstractElement implements WithId {
 
-    private String id = "empty_" + UUID.randomUUID();
+    private DynamicId declaredId;
 
     public EmptyElement() {
+        declaredId = DynamicId.empty();
+        declaredId.setElementId("empty_" + UUID.randomUUID());
     }
 
-    public EmptyElement(String id) {
-        this.id = id;
+    public EmptyElement(DynamicId declaredId) {
+        this.declaredId = declaredId;
+    }
+
+    public void setOrigin(Origin origin) {
+        super.origin = origin;
     }
 
     @Override
@@ -20,16 +29,23 @@ public class EmptyElement extends AbstractElement implements WithId {
 
     @Override
     public AbstractElement clone() {
-        return new EmptyElement();
+        return new EmptyElement(this.declaredId.clone());
     }
 
     @Override
-    public void setId(String id) {
-        this.id = id;
+    public void setDeclaredId(DynamicId id) {
+        this.declaredId = id;
     }
 
     @Override
-    public String getId() {
-        return id;
+    public DynamicId getDeclaredId() {
+        return declaredId;
+    }
+
+    @Override
+    public String toString() {
+        return "EmptyElement{" +
+                "declaredId='" + declaredId + '\'' +
+                '}';
     }
 }

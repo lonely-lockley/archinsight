@@ -13,13 +13,13 @@ public class ServiceElement extends SystemElement {
     public AbstractElement clone() {
         var res = new ServiceElement();
         res.setNote(this.getNote());
-        res.setId(this.getId());
+        res.setDeclaredId(this.getDeclaredId().clone());
         res.setName(this.getName());
         res.setDescription(this.getDescription());
         res.setTechnology(this.getTechnology());
         if (this.isExternal()) res.setExternal();
-        res.getAnnotations().putAll(this.getAnnotations());
-        res.getChildren().addAll(this.getChildren());
+        this.getAnnotations().forEach((key, value) -> res.getAnnotations().put(key, value.clone()));
+        this.getChildren().forEach(child -> res.getChildren().add(child.clone()));
         clonePositionTo(res);
         return res;
     }
@@ -27,7 +27,7 @@ public class ServiceElement extends SystemElement {
     @Override
     public String toString() {
         return "ServiceElement{" +
-                "id='" + getId() + '\'' +
+                "declaredId='" + getDeclaredId() + '\'' +
                 ", name='" + getName() + '\'' +
                 ", description='" + getDescription() + '\'' +
                 ", technology='" + getTechnology() + '\'' +

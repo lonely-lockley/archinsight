@@ -6,169 +6,180 @@ import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
 
 import java.util.LinkedList;
-import java.util.function.Supplier;
+
+import static org.antlr.v4.runtime.Lexer.DEFAULT_TOKEN_CHANNEL;
 
 public class IndentHelper {
 
     public static final int INDENT_LENGTH = 4;
 
     private final InsightLexer lexer;
-    private final Supplier<Token> tokenSupplier;
     private final LinkedList<Token> waitlist;
 
-    private boolean singleLineMode = false;
     private int indentation = 0;
-    private int line = 0;
-    private int idx = 0;
+    private boolean wrapped = false;
+    private boolean singleLineMode = false;
     private LexerState state;
+    private boolean eofReached = false;
 
-    public IndentHelper(Supplier<Token> tokenSupplier, InsightLexer lexer) {
-        this.tokenSupplier = tokenSupplier;
+    public IndentHelper(InsightLexer lexer) {
         this.lexer = lexer;
         this.waitlist = new LinkedList<>();
-        state = new LexerState(InsightLexer.TEXT);
-    }
-
-    public void enableSingleLineMode() {
-        this.singleLineMode = true;
-    }
-
-    private String indentationError(CommonToken tkn, int actual, int expected) {
-        return String.format("line %d:%d incorrect indentation. current position: %d, expected: %d", tkn.getLine(), tkn.getCharPositionInLine(), actual, expected);
-    }
-
-    private void emitIndentToken(CommonToken tkn, boolean ephemeral) {
-        indentation++;
-        state.incIndentation();
-        CommonToken idt = new CommonToken(InsightLexer.INDENT, "<INDENT>");
-        idt.setLine(tkn.getLine());
-        if (ephemeral) {
-            idt.setCharPositionInLine(tkn.getCharPositionInLine() + (tkn.getStartIndex() - tkn.getStopIndex()));
-            idt.setStartIndex(tkn.getStopIndex());
-            idt.setStopIndex(tkn.getStopIndex());
-        }
-        else {
-            idt.setCharPositionInLine((indentation - 1) * INDENT_LENGTH);
-            idt.setStartIndex(tkn.getStartIndex());
-            idt.setStopIndex(tkn.getStopIndex());
-        }
-        waitlist.add(idt);
-    }
-
-    private void emitDedentTokens(CommonToken tkn, int curIndentation, boolean ephemeral) {
-        while (indentation > curIndentation) {
-            CommonToken ddt = new CommonToken(InsightLexer.DEDENT, "<DEDENT>");
-            ddt.setLine(tkn.getLine());
-            ddt.setCharPositionInLine((indentation - 1) * INDENT_LENGTH);
-            if (ephemeral) {
-                ddt.setStartIndex(tkn.getStartIndex());
-                ddt.setStopIndex(tkn.getStartIndex());
-            }
-            else {
-                ddt.setStartIndex(tkn.getStartIndex());
-                ddt.setStopIndex(tkn.getStopIndex());
-            }
-            waitlist.add(ddt);
-            indentation--;
-            state.decIndentation();
-            if (state.wasText()) {
-                state.resetWasText();
-            }
-        }
+        this.state = new LexerState();
     }
 
     private String stripNewlineCharacters(String src) {
         return src.replaceAll("[\n\r]", "");
     }
 
-    private String expandTabCharacter(String src) {
-        return src.replaceAll("\t", "    ");
-    }
-
-    private int calculateCurrentIndentation(CommonToken tkn) {
-        int position;
-        if (tkn.getType() == InsightLexer.INDENTATION || tkn.getType() == InsightLexer.EOL_VALUE) {
-            position = expandTabCharacter(stripNewlineCharacters(tkn.getText())).length();
-        }
-        else {
-            position = tkn.getCharPositionInLine();
-        }
-        float tmp = (float) position / (float) INDENT_LENGTH;
-        if (tmp % 1 != 0) {
-            lexer.getErrorListenerDispatch().syntaxError(lexer, tkn, line, position, "incorrect indentation",
-                new RecognitionException(indentationError(tkn, position, indentation * INDENT_LENGTH), lexer, lexer._input, null)
-            );
-        }
-        return (int) tmp;
-    }
-
-    private void handleIndentation(CommonToken tkn) {
-        int curIndentation = calculateCurrentIndentation(tkn);
-        if (curIndentation == indentation + 1) {
-            emitIndentToken(tkn, false);
-        }
-        else
-        if (curIndentation < indentation && indentation > 0) {
-            if ((tkn.getType() == Token.EOF && !singleLineMode) || tkn.getType() != Token.EOF) {
-                emitDedentTokens(tkn, curIndentation, false);
+    private int countNewLines(String src) {
+        var lastIndex = 0;
+        var count = 0;
+        while(lastIndex != -1){
+            lastIndex = src.indexOf('\n', lastIndex);
+            if(lastIndex != -1){
+                count++;
+                lastIndex += 1;
             }
         }
+        return count;
+    }
+
+    private String indentationError(int actual, int expected) {
+        return String.format("line %d:%d incorrect indentation. current position: %d, expected: %d", lexer.getLine(), lexer.getCharPositionInLine(), actual, expected);
+    }
+
+    private CommonToken createToken(int type, String text, int length, int lineCorrection, int offsetCorrection) {
+        var stop = lexer.getCharIndex() + offsetCorrection;
+        var start = stop - length + 1;
+        var tkn = new CommonToken(lexer.getTokenFactorySourcePair(), type, DEFAULT_TOKEN_CHANNEL, start, stop);
+        tkn.setText(text);
+        tkn.setLine(lexer.getLine() + lineCorrection);
+        return tkn;
+    }
+
+    private int calculateLengthCorrection() {
+        return lexer.getText() == null ? 0 : -lexer.getText().length();
+    }
+
+    private int calculateIndentation(String indent) {
+        int count = 0;
+        for (char ch : indent.toCharArray()) {
+            if (ch == '\t') {
+                count += INDENT_LENGTH;
+            }
+            else {
+                count++;
+            }
+        }
+        if (count % INDENT_LENGTH != 0) {
+            lexer.getErrorListenerDispatch().syntaxError(lexer, lexer.getToken(), lexer._tokenStartLine, lexer.getCharPositionInLine(), indentationError(lexer.getCharPositionInLine(), indentation * INDENT_LENGTH),
+                new RecognitionException("incorrect indentation", lexer, lexer._input, null)
+            );
+        }
+        return count / INDENT_LENGTH;
+    }
+
+    private void fireIndents(int desiredIndentation, int linesCorrection) {
+        while (indentation < desiredIndentation) {
+            indentation++;
+            state.incIndentation();
+            waitlist.add(createToken(InsightLexer.INDENT, "<INDENT>", INDENT_LENGTH, 0, -linesCorrection));
+        }
+    }
+
+    private void fireDedents(int desiredIndentation, int linesCorrection) {
+        while (indentation > desiredIndentation) {
+            waitlist.add(createToken(InsightLexer.DEDENT, "<DEDENT>", 0, -linesCorrection, 0));
+            indentation--;
+            state.decIndentation();
+        }
+    }
+
+    public void checkIndentation() {
+        var newLines = countNewLines(lexer.getText());
+        var newIndentation = calculateIndentation(stripNewlineCharacters(lexer.getText()));
+        waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
+        if (newIndentation > indentation) {
+            fireIndents(newIndentation, newLines);
+        }
         else
-        if (indentation == curIndentation) {
-            // nothing to do here
+        if (!singleLineMode) {
+            fireDedents(newIndentation, newLines);
+        }
+    }
+
+    public void wrapValue() {
+        if (!wrapped) {
+            wrapped = true;
+            state.setWasText();
+            waitlist.add(createToken(InsightLexer.WRAP, "<WRAP>", 0, 0, calculateLengthCorrection()));
+        }
+    }
+
+    public void unwrapValue() {
+        var newLines = countNewLines(lexer.getText());
+        var newIndentation = calculateIndentation(stripNewlineCharacters(lexer.getText()));
+        if (newIndentation == indentation + 1) {
+            waitlist.add(createToken(InsightLexer.TEXT, "\n", 1, -newLines, calculateLengthCorrection()));
+        }
+        else
+        if ((newIndentation <= indentation) && wrapped) {
+            wrapped = false;
+            if (!singleLineMode) {
+                state.resetWasText();
+                waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, calculateLengthCorrection()));
+                waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
+                lexer.popMode();
+                fireDedents(newIndentation, newLines);
+            }
         }
         else {
-            lexer.getErrorListenerDispatch().syntaxError(lexer, tkn, line, curIndentation * INDENT_LENGTH, "incorrect indentation",
-                    new RecognitionException(indentationError(tkn, curIndentation * INDENT_LENGTH, indentation * INDENT_LENGTH), lexer, lexer._input, null)
+            lexer.getErrorListenerDispatch().syntaxError(lexer, lexer.getToken(), lexer._tokenStartLine, lexer.getCharPositionInLine(), indentationError(lexer.getCharPositionInLine(), indentation * INDENT_LENGTH),
+                new RecognitionException("incorrect indentation", lexer, lexer._input, null)
             );
         }
     }
 
-    private void handleText(CommonToken tkn) {
-        if (tkn.getType() == Token.EOF && !singleLineMode) {
-            emitDedentTokens(tkn, 0, true);
-            waitlist.add(tkn);
+    public void processEOF(Token eof) {
+        if (wrapped && !singleLineMode) {
+            waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, 0, calculateLengthCorrection()));
+            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, calculateLengthCorrection()));
         }
         else
-        if (tkn.getType() == InsightLexer.EQ) {
-            waitlist.add(tkn);
-            emitIndentToken(tkn, true);
+        if (lexer.getInputStream().LA(-1) != 10 && lexer.getText() == null) {
+            fireDedents(0, 0);
+            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, 0));
         }
-        else
-        if (tkn.getType() == InsightLexer.EOL_VALUE) {
-            CommonToken eol = new CommonToken(InsightLexer.TEXT, "\n");
-            eol.setLine(tkn.getLine());
-            eol.setCharPositionInLine(tkn.getCharPositionInLine());
-            eol.setStartIndex(tkn.getStartIndex());
-            eol.setStopIndex(tkn.getStopIndex());
-            waitlist.add(eol);
-        }
-        else
-        if (tkn.getChannel() == 0) {
-            waitlist.add(tkn);
-        }
+        waitlist.add(eof);
     }
 
     public Token nextToken() {
-        do {
-            CommonToken tkn = (CommonToken) tokenSupplier.get();
-            if (tkn.getLine() > line) {
-                line = tkn.getLine();
-                handleIndentation(tkn);
-            }
-            handleText(tkn);
-            state.updateToken(tkn);
+        Token tkn;
+        if (!waitlist.isEmpty()) {
+            tkn = waitlist.pollFirst();
         }
-        while (waitlist.size() == 0);
-        var result = (CommonToken) waitlist.pollFirst();
-        result.setTokenIndex(idx);
-        idx++;
-        return result;
+        else {
+            tkn = lexer.supplyToken();
+            if (!waitlist.isEmpty()) {
+                waitlist.add(tkn);
+                tkn = waitlist.pollFirst();
+            }
+        }
+        if (tkn.getType() == Token.EOF && !eofReached) {
+            eofReached = true;
+            processEOF(tkn);
+            if (!waitlist.isEmpty()) {
+                tkn = waitlist.pollFirst();
+            }
+        }
+//        final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
+//        System.out.println("---- " + rawType + " [line=" + tkn.getLine() + ",from=" + tkn.getStartIndex() + ",to=" + tkn.getStopIndex() + ",mode=" + lexer._mode + ",channel=" + tkn.getChannel() + "] = `" + tkn.getText() + "`");
+        return tkn;
     }
 
-    public boolean checkTextBlockBound(String indentationValue) {
-        int curIndentation = expandTabCharacter(stripNewlineCharacters(indentationValue)).length() / INDENT_LENGTH;
-        return curIndentation < indentation;
+    public void enableSingleLineMode() {
+        singleLineMode = true;
     }
 
     public LexerState snapshotState() {
@@ -176,11 +187,12 @@ public class IndentHelper {
     }
 
     public void restoreState(LexerState state) {
-        Token tkn = tokenSupplier.get();
+        //Token tkn = tokenSupplier.get();
         lexer.reset();
         this.state = (LexerState) state.clone();
         indentation = state.getIndentation();
-        if (state.wasText() && (tkn.getType() == InsightLexer.INDENTATION && !checkTextBlockBound(tkn.getText()))) {
+        if (state.wasText()) {
+            wrapped = true;
             lexer.pushMode(InsightLexer.VALUE_MODE);
         }
     }

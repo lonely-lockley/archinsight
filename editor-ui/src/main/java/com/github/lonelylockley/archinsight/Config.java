@@ -1,8 +1,6 @@
 package com.github.lonelylockley.archinsight;
 
 import io.micronaut.context.annotation.ConfigurationProperties;
-import io.micronaut.http.client.ServiceHttpClientConfiguration;
-import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 
 @Singleton
@@ -16,6 +14,10 @@ public class Config {
     private String translatorAuthToken;
     private String rendererAuthToken;
     private String repositoryAuthToken;
+    private String contextPath;
+    private Boolean siteEnabled;
+    private Boolean ghostSsrEnabled;
+    private String ghostSsrSecretKey;
 
     public Boolean getDevMode() {
         return devMode != null && devMode;
@@ -71,5 +73,37 @@ public class Config {
 
     public void setRepositoryAuthToken(String repositoryAuthToken) {
         this.repositoryAuthToken = repositoryAuthToken;
+    }
+
+    public String getContextPath() {
+        return contextPath;
+    }
+
+    public void setContextPath(String contextPath) {
+        this.contextPath = contextPath;
+    }
+
+    public Boolean getSiteEnabled() {
+        return siteEnabled;
+    }
+
+    public void setSiteEnabled(Boolean siteEnabled) {
+        this.siteEnabled = siteEnabled;
+    }
+
+    public Boolean getGhostSsrEnabled() {
+        return ghostSsrEnabled;
+    }
+
+    public void setGhostSsrEnabled(Boolean ghostSsrEnabled) {
+        this.ghostSsrEnabled = ghostSsrEnabled;
+    }
+
+    public String getGhostSsrSecretKey() {
+        return ghostSsrSecretKey;
+    }
+
+    public void setGhostSsrSecretKey(String ghostSsrSecretKey) {
+        this.ghostSsrSecretKey = ghostSsrSecretKey;
     }
 }

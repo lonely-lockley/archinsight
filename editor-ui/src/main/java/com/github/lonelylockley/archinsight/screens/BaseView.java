@@ -1,7 +1,6 @@
 package com.github.lonelylockley.archinsight.screens;
 
 import com.github.lonelylockley.archinsight.components.MenuBarComponent;
-import com.github.lonelylockley.archinsight.components.UserMenuComponent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.CssImport;
@@ -10,7 +9,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.Element;
-import com.vaadin.flow.theme.lumo.Lumo;
+import com.vaadin.flow.server.VaadinServlet;
 
 @CssImport("./styles/shared-styles.css")
 @CssImport(value = "./styles/vaadin-text-field-styles.css", themeFor = "vaadin-text-field")
@@ -24,16 +23,25 @@ public interface BaseView {
         var siteIcon = new Image("static/archinsight-logo-no-background.svg", "ai");
         siteIcon.setHeight("24px");
         siteIcon.getStyle().set("margin-top", "7px").set("cursor", "pointer");
-        siteIcon.addClickListener(event -> UI.getCurrent().navigate(SiteView.class));
+        siteIcon.addClickListener(event -> UI.getCurrent().getPage().setLocation("/"));
         title.add(siteIcon);
         var siteName = new Span("Archinsight");
-        siteName.getElement().addEventListener("click", event -> UI.getCurrent().navigate(SiteView.class));
-        siteName.getStyle().set("margin-left", "7px").set("margin-top", "7px").set("cursor", "pointer");
+        siteName.getElement().addEventListener("click", event -> UI.getCurrent().getPage().setLocation("/"));
+        siteName.getStyle()
+                .set("margin-left", "7px")
+                .set("margin-top", "7px")
+                .set("cursor", "pointer")
+                .set("color", "var(--lumo-primary-color)")
+                .set("font-weight", "500");
         title.add(siteName);
         if (titleSuffix != null) {
             var suffixLabel = new Span(titleSuffix);
             title.add(suffixLabel);
-            suffixLabel.getStyle().set("margin-left", "7px").set("margin-top", "7px");
+            suffixLabel.getStyle()
+                    .set("margin-left", "7px")
+                    .set("margin-top", "6px")
+                    .set("color", "var(--lumo-primary-color)")
+                    .set("font-weight", "500");
         }
         title.add(menu);
         title.setVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
@@ -45,7 +53,7 @@ public interface BaseView {
         // Actual footer content
         var layout = new HorizontalLayout();
         var footer = new Div();
-        footer.add(new Span("Copyright © 2022-2024 Alexey Zaytsev"));
+        footer.add(new Span("Copyright © 2022-2025 Alexey Zaytsev"));
         footer.getElement().getStyle().set("font-size", "12px");
         footer.getElement().getStyle().set("margin-left", "auto");
         footer.getElement().getStyle().set("margin-right", "0");
@@ -60,8 +68,12 @@ public interface BaseView {
         parent.expand(layout);
     }
 
-    default void applyDarkTheme(Element el) {
-        el.executeJs("document.documentElement.setAttribute('theme', $0)", Lumo.DARK);
+    default void setupFrontend(Element el) {
+        el.executeJs("""
+                window.frontendSettings = {
+                    contextPath: $0
+                }
+                """, VaadinServlet.getCurrent().getServletContext().getContextPath());
     }
 
 }

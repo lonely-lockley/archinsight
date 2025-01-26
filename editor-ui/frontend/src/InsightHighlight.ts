@@ -40,16 +40,17 @@ export class InsightTokensProvider implements TokensProvider {
     'FROM',
     'AS'
   ]);
-  parameters = new Set(['NAME', 'DESCRIPTION', 'TECHNOLOGY']);
-  identifier = new Set(['PROJECTNAME', 'IDENTIFIER']);
-  operator = new Set(['EQ', 'LINKS']);
+  parameters = new Set(['NAME', 'DESCRIPTION', 'TECHNOLOGY', 'LINKS', 'VIA', 'CALL', 'FORMAT']);
+  identifier = new Set(['IDENTIFIER']);
+  operator = new Set(['EQ', 'SWIRE', 'AWIRE']);
+  annotation = new Set(['ATTRIBUTE', 'PLANNED', 'DEPRECATED', 'LPAREN', 'RPAREN']);
 
   getInitialState(): languages.IState {
-    return new LexerState(InsightLexer.TEXT);
+    return new LexerState();
   }
 
   tokenize(line: string, state: IState): languages.ILineTokens {
-    const inputStream = CharStream.fromString(line);
+    const inputStream = CharStream.fromString('\n' + line);
     const lexer = new InsightLexer(inputStream);
     lexer.enableSingleLineMode();
     lexer.removeErrorListeners();
@@ -72,10 +73,12 @@ export class InsightTokensProvider implements TokensProvider {
           editorType = 'parameter';
         } else if (this.identifier.has(tokenTypeName)) {
           editorType = 'variable';
-        } else if (tokenTypeName === 'TEXT') {
+        } else if (tokenTypeName === 'TEXT' || tokenTypeName === 'ANNOTATION_VALUE') {
           editorType = 'string';
         } else if (tokenTypeName === 'COMMENT') {
           editorType = 'comment';
+        } else if (this.annotation.has(tokenTypeName)) {
+          editorType = 'constant';
         } else if (this.operator.has(tokenTypeName)) {
           editorType = 'operator';
         } else {
@@ -93,8 +96,8 @@ export class InsightTokensProvider implements TokensProvider {
     }
 
     var tt = lexer.snapshotState();
-    //var st = state as LexerState;
-    //console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
+    // var st = state as LexerState;
+    // console.log(">>>" + line + "<<<  from {wasText: " + st.wasText() + ", indent: " + st.getIndentation() + "}; to {wasText: " + tt.wasText() + ", indent: " + tt.getIndentation() + "};");
     return { tokens: tokens, endState: tt };
   }
 }

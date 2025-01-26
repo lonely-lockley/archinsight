@@ -20,11 +20,15 @@ public class IdentitySource {
     @Inject
     private Config conf;
 
-    public Userdata getUser(UUID id) {
+    public Userdata getUserById(UUID id) {
         return identity.getUserById(conf.getIdentityAuthToken(), id);
     }
 
-    public Userdata getUser(String email) {
+    public Userdata getUserBySsrSession(String ssr) {
+        return identity.getUserBySsrSession(conf.getIdentityAuthToken(), ssr);
+    }
+
+    public Userdata getUserById(String email) {
         return identity.getUserByEmail(conf.getIdentityAuthToken(), email);
     }
 

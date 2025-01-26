@@ -2,9 +2,7 @@ package com.github.lonelylockley.archinsight.security;
 
 import com.github.lonelylockley.archinsight.model.remote.identity.Userdata;
 import com.vaadin.flow.component.UI;
-import com.vaadin.flow.server.VaadinServletRequest;
-import com.vaadin.flow.server.VaadinServletResponse;
-import com.vaadin.flow.server.VaadinSession;
+import com.vaadin.flow.server.*;
 import jakarta.servlet.http.Cookie;
 
 import java.util.Arrays;
@@ -32,7 +30,7 @@ public class Authentication {
     }
 
     public static boolean completedLogin() {
-        var request = VaadinServletRequest.getCurrent();
+        var request = VaadinRequest.getCurrent();
         if (request == null) {
             return false;
         }
@@ -65,16 +63,6 @@ public class Authentication {
         var session = VaadinSession.getCurrent();
         var pg = getPgModeOrCreate(session);
         pg.remove(UI.getCurrent().getUIId());
-    }
-
-    public static void authenticate() {
-        new AuthFilter().beforeEnter(null);
-    }
-
-    public static void deauthenticate() {
-        var session = VaadinSession.getCurrent();
-        assert session != null;
-        session.setAttribute(Userdata.class, null);
     }
 
     public static void clearAuthToken() {

@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.components.dialogs.ConfirmDialog;
 import com.github.lonelylockley.archinsight.components.dialogs.ResultReturningDialog;
 import com.github.lonelylockley.archinsight.components.helpers.SwitchListenerHelper;
 import com.github.lonelylockley.archinsight.events.*;
+import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.repository.RepositoryNode;
 import com.github.lonelylockley.archinsight.remote.RemoteSource;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
@@ -33,6 +34,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
     public RepositoryViewComponent(boolean readOnly) {
         this.switchListener = new SwitchListenerHelper(this);
         this.remoteSource = MicronautContext.getInstance().getRemoteSource();
+        getStyle().set("background-color", "var(--lumo-contrast-5pct)");
         setTreeData(new TreeData<>() {
             @Override
             public List<RepositoryNode> getChildren(RepositoryNode item) {
@@ -71,6 +73,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
 
         switchListener.setRepositorySelectionCallback(e -> {
             var activeRepositoryStructure = remoteSource.repository.listNodes(e.getNewValue().getId());
+            var tr = remoteSource.translator.translate(null, e.getNewValue().getId(), ArchLevel.CONTEXT, false, Collections.EMPTY_LIST);
             var fs = new FileSystem(activeRepositoryStructure);
             fileSystem = fs;
             getTreeData().clear();
@@ -82,53 +85,45 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
             expandRecursively(Collections.singletonList(null), 1);
         });
 
-        final var fileRestorationListener = new BaseListener<FileRestoreEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileRestoreEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    fileRestorationCallback(e.getRestoredFileId(), e.getSource());
-                }
-            }
-        };
-        Communication.getBus().register(fileRestorationListener);
+        Communication.getBus().register(this,
+                new BaseListener<FileRestoreEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileRestoreEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            fileRestorationCallback(e.getRestoredFileId(), e.getSource());
+                        });
+                    }
+                },
 
-        final var sourceCompilationListener = new BaseListener<SourceCompilationEvent>() {
-            @Override
-            @Subscribe
-            public void receive(SourceCompilationEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                if (e.success()) {
-                    filesWithErrors.clear();
-                }
-                else
-                if (e.failure() && !e.getFilesWithErrors().isEmpty()) {
-                    filesWithErrors = e.getFilesWithErrors();
-                }
-                getDataProvider().refreshAll();
-            }
-            }
-        };
-        Communication.getBus().register(sourceCompilationListener);
+                new BaseListener<SourceCompilationEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(SourceCompilationEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            if (e.success()) {
+                                filesWithErrors.clear();
+                            }
+                            else
+                            if (e.failure() && !e.getFilesWithErrors().isEmpty()) {
+                                filesWithErrors = e.getFilesWithErrors();
+                            }
+                            getDataProvider().refreshAll();
+                        });
+                    }
+                },
 
-        final var fileCreatedListener = new BaseListener<FileCreatedEvent>() {
-            @Override
-            @Subscribe
-            public void receive(FileCreatedEvent e) {
-            if (eventWasProducedForCurrentUiId(e)) {
-                getTreeData().addItem(e.getParent(), e.getCreatedFile());
-                fileSystem.createNode(e.getCreatedFile());
-                getDataProvider().refreshAll();
-            }
-            }
-        };
-        Communication.getBus().register(fileCreatedListener);
-
-        addDetachListener(e -> {
-            Communication.getBus().unregister(fileRestorationListener);
-            Communication.getBus().unregister(sourceCompilationListener);
-            Communication.getBus().unregister(fileCreatedListener);
-        });
+                new BaseListener<FileCreatedEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(FileCreatedEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            getTreeData().addItem(e.getParent(), e.getCreatedFile());
+                            fileSystem.createNode(e.getCreatedFile());
+                            getDataProvider().refreshAll();
+                        });
+                    }
+                });
 
         addItemClickListener(e -> {
             if (e.getClickCount() == 2) {
@@ -204,7 +199,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         if (!selection.isEmpty()) {
             var node = selection.iterator().next();
             if (RepositoryNode.TYPE_FILE.equals(node.getType())) {
-                Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
+                Communication.getBus().post(new FileOpenRequestEvent(node));
             }
             else {
                 RepositoryViewComponent.this.expand(selection);
@@ -217,7 +212,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
         node.setName(ensureFileExtensionAdded(name));
         node.setType(RepositoryNode.TYPE_FILE);
         node = createNode(node);
-        Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node));
+        Communication.getBus().post(new FileOpenRequestEvent(node));
     }
 
     private void createDirectory(String name) {
@@ -277,7 +272,7 @@ public class RepositoryViewComponent extends TreeGrid<RepositoryNode> {
                 var node = fileSystem.getNode(fileId);
                 // open all menu items and select current file
                 select(node);
-                Communication.getBus().post(new FileOpenRequestEvent(switchListener.getActiveRepositoryId(), node, source));
+                Communication.getBus().post(new FileOpenRequestEvent(node, source));
                 while (node.getParentId() != null) {
                     node = fileSystem.getNode(node.getParentId());
                     expand(node);

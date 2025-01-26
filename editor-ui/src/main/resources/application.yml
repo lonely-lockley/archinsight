@@ -18,3 +18,7 @@ archinsight:
   translatorAuthToken: ${TRANSLATOR_TOKEN}
   rendererAuthToken: ${RENDERER_TOKEN}
   repositoryAuthToken: ${REPOSITORY_TOKEN}
+  contextPath: '/'
+  siteEnabled: true
+  ghostSsrEnabled: false
+  ghostSsrSecretKey: ''

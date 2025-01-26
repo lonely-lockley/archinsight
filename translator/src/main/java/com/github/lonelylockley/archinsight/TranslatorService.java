@@ -1,14 +1,13 @@
 package com.github.lonelylockley.archinsight;
 
-import com.github.lonelylockley.archinsight.export.graphviz.GraphvizTranslator;
+import com.github.lonelylockley.archinsight.export.ColorScheme;
+import com.github.lonelylockley.archinsight.export.Exporter;
 import com.github.lonelylockley.archinsight.introspect.Introspection;
-import com.github.lonelylockley.archinsight.model.TabBoundedFileData;
-import com.github.lonelylockley.archinsight.model.TranslationContext;
+import com.github.lonelylockley.archinsight.link.SymbolCollector;
+import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.remote.repository.FileData;
-import com.github.lonelylockley.archinsight.model.remote.translator.TabData;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
+import com.github.lonelylockley.archinsight.model.remote.translator.*;
 import com.github.lonelylockley.archinsight.link.Linker;
-import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.parse.Parser;
 import com.github.lonelylockley.archinsight.remote.RepositoryClient;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
@@ -26,13 +25,12 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static com.github.lonelylockley.archinsight.model.elements.ElementType.*;
 
 @Controller("/translate")
 @Secured(SecurityRule.IS_AUTHENTICATED)
@@ -56,85 +54,58 @@ public class TranslatorService {
     @ExecuteOn(TaskExecutors.BLOCKING)
     @Measured
     public TranslationResult translate(HttpRequest<?> request, @Header(SecurityConstants.USER_ID_HEADER_NAME) UUID ownerId, @Header(SecurityConstants.USER_ROLE_HEADER_NAME) String ownerRole, @Body TranslationRequest data) throws Exception {
-        var ctx = new TranslationContext();
-        var fsFuture = CompletableFuture
+        final var ctx = new TranslationContext();
+        final var fsFuture = CompletableFuture
                 .supplyAsync(() -> repository.listNodes(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()))
                 .thenApply(FileSystem::new);
-        var allFilesFuture = CompletableFuture
+        final var allFilesFuture = CompletableFuture
                 .supplyAsync(() -> repository.openAllFiles(conf.getRepositoryAuthToken(), ownerId, ownerRole, data.getRepositoryId()))
                 .thenApply(files -> mergeSources(data, files));
         // parse the whole repository
-        new Parser(ctx).parseRepository(ctx, fsFuture.get(), allFilesFuture.get());
+        final var fs = fsFuture.join();
+        new Parser(ctx).parseRepository(ctx, fs, allFilesFuture.join());
         // check integrity
-        if (!ctx.hasErrors()) {
+        if (ctx.noErrors()) {
             new Linker(ctx).checkIntegrity();
             new Introspection(ctx).suggest();
         }
         // translate to DOT
         var result = new TranslationResult();
         result.setTabId(data.getTabId());
-        if (!ctx.hasErrors()) {
-            mergeResults(data, result, ctx);
+        if (ctx.noErrors()) {
+            new Exporter().exportParsed(data, result, ctx, new ColorScheme(conf, data.getDarkMode()));
         }
         else {
             result.setHasErrors(true);
         }
+        result.setSymbols(new SymbolCollector(fs, ctx).collect());
         result.setMessages(ctx.getMessages());
         return result;
     }
 
-    private List<TabBoundedFileData> mergeSources(TranslationRequest data, List<FileData> allFiles) {
+    private List<Origin> mergeSources(TranslationRequest data, List<FileData> allFiles) {
         final var files = allFiles
                         .stream()
-                        .map(TabBoundedFileData::new)
-                        .collect(Collectors.toMap(TabBoundedFileData::getId, Function.identity()));
+                        .map(Origin::new)
+                        .collect(Collectors.toMap(Origin::getFileId, Function.identity()));
         final var tabs = data.getTabs()
                 .stream()
                 .map(tab -> {
-                    TabBoundedFileData tmp;
+                    Origin tmp;
                     if (tab.getFileId() == null || !files.containsKey(tab.getFileId())) {
-                        tmp = new TabBoundedFileData();
-                        tmp.setTabId(tab.getTabId());
-                        tmp.setFileName(tab.getFileName());
-                        tmp.setContent(tab.getSource());
-
+                        tmp = new Origin(tab);
                     }
                     else {
-                        tmp = files.remove(tab.getFileId());
-                        tmp.setTabId(tab.getTabId());
-                        tmp.setContent(tab.getSource());
+                        var fileData = files.remove(tab.getFileId());
+                        tmp = new Origin(fileData.getFile(), tab);
                     }
                     return tmp;
                 })
-                .sorted((left, right) -> {
-                    if (Objects.equals(left.getTabId(), data.getTabId())) {
-                        return 1;
-                    }
-                    else
-                    if (Objects.equals(right.getTabId(), data.getTabId())) {
-                        return -1;
-                    }
-                    else {
-                        return 0;
-                    }
-
-                })
                 .toList();
-        var res = new ArrayList<TabBoundedFileData>(files.size() + tabs.size());
+        var res = new ArrayList<Origin>(files.size() + tabs.size());
         res.addAll(files.values());
         res.addAll(tabs);
         return res;
-    }
-
-    private void mergeResults(TranslationRequest data, TranslationResult result, TranslationContext ctx) {
-        result.setTabs(data.getTabs());
-        for (TabData tab : result.getTabs()) {
-            var tr = new GraphvizTranslator();
-            tab.setSource(tr.translate(ctx.getDescriptor(tab.getTabId())));
-            if (Objects.equals(tab.getTabId(), data.getTabId())) {
-                result.setEdited(tab);
-            }
-        }
     }
 
 }

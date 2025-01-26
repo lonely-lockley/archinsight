@@ -16,40 +16,13 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxLongContextAnonymous() throws Exception {
         setup(
                 """
-                -> system ggg from context hhh
+                -> ggg from hhh
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("WIRE", "->"),
-                new Pair<>("CONTEXT_ELEMENT_IMPORT", "system"),
+                new Pair<>("SWIRE", "->"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("FROM", "from"),
-                new Pair<>("CONTEXT_IMPORT", "context"),
-                new Pair<>("IDENTIFIER", "hhh"),
-                new Pair<>("EOL", "\n")
-        ).toList();
-        Iterator<Pair<String, String>> it = exp.iterator();
-        List<? extends Token> act = lexer.getAllTokens();
-        Assert.assertEquals(act.size(), exp.size());
-        act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
-        Assert.assertFalse(it.hasNext());
-        LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 0);
-        Assert.assertFalse(state.wasText());
-    }
-
-    @Test
-    public void testImportSyntaxShortContextAnonymous() throws Exception {
-        setup(
-                """
-                -> ggg from context hhh
-                """
-        );
-        List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("WIRE", "->"),
-                new Pair<>("IDENTIFIER", "ggg"),
-                new Pair<>("FROM", "from"),
-                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n")
         ).toList();
@@ -67,24 +40,24 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxLongContextAnonymousWithParameters() throws Exception {
         setup(
                 """
-                -> system ggg from context hhh
+                -> ggg from hhh
                     name = Test
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("WIRE", "->"),
-                new Pair<>("CONTEXT_ELEMENT_IMPORT", "system"),
+                new Pair<>("SWIRE", "->"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("FROM", "from"),
-                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", "\n")
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -92,27 +65,40 @@ public class InsightLexerImportTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
-        Assert.assertTrue(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertFalse(state.wasText());
     }
 
     @Test
     public void testImportSyntaxAnonymousInContext() throws Exception {
         setup(
                 """
-                container tms
+                context tms
                 
-                service test
-                    name = Test system
-                    links:
-                        -> person ggg from context hhh
-                        -> kkk from context lll
-                        ~> ttt
+                system ggg
+                    name = GGG
+                
+                    service test
+                        name = Test system
+                        links:
+                            -> person from hhh
+                            -> kkk from lll
+                            ~> ttt
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTAINER", "container"),
+                new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("SYSTEM", "system"),
+                new Pair<>("IDENTIFIER", "ggg"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("NAME", "name"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "GGG"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("SERVICE", "service"),
                 new Pair<>("IDENTIFIER", "test"),
@@ -120,32 +106,30 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", " "),
-                new Pair<>("TEXT", "system"),
-                new Pair<>("TEXT", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "Test system"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
                 new Pair<>("LINKS", "links"),
                 new Pair<>("COLON", ":"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("WIRE", "->"),
-                new Pair<>("CONTEXT_ELEMENT_IMPORT", "person"),
-                new Pair<>("IDENTIFIER", "ggg"),
+                new Pair<>("SWIRE", "->"),
+                new Pair<>("IDENTIFIER", "person"),
                 new Pair<>("FROM", "from"),
-                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("EOL", "\n"),
-                new Pair<>("WIRE", "->"),
+                new Pair<>("SWIRE", "->"),
                 new Pair<>("IDENTIFIER", "kkk"),
                 new Pair<>("FROM", "from"),
-                new Pair<>("CONTEXT_IMPORT", "context"),
                 new Pair<>("IDENTIFIER", "lll"),
                 new Pair<>("EOL", "\n"),
-                new Pair<>("WIRE", "~>"),
+                new Pair<>("AWIRE", "~>"),
                 new Pair<>("IDENTIFIER", "ttt"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -153,23 +137,22 @@ public class InsightLexerImportTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertEquals(state.getIndentation(), 0);
         Assert.assertFalse(state.wasText());
     }
 
     @Test
-    public void testImportSyntaxLongContainerNamed() throws Exception {
+    public void testNamedImportSyntaxWithAlias() throws Exception {
         setup(
                 """
-                import service ggg from container hhh as ttt
+                import ggg from context hhh as ttt
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("IMPORT", "import"),
-                new Pair<>("CONTAINER_ELEMENT_IMPORT", "service"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("FROM", "from"),
-                new Pair<>("CONTAINER_IMPORT", "container"),
+                new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
                 new Pair<>("AS", "as"),
                 new Pair<>("IDENTIFIER", "ttt"),
@@ -186,20 +169,18 @@ public class InsightLexerImportTest extends TestCommon {
     }
 
     @Test
-    public void testImportSyntaxShortContainerNamed() throws Exception {
+    public void testNamedImportSyntaxWithouAlias() throws Exception {
         setup(
                 """
-                import ggg from container hhh as ttt
+                import ggg from context hhh
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("IDENTIFIER", "ggg"),
                 new Pair<>("FROM", "from"),
-                new Pair<>("CONTAINER_IMPORT", "container"),
+                new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "hhh"),
-                new Pair<>("AS", "as"),
-                new Pair<>("IDENTIFIER", "ttt"),
                 new Pair<>("EOL", "\n")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
@@ -216,27 +197,40 @@ public class InsightLexerImportTest extends TestCommon {
     public void testImportSyntaxNamedInContext() throws Exception {
         setup(
                 """
-                container tms
+                context tms
                 
                 import jjj from context lll as ttt
                 
-                service test
-                    name = Test system
-                    links:
-                        -> ttt
+                system ggg
+                    name = GGG
+                
+                    service test
+                        name = Test system
+                        links:
+                            -> ttt
                 """
         );
         List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("CONTAINER", "container"),
+                new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "tms"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("IMPORT", "import"),
                 new Pair<>("IDENTIFIER", "jjj"),
                 new Pair<>("FROM", "from"),
-                new Pair<>("CONTEXT_IMPORT", "context"),
+                new Pair<>("CONTEXT", "context"),
                 new Pair<>("IDENTIFIER", "lll"),
                 new Pair<>("AS", "as"),
                 new Pair<>("IDENTIFIER", "ttt"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("SYSTEM", "system"),
+                new Pair<>("IDENTIFIER", "ggg"),
+                new Pair<>("EOL", "\n"),
+                new Pair<>("INDENT", "<INDENT>"),
+                new Pair<>("NAME", "name"),
+                new Pair<>("EQ", "= "),
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "GGG"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("SERVICE", "service"),
                 new Pair<>("IDENTIFIER", "test"),
@@ -244,19 +238,21 @@ public class InsightLexerImportTest extends TestCommon {
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("NAME", "name"),
                 new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("TEXT", "Test"),
-                new Pair<>("TEXT", " "),
-                new Pair<>("TEXT", "system"),
-                new Pair<>("TEXT", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("WRAP", "<WRAP>"),
+                new Pair<>("TEXT", "Test system"),
+                new Pair<>("UNWRAP", "<UNWRAP>"),
+                new Pair<>("EOL", "\n"),
                 new Pair<>("LINKS", "links"),
                 new Pair<>("COLON", ":"),
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("WIRE", "->"),
+                new Pair<>("SWIRE", "->"),
                 new Pair<>("IDENTIFIER", "ttt"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("EOL", "\n"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>"),
+                new Pair<>("DEDENT", "<DEDENT>")
+
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -264,45 +260,7 @@ public class InsightLexerImportTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 2);
-        Assert.assertFalse(state.wasText());
-    }
-
-    @Test
-    public void testImportSyntaxNamedInBoundary() throws Exception {
-        setup(
-                """
-                        boundary bb
-                            desc = 888
-                                        
-                            import translator from container archinsight
-                        """
-        );
-        List<Pair<String, String>> exp = Stream.of(
-                new Pair<>("BOUNDARY", "boundary"),
-                new Pair<>("IDENTIFIER", "bb"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("DESCRIPTION", "desc"),
-                new Pair<>("EQ", "= "),
-                new Pair<>("INDENT", "<INDENT>"),
-                new Pair<>("TEXT", "888"),
-                new Pair<>("TEXT", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("IMPORT", "import"),
-                new Pair<>("IDENTIFIER", "translator"),
-                new Pair<>("FROM", "from"),
-                new Pair<>("CONTAINER_IMPORT", "container"),
-                new Pair<>("IDENTIFIER", "archinsight"),
-                new Pair<>("EOL", "\n")
-        ).toList();
-        Iterator<Pair<String, String>> it = exp.iterator();
-        List<? extends Token> act = lexer.getAllTokens();
-        Assert.assertEquals(act.size(), exp.size());
-        act.forEach(tkn -> checkElement((CommonToken) tkn, it.next()));
-        Assert.assertFalse(it.hasNext());
-        LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 1);
+        Assert.assertEquals(state.getIndentation(), 0);
         Assert.assertFalse(state.wasText());
     }
 }

@@ -11,6 +11,9 @@ public class Config {
     private String kid;
     private String apiToken;
     private String redirectUri;
+    private Boolean ghostSsrEnabled;
+    private String ghostSsrSecretKey;
+    private String ghostApiKey;
 
     public Boolean getDevMode() {
         return devMode != null && devMode;
@@ -54,5 +57,29 @@ public class Config {
 
     public void setRedirectUri(String redirectUri) {
         this.redirectUri = redirectUri;
+    }
+
+    public Boolean getGhostSsrEnabled() {
+        return ghostSsrEnabled;
+    }
+
+    public void setGhostSsrEnabled(Boolean ghostSsrEnabled) {
+        this.ghostSsrEnabled = ghostSsrEnabled;
+    }
+
+    public String getGhostSsrSecretKey() {
+        return ghostSsrSecretKey;
+    }
+
+    public void setGhostSsrSecretKey(String ghostSsrSecretKey) {
+        this.ghostSsrSecretKey = ghostSsrSecretKey;
+    }
+
+    public String getGhostApiKey() {
+        return ghostApiKey;
+    }
+
+    public void setGhostApiKey(String ghostApiKey) {
+        this.ghostApiKey = ghostApiKey;
     }
 }

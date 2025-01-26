@@ -15,12 +15,17 @@ public interface Functional<P, T> {
             }
 
             @Override
-            public <R> R mapOrElse(Function<P, R> lambda, Supplier<R> defaultValue) {
-                return defaultValue.get();
+            public <R> R fold(Function<P, R> lambda, Supplier<R> defaultValue) {
+                return defaultValue == null ? null : defaultValue.get();
             }
 
             @Override
             public void foreach(Consumer<P> lambda) {
+            }
+
+            @Override
+            public <R> Functional<R, T> map(Function<P, R> lambda) {
+                return (Functional<R, T>) this;
             }
         };
     }
@@ -38,13 +43,18 @@ public interface Functional<P, T> {
             }
 
             @Override
-            public <R> R mapOrElse(Function<P, R> lambda, Supplier<R> defaultValue) {
+            public <R> R fold(Function<P, R> lambda, Supplier<R> defaultValue) {
                 return lambda.apply((P) param);
             }
 
             @Override
             public void foreach(Consumer<P> lambda) {
                 lambda.accept((P) param);
+            }
+
+            @Override
+            public <R> Functional<R, T> map(Function<P, R> lambda) {
+                return (Functional<R, T>) capture((T) lambda.apply((P) param));
             }
         };
     }
@@ -53,7 +63,11 @@ public interface Functional<P, T> {
         throw new RuntimeException("Not implemented");
     }
 
-    default <R> R mapOrElse(Function<P, R> lambda, Supplier<R> defaultValue) {
+    default <R> Functional<R, T> map(Function<P, R> lambda) {
+        throw new RuntimeException("Not implemented");
+    }
+
+    default <R> R fold(Function<P, R> lambda, Supplier<R> defaultValue) {
         throw new RuntimeException("Not implemented");
     }
 

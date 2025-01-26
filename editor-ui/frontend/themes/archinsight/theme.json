@@ -1,0 +1,6 @@
+{
+  "parent": "lumo",
+  "lumoImports": [
+    "badge"
+  ]
+}

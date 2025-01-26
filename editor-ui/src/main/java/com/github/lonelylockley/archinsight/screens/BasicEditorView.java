@@ -51,29 +51,26 @@ public abstract class BasicEditorView extends AppLayout implements BaseView {
         setContent(contentLayout);
 
         // and repository component second because it sends openRepository event
-        final var nav = new RepositoryComponent(readOnly);
+        final var nav = new NavigationPanelComponent(readOnly);
         addToDrawer(nav);
         addToNavbar(toggle, title, new UserMenuComponent());
         setDrawerOpened(true);
 
-        applyDarkTheme(getElement());
+        setupFrontend(getElement());
     }
 
     private void registerNotificationListener() {
         // Common notification controller
-        final var notificationListener = new BaseListener<NotificationEvent>() {
-            @Override
-            @Subscribe
-            public void receive(NotificationEvent e) {
-                if (eventWasProducedForCurrentUiId(e)) {
-                    new NotificationComponent(e.getMessage(), e.getLevel(), e.getDuration());
-                }
-            }
-        };
-        Communication.getBus().register(notificationListener);
-        addDetachListener(e -> {
-            Communication.getBus().unregister(notificationListener);
-        });
+        Communication.getBus().register(this,
+                new BaseListener<NotificationEvent>() {
+                    @Override
+                    @Subscribe
+                    public void receive(NotificationEvent e) {
+                        e.withCurrentUI(this, () -> {
+                            new NotificationComponent(e.getMessage(), e.getLevel(), e.getDuration());
+                        });
+                    }
+                });
     }
 
 }

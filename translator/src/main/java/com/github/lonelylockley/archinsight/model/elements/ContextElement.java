@@ -1,5 +1,6 @@
 package com.github.lonelylockley.archinsight.model.elements;
 
+import com.github.lonelylockley.archinsight.model.DynamicId;
 import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 
 import java.util.ArrayList;
@@ -9,20 +10,20 @@ import java.util.stream.Collectors;
 
 public class ContextElement extends AbstractElement implements WithId, WithChildElements, WithImports {
 
-    private String id = null;
+    private DynamicId declaredId = null;
 
     private final List<AbstractElement> children = new ArrayList<>();
 
     private final List<AbstractImport> imports = new ArrayList<>();
 
     @Override
-    public void setId(String id) {
-        this.id = id;
+    public void setDeclaredId(DynamicId id) {
+        this.declaredId = id;
     }
 
     @Override
-    public String getId() {
-        return id;
+    public DynamicId getDeclaredId() {
+        return declaredId;
     }
 
     @Override
@@ -42,9 +43,9 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     @Override
     public AbstractElement clone() {
         var res = new ContextElement();
-        res.id = this.id;
-        res.imports.addAll(this.imports);
-        res.children.addAll(this.children);
+        res.declaredId = this.declaredId.clone();
+        this.imports.forEach(imp -> res.imports.add(imp.clone()));
+        this.children.forEach(child -> res.children.add(child.clone()));
         clonePositionTo(res);
         return res;
     }
@@ -52,7 +53,7 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     @Override
     public String toString() {
         return "ContextElement{" +
-                "id='" + id +
+                "declaredId='" + declaredId +
                 "', imports=[\n" + imports.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 "', children=[\n" + children.stream().map(ch -> ch.toString() + '\n').collect(Collectors.joining()) +
                 "]}";
@@ -62,12 +63,12 @@ public class ContextElement extends AbstractElement implements WithId, WithChild
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof WithId that)) return false;
-        return id.equals(that.getId());
+        return declaredId.equals(that.getDeclaredId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(declaredId);
     }
 
     @Override
