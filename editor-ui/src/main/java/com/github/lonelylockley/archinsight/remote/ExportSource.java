@@ -4,6 +4,7 @@ import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.components.EditorTabComponent;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.DeclarationsParsedEvent;
+import com.github.lonelylockley.archinsight.events.NotificationEvent;
 import com.github.lonelylockley.archinsight.events.SourceCompilationEvent;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
 import com.github.lonelylockley.archinsight.model.remote.renderer.Source;
@@ -71,19 +72,24 @@ public class ExportSource {
 
     private byte[] exportInternal(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, String format, Function<Source, byte[]> renderer, boolean darkMode) {
         long startTime = System.nanoTime();
-        byte[] data;
-        var translated = translateInternal(tabId, repositoryId, level, tabs, darkMode);
-        if (!translated.isHasErrors()) {
-            data = renderer.apply(prepareRendererRequest(translated));
+        try {
+            byte[] data;
+            var translated = translateInternal(tabId, repositoryId, level, tabs, darkMode);
+            if (!translated.isHasErrors()) {
+                data = renderer.apply(prepareRendererRequest(translated));
+            } else {
+                throw new RuntimeException("Export failed because translation had errors");
+            }
+            logger.info("Export to {} required {}ms",
+                    format,
+                    (System.nanoTime() - startTime) / 1000000
+            );
+            return data;
         }
-        else {
-            throw new RuntimeException("Export failed because translation had errors");
+        catch (Exception ex) {
+            Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, ex.getMessage()));
+            throw ex;
         }
-        logger.info("Export to {} required {}ms",
-                format,
-                (System.nanoTime() - startTime) / 1000000
-        );
-        return data;
     }
 
     public byte[] exportPng(String tabId, UUID repositoryId, ArchLevel level, Collection<EditorTabComponent> tabs, boolean darkMode) {

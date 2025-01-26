@@ -15,11 +15,11 @@ import java.util.UUID;
 
 public class InsightParseErrorListener implements ANTLRErrorListener {
 
-    private final TranslationContext ctx;
+    private final ParseResult pr;
     private final Origin origin;
 
-    public InsightParseErrorListener(TranslationContext ctx, Origin origin) {
-        this.ctx = ctx;
+    public InsightParseErrorListener(ParseResult pr, Origin origin) {
+        this.pr = pr;
         this.origin = origin;
     }
 
@@ -39,7 +39,7 @@ public class InsightParseErrorListener implements ANTLRErrorListener {
         else {
             TranslationUtil.copyPosition(lm, line, charPositionInLine, tkn.getStartIndex(), tkn.getStopIndex());
         }
-        ctx.addMessage(lm);
+        pr.getMessages().add(lm);
     }
 
     @Override

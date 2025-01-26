@@ -253,8 +253,10 @@ public class StructureViewComponent extends TreeGrid<Symbol> {
         getTreeData().clear();
         for (Symbol context : e.getSymbols()) {
             // root level -- contexts by origins
-            getTreeData().addItem(null, context);
-            refreshMappings(null, context);
+            if (!getTreeData().contains(context)) {
+                getTreeData().addItem(null, context);
+                refreshMappings(null, context);
+            }
             for (Symbol system : context.getChildren()) {
                 // second level -- systems
                 getTreeData().addItem(context, system);

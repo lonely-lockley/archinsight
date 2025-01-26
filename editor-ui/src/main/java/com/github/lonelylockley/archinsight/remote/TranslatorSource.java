@@ -4,7 +4,9 @@ import com.github.lonelylockley.archinsight.Config;
 import com.github.lonelylockley.archinsight.components.EditorTabComponent;
 import com.github.lonelylockley.archinsight.events.Communication;
 import com.github.lonelylockley.archinsight.events.DeclarationsParsedEvent;
+import com.github.lonelylockley.archinsight.events.NotificationEvent;
 import com.github.lonelylockley.archinsight.model.ArchLevel;
+import com.github.lonelylockley.archinsight.model.remote.translator.MessageLevel;
 import com.github.lonelylockley.archinsight.model.remote.translator.TabData;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationRequest;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslationResult;
@@ -47,9 +49,16 @@ public class TranslatorSource {
 
     public TranslationResult translate(String tabId, UUID repositoryId, ArchLevel level, boolean darkMode, Collection<EditorTabComponent> tabs) {
         long startTime = System.nanoTime();
-        var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, darkMode, tabs));
-        logger.info("Translation for {} required {}ms", tabId == null ? "repository " + repositoryId : tabId, (System.nanoTime() - startTime) / 1000000);
-        Communication.getBus().post(new DeclarationsParsedEvent(!translated.isHasErrors(), translated.getSymbols()));
-        return translated;
+        try {
+            var translated = translator.translate(conf.getTranslatorAuthToken(), prepareTranslationRequest(tabId, repositoryId, level, darkMode, tabs));
+            Communication.getBus().post(new DeclarationsParsedEvent(!translated.isHasErrors(), translated.getSymbols()));
+            logger.info("Translation for {} required {}ms", tabId == null ? "repository " + repositoryId : tabId, (System.nanoTime() - startTime) / 1000000);
+            return translated;
+        }
+        catch (Exception ex) {
+            Communication.getBus().post(new NotificationEvent(MessageLevel.ERROR, "Could not parse repository structure"));
+            logger.error(ex.getMessage(), ex);
+            return new TranslationResult();
+        }
     }
 }

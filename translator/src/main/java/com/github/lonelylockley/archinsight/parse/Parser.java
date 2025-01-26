@@ -2,7 +2,6 @@ package com.github.lonelylockley.archinsight.parse;
 
 import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.*;
-import com.github.lonelylockley.archinsight.model.imports.AbstractImport;
 import com.github.lonelylockley.archinsight.model.remote.translator.TranslatorMessage;
 import com.github.lonelylockley.archinsight.repository.FileSystem;
 import com.github.lonelylockley.insight.lang.InsightLexer;
@@ -14,8 +13,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class Parser {
@@ -33,7 +30,7 @@ public class Parser {
         var listener = new InsightParseTreeListener(origin);
         try {
             if (!StringUtils.isBlank(source)) {
-                var errorListener = new InsightParseErrorListener(ctx, origin);
+                var errorListener = new InsightParseErrorListener(listener.getResult(), origin);
                 var inputStream = CharStreams.fromReader(new StringReader(source));
                 var lexer = new InsightLexer(inputStream);
                 lexer.removeErrorListeners();
@@ -62,10 +59,12 @@ public class Parser {
     }
 
     public void parseRepository(TranslationContext ctx, FileSystem fs, List<Origin> origins) {
-        origins.stream().parallel().forEach(origin -> {
+        origins.stream().forEach(origin -> {
             origin.defineLocation(fs);
             var pr = parse(origin);
-            parseResultToDescriptors(ctx, pr);
+            if (pr.getMessages().isEmpty()) {
+                parseResultToDescriptors(ctx, pr);
+            }
             copyParserMessages(origin, ctx, pr.getMessages());
         });
     }
