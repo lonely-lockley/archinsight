@@ -29,9 +29,9 @@ This will build Compiler, Renderer and Editor UI services into docker images and
 them into your local docker repository
 
 ## Project documentation
-[Insight Language](https://archinsight.org/doc/insight-language/)
-[Installation Guide](https://archinsight.org/doc/installation-guide/)
-[Developer Guide](https://archinsight.org/doc/developer-guide/)
+* [Insight Language](https://archinsight.org/doc/insight-language/)
+* [Installation Guide](https://archinsight.org/doc/installation-guide/)
+* [Developer Guide](https://archinsight.org/doc/developer-guide/)
 
 ## Builds
 [Docker Hub](https://hub.docker.com/r/lonelylockley/archinsight)
