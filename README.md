@@ -18,7 +18,7 @@ Preview language and features in [Playground](https://archinsight.org/playground
 
 ## Building a project
 To build Archinsight from source, you need:
-* JDK 17
+* JDK 20
 * Docker
 
 To run a build use command:
@@ -28,8 +28,10 @@ To run a build use command:
 This will build Compiler, Renderer and Editor UI services into docker images and place 
 them into your local docker repository
 
-## Insight language description
-[Project Wiki](https://github.com/lonely-lockley/archinsight/wiki/Insight-language)
+## Project documentation
+[Insight Language](https://archinsight.org/doc/insight-language/)
+[Installation Guide](https://archinsight.org/doc/installation-guide/)
+[Developer Guide](https://archinsight.org/doc/developer-guide/)
 
 ## Builds
 [Docker Hub](https://hub.docker.com/r/lonelylockley/archinsight)
