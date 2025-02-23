@@ -26,7 +26,7 @@ micronaut:
   http:
     services: # private network only
       external_ssr:
-        url: ${EXTERNAL_SSR:``}
+        url: ${EXTERNAL_SSR:`http://127.0.0.1`}
 datasources:
   default:
     db-type: POSTGRES
@@ -49,7 +49,7 @@ archinsight:
   devMode: ${DEV_MODE:`false`}
   domain: '${DOMAIN}'
   kid: '${KID}'
-  apiToken: '${SECURITY_TOKEN}'
+  apiToken: ${SECURITY_TOKEN:``}
   redirect-uri: '${PUBLIC_HOST}/oauth/callback/google'
   ghostSsrEnabled: false
   ghostSsrSecretKey: ''

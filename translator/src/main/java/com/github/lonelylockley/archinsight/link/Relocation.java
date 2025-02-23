@@ -135,18 +135,27 @@ public interface Relocation {
                 });
                 newContainer.addChild(el);
             }
-            else if (el.getType() == ElementType.SYSTEM) {
-                ElementType.SYSTEM.capture(el).foreach(sys -> {
-                    var boundary = new BoundaryElement();
-                    boundary.setDeclaredId(sys.getDeclaredId());
-                    boundary.setName(sys.getName());
-                    sys.getChildren().stream().filter(child -> child.getType() != ElementType.LINK).forEach(boundary::addChild);
-                    sys.clonePositionTo(boundary);
-                    if (boundary.getChildren().isEmpty()) {
-                        boundary.getChildren().add(new EmptyElement(DynamicId.fromElementId("invisible_node_" + i.incrementAndGet())));
-                    }
-                    newContainer.addChild(boundary);
-                });
+            else
+            if (el.getType() == ElementType.SYSTEM) {
+                ElementType.SYSTEM.capture(el)
+                        .foreach(sys -> {
+                            if (sys.isExternal()) {
+                                // external elements do not need container representation on level 2
+                                // no need to replace them with boundary
+                                newContainer.addChild(sys);
+                            }
+                            else {
+                                var boundary = new BoundaryElement();
+                                boundary.setDeclaredId(sys.getDeclaredId());
+                                boundary.setName(sys.getName());
+                                sys.getChildren().stream().filter(child -> child.getType() != ElementType.LINK).forEach(boundary::addChild);
+                                sys.clonePositionTo(boundary);
+                                if (boundary.getChildren().isEmpty()) {
+                                    boundary.getChildren().add(new EmptyElement(DynamicId.fromElementId("invisible_node_" + i.incrementAndGet())));
+                                }
+                                newContainer.addChild(boundary);
+                            }
+                        });
             }
         }
     }
@@ -173,8 +182,8 @@ public interface Relocation {
         var existing = new HashMap<>(parent.listExisting());
         existing.forEach((id, el) -> {
             // clean container from context-level elements
-            //    keep imported elements               keep container elements in the same boundary
-            if (!(result.isImported(id.toString()) || (id.getLevel() == ArchLevel.CONTAINER && checkIdPointsToTheSameContainer(id, result, boundaryIds)))) {
+            //    keep imported elements               keep container elements in the same boundary                                                      || keep external elements
+            if (!(result.isImported(id.toString()) || (id.getLevel() == ArchLevel.CONTAINER && checkIdPointsToTheSameContainer(id, result, boundaryIds)) || el.hasExternal().fold(WithExternal::isExternal, () -> false))) {
                 result.removeExisting(id, id.getElementId());
             }
         });

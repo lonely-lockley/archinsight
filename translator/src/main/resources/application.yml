@@ -6,13 +6,13 @@ micronaut:
     authentication: bearer
     enabled: true
     apiKeys:
-      #kid: key
+      editor-ui: ${EDITOR_UI_TOKEN:``}
   http:
     services: # private network only
       repository:
         url: ${REPOSITORY:`http://repository:8080`}
 archinsight:
-  repositoryAuthToken: ${REPOSITORY_TOKEN}
+  repositoryAuthToken: ${REPOSITORY_TOKEN:``}
   diagram:
     light:
       element_color: "#f4f4f4"
