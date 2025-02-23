@@ -69,7 +69,7 @@ actorDeclaration
     ;
 
 serviceDeclaration
-    :   annotationStatement? SERVICE identifierDeclaration noteStatement? EOL containerParameters
+    :   annotationStatement? SERVICE identifierDeclaration noteStatement? EOL contextParameters
     ;
 
 storageDeclaration
@@ -77,7 +77,7 @@ storageDeclaration
     ;
 
 contextParameters
-    :   INDENT nameParameter descriptionParameter? linksDeclaration? DEDENT
+    :   INDENT nameParameter technologyParameter? descriptionParameter? linksDeclaration? DEDENT
     ;
 
 containerParameters

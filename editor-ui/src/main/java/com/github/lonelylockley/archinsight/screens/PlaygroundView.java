@@ -7,7 +7,7 @@ import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.auth.AnonymousAllowed;
 
 @Route(value = "playground")
-@PageTitle("Archinsight")
+@PageTitle("Archinsight Playground")
 @AnonymousAllowed
 @JsModule("@vaadin/vaadin-lumo-styles/presets/compact.js")
 public class PlaygroundView extends BasicEditorView {

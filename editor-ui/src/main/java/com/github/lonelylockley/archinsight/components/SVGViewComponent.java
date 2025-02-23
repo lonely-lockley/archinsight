@@ -22,6 +22,7 @@ public class SVGViewComponent extends HtmlContainer implements ClickNotifier<SVG
 
     public SVGViewComponent() {
         this.id = String.format("svg-view-component-%s", UUID.randomUUID());
+        setId(this.id);
         this.svgTag = String.format("<svg onClick=\"window.svgClickListener(event, this)\" id=\"%s\" version=\"1.1\"", id);
     }
 

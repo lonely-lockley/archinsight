@@ -5,6 +5,7 @@ import com.github.lonelylockley.archinsight.model.*;
 import com.github.lonelylockley.archinsight.model.elements.AbstractElement;
 import com.github.lonelylockley.archinsight.model.elements.ElementType;
 import com.github.lonelylockley.archinsight.model.elements.LinkElement;
+import com.github.lonelylockley.archinsight.model.elements.WithExternal;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
@@ -65,6 +66,7 @@ public class Introspection {
 
     private void searchConnectionErasures() {
         ctx.getRaw().forEach(descriptor -> {
+                    // collect all declared connections grouped by level
                     var res = descriptor.getConnections()
                             .stream()
                             .map(link -> new Tuple2<>(link.getFrom().getLevel(), link))
@@ -72,10 +74,13 @@ public class Introspection {
                                     Tuple2::_1,
                                     Collectors.toList()
                             ));
+                    // if all connection are in context or container - no problem, but if they are split into two levels - context level connection will
+                    // be erased in container level unless an external system's involved in the interaction
                     if (res.size() == 2) {
                         res.get(ArchLevel.CONTEXT)
                                 .stream()
                                 .map(Tuple2::_2)
+                                .filter(link -> !(descriptor.isDeclared(link.getFrom().getElementId()) && descriptor.getDeclared(link.getFrom().getElementId()).hasExternal().fold(WithExternal::isExternal,() -> false) && link.getTo().getLevel() == ArchLevel.CONTAINER))
                                 .forEach(link -> {
                                     var tm = TranslationUtil.newWarning(link, "Link will be erased in container level diagram");
                                     TranslationUtil.copyPosition(tm, link.getLine(), link.getCharPosition(), link.getStartIndex(), link.getStopIndex());

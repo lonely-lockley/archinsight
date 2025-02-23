@@ -6,4 +6,4 @@ micronaut:
     authentication: bearer
     enabled: true
     apiKeys:
-      #kid: key
+      editor-ui: ${EDITOR_UI_TOKEN:``}

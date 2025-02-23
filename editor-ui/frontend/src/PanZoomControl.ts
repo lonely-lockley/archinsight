@@ -2,7 +2,11 @@ const _global = (window) as any
 const step: number = 0.1;
 
 function zoomIn(id: string) {
-    var svg = document.getElementById(id)! as any;
+    const div = document.getElementById(id)! as any;
+    const svg = div.querySelector('svg');
+    if (svg === undefined || svg == null) {
+        return;
+    }
     if (!svg._calculatedWidth || !svg._calculatedHeight) {
         getBasics(svg);
     }
@@ -10,10 +14,16 @@ function zoomIn(id: string) {
     svg._calculatedHeight = svg._calculatedHeight + svg._calculatedHeight * step;
     svg.style.width = svg._calculatedWidth + 'pt';
     svg.style.height = svg._calculatedHeight + 'pt';
+    div._calculatedWidth = svg._calculatedWidth;
+    div._calculatedHeight = svg._calculatedHeight;
 }
 
 function zoomOut(id: string) {
-    var svg = document.getElementById(id)! as any;
+    const div = document.getElementById(id)! as any;
+    const svg = div.querySelector('svg');
+    if (svg === undefined || svg == null) {
+        return;
+    }
     if (!svg._calculatedWidth || !svg._calculatedHeight) {
         getBasics(svg);
     }
@@ -21,31 +31,49 @@ function zoomOut(id: string) {
     svg._calculatedHeight = svg._calculatedHeight - svg._calculatedHeight * step;
     svg.style.width = svg._calculatedWidth + 'pt';
     svg.style.height = svg._calculatedHeight + 'pt';
+    div._calculatedWidth = svg._calculatedWidth;
+    div._calculatedHeight = svg._calculatedHeight;
 }
 
 function zoomReset(id: string) {
-    var svg = document.getElementById(id)! as any;
+    const div = document.getElementById(id)! as any;
+    const svg = div.querySelector('svg');
+    if (svg === undefined || svg == null) {
+        return;
+    }
     getBasics(svg);
     svg.style.width = svg._calculatedWidth + 'pt';
     svg.style.height = svg._calculatedHeight + 'pt';
+    delete div._calculatedWidth;
+    delete div._calculatedHeight;
 }
 
 function zoomFit(id: string, suggestedWidth: number) {
-    var svg = document.getElementById(id)! as any;
+    const div = document.getElementById(id)! as any;
+    const svg = div.querySelector('svg');
+    if (svg === undefined || svg == null) {
+        return;
+    }
     if (!svg._calculatedWidth || !svg._calculatedHeight) {
         getBasics(svg);
     }
-    var scale = suggestedWidth / svg._calculatedWidth * 0.78;
+    const scale = suggestedWidth / svg._calculatedWidth * 0.78;
     svg._calculatedWidth = svg._calculatedWidth * scale;
     svg._calculatedHeight = svg._calculatedHeight * scale;
     svg.style.width = svg._calculatedWidth + 'pt';
     svg.style.height = svg._calculatedHeight + 'pt';
+    div._calculatedWidth = svg._calculatedWidth;
+    div._calculatedHeight = svg._calculatedHeight;
 }
 
 function zoomRestore(id: string) {
-    var svg = document.getElementById(id)! as any;
-    svg.style.width = svg._calculatedWidth + 'pt';
-    svg.style.height = svg._calculatedHeight + 'pt';
+    const div = document.getElementById(id)! as any;
+    const svg = div.querySelector('svg');
+    if (svg === undefined || svg == null) {
+        return;
+    }
+    svg.style.width = div._calculatedWidth + 'pt';
+    svg.style.height = div._calculatedHeight + 'pt';
 }
 
 function getBasics(svg: any) {

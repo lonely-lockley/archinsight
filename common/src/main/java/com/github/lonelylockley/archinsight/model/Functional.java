@@ -10,7 +10,7 @@ public interface Functional<P, T> {
     default Functional<P, T> noop() {
         return new Functional<P, T>() {
             @Override
-            public Functional<P, T> filter(Predicate<T> predicate) {
+            public Functional<P, T> filter(Predicate<P> predicate) {
                 return this;
             }
 
@@ -33,8 +33,8 @@ public interface Functional<P, T> {
     default Functional<P, T> capture(T param) {
         return new Functional<P, T>() {
             @Override
-            public Functional<P, T> filter(Predicate<T> predicate) {
-                if (predicate.test(param)) {
+            public Functional<P, T> filter(Predicate<P> predicate) {
+                if (predicate.test((P) param)) {
                     return this;
                 }
                 else {
@@ -59,7 +59,7 @@ public interface Functional<P, T> {
         };
     }
 
-    default Functional<P, T> filter(Predicate<T> predicate) {
+    default Functional<P, T> filter(Predicate<P> predicate) {
         throw new RuntimeException("Not implemented");
     }
 

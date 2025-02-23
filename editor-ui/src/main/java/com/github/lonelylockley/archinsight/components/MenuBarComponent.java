@@ -42,8 +42,8 @@ public class MenuBarComponent extends MenuBar {
     private final MenuItem zoomFitButton;
     private final MenuItem c1;
     private final MenuItem c2;
-    private final MenuItem c3;
-    private final MenuItem c4;
+//    private final MenuItem c3;
+//    private final MenuItem c4;
     private final MenuItem render;
     private final boolean readOnly;
 
@@ -78,14 +78,14 @@ public class MenuBarComponent extends MenuBar {
             createItem(viewSubMenu, "menu_btn_panel_code", new Icon(VaadinIcon.PADDING_LEFT), "Code only", null, true, true, listener);
             createItem(viewSubMenu, "menu_btn_panel_diagram", new Icon(VaadinIcon.PADDING_RIGHT), "Diagram only", null, true, true, listener);
             createItem(viewSubMenu, "menu_btn_panel_both", new Icon(VaadinIcon.SPLIT_H), "Code and diagram", null, true, true, listener);
-        c1 = createItem(this, "menu_btn_level_c1", LumoIcon.ORDERED_LIST.create(), "C1", null, true, false, listener);
+        c1 = createItem(this, "menu_btn_level_c1", LumoIcon.ORDERED_LIST.create(), "Context", null, true, false, listener);
         c1.getElement().setProperty("title", "Context level");
-        c2 = createItem(this, "menu_btn_level_c2", LumoIcon.ORDERED_LIST.create(), "C2", null, true, true, listener);
+        c2 = createItem(this, "menu_btn_level_c2", LumoIcon.ORDERED_LIST.create(), "Container", null, true, true, listener);
         c2.getElement().setProperty("title", "Context level");
-        c3 = createItem(this, "menu_btn_level_c3", LumoIcon.ORDERED_LIST.create(), "C3", null, true, false, listener);
-        c3.getElement().setProperty("title", "");
-        c4 = createItem(this, "menu_btn_level_c4", LumoIcon.ORDERED_LIST.create(), "C4", null, true, false, listener);
-        c4.getElement().setProperty("title", "");
+//        c3 = createItem(this, "menu_btn_level_sq", LumoIcon.ORDERED_LIST.create(), "Sequence", null, true, false, listener);
+//        c3.getElement().setProperty("title", "");
+//        c4 = createItem(this, "menu_btn_level_dp", LumoIcon.ORDERED_LIST.create(), "Deployment", null, true, false, listener);
+//        c4.getElement().setProperty("title", "");
         render = createItem(this, "menu_btn_render", new Icon(VaadinIcon.CARET_RIGHT), "Render", null, false, false, listener);
 
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.CONTROL);
@@ -345,7 +345,7 @@ public class MenuBarComponent extends MenuBar {
 //                c4.setEnabled(true);
                 renderButtonClicked();
                 break;
-            case "menu_btn_level_c3":
+            case "menu_btn_level_sq":
 //                currentLevel = ArchLevel.;
                 c1.setEnabled(true);
                 c2.setEnabled(true);

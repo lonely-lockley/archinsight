@@ -6,7 +6,8 @@ micronaut:
     authentication: bearer
     enabled: true
     apiKeys:
-      #kid: key
+      editor-ui: ${EDITOR_UI_TOKEN:``}
+      translator: ${TRANSLATOR_TOKEN:``}
 datasources:
   default:
     db-type: POSTGRES
@@ -27,4 +28,4 @@ flyway:
         - classpath:migration
 archinsight:
   devMode: ${DEV_MODE:`false`}
-  playgroundRepositoryId: ${PLAYGROUND_REPOSITORY}
+  playgroundRepositoryId: ${PLAYGROUND_REPOSITORY:`00000000-0000-0000-0000-000000000000`}

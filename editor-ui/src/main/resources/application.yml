@@ -14,11 +14,13 @@ archinsight:
   domain: ${DOMAIN}
   # this should be a public url
   loginUrl: ${LOGIN}
-  identityAuthToken: ${IDENTITY_TOKEN}
-  translatorAuthToken: ${TRANSLATOR_TOKEN}
-  rendererAuthToken: ${RENDERER_TOKEN}
-  repositoryAuthToken: ${REPOSITORY_TOKEN}
+  identityAuthToken: ${IDENTITY_TOKEN:``}
+  translatorAuthToken: ${TRANSLATOR_TOKEN:``}
+  rendererAuthToken: ${RENDERER_TOKEN:``}
+  repositoryAuthToken: ${REPOSITORY_TOKEN:``}
   contextPath: '/'
   siteEnabled: true
   ghostSsrEnabled: false
   ghostSsrSecretKey: ''
+  trackingEnabled: false
+  hotjarSiteId: ''

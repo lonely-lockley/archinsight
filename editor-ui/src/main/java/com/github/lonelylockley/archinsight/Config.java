@@ -18,6 +18,8 @@ public class Config {
     private Boolean siteEnabled;
     private Boolean ghostSsrEnabled;
     private String ghostSsrSecretKey;
+    private Boolean trackingEnabled;
+    private String hotjarSiteId;
 
     public Boolean getDevMode() {
         return devMode != null && devMode;
@@ -105,5 +107,21 @@ public class Config {
 
     public void setGhostSsrSecretKey(String ghostSsrSecretKey) {
         this.ghostSsrSecretKey = ghostSsrSecretKey;
+    }
+
+    public Boolean getTrackingEnabled() {
+        return trackingEnabled;
+    }
+
+    public void setTrackingEnabled(Boolean trackingEnabled) {
+        this.trackingEnabled = trackingEnabled;
+    }
+
+    public String getHotjarSiteId() {
+        return hotjarSiteId;
+    }
+
+    public void setHotjarSiteId(String hotjarSiteId) {
+        this.hotjarSiteId = hotjarSiteId;
     }
 }
