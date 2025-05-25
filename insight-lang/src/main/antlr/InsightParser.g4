@@ -106,35 +106,35 @@ wireDeclaration
     ;
 
 syncWireStatement
-    :   annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL syncWireParameters?
+    :   commentStatement? annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL syncWireParameters?
     ;
 
 asyncWireStatement
-    :   annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL asyncWireParameters?
+    :   commentStatement? annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL asyncWireParameters?
     ;
 
 nameParameter
-    :   NAME EQ parameterValue EOL
+    :   commentStatement? NAME EQ parameterValue EOL
     ;
 
 descriptionParameter
-    :   DESCRIPTION EQ parameterValue EOL
+    :   commentStatement? DESCRIPTION EQ parameterValue EOL
     ;
 
 technologyParameter
-    :   TECHNOLOGY EQ parameterValue EOL
+    :   commentStatement? TECHNOLOGY EQ parameterValue EOL
     ;
 
 viaParameter
-    :   VIA EQ parameterValue EOL
+    :   commentStatement? VIA EQ parameterValue EOL
     ;
 
 callParameter
-    :   CALL EQ parameterValue EOL
+    :   commentStatement? CALL EQ parameterValue EOL
     ;
 
 modelParameter
-    :   MODEL EQ parameterValue EOL
+    :   commentStatement? MODEL EQ parameterValue EOL
     ;
 
 parameterValue
