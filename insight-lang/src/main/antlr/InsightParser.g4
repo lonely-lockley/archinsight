@@ -50,7 +50,7 @@ contextStatement
     ;
 
 contextDefinition
-    :   INDENT nameParameter descriptionParameter? linksDeclaration? containerStatement* DEDENT
+    :   INDENT nameParameter technologyParameter? descriptionParameter? linksDeclaration? containerStatement* DEDENT
     ;
 
 containerStatement
