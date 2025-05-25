@@ -86,7 +86,7 @@ public class MenuBarComponent extends MenuBar {
 //        c3.getElement().setProperty("title", "");
 //        c4 = createItem(this, "menu_btn_level_dp", LumoIcon.ORDERED_LIST.create(), "Deployment", null, true, false, listener);
 //        c4.getElement().setProperty("title", "");
-        render = createItem(this, "menu_btn_render", new Icon(VaadinIcon.CARET_RIGHT), "Render", null, false, false, listener);
+        render = createItem(this, "menu_btn_render", new Icon(VaadinIcon.REFRESH), "Refresh", null, false, false, listener);
 
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.CONTROL);
         UI.getCurrent().addShortcutListener(this::saveButtonClicked, Key.KEY_S, KeyModifier.META);
@@ -177,10 +177,16 @@ public class MenuBarComponent extends MenuBar {
         zoomFitButton.setEnabled(false);
     }
 
+    private void blockRageClicks(ClickEvent<MenuItem> event, Runnable doIfOk) {
+        if (event.getClickCount() == 1) {
+            doIfOk.run();
+        }
+    }
+
     private void menuItemClicked(ClickEvent<MenuItem> event) {
         var id = event.getSource().getId().orElse("");
         if (id.startsWith("menu_btn_export_as")) {
-            exportButtonClicked(id);
+            blockRageClicks(event, () -> exportButtonClicked(id));
         }
         else
         if (id.startsWith("menu_btn_file")) {
@@ -192,7 +198,7 @@ public class MenuBarComponent extends MenuBar {
         }
         else
         if (id.equals("menu_btn_render")) {
-            renderButtonClicked();
+            blockRageClicks(event, this::renderButtonClicked);
         }
         else
         if (id.startsWith("menu_btn_level")) {
