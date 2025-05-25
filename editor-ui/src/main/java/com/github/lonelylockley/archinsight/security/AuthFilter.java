@@ -102,6 +102,9 @@ public class AuthFilter implements RequestHandler {
     }
 
     private void ssrSignatureFlow(VaadinServletRequest request, VaadinSession session) throws Exception {
+        if (request.getCookies() == null) {
+            return;
+        }
         var ssr = Arrays.stream(request.getCookies()).filter(c -> "ghost-members-ssr".equals(c.getName())).findFirst();
         var sig = Arrays.stream(request.getCookies()).filter(c -> "ghost-members-ssr.sig".equals(c.getName())).findFirst();
         if (ssr.isPresent() && sig.isPresent()) {
