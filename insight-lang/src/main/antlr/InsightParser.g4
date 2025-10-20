@@ -13,11 +13,18 @@ insight
     ;
 
 boundedContextStatement
-    :   boundedContextDeclaration EOL statement*
+    :   boundedContextDeclaration softEOL statement*
     ;
 
+softEOL
+    : EOL | EOF
+    ;
+
+softDedent
+    : DEDENT | EOF
+    ;
 commentStatement
-    :   COMMENT EOL
+    :   COMMENT softEOL
     ;
 
 noteStatement
@@ -30,14 +37,14 @@ boundedContextDeclaration
 
 statement
     :   contextStatement
-    |   annotationStatement EOL
-    |   namedImportStatement EOL
+    |   annotationStatement
+    |   namedImportStatement
     |   commentStatement
     |   EOL
     ;
 
 namedImportStatement
-    :   IMPORT identifierUsage FROM CONTEXT identifierUsage (AS identifierDeclaration)?
+    :   IMPORT identifierUsage FROM CONTEXT identifierUsage (AS identifierDeclaration)? softEOL
     ;
 
 anonymousImportDeclaration
@@ -45,12 +52,11 @@ anonymousImportDeclaration
     ;
 
 contextStatement
-    :   systemDeclaration
-    |   actorDeclaration
+    :   systemDeclaration | actorDeclaration
     ;
 
 contextDefinition
-    :   INDENT nameParameter technologyParameter? descriptionParameter? linksDeclaration? containerStatement* DEDENT
+    :   INDENT nameParameter technologyParameter? descriptionParameter? linksDeclaration? containerStatement* softDedent
     ;
 
 containerStatement
@@ -77,19 +83,19 @@ storageDeclaration
     ;
 
 contextParameters
-    :   INDENT nameParameter technologyParameter? descriptionParameter? linksDeclaration? DEDENT
+    :   INDENT nameParameter technologyParameter? descriptionParameter? linksDeclaration? softDedent
     ;
 
 containerParameters
-    :   INDENT (nameParameter | descriptionParameter | technologyParameter)+ linksDeclaration? DEDENT
+    :   INDENT (nameParameter | descriptionParameter | technologyParameter)+ linksDeclaration? softDedent
     ;
 
 syncWireParameters
-    :   INDENT (modelParameter | descriptionParameter | technologyParameter | callParameter)+ DEDENT
+    :   INDENT (modelParameter | descriptionParameter | technologyParameter | callParameter)+ softDedent
     ;
 
 asyncWireParameters
-    :   INDENT (modelParameter | descriptionParameter | technologyParameter | viaParameter)+ DEDENT
+    :   INDENT (modelParameter | descriptionParameter | technologyParameter | viaParameter)+ softDedent
     ;
 
 linksDeclaration
@@ -97,7 +103,7 @@ linksDeclaration
     ;
 
 wireList
-    :   INDENT wireDeclaration+ DEDENT
+    :   INDENT wireDeclaration+ softDedent
     ;
 
 wireDeclaration
@@ -106,35 +112,35 @@ wireDeclaration
     ;
 
 syncWireStatement
-    :   commentStatement? annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL syncWireParameters?
+    :   commentStatement* annotationStatement? SWIRE identifierUsage anonymousImportDeclaration? noteStatement? softEOL syncWireParameters?
     ;
 
 asyncWireStatement
-    :   commentStatement? annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? EOL asyncWireParameters?
+    :   commentStatement* annotationStatement? AWIRE identifierUsage anonymousImportDeclaration? noteStatement? softEOL asyncWireParameters?
     ;
 
 nameParameter
-    :   commentStatement? NAME EQ parameterValue EOL
+    :   commentStatement* NAME EQ parameterValue softEOL
     ;
 
 descriptionParameter
-    :   commentStatement? DESCRIPTION EQ parameterValue EOL
+    :   commentStatement* DESCRIPTION EQ parameterValue softEOL
     ;
 
 technologyParameter
-    :   commentStatement? TECHNOLOGY EQ parameterValue EOL
+    :   commentStatement* TECHNOLOGY EQ parameterValue softEOL
     ;
 
 viaParameter
-    :   commentStatement? VIA EQ parameterValue EOL
+    :   commentStatement* VIA EQ parameterValue softEOL
     ;
 
 callParameter
-    :   commentStatement? CALL EQ parameterValue EOL
+    :   commentStatement* CALL EQ parameterValue softEOL
     ;
 
 modelParameter
-    :   commentStatement? MODEL EQ parameterValue EOL
+    :   commentStatement* MODEL EQ parameterValue softEOL
     ;
 
 parameterValue

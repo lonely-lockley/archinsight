@@ -364,10 +364,7 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EQ", "= "),
                 new Pair<>("WRAP", "<WRAP>"),
                 new Pair<>("TEXT", "Test"),
-                new Pair<>("UNWRAP", "<UNWRAP>"),
-                new Pair<>("EOL", "\n"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>")
+                new Pair<>("UNWRAP", "<UNWRAP>")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -375,8 +372,8 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 0);
-        Assert.assertFalse(state.wasText());
+        Assert.assertEquals(state.getIndentation(), 2);
+        Assert.assertTrue(state.wasText());
 
     }
 
@@ -411,10 +408,7 @@ public class InsightLexerContextBasicTest extends TestCommon {
                 new Pair<>("EOL", "\n"),
                 new Pair<>("INDENT", "<INDENT>"),
                 new Pair<>("SWIRE", "->"),
-                new Pair<>("IDENTIFIER", "g"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>"),
-                new Pair<>("DEDENT", "<DEDENT>")
+                new Pair<>("IDENTIFIER", "g")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -422,7 +416,7 @@ public class InsightLexerContextBasicTest extends TestCommon {
         act.forEach(tkn ->  checkElement((CommonToken) tkn, it.next()));
         Assert.assertFalse(it.hasNext());
         LexerState state = lexer.snapshotState();
-        Assert.assertEquals(state.getIndentation(), 0);
+        Assert.assertEquals(state.getIndentation(), 3);
         Assert.assertFalse(state.wasText());
 
     }

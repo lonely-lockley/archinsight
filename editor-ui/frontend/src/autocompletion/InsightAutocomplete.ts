@@ -32,15 +32,21 @@ export class InsightAutocomplete implements CompletionItemProvider {
         parser.insight();
     }
     catch (e) {}
-    var core = new CodeCompletionCore(parser);
+    const tokenIndex = listener.getTokenIndex();
+    if (tokenIndex < 0) {
+        return undefined;
+    }
+    const core = new CodeCompletionCore(parser);
     core.ignoredTokens = new Set([
       InsightLexer.INDENT, InsightLexer.DEDENT, InsightLexer.EOL, InsightLexer.EOF, InsightLexer.COMMENT,
       InsightLexer.COLON, InsightLexer.EQ, InsightLexer.BLANK, InsightLexer.TEXT, InsightLexer.IDENTIFIER,
       InsightLexer.WRAP, InsightLexer.UNWRAP
     ]);
-    var suggestions = core.collectCandidates(listener.getTokenIndex());
+    console.log((parser.inputStream as BufferedTokenStream).getTokens());
+    console.log(listener.getTokenIndex());
+    let suggestions = core.collectCandidates(tokenIndex);
     if (suggestions != undefined && suggestions.tokens.size > 0) {
-        var result = Array.from(suggestions.tokens.keys()).flatMap((key) => {
+        let result = Array.from(suggestions.tokens.keys()).flatMap((key) => {
             const name = lexer.vocabulary.getSymbolicName(key)!;
             switch (key) {
                 case InsightLexer.SYSTEM:
@@ -112,7 +118,7 @@ export class InsightAutocomplete implements CompletionItemProvider {
   }
 
   private suggestSyncWire(name: string, range: IRange, context: CompletionContext, endOfLine: boolean): CompletionItem[] {
-      var triggeredWithCharacter = context.triggerCharacter == '-' || context.triggerCharacter == '~'
+      let triggeredWithCharacter = context.triggerCharacter == '-' || context.triggerCharacter == '~'
         return [
             {
                 label: "->",
@@ -125,7 +131,7 @@ export class InsightAutocomplete implements CompletionItemProvider {
   }
 
     private suggestAsyncWire(name: string, range: IRange, context: CompletionContext, endOfLine: boolean): CompletionItem[] {
-        var triggeredWithCharacter = context.triggerCharacter == '-' || context.triggerCharacter == '~'
+        let triggeredWithCharacter = context.triggerCharacter == '-' || context.triggerCharacter == '~'
         return [
             {
                 label: "~>",

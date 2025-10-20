@@ -22,8 +22,7 @@ public class InsightLexerSingleLineBasicTest extends TestCommon {
         List<Pair<String, String>> exp = Stream.of(
                 new Pair<>("EOL", "\n"),
                 new Pair<>("SYSTEM", "system"),
-                new Pair<>("IDENTIFIER", "tms"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("IDENTIFIER", "tms")
         ).toList();
         Iterator<Pair<String, String>> it = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
@@ -136,8 +135,7 @@ public class InsightLexerSingleLineBasicTest extends TestCommon {
                 new Pair<>("EOL", "\n"),
                 new Pair<>("DEDENT", "<DEDENT>"),
                 new Pair<>("SYSTEM", "system"),
-                new Pair<>("IDENTIFIER", "nnn"),
-                new Pair<>("EOL", "\n")
+                new Pair<>("IDENTIFIER", "nnn")
         ).toList();
         Iterator<Pair<String, String>> it3 = exp.iterator();
         List<? extends Token> act = lexer.getAllTokens();
