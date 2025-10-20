@@ -201,15 +201,15 @@ public class GrammarDebugger {
                 public void visitTerminal(TerminalNode node) {
                     final CommonToken tkn = (CommonToken) node.getSymbol();
                     final String rawType = lexer.getVocabulary().getSymbolicName(tkn.getType());
-                    final var text = String.format("<html><b>%s</b> <span style=\"color:blue;\">@%d:%d-%s</span> <span style=\"color:#aaa;\">[idx=%d, mode=%s, <span style=\"color:#4B0082;\">pos=%d-%d</span>] =</span> <span style=\"color:green;\">`%s`</span></html>",
+                    final var text = String.format("<html><b>%s</b> <span style=\"color:blue;\">@%d:%d-%s</span> <span style=\"color:#aaa;\">[idx=%d, type=%d, <span style=\"color:#4B0082;\">pos=%d-%d</span>] =</span> <span style=\"color:green;\">`%s`</span></html>",
                             rawType,
                             tkn.getLine(),
-                            tkn.getStartIndex(),
-                            tkn.getStopIndex(),
-                            tkn.getTokenIndex(),
-                            lexer.getModeNames()[lexer._mode],
                             node.getSymbol().getCharPositionInLine(),
                             node.getSymbol().getCharPositionInLine() + (node.getText() == null ? 0 : node.getText().length()) - 1,
+                            tkn.getTokenIndex(),
+                            tkn.getType(),
+                            tkn.getStartIndex(),
+                            tkn.getStopIndex(),
                             escapeHtml(tkn.getText())
                     );
                     DefaultMutableTreeNode leaf = new DefaultMutableTreeNode(text);

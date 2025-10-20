@@ -70,11 +70,19 @@ class IndentHelper {
     private calculateIndentation(indent: string): number {
         let count = 0;
         for (const ch of indent) {
-            if (ch == '\t') {
+            if (ch === '\t') {
                 count += this.INDENT_LENGTH;
             }
+            else
+            if (ch === ' ') {
+                count += 1;
+            }
+            else
+            if (ch === '\n') {
+                continue;
+            }
             else {
-                count++;
+                break;
             }
         }
         if (count % this.INDENT_LENGTH != 0) {
@@ -107,7 +115,7 @@ class IndentHelper {
     }
 
     public checkIndentation() {
-        let newLines = this.countNewLines(this.lexer.text);
+        let newLines = this.countNewLines(this.lexer.text ?? "");
         let newIndentation = this.calculateIndentation(this.stripNewlineCharacters(this.lexer.text));
         this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines, this.calculateLengthCorrection()));
         if (newIndentation > this.indentation) {
@@ -129,7 +137,7 @@ class IndentHelper {
     }
 
     public unwrapValue() {
-        let newLines = this.countNewLines(this.lexer.text);
+        let newLines = this.countNewLines(this.lexer.text ?? "");
         let newIndentation = this.calculateIndentation(this.stripNewlineCharacters(this.lexer.text));
         if (newIndentation == this.indentation + 1) {
             this.waitlist.push(this.createToken(InsightLexer.TEXT, "\n", 1, -newLines, this.calculateLengthCorrection()));
@@ -137,13 +145,11 @@ class IndentHelper {
         else
         if ((newIndentation <= this.indentation) && this.wrapped) {
             this.wrapped = false;
-            if (!(this.singleLineMode && this.lexer.inputStream.LA(1) == -1)) {
-                this.state.resetWasText();
-                this.waitlist.push(this.createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, this.calculateLengthCorrection()));
-                this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines,  this.calculateLengthCorrection()));
-                this.lexer.popMode();
-                this.fireDedents(newIndentation, newLines);
-            }
+            this.state.resetWasText();
+            this.waitlist.push(this.createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, this.calculateLengthCorrection()));
+            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, -newLines,  this.calculateLengthCorrection()));
+            this.lexer.popMode();
+            this.fireDedents(newIndentation, newLines);
         }
         else {
             this.lexer.errorListenerDispatch.syntaxError?.(
@@ -160,11 +166,6 @@ class IndentHelper {
     public processEOF(eof: Token) {
         if (this.wrapped && !this.singleLineMode) {
             this.waitlist.push(this.createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, 0, this.calculateLengthCorrection()));
-        }
-        else
-        if (this.lexer.inputStream.LA(-1) != 10 && this.lexer.text == undefined) {
-            this.waitlist.push(this.createToken(InsightLexer.EOL, "\n", 1, 0, 0));
-            this.fireDedents(0, 0);
         }
         this.waitlist.push(eof);
     }

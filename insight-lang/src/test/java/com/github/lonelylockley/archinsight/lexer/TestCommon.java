@@ -22,7 +22,7 @@ public abstract class TestCommon {
     }
 
     protected void setupSingleLine(String text) throws Exception {
-        CodePointCharStream inputStream = CharStreams.fromReader(new StringReader(text));
+        CodePointCharStream inputStream = CharStreams.fromReader(new StringReader(text.substring(0, text.length() - 1)));
         lexer = new InsightLexer(inputStream);
         lexer.enableSingleLineMode();
     }

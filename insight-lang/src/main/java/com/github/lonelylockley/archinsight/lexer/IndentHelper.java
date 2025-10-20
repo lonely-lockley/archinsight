@@ -68,8 +68,12 @@ public class IndentHelper {
             if (ch == '\t') {
                 count += INDENT_LENGTH;
             }
-            else {
+            else
+            if (ch == ' ') {
                 count++;
+            }
+            else {
+                break;
             }
         }
         if (count % INDENT_LENGTH != 0) {
@@ -126,13 +130,11 @@ public class IndentHelper {
         else
         if ((newIndentation <= indentation) && wrapped) {
             wrapped = false;
-            if (!singleLineMode) {
-                state.resetWasText();
-                waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, calculateLengthCorrection()));
-                waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
-                lexer.popMode();
-                fireDedents(newIndentation, newLines);
-            }
+            state.resetWasText();
+            waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, -newLines, calculateLengthCorrection()));
+            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, -newLines, calculateLengthCorrection()));
+            lexer.popMode();
+            fireDedents(newIndentation, newLines);
         }
         else {
             lexer.getErrorListenerDispatch().syntaxError(lexer, lexer.getToken(), lexer._tokenStartLine, lexer.getCharPositionInLine(), indentationError(lexer.getCharPositionInLine(), indentation * INDENT_LENGTH),
@@ -144,12 +146,6 @@ public class IndentHelper {
     public void processEOF(Token eof) {
         if (wrapped && !singleLineMode) {
             waitlist.add(createToken(InsightLexer.UNWRAP, "<UNWRAP>", 0, 0, calculateLengthCorrection()));
-            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, calculateLengthCorrection()));
-        }
-        else
-        if (lexer.getInputStream().LA(-1) != 10 && lexer.getText() == null) {
-            fireDedents(0, 0);
-            waitlist.add(createToken(InsightLexer.EOL, "\n", 1, 0, 0));
         }
         waitlist.add(eof);
     }
@@ -187,7 +183,6 @@ public class IndentHelper {
     }
 
     public void restoreState(LexerState state) {
-        //Token tkn = tokenSupplier.get();
         lexer.reset();
         this.state = (LexerState) state.clone();
         indentation = state.getIndentation();
