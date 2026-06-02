@@ -18,7 +18,7 @@ public class GhostSsrSignatureValidator {
         Mac sha1_HMAC = Mac.getInstance("HmacSHA1");
         sha1_HMAC.init(secretKeySpec);
         var calculated = sha1_HMAC.doFinal(String.format("ghost-members-ssr=%s", uuid).getBytes(StandardCharsets.UTF_8));
-        var encoded = Base64.getEncoder().withoutPadding().encodeToString(calculated).replaceAll("/", "_");
+        var encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(calculated);
         return Objects.equals(signature, encoded);
     }
 }
