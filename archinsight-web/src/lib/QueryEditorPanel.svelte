@@ -1,0 +1,495 @@
+<script context="module" lang="ts">
+  import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+  import type { DiagramMode } from './workspace-types';
+
+  export const defaultDiagramMode: DiagramMode = 'c1';
+  const noFilterQuery = `MATCH (element)
+WHERE element.context = $context
+OPTIONAL MATCH (element)-[link]->(targetElement)
+GROUP BY element.parent
+RETURN element, link, targetElement`;
+  const c1Query = `MATCH (system:SystemElement)
+WHERE system.context = $context
+OPTIONAL MATCH (system)-[realOutboundLink]->(externalSystem:SystemElement)
+OPTIONAL MATCH (sourceSystem:SystemElement)-[realInboundLink]->(system)
+OPTIONAL MATCH (system)-[rollupOutboundLink {derived}]->(rollupSystem:SystemElement)
+OPTIONAL MATCH (rollupSourceSystem:SystemElement)-[rollupInboundLink {derived}]->(system)
+GROUP BY system.parent
+RETURN system, realOutboundLink, externalSystem, realInboundLink, sourceSystem, rollupOutboundLink, rollupSystem, rollupInboundLink, rollupSourceSystem`;
+  const c2Query = `MATCH (container:ContainerElement)
+WHERE container.sourceIdentity = $tab
+OPTIONAL MATCH (container)-[internalLink]->(targetContainer:ContainerElement)
+OPTIONAL MATCH (container)-[rollupOutboundLink {derived}]->(rollupContainer:ContainerElement)
+OPTIONAL MATCH (container)-[outboundLink]->(externalSystem:SystemElement)
+WHERE externalSystem IS External
+OPTIONAL MATCH (sourceSystem:SystemElement)-[inboundLink]->(container)
+WHERE sourceSystem IS External
+OPTIONAL MATCH (container)-[rollupExternalOutboundLink {derived}]->(rollupExternalSystem:SystemElement)
+WHERE rollupExternalSystem IS External
+OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(container)
+WHERE rollupExternalSourceSystem IS External
+GROUP BY container.parent
+RETURN container, internalLink, targetContainer, rollupOutboundLink, rollupContainer, outboundLink, externalSystem, inboundLink, sourceSystem, rollupExternalOutboundLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem`;
+  const c3Query = `MATCH (container:ContainerElement)-[contains:CONTAINS]->(component:ComponentElement)
+WHERE container.sourceIdentity = $tab
+OPTIONAL MATCH (component)-[link]->(targetComponent:ComponentElement)
+OPTIONAL MATCH (component)-[externalLink]->(externalSystem:SystemElement)
+WHERE externalSystem IS External
+OPTIONAL MATCH (externalSourceSystem:SystemElement)-[externalInboundLink]->(component)
+WHERE externalSourceSystem IS External
+OPTIONAL MATCH (component)-[rollupExternalLink {derived}]->(rollupExternalSystem:SystemElement)
+WHERE rollupExternalSystem IS External
+OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(component)
+WHERE rollupExternalSourceSystem IS External
+GROUP BY component.parent
+RETURN component, link, targetComponent, externalLink, externalSystem, externalInboundLink, externalSourceSystem, rollupExternalLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem`;
+  const c4Query = `MATCH (node:Element)
+WHERE node.sourceIdentity = $tab
+  AND (node IS DeploymentElement OR node IS ContainerElement)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
+WHERE projectedTarget IS DeploymentElement
+   OR projectedTarget IS ContainerElement
+   OR projectedTarget IS External
+OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
+WHERE node IS DeploymentElement
+  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
+GROUP BY node.runsOn
+RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget`;
+  export const defaultQuery = c1Query;
+
+  const savedQueries: Record<DiagramMode, string> = {
+    default: noFilterQuery,
+    c1: c1Query,
+    c2: c2Query,
+    c3: c3Query,
+    c4: c4Query
+  };
+
+  export function queryForDiagramMode(mode: DiagramMode): string {
+    return savedQueries[mode];
+  }
+
+  export function diagramModeForQuery(value: string): DiagramMode | undefined {
+    const normalized = normalizeQuery(value);
+    for (const [mode, query] of Object.entries(savedQueries) as Array<[DiagramMode, string]>) {
+      if (normalized === normalizeQuery(query)) {
+        return mode;
+      }
+    }
+    return undefined;
+  }
+
+  export function normalizeDiagramMode(value: string | undefined): DiagramMode | undefined {
+    return value === 'default' || value === 'c1' || value === 'c2' || value === 'c3' || value === 'c4'
+      ? value
+      : undefined;
+  }
+
+  function normalizeQuery(value: string): string {
+    return value.trim().replace(/\s+/g, ' ');
+  }
+
+  let queryLanguageRegistered = false;
+
+  function registerQueryLanguage(monaco: typeof Monaco): void {
+    if (queryLanguageRegistered) {
+      return;
+    }
+    queryLanguageRegistered = true;
+    if (!monaco.languages.getLanguages().some((language) => language.id === 'archinsight-query')) {
+      monaco.languages.register({ id: 'archinsight-query' });
+    }
+    monaco.languages.setMonarchTokensProvider('archinsight-query', {
+      ignoreCase: true,
+      keywords: [
+        'MATCH',
+        'OPTIONAL',
+        'WHERE',
+        'RETURN',
+        'GROUP',
+        'BY',
+        'AND',
+        'OR',
+        'NOT',
+        'CONTAINS',
+        'TRUE',
+        'FALSE',
+        'NULL',
+        'AS'
+      ],
+      tokenizer: {
+        root: [
+          [/--.*$/, 'comment'],
+          [/"([^"\\]|\\.)*$/, 'string.invalid'],
+          [/'([^'\\]|\\.)*$/, 'string.invalid'],
+          [/"([^"\\]|\\.)*"/, 'string'],
+          [/'([^'\\]|\\.)*'/, 'string'],
+          [/\$[A-Za-z_][\w]*/, 'variable.predefined'],
+          [/:[A-Za-z_][\w]*/, 'type.identifier'],
+          [/[A-Za-z_][\w]*/, { cases: { '@keywords': 'keyword', '@default': 'identifier' } }],
+          [/\d+/, 'number'],
+          [/[{}()[\],.;]/, 'delimiter'],
+          [/[-=<>!]+/, 'operator'],
+          [/\s+/, 'white']
+        ]
+      }
+    });
+  }
+</script>
+
+<script lang="ts">
+  import { onDestroy, tick } from 'svelte';
+
+  export let diagramMode: DiagramMode;
+  export let query: string;
+  export let queryVisible = false;
+  export let queryPanelHeight = 118;
+  export let onSelectDiagramMode: (mode: DiagramMode) => void;
+  export let onToggleQuery: () => void;
+  export let onQueryChange: (query: string) => void;
+  export let onQueryPanelHeightChange: (height: number) => void;
+
+  const minQueryPanelHeight = 80;
+  const maxQueryPanelHeight = 360;
+
+  let monaco: typeof Monaco | undefined;
+  let queryHost: HTMLDivElement;
+  let queryEditor: Monaco.editor.IStandaloneCodeEditor | undefined;
+  let queryModel: Monaco.editor.ITextModel | undefined;
+  let suppressQueryChange = false;
+  let resizeStart: { pointerId: number; startY: number; height: number } | undefined;
+
+  $: normalizedQueryPanelHeight = clampQueryPanelHeight(queryPanelHeight);
+  $: queryEditorStyle = queryVisible
+    ? `grid-template-rows: 36px ${normalizedQueryPanelHeight}px 6px;`
+    : 'grid-template-rows: 36px;';
+  $: if (queryVisible) {
+    void ensureQueryEditor();
+  } else {
+    disposeQueryEditor();
+  }
+  $: if (queryModel !== undefined && !suppressQueryChange && queryModel.getValue() !== query) {
+    suppressQueryChange = true;
+    queryModel.setValue(query);
+    suppressQueryChange = false;
+  }
+  $: if (queryEditor !== undefined) {
+    void tick().then(() => queryEditor?.layout());
+  }
+
+  onDestroy(() => {
+    stopQueryResize();
+    disposeQueryEditor();
+  });
+
+  async function ensureQueryEditor(): Promise<void> {
+    await tick();
+    if (!queryVisible || queryHost === undefined || queryEditor !== undefined) {
+      return;
+    }
+    monaco = await import('monaco-editor/esm/vs/editor/editor.api');
+    registerQueryLanguage(monaco);
+    queryModel = monaco.editor.createModel(query, 'archinsight-query');
+    queryEditor = monaco.editor.create(queryHost, {
+      model: queryModel,
+      automaticLayout: true,
+      fontSize: 12,
+      lineNumbers: 'off',
+      minimap: { enabled: false },
+      overviewRulerLanes: 0,
+      renderLineHighlight: 'none',
+      scrollBeyondLastLine: false,
+      wordWrap: 'on',
+      scrollbar: {
+        verticalScrollbarSize: 8,
+        horizontalScrollbarSize: 8
+      }
+    });
+    queryModel.onDidChangeContent(() => {
+      if (suppressQueryChange || queryModel === undefined) {
+        return;
+      }
+      onQueryChange(queryModel.getValue());
+    });
+  }
+
+  function disposeQueryEditor(): void {
+    queryEditor?.dispose();
+    queryEditor = undefined;
+    queryModel?.dispose();
+    queryModel = undefined;
+  }
+
+  function beginQueryResize(event: PointerEvent): void {
+    event.preventDefault();
+    resizeStart = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      height: normalizedQueryPanelHeight
+    };
+    window.addEventListener('pointermove', resizeQueryPanel);
+    window.addEventListener('pointerup', stopQueryResize, { once: true });
+  }
+
+  function resizeQueryPanel(event: PointerEvent): void {
+    if (resizeStart === undefined || event.pointerId !== resizeStart.pointerId) {
+      return;
+    }
+    onQueryPanelHeightChange(clampQueryPanelHeight(resizeStart.height + event.clientY - resizeStart.startY));
+  }
+
+  function stopQueryResize(): void {
+    resizeStart = undefined;
+    window.removeEventListener('pointermove', resizeQueryPanel);
+  }
+
+  function clampQueryPanelHeight(value: number): number {
+    return Math.max(minQueryPanelHeight, Math.min(maxQueryPanelHeight, value));
+  }
+</script>
+
+<section class:query-open={queryVisible} class="query-editor" style={queryEditorStyle}>
+  <header class="toolbar">
+    <slot name="leading-actions"></slot>
+
+    <div class="diagram-modes tool-group" aria-label="View query preset">
+      <button aria-label="No filter view" class:active-mode={diagramMode === 'default'} type="button" on:click={() => onSelectDiagramMode('default')}>
+        <span aria-hidden="true">No filter</span>
+      </button>
+      <button aria-label="C1 context view" class:active-mode={diagramMode === 'c1'} class="has-tooltip" data-tooltip="C1 context view" type="button" on:click={() => onSelectDiagramMode('c1')}>
+        <span aria-hidden="true">C1</span>
+      </button>
+      <button aria-label="C2 container view" class:active-mode={diagramMode === 'c2'} class="has-tooltip" data-tooltip="C2 container view" type="button" on:click={() => onSelectDiagramMode('c2')}>
+        <span aria-hidden="true">C2</span>
+      </button>
+      <button aria-label="C3 component view" class:active-mode={diagramMode === 'c3'} class="has-tooltip" data-tooltip="C3 component view" type="button" on:click={() => onSelectDiagramMode('c3')}>
+        <span aria-hidden="true">C3</span>
+      </button>
+      <button aria-label="C4 code view" class:active-mode={diagramMode === 'c4'} class="has-tooltip" data-tooltip="C4 code view" type="button" on:click={() => onSelectDiagramMode('c4')}>
+        <span aria-hidden="true">C4</span>
+      </button>
+    </div>
+
+    <div class="query-actions tool-group" aria-label="Query actions">
+      <button aria-label="Edit query" class:active-tool={queryVisible} class="icon-button has-tooltip" data-tooltip="Edit query" type="button" on:click={onToggleQuery}>
+        <span aria-hidden="true" class="query-icon"></span>
+      </button>
+    </div>
+
+    <slot name="diagram-actions"></slot>
+    <slot name="view-actions"></slot>
+    <slot name="refresh-actions"></slot>
+  </header>
+
+  {#if queryVisible}
+    <section class="query-panel" aria-label="Graph query">
+      <div bind:this={queryHost} class="query-monaco"></div>
+    </section>
+    <div
+      class="query-resize"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize query editor"
+      on:pointerdown={beginQueryResize}
+    ></div>
+  {/if}
+</section>
+
+<style>
+  .query-editor {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    height: 36px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--archinsight-border, #333333);
+    background: var(--archinsight-toolbar-bg, #242424);
+  }
+
+  .icon-button {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: var(--archinsight-control-bg, #2a2a2a);
+    color: var(--archinsight-foreground, #eeeeee);
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .icon-button:hover {
+    background: var(--archinsight-control-hover-bg, #343434);
+  }
+
+  .icon-button.active-tool {
+    background: var(--archinsight-control-active-bg, #354436);
+    color: var(--archinsight-control-active-fg, #ffffff);
+  }
+
+  .has-tooltip {
+    position: relative;
+  }
+
+  .has-tooltip::after {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    z-index: 30;
+    max-width: 220px;
+    padding: 6px 8px;
+    border: 1px solid var(--archinsight-tooltip-border, #444444);
+    border-radius: 4px;
+    background: var(--archinsight-tooltip-bg, #181818);
+    color: var(--archinsight-foreground, #eeeeee);
+    content: attr(data-tooltip);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.25;
+    opacity: 0;
+    pointer-events: none;
+    text-align: center;
+    transform: translate(-50%, -2px);
+    transition: opacity 120ms ease, transform 120ms ease;
+    transition-delay: 0ms;
+    white-space: nowrap;
+  }
+
+  .has-tooltip:hover::after,
+  .has-tooltip:focus-visible::after {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    transition-delay: 300ms;
+  }
+
+  .tool-group {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    height: 28px;
+    margin-left: 6px;
+    border: 1px solid var(--archinsight-border, #3a3a3a);
+    border-radius: 4px;
+    background: var(--archinsight-control-group-bg, #202020);
+  }
+
+  .tool-group button {
+    height: 26px;
+    border: 0;
+    border-radius: 0;
+    background: var(--archinsight-control-bg, #2a2a2a);
+    color: var(--archinsight-foreground, #eeeeee);
+  }
+
+  .tool-group button + button {
+    border-left: 1px solid var(--archinsight-border, #3a3a3a);
+  }
+
+  .tool-group button:first-child {
+    border-radius: 3px 0 0 3px;
+  }
+
+  .tool-group button:last-child {
+    border-radius: 0 3px 3px 0;
+  }
+
+  .tool-group button:only-child {
+    border-radius: 3px;
+  }
+
+  .diagram-modes {
+    margin-right: 0;
+  }
+
+  .diagram-modes button {
+    width: auto;
+    min-width: 32px;
+    padding: 0 7px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  .diagram-modes button.active-mode {
+    background: var(--archinsight-control-active-bg, #354436);
+    color: var(--archinsight-control-active-fg, #ffffff);
+    font-weight: 500;
+  }
+
+  .diagram-modes button:hover {
+    background: var(--archinsight-control-hover-bg, #343434);
+    color: var(--archinsight-foreground, #eeeeee);
+  }
+
+  .diagram-modes button.active-mode:hover {
+    background: var(--archinsight-control-active-bg, #354436);
+    color: var(--archinsight-control-active-fg, #ffffff);
+  }
+
+  .query-icon {
+    position: relative;
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+
+  .query-icon::before {
+    position: absolute;
+    top: 2px;
+    left: 1px;
+    width: 10px;
+    height: 11px;
+    border: 1.25px solid currentColor;
+    border-radius: 50% / 18%;
+    content: "";
+  }
+
+  .query-icon::after {
+    position: absolute;
+    right: -1px;
+    bottom: 1px;
+    width: 9px;
+    height: 7px;
+    background: currentColor;
+    clip-path: polygon(0 0, 100% 0, 62% 45%, 62% 100%, 38% 100%, 38% 45%);
+    content: "";
+  }
+
+  .query-panel {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    background: var(--archinsight-toolbar-bg, #242424);
+  }
+
+  .query-monaco {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--archinsight-panel-bg, #1f1f1f);
+  }
+
+  .query-resize {
+    position: relative;
+    z-index: 4;
+    min-height: 6px;
+    cursor: row-resize;
+    border-top: 1px solid var(--archinsight-border, #151515);
+    border-bottom: 1px solid var(--archinsight-border-strong, #3b3b3b);
+    background: var(--archinsight-resize-bg, #262626);
+  }
+
+  .query-resize:hover {
+    background: color-mix(in srgb, var(--archinsight-resize-hover-bg, var(--color-primary)) 27%, transparent);
+  }
+</style>

@@ -1,0 +1,15 @@
+context archinsight
+
+extend service renderer_service
+
+    component renderer_api
+        name = Renderer API
+        technology = Node.js HTTP
+        responsibility = Accepts backend-owned DOT render jobs with limits and timeout
+        links:
+            -> graphviz_worker
+
+    component graphviz_worker
+        name = Graphviz worker
+        technology = Worker thread, viz-js
+        responsibility = Executes Graphviz rendering in an isolated worker process

@@ -1,0 +1,621 @@
+=== empty file
+--- source
+<caret>
+--- contains
+KEYWORD context
+KEYWORD define type
+KEYWORD define operator
+KEYWORD define enum of
+KEYWORD define presentation
+KEYWORD extend type
+KEYWORD extend enum of
+--- lacks
+KEYWORD import
+CONSTRUCTOR actor
+CONSTRUCTOR system
+
+=== context declaration name is identifier declaration
+--- source
+context <caret>
+--- lacks
+KEYWORD context
+KEYWORD import
+CONSTRUCTOR system
+IDENTIFIER shared
+
+=== top level constructor prefix
+--- source
+context gg
+
+sys<caret>
+--- contains
+CONSTRUCTOR system
+--- lacks
+KEYWORD context
+ATTRIBUTE name
+
+=== object body excludes anonymous list attribute
+--- source
+context test
+
+system gg
+    name = jj
+    <caret>
+--- contains
+ATTRIBUTE links
+CONSTRUCTOR service
+--- lacks
+ATTRIBUTE _
+OPERATOR ->
+IDENTIFIER gg
+
+=== object body constructor prefix
+--- source
+context test
+
+system gg
+    ser<caret>
+--- contains
+CONSTRUCTOR service
+--- lacks
+ATTRIBUTE technology
+
+=== object body constructor prefix inside word
+--- source
+context test
+
+system gg
+    ser<caret>vice
+--- contains
+CONSTRUCTOR service
+--- lacks
+ATTRIBUTE technology
+
+=== list header requires newline
+--- source
+context test
+
+system gg
+    name = jj
+    links:<caret>
+--- contains
+NEWLINE \n
+--- lacks
+ATTRIBUTE links
+ATTRIBUTE technology
+CONSTRUCTOR service
+OPERATOR ->
+
+=== link operators start in indented list body
+--- source
+context test
+
+system gg
+    name = jj
+    links:
+        <caret>
+--- contains
+OPERATOR ->
+OPERATOR ~>
+--- lacks
+ATTRIBUTE links
+CONSTRUCTOR service
+IDENTIFIER gg
+
+=== link operators continue after edge attributes
+--- source
+context shared
+
+system archinsight_editor
+    name = Archinsight Editor
+    technology = SvelteKit, TypeScript, PostgreSQL
+    description = Web editor for Insight architecture models and C4-style diagrams
+    links:
+        -> github
+            technology = GitHub API
+            description = Planned repository backend for project sources
+        <caret>
+--- contains
+OPERATOR ->
+OPERATOR ~>
+--- lacks
+IDENTIFIER github
+IDENTIFIER archinsight_editor
+
+=== link operators continue after edge without attributes
+--- source
+context shared
+
+system archinsight_editor
+    name = Archinsight Editor
+    links:
+        -> github
+        <caret>
+--- contains
+OPERATOR ->
+OPERATOR ~>
+--- lacks
+IDENTIFIER github
+IDENTIFIER archinsight_editor
+
+=== operator target uses visible identifiers
+--- source
+context shared
+
+system app
+actor user
+system caller
+    links:
+        -> <caret>
+--- contains
+IDENTIFIER app
+IDENTIFIER caller
+IDENTIFIER user
+--- lacks
+OPERATOR ->
+
+=== operator target sees identifiers declared after cursor
+--- source
+context shared
+
+system caller
+    links:
+        -> <caret>
+
+system later
+
+import google from context external as github
+--- contains
+IDENTIFIER later
+IDENTIFIER github
+--- lacks
+IDENTIFIER google
+OPERATOR ->
+
+=== operator target uses full source while cursor is inside prefix
+--- source
+context shared
+
+system caller
+    name = Caller
+    links:
+        -> <caret>later
+
+system later
+    name = Later
+--- contains
+IDENTIFIER later
+--- lacks
+OPERATOR ->
+ATTRIBUTE name
+
+=== operator target ignores words from multiline text
+--- source
+context archinsight
+
+system archinsight_editor
+    description = Browser Graphviz WASM
+        running formats:
+        to
+    links:
+        -> <caret>
+
+system repository_store
+system github
+--- contains
+IDENTIFIER repository_store
+IDENTIFIER github
+--- lacks
+IDENTIFIER WASM
+IDENTIFIER running
+IDENTIFIER formats
+IDENTIFIER to
+OPERATOR ->
+
+=== top level after operator body suggests top level items
+--- source
+context test
+system ai
+    name = Archinsight
+
+    service editor_front
+        name = Frontend
+        technology = Typescript, Monako, Vaadin
+        links:
+            -> envoy
+                technology = HTTP, REST, Websocket
+                description = Load frontend, perform requests
+<caret>
+--- contains
+KEYWORD import
+CONSTRUCTOR system
+CONSTRUCTOR actor
+--- lacks
+ATTRIBUTE name
+ATTRIBUTE _
+IDENTIFIER ai
+IDENTIFIER editor_front
+
+=== custom operator target uses visible identifiers
+--- framework
+define type Context
+    constructor context
+
+    List of System _
+
+define type System of Element
+    constructor system
+
+    List of Wire links
+
+define operator Wire of Edge
+    constructor >> System
+        on System
+--- source
+context shared
+
+system source
+    links:
+        >> <caret>
+--- contains
+IDENTIFIER source
+--- lacks
+OPERATOR >>
+ATTRIBUTE links
+
+=== edge body suggests edge attributes
+--- source
+context test
+
+system ai
+    name = Archinsight
+
+    service editor_front
+        name = Frontend
+        links:
+            -> ai
+                <caret>
+--- contains
+ATTRIBUTE technology
+ATTRIBUTE description
+ATTRIBUTE model
+--- lacks
+IDENTIFIER ai
+OPERATOR ->
+
+=== enum values in typed slot
+--- framework
+define type Tier
+
+define enum of Tier
+    t1
+    t2
+
+extend type Service
+    Tier tier
+--- source
+context shared
+
+system app
+    service api
+        tier:
+            <caret>
+--- contains
+ENUM_VALUE t1
+ENUM_VALUE t2
+--- lacks
+IDENTIFIER api
+ATTRIBUTE tier
+
+=== enum values in custom constructor slot
+--- framework
+define type Region
+
+define enum of Region
+    europe
+    usa
+
+define type InfraCapability of Element
+    constructor infra
+
+    required Text name
+    required Region region
+--- source
+context shared
+
+infra postgres
+    name = Postgres
+    region:
+        <caret>
+--- contains
+ENUM_VALUE europe
+ENUM_VALUE usa
+--- lacks
+IDENTIFIER postgres
+ATTRIBUTE region
+
+=== enum values in nested custom constructor slot
+--- framework
+define type Region
+
+define enum of Region
+    europe
+    usa
+
+define type Environment of Element
+    constructor environment
+
+    required Text name
+    List of InfraCapability _
+
+define type InfraCapability of Element
+    constructor infra
+
+    required Text name
+    required Region region
+--- source
+context archinsight
+
+environment digitalocean
+    name = Digital Ocean
+
+    infra postgres
+        name = Postgres
+        region:
+            <caret>
+--- contains
+ENUM_VALUE europe
+ENUM_VALUE usa
+--- lacks
+KEYWORD context
+IDENTIFIER postgres
+ATTRIBUTE region
+
+=== enum values before following nested sibling
+--- framework
+define type Region
+
+define enum of Region
+    europe
+    usa
+
+define type Environment of Element
+    constructor environment
+
+    required Text name
+    List of InfraCapability _
+
+define type InfraCapability of Element
+    constructor infra
+
+    required Text name
+    required Region region
+--- source
+context archinsight
+
+environment digitalocean
+    name = Digital Ocean
+
+    infra postgres
+        name = Postgres
+        region:
+            <caret>
+
+    infra kubernetes
+        name = Managed Kubernetes
+        region:
+            europe
+--- contains
+ENUM_VALUE europe
+ENUM_VALUE usa
+--- lacks
+KEYWORD context
+IDENTIFIER postgres
+ATTRIBUTE region
+
+=== enum values inside named list attribute
+--- framework
+define type Region
+
+define enum of Region
+    europe
+    usa
+
+define type Environment of BoundaryElement
+    constructor environment
+
+    required Text name
+    required List of Region region
+--- source
+context archinsight
+
+environment digitalocean
+    name = Digital Ocean
+    region:
+        <caret>
+--- contains
+ENUM_VALUE europe
+ENUM_VALUE usa
+--- lacks
+ATTRIBUTE name
+KEYWORD context
+
+=== typed slot suggests object references and constructors
+--- framework
+define type Context
+    constructor context
+
+    List of Element _
+
+define type Region of Element
+    constructor region
+
+    required Text name
+
+define type Environment of Element
+    constructor environment
+
+    required Text name
+    required Region primaryRegion
+--- source
+context shared
+
+region europe
+    name = Europe
+
+environment digitalocean
+    name = Digital Ocean
+    primaryRegion:
+        <caret>
+--- contains
+IDENTIFIER europe
+CONSTRUCTOR region
+--- lacks
+IDENTIFIER digitalocean
+ATTRIBUTE name
+
+=== extend constructor candidates
+--- source
+context shared
+
+system app
+
+extend <caret>
+--- contains
+CONSTRUCTOR system
+CONSTRUCTOR actor
+--- lacks
+KEYWORD extend type
+IDENTIFIER app
+
+=== extend target filters by constructor type
+--- source
+context shared
+
+system app
+actor user
+
+extend system <caret>
+--- contains
+IDENTIFIER app
+--- lacks
+IDENTIFIER user
+CONSTRUCTOR system
+
+=== extend body uses target type
+--- source
+context shared
+
+system app
+    name = App
+
+extend system app
+    <caret>
+--- contains
+CONSTRUCTOR service
+ATTRIBUTE technology
+--- lacks
+IDENTIFIER app
+OPERATOR ->
+
+=== named object slot uses attribute object type
+--- framework
+define type Member of BoundaryElement
+    constructor member
+
+    required Text name
+
+extend type System
+    Member owner
+--- source
+context shared
+
+system app
+    name = App
+    owner:
+        <caret>
+--- contains
+CONSTRUCTOR member
+--- lacks
+OPERATOR ->
+
+=== presentation name uses visible types
+--- source
+define presentation <caret>
+--- contains
+TYPE System
+TYPE Service
+TYPE Wire
+--- lacks
+KEYWORD constructor
+KEYWORD required
+
+=== presentation body suggests fields and sections
+--- source
+define presentation System
+    <caret>
+--- contains
+ATTRIBUTE header
+ATTRIBUTE subtitle
+ATTRIBUTE body
+KEYWORD light
+KEYWORD dark
+KEYWORD graphviz
+--- lacks
+KEYWORD constructor
+KEYWORD required
+TYPE Text
+
+=== presentation section suggests properties
+--- source
+define presentation System
+    graphviz
+        <caret>
+--- contains
+ATTRIBUTE shape
+ATTRIBUTE style
+ATTRIBUTE width
+ATTRIBUTE penwidth
+--- lacks
+ATTRIBUTE header
+KEYWORD constructor
+
+=== presentation field value suggests target type attributes
+--- source
+define presentation System
+    header = <caret>
+--- contains
+IDENTIFIER name
+IDENTIFIER kind
+IDENTIFIER technology
+IDENTIFIER description
+IDENTIFIER links
+--- lacks
+IDENTIFIER title
+ATTRIBUTE header
+CONSTRUCTOR service
+
+=== framework type reference suggests declared types
+--- source
+define type Repository
+
+define type Cache of <caret>
+--- contains
+TYPE System
+TYPE Container
+TYPE Repository
+--- lacks
+KEYWORD constructor
+ATTRIBUTE name
+
+=== type body suggests constructor keyword
+--- source
+define type PaymentSystem of Element
+    <caret>
+--- contains
+KEYWORD constructor
+KEYWORD required
+TYPE Text
+--- lacks
+CONSTRUCTOR system
+KEYWORD context

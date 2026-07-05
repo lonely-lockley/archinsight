@@ -1,0 +1,72 @@
+define type Context
+    constructor context
+
+    Text name
+    List of BoundaryElement _
+
+define type BoundaryElement of Element
+
+
+define presentation Element
+    header = name
+    subtitle = technology
+    body = description
+
+    light
+        fill = "#438dd5"
+        stroke = "#f4f4f4"
+        text = "#f4f4f4"
+
+    dark
+        fill = "#5A189A"
+        stroke = "#2e2e2e"
+        text = "#f4f4f4"
+
+    graphviz
+        shape = box
+        style = filled
+        width = 2
+        height = 1
+
+define presentation BoundaryElement
+    # inherits Element presentation
+
+define presentation Edge
+    subtitle = technology
+    body = description
+
+    light
+        stroke = "#4a4a4a"
+        text = "#4a4a4a"
+
+    dark
+        stroke = "#66CCFF"
+        text = "#f4f4f4"
+
+    graphviz
+        minlen = 1.5
+        fontsize = "8px"
+        penwidth = 0.7
+
+define presentation Context
+    header = name
+
+    light
+        fill = "#f4f4f4"
+        stroke = "#08427B"
+        text = "#1e1e1e"
+
+    dark
+        fill = "#2e2e2e"
+        stroke = "#999999"
+        text = "#f4f4f4"
+
+    graphviz
+        bgcolor = "#f4f4f4"
+        rankdir = TB
+        overlap = false
+        newrank = true
+        nodesep = 1
+        ranksep = 1
+        splines = spline
+        labelloc = t

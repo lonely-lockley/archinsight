@@ -1,0 +1,25 @@
+{
+  "name": "@archinsight/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "archinsight": "build/index.js"
+  },
+  "scripts": {
+    "prebuild": "npm --prefix ../packages/insight-language run sync:core",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=build/index.js --external:@viz-js/viz",
+    "check": "npm run build"
+  },
+  "dependencies": {
+    "@insight/language": "file:../packages/insight-language",
+    "@viz-js/viz": "^3.28.0",
+    "archy": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/archy": "^0.0.36",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.0.0"
+  }
+}

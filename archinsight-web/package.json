@@ -1,0 +1,36 @@
+{
+  "name": "@archinsight/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "npm --prefix ../packages/insight-language run sync:core",
+    "dev": "vite --host 0.0.0.0",
+    "prebuild": "npm --prefix ../packages/insight-language run sync:core",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "precheck": "npm --prefix ../packages/insight-language run sync:core",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test:security": "vitest run src/lib/svg-sanitizer.test.ts --environment happy-dom",
+    "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts"
+  },
+  "dependencies": {
+    "@insight/language": "file:../packages/insight-language",
+    "@sveltejs/kit": "^2.0.0",
+    "@viz-js/viz": "^3.28.0",
+    "monaco-editor": "^0.55.0",
+    "pg": "^8.22.0",
+    "svelte": "^5.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-node": "^5.0.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.20.0",
+    "happy-dom": "^20.10.6",
+    "svelte-check": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.2.6"
+  }
+}

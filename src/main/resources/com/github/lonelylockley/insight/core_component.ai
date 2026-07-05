@@ -1,0 +1,16 @@
+define type ComponentElement of Element
+
+define type Component of ComponentElement
+    constructor component
+
+    required Text name
+    Text technology
+    Text responsibility
+    Text description
+    List of Wire links
+
+
+define presentation Component
+    header = name
+    subtitle = technology
+    body = responsibility

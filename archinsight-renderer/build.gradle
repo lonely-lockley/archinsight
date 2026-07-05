@@ -1,0 +1,29 @@
+plugins {
+    id 'base'
+}
+
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
+tasks.register('npmInstall', Exec) {
+    inputs.file('package.json')
+    inputs.file('package-lock.json')
+    outputs.dir('node_modules')
+    commandLine npmCommand, 'install'
+}
+
+tasks.register('test', Exec) {
+    dependsOn 'npmInstall'
+    commandLine npmCommand, 'test'
+}
+
+tasks.register('dockerBuild', Exec) {
+    group = 'build'
+    description = 'Builds the hardened Archinsight renderer service container image.'
+    commandLine 'docker', 'build', '-t', 'archinsight-renderer:dev', '.'
+}
+
+tasks.register('dockerDebug', Exec) {
+    group = 'application'
+    description = 'Runs the Archinsight renderer service with local sandbox-oriented Docker settings.'
+    commandLine 'docker', 'compose', '-f', 'compose.debug.yaml', 'up', '--build'
+}

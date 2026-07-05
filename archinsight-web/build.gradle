@@ -1,0 +1,34 @@
+plugins {
+    id 'base'
+}
+
+tasks.register('npmInstall', Exec) {
+    group = 'build'
+    description = 'Installs web dependencies.'
+    workingDir = projectDir
+    commandLine 'npm', 'install'
+}
+
+tasks.register('npmBuild', Exec) {
+    group = 'build'
+    description = 'Builds the SvelteKit web app.'
+    dependsOn 'npmInstall'
+    workingDir = projectDir
+    commandLine 'npm', 'run', 'build'
+}
+
+tasks.register('npmCheck', Exec) {
+    group = 'verification'
+    description = 'Runs web type checks.'
+    dependsOn 'npmInstall'
+    workingDir = projectDir
+    commandLine 'npm', 'run', 'check'
+}
+
+tasks.named('assemble') {
+    dependsOn 'npmBuild'
+}
+
+tasks.named('check') {
+    dependsOn 'npmCheck'
+}

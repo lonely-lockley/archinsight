@@ -1,0 +1,26 @@
+:root {
+  --app-primary-font-family: "Montserrat", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  --lumo-font-family: "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+  --color-cta: #FF7043;
+  --color-primary: #36d074;
+
+  font-family: var(--lumo-font-family);
+  color: #e6e6e6;
+  background: #1f1f1f;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+}
+
+* {
+  box-sizing: border-box;
+}

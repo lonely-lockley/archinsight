@@ -1,0 +1,84 @@
+define type SystemElement of BoundaryElement
+
+define type Actor of SystemElement
+    constructor actor
+        kind = internal
+
+    required Text name
+    required Text kind
+    Text technology
+    Text description
+    List of Wire links
+
+define type System of SystemElement
+    constructor system
+        kind = internal
+
+    required Text name
+    required Text kind
+    Text technology
+    Text description
+    DeploymentProfile deployment
+    List of Wire links
+    List of Container _
+
+
+define presentation System
+    light
+        fill = "#438dd5"
+        stroke = "#f4f4f4"
+        text = "#f4f4f4"
+
+    dark
+        fill = "#5A189A"
+        stroke = "#2e2e2e"
+        text = "#f4f4f4"
+
+    graphviz
+        shape = box
+        style = filled
+
+define presentation Actor
+    light
+        fill = "#08427B"
+        stroke = "#f4f4f4"
+        text = "#f4f4f4"
+
+    dark
+        fill = "#2C0B4F"
+        stroke = "#2e2e2e"
+        text = "#f4f4f4"
+
+    graphviz
+        shape = box
+        style = filled,rounded
+
+define presentation ExternalSystem
+    light
+        fill = "#999999"
+        stroke = "#f4f4f4"
+        text = "#f4f4f4"
+
+    dark
+        fill = "#737C67"
+        stroke = "#2e2e2e"
+        text = "#f4f4f4"
+
+    graphviz
+        shape = box
+        style = filled
+
+define presentation ExternalActor
+    light
+        fill = "#999999"
+        stroke = "#f4f4f4"
+        text = "#f4f4f4"
+
+    dark
+        fill = "#737C67"
+        stroke = "#2e2e2e"
+        text = "#f4f4f4"
+
+    graphviz
+        shape = box
+        style = filled,rounded

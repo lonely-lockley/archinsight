@@ -1,0 +1,91 @@
+define operator Wire of Edge
+    Text technology
+    Text description
+    required Text model
+    DeploymentProfile deployment
+
+define operator SyncWire of Wire
+    constructor -> Element
+        on Element
+        model = sync
+
+    implementation = "@insight/core.edge"
+
+    Text call
+
+define operator AsyncWire of Wire
+    constructor ~> Element
+        on Element
+        model = async
+
+    implementation = "@insight/core.edge"
+
+    Text via
+
+define operator ExternalSystem of System
+    constructor external System
+        on Context
+        kind = external
+
+    implementation = "@insight/core.element"
+
+define operator ExternalActor of Actor
+    constructor external Actor
+        on Context
+        kind = external
+
+    implementation = "@insight/core.element"
+
+define operator RunsOn of TypeSlotReference
+    constructor runsOn Environment
+        on DeploymentProfile
+
+    constructor runsOn Environment
+        on InfrastructureComponent
+
+    implementation = "@insight/deployment.runsOn"
+
+define operator Uses of TypeSlotReference
+    constructor uses Environment
+        on DeploymentProfile
+
+    implementation = "@insight/deployment.uses"
+
+define operator DeploymentProfileEnvironments of DeploymentProfileReference
+    constructor environmentsFrom DeploymentProfile
+        on DeploymentProfile
+
+    implementation = "@insight/deployment.environmentsFrom"
+
+define operator DeploymentUsesProfile of DeploymentProfileReference
+    constructor usesProfile DeploymentProfile
+        on DeploymentProfile
+
+    implementation = "@insight/deployment.usesProfile"
+
+
+define presentation Wire
+    subtitle = technology
+    body = description
+
+    light
+        stroke = "#4a4a4a"
+        text = "#4a4a4a"
+
+    dark
+        stroke = "#66CCFF"
+        text = "#f4f4f4"
+
+    graphviz
+        minlen = 1.5
+        fontsize = "8px"
+        penwidth = 0.7
+
+define presentation SyncWire
+    # inherits Wire presentation
+
+define presentation AsyncWire
+    # inherits Wire presentation
+
+    graphviz
+        style = dashed

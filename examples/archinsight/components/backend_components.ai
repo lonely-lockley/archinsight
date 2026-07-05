@@ -1,0 +1,131 @@
+context archinsight
+
+import ghost_cms from context external_systems
+import google from context external_systems
+import github from context external_systems
+import global from context infrastructure
+
+extend service backend
+
+    component api_resources
+        name = API resources
+        technology = Quarkus REST
+        responsibility = Exposes project, auth, repository, language, and render endpoints
+        links:
+            -> auth_filter
+            -> repository_service
+            -> language_pipeline
+            -> render_fallback_client
+
+    component auth_filter
+        name = Auth filter and context
+        technology = Jakarta REST filter, request scoped context
+        responsibility = Resolves current user through local-dev, standalone, or 
+            Ghost SSR strategies
+        links:
+            -> userdata_mapper
+
+    component oidc_login_service
+        name = OIDC login service
+        technology = OAuth 2.0, OIDC
+        responsibility = Handles provider login callbacks, token claims, user upsert, and 
+            session cookies
+        links:
+            -> userdata_mapper
+            -> google
+                deployment:
+                    environmentsFrom global
+                    uses egress
+            -> ghost_cms
+                deployment:
+                    environmentsFrom global
+                    uses privateGateway
+
+    component repository_service
+        name = Repository service
+        technology = Java
+        responsibility = Provides project-scoped file operations over repository abstraction
+        links:
+            -> repository_mapper
+            -> github
+                technology = GitHub API
+                description = Planned repository backend for project sources
+                deployment:
+                    environmentsFrom global
+                    uses egress
+
+    component repository_mapper
+        name = Repository mapper
+        technology = MyBatis
+        responsibility = Maps repository and file operations to PostgreSQL rows
+
+    component userdata_mapper
+        name = Userdata mapper
+        technology = MyBatis
+        responsibility = Persists user identity, avatar, login timestamps, 
+            and soft-delete metadata
+
+    component language_pipeline
+        name = Language pipeline service
+        technology = Java
+        responsibility = Parses sources, links partial projects, builds structure, 
+            and generates render requests
+        links:
+            -> model_parser
+            -> project_linker
+            -> graph_query_engine
+            -> dot_renderer
+
+    component render_fallback_client
+        name = Render fallback client
+        technology = HTTP
+        responsibility = Calls internal renderer service for server-side SVG or PNG generation
+        links:
+            -> renderer_api from archinsight
+                deployment:
+                    environmentsFrom global
+                    uses privateGateway
+
+    component layout_lexer
+        name = Layout lexer helper
+        technology = Java, ANTLR
+        responsibility = Converts indentation-sensitive Insight source into 
+            parser-ready token stream
+
+    component model_parser
+        name = Model parser
+        technology = Java
+        responsibility = Parses framework and architecture documents into 
+            typed model objects
+        links:
+            -> layout_lexer
+
+    component type_system
+        name = Type system
+        technology = Java
+        responsibility = Resolves type inheritance, constructors, attributes, 
+            enums, and assignability
+
+    component project_linker
+        name = Project linker
+        technology = Java
+        responsibility = Resolves imports, object extensions, attributes, 
+            operators, graph nodes, and diagnostics
+        links:
+            -> type_system
+
+    component graph_query_engine
+        name = Graph query engine
+        technology = In-memory Cypher subset
+        responsibility = Selects view-specific graph scopes, grouping, 
+            external elements, and rollup relationships
+        links:
+            -> project_linker
+
+    component dot_renderer
+        name = Graphviz DOT renderer
+        technology = Java
+        responsibility = Translates selected render graph into DOT with 
+            goto metadata and presentation styles
+        links:
+            -> graph_query_engine

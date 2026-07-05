@@ -1,0 +1,49 @@
+context infrastructure
+
+deploymentProfile global
+    environments:
+        eu
+    
+    runsOn compute
+    observedBy observability
+
+environment eu
+    name = Europe
+
+    csp:
+        name = Digitalocean
+
+    cdn:
+        serviceProvider cf
+            name = Cloudflare
+
+    compute:
+        name = Kubernetes
+        runsOn csp
+
+    storage:
+        name = Postgres
+        runsOn csp
+
+    publicGateway:
+        name = Envoy EU
+        cdn:
+            cf
+        loadBalancer:
+            infrastructureComponent _
+                name = Load Balancer
+                runsOn csp
+        runsOn compute
+
+    privateGateway:
+        name = Private Network
+
+    egress:
+        name = Egress
+
+    observability:
+        name = Grafana Agent
+        display:
+            infrastructureComponent _
+                name = Grafana Cloud
+        runsOn compute

@@ -1,0 +1,26 @@
+define type DeploymentElement of Element
+
+define type InfrastructureComponent of DeploymentElement
+    constructor infrastructureComponent
+
+    required Text name
+    Text description
+    List of TypeSlotReference _
+
+define type Environment of BoundaryElement
+    constructor environment
+
+    required Text name
+
+define type DeploymentProfile of BoundaryElement
+    constructor deploymentProfile
+
+    List of Environment environments
+    List of TypeSlotReference _
+
+define type DeploymentProfileReference of TypeSlotReference
+    required DeploymentProfile profile
+
+define presentation DeploymentProfile
+    graphviz
+        visible = false

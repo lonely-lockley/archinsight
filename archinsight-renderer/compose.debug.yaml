@@ -1,0 +1,28 @@
+services:
+  archinsight-renderer:
+    build:
+      context: .
+    image: archinsight-renderer:dev
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      MAX_BODY_BYTES: "1048576"
+      MAX_RENDER_COUNT: "16"
+      MAX_DOT_BYTES: "1048576"
+      DEFAULT_PNG_DPI: "200"
+      MAX_PNG_DPI: "600"
+      MAX_PNG_BYTES: "16777216"
+      RENDER_TIMEOUT_MS: "5000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    restart: unless-stopped

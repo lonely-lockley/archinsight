@@ -1,0 +1,76 @@
+extend type Environment
+    ServiceProvider csp
+    ServiceProvider cdn
+    Compute compute
+    Storage storage
+    PublicGateway publicGateway
+    PrivateGateway privateGateway
+    Monitoring observability
+    Egress egress
+
+define type Compute of InfrastructureComponent
+    constructor compute
+
+define type Broker of InfrastructureComponent
+    constructor broker
+
+    project:
+        $from -> $this
+        $to -> $this
+
+define type Monitoring of InfrastructureComponent
+    constructor metrics
+
+    required InfrastructureComponent display
+    project:
+        $this -> $from
+        $this -> display
+
+define type Storage of InfrastructureComponent
+    constructor storage
+
+    project:
+        $from -> $this
+
+define type Internaletwork of InfrastructureComponent
+    constructor internalServiceRoute
+
+    project:
+        $from -> $to
+
+define type PublicGateway of InfrastructureComponent
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+    project:
+        $from -> cdn
+        cdn -> loadBalancer
+        loadBalancer -> $this
+        $this -> $to
+
+define type PrivateGateway of InfrastructureComponent
+    constructor privateGateway
+    project:
+        $from -> $to
+
+define type Egress of InfrastructureComponent
+    constructor egress
+    project:
+        $from -> $to
+
+define type ServiceProvider of InfrastructureComponent
+    constructor serviceProvider
+
+define operator Observed of TypeSlotReference
+    constructor observedBy Environment
+        on DeploymentProfile
+
+    implementation = "@insight/deployment.uses"
+
+define presentation PrivateGateway 
+    graphviz
+        visible = false
+
+define presentation Egress 
+    graphviz
+        visible = false

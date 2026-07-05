@@ -1,0 +1,54 @@
+plugins {
+    id 'base'
+}
+
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+def generatedVersionFile = file('src/version.ts')
+
+tasks.register('generateVersion') {
+    group = 'build'
+    description = 'Generates CLI version metadata from the Gradle project version.'
+    inputs.property('version', project.version.toString())
+    outputs.file(generatedVersionFile)
+    doLast {
+        generatedVersionFile.parentFile.mkdirs()
+        generatedVersionFile.text = "export const version = \"${project.version}\";\n"
+    }
+}
+
+tasks.register('npmInstall', Exec) {
+    group = 'build'
+    description = 'Installs CLI dependencies.'
+    inputs.file('package.json')
+    if (file('package-lock.json').exists()) {
+        inputs.file('package-lock.json')
+    }
+    outputs.dir('node_modules')
+    workingDir = projectDir
+    commandLine npmCommand, 'install'
+}
+
+tasks.register('npmBuild', Exec) {
+    group = 'build'
+    description = 'Builds the Archinsight CLI.'
+    dependsOn 'npmInstall', 'generateVersion'
+    inputs.dir('src')
+    inputs.dir('../packages/insight-language/src')
+    outputs.dir('build')
+    workingDir = projectDir
+    commandLine npmCommand, 'run', 'build'
+}
+
+tasks.register('npmCheck') {
+    group = 'verification'
+    description = 'Runs CLI checks.'
+    dependsOn 'npmBuild'
+}
+
+tasks.named('assemble') {
+    dependsOn 'npmBuild'
+}
+
+tasks.named('check') {
+    dependsOn 'npmCheck'
+}

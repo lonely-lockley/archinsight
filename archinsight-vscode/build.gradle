@@ -1,0 +1,55 @@
+plugins {
+    id 'base'
+}
+
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
+tasks.register('npmInstall', Exec) {
+    group = 'build'
+    description = 'Installs VSCode extension dependencies.'
+    inputs.file('package.json')
+    if (file('package-lock.json').exists()) {
+        inputs.file('package-lock.json')
+    }
+    outputs.dir('node_modules')
+    workingDir = projectDir
+    commandLine npmCommand, 'install'
+}
+
+tasks.register('npmBuild', Exec) {
+    group = 'build'
+    description = 'Builds the Archinsight VSCode extension.'
+    dependsOn 'npmInstall'
+    inputs.dir('src')
+    inputs.dir('syntaxes')
+    inputs.file('language-configuration.json')
+    inputs.file('vite.webview.config.mts')
+    inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/insight-language/src')
+    outputs.dir('dist')
+    workingDir = projectDir
+    commandLine npmCommand, 'run', 'build'
+}
+
+tasks.register('npmCheck', Exec) {
+    group = 'verification'
+    description = 'Runs VSCode extension checks.'
+    dependsOn 'npmInstall'
+    inputs.dir('src')
+    inputs.dir('syntaxes')
+    inputs.file('language-configuration.json')
+    inputs.file('vite.webview.config.mts')
+    inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/insight-language/src')
+    outputs.dir('dist')
+    workingDir = projectDir
+    commandLine npmCommand, 'run', 'check'
+}
+
+tasks.named('assemble') {
+    dependsOn 'npmBuild'
+}
+
+tasks.named('check') {
+    dependsOn 'npmCheck'
+}

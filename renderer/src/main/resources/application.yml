@@ -1,9 +1,0 @@
-micronaut:
-  server:
-    cors:
-      enabled: true
-  security:
-    authentication: bearer
-    enabled: true
-    apiKeys:
-      editor-ui: ${EDITOR_UI_TOKEN:``}

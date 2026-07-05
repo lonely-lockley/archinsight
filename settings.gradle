@@ -1,2 +1,20 @@
-rootProject.name = 'archinsight'
-include 'common', 'database', 'insight-lang', 'translator', 'renderer', 'editor-ui', 'repository', 'identity'
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'insight'
+
+include 'archinsight-web'
+include 'archinsight-renderer'
+include 'archinsight-cli'
+include 'archinsight-vscode'

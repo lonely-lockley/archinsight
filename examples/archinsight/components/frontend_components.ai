@@ -1,0 +1,60 @@
+context archinsight
+
+import global from context infrastructure
+
+extend container frontend
+
+    component workspace_page
+        name = Workspace page
+        technology = Svelte
+        responsibility = Owns active project, tabs, per-tab state, and editor layout
+        links:
+            -> project_navigation_panel
+            -> editor_panel
+            -> log_panel
+            -> auth_menu
+
+    component project_navigation_panel
+        name = Project navigation panel
+        technology = Svelte
+        responsibility = Shows repository tree and structure tree with goto metadata
+
+    component editor_panel
+        name = Editor panel
+        technology = Svelte
+        responsibility = Hosts code editor, diagram preview, split layout, and per-tab toolbar
+        links:
+            -> monaco_editor
+            -> diagram_preview
+            -> query_editor
+
+    component monaco_editor
+        name = Monaco editor
+        technology = Monaco, insight-language package
+        responsibility = Edits Insight source, shows syntax diagnostics, and provides completion
+        links:
+            -> api_resources from archinsight
+                technology = REST
+                description = Sends live syntax checks and link requests
+                deployment:
+                    environmentsFrom global
+                    uses publicGateway
+    component diagram_preview
+        name = Diagram preview
+        technology = SVG, browser Graphviz WASM
+        responsibility = Renders backend-generated DOT in the browser and handles diagram goto
+
+    component query_editor
+        name = Query editor
+        technology = Monaco
+        responsibility = Edits saved or custom graph queries with syntax highlighting
+
+    component log_panel
+        name = Log panel
+        technology = Svelte
+        responsibility = Displays workspace-wide parser, linker, query, render, and API messages
+
+    component auth_menu
+        name = Auth menu
+        technology = Svelte
+        responsibility = Starts login, shows current user, settings, and logout actions
