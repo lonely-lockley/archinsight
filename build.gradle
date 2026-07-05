@@ -3,6 +3,6 @@ plugins {
 }
 
 allprojects {
-    group = 'io.github.insight'
-    version = '0.1.0-SNAPSHOT'
+    group = 'com.github.lonelylockley.archinsight'
+    version = '3.0.0-SNAPSHOT'
 }

@@ -1,58 +1,106 @@
 # Archinsight
 
-Archinsight implements an **architecture-as-code** approach, following the principles based on the [C4 model](https://c4model.com/). Its core feature is the **Insight** language, which simplifies architectural descriptions and frees architects from excessive visualization details. Insight emphasizes clarity, conciseness, and simplicity tailored to C4 diagrams.
+Archinsight is an architecture-as-code toolkit built around the Insight language.
 
----
+Insight is a domain-specific language for describing software architecture as code. It is based on the C4 model and allows a user to describe architecture from a system-level view down to individual components inside a selected service. The Insight language core links these descriptions into a single project graph and uses that graph for checks, queries, navigation, and diagram generation.
 
-## Try It Out
+The language is designed to read like an architecture note. It uses named descriptive attributes, natural component nesting, and explicit relationships to express the technical details that matter for the model. The syntax is based on indentation, so a small model can be written without much ceremony.
 
-Explore the Insight language and Archinsight features in the [Playground](https://archinsight.org/app/playground/). Here, you can:
-- Experiment with Insight’s syntax;
-- See real-time visualizations;
-- Discover the interactive diagram capabilities.
+```insight
+context example
+    name = Example System
 
----
+external actor user
+    name = User
+    technology = Web browser
+    links:
+        -> frontend from example
 
-## Building the Project
+system application
+    name = Application
 
-To build Archinsight from source, you need:
-- **JDK 20**
-- **Docker**
+    container frontend
+        name = Frontend
+        technology = SvelteKit, TypeScript
+        links:
+            -> backend
 
-Run the command:
-
-```shell
-./gradlew clean dockerBuild
+    service backend
+        name = Backend API
+        technology = Quarkus, PostgreSQL
 ```
 
-This will:
-- Compile all components;
-- Package them into Docker images;
-- Store those images in your local Docker repository.
+Insight is a strictly typed language. The built-in framework provides common architecture concepts for C4-style models, and projects can extend it with their own concepts when the architecture needs a more specific vocabulary. This allows a larger team to work with shared architecture concepts captured directly in the model.
 
----
+The language supports:
 
-## Documentation
+* C4-style modeling with contexts, systems, containers, services, components, actors, and external systems
+* Strict typing for model elements, attributes, references, constructors, and language extensions
+* User-defined types for organization-specific architecture concepts
+* Named attributes and natural nesting for readable source files
+* Imports and extensions for splitting large models across files and contexts
+* Query-driven diagram generation from the linked project graph using a Cypher-style query language
+* Graphviz rendering with model metadata for navigation and editor integration
+* Deployment modeling that connects logical relationships to deployment capabilities via projections
 
-Find more detailed information about Archinsight and its setup here:
-- [Insight Language](https://archinsight.org/doc/insight-language/)  
-  A comprehensive description of the Insight syntax with usage examples.
-- [Installation Guide](https://archinsight.org/doc/installation-guide/)  
-  Instructions on how to install and deploy Archinsight using Docker.
-- [Developer Guide](https://archinsight.org/doc/developer-guide/)  
-  Insights for contributors interested in helping develop and improve Archinsight.
+Deployment can be modeled together with the logical architecture. A relationship between two services can be connected to the deployment capability that realizes it: a public gateway, private route, egress path, load balancer, storage dependency, service mesh, or another infrastructure concept defined by the project.
 
----
+The current codebase is a TypeScript workspace built around a shared headless language core. The web editor, CLI, and VSCode extension all use the same `@insight/language` package for parsing, linking, diagnostics, completions, queries, and Graphviz output.
 
-## Builds
+## Components
 
-Official Docker images are available on [Docker Hub](https://hub.docker.com/r/lonelylockley/archinsight).
+- [Web editor](archinsight-web/README.md) - SvelteKit application with repository APIs, Monaco editing, authentication, and browser-side diagram rendering.
+- [CLI](archinsight-cli/README.md) - local command-line tool for linking, querying, rendering, and inspecting `.ai` projects.
+- [VSCode extension](archinsight-vscode/README.md) - native editor support, diagnostics, completions, structure view, and diagram preview.
+- [Language core](packages/insight-language/README.md) - shared TypeScript parser/runtime, linker, query engine, completion engine, and Graphviz renderer.
+- [Renderer service](archinsight-renderer/README.md) - hardened DOT-to-SVG/PNG service for server-side rendering paths.
 
----
+## Repository Layout
+
+```text
+archinsight-web/         SvelteKit web app and HTTP API
+archinsight-cli/         Node.js CLI
+archinsight-vscode/      VSCode extension and webviews
+archinsight-renderer/    Optional server-side render service
+packages/insight-language/
+                         Shared TypeScript Insight language core
+src/main/resources/com/github/lonelylockley/insight/
+                         Built-in Insight framework sources
+```
+
+## Development
+
+Install dependencies per package, then use the package scripts or Gradle wrapper tasks. The most useful checks are:
+
+```shell
+npm --prefix packages/insight-language run test:runtime
+npm --prefix archinsight-web run check
+npm --prefix archinsight-web run test:server
+npm --prefix archinsight-web run test:security
+npm --prefix archinsight-cli run check
+npm --prefix archinsight-vscode run check
+npm --prefix archinsight-renderer test
+```
+
+Gradle exposes wrapper tasks for the application packages:
+
+```shell
+./gradlew :archinsight-web:npmCheck
+./gradlew :archinsight-cli:npmCheck
+./gradlew :archinsight-vscode:npmCheck
+./gradlew :archinsight-renderer:test
+```
+
+Editing the built-in framework files under `src/main/resources/.../insight/` requires regenerating the TypeScript snapshot:
+
+```shell
+npm --prefix packages/insight-language run sync:core
+```
+
+Generated outputs such as `.svelte-kit/`, `dist/`, package build directories, generated ANTLR sources, and `archinsight-cli/src/version.ts` are intentionally ignored.
 
 ## License
 
-**Archinsight – C4 architecture as code**  
 Copyright 2021-2026 Alexey Zaytsev
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

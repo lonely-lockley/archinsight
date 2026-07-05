@@ -1,49 +1,49 @@
 # Archinsight CLI
 
-Command-line consumer of the headless Insight language core.
+Command-line interface for local Insight projects.
 
-The CLI works against a local project directory. It scans `.ai` files
-recursively, links the full project, then runs the requested command.
+The CLI scans `.ai` files recursively, builds the project language snapshot,
+links the full model, and then runs link, structure, query, or render commands.
+It embeds `@insight/language` directly and does not call the web app.
 
-## Build
-
-```shell
-npm run build
-```
-
-Gradle also exposes:
-
-```shell
-./gradlew :archinsight-cli:npmBuild
-./gradlew :archinsight-cli:npmCheck
-```
-
-The CLI version is generated from the Gradle project version into
-`src/version.ts`.
-
-## Usage
+## Commands
 
 ```shell
 archinsight link [project-dir] [--format text|json] [--out file]
-archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
-archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f text|json] [-o file]
 archinsight structure [project-dir] [--format text|json] [--out file]
+archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f text|json] [-o file]
+archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
 ```
 
-Options:
+`project-dir` defaults to the current directory.
 
-- `project-dir` - project directory to scan recursively; defaults to the
-  current directory.
+## Common Options
+
 - `-c, --context <id>` - context id for query/render.
 - `-s, --source <file>` - selected source file for queries using `$tab`.
 - `--tab <source>` - compatibility alias for `--source`.
 - `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `no-filter`.
-- `-q, --query <file>` - query file; overrides `--view`.
+- `-q, --query <file>` - custom query file; overrides `--view`.
 - `-f, --format <format>` - command output format.
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
 - `-V, --version` - print version.
 - `-h, --help` - print help.
+
+## Examples
+
+Link a project and print diagnostics:
+
+```shell
+npm --prefix archinsight-cli run build
+node archinsight-cli/build/index.js link examples --format text
+```
+
+Render DOT for a context using the C2 built-in query:
+
+```shell
+node archinsight-cli/build/index.js render examples -c demo -s main.ai -v c2 -f dot
+```
 
 ## Output Contract
 
@@ -58,9 +58,23 @@ level<TAB>code<TAB>source<TAB>line<TAB>column<TAB>message
 `render` runs link first. It writes a linker summary before rendering, then a
 render success/failure status line.
 
-Example:
-
 ```text
 INFO	LINKER_FINISHED	-	0	0	Linker finished: errors: 0, warnings: 0, notes: 5
 INFO	RENDER_FINISHED	-	0	0	Render finished: diagram rendered successfully
 ```
+
+## Build and Check
+
+```shell
+npm --prefix archinsight-cli run check
+```
+
+Gradle also exposes:
+
+```shell
+./gradlew :archinsight-cli:npmBuild
+./gradlew :archinsight-cli:npmCheck
+```
+
+The CLI version is generated from the Gradle project version into
+`src/version.ts`. That file is generated and should not be committed.

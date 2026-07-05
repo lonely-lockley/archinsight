@@ -21,10 +21,11 @@ state.
 - Click-to-declaration from structure and diagram nodes/edges.
 - Download source, SVG, PNG, and DOT.
 
-## Build
+## Development
 
 ```shell
-npm run check
+npm --prefix archinsight-vscode install
+npm --prefix archinsight-vscode run check
 ```
 
 Gradle also exposes:
@@ -33,6 +34,8 @@ Gradle also exposes:
 ./gradlew :archinsight-vscode:npmBuild
 ./gradlew :archinsight-vscode:npmCheck
 ```
+
+The build emits extension host code and webview bundles under `dist/`.
 
 ## Architecture
 
@@ -52,6 +55,18 @@ The custom editor reuses shared Svelte editor components from
 `archinsight-web/src/lib` where that code is UI-level and not tied to hosted web
 state. The language core remains clean: no Monaco, VSCode, Svelte, REST, auth,
 or filesystem watcher APIs are allowed in `packages/insight-language`.
+
+## Contributions
+
+The extension contributes:
+
+- Language id `insight` for `.ai` files.
+- TextMate grammar from `syntaxes/insight.tmLanguage.json`.
+- Custom editor `archinsight.editor` for `.ai` files.
+- Commands for project linking, diagram preview, C1/C2/C3/C4/no-filter views,
+  query editing, structure filtering, and downloads.
+- Explorer view `Project Structure`.
+- Panel view `Archinsight Query`.
 
 ## UI Notes
 
