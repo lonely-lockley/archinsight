@@ -4,6 +4,7 @@
   "description": "Native VSCode support for Insight architecture models.",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "publisher": "lonelylockley",
   "engines": {
     "vscode": "^1.92.0"

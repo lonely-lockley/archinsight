@@ -2,6 +2,7 @@
   "name": "@archinsight/web",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "predev": "npm --prefix ../packages/insight-language run sync:core",
