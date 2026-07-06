@@ -36,8 +36,7 @@ const neutralSymbolTokens = new Set(['ANONYMOUS_ATTRIBUTE', 'COLON', 'EQ', 'LPAR
 const annotationTokens = new Set([
   'ATTRIBUTE_ANNOTATION',
   'PLANNED_ANNOTATION',
-  'DEPRECATED_ANNOTATION',
-  'ANNOTATION_VALUE'
+  'DEPRECATED_ANNOTATION'
 ]);
 const projectionTokens = new Set(['PROJECTION_FROM', 'PROJECTION_TO', 'PROJECTION_THIS', 'PROJECTION_SLOT', 'PROJECTION_OWNER']);
 
@@ -213,6 +212,9 @@ function scopeFor(
   }
   if (annotationTokens.has(token.name)) {
     return 'constant.language.annotation';
+  }
+  if (token.name === 'ANNOTATION_VALUE') {
+    return 'string';
   }
   if (token.name === 'COMMENT') {
     return 'comment';

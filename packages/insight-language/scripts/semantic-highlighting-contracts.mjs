@@ -12,6 +12,7 @@ const cases = [
   highlightsProjectionTermsByRuleContext,
   highlightsContextDeclarationWhileTyping,
   highlightsAttributeNamesWhenValueIsInvalid,
+  highlightsAnnotationNameWithoutAnnotationValue,
 ];
 
 let failures = 0;
@@ -104,6 +105,19 @@ Element api
   const tokens = tokensByText(source);
 
   assertToken(tokens, "name", "property");
+}
+
+function highlightsAnnotationNameWithoutAnnotationValue() {
+  const source = `
+context demo
+
+@deprecated(replace after migration)
+Element api
+`.trimStart();
+  const tokens = tokensByText(source);
+
+  assertToken(tokens, "@deprecated", "annotation");
+  assertToken(tokens, "replace after migration", "string");
 }
 
 function operatorSnapshot() {

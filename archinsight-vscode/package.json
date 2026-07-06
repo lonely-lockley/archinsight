@@ -197,6 +197,7 @@
         "[*Dark*]": {
           "enabled": true,
           "rules": {
+            "annotation:insight": "#f2cc60",
             "comment:insight": "#959da5",
             "function:insight": "#7ee787",
             "keyword:insight": "#39c5bb",
@@ -211,6 +212,7 @@
         "[*Light*]": {
           "enabled": true,
           "rules": {
+            "annotation:insight": "#b08800",
             "comment:insight": "#6a737d",
             "function:insight": "#22863a",
             "keyword:insight": "#008b8b",

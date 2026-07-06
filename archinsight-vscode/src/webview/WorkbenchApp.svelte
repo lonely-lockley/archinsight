@@ -673,7 +673,8 @@
         { token: 'property', foreground: '24292e' },
         { token: 'operator', foreground: '24292e' },
         { token: 'type', foreground: '6f42c1' },
-        { token: 'constant.language.annotation', foreground: '22863a' }
+        { token: 'annotation', foreground: 'b08800' },
+        { token: 'constant.language.annotation', foreground: 'b08800' }
       ];
     }
     return [
@@ -692,7 +693,8 @@
       { token: 'property', foreground: 'f6f8fa' },
       { token: 'operator', foreground: 'f6f8fa' },
       { token: 'type', foreground: 'b392f0' },
-      { token: 'constant.language.annotation', foreground: '7ee787' }
+      { token: 'annotation', foreground: 'f2cc60' },
+      { token: 'constant.language.annotation', foreground: 'f2cc60' }
     ];
   }
 

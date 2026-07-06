@@ -16,6 +16,7 @@ export const insightSemanticTokenTypes = [
   "property",
   "function",
   "variable",
+  "annotation",
 ] as const;
 
 export type InsightSemanticTokenType = typeof insightSemanticTokenTypes[number];
@@ -72,7 +73,6 @@ const annotationTokens = new Set([
   "ATTRIBUTE_ANNOTATION",
   "PLANNED_ANNOTATION",
   "DEPRECATED_ANNOTATION",
-  "ANNOTATION_VALUE",
 ]);
 const projectionEndpointTokens = new Set(["PROJECTION_FROM", "PROJECTION_TO", "PROJECTION_THIS"]);
 const projectionDereferenceTokens = new Set(["PROJECTION_SLOT", "PROJECTION_OWNER"]);
@@ -314,7 +314,10 @@ function fallbackClassification(
     return { type: "type" };
   }
   if (annotationTokens.has(token)) {
-    return { type: "function" };
+    return { type: "annotation" };
+  }
+  if (token === "ANNOTATION_VALUE") {
+    return { type: "string" };
   }
   if (token === "OPERATOR_IDENTIFIER") {
     return { type: "operator" };

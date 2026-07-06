@@ -35,6 +35,14 @@
       "token": "variable.language"
     },
     {
+      "foreground": "b08800",
+      "token": "annotation"
+    },
+    {
+      "foreground": "b08800",
+      "token": "constant.language.annotation"
+    },
+    {
       "foreground": "6f42c1",
       "token": "entity"
     },
