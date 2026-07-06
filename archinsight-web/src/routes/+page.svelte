@@ -34,6 +34,7 @@
     createInsightTokenVocabulary,
     createInsightTokensProvider,
     refreshInsightTokenVocabulary,
+    type InsightSemanticTokensProvider,
     type InsightTokenVocabulary
   } from '$lib/insight-monaco-language';
   import LanguageWorker from '$lib/language.worker?worker';
@@ -151,6 +152,7 @@
   let editor: Monaco.editor.IStandaloneCodeEditor;
   let completionEngine: CompletionEngine;
   let tokenVocabulary: InsightTokenVocabulary;
+  let semanticTokensProvider: InsightSemanticTokensProvider;
   let editorTabId: string | undefined;
   let editorModels = new Map<string, Monaco.editor.ITextModel>();
   let untitledCounter = 1;
@@ -352,7 +354,8 @@
     tokenVocabulary = createInsightTokenVocabulary(editorSymbols);
     monaco.languages.register({ id: 'insight' });
     monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
-    monaco.languages.registerDocumentSemanticTokensProvider('insight', createInsightSemanticTokensProvider(tokenVocabulary));
+    semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
+    monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);
     defineInsightThemes(monaco);
     registerCompletionProvider();
     editor = monaco.editor.create(editorHost, {
@@ -392,7 +395,7 @@
       }
       scheduleLink();
       persistWorkspace();
-      refreshEditorTokenVocabulary();
+      refreshEditorTokenVocabulary({ repaint: false });
       scheduleLiveSyntaxCheck([{ sourceIdentity: tab.sourceIdentity, content }]);
     });
   }
@@ -1149,18 +1152,19 @@
     );
   }
 
-  function refreshEditorTokenVocabulary(): void {
+  function refreshEditorTokenVocabulary(options: { readonly repaint?: boolean } = {}): void {
     refreshEditorSymbols();
     if (tokenVocabulary === undefined) {
       return;
     }
     refreshInsightTokenVocabulary(tokenVocabulary, editorSymbols, tabs.map((tab) => tab.content));
-    if (monaco === undefined) {
+    if (options.repaint === false || monaco === undefined) {
       return;
     }
     for (const model of editorModels.values()) {
       monaco.editor.setModelLanguage(model, 'insight');
     }
+    semanticTokensProvider.refresh();
     editor?.render(true);
   }
 

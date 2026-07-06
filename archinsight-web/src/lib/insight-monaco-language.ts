@@ -43,21 +43,18 @@ const projectionTokens = new Set(['PROJECTION_FROM', 'PROJECTION_TO', 'PROJECTIO
 
 export type InsightTokenVocabulary = {
   snapshot: LanguageSnapshot;
-  staleSemanticTokens: boolean;
 };
 
 export function createInsightTokenVocabulary(snapshot: LanguageSnapshot): InsightTokenVocabulary {
-  return { snapshot, staleSemanticTokens: false };
+  return { snapshot };
 }
 
 export function refreshInsightTokenVocabulary(
   vocabulary: InsightTokenVocabulary,
   snapshot: LanguageSnapshot,
-  _sources: readonly string[],
-  staleSemanticTokens = false
+  _sources: readonly string[]
 ): void {
   vocabulary.snapshot = snapshot;
-  vocabulary.staleSemanticTokens = staleSemanticTokens;
 }
 
 export function createInsightTokensProvider(_vocabulary: InsightTokenVocabulary): Monaco.languages.TokensProvider {
@@ -94,10 +91,28 @@ class InsightTokenizationState implements Monaco.languages.IState {
   }
 }
 
-export function createInsightSemanticTokensProvider(vocabulary: InsightTokenVocabulary): Monaco.languages.DocumentSemanticTokensProvider {
-  const cache = new Map<string, { readonly version: number; readonly tokens: Monaco.languages.SemanticTokens }>();
-  const lastGoodTokens = new Map<string, Monaco.languages.SemanticTokens>();
+export type InsightSemanticTokensProvider = Monaco.languages.DocumentRangeSemanticTokensProvider & {
+  refresh(): void;
+};
+
+export function createInsightSemanticTokensProvider(vocabulary: InsightTokenVocabulary): InsightSemanticTokensProvider {
+  const listeners = new Set<() => void>();
   return {
+    onDidChange(listener): Monaco.IDisposable {
+      listeners.add(listener);
+      return {
+        dispose(): void {
+          listeners.delete(listener);
+        }
+      };
+    },
+
+    refresh(): void {
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+
     getLegend(): Monaco.languages.SemanticTokensLegend {
       return {
         tokenTypes: [...insightSemanticTokenTypes],
@@ -105,44 +120,21 @@ export function createInsightSemanticTokensProvider(vocabulary: InsightTokenVoca
       };
     },
 
-    provideDocumentSemanticTokens(model, _lastResultId, token): Monaco.languages.ProviderResult<Monaco.languages.SemanticTokens> {
-      const uriKey = model.uri.toString();
-      if (vocabulary.staleSemanticTokens) {
-        const lastGood = lastGoodTokens.get(uriKey);
-        if (lastGood !== undefined) {
-          return lastGood;
-        }
-      }
-      const snapshotKey = semanticSnapshotKey(vocabulary.snapshot);
-      const cacheKey = `${uriKey}:${snapshotKey}`;
-      const cached = cache.get(cacheKey);
-      if (cached?.version === model.getVersionId()) {
-        return cached.tokens;
-      }
+    provideDocumentRangeSemanticTokens(model, range, token): Monaco.languages.ProviderResult<Monaco.languages.SemanticTokens> {
       if (token.isCancellationRequested) {
         return { data: new Uint32Array() };
       }
-      const semanticTokens = encodeSemanticTokens(semanticHighlightInsight(model.getValue(), vocabulary.snapshot));
-      cache.set(cacheKey, { version: model.getVersionId(), tokens: semanticTokens });
-      if (!vocabulary.staleSemanticTokens) {
-        lastGoodTokens.set(uriKey, semanticTokens);
-      }
-      return semanticTokens;
-    },
-
-    releaseDocumentSemanticTokens(_resultId: string | undefined): void {
-      return;
+      return encodeSemanticTokens(
+        semanticHighlightInsight(model.getValue(), vocabulary.snapshot)
+          .filter((semanticToken) => tokenInRange(semanticToken, range))
+      );
     }
   };
 }
 
-function semanticSnapshotKey(snapshot: LanguageSnapshot): string {
-  return [
-    snapshot.schemaVersion,
-    snapshot.types.length,
-    snapshot.constructors.length,
-    snapshot.operators.map((operator) => `${operator.spelling}/${operator.leftType ?? ""}/${operator.targetType}`).join("|")
-  ].join(":");
+function tokenInRange(token: ReturnType<typeof semanticHighlightInsight>[number], range: Monaco.Range): boolean {
+  const line = token.line + 1;
+  return line >= range.startLineNumber && line <= range.endLineNumber;
 }
 
 function encodeSemanticTokens(tokens: ReturnType<typeof semanticHighlightInsight>): Monaco.languages.SemanticTokens {
@@ -182,7 +174,7 @@ function monacoTokens(
     const next = tokens[index + 1];
     const startIndex = Math.max(0, Math.min(line.length, token.startIndex));
     const stopIndex = Math.max(startIndex, Math.min(line.length - 1, token.stopIndex));
-    pushToken(result, startIndex, scopeFor(token));
+    pushToken(result, startIndex, scopeFor(token, next));
     const resetIndex = stopIndex + 1;
     if (resetIndex < (next?.startIndex ?? line.length)) {
       pushToken(result, resetIndex, 'source.insight');
@@ -201,7 +193,8 @@ function pushToken(tokens: Monaco.languages.IToken[], startIndex: number, scopes
 }
 
 function scopeFor(
-  token: InsightLineToken
+  token: InsightLineToken,
+  next: InsightLineToken | undefined
 ): string {
   if (keywordTokens.has(token.name)) {
     return declarationKeywordTokens.has(token.name) ? 'keyword.declaration.insight' : 'keyword.control.insight';
@@ -226,6 +219,9 @@ function scopeFor(
   }
   if (token.name === 'TEXT') {
     return 'string';
+  }
+  if (token.name === 'IDENTIFIER' && (next?.name === 'EQ' || next?.name === 'COLON')) {
+    return 'property';
   }
   return 'variable';
 }

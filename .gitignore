@@ -23,6 +23,7 @@ packages/insight-language/src/generated/
 # IDEs
 .codex/
 .idea/
+.vscode/
 out/
 *.iml
 *.ipr

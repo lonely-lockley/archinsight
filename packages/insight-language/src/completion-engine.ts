@@ -629,7 +629,11 @@ function nearestFrame(
     ...context.operatorFrames.map((frame) => ({ kind: "operator" as const, frame })),
   ]
     .filter((candidate) => candidate.frame.indent < indent)
-    .sort((left, right) => right.frame.indent - left.frame.indent)[0];
+    .sort((left, right) => right.frame.indent - left.frame.indent || frameKindRank(right.kind) - frameKindRank(left.kind))[0];
+}
+
+function frameKindRank(kind: "element" | "operator"): number {
+  return kind === "operator" ? 1 : 0;
 }
 
 function sortAndFilter(items: readonly CompletionItem[], replacementPrefix: string): CompletionItem[] {

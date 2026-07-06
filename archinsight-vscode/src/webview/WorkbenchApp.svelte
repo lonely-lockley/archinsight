@@ -8,6 +8,7 @@
     createInsightTokenVocabulary,
     createInsightTokensProvider,
     refreshInsightTokenVocabulary,
+    type InsightSemanticTokensProvider,
     type InsightTokenVocabulary
   } from '../../../archinsight-web/src/lib/insight-monaco-language';
   import {
@@ -94,6 +95,7 @@
   let model: Monaco.editor.ITextModel | undefined;
   let themeObserver: MutationObserver | undefined;
   let tokenVocabulary: InsightTokenVocabulary | undefined;
+  let semanticTokensProvider: InsightSemanticTokensProvider | undefined;
   let editorHost: HTMLDivElement;
   let messagesPanel: HTMLElement;
   let suppressEditorChange = false;
@@ -167,7 +169,8 @@
       monaco.languages.register({ id: 'insight' });
     }
     monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
-    monaco.languages.registerDocumentSemanticTokensProvider('insight', createInsightSemanticTokensProvider(tokenVocabulary));
+    semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
+    monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);
     defineEditorThemes(monaco);
     registerCompletionProvider(monaco);
     observeThemeChanges(monaco);
@@ -193,6 +196,9 @@
       renderValidationDecorations: 'on',
       'semanticHighlighting.enabled': true,
       scrollBeyondLastLine: false
+    });
+    editor.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.Space, () => {
+      editor?.trigger('keyboard', 'editor.action.triggerSuggest', {});
     });
     editor.onDidChangeModelContent(() => {
       if (suppressEditorChange || readOnly || model === undefined) {
@@ -339,11 +345,10 @@
     if (tokenVocabulary === undefined || symbols === undefined) {
       return;
     }
-    refreshInsightTokenVocabulary(tokenVocabulary, symbols as Parameters<typeof refreshInsightTokenVocabulary>[1], [source], hasErrors(diagnostics));
+    refreshInsightTokenVocabulary(tokenVocabulary, symbols as Parameters<typeof refreshInsightTokenVocabulary>[1], [source]);
     if (monaco !== undefined && model !== undefined) {
-      if (!hasErrors(diagnostics)) {
-        monaco.editor.setModelLanguage(model, 'insight');
-      }
+      monaco.editor.setModelLanguage(model, 'insight');
+      semanticTokensProvider?.refresh();
       editor?.render(true);
     }
   }

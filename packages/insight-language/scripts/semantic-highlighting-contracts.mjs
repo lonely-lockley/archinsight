@@ -10,6 +10,8 @@ const cases = [
   highlightsSameTextByParserContext,
   highlightsOperatorsAndConstructorsByRuleContext,
   highlightsProjectionTermsByRuleContext,
+  highlightsContextDeclarationWhileTyping,
+  highlightsAttributeNamesWhenValueIsInvalid,
 ];
 
 let failures = 0;
@@ -83,6 +85,25 @@ define type Gateway of Element
   assertToken(tokens, "$owner", "variable");
   assertToken(tokens, "publicGateway", "property");
   assertToken(tokens, "$to", "variable");
+}
+
+function highlightsContextDeclarationWhileTyping() {
+  const tokens = tokensByText("context demo");
+
+  assertToken(tokens, "context", "keyword");
+  assertToken(tokens, "demo", "variable", ["declaration"]);
+}
+
+function highlightsAttributeNamesWhenValueIsInvalid() {
+  const source = `
+context demo
+
+Element api
+    name =
+`.trimStart();
+  const tokens = tokensByText(source);
+
+  assertToken(tokens, "name", "property");
 }
 
 function operatorSnapshot() {

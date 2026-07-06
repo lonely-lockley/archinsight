@@ -24,6 +24,8 @@ const cases = [
   customTypeSlotReferenceOperatorTargetsUseOperatorTargetType,
   customTypeSlotReferenceOperatorsWorkInDeepNestedObjects,
   customConstructorsCompleteInImplicitNamedAndAnonymousObjectSlots,
+  edgeListOperatorsCompleteAfterNestedObjectAttribute,
+  wireAttributesCompleteAfterNestedObjectAttribute,
   objectBodyDoesNotSuggestAssignedScalarAttributes,
   identifierDeclarationsHaveNoCandidates,
   archinsightExampleCompletionDoesNotLeakTextWordsAtLineEnds,
@@ -366,6 +368,72 @@ component repository
   }
   assert(!labels.has("name"), [...labels].join(", "));
   assert(!labels.has("global"), [...labels].join(", "));
+}
+
+function edgeListOperatorsCompleteAfterNestedObjectAttribute() {
+  const sourceWithCursor = `
+context test
+
+import global from context infrastructure
+
+system system_a
+    name = System A
+
+    service service_a
+        name = Service A
+        links:
+            -> target
+                deployment:
+                    usesProfile global
+                    uses privateGateway
+            __CURSOR__
+`.trimStart();
+  const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
+  const source = sourceWithCursor.replace("__CURSOR__", "");
+  const result = complete(source, cursorOffset, {
+    indexedIdentifiers: new Map([
+      ["global", { label: "global", type: "DeploymentProfile", imported: true }],
+      ["privateGateway", { label: "privateGateway", type: "InfrastructureComponent", imported: true }],
+    ]),
+  });
+  const labels = itemLabels(result);
+
+  assert(labels.has("->"), [...labels].join(", "));
+  assert(labels.has("~>"), [...labels].join(", "));
+  assert(!labels.has("usesProfile"), [...labels].join(", "));
+}
+
+function wireAttributesCompleteAfterNestedObjectAttribute() {
+  const sourceWithCursor = `
+context test
+
+import global from context infrastructure
+
+system system_a
+    name = System A
+
+    service service_a
+        name = Service A
+        links:
+            -> target
+                deployment:
+                    usesProfile global
+                    uses privateGateway
+                __CURSOR__
+`.trimStart();
+  const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
+  const source = sourceWithCursor.replace("__CURSOR__", "");
+  const result = complete(source, cursorOffset, {
+    indexedIdentifiers: new Map([
+      ["global", { label: "global", type: "DeploymentProfile", imported: true }],
+      ["privateGateway", { label: "privateGateway", type: "InfrastructureComponent", imported: true }],
+    ]),
+  });
+  const labels = itemLabels(result);
+
+  assert(labels.has("deployment"), [...labels].join(", "));
+  assert(labels.has("description"), [...labels].join(", "));
+  assert(!labels.has("usesProfile"), [...labels].join(", "));
 }
 
 function customTypeSlotReferenceOperatorsUseCurrentOwnerType() {

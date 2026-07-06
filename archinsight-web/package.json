@@ -10,6 +10,7 @@
     "prebuild": "npm --prefix ../packages/insight-language run sync:core",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
+    "sync:svelte-kit": "svelte-kit sync",
     "precheck": "npm --prefix ../packages/insight-language run sync:core",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:security": "vitest run src/lib/svg-sanitizer.test.ts --environment happy-dom",

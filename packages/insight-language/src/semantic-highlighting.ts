@@ -94,7 +94,8 @@ export function semanticHighlightInsight(
     classifyTree(input.tree, input.ruleNames, input.tokenName, typeSystem, classifications);
   }
   const result: InsightSemanticToken[] = [];
-  for (const token of input.tokens) {
+  for (let index = 0; index < input.tokens.length; index++) {
+    const token = input.tokens[index]!;
     const start = tokenStart(token);
     const stop = tokenStop(token);
     if (start < 0 || stop < start || tokenType(token) === -1) {
@@ -104,7 +105,7 @@ export function semanticHighlightInsight(
     if (isTechnicalTokenName(name)) {
       continue;
     }
-    const classification = classifications.get(start) ?? fallbackClassification(name);
+    const classification = classifications.get(start) ?? fallbackClassification(name, token, nextVisibleToken(input.tokens, index, input.tokenName), input.tokenName);
     if (classification === undefined) {
       continue;
     }
@@ -294,7 +295,12 @@ function markToken(
   }
 }
 
-function fallbackClassification(token: string): TokenClassification | undefined {
+function fallbackClassification(
+  token: string,
+  current: AntlrTokenLike,
+  next: AntlrTokenLike | undefined,
+  tokenNameResolver: TokenNameResolver,
+): TokenClassification | undefined {
   if (token === "COMMENT") {
     return { type: "comment" };
   }
@@ -320,7 +326,26 @@ function fallbackClassification(token: string): TokenClassification | undefined 
     return { type: "operator" };
   }
   if (token === "IDENTIFIER") {
+    const nextName = next === undefined ? undefined : tokenName(tokenNameResolver, tokenType(next));
+    if (next !== undefined && tokenLine(current) === tokenLine(next) && (nextName === "EQ" || nextName === "COLON")) {
+      return { type: "property" };
+    }
     return { type: "variable" };
+  }
+  return undefined;
+}
+
+function nextVisibleToken(
+  tokens: readonly AntlrTokenLike[],
+  startIndex: number,
+  tokenNameResolver: TokenNameResolver,
+): AntlrTokenLike | undefined {
+  for (let index = startIndex + 1; index < tokens.length; index++) {
+    const token = tokens[index]!;
+    const name = tokenName(tokenNameResolver, tokenType(token));
+    if (!isTechnicalTokenName(name)) {
+      return token;
+    }
   }
   return undefined;
 }

@@ -226,8 +226,9 @@
     }
   },
   "scripts": {
-    "prebuild": "npm --prefix ../packages/insight-language run sync:core",
-    "build:webview": "vite build --config vite.webview.config.mts",
+    "prebuild": "npm --prefix ../packages/insight-language run generate:grammar",
+    "prepare:web": "npm --prefix ../archinsight-web run sync:svelte-kit",
+    "build:webview": "npm run prepare:web && vite build --config vite.webview.config.mts",
     "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.cjs --external:vscode --external:@viz-js/viz",
     "build": "npm run build:webview && npm run build:extension",
     "typecheck": "tsc --noEmit -p tsconfig.json",

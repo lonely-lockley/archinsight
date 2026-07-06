@@ -416,17 +416,14 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
 
   provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
     const current = this.project.current;
-    if (current === undefined) {
-      return [];
-    }
-    const sourceName = sourceNameForUri(current.root, document.uri);
+    const sourceName = current === undefined ? document.fileName : sourceNameForUri(current.root, document.uri);
     const result = service.complete({
       sourceName,
       source: document.getText(),
       cursorOffset: document.offsetAt(position),
-      snapshot: current.snapshot,
-      indexedIdentifiers: visibleIdentifiersForSource(current.result, sourceName),
-      contextIds: [...new Set(current.result.contexts.map((context) => context.id))],
+      snapshot: current?.snapshot ?? coreLanguageSnapshot,
+      indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
+      contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
     });
     return result.items.map((item) => {
       const completion = new vscode.CompletionItem(item.label, completionKind(item));
@@ -1041,17 +1038,13 @@ class ArchinsightWorkbenchEditorSession {
 
   private async complete(requestId: number, sourceName: string, source: string, cursorOffset: number): Promise<void> {
     const current = this.project.current;
-    if (current === undefined) {
-      await this.panel.webview.postMessage({ command: "completionResult", requestId, items: [] });
-      return;
-    }
     const result = service.complete({
       sourceName,
       source,
       cursorOffset,
-      snapshot: current.snapshot,
-      indexedIdentifiers: visibleIdentifiersForSource(current.result, sourceName),
-      contextIds: [...new Set(current.result.contexts.map((context) => context.id))],
+      snapshot: current?.snapshot ?? coreLanguageSnapshot,
+      indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
+      contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
     });
     await this.panel.webview.postMessage({
       command: "completionResult",
