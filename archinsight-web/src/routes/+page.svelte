@@ -936,10 +936,37 @@
   }
 
   function diagnosticsForTab(tab: WorkspaceTab): Diagnostic[] {
+    return uniqueDiagnostics([
+      ...(linkerDiagnostics[tab.sourceIdentity] ?? []),
+      ...(localDiagnostics[tab.sourceIdentity] ?? [])
+    ]);
+  }
+
+  function uniqueDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
+    const result: Diagnostic[] = [];
+    const seen = new Set<string>();
+    for (const diagnostic of diagnostics) {
+      const key = diagnosticKey(diagnostic);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      result.push(diagnostic);
+    }
+    return result;
+  }
+
+  function diagnosticKey(diagnostic: Diagnostic): string {
     return [
-      ...(localDiagnostics[tab.sourceIdentity] ?? []),
-      ...(linkerDiagnostics[tab.sourceIdentity] ?? [])
-    ];
+      diagnostic.source,
+      diagnostic.level ?? '',
+      diagnostic.code,
+      diagnostic.message,
+      diagnostic.line ?? '',
+      diagnostic.column ?? '',
+      diagnostic.endLine ?? '',
+      diagnostic.endColumn ?? ''
+    ].join('\u0000');
   }
 
   function diagnosticErrorSources(...sources: Array<Record<string, Diagnostic[]>>): Set<string> {

@@ -370,7 +370,7 @@ class ProjectModel {
         sourceUris: sourceUris(root, sources),
         snapshot: snapshot.snapshot,
         result,
-        diagnostics: [...snapshot.diagnostics, ...result.diagnostics],
+        diagnostics: uniqueDiagnostics([...result.diagnostics, ...snapshot.diagnostics]),
         tokenVocabulary: tokenVocabulary(snapshot.snapshot, sources),
       };
       this.current = project;
@@ -2076,6 +2076,33 @@ function summary(diagnostics: readonly LanguageDiagnostic[]): string {
 
 function hasErrors(diagnostics: readonly LanguageDiagnostic[]): boolean {
   return diagnostics.some((diagnostic) => (diagnostic.level ?? "ERROR") === "ERROR");
+}
+
+function uniqueDiagnostics(diagnostics: readonly LanguageDiagnostic[]): readonly LanguageDiagnostic[] {
+  const result: LanguageDiagnostic[] = [];
+  const seen = new Set<string>();
+  for (const diagnostic of diagnostics) {
+    const key = diagnosticKey(diagnostic);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(diagnostic);
+  }
+  return result;
+}
+
+function diagnosticKey(diagnostic: LanguageDiagnostic): string {
+  return [
+    diagnostic.sourceName,
+    diagnostic.level ?? "",
+    diagnostic.code,
+    diagnostic.message,
+    diagnostic.line,
+    diagnostic.column,
+    diagnostic.endLine ?? "",
+    diagnostic.endColumn ?? "",
+  ].join("\0");
 }
 
 function letters(): string[] {

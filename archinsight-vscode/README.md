@@ -1,25 +1,73 @@
-# Archinsight VSCode Extension
+# Archinsight
 
-Native VSCode support for Insight `.ai` architecture models.
+Archinsight brings architecture-as-code authoring for Insight `.ai` models into VSCode.
 
-The extension embeds `@insight/language` directly. It does not shell out to
-`archinsight-cli` for diagnostics, completion, linking, query, or rendering
-state.
+Insight is a typed language for describing software architecture as code. It is designed for C4-style models, but it stays close to readable architecture notes: named attributes, indentation, explicit relationships, imports, and project-wide checks. The extension links your workspace into a single architecture graph and uses that graph for diagnostics, navigation, queries, and diagram previews.
 
-## Features
+```insight
+context example
+    name = Example System
 
-- `.ai` language registration.
-- TextMate syntax highlighting plus semantic tokens.
-- Smart completion from parser rule context, typed context, visible
-  declarations, and imports.
-- Workspace-wide diagnostics through `DiagnosticCollection`.
-- Custom Archinsight editor with code/diagram split view.
-- Automatic diagram preview rendering.
-- Built-in C1/C2/C3/C4/no-filter query buttons.
-- Shared `Archinsight Query` bottom-panel query editor.
-- `Project Structure` Explorer view with type/declaration trees.
-- Click-to-declaration from structure and diagram nodes/edges.
-- Download source, SVG, PNG, and DOT.
+external actor user
+    name = User
+    technology = Web browser
+    links:
+        -> frontend from example
+
+system application
+    name = Application
+
+    container frontend
+        name = Frontend
+        technology = SvelteKit, TypeScript
+        links:
+            -> backend
+
+    service backend
+        name = Backend API
+        technology = Node.js, PostgreSQL
+```
+
+## What You Get
+
+- `.ai` language support with syntax highlighting and semantic tokens.
+- Smart completion from parser context, types, visible declarations, and imports.
+- Workspace diagnostics for parser, linker, and type-system errors.
+- A custom split editor with Insight source and live diagram preview side by side.
+- Built-in view buttons for no-filter, C1, C2, C3, and C4-style queries.
+- Editable query panel for custom graph queries.
+- `Project Structure` tree for contexts, types, and declarations.
+- Click-to-source navigation from structure and rendered diagram items.
+- Download actions for source, SVG, PNG, and DOT.
+
+The extension embeds the shared `@insight/language` runtime directly. It does not need a separate CLI process for diagnostics, completions, linking, querying, or rendering state.
+
+## Getting Started
+
+1. Open a workspace that contains one or more `.ai` files.
+2. Open an `.ai` file. Archinsight opens the custom editor by default.
+3. Use the top toolbar to switch between no-filter, C1, C2, C3, and C4 views.
+4. Open the `Archinsight Query` panel to edit the active graph query.
+5. Open `Project Structure` in Explorer to navigate declarations.
+
+Useful commands are available from the Command Palette:
+
+- `Archinsight: Link Project`
+- `Archinsight: Preview Diagram`
+- `Archinsight: Show Structure`
+- `Archinsight: Preview Diagram` view commands for no-filter, C1, C2, C3, and C4
+
+## Editing
+
+The custom editor keeps the source model and diagram preview in one tab. Diagnostics are shown both as VSCode Problems and inline editor markers. Completion works in ordinary VSCode editors and inside the custom editor.
+
+On macOS, VSCode's default `Trigger Suggest` shortcuts are `Ctrl+Space` and `Cmd+I`. If `Ctrl+Space` is captured by macOS input-source switching, `Cmd+I` still opens suggestions.
+
+## Insight Projects
+
+Insight projects can be split across files with imports and extensions. The linker builds a project graph from the workspace sources, so diagnostics and diagrams are project-aware rather than limited to the active file.
+
+The built-in framework includes common architecture concepts such as contexts, systems, containers, services, components, actors, external systems, relationships, and deployment-oriented projections. Projects can extend the framework with their own typed architecture vocabulary.
 
 ## Development
 
@@ -28,18 +76,7 @@ npm --prefix archinsight-vscode install
 npm --prefix archinsight-vscode run check
 ```
 
-Gradle also exposes:
-
-```shell
-./gradlew :archinsight-vscode:npmBuild
-./gradlew :archinsight-vscode:npmCheck
-```
-
-The build emits extension host code and webview bundles under `dist/`.
-
-## Package and Publish
-
-Create a local `.vsix` package:
+Create a local VSIX package:
 
 ```shell
 npm --prefix archinsight-vscode run package
@@ -51,52 +88,23 @@ The package is written to:
 archinsight-vscode/dist/archinsight-vscode-<version>.vsix
 ```
 
-Publish to the Visual Studio Marketplace:
+Gradle also exposes:
 
 ```shell
-npm --prefix archinsight-vscode run publish:marketplace
+./gradlew :archinsight-vscode:npmBuild
+./gradlew :archinsight-vscode:npmCheck
 ```
 
-`vsce publish` expects a marketplace publisher token in the environment or an
-authenticated VSCE session. Before publishing, update the extension version in
-`package.json`, commit the change, and make sure the working tree is clean.
+The build emits extension host code and webview bundles under `dist/`.
 
-## Architecture
+## Architecture Notes
 
-Extension host code lives in:
+Extension host code lives in `src/extension.ts`.
 
-```text
-src/extension.ts
-```
+Webview code lives in `src/webview/`.
 
-Webview code lives in:
+The custom editor reuses shared Svelte editor components from `archinsight-web/src/lib` where that code is UI-level and not tied to hosted web state. The language core remains clean: no Monaco, VSCode, Svelte, REST, auth, or filesystem watcher APIs are allowed in `packages/insight-language`.
 
-```text
-src/webview/
-```
+## License
 
-The custom editor reuses shared Svelte editor components from
-`archinsight-web/src/lib` where that code is UI-level and not tied to hosted web
-state. The language core remains clean: no Monaco, VSCode, Svelte, REST, auth,
-or filesystem watcher APIs are allowed in `packages/insight-language`.
-
-## Contributions
-
-The extension contributes:
-
-- Language id `insight` for `.ai` files.
-- TextMate grammar from `syntaxes/insight.tmLanguage.json`.
-- Custom editor `archinsight.editor` for `.ai` files.
-- Commands for project linking, diagram preview, C1/C2/C3/C4/no-filter views,
-  query editing, structure filtering, and downloads.
-- Explorer view `Project Structure`.
-- Panel view `Archinsight Query`.
-
-## UI Notes
-
-- The Explorer contributes `Project Structure`.
-- The bottom panel contributes `Archinsight Query`.
-- The custom editor owns live source editing and diagram preview in one tab.
-- VSCode-native diagnostics and completion stay outside the webview.
-- Breadcrumbs are disabled for `insight` documents by extension defaults to keep
-  the custom editor header compact.
+Apache-2.0

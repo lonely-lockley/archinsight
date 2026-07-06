@@ -1,5 +1,8 @@
 .gitignore
 .vscodeignore
+.DS_Store
+**/.DS_Store
+.svelte-kit/**
 build.gradle
 package-lock.json
 src/**

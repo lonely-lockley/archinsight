@@ -5,6 +5,7 @@
   "version": "3.0.0",
   "license": "Apache-2.0",
   "publisher": "archinsight",
+  "icon": "assets/icon.png",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lonely-lockley/archinsight.git",
@@ -21,6 +22,18 @@
     "Programming Languages",
     "Visualization"
   ],
+  "keywords": [
+    "architecture",
+    "architecture-as-code",
+    "c4",
+    "diagram",
+    "graphviz",
+    "insight"
+  ],
+  "galleryBanner": {
+    "color": "#2ECC71",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onLanguage:insight",
     "onCommand:archinsight.linkProject",
@@ -169,7 +182,7 @@
         {
           "id": "archinsight",
           "title": "Archinsight Query",
-          "icon": "assets/archinsight.svg"
+          "icon": "assets/icon.png"
         }
       ]
     },
