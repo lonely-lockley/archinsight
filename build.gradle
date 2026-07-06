@@ -2,7 +2,141 @@ plugins {
     id 'base'
 }
 
+def artifactVersions = gradle.ext.archinsightVersions
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+def npmArtifacts = [
+    language: [dir: file('packages/insight-language'), versionKey: 'language', license: false],
+    web     : [dir: file('archinsight-web'), versionKey: 'web', license: false],
+    renderer: [dir: file('archinsight-renderer'), versionKey: 'renderer', license: false],
+    cli     : [dir: file('archinsight-cli'), versionKey: 'cli', license: true],
+    vscode  : [dir: file('archinsight-vscode'), versionKey: 'vscode', license: true]
+]
+def generatedPaths = [
+    file('archinsight-cli/build'),
+    file('archinsight-cli/src/version.ts'),
+    file('archinsight-renderer/build'),
+    file('archinsight-vscode/dist'),
+    file('archinsight-web/build'),
+    file('archinsight-web/.svelte-kit'),
+    file('packages/insight-language/build'),
+    file('packages/insight-language/src/generated')
+]
+def updatePackageJsonVersion = { File packageJsonFile, String version ->
+    def original = packageJsonFile.text
+    def matcher = java.util.regex.Pattern
+        .compile('(?m)^(\\s*"version"\\s*:\\s*")[^"]+(")')
+        .matcher(original)
+    if (!matcher.find()) {
+        throw new GradleException("Could not find top-level version in ${packageJsonFile}")
+    }
+    def replacement = java.util.regex.Matcher.quoteReplacement("${matcher.group(1)}${version}${matcher.group(2)}")
+    def updated = matcher.replaceFirst(replacement)
+    packageJsonFile.text = updated
+}
+
 allprojects {
     group = 'com.github.lonelylockley.archinsight'
-    version = '3.0.0-SNAPSHOT'
+    version = artifactVersions.find { entry ->
+        project.path.endsWith("-${entry.key}") || project.name == "archinsight-${entry.key}"
+    }?.value ?: artifactVersions.language
+}
+
+tasks.register('syncPackageVersions') {
+    group = 'build'
+    description = 'Synchronizes package.json and package-lock.json versions from settings.gradle.'
+    inputs.properties(artifactVersions)
+    inputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
+    outputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
+    outputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package-lock.json').toFile() })
+
+    doLast {
+        npmArtifacts.each { name, artifact ->
+            def version = artifactVersions[artifact.versionKey]
+            def packageJsonFile = new File(artifact.dir, 'package.json')
+
+            if (!packageJsonFile.exists()) {
+                throw new GradleException("Missing ${packageJsonFile}")
+            }
+
+            updatePackageJsonVersion(packageJsonFile, version)
+            if (new File(artifact.dir, 'package-lock.json').exists()) {
+                providers.exec {
+                    workingDir artifact.dir
+                    commandLine npmCommand, 'install', '--package-lock-only', '--ignore-scripts'
+                }.result.get()
+            }
+        }
+    }
+}
+
+tasks.register('copyLicenses') {
+    group = 'build'
+    description = 'Copies the root Apache license into publishable package directories.'
+    dependsOn 'syncPackageVersions'
+    inputs.file(layout.projectDirectory.file('LICENSE'))
+    outputs.files(
+        layout.projectDirectory.file('archinsight-cli/LICENSE'),
+        layout.projectDirectory.file('archinsight-vscode/LICENSE')
+    )
+    doLast {
+        copy {
+            from layout.projectDirectory.file('LICENSE')
+            into layout.projectDirectory.dir('archinsight-cli')
+        }
+        copy {
+            from layout.projectDirectory.file('LICENSE')
+            into layout.projectDirectory.dir('archinsight-vscode')
+        }
+    }
+}
+
+tasks.register('languageNpmInstall', Exec) {
+    group = 'build'
+    description = 'Installs language package dependencies.'
+    dependsOn 'syncPackageVersions'
+    inputs.file('packages/insight-language/package.json')
+    inputs.file('packages/insight-language/package-lock.json')
+    outputs.dir('packages/insight-language/node_modules')
+    workingDir = file('packages/insight-language')
+    commandLine npmCommand, 'install'
+}
+
+tasks.register('generateLanguageSources', Exec) {
+    group = 'build'
+    description = 'Generates TypeScript parser sources for the shared language package.'
+    dependsOn 'languageNpmInstall'
+    inputs.dir('packages/insight-language/grammar')
+    inputs.dir('packages/insight-language/scripts')
+    outputs.dir('packages/insight-language/src/generated')
+    workingDir = file('packages/insight-language')
+    commandLine npmCommand, 'run', 'generate:grammar'
+}
+
+tasks.register('cleanGenerated') {
+    group = 'build'
+    description = 'Deletes generated sources, package build outputs, and distribution artifacts.'
+    delete generatedPaths
+}
+
+tasks.named('clean') {
+    dependsOn 'cleanGenerated'
+}
+
+tasks.register('dist') {
+    group = 'build'
+    description = 'Synchronizes metadata, copies licenses, and builds distribution artifacts.'
+    dependsOn 'syncPackageVersions', 'copyLicenses'
+}
+
+gradle.projectsEvaluated {
+    [
+        ':archinsight-web:dist',
+        ':archinsight-renderer:dist',
+        ':archinsight-cli:dist',
+        ':archinsight-vscode:dist'
+    ].each { taskPath ->
+        tasks.named('dist') {
+            dependsOn taskPath
+        }
+    }
 }

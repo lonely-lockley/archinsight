@@ -5,6 +5,7 @@ plugins {
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
 
 tasks.register('npmInstall', Exec) {
+    dependsOn rootProject.tasks.named('syncPackageVersions')
     inputs.file('package.json')
     inputs.file('package-lock.json')
     outputs.dir('node_modules')
@@ -20,6 +21,12 @@ tasks.register('dockerBuild', Exec) {
     group = 'build'
     description = 'Builds the hardened Archinsight renderer service container image.'
     commandLine 'docker', 'build', '-t', 'archinsight-renderer:dev', '.'
+}
+
+tasks.register('dist') {
+    group = 'build'
+    description = 'Builds the renderer distribution image.'
+    dependsOn 'dockerBuild'
 }
 
 tasks.register('dockerDebug', Exec) {

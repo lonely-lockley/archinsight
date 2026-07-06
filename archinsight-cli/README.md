@@ -78,3 +78,25 @@ Gradle also exposes:
 
 The CLI version is generated from the Gradle project version into
 `src/version.ts`. That file is generated and should not be committed.
+
+## Package and Publish
+
+The npm package publishes the bundled CLI from `build/`. The TypeScript language
+core is bundled into the CLI artifact; `@viz-js/viz` remains an external runtime
+dependency for SVG rendering.
+
+Prepare and inspect the package:
+
+```shell
+npm --prefix archinsight-cli run check
+npm --prefix archinsight-cli run pack:dry
+```
+
+Publish to npm:
+
+```shell
+npm --prefix archinsight-cli run publish:npm
+```
+
+Before publishing, update the package version in `package.json`, commit the
+change, and make sure the working tree is clean.

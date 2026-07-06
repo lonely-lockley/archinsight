@@ -19,6 +19,7 @@ tasks.register('generateVersion') {
 tasks.register('npmInstall', Exec) {
     group = 'build'
     description = 'Installs CLI dependencies.'
+    dependsOn rootProject.tasks.named('syncPackageVersions')
     inputs.file('package.json')
     if (file('package-lock.json').exists()) {
         inputs.file('package-lock.json')
@@ -31,12 +32,29 @@ tasks.register('npmInstall', Exec) {
 tasks.register('npmBuild', Exec) {
     group = 'build'
     description = 'Builds the Archinsight CLI.'
-    dependsOn 'npmInstall', 'generateVersion'
+    dependsOn 'npmInstall', 'generateVersion', rootProject.tasks.named('generateLanguageSources')
     inputs.dir('src')
     inputs.dir('../packages/insight-language/src')
     outputs.dir('build')
     workingDir = projectDir
+    environment 'ARCHINSIGHT_CLI_VERSION', project.version.toString()
     commandLine npmCommand, 'run', 'build'
+}
+
+tasks.register('npmPack', Exec) {
+    group = 'build'
+    description = 'Creates the Archinsight CLI npm tarball under dist/.'
+    dependsOn 'npmBuild', rootProject.tasks.named('copyLicenses')
+    inputs.file('package.json')
+    inputs.file('README.md')
+    inputs.file('LICENSE')
+    inputs.dir('build')
+    outputs.dir('dist')
+    workingDir = projectDir
+    doFirst {
+        file('dist').mkdirs()
+    }
+    commandLine npmCommand, 'pack', '--pack-destination', 'dist'
 }
 
 tasks.register('npmCheck') {
@@ -47,6 +65,12 @@ tasks.register('npmCheck') {
 
 tasks.named('assemble') {
     dependsOn 'npmBuild'
+}
+
+tasks.register('dist') {
+    group = 'build'
+    description = 'Builds the CLI distribution tarball.'
+    dependsOn 'npmPack'
 }
 
 tasks.named('check') {

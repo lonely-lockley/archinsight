@@ -2,30 +2,50 @@ plugins {
     id 'base'
 }
 
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
 tasks.register('npmInstall', Exec) {
     group = 'build'
     description = 'Installs web dependencies.'
+    dependsOn rootProject.tasks.named('syncPackageVersions')
     workingDir = projectDir
-    commandLine 'npm', 'install'
+    commandLine npmCommand, 'install'
+}
+
+tasks.register('svelteKitSync', Exec) {
+    group = 'build'
+    description = 'Generates SvelteKit metadata required by TypeScript consumers.'
+    dependsOn 'npmInstall'
+    inputs.file('svelte.config.js')
+    inputs.file('tsconfig.json')
+    outputs.file('.svelte-kit/tsconfig.json')
+    workingDir = projectDir
+    commandLine npmCommand, 'exec', 'svelte-kit', 'sync'
 }
 
 tasks.register('npmBuild', Exec) {
     group = 'build'
     description = 'Builds the SvelteKit web app.'
-    dependsOn 'npmInstall'
+    dependsOn 'npmInstall', 'svelteKitSync', rootProject.tasks.named('generateLanguageSources')
     workingDir = projectDir
-    commandLine 'npm', 'run', 'build'
+    commandLine npmCommand, 'run', 'build'
 }
 
 tasks.register('npmCheck', Exec) {
     group = 'verification'
     description = 'Runs web type checks.'
-    dependsOn 'npmInstall'
+    dependsOn 'npmInstall', 'svelteKitSync', rootProject.tasks.named('generateLanguageSources')
     workingDir = projectDir
-    commandLine 'npm', 'run', 'check'
+    commandLine npmCommand, 'run', 'check'
 }
 
 tasks.named('assemble') {
+    dependsOn 'npmBuild'
+}
+
+tasks.register('dist') {
+    group = 'build'
+    description = 'Builds the web distribution.'
     dependsOn 'npmBuild'
 }
 

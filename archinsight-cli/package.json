@@ -1,23 +1,42 @@
 {
   "name": "@archinsight/cli",
-  "version": "0.1.0",
-  "private": true,
+  "version": "3.0.0-snapshot.0",
   "license": "Apache-2.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lonely-lockley/archinsight.git",
+    "directory": "archinsight-cli"
+  },
+  "homepage": "https://github.com/lonely-lockley/archinsight/tree/master/archinsight-cli#readme",
+  "bugs": {
+    "url": "https://github.com/lonely-lockley/archinsight/issues"
+  },
   "bin": {
     "archinsight": "build/index.js"
   },
+  "files": [
+    "build/",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "prebuild": "npm --prefix ../packages/insight-language run sync:core",
+    "generate:version": "node scripts/generate-version.mjs",
+    "prebuild": "npm --prefix ../packages/insight-language run sync:core && npm run generate:version",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=build/index.js --external:@viz-js/viz",
-    "check": "npm run build"
+    "check": "npm run build",
+    "pack:dry": "npm pack --dry-run",
+    "publish:npm": "npm publish --access public --tag next"
   },
   "dependencies": {
-    "@insight/language": "file:../packages/insight-language",
     "@viz-js/viz": "^3.28.0",
     "archy": "^1.0.0"
   },
   "devDependencies": {
+    "@insight/language": "file:../packages/insight-language",
     "@types/archy": "^0.0.36",
     "@types/node": "^24.0.0",
     "esbuild": "^0.25.0",

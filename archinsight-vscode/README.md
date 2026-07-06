@@ -37,6 +37,30 @@ Gradle also exposes:
 
 The build emits extension host code and webview bundles under `dist/`.
 
+## Package and Publish
+
+Create a local `.vsix` package:
+
+```shell
+npm --prefix archinsight-vscode run package
+```
+
+The package is written to:
+
+```text
+archinsight-vscode/dist/archinsight-vscode-<version>.vsix
+```
+
+Publish to the Visual Studio Marketplace:
+
+```shell
+npm --prefix archinsight-vscode run publish:marketplace
+```
+
+`vsce publish` expects a marketplace publisher token in the environment or an
+authenticated VSCE session. Before publishing, update the extension version in
+`package.json`, commit the change, and make sure the working tree is clean.
+
 ## Architecture
 
 Extension host code lives in:

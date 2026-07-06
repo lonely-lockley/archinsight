@@ -1,0 +1,7 @@
+.gitignore
+.vscodeignore
+build.gradle
+package-lock.json
+src/**
+tsconfig.json
+vite.webview.config.mts
