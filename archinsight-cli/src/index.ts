@@ -7,6 +7,7 @@ import { instance } from "@viz-js/viz";
 import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
+  coreSources,
   linkProject,
   renderGraphviz,
   selectGraph,
@@ -304,8 +305,13 @@ async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<
   const scope: QueryScope = { context, tab };
   const query = args.queryFile === undefined
     ? viewQueries[args.view ?? "c1"]
-    : await readFile(args.queryFile, "utf8");
+    : await readQueryFile(project.root, args.queryFile);
   return selectGraph(project.result, scope, query);
+}
+
+async function readQueryFile(projectRoot: string, queryFile: string): Promise<string> {
+  const file = path.isAbsolute(queryFile) ? queryFile : path.resolve(projectRoot, queryFile);
+  return readFile(file, "utf8");
 }
 
 function projectPath(args: ParsedArgs): string {
@@ -838,12 +844,24 @@ function claudeSkillPackage(): SkillPackage {
 function sharedSkillFiles(): readonly GeneratedFile[] {
   return [
     {
+      path: "references/modeling.md",
+      content: genericModelingReference(),
+    },
+    {
       path: "references/syntax.md",
       content: genericSyntaxReference(),
     },
     {
       path: "references/layered-architecture.md",
       content: genericLayeredArchitectureReference(),
+    },
+    {
+      path: "references/project-structure.md",
+      content: genericProjectStructureReference(),
+    },
+    {
+      path: "references/core.md",
+      content: genericCoreReference(),
     },
     {
       path: "references/validation.md",
@@ -861,7 +879,15 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       path: "examples/c2-containers.aiq",
       content: genericC2QueryExample(),
     },
+    ...coreSkillFiles(),
   ];
+}
+
+function coreSkillFiles(): readonly GeneratedFile[] {
+  return coreSources.map((source) => ({
+    path: `.core/${source.sourceName.replaceAll("\\", "/").replace(/^\.\//, "")}`,
+    content: source.source.endsWith("\n") ? source.source : `${source.source}\n`,
+  }));
 }
 
 function skillPackageSuccess(
@@ -927,9 +953,15 @@ If \`archinsight\` is not available, ask the user to install or expose
 
 ## References
 
+- Read \`references/modeling.md\` before creating, migrating, or extending a
+  model.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/project-structure.md\` before searching for declarations,
+  planning imports, or making broad edits.
+- Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
+  attributes, presentations, or projections.
 - Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
   files.
 - Read \`references/validation.md\` before running checks, structure inspection,
@@ -955,9 +987,15 @@ from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
 
 Treat this \`SKILL.md\` as the entrypoint. Load reference files only when needed:
 
+- Read \`references/modeling.md\` before creating, migrating, or extending a
+  model.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` before decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/project-structure.md\` before searching for declarations,
+  planning imports, or making broad edits.
+- Read \`references/core.md\` and \`.core/*.ai\` before assuming available
+  constructors, attributes, presentations, or projections.
 - Read \`references/queries.md\` before writing custom diagram queries or \`.aiq\`
   files.
 - Read \`references/validation.md\` before running checks, structure inspection,
@@ -995,9 +1033,15 @@ If \`archinsight\` is not available, ask the user to install or expose
 
 ## References
 
+- Read \`references/modeling.md\` before creating, migrating, or extending a
+  model.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/project-structure.md\` before searching for declarations,
+  planning imports, or making broad edits.
+- Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
+  attributes, presentations, or projections.
 - Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
   files.
 - Read \`references/validation.md\` before running checks, structure inspection,
@@ -1024,9 +1068,15 @@ from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
 Treat this \`SKILL.md\` as the entrypoint. Load the reference files only when
 they are needed:
 
+- Read \`references/modeling.md\` before creating, migrating, or extending a
+  model.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` before decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/project-structure.md\` before searching for declarations,
+  planning imports, or making broad edits.
+- Read \`references/core.md\` and \`.core/*.ai\` before assuming available
+  constructors, attributes, presentations, or projections.
 - Read \`references/queries.md\` before writing custom diagram queries or \`.aiq\`
   files.
 - Read \`references/validation.md\` before asking the user to run validation,
@@ -1084,9 +1134,15 @@ sections of Insight unless the existing layering is already understood.
 
 ## References
 
+- Read \`references/modeling.md\` before creating, migrating, or extending a
+  model.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/project-structure.md\` before searching for declarations,
+  planning imports, or making broad edits.
+- Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
+  attributes, presentations, or projections.
 - Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
   files.
 - Read \`references/validation.md\` before running checks, structure inspection,
@@ -1103,6 +1159,102 @@ function codexOpenAiYaml(): string {
 
 policy:
   allow_implicit_invocation: true
+`;
+}
+
+function genericModelingReference(): string {
+  return `# Modeling Guidance
+
+Insight syntax is small; most mistakes are modeling mistakes. Decide the view
+question before changing files.
+
+## Projections Are Bottom-Up
+
+Built-in C1/C2/C3/C4 views are selected from the linked model. They are not
+separate diagrams to author by hand.
+
+- C1 is context-oriented and can aggregate lower-level relationships upward.
+- C2, C3, and C4 are usually scoped by the selected source file through
+  \`--source\` / \`$tab\`.
+- A file often has one focal system, container, or deployment slice for the view
+  it is meant to render, but the exact scope is determined by the query used for
+  visualization.
+- Do not try to reconstruct a deeper view from a broader one. C1 carries too
+  little information to recreate C2/C3 details.
+
+If an element is missing from a C2/C3/C4 render, first check the query, selected
+source file, and relationship level before assuming the model is wrong.
+
+## Keep Relationship Levels Deliberate
+
+Avoid mixing system-level links with leaf-level links in the same view question.
+For C2/C3-style views, prefer links between the actual leaves being shown:
+containers, services, components, actors, or opaque external systems.
+
+Allowed cross-level links depend on the query and type model. A common C2 pattern
+is a current-system container/service linking to an external system. Owned
+\`system\` elements are usually aggregate nodes for C1, not C2 leaves.
+
+## Externality Depends on Scope
+
+Do not blindly turn every peer into \`external system\`.
+
+- A system can be external to the current system but still owned in the current
+  context.
+- A system can be external to the current context, such as a vendor, regulator,
+  or platform outside the modeled boundary.
+- Reusable outside systems can live in a separate context and be imported where
+  needed.
+- Imported relationships and the linked model can determine external relations;
+  use validation and structure inspection instead of duplicating declarations.
+
+Choose the boundary first: current system, current context, or outside context.
+Then choose \`system\`, \`external system\`, or an import.
+
+## Let the Type Tree Decide Nesting
+
+Do not memorize only built-in entity names. Users can extend the language with
+custom types.
+
+Use \`archinsight structure . --format text\` and \`.core/*.ai\` to inspect the
+type hierarchy:
+
+- \`Context\` contains \`BoundaryElement\`.
+- Built-in actors and systems are \`SystemElement\` / \`BoundaryElement\` types,
+  so they live at context level.
+- Built-in containers/services live under systems because \`System\` declares
+  \`List of Container _\`.
+- Components live where the relevant container/service type allows them.
+- Custom project types can change the available constructors and allowed child
+  slots; inspect them before writing.
+
+If a nested declaration fails type checking, fix the type/ownership model rather
+than forcing a link or inventing a wrapper element.
+
+## Keep Infrastructure in the Right View
+
+Do not transcribe infrastructure into C2 just because another diagram drew it
+there. Databases, queues, secret stores, compute nodes, gateways, and runtime
+placement are usually deployment/C4 concerns unless the project defines them as
+part of the selected view.
+
+Use deployment types and projection queries when physical realization matters.
+
+## Eventing
+
+Use \`~>\` for asynchronous relationships. Model one async wire per meaningful
+topic or event flow between real producer and consumer elements.
+
+Do not invent a broker node just to make the diagram look familiar. If the
+broker is deployment infrastructure, model it in deployment/C4. If the producer
+or consumer is not known, leave a gap and report it instead of fabricating an
+element.
+
+## No Fabricated Elements
+
+Every element should have a real architectural referent. If a relationship has
+no legitimate endpoint in scope, flag the uncertainty and ask for the missing
+boundary or owner.
 `;
 }
 
@@ -1152,6 +1304,12 @@ Useful built-ins include:
 - \`service\` for backend/container services.
 - \`component\` for internals of a selected container or service.
 
+Built-in nesting follows the core type tree, not the English noun. For example,
+actors and systems are context-level because their base type is a boundary
+element, while containers are allowed under systems because the \`System\` type
+declares a container child slot. For custom project types, inspect
+\`archinsight structure . --format text\` and \`.core/*.ai\` before nesting.
+
 ## Attributes
 
 Attributes are named and typed:
@@ -1177,11 +1335,16 @@ Put relationships under \`links:\`.
 links:
     -> checkout_api
         technology = HTTPS, JSON
+        call = POST /checkout
         description = Places an order
     ~> analytics
         technology = Kafka
+        via = orders.created
         description = Publishes order events
 \`\`\`
+
+\`call\` is singular and belongs to synchronous \`->\` links. \`via\` belongs to
+asynchronous \`~>\` links. Do not write \`calls\`.
 
 Use \`from <context-id>\` when linking to an imported element from another
 context:
@@ -1275,7 +1438,8 @@ system storefront
 \`\`\`
 
 At this layer, avoid implementation details. Explain who uses the system and
-which external systems matter.
+which external dependencies matter. Whether a peer is an owned \`system\`, an
+\`external system\`, or an imported declaration depends on the modeled boundary.
 
 ## C2: Containers and Services
 
@@ -1299,7 +1463,9 @@ system storefront
 \`\`\`
 
 Use \`container\` for applications or deployable units. Use \`service\` for
-backend services. Add links that explain runtime collaboration.
+backend services. Add links that explain runtime collaboration. A C2 file often
+focuses one system, but the actual visualization scope is set by the query and
+the selected source file.
 
 ## C3: Components
 
@@ -1324,6 +1490,8 @@ extend service checkout_api
 \`\`\`
 
 Components should describe responsibilities, not every class or function.
+As with C2, a C3 file often focuses one container or service, but custom queries
+can intentionally choose a different scope.
 
 ## C4 and Deployment
 
@@ -1341,6 +1509,8 @@ environment eu
 
 Attach deployment details to systems, containers, services, or links only when
 they clarify real runtime paths.
+C4/deployment files often focus one deployment slice, but the rendered scope is
+defined by the query, projection selectors, and selected source file.
 
 ## Layering Rules
 
@@ -1355,12 +1525,209 @@ they clarify real runtime paths.
 `;
 }
 
+function genericProjectStructureReference(): string {
+  return `# Project Structure Workflow
+
+Use \`archinsight structure\` before broad edits, imports, or declaration lookup.
+Do not start with raw grep when you need to know what the linked project
+contains.
+
+## Commands
+
+Human-readable overview:
+
+\`\`\`shell
+archinsight structure . --format text
+\`\`\`
+
+Machine-readable tree:
+
+\`\`\`shell
+archinsight structure . --format json
+\`\`\`
+
+The structure output includes:
+
+- the type hierarchy, including project-defined custom types;
+- context ids;
+- declaration ids and resolved types;
+- source file, line, and column for each declaration;
+- nesting under contexts and parent elements.
+
+## Declaration Lookup
+
+When you need an element for a link or import:
+
+1. Run \`archinsight structure . --format text\`.
+2. Find the relevant context and declaration id in the declarations tree.
+3. Check the source location shown in parentheses.
+4. Open that source file for surrounding attributes and relationships.
+5. Validate after editing with \`archinsight link . --format text\`.
+
+Use \`--format json\` when you need exact source locations for many ids or when
+the text tree is too large.
+
+## Imports
+
+Before adding an import, find the declaration's context in structure output. A
+cross-context link uses the target id and context id:
+
+\`\`\`insight
+import payments from context external_systems
+
+links:
+    -> payments from external_systems
+\`\`\`
+
+Do not guess context ids from filenames. Filenames, context ids, and element ids
+can differ.
+
+## Type and Constructor Lookup
+
+The type tree tells you where custom elements can be nested. If a constructor or
+attribute is unfamiliar:
+
+1. Inspect \`archinsight structure . --format text\` for project custom types.
+2. Inspect \`.core/*.ai\` for built-in types.
+3. Validate a small edit before applying the pattern widely.
+
+Use grep only after structure has identified the likely source file or type. Raw
+grep is a fallback for surrounding comments and prose, not the source of truth
+for project declarations.
+`;
+}
+
+function genericCoreReference(): string {
+  return `# Core Language Sources
+
+The \`.core/*.ai\` files bundled with this skill are the built-in Archinsight type
+model. Read them when you need to know available constructors, attributes,
+children, presentations, projections, or relationship operators.
+
+Some agent file tools may classify \`.ai\` as Adobe Illustrator binary files and
+refuse to open them. If that happens, read the bundled sources through the shell:
+
+\`\`\`shell
+cat .core/core_operator.ai
+sed -n '1,160p' .core/core_system.ai
+\`\`\`
+
+## Reading Types
+
+\`\`\`insight
+define type System of SystemElement
+    constructor system
+
+    required Text name
+    Text technology
+    List of Wire links
+    List of Container _
+\`\`\`
+
+Interpretation:
+
+- \`define type System of SystemElement\` means \`System\` inherits from
+  \`SystemElement\`.
+- \`constructor system\` means \`system <id>\` is valid syntax for that type.
+- \`required Text name\` means \`name = ...\` is required.
+- \`Text technology\` means \`technology = ...\` is optional.
+- \`List of Wire links\` enables a \`links:\` block whose children are wires.
+- \`List of Container _\` means unnamed child containers can be nested here.
+
+Users can define more types in project files. Always inspect project structure
+and project framework files before assuming only core constructors exist.
+
+## Reading Relationship Operators
+
+Core synchronous and asynchronous links are operators:
+
+\`\`\`insight
+define operator Wire of Edge
+    Text technology
+    Text description
+    required Text model
+    DeploymentProfile deployment
+
+define operator SyncWire of Wire
+    constructor -> Element
+        on Element
+        model = sync
+
+    Text call
+
+define operator AsyncWire of Wire
+    constructor ~> Element
+        on Element
+        model = async
+
+    Text via
+\`\`\`
+
+Interpretation:
+
+- \`->\` creates a synchronous \`SyncWire\`.
+- \`~>\` creates an asynchronous \`AsyncWire\`.
+- \`technology\`, \`description\`, and \`deployment\` are common wire attributes.
+- \`call\` is singular and belongs to \`->\`.
+- \`via\` belongs to \`~>\`.
+- \`model\` is set by the operator constructor; do not author it manually unless
+  the project explicitly uses that convention.
+
+## Reading Presentations
+
+\`\`\`insight
+define presentation Element
+    header = name
+    subtitle = technology
+    body = description
+
+    light
+        fill = "#438dd5"
+
+    graphviz
+        shape = box
+\`\`\`
+
+Presentations define durable visual defaults for rendered diagrams:
+
+- \`header\`, \`subtitle\`, and \`body\` map model attributes into labels.
+- \`light\` and \`dark\` define theme-specific colors.
+- \`graphviz\` carries renderer-specific layout/style hints.
+
+Do not copy presentation blocks into ordinary model files unless the user is
+creating or changing visual vocabulary. Prefer semantic attributes on elements
+and links.
+
+## Reading Projections
+
+Projection definitions describe how deployment/runtime information is projected
+into renderable graph relationships. Use them when C4/deployment diagrams are
+involved or when a query uses projected relationships.
+
+Rules of thumb:
+
+- \`projected\` relationships are derived from model/deployment declarations.
+- \`derived\` relationships are rolled up from lower-level links.
+- A query decides which projected or derived edges are shown.
+- If a projected edge is missing, inspect both the model declarations and the
+  query selectors before changing source files.
+
+## Safe Use by Agents
+
+- Read core files as reference material; do not add them to the project model.
+- Do not edit generated \`.core/*.ai\` files inside the skill.
+- When uncertain about an attribute, validate with \`archinsight link . --format text\`.
+- When uncertain about nesting, inspect \`archinsight structure . --format text\`.
+`;
+}
+
 function genericValidationReference(): string {
   return `# Validation and Inspection
 
 Run validation after every Insight edit:
 
 \`\`\`shell
+archinsight --version
 archinsight link . --format text
 \`\`\`
 
@@ -1377,13 +1744,16 @@ Inspect project structure:
 
 \`\`\`shell
 archinsight structure . --format text
+archinsight structure . --format json
 \`\`\`
 
 Render a diagram when a context id is known:
 
 \`\`\`shell
 archinsight render . -c <context-id> -v c1 -f svg -o diagram.svg
-archinsight render . -c <context-id> -v c2 -f svg -o diagram.svg
+archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
+archinsight render . -c <context-id> -s <source.ai> -v c3 -f svg -o diagram.svg
+archinsight render . -c <context-id> -s <source.ai> -v c4 -f svg -o diagram.svg
 \`\`\`
 
 Run a custom query from a file:
@@ -1401,7 +1771,9 @@ Useful built-in views:
 - \`c4\` for deployment-oriented views.
 - \`no-filter\` for the full context.
 
-When a render command depends on the active file, pass \`--source <file>\`.
+C2, C3, C4, and custom queries often depend on the active file. Pass
+\`--source <file>\` / \`-s <file>\` whenever the query uses \`$tab\`; otherwise
+the CLI may choose the first source and render a valid but wrong view.
 
 If the CLI is missing, do not silently install it. Ask the user to install or
 expose \`@archinsight/cli\`.
@@ -1428,6 +1800,19 @@ The scope variables are:
 - \`$tab\` - selected source identity from \`--source\` / \`--tab\`.
 
 Pass \`--source\` when a query uses \`$tab\`.
+
+Path handling:
+
+- \`--source\` / \`-s\` is a source name inside the project and is resolved
+  relative to \`project-dir\`.
+- \`--query\` / \`-q\` is also resolved relative to \`project-dir\` when it is a
+  relative path.
+
+Prefer paths relative to the project root:
+
+\`\`\`shell
+archinsight query path/to/project -c shop -s models/storefront.ai -q queries/c2.aiq -f text
+\`\`\`
 
 ## Query Shape
 

@@ -13,6 +13,8 @@ tasks.register('npmInstall', Exec) {
 }
 
 tasks.register('test', Exec) {
+    group = 'verification'
+    description = 'Runs renderer service tests.'
     dependsOn 'npmInstall'
     commandLine npmCommand, 'test'
 }
@@ -33,4 +35,8 @@ tasks.register('dockerDebug', Exec) {
     group = 'application'
     description = 'Runs the Archinsight renderer service with local sandbox-oriented Docker settings.'
     commandLine 'docker', 'compose', '-f', 'compose.debug.yaml', 'up', '--build'
+}
+
+tasks.named('check') {
+    dependsOn 'test'
 }

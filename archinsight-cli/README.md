@@ -24,7 +24,8 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-s, --source <file>` - selected source file for queries using `$tab`.
 - `--tab <source>` - compatibility alias for `--source`.
 - `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `no-filter`.
-- `-q, --query <file>` - custom query file; overrides `--view`.
+- `-q, --query <file>` - custom query file; overrides `--view`; relative paths
+  are resolved from `project-dir`.
 - `-f, --format <format>` - command output format.
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
@@ -60,10 +61,15 @@ The generic target writes a runtime-neutral guide:
 .archinsight/agent/
     archinsight.md
     references/
+        modeling.md
         syntax.md
         layered-architecture.md
+        project-structure.md
+        core.md
         queries.md
         validation.md
+    .core/
+        *.ai
     examples/
         layered-architecture.ai
         c2-containers.aiq
@@ -95,9 +101,10 @@ agent session so the skill is discovered. Pass `--out <dir>` to write the same
 package somewhere else.
 
 The guide tells agents to treat `archinsight` as the validation source of truth,
-avoid guessing Insight syntax from other architecture DSLs, describe systems
-layer by layer from context to containers, components, and deployment details,
-and write custom `.aiq` diagram queries with the supported Cypher-style subset.
+avoid guessing Insight syntax from other architecture DSLs, inspect project
+structure before broad edits or imports, read bundled core language sources for
+built-in types/presentations/projections, describe systems layer by layer, and
+write custom `.aiq` diagram queries with the supported Cypher-style subset.
 
 ## Output Contract
 

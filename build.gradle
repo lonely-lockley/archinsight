@@ -112,6 +112,21 @@ tasks.register('generateLanguageSources', Exec) {
     commandLine npmCommand, 'run', 'generate:grammar'
 }
 
+tasks.register('languageNpmTest', Exec) {
+    group = 'verification'
+    description = 'Runs shared language runtime and contract tests.'
+    dependsOn 'languageNpmInstall', 'generateLanguageSources'
+    inputs.dir('packages/insight-language/src')
+    inputs.dir('packages/insight-language/scripts')
+    inputs.dir('packages/insight-language/grammar')
+    inputs.file('packages/insight-language/package.json')
+    if (file('packages/insight-language/package-lock.json').exists()) {
+        inputs.file('packages/insight-language/package-lock.json')
+    }
+    workingDir = file('packages/insight-language')
+    commandLine npmCommand, 'run', 'test:runtime'
+}
+
 tasks.register('cleanGenerated') {
     group = 'build'
     description = 'Deletes generated sources, package build outputs, and distribution artifacts.'
@@ -124,19 +139,57 @@ tasks.named('clean') {
 
 tasks.register('dist') {
     group = 'build'
-    description = 'Synchronizes metadata, copies licenses, and builds distribution artifacts.'
-    dependsOn 'syncPackageVersions', 'copyLicenses'
+    description = 'Runs checks, builds distribution artifacts, and runs release checks.'
+    dependsOn 'check', 'syncPackageVersions', 'copyLicenses'
+}
+
+tasks.register('releaseCheck') {
+    group = 'verification'
+    description = 'Runs release checks for publishable artifacts.'
+    dependsOn 'check'
+}
+
+tasks.named('check') {
+    dependsOn 'languageNpmTest'
 }
 
 gradle.projectsEvaluated {
-    [
+    def distTasks = [
         ':archinsight-web:dist',
         ':archinsight-renderer:dist',
         ':archinsight-cli:dist',
         ':archinsight-vscode:dist'
-    ].each { taskPath ->
+    ]
+    distTasks.each { taskPath ->
         tasks.named('dist') {
             dependsOn taskPath
         }
+        tasks.getByPath(taskPath).mustRunAfter tasks.named('check')
+    }
+    [
+        ':archinsight-web:check',
+        ':archinsight-renderer:check',
+        ':archinsight-cli:check',
+        ':archinsight-vscode:check'
+    ].each { taskPath ->
+        tasks.named('check') {
+            dependsOn taskPath
+        }
+    }
+    def releaseCheckTasks = [
+        ':archinsight-cli:releaseCheck',
+        ':archinsight-vscode:releaseCheck'
+    ]
+    releaseCheckTasks.each { taskPath ->
+        tasks.named('releaseCheck') {
+            dependsOn taskPath
+        }
+        tasks.getByPath(taskPath).mustRunAfter distTasks
+    }
+    tasks.named('releaseCheck') {
+        mustRunAfter distTasks
+    }
+    tasks.named('dist') {
+        dependsOn 'releaseCheck'
     }
 }

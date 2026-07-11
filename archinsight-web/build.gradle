@@ -39,6 +39,22 @@ tasks.register('npmCheck', Exec) {
     commandLine npmCommand, 'run', 'check'
 }
 
+tasks.register('npmTestSecurity', Exec) {
+    group = 'verification'
+    description = 'Runs web SVG sanitizer/security tests.'
+    dependsOn 'npmInstall', rootProject.tasks.named('generateLanguageSources')
+    workingDir = projectDir
+    commandLine npmCommand, 'run', 'test:security'
+}
+
+tasks.register('npmTestServer', Exec) {
+    group = 'verification'
+    description = 'Runs web server/API tests.'
+    dependsOn 'npmInstall', rootProject.tasks.named('generateLanguageSources')
+    workingDir = projectDir
+    commandLine npmCommand, 'run', 'test:server'
+}
+
 tasks.named('assemble') {
     dependsOn 'npmBuild'
 }
@@ -50,5 +66,5 @@ tasks.register('dist') {
 }
 
 tasks.named('check') {
-    dependsOn 'npmCheck'
+    dependsOn 'npmCheck', 'npmTestSecurity', 'npmTestServer'
 }

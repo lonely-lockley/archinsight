@@ -18,7 +18,7 @@ gradle.ext.archinsightVersions = [
     language: '3.0.0',
     web     : '3.0.0',
     renderer: '3.0.0',
-    cli     : '3.0.0-snapshot.1',
+    cli     : '3.0.0-snapshot.2',
     vscode  : '3.0.2'
 ]
 
