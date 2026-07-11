@@ -1027,10 +1027,13 @@ If \`archinsight\` is not available, ask the user to install or expose
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
-4. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-5. Keep definition/framework files separate from model files that declare
+4. When the task touches infrastructure, runtime placement, regions, or
+   deployment, decide per system whether pragmatic mixed C2 or clean
+   C4/deployment is appropriate.
+5. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
+6. Keep definition/framework files separate from model files that declare
    \`context <id>\`.
-6. Validate every Insight change with \`archinsight link . --format text\`.
+7. Validate every Insight change with \`archinsight link . --format text\`.
 
 ## References
 
@@ -1131,13 +1134,16 @@ If \`archinsight\` is not available, ask the user to install or expose
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
-4. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-5. Keep definition/framework files separate from model files that declare
+4. When the task touches infrastructure, runtime placement, regions, or
+   deployment, decide per system whether pragmatic mixed C2 or clean
+   C4/deployment is appropriate.
+5. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
+6. Keep definition/framework files separate from model files that declare
    \`context <id>\`.
-6. Use \`archinsight structure . --format text\` before broad edits when the
+7. Use \`archinsight structure . --format text\` before broad edits when the
    project shape is unclear.
-7. Validate every Insight change with \`archinsight link . --format text\`.
-8. If validation fails, fix the first real syntax/type/linking error before
+8. Validate every Insight change with \`archinsight link . --format text\`.
+9. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
 
 ## References
@@ -1240,14 +1246,17 @@ install or expose \`@archinsight/cli\` before changing \`.ai\` files.
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
-4. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-5. Keep definition/framework files separate from model files that declare
+4. When the task touches infrastructure, runtime placement, regions, or
+   deployment, decide per system whether pragmatic mixed C2 or clean
+   C4/deployment is appropriate.
+5. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
+6. Keep definition/framework files separate from model files that declare
    \`context <id>\`.
-6. Use \`archinsight structure . --format text\` to inspect the current model
+7. Use \`archinsight structure . --format text\` to inspect the current model
    before broad edits when the CLI is available.
-7. Validate every Insight change with \`archinsight link . --format text\` when
+8. Validate every Insight change with \`archinsight link . --format text\` when
    shell access is available; otherwise ask the user to run validation.
-8. If validation fails, fix the first real syntax/type/linking error before
+9. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
 
 ## Communication
@@ -1415,14 +1424,30 @@ type hierarchy:
 If a nested declaration fails type checking, fix the type/ownership model rather
 than forcing a link or inventing a wrapper element.
 
-## Keep Infrastructure in the Right View
+## Choose Infrastructure Depth Per System
 
-Do not transcribe infrastructure into C2 just because another diagram drew it
-there. Databases, queues, secret stores, compute nodes, gateways, and runtime
-placement are usually deployment/C4 concerns unless the project defines them as
-part of the selected view.
+Do not force every project into C4/deployment on the first pass. Most modeling
+work can proceed through C1-C3 without asking about deployment depth. When the
+task first touches infrastructure, runtime placement, regions, compute, brokers,
+gateways, storage, or deployment, ask the user or infer from the repository
+whether the affected system needs a pragmatic mixed C2 view or a clean
+C4/deployment model.
 
-Use deployment types and projection queries when physical realization matters.
+Pragmatic mixed C2 is fast: model databases, brokers, gateways, or secret stores
+next to services when the user wants a quick single-environment diagram. The
+cost is that C2 now mixes logical containers with infrastructure, and C4 is
+effectively absent for that system.
+
+Clean C4 keeps C2 logical and moves physical realization into deployment
+profiles, environments, inventory slots, and projection rules. This is more work
+up front, but it supports many-to-many deployment: one logical service can run
+in several environments whose infrastructure differs by region, provider, or
+organizational boundary.
+
+This choice is per-system, not global. A critical system can use clean C4 while
+peripheral systems stay pragmatic in C2. Starting cheap is acceptable, but know
+that upgrading mixed C2 infrastructure into clean C4 is a migration, not just an
+extra attribute.
 
 ## Eventing
 
@@ -1430,8 +1455,10 @@ Use \`~>\` for asynchronous relationships. Model one async wire per meaningful
 topic or event flow between real producer and consumer elements.
 
 Do not invent a broker node just to make the diagram look familiar. If the
-broker is deployment infrastructure, model it in deployment/C4. If the producer
-or consumer is not known, leave a gap and report it instead of fabricating an
+chosen style is clean C4 and the broker is deployment infrastructure, model it
+in deployment/C4. If the chosen style is pragmatic mixed C2, a broker-like node
+can be acceptable, but document that the view mixes levels. If the producer or
+consumer is not known, leave a gap and report it instead of fabricating an
 element.
 
 ## No Fabricated Elements
@@ -2023,6 +2050,22 @@ the selected source file, so a C2 file should usually contain the selected
 \`system <id>\` declaration or an \`extend system <id>\` block with its
 containers/services.
 
+## C2 Purity vs Pragmatic Infrastructure
+
+The clean C2 answer is logical: deployable containers/services and how they
+collaborate. In that mode, databases, brokers, gateways, vaults, compute, and
+regions belong to C4/deployment.
+
+Archinsight does not force that choice. For a quick or single-environment model,
+it is acceptable to put simple infrastructure-like runtime nodes into C2 when
+the user wants speed over strict layer separation. Be explicit about the
+tradeoff: the C2 view becomes mixed, C4 is not really modeled for that system,
+and many-to-many deployment across different environments will not be available
+until the model is migrated to clean C4.
+
+Choose this per system. Do not make the whole repository clean or mixed just
+because one system needs that style.
+
 ## C2 Workflow
 
 1. Run \`archinsight structure . --format text\` to find the exact system id,
@@ -2158,9 +2201,11 @@ service checkout_api
             description = Publishes completed checkout events
 \`\`\`
 
-Do not add a broker node just to make an event diagram look familiar. A broker
-is usually deployment/C4 infrastructure unless the project defines it as a
-runtime system or service in the selected view.
+Do not add a broker node just to make an event diagram look familiar. In clean
+C2, a broker is usually deployment/C4 infrastructure unless the project defines
+it as a runtime system or service in the selected view. In pragmatic mixed C2,
+adding a broker can be acceptable for a quick view, but it means the diagram is
+no longer strictly logical C2.
 
 ## C2 Link Details
 
@@ -2181,8 +2226,9 @@ details at C2 only when they clarify the architecture; otherwise use a plain
 ## What Not To Put In C2
 
 - Components, classes, handlers, repositories, or UI widgets.
-- Deployment nodes, pods, regions, network gateways, or secret stores unless the
-  project models them as C2 runtime systems.
+- Deployment nodes, pods, regions, network gateways, or secret stores in clean
+  C2. Include them only when the user intentionally wants pragmatic mixed C2 or
+  the project models them as C2 runtime systems.
 - Database tables and internal schemas.
 - One-off scripts or build-time tools unless they are real runtime units.
 - Duplicate links already represented at a lower C3 level unless the C2 view is
@@ -2191,7 +2237,8 @@ details at C2 only when they clarify the architecture; otherwise use a plain
 ## Common C2 Mistakes
 
 - Adding C2 nodes directly under \`context\` instead of under a \`system\`.
-- Modeling infrastructure that belongs to C4/deployment.
+- Modeling infrastructure in C2 without deciding that the system is using the
+  pragmatic mixed-C2 style.
 - Mixing C2 container/service links with C3 component links in the same source
   file without a clear view goal.
 - Forgetting \`--source <c2-file.ai>\` when rendering C2.
@@ -2513,6 +2560,7 @@ projection rules.
 ## Contents
 
 - What C4 Answers
+- Before You Use C4
 - Mental Model
 - C4 Workflow
 - Environment Inventory
@@ -2537,6 +2585,31 @@ logical relationship expand into?"
 C4 is not just another decomposition level. C1-C3 mostly describe logical
 architecture. C4 maps logical elements and links onto environment-local
 infrastructure inventory.
+
+## Before You Use C4
+
+C4/deployment is optional. Do not push the user into environments, projection
+rules, and infrastructure inventory when they only need a quick logical/runtime
+view.
+
+If the work has reached infrastructure, runtime placement, regions, compute, or
+deployment, ask or infer the intended style for the current system:
+
+- Pragmatic mixed C2: put simple infrastructure-like runtime nodes such as a
+  database, broker, gateway, or vault near the services in C2. This is fast and
+  easier for simple or single-environment systems, but it mixes abstraction
+  levels and does not produce a real C4 model.
+- Clean C4: keep C2 logical and describe physical realization through
+  \`Environment\` slots, deployment profiles, inventory, \`runsOn\`, \`uses\`,
+  and projection rules. This takes more design work, but supports region/env
+  differences, many-to-many deployment, and organization-specific runtime
+  complexity.
+
+The choice is per-system. Model a critical system with clean C4 and keep a
+peripheral system pragmatic in C2 if that matches the user's needs. If a system
+starts as mixed C2 and later needs multi-env deployment, expect a migration:
+infrastructure nodes must move into environment inventory and links must gain
+deployment/projection semantics.
 
 ## Mental Model
 
@@ -3089,7 +3162,8 @@ logical service projects into both environments without duplicating
 - Logical components invented only to represent physical routing.
 - C3 internals unless they are independently deployed.
 - Cloud resources with no relationship to a deployment question.
-- A broker/gateway/load balancer in C2 just because it appears in deployment.
+- A broker/gateway/load balancer in C2 just because it appears in deployment,
+  unless the system intentionally uses the pragmatic mixed-C2 style.
 
 ## Common C4 Mistakes
 
