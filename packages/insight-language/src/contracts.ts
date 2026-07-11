@@ -41,6 +41,7 @@ export interface SyntaxContext {
   readonly activeAssignmentName?: string;
   readonly activePresentationName?: string;
   readonly activeExtensionConstructor?: string;
+  readonly activeDefinitionTypeName?: string;
 }
 
 export interface AttributeDefinition {
@@ -52,10 +53,14 @@ export interface AttributeDefinition {
 }
 
 export type ProjectionTermKind = "from" | "to" | "this" | "attribute" | "slot";
+export type ProjectionPlacement = "source" | "target";
 
 export interface ProjectionTermDefinition {
   readonly kind: ProjectionTermKind;
   readonly value: string;
+  readonly placement: ProjectionPlacement;
+  readonly placementText?: string;
+  readonly placementSource?: SourceLocation;
   readonly ownerAttribute?: string;
   readonly source?: SourceLocation;
 }
@@ -63,7 +68,9 @@ export interface ProjectionTermDefinition {
 export interface ProjectionRuleDefinition {
   readonly source: ProjectionTermDefinition;
   readonly operator: string;
+  readonly operatorSource?: SourceLocation;
   readonly target: ProjectionTermDefinition;
+  readonly attributes?: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface TypeDefinition {

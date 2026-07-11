@@ -13,34 +13,34 @@ define type Monitoring of InfrastructureComponent
 
     required InfrastructureComponent display
     project:
-        $this -> $from
-        $this -> display
+        target $this connectTo source $from
+        target $this connectTo target display
 
 define type Internaletwork of InfrastructureComponent
     constructor internalServiceRoute
 
     project:
-        $from -> $to
+        source $from originalLink target $to
 
 define type PublicGateway of InfrastructureComponent
     constructor publicGateway
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
     project:
-        $from -> cdn
-        cdn -> loadBalancer
-        loadBalancer -> $this
-        $this -> $to
+        source $from originalLink target cdn
+        target cdn connectTo target loadBalancer
+        target loadBalancer connectTo target $this
+        target $this connectTo target $to
 
 define type PrivateGateway of InfrastructureComponent
     constructor privateGateway
     project:
-        $from -> $to
+        source $from originalLink target $to
 
 define type Egress of InfrastructureComponent
     constructor egress
     project:
-        $from -> $to
+        source $from originalLink target $to
 
 define type ServiceProvider of InfrastructureComponent
     constructor serviceProvider

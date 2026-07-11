@@ -90,6 +90,7 @@ export type {
   ParsedInsightFile,
   PresentationDefinition,
   ProjectSource,
+  ProjectionPlacement,
   ProjectionRuleDefinition,
   ProjectionTermDefinition,
   ProjectionTermKind,

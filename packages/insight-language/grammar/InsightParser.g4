@@ -245,7 +245,16 @@ projectDeclaration
     ;
 
 projectionRule
-    : projectionTerm operatorIdentifier projectionTerm EOL
+    : projectionPlacedTerm operatorIdentifier projectionPlacedTerm EOL
+      (INDENT (assignment | commentLine | EOL)* DEDENT)?
+    ;
+
+projectionPlacedTerm
+    : projectionPlacement projectionTerm
+    ;
+
+projectionPlacement
+    : identifier
     ;
 
 projectionTerm

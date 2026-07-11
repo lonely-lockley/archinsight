@@ -27,6 +27,8 @@ const cases = [
   rejectsPresentationExtensionsWithoutDefinition,
   extendsDeclaredPresentations,
   capturesProjectionRules,
+  reportsUnsupportedProjectionOperators,
+  reportsUnsupportedProjectionPlacements,
   reportsInvalidProjectionTermOncePerDefinition,
   inheritedProjectionTermIsValid,
 ];
@@ -414,9 +416,10 @@ function capturesProjectionRules() {
       sourceName: "infra.ai",
       source: infrastructureDefinitions(`
     project:
-        collector -> $from
-        alert -> collector
-        display -> collector
+        target collector connectTo source $from
+            technology = HTTPS
+        target alert connectTo target collector
+        target display connectTo target collector
 `),
     },
   ]);
@@ -424,15 +427,50 @@ function capturesProjectionRules() {
 
   const monitoring = result.snapshot.types.find((type) => type.name === "Monitoring");
   assert.equal(monitoring?.projectionRules?.length, 3);
-  assertProjectionRule(monitoring?.projectionRules?.[0], "attribute", "collector", "->", "from", "$from");
+  assertProjectionRule(monitoring?.projectionRules?.[0], "target", "attribute", "collector", "connectTo", "source", "from", "$from");
+  assert.deepEqual(monitoring?.projectionRules?.[0]?.attributes?.technology, ["HTTPS"]);
+}
+
+function reportsUnsupportedProjectionOperators() {
+  const sourceText = infrastructureDefinitions(`
+    project:
+        source $from -> target $this
+`);
+  const result = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "infra.ai",
+      source: sourceText,
+    },
+  ]);
+
+  assert.equal(countDiagnostics(result, "UNSUPPORTED_PROJECTION_OPERATOR", "->"), 1);
+  const diagnostic = result.diagnostics.find((item) => item.code === "UNSUPPORTED_PROJECTION_OPERATOR");
+  assert(diagnostic !== undefined);
+}
+
+function reportsUnsupportedProjectionPlacements() {
+  const sourceText = infrastructureDefinitions(`
+    project:
+        local $from connectTo target $this
+`);
+  const result = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "infra.ai",
+      source: sourceText,
+    },
+  ]);
+
+  assert.equal(countDiagnostics(result, "UNSUPPORTED_PROJECTION_PLACEMENT", "local"), 1);
+  const diagnostic = result.diagnostics.find((item) => item.code === "UNSUPPORTED_PROJECTION_PLACEMENT");
+  assert(diagnostic !== undefined);
 }
 
 function reportsInvalidProjectionTermOncePerDefinition() {
   const sourceText = infrastructureDefinitions(`
     project:
-        collector -> $from
-        alert -> collector
-        displday -> collector
+        target collector connectTo source $from
+        target alert connectTo target collector
+        target displday connectTo target collector
 `);
   const result = buildLanguageSnapshotResultFromSources([
     {
@@ -462,7 +500,7 @@ define type Compute of InfrastructureComponent
     constructor compute
 
     project:
-        runsOn -> $this
+        target runsOn connectTo target $this
 `,
     },
   ]);
@@ -489,11 +527,13 @@ define type Monitoring of InfrastructureComponent
 ${projectBlock}`;
 }
 
-function assertProjectionRule(rule, sourceKind, sourceValue, operator, targetKind, targetValue) {
+function assertProjectionRule(rule, sourcePlacement, sourceKind, sourceValue, operator, targetPlacement, targetKind, targetValue) {
   assert(rule !== undefined);
+  assert.equal(rule.source.placement, sourcePlacement);
   assert.equal(rule.source.kind, sourceKind);
   assert.equal(rule.source.value, sourceValue);
   assert.equal(rule.operator, operator);
+  assert.equal(rule.target.placement, targetPlacement);
   assert.equal(rule.target.kind, targetKind);
   assert.equal(rule.target.value, targetValue);
 }

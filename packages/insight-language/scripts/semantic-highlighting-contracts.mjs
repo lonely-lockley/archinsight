@@ -72,14 +72,15 @@ define type Gateway of Element
     constructor gateway
 
     project:
-        $from -> cdn
-        cdn -> $this
-        $slot from $owner publicGateway -> $to
+        source $from originalLink target cdn
+        target cdn connectTo target $this
+        source $slot from $owner publicGateway connectTo target $to
 `.trimStart();
   const tokens = tokensByText(source);
 
   assertToken(tokens, "$from", "variable");
-  assertToken(tokens, "->", "operator");
+  assertToken(tokens, "originalLink", "operator");
+  assertToken(tokens, "connectTo", "operator");
   assertToken(tokens, "cdn", "property");
   assertToken(tokens, "$this", "variable");
   assertToken(tokens, "$slot", "variable");

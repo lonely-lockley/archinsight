@@ -26,6 +26,7 @@ const cases = [
   customConstructorsCompleteInImplicitNamedAndAnonymousObjectSlots,
   edgeListOperatorsCompleteAfterNestedObjectAttribute,
   wireAttributesCompleteAfterNestedObjectAttribute,
+  projectionRulesCompleteTextualOperatorsTermsAndAttributes,
   objectBodyDoesNotSuggestAssignedScalarAttributes,
   identifierDeclarationsHaveNoCandidates,
   archinsightExampleCompletionDoesNotLeakTextWordsAtLineEnds,
@@ -436,6 +437,85 @@ system system_a
   assert(!labels.has("usesProfile"), [...labels].join(", "));
 }
 
+function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
+  const snapshot = mergeLanguageSnapshots([
+    coreLanguageSnapshot,
+    {
+      schemaVersion: "projection-completion",
+      constructors: [],
+      operators: [],
+      enums: [],
+      types: [
+        { name: "InfrastructureComponent", baseType: "Element" },
+        {
+          name: "PublicGateway",
+          baseType: "InfrastructureComponent",
+          attributes: [
+            { name: "cdn", type: "InfrastructureComponent", required: true },
+            { name: "loadBalancer", type: "InfrastructureComponent", required: true },
+          ],
+        },
+      ],
+    },
+  ]);
+  const operatorLabels = itemLabels(completeAtMarker(`
+define type PublicGateway of InfrastructureComponent
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+    project:
+        source $from __CURSOR__ target cdn
+`, { snapshot }));
+  assert(operatorLabels.has("originalLink"), [...operatorLabels].join(", "));
+  assert(operatorLabels.has("connectTo"), [...operatorLabels].join(", "));
+  assert(operatorLabels.has("replicateFrom"), [...operatorLabels].join(", "));
+  assert(!operatorLabels.has("->"), [...operatorLabels].join(", "));
+
+  const termLabels = itemLabels(completeAtMarker(`
+define type PublicGateway of InfrastructureComponent
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+    project:
+        source $from connectTo target __CURSOR__
+`, { snapshot }));
+  assert(termLabels.has("$to"), [...termLabels].join(", "));
+  assert(termLabels.has("$this"), [...termLabels].join(", "));
+  assert(termLabels.has("cdn"), [...termLabels].join(", "));
+  assert(termLabels.has("loadBalancer"), [...termLabels].join(", "));
+
+  assertProjectionRelationAttributes(`
+define type PublicGateway of InfrastructureComponent
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+    project:
+        source $from connectTo target cdn
+            __CURSOR__
+`, { snapshot });
+  assertProjectionRelationAttributes(`
+define type PublicGateway of InfrastructureComponent
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+    project:
+        source $from originalLink target cdn
+            __CURSOR__
+`, { snapshot });
+  assertProjectionRelationAttributes(`
+define type PublicGateway of InfrastructureComponent
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+    project:
+        target cdn replicateFrom target loadBalancer
+            __CURSOR__
+`, { snapshot });
+}
+
+function assertProjectionRelationAttributes(source, options) {
+  const attributeLabels = itemLabels(completeAtMarker(source, options));
+  assert(attributeLabels.has("technology"), [...attributeLabels].join(", "));
+  assert(attributeLabels.has("description"), [...attributeLabels].join(", "));
+  assert(attributeLabels.has("call"), [...attributeLabels].join(", "));
+  assert(attributeLabels.has("via"), [...attributeLabels].join(", "));
+}
+
 function customTypeSlotReferenceOperatorsUseCurrentOwnerType() {
   const sourceWithCursor = `
 context test
@@ -739,6 +819,13 @@ function complete(source, cursorOffset, overrides = {}) {
     snapshot: coreLanguageSnapshot,
     ...overrides,
   });
+}
+
+function completeAtMarker(sourceWithCursor, overrides = {}) {
+  const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
+  assert.notEqual(cursorOffset, -1);
+  const source = sourceWithCursor.replace("__CURSOR__", "").trimStart();
+  return complete(source, cursorOffset - (sourceWithCursor.length - sourceWithCursor.trimStart().length), overrides);
 }
 
 function customTypeSlotSnapshot() {

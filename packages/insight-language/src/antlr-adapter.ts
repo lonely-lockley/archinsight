@@ -174,6 +174,27 @@ export function createSyntaxContext(
           cursor,
         ),
     ),
+    ...optionalProperty(
+      "activeDefinitionTypeName",
+      input.tree === undefined
+        ? undefined
+        : activeChildText(
+          input.tree,
+          "defineTypeDeclaration",
+          "typeIdentifier",
+          input.ruleNames,
+          cursorOffset,
+          cursor,
+        )
+        ?? activeChildText(
+          input.tree,
+          "defineOperatorDeclaration",
+          "typeIdentifier",
+          input.ruleNames,
+          cursorOffset,
+          cursor,
+        ),
+    ),
   };
 }
 

@@ -34,6 +34,7 @@ import {
   OperatorConstructorDeclarationContext,
   PresentationAssignmentContext,
   PresentationSectionContext,
+  ProjectionPlacedTermContext,
   ProjectionRuleContext,
   ProjectionTermContext,
   TextValueContext,
@@ -719,36 +720,59 @@ function defaultsProperty(defaults: Readonly<Record<string, string>>): { readonl
 }
 
 function projectionRuleDefinition(rule: ProjectionRuleContext, sourceName: string): ProjectionRuleDefinition {
-  const terms = rule.projectionTerm();
+  const terms = rule.projectionPlacedTerm();
+  const operator = rule.operatorIdentifier();
+  const attributes = projectionRuleAttributes(rule);
   return {
     source: projectionTermDefinition(terms[0]!, sourceName),
-    operator: text(firstChild(rule, "operatorIdentifier") as { getText(): string } | null),
+    operator: text(operator),
+    operatorSource: position(operator, sourceName),
     target: projectionTermDefinition(terms[1]!, sourceName),
+    ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
   };
 }
 
-function projectionTermDefinition(term: ProjectionTermContext, sourceName: string): ProjectionTermDefinition {
-  const value = text(term);
-  const source = position(term, sourceName);
-  const slot = firstChild<unknown>(term, "projectionSlotDereference");
+function projectionRuleAttributes(rule: ProjectionRuleContext): Readonly<Record<string, readonly string[]>> {
+  return Object.fromEntries(
+    rule.assignment().map((assignment) => [
+      text(assignment.attributeName()),
+      [textValue(assignment.textValue())],
+    ]),
+  );
+}
+
+function projectionTermDefinition(term: ProjectionPlacedTermContext, sourceName: string): ProjectionTermDefinition {
+  const placementNode = term.projectionPlacement();
+  const termNode = term.projectionTerm();
+  const placement = text(placementNode);
+  const value = text(termNode);
+  const source = position(termNode, sourceName);
+  const placementSource = position(placementNode, sourceName);
+  const base = {
+    placement: placement === "target" ? "target" as const : "source" as const,
+    placementText: placement,
+    placementSource,
+    source,
+  };
+  const slot = firstChild<unknown>(termNode, "projectionSlotDereference");
   if (slot !== undefined) {
     return {
+      ...base,
       kind: "slot",
       value: "$slot",
       ownerAttribute: text(firstChild(slot, "identifier") as { getText(): string } | null),
-      source,
     };
   }
   if (value === "$from") {
-    return { kind: "from", value, source };
+    return { ...base, kind: "from", value };
   }
   if (value === "$to") {
-    return { kind: "to", value, source };
+    return { ...base, kind: "to", value };
   }
   if (value === "$this") {
-    return { kind: "this", value, source };
+    return { ...base, kind: "this", value };
   }
-  return { kind: "attribute", value, source };
+  return { ...base, kind: "attribute", value };
 }
 
 function collectProjectionRules(project: unknown, sourceName: string): ProjectionRuleDefinition[] {
@@ -768,6 +792,9 @@ export function validateLanguageSnapshot(snapshot: LanguageSnapshot): readonly L
   validateRequiredConstructors(snapshot, diagnostics);
   for (const type of snapshot.types) {
     for (const rule of type.projectionRules ?? []) {
+      validateProjectionOperator(rule, diagnostics);
+      validateProjectionPlacement(rule.source, diagnostics);
+      validateProjectionPlacement(rule.target, diagnostics);
       validateProjectionTerm(snapshot, type, rule.source, diagnostics);
       validateProjectionTerm(snapshot, type, rule.target, diagnostics);
     }
@@ -919,6 +946,34 @@ function validateOperatorConstructorCollisions(
     }
   }
   return diagnostics;
+}
+
+function validateProjectionOperator(
+  rule: ProjectionRuleDefinition,
+  diagnostics: LanguageDiagnostic[],
+): void {
+  if (rule.operator !== "->" && rule.operator !== "~>") {
+    return;
+  }
+  diagnostics.push({
+    code: "UNSUPPORTED_PROJECTION_OPERATOR",
+    message: `Projection operator '${rule.operator}' is not supported in projection rules; use 'originalLink', 'connectTo', 'replicateFrom', or a textual projection operator`,
+    ...snapshotDiagnosticLocation(rule.operatorSource),
+  });
+}
+
+function validateProjectionPlacement(
+  term: ProjectionTermDefinition,
+  diagnostics: LanguageDiagnostic[],
+): void {
+  if (term.placementText === "source" || term.placementText === "target") {
+    return;
+  }
+  diagnostics.push({
+    code: "UNSUPPORTED_PROJECTION_PLACEMENT",
+    message: `Projection placement '${term.placementText ?? ""}' is not supported; use 'source' or 'target'`,
+    ...snapshotDiagnosticLocation(term.placementSource),
+  });
 }
 
 function validateProjectionTerm(

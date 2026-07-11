@@ -69,6 +69,7 @@ const cases = [
   reportsDuplicateNamedSlots,
   appliesProjectionRulesFromElementReferenceAttributes,
   appliesProjectionRulesFromEdgeReferenceAttributes,
+  appliesProjectionRuleAttributesAndOriginalLink,
   rejectsProjectionRulesThatNeedTargetWhenAttachedToElement,
   carriesEdgeAnnotationsToProjectedEdges,
   materializesAnonymousObjectValuesInEdgeReferenceAttributes,
@@ -78,6 +79,8 @@ const cases = [
   mergesAnnotationsIntoDeduplicatedOwnerIndependentProjectedEdges,
   doesNotSelfProjectSlotDomainElements,
   appliesTypeSlotReferenceProjectionRules,
+  projectsPrivateGatewayIntoTargetEnvironmentAcrossSystemContexts,
+  projectsBidirectionalAsyncBrokersAcrossSystemContextsAndEnvironments,
   buildsIndexedGraphFromLinkedProject,
   updatesProjectLinkerStateWithGraphImpact,
 ];
@@ -970,7 +973,7 @@ function doesNotWarnWhenProjectedEdgesShadowLowerLevelEdges() {
             baseType: "Element",
             attributes: [{ name: "backend", type: "Infrastructure", required: true }],
             projectionRules: [
-              { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "attribute", value: "backend" } },
+              { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "target", kind: "attribute", value: "backend" } },
             ],
           },
           { name: "Infrastructure", baseType: "Element" },
@@ -1894,6 +1897,58 @@ system worker
   assert.equal(consumerHop?.attributes.description, undefined);
 }
 
+function appliesProjectionRuleAttributesAndOriginalLink() {
+  const result = linkProject({
+    snapshot: projectionSnapshot(),
+    sources: [
+      source("architecture.ai", `
+context shared
+
+infrastructureComponent cdn
+    name = CDN
+
+infrastructureComponent load_balancer
+    name = Load Balancer
+
+publicGateway gateway
+    name = Gateway
+    cdn:
+        cdn
+    loadBalancer:
+        load_balancer
+
+system api
+    name = API
+    links:
+        -> worker
+            technology = HTTP
+            call = POST /jobs
+            description = Creates a job
+            uses:
+                gateway
+
+system worker
+    name = Worker
+`),
+    ],
+  });
+
+  assertNoErrors(result);
+  const originalHop = result.edges.find((edge) => edge.projected === true
+    && edge.source === "shared/api"
+    && edge.target === "shared/cdn");
+  const physicalHop = result.edges.find((edge) => edge.projected === true
+    && edge.source === "shared/cdn"
+    && edge.target === "shared/load_balancer");
+  assert.equal(originalHop?.operator, "->");
+  assert.deepEqual(originalHop?.attributes.technology, ["HTTP"]);
+  assert.deepEqual(originalHop?.attributes.call, ["POST /jobs"]);
+  assert.deepEqual(originalHop?.attributes.description, ["Creates a job"]);
+  assert.equal(physicalHop?.operator, "connectTo");
+  assert.deepEqual(physicalHop?.attributes.technology, ["HTTPS"]);
+  assert.deepEqual(physicalHop?.attributes.description, ["Internal hop"]);
+}
+
 function rejectsProjectionRulesThatNeedTargetWhenAttachedToElement() {
   const result = linkProject({
     snapshot: projectionSnapshot(),
@@ -2045,7 +2100,8 @@ system api
   const innerHop = result.edges.find((edge) => edge.projected === true && edge.source === "shared/cf" && edge.target === "shared/lb");
   assert.deepEqual(entryHop?.attributes.technology, ["HTTPS"]);
   assert.deepEqual(entryHop?.attributes.call, ["GET /api"]);
-  assert.equal(innerHop?.attributes.technology, undefined);
+  assert.deepEqual(innerHop?.attributes.technology, ["HTTPS"]);
+  assert.deepEqual(innerHop?.attributes.description, ["Internal hop"]);
   assert.equal(innerHop?.attributes.call, undefined);
 }
 
@@ -2188,10 +2244,10 @@ define type PublicGateway of InfrastructureComponent
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
     project:
-        $from -> cdn
-        cdn -> loadBalancer
-        loadBalancer -> $this
-        $this -> $to
+        source $from originalLink target cdn
+        target cdn connectTo target loadBalancer
+        target loadBalancer connectTo target $this
+        target $this connectTo target $to
 
 extend type Environment
     InfrastructureComponent compute
@@ -2268,6 +2324,12 @@ system api
 
 system worker
     name = Worker
+    deployment:
+        environments:
+            eu
+            us
+
+        runsOn compute
 `),
   ];
   const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
@@ -2309,6 +2371,244 @@ system worker
   assert.equal(projected.filter((edge) => edge.source.startsWith("app/_anonymous_") || edge.target.startsWith("app/_anonymous_")).length, 0);
   assert.equal(projected.filter((edge) => edge.source === "infra/eu" || edge.target === "infra/eu").length, 0);
   assert.equal(projected.filter((edge) => edge.source === "infra/us" || edge.target === "infra/us").length, 0);
+}
+
+function projectsPrivateGatewayIntoTargetEnvironmentAcrossSystemContexts() {
+  const sources = [
+    source("deployment-framework.ai", `
+define type PrivateGateway of InfrastructureComponent
+    constructor privateGateway
+
+    project:
+        source $from originalLink target $this
+        target $this connectTo target $to
+
+extend type Environment
+    Compute compute
+    PrivateGateway privateGateway
+`),
+    source("infra.ai", `
+context infra
+
+environment env_a
+    name = Environment A
+
+    compute:
+        compute compute_a
+            name = Compute A
+
+    privateGateway:
+        privateGateway gateway_a
+            name = Private Gateway A
+            runsOn compute
+
+environment env_b
+    name = Environment B
+
+    compute:
+        compute compute_b
+            name = Compute B
+
+    privateGateway:
+        privateGateway gateway_b
+            name = Private Gateway B
+            runsOn compute
+`),
+    source("a.ai", `
+context system_a
+
+import env_a from context infra
+import env_b from context infra
+import b from context system_b
+
+system a
+    name = System A
+    deployment:
+        environments:
+            env_a
+
+        runsOn compute
+    links:
+        -> b
+            technology = HTTPS
+            call = GET /private
+            deployment:
+                environments:
+                    env_a
+                    env_b
+
+                uses privateGateway
+`),
+    source("b.ai", `
+context system_b
+
+import env_b from context infra
+
+system b
+    name = System B
+    deployment:
+        environments:
+            env_b
+
+        runsOn compute
+`),
+  ];
+  const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
+  const result = linkProject({ snapshot: snapshot.snapshot, sources });
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+
+  assert.deepEqual(result.elements.find((element) => element.id === "system_a/a")?.attributes.runsOn, ["infra/compute_a"]);
+  assert.deepEqual(result.elements.find((element) => element.id === "system_b/b")?.attributes.runsOn, ["infra/compute_b"]);
+  const projected = result.edges.filter((edge) => edge.projected === true);
+  assert.equal(countEdges(projected, "system_a/a", "infra/gateway_b"), 1);
+  assert.equal(countEdges(projected, "infra/gateway_b", "system_b/b"), 1);
+  assert.equal(countEdges(projected, "system_a/a", "infra/gateway_a"), 0);
+  assert.equal(countEdges(projected, "infra/gateway_a", "system_b/b"), 0);
+  const entry = projected.find((edge) => edge.source === "system_a/a" && edge.target === "infra/gateway_b");
+  const ingress = projected.find((edge) => edge.source === "infra/gateway_b" && edge.target === "system_b/b");
+  assert.equal(entry?.sourceIdentity, "b.ai");
+  assert.equal(ingress?.sourceIdentity, "b.ai");
+  assert.equal(entry?.projectionScope, "infra/compute_b");
+  assert.equal(ingress?.projectionScope, "infra/compute_b");
+  assert.deepEqual(entry?.attributes.technology, ["HTTPS"]);
+  assert.deepEqual(entry?.attributes.call, ["GET /private"]);
+}
+
+function projectsBidirectionalAsyncBrokersAcrossSystemContextsAndEnvironments() {
+  const sources = [
+    source("deployment-framework.ai", `
+define type ReplicatedBroker of InfrastructureComponent
+    constructor replicatedBroker
+
+    project:
+        source $from originalLink source $this
+        target $to connectTo target $this
+        target $this replicateFrom source $this
+
+extend type Environment
+    Compute compute
+    ReplicatedBroker broker
+`),
+    source("infra.ai", `
+context infra
+
+environment env_c
+    name = Environment C
+
+    compute:
+        compute compute_c
+            name = Compute C
+
+    broker:
+        replicatedBroker kafka_c
+            name = Kafka C
+            runsOn compute
+
+environment env_d
+    name = Environment D
+
+    compute:
+        compute compute_d
+            name = Compute D
+
+    broker:
+        replicatedBroker kafka_d
+            name = Kafka D
+            runsOn compute
+`),
+    source("c.ai", `
+context system_c
+
+import env_c from context infra
+import env_d from context infra
+import d from context system_d
+
+system c
+    name = System C
+    deployment:
+        environments:
+            env_c
+
+        runsOn compute
+    links:
+        ~> d
+            technology = Kafka
+            via = c.events
+            deployment:
+                environments:
+                    env_c
+                    env_d
+
+                uses broker
+`),
+    source("d.ai", `
+context system_d
+
+import env_d from context infra
+import env_c from context infra
+import c from context system_c
+
+system d
+    name = System D
+    deployment:
+        environments:
+            env_d
+
+        runsOn compute
+    links:
+        ~> c
+            technology = Kafka
+            via = d.events
+            deployment:
+                environments:
+                    env_d
+                    env_c
+
+                uses broker
+`),
+  ];
+  const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
+  const result = linkProject({ snapshot: snapshot.snapshot, sources });
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+
+  const projected = result.edges.filter((edge) => edge.projected === true);
+  assert.equal(countEdgesWithOperator(projected, "system_c/c", "~>", "infra/kafka_c"), 1);
+  assert.equal(countEdgesWithOperator(projected, "system_d/d", "connectTo", "infra/kafka_d"), 1);
+  assert.equal(countEdgesWithOperator(projected, "infra/kafka_d", "replicateFrom", "infra/kafka_c"), 1);
+  assert.equal(countEdgesWithOperator(projected, "system_d/d", "~>", "infra/kafka_d"), 1);
+  assert.equal(countEdgesWithOperator(projected, "system_c/c", "connectTo", "infra/kafka_c"), 1);
+  assert.equal(countEdgesWithOperator(projected, "infra/kafka_c", "replicateFrom", "infra/kafka_d"), 1);
+  assert.equal(countEdgesWithOperator(projected, "system_c/c", "~>", "infra/kafka_d"), 0);
+  assert.equal(countEdgesWithOperator(projected, "system_d/d", "~>", "infra/kafka_c"), 0);
+
+  const cProducer = projected.find((edge) => edge.source === "system_c/c" && edge.target === "infra/kafka_c");
+  const dConsumer = projected.find((edge) => edge.source === "system_d/d" && edge.target === "infra/kafka_d" && edge.sourceIdentity === "d.ai");
+  const dReplication = projected.find((edge) => edge.source === "infra/kafka_d" && edge.target === "infra/kafka_c");
+  const dProducer = projected.find((edge) => edge.source === "system_d/d" && edge.target === "infra/kafka_d" && edge.operator === "~>");
+  const cConsumer = projected.find((edge) => edge.source === "system_c/c" && edge.target === "infra/kafka_c" && edge.sourceIdentity === "c.ai" && edge.operator === "connectTo");
+  const cReplication = projected.find((edge) => edge.source === "infra/kafka_c" && edge.target === "infra/kafka_d");
+
+  assert.equal(cProducer?.operator, "~>");
+  assert.equal(cProducer?.sourceIdentity, "c.ai");
+  assert.equal(cProducer?.projectionScope, "infra/compute_c");
+  assert.deepEqual(cProducer?.attributes.via, ["c.events"]);
+  assert.equal(dConsumer?.operator, "connectTo");
+  assert.equal(dConsumer?.projectionScope, "infra/compute_d");
+  assert.equal(dReplication?.operator, "replicateFrom");
+  assert.equal(dReplication?.sourceIdentity, "d.ai");
+  assert.equal(dReplication?.projectionScope, "infra/compute_d");
+
+  assert.equal(dProducer?.sourceIdentity, "d.ai");
+  assert.equal(dProducer?.projectionScope, "infra/compute_d");
+  assert.deepEqual(dProducer?.attributes.via, ["d.events"]);
+  assert.equal(cConsumer?.projectionScope, "infra/compute_c");
+  assert.equal(cReplication?.operator, "replicateFrom");
+  assert.equal(cReplication?.sourceIdentity, "c.ai");
+  assert.equal(cReplication?.projectionScope, "infra/compute_c");
 }
 
 function buildsIndexedGraphFromLinkedProject() {
@@ -2734,15 +3034,15 @@ function projectionSnapshot() {
           name: "Storage",
           baseType: "InfrastructureComponent",
           projectionRules: [
-            { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "this", value: "$this" } },
+            { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "target", kind: "this", value: "$this" } },
           ],
         },
         {
           name: "Broker",
           baseType: "InfrastructureComponent",
           projectionRules: [
-            { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "this", value: "$this" } },
-            { source: { kind: "to", value: "$to" }, operator: "->", target: { kind: "this", value: "$this" } },
+            { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "source", kind: "this", value: "$this" } },
+            { source: { placement: "target", kind: "to", value: "$to" }, operator: "connectTo", target: { placement: "target", kind: "this", value: "$this" } },
           ],
         },
         { name: "Infrastructure", baseType: "InfrastructureComponent" },
@@ -2754,10 +3054,15 @@ function projectionSnapshot() {
             { name: "loadBalancer", type: "InfrastructureComponent", required: true },
           ],
           projectionRules: [
-            { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "attribute", value: "cdn" } },
-            { source: { kind: "attribute", value: "cdn" }, operator: "->", target: { kind: "attribute", value: "loadBalancer" } },
-            { source: { kind: "attribute", value: "loadBalancer" }, operator: "->", target: { kind: "this", value: "$this" } },
-            { source: { kind: "this", value: "$this" }, operator: "->", target: { kind: "to", value: "$to" } },
+            { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "target", kind: "attribute", value: "cdn" } },
+            {
+              source: { placement: "target", kind: "attribute", value: "cdn" },
+              operator: "connectTo",
+              target: { placement: "target", kind: "attribute", value: "loadBalancer" },
+              attributes: { technology: ["HTTPS"], description: ["Internal hop"] },
+            },
+            { source: { placement: "target", kind: "attribute", value: "loadBalancer" }, operator: "connectTo", target: { placement: "target", kind: "this", value: "$this" } },
+            { source: { placement: "target", kind: "this", value: "$this" }, operator: "connectTo", target: { placement: "target", kind: "to", value: "$to" } },
           ],
         },
         {
@@ -2769,10 +3074,10 @@ function projectionSnapshot() {
             { name: "alert", type: "InfrastructureComponent" },
           ],
           projectionRules: [
-            { source: { kind: "attribute", value: "collector" }, operator: "->", target: { kind: "from", value: "$from" } },
-            { source: { kind: "this", value: "$this" }, operator: "->", target: { kind: "attribute", value: "collector" } },
-            { source: { kind: "attribute", value: "alert" }, operator: "->", target: { kind: "attribute", value: "collector" } },
-            { source: { kind: "attribute", value: "display" }, operator: "->", target: { kind: "attribute", value: "collector" } },
+            { source: { placement: "target", kind: "attribute", value: "collector" }, operator: "connectTo", target: { placement: "source", kind: "from", value: "$from" } },
+            { source: { placement: "target", kind: "this", value: "$this" }, operator: "connectTo", target: { placement: "target", kind: "attribute", value: "collector" } },
+            { source: { placement: "target", kind: "attribute", value: "alert" }, operator: "connectTo", target: { placement: "target", kind: "attribute", value: "collector" } },
+            { source: { placement: "target", kind: "attribute", value: "display" }, operator: "connectTo", target: { placement: "target", kind: "attribute", value: "collector" } },
           ],
         },
       ],
@@ -2809,6 +3114,7 @@ function projectionSnapshot() {
       constructors: [],
       operators: [
         { spelling: "~>", ownerType: "Wire", leftType: "Element", targetType: "Element" },
+        { spelling: "connectTo", ownerType: "Wire", leftType: "Element", targetType: "Element" },
       ],
       enums: [],
     },
@@ -2830,7 +3136,7 @@ function optionalProjectionSnapshot() {
             { name: "backend", type: "Storage" },
           ],
           projectionRules: [
-            { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "attribute", value: "backend" } },
+            { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "target", kind: "attribute", value: "backend" } },
           ],
         },
       ],
@@ -2854,6 +3160,10 @@ function countDiagnostics(result, code) {
 
 function countEdges(edges, sourceId, targetId) {
   return edges.filter((edge) => edge.source === sourceId && edge.target === targetId).length;
+}
+
+function countEdgesWithOperator(edges, sourceId, operator, targetId) {
+  return edges.filter((edge) => edge.source === sourceId && edge.operator === operator && edge.target === targetId).length;
 }
 
 function tokenAt(sourceText, oneBasedLine, oneBasedColumn) {

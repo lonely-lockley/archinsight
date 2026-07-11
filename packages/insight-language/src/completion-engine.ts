@@ -13,6 +13,10 @@ import { CONTEXT, EDGE, NOTHING, TYPE_SLOT_REFERENCE, TypeSystem } from "./type-
 
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
 const PRESENTATION_SECTIONS = ["light", "dark", "graphviz"];
+const PROJECTION_PLACEMENTS = ["source", "target"];
+const PROJECTION_ENDPOINTS = ["$from", "$to", "$this"];
+const PROJECTION_OPERATORS = ["originalLink", "connectTo", "replicateFrom"];
+const PROJECTION_WIRE_ATTRIBUTES = ["technology", "description", "call", "via"];
 const PRESENTATION_SECTION_PROPERTIES = [
   "fill",
   "stroke",
@@ -105,6 +109,10 @@ function definitionItems(
   visibleTypes: ReadonlySet<string>,
   typeSystem: TypeSystem,
 ): CompletionItem[] {
+  const projectionItems = projectionDefinitionItems(line, syntax, typeSystem);
+  if (projectionItems !== undefined) {
+    return projectionItems;
+  }
   if (expectsPresentationName(syntax)) {
     return [...visibleTypes].map((name) => type(`${name} `));
   }
@@ -161,6 +169,84 @@ function definitionItems(
     ];
   }
   return [];
+}
+
+function projectionDefinitionItems(
+  line: LineContext,
+  syntax: SyntaxContext,
+  typeSystem: TypeSystem,
+): CompletionItem[] | undefined {
+  if (!rule(syntax, "projectDeclaration") && !rule(syntax, "projectionRule")) {
+    return undefined;
+  }
+  if (isProjectionRuleBodyAttributePosition(line, syntax)) {
+    return PROJECTION_WIRE_ATTRIBUTES.map((name) => attributeItem(`${name} = `));
+  }
+  const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
+  if (words.length === 0 || expectsProjectionPlacement(syntax) || isProjectionPlacementPosition(words)) {
+    return PROJECTION_PLACEMENTS.map((placement) => keyword(`${placement} `));
+  }
+  if (expectsProjectionTerm(syntax) || isProjectionTermPosition(words)) {
+    return projectionTermItems(syntax, typeSystem);
+  }
+  if (isProjectionOperatorPosition(words)) {
+    return PROJECTION_OPERATORS.map((operator) => operatorItem(`${operator} `));
+  }
+  return undefined;
+}
+
+function isProjectionRuleBodyAttributePosition(
+  line: LineContext,
+  syntax: SyntaxContext,
+): boolean {
+  return rule(syntax, "projectionRule")
+    && line.hasOnlyIndentBeforeCursor
+    && line.indentLevel >= 3;
+}
+
+function expectsProjectionTerm(syntax: SyntaxContext): boolean {
+  return rule(syntax, "projectionTerm")
+    || syntax.expectedTokenNames.has("PROJECTION_FROM")
+    || syntax.expectedTokenNames.has("PROJECTION_TO")
+    || syntax.expectedTokenNames.has("PROJECTION_THIS")
+    || syntax.expectedTokenNames.has("PROJECTION_SLOT")
+    || (rule(syntax, "projectDeclaration") && syntax.expectedTokenNames.has("IDENTIFIER"));
+}
+
+function expectsProjectionPlacement(syntax: SyntaxContext): boolean {
+  return rule(syntax, "projectionPlacement")
+    || (rule(syntax, "projectionPlacedTerm") && syntax.expectedTokenNames.has("IDENTIFIER"));
+}
+
+function isProjectionPlacementPosition(words: readonly string[]): boolean {
+  return words.length === 0
+    || (words.length === 3 && PROJECTION_OPERATORS.includes(words[2] ?? ""));
+}
+
+function isProjectionTermPosition(words: readonly string[]): boolean {
+  return (words.length === 1 && PROJECTION_PLACEMENTS.includes(words[0] ?? ""))
+    || (words.length === 4 && PROJECTION_PLACEMENTS.includes(words[3] ?? ""));
+}
+
+function isProjectionOperatorPosition(words: readonly string[]): boolean {
+  return words.length === 2 && PROJECTION_PLACEMENTS.includes(words[0] ?? "");
+}
+
+function projectionTermItems(
+  syntax: SyntaxContext,
+  typeSystem: TypeSystem,
+): CompletionItem[] {
+  const ownerType = syntax.activeDefinitionTypeName;
+  const attributeItems = ownerType === undefined
+    ? []
+    : [...typeSystem.attributes(ownerType).values()]
+      .filter((attribute) => attribute.name !== "_")
+      .filter((attribute) => typeSystem.nestedElementType(attribute) !== undefined)
+      .map((attribute) => attributeItem(attribute.name));
+  return [
+    ...PROJECTION_ENDPOINTS.map((endpoint) => variableItem(`${endpoint} `)),
+    ...attributeItems,
+  ];
 }
 
 function expectsPresentationName(syntax: SyntaxContext): boolean {
@@ -683,6 +769,10 @@ function constructorItem(text: string): CompletionItem {
 
 function operatorItem(text: string): CompletionItem {
   return { label: text.trimEnd(), insertText: text, kind: "OPERATOR" };
+}
+
+function variableItem(text: string): CompletionItem {
+  return { label: text.trimEnd(), insertText: text, kind: "KEYWORD" };
 }
 
 function attributeItem(text: string): CompletionItem {

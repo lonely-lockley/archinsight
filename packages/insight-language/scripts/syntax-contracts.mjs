@@ -366,7 +366,7 @@ define type Compute of InfrastructureComponent
     List of InfrastructureComponent _
 
     project:
-        $from -> $this
+        source $from -> target $this
 `);
 }
 

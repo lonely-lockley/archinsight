@@ -12,7 +12,7 @@ define type Storage of InfrastructureComponent
     constructor storage
 
     project:
-        $from -> $this
+        source $from originalLink target $this
 
 define type Broker of InfrastructureComponent
     constructor broker
@@ -20,8 +20,8 @@ define type Broker of InfrastructureComponent
     Text address
 
     project:
-        $from -> $this
-        $to -> $this
+        source $from originalLink source $this
+        target $to connectTo target $this
 
 define type Compute of InfrastructureComponent
     constructor compute
@@ -33,7 +33,7 @@ define type NetworkConnection of InfrastructureComponent
     constructor networkConnection
 
     project:
-        $from -> $to
+        source $from originalLink target $to
 
 define type Environment of BoundaryElement
     constructor environment

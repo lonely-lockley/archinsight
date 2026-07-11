@@ -22,6 +22,20 @@ define operator AsyncWire of Wire
 
     Text via
 
+define operator ConnectTo of SyncWire
+    constructor connectTo Element
+        on Element
+        model = sync
+
+    implementation = "@insight/core.edge"
+
+define operator ReplicateFrom of Wire
+    constructor replicateFrom Element
+        on Element
+        model = replication
+
+    implementation = "@insight/core.edge"
+
 define operator ExternalSystem of System
     constructor external System
         on Context

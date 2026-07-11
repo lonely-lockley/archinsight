@@ -1965,7 +1965,7 @@ function projectionSnapshot() {
           name: "Storage",
           baseType: "InfrastructureComponent",
           projectionRules: [
-            { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "this", value: "$this" } },
+            { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "target", kind: "this", value: "$this" } },
           ],
         },
         {
@@ -2017,7 +2017,7 @@ function projectedRollupSnapshot() {
           name: "Storage",
           baseType: "InfrastructureComponent",
           projectionRules: [
-            { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "this", value: "$this" } },
+            { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "target", kind: "this", value: "$this" } },
           ],
         },
       ],
@@ -2060,9 +2060,9 @@ function projectedOriginRollupSnapshot() {
           name: "Gateway",
           baseType: "InfrastructureComponent",
           projectionRules: [
-            { source: { kind: "from", value: "$from" }, operator: "->", target: { kind: "attribute", value: "hop" } },
-            { source: { kind: "attribute", value: "hop" }, operator: "->", target: { kind: "this", value: "$this" } },
-            { source: { kind: "this", value: "$this" }, operator: "->", target: { kind: "to", value: "$to" } },
+            { source: { placement: "source", kind: "from", value: "$from" }, operator: "originalLink", target: { placement: "target", kind: "attribute", value: "hop" } },
+            { source: { placement: "target", kind: "attribute", value: "hop" }, operator: "connectTo", target: { placement: "target", kind: "this", value: "$this" } },
+            { source: { placement: "target", kind: "this", value: "$this" }, operator: "connectTo", target: { placement: "target", kind: "to", value: "$to" } },
           ],
         },
         { name: "InfraHop", baseType: "InfrastructureComponent" },
