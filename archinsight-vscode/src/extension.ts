@@ -22,8 +22,9 @@ import {
   type TypeDefinition,
   type VisibleIdentifier,
 } from "@insight/language";
+import { BUILTIN_VIEW_QUERIES, type BuiltinDiagramView } from "./generated/builtin-view-queries.js";
 
-type DiagramView = "c1" | "c2" | "c3" | "c4" | "no-filter";
+type DiagramView = BuiltinDiagramView;
 type AgentSkillTarget = "generic" | "codex" | "claude";
 
 interface PreviewState {
@@ -123,71 +124,7 @@ const coreSourceByName = new Map(coreSources.map((source) => [source.sourceName,
 const coreSourceUri = vscode.Uri.from({ scheme: coreSourceScheme, path: `/${coreSourceName}` });
 
 const hiddenStructureTypes = new Set(["List", "Nothing", "Text", "text"]);
-
-const noFilterQuery = `MATCH (element)
-WHERE element.context = $context
-OPTIONAL MATCH (element)-[link]->(targetElement)
-GROUP BY element.parent
-RETURN element, link, targetElement`;
-
-const c1Query = `MATCH (system:SystemElement)
-WHERE system.context = $context
-OPTIONAL MATCH (system)-[realOutboundLink]->(externalSystem:SystemElement)
-OPTIONAL MATCH (sourceSystem:SystemElement)-[realInboundLink]->(system)
-OPTIONAL MATCH (system)-[rollupOutboundLink {derived}]->(rollupSystem:SystemElement)
-OPTIONAL MATCH (rollupSourceSystem:SystemElement)-[rollupInboundLink {derived}]->(system)
-GROUP BY system.parent
-RETURN system, realOutboundLink, externalSystem, realInboundLink, sourceSystem, rollupOutboundLink, rollupSystem, rollupInboundLink, rollupSourceSystem`;
-
-const c2Query = `MATCH (container:ContainerElement)
-WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[internalLink]->(targetContainer:ContainerElement)
-OPTIONAL MATCH (container)-[rollupOutboundLink {derived}]->(rollupContainer:ContainerElement)
-OPTIONAL MATCH (container)-[outboundLink]->(externalSystem:SystemElement)
-WHERE externalSystem IS External
-OPTIONAL MATCH (sourceSystem:SystemElement)-[inboundLink]->(container)
-WHERE sourceSystem IS External
-OPTIONAL MATCH (container)-[rollupExternalOutboundLink {derived}]->(rollupExternalSystem:SystemElement)
-WHERE rollupExternalSystem IS External
-OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(container)
-WHERE rollupExternalSourceSystem IS External
-GROUP BY container.parent
-RETURN container, internalLink, targetContainer, rollupOutboundLink, rollupContainer, outboundLink, externalSystem, inboundLink, sourceSystem, rollupExternalOutboundLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem`;
-
-const c3Query = `MATCH (container:ContainerElement)-[contains:CONTAINS]->(component:ComponentElement)
-WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (component)-[link]->(targetComponent:ComponentElement)
-OPTIONAL MATCH (component)-[externalLink]->(externalSystem:SystemElement)
-WHERE externalSystem IS External
-OPTIONAL MATCH (externalSourceSystem:SystemElement)-[externalInboundLink]->(component)
-WHERE externalSourceSystem IS External
-OPTIONAL MATCH (component)-[rollupExternalLink {derived}]->(rollupExternalSystem:SystemElement)
-WHERE rollupExternalSystem IS External
-OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(component)
-WHERE rollupExternalSourceSystem IS External
-GROUP BY component.parent
-RETURN component, link, targetComponent, externalLink, externalSystem, externalInboundLink, externalSourceSystem, rollupExternalLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem`;
-
-const c4Query = `MATCH (node:Element)
-WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement OR node IS ContainerElement)
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
-WHERE projectedTarget IS DeploymentElement
-   OR projectedTarget IS ContainerElement
-   OR projectedTarget IS External
-OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
-WHERE node IS DeploymentElement
-  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-GROUP BY node.runsOn
-RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget`;
-
-const viewQueries: Record<DiagramView, string> = {
-  "no-filter": noFilterQuery,
-  c1: c1Query,
-  c2: c2Query,
-  c3: c3Query,
-  c4: c4Query,
-};
+const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("archinsight");
@@ -975,7 +912,7 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
 class ArchinsightWorkbenchEditorSession {
   private state: PreviewState | undefined;
   private view: DiagramView = "c1";
-  private query = c1Query;
+  private query = viewQueries.c1;
   private disposed = false;
   private applyingEdit = false;
   private renderGeneration = 0;

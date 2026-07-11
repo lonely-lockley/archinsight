@@ -21,6 +21,7 @@ import {
   type RenderGraph,
   type TypeDefinition,
 } from "@insight/language";
+import { BUILTIN_VIEW_QUERIES, type BuiltinDiagramView } from "./generated/builtin-view-queries.js";
 import { version } from "./version.js";
 
 type Command = "link" | "render" | "query" | "structure" | "skill";
@@ -28,7 +29,7 @@ type SkillAction = "init";
 type SkillTarget = "generic" | "codex" | "claude";
 type OutputFormat = "text" | "json";
 type RenderFormat = "dot" | "svg" | "json";
-type DiagramView = "c1" | "c2" | "c3" | "c4" | "no-filter";
+type DiagramView = BuiltinDiagramView;
 
 interface ParsedArgs {
   readonly command?: Command;
@@ -69,71 +70,7 @@ interface SkillPackage {
 }
 
 const hiddenStructureTypes = new Set(["List", "Nothing", "Text", "text"]);
-
-const noFilterQuery = `MATCH (element)
-WHERE element.context = $context
-OPTIONAL MATCH (element)-[link]->(targetElement)
-GROUP BY element.parent
-RETURN element, link, targetElement`;
-
-const c1Query = `MATCH (system:SystemElement)
-WHERE system.context = $context
-OPTIONAL MATCH (system)-[realOutboundLink]->(externalSystem:SystemElement)
-OPTIONAL MATCH (sourceSystem:SystemElement)-[realInboundLink]->(system)
-OPTIONAL MATCH (system)-[rollupOutboundLink {derived}]->(rollupSystem:SystemElement)
-OPTIONAL MATCH (rollupSourceSystem:SystemElement)-[rollupInboundLink {derived}]->(system)
-GROUP BY system.parent
-RETURN system, realOutboundLink, externalSystem, realInboundLink, sourceSystem, rollupOutboundLink, rollupSystem, rollupInboundLink, rollupSourceSystem`;
-
-const c2Query = `MATCH (container:ContainerElement)
-WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[internalLink]->(targetContainer:ContainerElement)
-OPTIONAL MATCH (container)-[rollupOutboundLink {derived}]->(rollupContainer:ContainerElement)
-OPTIONAL MATCH (container)-[outboundLink]->(externalSystem:SystemElement)
-WHERE externalSystem IS External
-OPTIONAL MATCH (sourceSystem:SystemElement)-[inboundLink]->(container)
-WHERE sourceSystem IS External
-OPTIONAL MATCH (container)-[rollupExternalOutboundLink {derived}]->(rollupExternalSystem:SystemElement)
-WHERE rollupExternalSystem IS External
-OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(container)
-WHERE rollupExternalSourceSystem IS External
-GROUP BY container.parent
-RETURN container, internalLink, targetContainer, rollupOutboundLink, rollupContainer, outboundLink, externalSystem, inboundLink, sourceSystem, rollupExternalOutboundLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem`;
-
-const c3Query = `MATCH (container:ContainerElement)-[contains:CONTAINS]->(component:ComponentElement)
-WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (component)-[link]->(targetComponent:ComponentElement)
-OPTIONAL MATCH (component)-[externalLink]->(externalSystem:SystemElement)
-WHERE externalSystem IS External
-OPTIONAL MATCH (externalSourceSystem:SystemElement)-[externalInboundLink]->(component)
-WHERE externalSourceSystem IS External
-OPTIONAL MATCH (component)-[rollupExternalLink {derived}]->(rollupExternalSystem:SystemElement)
-WHERE rollupExternalSystem IS External
-OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(component)
-WHERE rollupExternalSourceSystem IS External
-GROUP BY component.parent
-RETURN component, link, targetComponent, externalLink, externalSystem, externalInboundLink, externalSourceSystem, rollupExternalLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem`;
-
-const c4Query = `MATCH (node:Element)
-WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement OR node IS ContainerElement)
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
-WHERE projectedTarget IS DeploymentElement
-   OR projectedTarget IS ContainerElement
-   OR projectedTarget IS External
-OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
-WHERE node IS DeploymentElement
-  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-GROUP BY node.runsOn
-RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget`;
-
-const viewQueries: Record<DiagramView, string> = {
-  "no-filter": noFilterQuery,
-  c1: c1Query,
-  c2: c2Query,
-  c3: c3Query,
-  c4: c4Query,
-};
+const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -940,23 +877,23 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     },
     {
       path: "examples/builtin-views/no-filter.aiq",
-      content: noFilterQuery,
+      content: viewQueries["no-filter"],
     },
     {
       path: "examples/builtin-views/c1.aiq",
-      content: c1Query,
+      content: viewQueries.c1,
     },
     {
       path: "examples/builtin-views/c2.aiq",
-      content: c2Query,
+      content: viewQueries.c2,
     },
     {
       path: "examples/builtin-views/c3.aiq",
-      content: c3Query,
+      content: viewQueries.c3,
     },
     {
       path: "examples/builtin-views/c4.aiq",
-      content: c4Query,
+      content: viewQueries.c4,
     },
     ...coreSkillFiles(),
   ];
@@ -4290,6 +4227,10 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.
 - \`{derived}\` means only rolled-up relationships are selected.
 - \`sourceIdentity: $tab\` on an edge means the relationship/projection must come
   from the selected source.
+- The built-in C4 view also returns target-side incoming projection aliases:
+  \`incomingProjectedLink\`, \`incomingProjectedSource\`,
+  \`incomingProjectedOriginLink\`, and \`incomingProjectedOrigin\`. Keep them when
+  the target system owns an ingress gateway.
 
 ## Include External Actors In C4
 
@@ -4309,8 +4250,18 @@ WHERE projectedTarget IS DeploymentElement
 OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
 WHERE node IS DeploymentElement
   AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
+OPTIONAL MATCH (incomingProjectedSource:Element)-[incomingProjectedLink {projected}]->(node)
+WHERE (incomingProjectedSource IS DeploymentElement
+   OR incomingProjectedSource IS ContainerElement
+   OR incomingProjectedSource IS External)
+  AND incomingProjectedSource.id <> node.id
+OPTIONAL MATCH ROLLUP (incomingProjectedOrigin:Element)-[incomingProjectedOriginLink {projected}]->(incomingProjectedSource)
+WHERE (incomingProjectedOrigin IS DeploymentElement
+   OR incomingProjectedOrigin IS ContainerElement
+   OR incomingProjectedOrigin IS External)
+  AND incomingProjectedOrigin.id <> incomingProjectedSource.id
 GROUP BY node.runsOn
-RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
+RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource, incomingProjectedOriginLink, incomingProjectedOrigin
 \`\`\`
 
 If the actor is declared in another source file, either render from that source
@@ -4392,7 +4343,9 @@ RETURN node, projectedLink, projectedTarget
 \`\`\`
 
 Use \`GROUP BY node.runsOn\` for deployment placement; use \`GROUP BY node.parent\`
-for logical ownership.
+for logical ownership. If you still need target-owned ingress paths, start from
+\`examples/builtin-views/c4.aiq\` and change only the \`GROUP BY\` expression so
+the incoming projection aliases stay in the \`RETURN\`.
 
 ## Working Rule
 

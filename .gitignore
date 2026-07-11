@@ -18,6 +18,9 @@ dist/
 
 # Generated sources
 archinsight-cli/src/version.ts
+archinsight-cli/src/generated/
+archinsight-vscode/src/generated/
+archinsight-web/src/lib/generated/
 packages/insight-language/src/generated/
 
 # IDEs

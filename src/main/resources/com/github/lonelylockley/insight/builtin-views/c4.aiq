@@ -1,0 +1,24 @@
+MATCH (node:Element)
+WHERE node.sourceIdentity = $tab
+  AND (node IS DeploymentElement OR node IS ContainerElement)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
+WHERE projectedTarget IS DeploymentElement
+   OR projectedTarget IS ContainerElement
+   OR projectedTarget IS External
+OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
+WHERE node IS DeploymentElement
+  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
+OPTIONAL MATCH (node)-[logicalPeerLink]->(logicalPeerTarget:ContainerElement)
+WHERE logicalPeerTarget.sourceIdentity <> $tab
+OPTIONAL MATCH (incomingProjectedSource:Element)-[incomingProjectedLink {projected, sourceIdentity: $tab}]->(node)
+WHERE (incomingProjectedSource IS DeploymentElement
+   OR incomingProjectedSource IS ContainerElement
+   OR incomingProjectedSource IS External)
+  AND incomingProjectedSource.id <> node.id
+OPTIONAL MATCH ROLLUP (incomingProjectedOrigin:Element)-[incomingProjectedOriginLink {projected, sourceIdentity: $tab}]->(incomingProjectedSource)
+WHERE (incomingProjectedOrigin IS DeploymentElement
+   OR incomingProjectedOrigin IS ContainerElement
+   OR incomingProjectedOrigin IS External)
+  AND incomingProjectedOrigin.id <> incomingProjectedSource.id
+GROUP BY node.runsOn
+RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, logicalPeerLink, logicalPeerTarget, incomingProjectedLink, incomingProjectedSource, incomingProjectedOriginLink, incomingProjectedOrigin

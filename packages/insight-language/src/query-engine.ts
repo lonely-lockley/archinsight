@@ -725,8 +725,24 @@ function relationshipInTab(relationship: QueryRelationship, context: EvaluationC
   if (edge === undefined) {
     return false;
   }
+  if (relationship.projected && edge.sourceIdentity !== undefined) {
+    if (edge.sourceIdentity === context.scope.tab || sourceRootsInTabClosure(context.result, edge.sourceIdentity, context.tabClosure)) {
+      return true;
+    }
+    return context.tabClosure.has(edge.originSource ?? edge.source)
+      && endpointIsExternal(context.result, edge.originTarget ?? edge.target);
+  }
   return context.tabClosure.has(edge.originSource ?? edge.source)
     || context.tabClosure.has(edge.originTarget ?? edge.target);
+}
+
+function sourceRootsInTabClosure(result: LinkProjectResult, sourceName: string, tabClosure: ReadonlySet<string>): boolean {
+  return (result.tabRoots[sourceName] ?? []).some((root) => tabClosure.has(root));
+}
+
+function endpointIsExternal(result: LinkProjectResult, id: string): boolean {
+  const node = queryNodeById(result, id);
+  return node !== undefined && matchesTypePredicate(node, "External");
 }
 
 function evaluateTabSourceIdentityComparison(row: Row, expression: Extract<Expression, { readonly kind: "compare" }>, context: EvaluationContext): boolean | undefined {

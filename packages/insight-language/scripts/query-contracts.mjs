@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
@@ -8,6 +9,11 @@ import {
   selectGraphs,
 } from "../build/runtime/index.js";
 
+const builtinC4Query = readFileSync(
+  new URL("../../../src/main/resources/com/github/lonelylockley/insight/builtin-views/c4.aiq", import.meta.url),
+  "utf8",
+);
+
 const cases = [
   selectsElementsWithCypherLabelsAndProperties,
   labelsAreCaseSensitive,
@@ -16,6 +22,7 @@ const cases = [
   projectedRelationshipsRequireProjectedSelector,
   c4StyleQueryReturnsRealAndProjectedEdges,
   c4QueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements,
+  c4QueryReturnsTargetOwnedIncomingGatewayPath,
   rollsChildReferencesUpToOwningElementForQuery,
   rollsProjectedReferencesUpToOwningElementForQuery,
   rollsNestedReferencesUpToOwningSystems,
@@ -330,6 +337,140 @@ system app
   assert(graph.elements["shared/backend"]);
   assert(graph.edges.some((edge) => edge.source === "shared/gateway" && edge.target === "shared/compute" && edge.edge.projected !== true));
   assert(!graph.edges.some((edge) => edge.source === "shared/frontend" && edge.target === "shared/backend"));
+}
+
+function c4QueryReturnsTargetOwnedIncomingGatewayPath() {
+  const sources = [
+    source("framework.ai", `
+extend type Environment
+    Compute compute
+    NetworkConnection network
+    PrivateGateway privateGateway
+
+define type PrivateGateway of InfrastructureComponent
+    constructor privateGateway
+
+    project:
+        source $from originalLink target $this
+        target $this connectTo target $to
+`),
+    source("infra.ai", `
+context infra
+
+environment sourceEnv
+    name = Source Env
+
+    compute:
+        compute sourceCompute
+            name = Source Compute
+
+    network:
+        networkConnection sourceNetwork
+            name = Source Network
+
+environment targetEnv
+    name = Target Env
+
+    compute:
+        compute targetCompute
+            name = Target Compute
+
+    privateGateway:
+        privateGateway targetGateway
+            name = Target Private Gateway
+            runsOn compute
+
+deploymentProfile sourceProfile
+    environments:
+        sourceEnv
+
+    runsOn compute
+
+deploymentProfile targetProfile
+    environments:
+        targetEnv
+
+    runsOn compute
+`),
+    source("source-system.ai", `
+context services
+
+import target from context services
+import payment from context external
+import sourceProfile from context infra
+import targetProfile from context infra
+
+system sourceSystem
+    name = Source System
+
+    service caller
+        name = Caller
+        deployment:
+            usesProfile sourceProfile
+        links:
+            -> target from services
+                technology = HTTPS
+                deployment:
+                    environmentsFrom sourceProfile
+                    environmentsFrom targetProfile
+                    uses privateGateway
+            -> payment from external
+                technology = HTTPS
+                deployment:
+                    environmentsFrom sourceProfile
+                    uses network
+`),
+    source("target-system.ai", `
+context services
+
+import targetProfile from context infra
+
+system targetSystem
+    name = Target System
+
+    service target
+        name = Target
+        deployment:
+            usesProfile targetProfile
+`),
+    source("external.ai", `
+context external
+
+external system payment
+    name = Payment Provider
+`),
+  ];
+  const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources,
+  });
+
+  const graph = selectGraph(
+    result,
+    { context: "services", tab: "target-system.ai" },
+    builtinC4Query,
+  );
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert(graph.elements["services/target"]);
+  assert(graph.elements["services/caller"], "Expected C4 target tab to include incoming caller");
+  assert(graph.elements["infra/targetGateway"], "Expected C4 target tab to include target private gateway");
+  assert(graph.edges.some((edge) => edge.source === "services/caller" && edge.target === "infra/targetGateway"));
+  assert(graph.edges.some((edge) => edge.source === "infra/targetGateway" && edge.target === "services/target"));
+  assert(!graph.edges.some((edge) => edge.source === "services/caller" && edge.target === "services/target"));
+
+  const sourceGraph = selectGraph(
+    result,
+    { context: "services", tab: "source-system.ai" },
+    builtinC4Query,
+  );
+
+  assert(sourceGraph.elements["external/payment"], "Expected source C4 tab to keep outgoing external projections");
+  assert(sourceGraph.elements["services/target"], "Expected source C4 tab to keep cross-system logical peer target");
+  assert(sourceGraph.edges.some((edge) => edge.source === "services/caller" && edge.target === "services/target"));
+  assert(!sourceGraph.elements["infra/targetGateway"], "Expected source C4 tab not to include target-owned private gateway");
 }
 
 function rollsChildReferencesUpToOwningElementForQuery() {
