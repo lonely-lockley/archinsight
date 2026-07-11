@@ -67,6 +67,7 @@ The generic target writes a runtime-neutral guide:
         c2-containers.md
         c3-components.md
         c4-deployment.md
+        scaling.md
         project-structure.md
         core.md
         queries.md

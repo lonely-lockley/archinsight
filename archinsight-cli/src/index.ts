@@ -887,6 +887,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericC4DeploymentReference(),
     },
     {
+      path: "references/scaling.md",
+      content: genericScalingReference(),
+    },
+    {
       path: "references/project-structure.md",
       content: genericProjectStructureReference(),
     },
@@ -1000,7 +1004,9 @@ If \`archinsight\` is not available, ask the user to install or expose
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
 4. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-5. Validate every Insight change with \`archinsight link . --format text\`.
+5. Keep definition/framework files separate from model files that declare
+   \`context <id>\`.
+6. Validate every Insight change with \`archinsight link . --format text\`.
 
 ## References
 
@@ -1018,6 +1024,8 @@ If \`archinsight\` is not available, ask the user to install or expose
 - Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
   models, infrastructure inventories, environment-scoped infrastructure, or
   projection rules.
+- Read \`references/scaling.md\` when splitting a repository into reusable
+  framework, environment, profile, system, or deployment-view files.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
@@ -1061,6 +1069,8 @@ Treat this \`SKILL.md\` as the entrypoint. Load reference files only when needed
 - Read \`references/c4-deployment.md\` before adding or repairing deployment/C4
   models, infrastructure inventories, environment-scoped infrastructure, or
   projection rules.
+- Read \`references/scaling.md\` before splitting a repository into reusable
+  framework, environment, profile, system, or deployment-view files.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` before assuming available
@@ -1094,10 +1104,12 @@ If \`archinsight\` is not available, ask the user to install or expose
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
 4. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-5. Use \`archinsight structure . --format text\` before broad edits when the
+5. Keep definition/framework files separate from model files that declare
+   \`context <id>\`.
+6. Use \`archinsight structure . --format text\` before broad edits when the
    project shape is unclear.
-6. Validate every Insight change with \`archinsight link . --format text\`.
-7. If validation fails, fix the first real syntax/type/linking error before
+7. Validate every Insight change with \`archinsight link . --format text\`.
+8. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
 
 ## References
@@ -1116,6 +1128,8 @@ If \`archinsight\` is not available, ask the user to install or expose
 - Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
   models, infrastructure inventories, environment-scoped infrastructure, or
   projection rules.
+- Read \`references/scaling.md\` when splitting a repository into reusable
+  framework, environment, profile, system, or deployment-view files.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
@@ -1160,6 +1174,8 @@ they are needed:
 - Read \`references/c4-deployment.md\` before adding or repairing deployment/C4
   models, infrastructure inventories, environment-scoped infrastructure, or
   projection rules.
+- Read \`references/scaling.md\` before splitting a repository into reusable
+  framework, environment, profile, system, or deployment-view files.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` before assuming available
@@ -1193,11 +1209,13 @@ install or expose \`@archinsight/cli\` before changing \`.ai\` files.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
 4. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-5. Use \`archinsight structure . --format text\` to inspect the current model
+5. Keep definition/framework files separate from model files that declare
+   \`context <id>\`.
+6. Use \`archinsight structure . --format text\` to inspect the current model
    before broad edits when the CLI is available.
-6. Validate every Insight change with \`archinsight link . --format text\` when
+7. Validate every Insight change with \`archinsight link . --format text\` when
    shell access is available; otherwise ask the user to run validation.
-7. If validation fails, fix the first real syntax/type/linking error before
+8. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
 
 ## Communication
@@ -1235,6 +1253,8 @@ sections of Insight unless the existing layering is already understood.
 - Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
   models, infrastructure inventories, environment-scoped infrastructure, or
   projection rules.
+- Read \`references/scaling.md\` when splitting a repository into reusable
+  framework, environment, profile, system, or deployment-view files.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
@@ -1263,6 +1283,40 @@ function genericModelingReference(): string {
 
 Insight syntax is small; most mistakes are modeling mistakes. Decide the view
 question before changing files.
+
+## Separate Definitions From Model Sources
+
+Keep language/framework definitions separate from graph model files.
+
+- Definition/framework files contain \`define type\`, \`define operator\`,
+  \`define presentation\`, \`extend type\`, \`extend enum of\`, and
+  \`extend presentation\`.
+- Model files declare \`context <id>\` and create graph objects with
+  constructors such as \`system\`, \`service\`, \`component\`, \`environment\`,
+  or \`deploymentProfile\`.
+
+Do not mix definition declarations and \`context\` declarations in one source
+file. Put shared vocabulary in a framework file, then put concrete contexts,
+systems, environments, profiles, and links in model files. This keeps schema
+changes reviewable and avoids source-level syntax failures.
+
+## Model Source Granularity
+
+Default to one primary owned system per model source file: the system you are
+about to detail with containers, services, components, and deployment
+relationships. This keeps the selected source file useful as a C2/C3/C4 view
+scope and avoids accidental mega-files.
+
+Do not create one file per external actor or external system. Shared external
+dependencies are usually better modeled once in a reusable external context, or
+in a few external contexts grouped by meaning such as \`external_platforms\`,
+\`partners\`, or \`regulators\`. Import those shared declarations from system
+files that need them.
+
+If a user asks for deeper splitting, use \`extend <object>\` files for the
+detail being extracted. For example, keep the main service file readable and put
+large per-service component sets in a small utility subdirectory for that
+context.
 
 ## Projections Are Bottom-Up
 
@@ -1427,6 +1481,11 @@ Definition files are different from model files. They declare vocabulary:
 \`define type\`, \`define operator\`, \`define presentation\`, \`extend type\`,
 \`extend enum of\`, and \`extend presentation\`. Model files usually start with
 \`context <id>\` and then create graph object instances with constructors.
+
+Do not mix these source forms in one file. A framework/definitions file should
+contain only vocabulary/schema declarations. A model file should declare a
+\`context <id>\` and graph object instances. If both are needed, create two
+files and validate the whole project.
 
 ## Type Definitions and Extensions
 
@@ -3023,12 +3082,310 @@ a compact valid C4 model when syntax is unclear.
 `;
 }
 
+function genericScalingReference(): string {
+  return `# Scaling an Archinsight Repository
+
+Use this reference when a project grows beyond one or two files and you need to
+reuse definitions, environments, deployment profiles, or systems without
+duplicating them.
+
+## Repository Shape
+
+Prefer one shared framework per repository:
+
+- one definitions/framework area for \`extend type Environment\`, custom
+  infrastructure types, presentation tweaks, projection-capable infrastructure,
+  and reusable deployment profiles;
+- source files grouped by context directories when the repository is large;
+- model files that usually focus on one primary owned system being detailed;
+- one or more inventory files for concrete \`environment <id>\` instances and
+  their env-local infrastructure;
+- shared external contexts for external actors and systems reused by many
+  systems;
+- focused deployment-view files that attach deployment profiles and per-view
+  traffic paths.
+
+Do not copy the same \`extend type Environment\`, infra type definitions, or
+\`deploymentProfile\` blocks into every system file. Define the vocabulary and
+reusable archetypes once, import or reference them where needed, and validate the
+whole project.
+
+## Framework Once, Use Everywhere
+
+A typical deployment framework file contains only shared vocabulary: type
+definitions, type extensions, projection rules, and presentation overrides. Do
+not mix \`define type\` / \`extend type\` declarations and \`context\`
+declarations in the same source file.
+
+\`\`\`insight
+define type PublicGateway of InfrastructureComponent
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+
+    project:
+        $from -> cdn
+        cdn -> loadBalancer
+        loadBalancer -> $this
+        $this -> $to
+
+extend type Environment
+    Compute compute
+    Storage storage
+    Broker broker
+    PublicGateway publicGateway
+    NetworkConnection network
+\`\`\`
+
+Concrete inventory/profile files then declare contexts, environments, and
+profiles:
+
+\`\`\`insight
+context infra
+    name = Shared Infrastructure
+
+environment prod_eu
+    name = Production EU
+    compute:
+        compute ecs
+            name = ECS
+            technology = AWS ECS
+    broker:
+        broker kafka
+            name = Kafka
+            technology = MSK
+            address = kafka.prod.eu.internal
+
+deploymentProfile regional_service
+    environments:
+        prod_eu
+
+    runsOn compute
+\`\`\`
+
+System files should reuse these definitions instead of recreating \`compute\`,
+\`broker\`, or profile declarations locally.
+
+## System Files and External Contexts
+
+The default model file is centered on one owned system:
+
+\`\`\`text
+commerce/
+    checkout.ai
+    catalog.ai
+    fulfillment.ai
+external/
+    platforms.ai
+    regulators.ai
+\`\`\`
+
+\`commerce/checkout.ai\` would declare \`context commerce\`, the
+\`system checkout\` focal object, and the containers/services/components needed
+to explain checkout. \`commerce/catalog.ai\` would do the same for catalog.
+
+Shared external actors and systems should not be copied into every system file.
+Put them in one external context, or a few semantically grouped external
+contexts:
+
+\`\`\`insight
+context external_platforms
+
+external system stripe
+    name = Stripe
+
+external system sendgrid
+    name = SendGrid
+\`\`\`
+
+Then import them where needed:
+
+\`\`\`insight
+context commerce
+
+import stripe from context external_platforms
+
+system checkout
+    links:
+        -> stripe from external_platforms
+\`\`\`
+
+Avoid making a separate file for every external actor or vendor unless the
+external dependency itself has substantial reusable structure. A small number of
+well-named external contexts gives all repository systems one shared vocabulary
+for outside dependencies.
+
+When a system file becomes too large, split details by extending the focal
+object in utility subdirectories:
+
+\`\`\`text
+commerce/
+    checkout.ai
+    checkout-components/
+        pricing.ai
+        payment.ai
+        inventory.ai
+\`\`\`
+
+Those files should repeat the same \`context commerce\`, explicitly import the
+object being extended when it lives in another source file, and use
+\`extend service checkout_api\`, \`extend container web_app\`, or another object
+extension to add focused details.
+
+## Same-Context Cross-File Imports
+
+Insight resolves unqualified ids in this order: declarations in the same source
+file, explicit imports in the same source file, then it reports an error if the
+same id exists only in another source file of the same context.
+
+That means splitting one context across files still requires imports:
+
+\`\`\`insight
+context services
+
+deploymentProfile eu_service
+\`\`\`
+
+\`\`\`insight
+context services
+
+import eu_service from context services
+
+system checkout
+    name = Checkout
+    deployment:
+        usesProfile eu_service
+\`\`\`
+
+This is intentional. If a file is extracted, removed, or not included in the
+project, the linker should fail with an explicit identifier/import diagnostic
+instead of silently binding to whatever remains in the context.
+
+## Inline from Context
+
+When a relationship target is declared outside the current source file, prefer
+an explicit context qualifier on the link target:
+
+\`\`\`insight
+context commerce
+
+import payments from context external_systems
+
+system checkout
+    name = Checkout
+    links:
+        -> payments from external_systems
+            technology = HTTPS
+            call = POST /payments
+\`\`\`
+
+The \`import <id> from context <context-id>\` line documents the dependency and
+makes the id available for attributes such as profiles and environment slots.
+The inline \`from <context-id>\` on a link target states which context owns the
+linked element. Use the same pattern for same-context cross-file links when the
+source has been split and ambiguity matters:
+
+\`\`\`insight
+context services
+
+import inventory_api from context services
+
+system checkout_api
+    links:
+        -> inventory_api from services
+            technology = HTTPS
+            call = GET /inventory
+\`\`\`
+
+This explicitness is useful during refactors: if the source file holding
+\`inventory_api\` disappears, validation points at the missing declaration
+instead of creating a hidden dependency on file layout.
+
+## C4 Multi-File Pattern
+
+For C4, keep these responsibilities separate:
+
+- framework file: type extensions, infra constructors, presentation/projection
+  definitions;
+- inventory/profile file: concrete environments and reusable deployment
+  profiles;
+- deployment-view file: the relationships whose deployment path you want to
+  render for one selected view.
+
+When rendering C4 with \`-s <source.ai>\`, remember that source/tab scoping is
+part of the view. Put the view-driving logical relationships in the selected
+source file, or render from the source file that owns those relationships. Keep
+imported framework and inventory reusable, but validate the rendered C4 output
+after moving traffic relationships across files:
+
+\`\`\`shell
+archinsight link . --format text
+archinsight render . -c deployment_shop -s c4-deployment.ai -v c4 -f svg -o deployment-c4.svg
+\`\`\`
+
+If projected infrastructure edges disappear after a split, first check whether
+the selected \`-s\` file still contains the source logical relationship or an
+intended imported deployment-view relationship. Do not fix that by duplicating
+infrastructure nodes; fix the source selection or the file boundary.
+
+## Practical Workflow
+
+1. Run \`archinsight structure . --format text\`.
+2. Identify contexts, source files, and declaration ids before editing.
+3. Move shared vocabulary into one framework file.
+4. Group model files by context directory when the repository is large.
+5. Keep each ordinary system file focused on one owned system being detailed.
+6. Put external actors/systems in shared external contexts, not one file per
+   external element.
+7. Move reusable environments and deployment profiles into inventory/profile
+   files.
+8. Add explicit imports for every cross-file dependency, including same-context
+   dependencies.
+9. Add inline \`from <context-id>\` on relationship targets that live outside
+   the current source file.
+10. Validate with \`archinsight link . --format text\`.
+11. Render important C1/C2/C3/C4 views with explicit \`-c\`, \`-s\`, and \`-v\`
+   options.
+`;
+}
+
 function genericProjectStructureReference(): string {
   return `# Project Structure Workflow
 
 Use \`archinsight structure\` before broad edits, imports, or declaration lookup.
 Do not start with raw grep when you need to know what the linked project
 contains.
+
+## Source File Classes
+
+Keep source files in one role:
+
+- definition/framework files: \`define type\`, \`define operator\`,
+  \`define presentation\`, \`extend type\`, \`extend enum of\`, and
+  \`extend presentation\`;
+- model files: \`context <id>\`, imports, graph object declarations,
+  relationships, environments, and deployment profiles.
+
+Do not mix definition/framework declarations with \`context <id>\` in one file.
+When a model needs custom vocabulary, add or edit a framework file first, then
+use the resulting constructors and attributes from model files.
+
+## Directory and File Granularity
+
+For larger repositories, group model files by context directory. Inside a
+context directory, default to one primary owned system per ordinary model file:
+the system that will be detailed by containers, services, components, links, and
+deployment information.
+
+External actors and systems are different. Put reusable outside dependencies in
+one external context or a few semantically grouped external contexts. Do not
+create a separate file for every external actor or vendor unless that external
+dependency has real internal structure to model.
+
+If a system needs further splitting, create a utility subdirectory for focused
+\`extend <object>\` files, such as per-service component files. Import the
+extended object explicitly when it is declared in another source file. Keep the
+main system file as the readable entry point.
 
 ## Commands
 
@@ -3076,6 +3433,33 @@ import payments from context external_systems
 links:
     -> payments from external_systems
 \`\`\`
+
+Imports are also required when a declaration lives in another source file of the
+same context:
+
+\`\`\`insight
+context services
+
+import eu_service from context services
+
+system checkout_api
+    deployment:
+        usesProfile eu_service
+\`\`\`
+
+The explicit import is intentional. If the source file that declared
+\`eu_service\` is removed or excluded, validation should fail with a clear
+missing import/identifier diagnostic instead of depending on hidden file layout.
+
+For links, \`from <context-id>\` on the target is an inline context qualifier:
+
+\`\`\`insight
+links:
+    -> inventory_api from services
+\`\`\`
+
+Use it when the relationship target is owned by another context or another
+source file whose context ownership should remain visible at the call site.
 
 Do not guess context ids from filenames. Filenames, context ids, and element ids
 can differ.
