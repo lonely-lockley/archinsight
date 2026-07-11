@@ -42,6 +42,11 @@ system application
 
 The extension embeds the shared `@insight/language` runtime directly. It does not need a separate CLI process for diagnostics, completions, linking, querying, or rendering state.
 
+AI agents need the CLI in addition to the VSCode extension. The extension helps
+humans author and preview models inside VSCode; the CLI gives ChatGPT, Claude,
+Codex, and CI workflows a stable command-line way to validate, inspect
+structure, generate skills, and render diagrams.
+
 ## Getting Started
 
 1. Open a workspace that contains one or more `.ai` files.
@@ -55,7 +60,35 @@ Useful commands are available from the Command Palette:
 - `Archinsight: Link Project`
 - `Archinsight: Preview Diagram`
 - `Archinsight: Show Structure`
+- `Archinsight: Check CLI`
+- `Archinsight: Install CLI`
+- `Archinsight: Generate Agent Skill`
 - `Archinsight: Preview Diagram` view commands for no-filter, C1, C2, C3, and C4
+
+## CLI and Agent Skills
+
+Install the CLI separately when you want AI agents or shell workflows to work
+with Insight models:
+
+```shell
+npm install -g @archinsight/cli
+```
+
+The extension never installs global npm packages silently. Use
+`Archinsight: Check CLI` to verify that `archinsight` is available on `PATH`.
+Use `Archinsight: Install CLI` to open an integrated terminal with the install
+command.
+
+After the CLI is available, use `Archinsight: Generate Agent Skill` to run:
+
+```shell
+archinsight skill init . --target codex
+```
+
+The command lets you choose `codex`, `claude`, or `generic`. Generated skills
+teach agents Insight syntax, project structure inspection, validation, queries,
+and rendering. Without the CLI, an agent can read files, but it cannot reliably
+validate or inspect the linked architecture graph.
 
 ## Editing
 

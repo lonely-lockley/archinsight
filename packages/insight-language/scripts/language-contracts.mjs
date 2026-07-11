@@ -10,6 +10,7 @@ const cases = [
   duplicateTypeDeclaration,
   duplicateBuiltinTypeDeclaration,
   duplicateTypeDeclarationFromBaseSnapshot,
+  warnsWhenTypeIsExtendedMultipleTimes,
   duplicateEnumDeclaration,
   duplicatePresentationDeclaration,
   typeSystemOffersConstructorsAssignableToExpectedType,
@@ -90,6 +91,35 @@ define type System
   ], [coreLanguageSnapshot]);
 
   assert.equal(countDiagnostics(result, "TYPE_ALREADY_DECLARED", "System"), 1);
+}
+
+function warnsWhenTypeIsExtendedMultipleTimes() {
+  const result = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "definitions.ai",
+      source: `
+define type Environment
+    constructor environment
+
+define type Compute
+    constructor compute
+
+define type Storage
+    constructor storage
+
+extend type Environment
+    Compute compute
+
+extend type Environment
+    Storage storage
+`,
+    },
+  ]);
+
+  assert.equal(countDiagnostics(result, "TYPE_EXTENDED_MULTIPLE_TIMES", "Environment"), 1);
+  const warning = result.diagnostics.find((diagnostic) => diagnostic.code === "TYPE_EXTENDED_MULTIPLE_TIMES");
+  assert.equal(warning?.level, "WARNING");
+  assert.equal(result.diagnostics.filter((diagnostic) => diagnostic.level !== "WARNING").length, 0);
 }
 
 function duplicateEnumDeclaration() {

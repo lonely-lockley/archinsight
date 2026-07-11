@@ -56,6 +56,21 @@ Language-changing features must be delivered as a full product slice:
 
 If a layer does not apply, say why in the change summary.
 
+## Type Extensions
+
+Use `extend type` to patch an existing type schema with additional attributes,
+child slots, or projection rules:
+
+```insight
+extend type Environment
+    Compute compute
+    Storage storage
+```
+
+Type extension is declarative and validated. It is not runtime code execution.
+Extending the same type more than once is allowed but reported as a warning so
+projects can avoid spreading one effective schema across too many files.
+
 ## Presentation Definitions
 
 Use `define presentation` once to create visual defaults for a type:

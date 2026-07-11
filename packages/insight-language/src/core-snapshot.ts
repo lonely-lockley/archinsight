@@ -74,6 +74,7 @@ interface CollectedLanguageSnapshotSource {
   readonly snapshot: LanguageSnapshot;
   readonly diagnostics: readonly LanguageDiagnostic[];
   readonly typeDeclarations: readonly DeclarationReference[];
+  readonly typeExtensions: readonly DeclarationReference[];
   readonly typeReferences: readonly DeclarationReference[];
   readonly enumDeclarations: readonly DeclarationReference[];
   readonly enumExtensions: readonly DeclarationReference[];
@@ -143,6 +144,7 @@ export function buildLanguageSnapshotResultFromSources(
     ...baseTypeDeclarations,
     ...collected.flatMap((source) => source.typeDeclarations),
   ];
+  const typeExtensions = collected.flatMap((source) => source.typeExtensions);
   const enumDeclarations = [
     ...baseSnapshots.flatMap((base) => enumDeclarationsFromSnapshot(base, "<snapshot>")),
     ...collected.flatMap((source) => source.enumDeclarations),
@@ -162,6 +164,7 @@ export function buildLanguageSnapshotResultFromSources(
     diagnostics: [
       ...collected.flatMap((source) => source.diagnostics),
       ...validateDuplicateDeclarations("TYPE_ALREADY_DECLARED", "Type", typeDeclarations),
+      ...validateRepeatedTypeExtensions(typeExtensions),
       ...validateDuplicateDeclarations("ENUM_ALREADY_DECLARED", "Enum", enumDeclarations),
       ...validateDuplicateDeclarations("PRESENTATION_ALREADY_DECLARED", "Presentation", presentationDeclarations),
       ...validateEnumExtensions(enumDeclarations, collected.flatMap((source) => source.enumExtensions)),
@@ -343,6 +346,7 @@ function collectLanguageSnapshotSource(
 ): CollectedLanguageSnapshotSource {
   const diagnostics: LanguageDiagnostic[] = [];
   const typeDeclarations: DeclarationReference[] = [];
+  const typeExtensions: DeclarationReference[] = [];
   const enumDeclarations: DeclarationReference[] = [];
   const enumExtensions: DeclarationReference[] = [];
   const presentationExtensions: DeclarationReference[] = [];
@@ -439,6 +443,10 @@ function collectLanguageSnapshotSource(
     const extension = firstChild<ExtendTypeDeclarationContext>(declaration, "extendTypeDeclaration");
     if (extension !== undefined) {
       const type = ensureType(types, text(extension.typeIdentifier()));
+      typeExtensions.push({
+        name: type.name,
+        ...position(extension.typeIdentifier(), sourceName),
+      });
       for (const item of extension.extendTypeBodyItem()) {
         const attribute = item.attributeDeclaration();
         if (attribute !== null) {
@@ -503,6 +511,7 @@ function collectLanguageSnapshotSource(
   return {
     diagnostics,
     typeDeclarations,
+    typeExtensions,
     typeReferences,
     enumDeclarations,
     enumExtensions,
@@ -1003,6 +1012,25 @@ function validateDuplicateDeclarations(
       code,
       message: `${label} '${declaration.name}' is already declared`,
       ...diagnosticPosition(declaration),
+    });
+  }
+  return diagnostics;
+}
+
+function validateRepeatedTypeExtensions(extensions: readonly DeclarationReference[]): readonly LanguageDiagnostic[] {
+  const diagnostics: LanguageDiagnostic[] = [];
+  const seen = new Map<string, DeclarationReference>();
+  for (const extension of extensions) {
+    const previous = seen.get(extension.name);
+    if (previous === undefined) {
+      seen.set(extension.name, extension);
+      continue;
+    }
+    diagnostics.push({
+      level: "WARNING",
+      code: "TYPE_EXTENDED_MULTIPLE_TIMES",
+      message: `Type '${extension.name}' is extended more than once; keep type extensions in one definition file to avoid uncontrolled schema changes`,
+      ...diagnosticPosition(extension),
     });
   }
   return diagnostics;

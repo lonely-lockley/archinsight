@@ -9,6 +9,7 @@ import {
 const cases = [
   frameworkUnknownBaseTypePointsToTypeToken,
   frameworkDuplicateTypeDeclarationPointsToDuplicateTypeToken,
+  frameworkRepeatedTypeExtensionWarningPointsToRepeatedTypeToken,
   frameworkDuplicateTypeConstructorPointsToDuplicateConstructorToken,
   frameworkDuplicateOperatorConstructorPointsToDuplicateOperatorToken,
   frameworkDuplicatePresentationDeclarationPointsToDuplicatePresentationToken,
@@ -74,6 +75,29 @@ define type Widget
     source("definitions.ai", sourceText),
   ]);
   assertDiagnosticToken(result.diagnostics, sourceText, "TYPE_ALREADY_DECLARED", "already declared", "Widget");
+}
+
+function frameworkRepeatedTypeExtensionWarningPointsToRepeatedTypeToken() {
+  const sourceText = `
+define type Widget
+    constructor widget
+
+define type First
+    constructor first
+
+define type Second
+    constructor second
+
+extend type Widget
+    First first
+
+extend type Widget
+    Second second
+`.trimStart();
+  const result = buildLanguageSnapshotResultFromSources([
+    source("definitions.ai", sourceText),
+  ]);
+  assertDiagnosticToken(result.diagnostics, sourceText, "TYPE_EXTENDED_MULTIPLE_TIMES", "Widget", "Widget");
 }
 
 function frameworkDuplicateTypeConstructorPointsToDuplicateConstructorToken() {

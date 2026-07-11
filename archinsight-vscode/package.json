@@ -39,6 +39,9 @@
     "onCommand:archinsight.linkProject",
     "onCommand:archinsight.previewDiagram",
     "onCommand:archinsight.showStructure",
+    "onCommand:archinsight.checkCli",
+    "onCommand:archinsight.installCli",
+    "onCommand:archinsight.generateAgentSkill",
     "onCommand:archinsight.structure.filter",
     "onCommand:archinsight.structure.clearFilter",
     "onCommand:archinsight.preview.noFilter",
@@ -101,6 +104,18 @@
       {
         "command": "archinsight.showStructure",
         "title": "Archinsight: Show Structure"
+      },
+      {
+        "command": "archinsight.checkCli",
+        "title": "Archinsight: Check CLI"
+      },
+      {
+        "command": "archinsight.installCli",
+        "title": "Archinsight: Install CLI"
+      },
+      {
+        "command": "archinsight.generateAgentSkill",
+        "title": "Archinsight: Generate Agent Skill"
       },
       {
         "command": "archinsight.structure.filter",

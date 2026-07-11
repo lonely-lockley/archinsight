@@ -1355,6 +1355,10 @@ Type extension is a schema merge:
   declaration wins for that attribute;
 - type inheritance still controls assignability and nesting.
 
+Extending the same type more than once is allowed but reported as a warning.
+Prefer one definition file for each type's extensions so the effective schema is
+easy to inspect and review.
+
 After changing a type definition, run \`archinsight structure . --format text\`
 to see the updated type tree and available constructors.
 
@@ -1743,6 +1747,7 @@ Interpretation:
 - existing inherited attributes and child slots remain available;
 - later declarations with the same attribute name override that attribute
   definition;
+- multiple \`extend type Environment\` blocks are allowed but produce a warning;
 - \`archinsight structure . --format text\` is the quickest way to inspect the
   effective type tree after extensions are applied.
 
@@ -1750,6 +1755,10 @@ Use \`extend service checkout_api\` or another constructor form only when you
 intend to extend one graph object instance in a \`context\`. Use \`extend type\`
 when you intend to change the available vocabulary/schema for all instances of
 that type.
+
+Keep repeated type extensions in one framework/definitions file when possible.
+If validation reports \`TYPE_EXTENDED_MULTIPLE_TIMES\`, consolidate the
+extensions or confirm with the user that the split is intentional.
 
 ## Reading Relationship Operators
 

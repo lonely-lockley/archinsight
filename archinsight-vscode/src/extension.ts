@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import * as fs from "node:fs";
+import { execFile } from "node:child_process";
 import path from "node:path";
 import {
   coreLanguageSnapshot,
@@ -23,6 +24,7 @@ import {
 } from "@insight/language";
 
 type DiagramView = "c1" | "c2" | "c3" | "c4" | "no-filter";
+type AgentSkillTarget = "generic" | "codex" | "claude";
 
 interface PreviewState {
   readonly view: DiagramView;
@@ -232,6 +234,15 @@ export function activate(context: vscode.ExtensionContext): void {
       await vscode.commands.executeCommand("workbench.view.explorer");
       structure.refresh();
     }),
+    vscode.commands.registerCommand("archinsight.checkCli", async () => {
+      await checkCliCommand();
+    }),
+    vscode.commands.registerCommand("archinsight.installCli", () => {
+      openCliInstallTerminal();
+    }),
+    vscode.commands.registerCommand("archinsight.generateAgentSkill", async () => {
+      await generateAgentSkillCommand();
+    }),
     vscode.commands.registerCommand("archinsight.structure.filter", async () => {
       const value = await vscode.window.showInputBox({
         title: "Filter Project Structure",
@@ -312,6 +323,95 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   output.dispose();
+}
+
+async function checkCliCommand(): Promise<void> {
+  const version = await archinsightCliVersion();
+  if (version !== undefined) {
+    await vscode.window.showInformationMessage(`Archinsight CLI ${version} is available.`);
+    return;
+  }
+  const choice = await vscode.window.showWarningMessage(
+    "Archinsight CLI is not available on PATH. Agents need the CLI to validate and inspect Insight projects.",
+    "Install CLI",
+  );
+  if (choice === "Install CLI") {
+    openCliInstallTerminal();
+  }
+}
+
+function openCliInstallTerminal(): void {
+  const terminal = vscode.window.createTerminal({
+    name: "Archinsight CLI",
+    cwd: workspaceRoot()?.fsPath,
+  });
+  terminal.show();
+  terminal.sendText("npm install -g @archinsight/cli");
+}
+
+async function generateAgentSkillCommand(): Promise<void> {
+  const root = workspaceRoot();
+  if (root === undefined) {
+    await vscode.window.showWarningMessage("Open a workspace before generating an Archinsight agent skill.");
+    return;
+  }
+
+  const version = await archinsightCliVersion();
+  if (version === undefined) {
+    const choice = await vscode.window.showWarningMessage(
+      "Archinsight CLI is required to generate an agent skill.",
+      "Install CLI",
+    );
+    if (choice === "Install CLI") {
+      openCliInstallTerminal();
+    }
+    return;
+  }
+
+  const target = await vscode.window.showQuickPick(
+    ["codex", "claude", "generic"],
+    {
+      title: "Generate Archinsight Agent Skill",
+      placeHolder: "Select the agent runtime target.",
+    },
+  );
+  if (!isAgentSkillTarget(target)) {
+    return;
+  }
+
+  const terminal = vscode.window.createTerminal({
+    name: "Archinsight Skill",
+    cwd: root.fsPath,
+  });
+  terminal.show();
+  terminal.sendText(`archinsight skill init . --target ${target}`);
+  output.appendLine(`Archinsight CLI ${version}: started skill generation for target '${target}' in ${root.fsPath}`);
+}
+
+function isAgentSkillTarget(value: string | undefined): value is AgentSkillTarget {
+  return value === "generic" || value === "codex" || value === "claude";
+}
+
+async function archinsightCliVersion(): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    execFile(
+      "archinsight",
+      ["--version"],
+      {
+        timeout: 5000,
+        windowsHide: true,
+        shell: process.platform === "win32",
+      },
+      (error, stdout) => {
+        if (error !== null) {
+          resolve(undefined);
+          return;
+        }
+        const version = stdout.trim();
+        resolve(version === "" ? undefined : version);
+      },
+    );
+  });
 }
 
 async function pinActiveArchinsightPreviewTab(): Promise<void> {
