@@ -1864,6 +1864,8 @@ system api
     name = API
     links:
         ~> worker
+            technology = Kafka
+            description = Publishes jobs
             uses:
                 kafka
 
@@ -1880,6 +1882,16 @@ system worker
   assert(result.edges.some((edge) => edge.projected === true
     && edge.source === "shared/worker"
     && edge.target === "shared/kafka"));
+  const producerHop = result.edges.find((edge) => edge.projected === true
+    && edge.source === "shared/api"
+    && edge.target === "shared/kafka");
+  const consumerHop = result.edges.find((edge) => edge.projected === true
+    && edge.source === "shared/worker"
+    && edge.target === "shared/kafka");
+  assert.deepEqual(producerHop?.attributes.technology, ["Kafka"]);
+  assert.deepEqual(producerHop?.attributes.description, ["Publishes jobs"]);
+  assert.equal(consumerHop?.attributes.technology, undefined);
+  assert.equal(consumerHop?.attributes.description, undefined);
 }
 
 function rejectsProjectionRulesThatNeedTargetWhenAttachedToElement() {
@@ -2013,6 +2025,8 @@ publicGateway envoy
 actor user
     links:
         -> api
+            technology = HTTPS
+            call = GET /api
             uses:
                 envoy
 
@@ -2027,6 +2041,12 @@ system api
   assert(result.edges.some((edge) => edge.projected === true && edge.source === "shared/cf" && edge.target === "shared/lb"));
   assert(result.edges.some((edge) => edge.projected === true && edge.source === "shared/lb" && edge.target === "shared/envoy"));
   assert(result.edges.some((edge) => edge.projected === true && edge.source === "shared/envoy" && edge.target === "shared/api"));
+  const entryHop = result.edges.find((edge) => edge.projected === true && edge.source === "shared/user" && edge.target === "shared/cf");
+  const innerHop = result.edges.find((edge) => edge.projected === true && edge.source === "shared/cf" && edge.target === "shared/lb");
+  assert.deepEqual(entryHop?.attributes.technology, ["HTTPS"]);
+  assert.deepEqual(entryHop?.attributes.call, ["GET /api"]);
+  assert.equal(innerHop?.attributes.technology, undefined);
+  assert.equal(innerHop?.attributes.call, undefined);
 }
 
 function appliesOwnerIndependentProjectionRulesOncePerProjectionElement() {
@@ -2236,6 +2256,8 @@ system api
         runsOn compute
     links:
         -> worker
+            technology = HTTP
+            call = POST /jobs
             deployment:
                 environments:
                     eu
@@ -2272,6 +2294,18 @@ system worker
   assert.equal(countEdges(projected, "app/worker", "infra/kafka"), 1);
   assert.equal(countEdges(projected, "app/api", "infra/sns"), 1);
   assert.equal(countEdges(projected, "app/worker", "infra/sns"), 1);
+  const euEntryHop = projected.find((edge) => edge.source === "app/api" && edge.target === "infra/cdn");
+  const euInnerHop = projected.find((edge) => edge.source === "infra/cdn" && edge.target === "infra/lb");
+  const euBrokerProducerHop = projected.find((edge) => edge.source === "app/api" && edge.target === "infra/kafka");
+  const euBrokerConsumerHop = projected.find((edge) => edge.source === "app/worker" && edge.target === "infra/kafka");
+  assert.deepEqual(euEntryHop?.attributes.technology, ["HTTP"]);
+  assert.deepEqual(euEntryHop?.attributes.call, ["POST /jobs"]);
+  assert.equal(euInnerHop?.attributes.technology, undefined);
+  assert.equal(euInnerHop?.attributes.call, undefined);
+  assert.deepEqual(euBrokerProducerHop?.attributes.technology, ["HTTP"]);
+  assert.deepEqual(euBrokerProducerHop?.attributes.call, ["POST /jobs"]);
+  assert.equal(euBrokerConsumerHop?.attributes.technology, undefined);
+  assert.equal(euBrokerConsumerHop?.attributes.call, undefined);
   assert.equal(projected.filter((edge) => edge.source.startsWith("app/_anonymous_") || edge.target.startsWith("app/_anonymous_")).length, 0);
   assert.equal(projected.filter((edge) => edge.source === "infra/eu" || edge.target === "infra/eu").length, 0);
   assert.equal(projected.filter((edge) => edge.source === "infra/us" || edge.target === "infra/us").length, 0);
@@ -2766,6 +2800,9 @@ function projectionSnapshot() {
           name: "Wire",
           attributes: [
             { name: "uses", type: "List", list: true, listElementType: "InfrastructureComponent" },
+            { name: "technology", type: "Text" },
+            { name: "call", type: "Text" },
+            { name: "description", type: "Text" },
           ],
         },
       ],

@@ -208,6 +208,7 @@ interface ProjectionScope {
   readonly sourceIdentity: string;
   readonly fromId: string;
   readonly toId: string;
+  readonly projectedAttributes?: Readonly<Record<string, readonly string[]>>;
   readonly slotParent?: ParsedElement;
   readonly annotations?: readonly LinkedAnnotation[];
 }
@@ -217,6 +218,7 @@ interface PendingProjection {
   readonly fromId: string;
   readonly toId: string;
   readonly attributes: Readonly<Record<string, readonly ResolvedReferenceValue[]>>;
+  readonly projectedAttributes?: Readonly<Record<string, readonly string[]>>;
   readonly annotations?: readonly LinkedAnnotation[];
 }
 
@@ -336,6 +338,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
           sourceIdentity: edge.sourceName,
           fromId: edge.source,
           toId: target.id,
+          projectedAttributes: materialized.edge.attributes,
           ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
         });
         pendingProjections.push({
@@ -343,6 +346,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
           fromId: edge.source,
           toId: target.id,
           attributes: edgeAttributes,
+          projectedAttributes: materialized.edge.attributes,
           ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
         });
       }
@@ -373,7 +377,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
     });
   }
   for (const projection of pendingProjections) {
-    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations);
+    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes);
   }
   const slotDomainTypes = typeSystem.slotDomainTypes();
   for (const element of elements) {
@@ -1687,6 +1691,7 @@ function addProjectedEdges(
   diagnostics: LanguageDiagnostic[],
   projectionScope?: string,
   annotations: readonly LinkedAnnotation[] = [],
+  projectedAttributes?: Readonly<Record<string, readonly string[]>>,
   visitedProjectionElements = new Set<string>(),
 ): void {
   for (const values of Object.values(attributes)) {
@@ -1724,7 +1729,7 @@ function addProjectedEdges(
         continue;
       }
       for (const rule of rules) {
-        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, projectionScope, annotations);
+        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, projectionScope, annotations, projectedAttributes);
       }
       addProjectedEdges(
         linkedEdges,
@@ -1739,6 +1744,7 @@ function addProjectedEdges(
         diagnostics,
         projectionScope,
         annotations,
+        undefined,
         visitedProjectionElements,
       );
     }
@@ -1758,6 +1764,7 @@ function addProjectedEdgesForValues(
   diagnostics: LanguageDiagnostic[],
   projectionScope?: string,
   annotations: readonly LinkedAnnotation[] = [],
+  projectedAttributes?: Readonly<Record<string, readonly string[]>>,
 ): void {
   addProjectedEdges(
     linkedEdges,
@@ -1772,6 +1779,7 @@ function addProjectedEdgesForValues(
     diagnostics,
     projectionScope,
     annotations,
+    projectedAttributes,
   );
 }
 
@@ -1812,15 +1820,17 @@ function addProjectedRuleEdge(
   diagnostics: LanguageDiagnostic[],
   projectionScope?: string,
   annotations: readonly LinkedAnnotation[] = [],
+  projectedAttributes?: Readonly<Record<string, readonly string[]>>,
 ): void {
   const sources = projectionTerm(rule.source, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, diagnostics);
   const targets = projectionTerm(rule.target, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, diagnostics);
+  const carriedAttributes = rule.source.kind === "from" ? projectedAttributes : undefined;
   for (const source of sources) {
     for (const target of targets) {
       if (!projectionRuleUsesOwner(rule)) {
         const key = `${projectionElement.id}\0${source}\0${rule.operator}\0${target}`;
         if (ownerIndependentProjectionKeys.has(key)) {
-          mergeProjectedEdgeAnnotations(linkedEdges, source, rule.operator, target, annotations);
+          mergeProjectedEdge(linkedEdges, source, rule.operator, target, annotations, carriedAttributes);
           continue;
         }
         ownerIndependentProjectionKeys.add(key);
@@ -1841,6 +1851,7 @@ function addProjectedRuleEdge(
         if (edge !== undefined) {
           linkedEdges[existingIndex] = {
             ...edge,
+            attributes: mergeAttributeValues(carriedAttributes, edge.attributes),
             annotations: uniqueAnnotations([...(edge.annotations ?? []), ...annotations]),
           };
         }
@@ -1854,7 +1865,7 @@ function addProjectedRuleEdge(
         operator: rule.operator,
         type,
         sourceIdentity,
-        attributes: {},
+        attributes: carriedAttributes ?? {},
         ...listAttributesProperty(typeSystem, type),
         projected: true,
         ...(projectionScope === undefined ? {} : { projectionScope }),
@@ -1864,14 +1875,15 @@ function addProjectedRuleEdge(
   }
 }
 
-function mergeProjectedEdgeAnnotations(
+function mergeProjectedEdge(
   linkedEdges: LinkedEdge[],
   source: string,
   operator: string,
   target: string,
   annotations: readonly LinkedAnnotation[],
+  attributes?: Readonly<Record<string, readonly string[]>>,
 ): void {
-  if (annotations.length === 0) {
+  if (annotations.length === 0 && (attributes === undefined || Object.keys(attributes).length === 0)) {
     return;
   }
   const index = linkedEdges.findIndex((edge) => edge.projected === true
@@ -1887,8 +1899,22 @@ function mergeProjectedEdgeAnnotations(
   }
   linkedEdges[index] = {
     ...edge,
+    attributes: mergeAttributeValues(attributes, edge.attributes),
     annotations: uniqueAnnotations([...(edge.annotations ?? []), ...annotations]),
   };
+}
+
+function mergeAttributeValues(
+  base: Readonly<Record<string, readonly string[]>> | undefined,
+  override: Readonly<Record<string, readonly string[]>>,
+): Readonly<Record<string, readonly string[]>> {
+  if (base === undefined || Object.keys(base).length === 0) {
+    return override;
+  }
+  if (Object.keys(override).length === 0) {
+    return base;
+  }
+  return { ...base, ...override };
 }
 
 function uniqueAnnotations(annotations: readonly LinkedAnnotation[]): readonly LinkedAnnotation[] {
@@ -2693,6 +2719,7 @@ function applyDeploymentUsesCarrier(
       context.diagnostics,
       projectionScope,
       annotations,
+      scope.projectedAttributes,
     );
   }
 }
