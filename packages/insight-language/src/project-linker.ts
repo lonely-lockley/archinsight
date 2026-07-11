@@ -382,7 +382,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
   const presentations = buildPresentationIndex(request.snapshot.presentations ?? [], typeSystem, diagnostics);
   const graph = buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem);
   const graphElements = elements.filter(isGraphElement);
-  inspectGraph(graph, graphElements, linkedEdges, diagnostics);
+  inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, diagnostics);
   const tabRoots = tabRootsBySource(documents, elementsByContextAndLocalId);
   for (const document of documents) {
     resolveAttributes(
@@ -1802,6 +1802,21 @@ function addProjectedRuleEdge(
         ? undefined
         : typeSystem.operatorConstructor(rule.operator, sourceElement.type, targetElement.type);
       const type = operator?.ownerType ?? rule.operator;
+      const existingIndex = linkedEdges.findIndex((edge) => edge.projected === true
+        && edge.source === source
+        && edge.operator === rule.operator
+        && edge.target === target
+        && edge.projectionScope === projectionScope);
+      if (existingIndex >= 0) {
+        const edge = linkedEdges[existingIndex];
+        if (edge !== undefined) {
+          linkedEdges[existingIndex] = {
+            ...edge,
+            annotations: uniqueAnnotations([...(edge.annotations ?? []), ...annotations]),
+          };
+        }
+        continue;
+      }
       linkedEdges.push({
         source,
         target,
@@ -2891,18 +2906,21 @@ function inspectGraph(
   graph: IndexedGraph,
   elements: readonly ParsedElement[],
   edges: readonly LinkedEdge[],
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
   diagnostics: LanguageDiagnostic[],
 ): void {
   if (diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
     return;
   }
-  reportIsolatedElements(graph, elements, diagnostics);
+  reportIsolatedElements(graph, elements, edges, resolvedElementAttributes, diagnostics);
   reportShadowedLowerLevelEdges(graph, edges, diagnostics);
 }
 
 function reportIsolatedElements(
   graph: IndexedGraph,
   elements: readonly ParsedElement[],
+  edges: readonly LinkedEdge[],
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
   diagnostics: LanguageDiagnostic[],
 ): void {
   const referenced = new Set<string>();
@@ -2911,6 +2929,21 @@ function reportIsolatedElements(
     if (relation !== undefined) {
       referenced.add(relation.source);
       referenced.add(relation.target);
+    }
+  }
+  for (const edge of edges) {
+    referenced.add(edge.source);
+    referenced.add(edge.target);
+  }
+  for (const [elementId, attributes] of resolvedElementAttributes) {
+    for (const values of Object.values(attributes)) {
+      if (values.length === 0) {
+        continue;
+      }
+      referenced.add(elementId);
+      for (const value of values) {
+        referenced.add(value.id);
+      }
     }
   }
   for (const element of elements) {

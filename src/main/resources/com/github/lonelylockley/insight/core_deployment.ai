@@ -3,9 +3,37 @@ define type DeploymentElement of Element
 define type InfrastructureComponent of DeploymentElement
     constructor infrastructureComponent
 
-    required Text name
+    Text name
+    Text technology
     Text description
     List of TypeSlotReference _
+
+define type Storage of InfrastructureComponent
+    constructor storage
+
+    project:
+        $from -> $this
+
+define type Broker of InfrastructureComponent
+    constructor broker
+
+    Text address
+
+    project:
+        $from -> $this
+        $to -> $this
+
+define type Compute of InfrastructureComponent
+    constructor compute
+
+    Text address
+    List of InfrastructureComponent components
+
+define type NetworkConnection of InfrastructureComponent
+    constructor networkConnection
+
+    project:
+        $from -> $to
 
 define type Environment of BoundaryElement
     constructor environment
@@ -22,5 +50,9 @@ define type DeploymentProfileReference of TypeSlotReference
     required DeploymentProfile profile
 
 define presentation DeploymentProfile
+    graphviz
+        visible = false
+
+define presentation NetworkConnection
     graphviz
         visible = false

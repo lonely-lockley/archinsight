@@ -63,7 +63,10 @@ The generic target writes a runtime-neutral guide:
     references/
         modeling.md
         syntax.md
-        layered-architecture.md
+        c1-context.md
+        c2-containers.md
+        c3-components.md
+        c4-deployment.md
         project-structure.md
         core.md
         queries.md
@@ -71,7 +74,11 @@ The generic target writes a runtime-neutral guide:
     .core/
         *.ai
     examples/
-        layered-architecture.ai
+        c1-context.ai
+        c2-containers.ai
+        c3-components.ai
+        c4-deployment-framework.ai
+        c4-deployment.ai
         c2-containers.aiq
 ```
 
@@ -105,6 +112,10 @@ avoid guessing Insight syntax from other architecture DSLs, inspect project
 structure before broad edits or imports, read bundled core language sources for
 built-in types/presentations/projections, describe systems layer by layer, and
 write custom `.aiq` diagram queries with the supported Cypher-style subset.
+The bundled core reference includes standard deployment infrastructure
+constructors such as `compute`, `storage`, `broker`, and `networkConnection`,
+including projection rules for storage, broker dependencies, and direct network
+paths.
 
 ## Output Contract
 

@@ -71,13 +71,13 @@ Install the CLI separately when you want AI agents or shell workflows to work
 with Insight models:
 
 ```shell
-npm install -g @archinsight/cli
+npm install -g @archinsight/cli@next
 ```
 
 The extension never installs global npm packages silently. Use
-`Archinsight: Check CLI` to verify that `archinsight` is available on `PATH`.
-Use `Archinsight: Install CLI` to open an integrated terminal with the install
-command.
+`Archinsight: Check CLI` to verify that `archinsight` is available on `PATH`
+and supports agent skill targets. Use `Archinsight: Install CLI` to open an
+integrated terminal with the install/update command.
 
 After the CLI is available, use `Archinsight: Generate Agent Skill` to run:
 
@@ -100,7 +100,7 @@ On macOS, VSCode's default `Trigger Suggest` shortcuts are `Ctrl+Space` and `Cmd
 
 Insight projects can be split across files with imports and extensions. The linker builds a project graph from the workspace sources, so diagnostics and diagrams are project-aware rather than limited to the active file.
 
-The built-in framework includes common architecture concepts such as contexts, systems, containers, services, components, actors, external systems, relationships, and deployment-oriented projections. Projects can extend the framework with their own typed architecture vocabulary.
+The built-in framework includes common architecture concepts such as contexts, systems, containers, services, components, actors, external systems, relationships, and deployment-oriented projections. Deployment core also includes common infrastructure inventory types such as `compute`, `storage`, `broker`, and `networkConnection`; projects can extend environments with those slots and add their own typed architecture vocabulary.
 
 ## Development
 

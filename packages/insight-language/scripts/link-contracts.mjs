@@ -32,6 +32,8 @@ const cases = [
   reportsUndeclaredArchitectureConstructorsWhenFrameworkIsLinked,
   exposesDuplicateResolvedEdges,
   notesElementsThatAreNotConnectedByAnyReference,
+  doesNotReportElementsConnectedOnlyByProjectedEdgesAsIsolated,
+  doesNotReportElementsConnectedOnlyByResolvedAttributesAsIsolated,
   doesNotReportParentElementWithNestedElementsAsIsolated,
   warnsWhenHigherLevelEdgeShadowsNextLevelEdgeOfSameType,
   warnsWhenLowerLevelEdgeKeepsSameExternalEndpoint,
@@ -742,6 +744,78 @@ system sibling
     diagnostic.level === "NOTE"
     && diagnostic.code === "ISOLATED_ELEMENT"
     && diagnostic.message.includes("sibling")
+  ));
+}
+
+function doesNotReportElementsConnectedOnlyByProjectedEdgesAsIsolated() {
+  const result = linkProject({
+    snapshot: mergeLanguageSnapshots([
+      coreLanguageSnapshot,
+      buildLanguageSnapshotResultFromSources([
+        source("deployment-framework.ai", `
+extend type Environment
+    Storage storage
+`),
+      ]).snapshot,
+    ]),
+    sources: [
+      source("architecture.ai", `
+context shared
+
+environment prod
+    name = Production
+
+    storage:
+        storage db
+            name = Database
+
+system api
+    name = API
+    deployment:
+        environments:
+            prod
+
+        uses storage
+`),
+    ],
+  });
+
+  assertNoErrors(result);
+  assert(result.edges.some((edge) => edge.projected === true && edge.target === "shared/db"));
+  assert(!result.diagnostics.some((diagnostic) =>
+    diagnostic.level === "NOTE"
+    && diagnostic.code === "ISOLATED_ELEMENT"
+    && diagnostic.message.includes("db")
+  ));
+}
+
+function doesNotReportElementsConnectedOnlyByResolvedAttributesAsIsolated() {
+  const result = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [
+      source("architecture.ai", `
+context shared
+
+environment prod
+    name = Production
+
+deploymentProfile global
+    environments:
+        prod
+
+system api
+    name = API
+    deployment:
+        usesProfile global
+`),
+    ],
+  });
+
+  assertNoErrors(result);
+  assert(!result.diagnostics.some((diagnostic) =>
+    diagnostic.level === "NOTE"
+    && diagnostic.code === "ISOLATED_ELEMENT"
+    && diagnostic.message.includes("global")
   ));
 }
 
@@ -2028,21 +2102,9 @@ system planned_worker
 function doesNotSelfProjectSlotDomainElements() {
   const sources = [
     source("deployment-framework.ai", `
-define type Compute of InfrastructureComponent
-    constructor compute
-
-define type Storage of InfrastructureComponent
-    constructor storage
-
-    project:
-        $from -> $this
-
 extend type Environment
     InfrastructureComponent compute
     InfrastructureComponent storage
-
-extend type InfrastructureComponent
-    List of TypeSlotReference _
 `),
     source("infra.ai", `
 context infra
@@ -2073,15 +2135,6 @@ environment eu
 function appliesTypeSlotReferenceProjectionRules() {
   const sources = [
     source("deployment-framework.ai", `
-define type Compute of InfrastructureComponent
-    constructor compute
-
-define type Broker of InfrastructureComponent
-    constructor broker
-
-    project:
-        $from -> $this
-
 define type PublicGateway of InfrastructureComponent
     constructor publicGateway
     required InfrastructureComponent cdn

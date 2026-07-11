@@ -856,6 +856,22 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericLayeredArchitectureReference(),
     },
     {
+      path: "references/c1-context.md",
+      content: genericC1ContextReference(),
+    },
+    {
+      path: "references/c2-containers.md",
+      content: genericC2ContainersReference(),
+    },
+    {
+      path: "references/c3-components.md",
+      content: genericC3ComponentsReference(),
+    },
+    {
+      path: "references/c4-deployment.md",
+      content: genericC4DeploymentReference(),
+    },
+    {
       path: "references/project-structure.md",
       content: genericProjectStructureReference(),
     },
@@ -874,6 +890,26 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     {
       path: "examples/layered-architecture.ai",
       content: genericLayeredArchitectureExample(),
+    },
+    {
+      path: "examples/c1-context.ai",
+      content: genericC1ContextExample(),
+    },
+    {
+      path: "examples/c2-containers.ai",
+      content: genericC2ContainersExample(),
+    },
+    {
+      path: "examples/c3-components.ai",
+      content: genericC3ComponentsExample(),
+    },
+    {
+      path: "examples/c4-deployment-framework.ai",
+      content: genericC4DeploymentFrameworkExample(),
+    },
+    {
+      path: "examples/c4-deployment.ai",
+      content: genericC4DeploymentExample(),
     },
     {
       path: "examples/c2-containers.aiq",
@@ -958,6 +994,15 @@ If \`archinsight\` is not available, ask the user to install or expose
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/c1-context.md\` when adding or repairing system context
+  models: actors, owned systems, external systems, and boundary choices.
+- Read \`references/c2-containers.md\` when adding or repairing
+  container/service-level C2 models for a selected system.
+- Read \`references/c3-components.md\` when adding or repairing component-level
+  C3 models for a selected container or service.
+- Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
+  models, infrastructure inventories, environment-scoped infrastructure, or
+  projection rules.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
@@ -992,6 +1037,15 @@ Treat this \`SKILL.md\` as the entrypoint. Load reference files only when needed
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` before decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/c1-context.md\` before adding or repairing system context
+  models: actors, owned systems, external systems, and boundary choices.
+- Read \`references/c2-containers.md\` before adding or repairing
+  container/service-level C2 models for a selected system.
+- Read \`references/c3-components.md\` before adding or repairing component-level
+  C3 models for a selected container or service.
+- Read \`references/c4-deployment.md\` before adding or repairing deployment/C4
+  models, infrastructure inventories, environment-scoped infrastructure, or
+  projection rules.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` before assuming available
@@ -1038,6 +1092,15 @@ If \`archinsight\` is not available, ask the user to install or expose
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/c1-context.md\` when adding or repairing system context
+  models: actors, owned systems, external systems, and boundary choices.
+- Read \`references/c2-containers.md\` when adding or repairing
+  container/service-level C2 models for a selected system.
+- Read \`references/c3-components.md\` when adding or repairing component-level
+  C3 models for a selected container or service.
+- Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
+  models, infrastructure inventories, environment-scoped infrastructure, or
+  projection rules.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
@@ -1073,6 +1136,15 @@ they are needed:
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` before decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/c1-context.md\` before adding or repairing system context
+  models: actors, owned systems, external systems, and boundary choices.
+- Read \`references/c2-containers.md\` before adding or repairing
+  container/service-level C2 models for a selected system.
+- Read \`references/c3-components.md\` before adding or repairing component-level
+  C3 models for a selected container or service.
+- Read \`references/c4-deployment.md\` before adding or repairing deployment/C4
+  models, infrastructure inventories, environment-scoped infrastructure, or
+  projection rules.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` before assuming available
@@ -1139,6 +1211,15 @@ sections of Insight unless the existing layering is already understood.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
   C1/C2/C3/C4-style layers.
+- Read \`references/c1-context.md\` when adding or repairing system context
+  models: actors, owned systems, external systems, and boundary choices.
+- Read \`references/c2-containers.md\` when adding or repairing
+  container/service-level C2 models for a selected system.
+- Read \`references/c3-components.md\` when adding or repairing component-level
+  C3 models for a selected container or service.
+- Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
+  models, infrastructure inventories, environment-scoped infrastructure, or
+  projection rules.
 - Read \`references/project-structure.md\` before searching for declarations,
   planning imports, or making broad edits.
 - Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
@@ -1491,8 +1572,8 @@ label feature.
 Projects can extend the language with typed vocabulary:
 
 \`\`\`insight
-define type Broker of InfrastructureComponent
-    constructor broker
+define type Cache of InfrastructureComponent
+    constructor cache
 \`\`\`
 
 When adding custom types, follow the existing framework files and validate
@@ -1509,7 +1590,8 @@ layer useful on its own.
 
 ## C1: System Context
 
-Start with the context, people, owned systems, and external dependencies.
+Start with the context, people, owned systems, and external dependencies. Read
+\`references/c1-context.md\` before writing a real C1 model.
 
 \`\`\`insight
 context ecommerce
@@ -1536,7 +1618,8 @@ which external dependencies matter. Whether a peer is an owned \`system\`, an
 
 ## C2: Containers and Services
 
-Nest deployable units under the owned system:
+Nest deployable units under the owned system. Read
+\`references/c2-containers.md\` before writing a real C2 model.
 
 \`\`\`insight
 system storefront
@@ -1562,8 +1645,9 @@ the selected source file.
 
 ## C3: Components
 
-Put component details in a separate file with \`extend\` when the service becomes
-interesting enough to decompose:
+Put component details in a separate file with \`extend\` when a container or
+service becomes interesting enough to decompose. Read
+\`references/c3-components.md\` before writing a real C3 model.
 
 \`\`\`insight
 context ecommerce
@@ -1589,7 +1673,7 @@ can intentionally choose a different scope.
 ## C4 and Deployment
 
 Use deployment profiles and infrastructure types when physical realization is
-important:
+important. Read \`references/c4-deployment.md\` before writing a real C4 model.
 
 \`\`\`insight
 deploymentProfile production
@@ -1600,9 +1684,12 @@ environment eu
     name = Europe
 \`\`\`
 
-Attach deployment details to systems, containers, services, or links only when
-they clarify real runtime paths.
-C4/deployment files often focus one deployment slice, but the rendered scope is
+Attach deployment details to systems, containers, services, components, or links
+only when they clarify real runtime paths. Prefer attaching deployment to C2
+containers/services when possible because C2 is usually the most representative
+logical runtime boundary.
+
+C4/deployment files often focus one deployment slice. The rendered scope is
 defined by the query, projection selectors, and selected source file.
 
 ## Layering Rules
@@ -1615,6 +1702,1281 @@ defined by the query, projection selectors, and selected source file.
 - Use \`responsibility\` for components.
 - Split files by layer or subsystem once a file becomes hard to scan.
 - Validate after each layer before adding the next.
+`;
+}
+
+function genericC1ContextReference(): string {
+  return `# C1 System Context
+
+Use this reference only for C1 work: modeling a bounded context, its users,
+owned systems, external systems, and high-level relationships.
+
+## What C1 Answers
+
+A C1 view answers: "What system are we discussing, who uses it, and which
+outside systems does it depend on?"
+
+Do not include containers, services, components, databases, queues, or runtime
+nodes unless the project deliberately treats them as context-level systems. C1
+is about boundaries and responsibilities, not implementation structure.
+
+## C1 Workflow
+
+1. Name the bounded \`context <id>\`.
+2. Add external actors that initiate or consume behavior.
+3. Add owned \`system\` declarations inside the modeled boundary.
+4. Add \`external system\` declarations for dependencies outside the boundary.
+5. Add high-level links that explain business or capability flow.
+6. Validate with \`archinsight link . --format text\`.
+7. Render with \`archinsight render . -c <context-id> -v c1 -f svg -o c1.svg\`.
+
+## Boundary Choices
+
+Choose the modeled boundary before choosing constructors.
+
+- Use \`system\` for systems owned inside the current context.
+- Use \`external system\` for systems outside the current context boundary.
+- Use \`external actor\` for people, roles, teams, or external automation that
+  interacts with the system from outside.
+- Use \`import <id> from context <context-id>\` when a reusable outside system is
+  declared in another context.
+
+Externality is relative. A system can be external to the current system but
+still owned in the same context. A vendor platform or regulator is usually
+external to the context.
+
+## Basic C1 Pattern
+
+\`\`\`insight
+context commerce
+    name = Commerce Platform
+
+external actor shopper
+    name = Shopper
+    technology = Browser
+    description = Browses products and places orders
+    links:
+        -> storefront
+            description = Shops and checks out
+
+external actor support_agent
+    name = Support agent
+    technology = Back-office browser
+    description = Helps customers investigate orders
+    links:
+        -> order_admin
+            description = Looks up order state and customer communication
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+    description = Authorizes card payments
+
+system storefront
+    name = Storefront
+    technology = Web application
+    description = Lets shoppers browse products and place orders
+    links:
+        -> payment_provider
+            technology = HTTPS
+            description = Requests payment authorization
+
+system order_admin
+    name = Order Admin
+    technology = Internal web application
+    description = Lets support staff inspect and manage orders
+    links:
+        -> storefront
+            description = Reads customer order data
+\`\`\`
+
+## Owned Peer Pattern
+
+Do not make every peer \`external system\`. If two systems are owned inside the
+same architecture boundary, keep both as \`system\` and link them:
+
+\`\`\`insight
+context company_platform
+    name = Company Platform
+
+system fintech
+    name = Fintech
+    description = Payment and account capabilities
+
+system compliance
+    name = Compliance
+    description = Compliance rules, audit, and reporting
+    links:
+        -> fintech
+            description = Reads transactions for screening and reporting
+\`\`\`
+
+Here \`fintech\` can be outside the compliance team boundary, but it is not
+outside the company platform context. Use the context boundary, not team
+ownership alone, to decide \`system\` vs \`external system\`.
+
+## Reusable External Context Pattern
+
+When the same outside dependency appears in many contexts, declare it once and
+import it:
+
+\`\`\`insight
+context external_platforms
+
+external system stripe
+    name = Stripe
+    technology = HTTPS API
+    description = External payment platform
+\`\`\`
+
+\`\`\`insight
+context commerce
+
+import stripe from context external_platforms
+
+system storefront
+    name = Storefront
+    links:
+        -> stripe from external_platforms
+            technology = HTTPS
+            description = Requests payment authorization
+\`\`\`
+
+Use imports for shared declarations; do not duplicate the same vendor system in
+every context unless the project intentionally wants separate local identities.
+
+## C1 Links
+
+Links should be high-level and readable:
+
+\`\`\`insight
+links:
+    -> storefront
+        description = Places orders
+\`\`\`
+
+Add \`technology\`, \`call\`, or \`via\` only when the detail is stable and useful
+at context level. Prefer capability language over endpoint trivia.
+
+Use \`~>\` for meaningful asynchronous context flows:
+
+\`\`\`insight
+links:
+    ~> analytics_platform
+        technology = Kafka
+        via = order.completed
+        description = Publishes completed order events
+\`\`\`
+
+## What Not To Put In C1
+
+- Internal containers such as \`web_app\`, \`api\`, or \`worker\`.
+- Components, classes, packages, screens, handlers, or repositories.
+- Databases, queues, pods, nodes, gateways, or regions unless modeled as
+  context-level systems.
+- Low-level calls between internals.
+- Placeholder systems invented only to make the diagram symmetric.
+
+## Common C1 Mistakes
+
+- Treating a peer owned in the same context as \`external system\`.
+- Duplicating imported external systems instead of importing the shared
+  declaration.
+- Adding implementation details that belong to C2/C3/C4.
+- Drawing a relationship without naming what capability or dependency it means.
+- Choosing constructors before deciding the context boundary.
+
+## Validation Commands
+
+\`\`\`shell
+archinsight structure . --format text
+archinsight link . --format text
+archinsight render . -c commerce -v c1 -f svg -o commerce-c1.svg
+\`\`\`
+
+Use \`examples/c1-context.ai\` as a compact valid C1 model when syntax is
+unclear.
+`;
+}
+
+function genericC2ContainersReference(): string {
+  return `# C2 Containers and Services
+
+Use this reference only for C2 work: decomposing one selected owned system into
+deployable containers, backend services, and their runtime collaborations.
+
+## What C2 Answers
+
+A C2 view answers: "Inside this system, which deployable or executable units
+exist, what technologies do they use, and how do they collaborate?"
+
+Prefer one focal system per C2 source file. The built-in C2 view is scoped by
+the selected source file, so a C2 file should usually contain the selected
+\`system <id>\` declaration or an \`extend system <id>\` block with its
+containers/services.
+
+## C2 Workflow
+
+1. Run \`archinsight structure . --format text\` to find the exact system id,
+   existing containers/services, and external declarations.
+2. Create or edit a C2 file in the same \`context <id>\`.
+3. Import external systems from other contexts when needed.
+4. Add \`container\` declarations for deployable applications or executables.
+5. Add \`service\` declarations for backend services or service-like runtime
+   units.
+6. Add runtime links between containers/services and real external systems.
+7. Validate with \`archinsight link . --format text\`.
+8. Render with \`archinsight render . -c <context-id> -s <c2-file.ai> -v c2 -f svg -o c2.svg\`.
+
+## File Split Pattern
+
+Keep C1 focused on the system boundary:
+
+\`\`\`insight
+context commerce
+    name = Commerce Platform
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+    technology = Commerce system
+    description = Lets shoppers browse products and place orders
+\`\`\`
+
+Put C2 details in a system file:
+
+\`\`\`insight
+context commerce
+
+extend system storefront
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Renders product pages and checkout screens
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                call = POST /checkout
+                description = Starts checkout and shows order status
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Prices carts, creates orders, and coordinates payment
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
+                description = Requests payment authorization
+\`\`\`
+
+## Frontend and Backend Pattern
+
+Use \`container\` for applications and executables that have an addressable
+runtime boundary:
+
+\`\`\`insight
+container web_app
+    name = Web app
+    technology = SvelteKit, TypeScript
+    description = Browser-facing application for customers
+\`\`\`
+
+Use \`service\` for backend services and service-like runtime units:
+
+\`\`\`insight
+service checkout_api
+    name = Checkout API
+    technology = Kotlin, PostgreSQL
+    description = Coordinates checkout and payment authorization
+\`\`\`
+
+Do not turn every library, package, or class into a C2 node. Those belong to C3
+only when they become stable architectural responsibilities.
+
+## External System Pattern
+
+For an external dependency declared in the same context:
+
+\`\`\`insight
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+
+    service checkout_api
+        name = Checkout API
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
+\`\`\`
+
+For a dependency declared in another context, import it:
+
+\`\`\`insight
+context commerce
+
+import stripe from context external_platforms
+
+extend system storefront
+    service checkout_api
+        name = Checkout API
+        links:
+            -> stripe from external_platforms
+                technology = HTTPS
+                call = POST /payments/authorizations
+\`\`\`
+
+Do not copy an outside system into the current context just to satisfy a link.
+Import the real declaration when it is shared.
+
+## Async and Eventing Pattern
+
+Use \`~>\` for meaningful asynchronous relationships:
+
+\`\`\`insight
+service checkout_api
+    name = Checkout API
+    links:
+        ~> analytics_platform
+            technology = Kafka
+            via = checkout.completed
+            description = Publishes completed checkout events
+\`\`\`
+
+Do not add a broker node just to make an event diagram look familiar. A broker
+is usually deployment/C4 infrastructure unless the project defines it as a
+runtime system or service in the selected view.
+
+## C2 Link Details
+
+Use link attributes to make runtime collaboration understandable:
+
+\`\`\`insight
+links:
+    -> checkout_api
+        technology = HTTPS, JSON
+        call = POST /checkout
+        description = Starts checkout and returns order status
+\`\`\`
+
+\`call\` is singular. Use \`via\` for async topics or channels. Keep endpoint
+details at C2 only when they clarify the architecture; otherwise use a plain
+\`description\`.
+
+## What Not To Put In C2
+
+- Components, classes, handlers, repositories, or UI widgets.
+- Deployment nodes, pods, regions, network gateways, or secret stores unless the
+  project models them as C2 runtime systems.
+- Database tables and internal schemas.
+- One-off scripts or build-time tools unless they are real runtime units.
+- Duplicate links already represented at a lower C3 level unless the C2 view is
+  intentionally showing the rollup.
+
+## Common C2 Mistakes
+
+- Adding C2 nodes directly under \`context\` instead of under a \`system\`.
+- Modeling infrastructure that belongs to C4/deployment.
+- Mixing C2 container/service links with C3 component links in the same source
+  file without a clear view goal.
+- Forgetting \`--source <c2-file.ai>\` when rendering C2.
+- Making every peer an \`external system\` instead of deciding whether it is
+  owned in the current context.
+
+## Validation Commands
+
+\`\`\`shell
+archinsight structure . --format text
+archinsight link . --format text
+archinsight render . -c commerce -s storefront-containers.ai -v c2 -f svg -o storefront-c2.svg
+\`\`\`
+
+Use \`examples/c2-containers.ai\` as a compact valid C2 model when syntax is
+unclear.
+`;
+}
+
+function genericC3ComponentsReference(): string {
+  return `# C3 Components
+
+Use this reference only for C3 work: decomposing one selected container or
+service into internal components and their collaborations.
+
+## What C3 Answers
+
+A C3 view answers: "Inside this container/service, what named responsibilities
+collaborate to deliver its behavior?"
+
+Prefer one focal container or service per C3 source file. The built-in C3 view
+is scoped by the selected source file, so the C3 file should usually contain an
+\`extend container <id>\` or \`extend service <id>\` block for the focal element.
+
+Do not model every class, function, method, or package. A component should be a
+stable architectural responsibility that is useful in a diagram and review.
+
+## C3 Workflow
+
+1. Run \`archinsight structure . --format text\` to find the exact container or
+   service id, available constructors, and existing imports.
+2. Create or edit a C3 file in the same \`context <id>\`.
+3. Import elements from other contexts only when the component links to them.
+4. Use \`extend container <id>\` or \`extend service <id>\`.
+5. Add \`component\` declarations with \`name\`, \`technology\`, and
+   \`responsibility\`.
+6. Add links between components and to real external endpoints.
+7. Validate with \`archinsight link . --format text\`.
+8. Render with \`archinsight render . -c <context-id> -s <c3-file.ai> -v c3 -f svg -o c3.svg\`.
+
+## File Split Pattern
+
+Keep the C2 declaration small:
+
+\`\`\`insight
+context commerce
+    name = Commerce Platform
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Handles cart pricing, order placement, and payment orchestration
+\`\`\`
+
+Put component details in a C3 file:
+
+\`\`\`insight
+context commerce
+
+extend service checkout_api
+    component checkout_controller
+        name = Checkout controller
+        technology = REST controller
+        responsibility = Accepts checkout requests and returns order status
+        links:
+            -> checkout_service
+
+    component checkout_service
+        name = Checkout service
+        technology = Kotlin
+        responsibility = Coordinates pricing, payment authorization, and order creation
+        links:
+            -> payment_gateway
+            -> order_repository
+
+    component payment_gateway
+        name = Payment gateway
+        technology = HTTP client
+        responsibility = Translates internal payment commands to provider API calls
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
+                description = Authorizes customer payment
+
+    component order_repository
+        name = Order repository
+        technology = SQL
+        responsibility = Persists order state and checkout audit records
+\`\`\`
+
+## Frontend Container Pattern
+
+Use C3 for UI responsibilities when the frontend container has distinct
+architectural parts:
+
+\`\`\`insight
+context commerce
+
+extend container web_app
+    component route_shell
+        name = Route shell
+        technology = SvelteKit routing
+        responsibility = Owns route loading, authenticated layout, and page composition
+        links:
+            -> checkout_page
+            -> session_store
+
+    component checkout_page
+        name = Checkout page
+        technology = Svelte
+        responsibility = Collects checkout input and presents order progress
+        links:
+            -> api_client
+
+    component session_store
+        name = Session store
+        technology = Browser storage
+        responsibility = Keeps current user and session state for client-side decisions
+
+    component api_client
+        name = API client
+        technology = Fetch, JSON
+        responsibility = Wraps backend API calls and maps transport errors to UI state
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                call = POST /checkout
+\`\`\`
+
+This is useful when frontend structure affects architecture. If the frontend is
+only a thin page with no meaningful internal decisions, leave it at C2.
+
+## Backend Service Pattern
+
+Use C3 to separate adapters, orchestration, domain logic, persistence, and
+integration boundaries:
+
+\`\`\`insight
+context commerce
+
+extend service inventory_api
+    component inventory_resource
+        name = Inventory resource
+        technology = REST
+        responsibility = Exposes stock reservations and availability endpoints
+        links:
+            -> reservation_service
+
+    component reservation_service
+        name = Reservation service
+        technology = Java
+        responsibility = Applies reservation rules and coordinates stock updates
+        links:
+            -> inventory_policy
+            -> reservation_repository
+            ~> inventory_events
+                technology = Kafka
+                via = inventory.reserved
+                description = Publishes successful reservation events
+
+    component inventory_policy
+        name = Inventory policy
+        technology = Java
+        responsibility = Decides whether stock can be promised to an order
+
+    component reservation_repository
+        name = Reservation repository
+        technology = SQL
+        responsibility = Stores reservation state and idempotency keys
+
+    component inventory_events
+        name = Inventory events
+        technology = Kafka producer
+        responsibility = Publishes inventory domain events for downstream systems
+\`\`\`
+
+Use \`->\` for synchronous calls and \`~>\` for asynchronous flows. Use singular
+\`call\` for the synchronous operation and \`via\` for the asynchronous topic,
+queue, or channel.
+
+## Imported Boundary Pattern
+
+When a component links to an element from another context, import it and use
+\`from <context-id>\` on the link target:
+
+\`\`\`insight
+context commerce
+
+import fraud_api from context risk_platform
+
+extend service checkout_api
+    component risk_adapter
+        name = Risk adapter
+        technology = HTTP client
+        responsibility = Requests fraud decisions before payment authorization
+        links:
+            -> fraud_api from risk_platform
+                technology = HTTPS
+                call = POST /risk/decisions
+                description = Requests checkout risk decision
+\`\`\`
+
+Do not copy an imported system into the current context just to make the C3
+diagram render. Import the real declaration and validate the link.
+
+## Component Naming
+
+Prefer names that reveal responsibility:
+
+- \`checkout_controller\`, \`checkout_service\`, \`payment_gateway\`
+- \`reservation_policy\`, \`reservation_repository\`, \`inventory_events\`
+- \`route_shell\`, \`checkout_page\`, \`api_client\`
+
+Avoid names that are only implementation trivia:
+
+- \`utils\`, \`helpers\`, \`module1\`, \`manager\`
+- individual classes unless the class is the architectural boundary
+- framework-generated files or folders
+
+## Responsibility Boundaries
+
+A good C3 component has at least one of these:
+
+- a distinct external adapter;
+- a domain or orchestration responsibility;
+- a persistence boundary;
+- an asynchronous producer or consumer role;
+- a security, policy, parsing, rendering, or transformation responsibility;
+- a UI composition, state, or backend API boundary that affects architecture.
+
+If a component cannot be described without mentioning code organization only,
+leave it out or ask for a more architectural boundary.
+
+## Links in C3
+
+Links should explain runtime collaboration inside the focal container/service.
+
+Use internal component links:
+
+\`\`\`insight
+links:
+    -> checkout_service
+\`\`\`
+
+Add call details when they matter:
+
+\`\`\`insight
+links:
+    -> payment_gateway
+        call = authorize(paymentCommand)
+        description = Requests payment authorization
+\`\`\`
+
+Use async details for events:
+
+\`\`\`insight
+links:
+    ~> inventory_events
+        via = inventory.reserved
+        description = Publishes reservation completion
+\`\`\`
+
+Do not add a broker as a component unless the broker is actually part of the
+focal container/service. Shared brokers, queues, gateways, and runtime placement
+usually belong to deployment/C4 or infrastructure modeling.
+
+## Common C3 Mistakes
+
+- Writing C3 components under a \`system\` instead of under a container/service
+  unless the project type model explicitly allows that.
+- Creating one C3 file for every class or package.
+- Linking to an external element without importing it when it lives in another
+  context.
+- Forgetting \`--source <c3-file.ai>\` when rendering C3.
+- Mixing C2 container links and C3 component links in one view question.
+- Keeping a broad container/service link and an equivalent lower-level component
+  link without deciding which level should own the relationship.
+- Inventing components to satisfy a diagram shape instead of describing real
+  responsibilities.
+
+## Validation Commands
+
+\`\`\`shell
+archinsight structure . --format text
+archinsight link . --format text
+archinsight render . -c commerce -s checkout_components.ai -v c3 -f svg -o checkout-c3.svg
+\`\`\`
+
+Use \`examples/c3-components.ai\` as a compact valid C3 model when syntax is
+unclear.
+`;
+}
+
+function genericC4DeploymentReference(): string {
+  return `# C4 Deployment and Infrastructure
+
+Use this reference only for C4 work: deployment profiles, environments,
+environment-scoped infrastructure inventory, \`uses\` / \`runsOn\`, and
+projection rules.
+
+## Contents
+
+- What C4 Answers
+- Mental Model
+- C4 Workflow
+- Environment Inventory
+- Why Infrastructure Is Per Environment
+- Attaching Deployment To C1-C3 Elements
+- usesProfile, environmentsFrom, runsOn, and uses
+- Deployment Archetypes
+- Projection Rules
+- Traffic Path Example
+- Compute and Grouping
+- Many-To-Many Deployment
+- What Not To Put In C4
+- Common C4 Mistakes
+- Validation Commands
+
+## What C4 Answers
+
+A C4/deployment view answers: "Where do logical architecture elements run, what
+environment-specific infrastructure do they use, and what physical path does a
+logical relationship expand into?"
+
+C4 is not just another decomposition level. C1-C3 mostly describe logical
+architecture. C4 maps logical elements and links onto environment-local
+infrastructure inventory.
+
+## Mental Model
+
+There are three layers:
+
+1. Schema: extend \`Environment\` with infrastructure slots such as
+   \`Compute compute\`, \`Storage storage\`, \`Broker broker\`,
+   \`NetworkConnection network\`, or \`PublicGateway publicGateway\`.
+   \`Compute\`, \`Storage\`, \`Broker\`, and \`NetworkConnection\` are core
+   deployment types.
+2. Inventory: each \`environment <id>\` fills those slots with concrete
+   infrastructure instances for that environment.
+3. Deployment references: logical systems, containers, services, components, or
+   links use \`deployment:\` with \`runsOn\`, \`uses\`, \`usesProfile\`, or
+   \`environmentsFrom\` to reference the inventory.
+
+An \`InfrastructureComponent\` is not an orphan. It is usually inventory inside
+an \`environment\` slot. The hook is the type extension:
+
+\`\`\`insight
+extend type Environment
+    Compute compute
+    Storage storage
+    Broker broker
+    NetworkConnection network
+    PublicGateway publicGateway
+\`\`\`
+
+After that, every \`environment <id>\` can provide those slots:
+
+\`\`\`insight
+environment prod
+    name = Production
+
+    compute:
+        compute kube
+            name = Kubernetes
+
+    storage:
+        storage db
+            name = PostgreSQL
+
+    broker:
+        broker events
+            name = Event broker
+            address = kafka.prod.internal:9092
+
+    network:
+        networkConnection private_path
+            name = Private service path
+\`\`\`
+
+## C4 Workflow
+
+1. Inspect existing deployment types with \`archinsight structure . --format text\`.
+2. Read \`references/core.md\` and project framework files for existing
+   \`extend type Environment\`, infrastructure types, and projection rules.
+3. Add or reuse infrastructure types in a definition file. Prefer core
+   \`Compute\`, \`Storage\`, \`Broker\`, and \`NetworkConnection\` for common
+   deployment inventory.
+4. Extend \`Environment\` with slots for the infrastructure inventory.
+5. Create one or more \`environment <id>\` declarations and fill the slots.
+6. Add \`deploymentProfile\` declarations that select environments and common
+   \`runsOn\` / \`uses\` defaults.
+7. Attach \`deployment:\` blocks to logical elements or links.
+8. Validate with \`archinsight link . --format text\`.
+9. Render with \`archinsight render . -c <context-id> -s <c4-file.ai> -v c4 -f svg -o c4.svg\`.
+
+## Environment Inventory
+
+Define infrastructure vocabulary in a definition file:
+
+\`\`\`insight
+extend type Environment
+    ServiceProvider cloud
+    Compute compute
+    Storage storage
+    Broker broker
+    NetworkConnection network
+    PublicGateway publicGateway
+
+define type ServiceProvider of InfrastructureComponent
+    constructor serviceProvider
+
+define type PublicGateway of InfrastructureComponent
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+\`\`\`
+
+Then fill concrete environments:
+
+\`\`\`insight
+environment prod
+    name = Production
+
+    cloud:
+        serviceProvider aws
+            name = AWS
+
+    compute:
+        compute eks
+            name = EKS
+            runsOn cloud
+
+    storage:
+        storage orders_db
+            name = Orders PostgreSQL
+            runsOn cloud
+
+    broker:
+        broker events
+            name = Event broker
+            technology = Kafka
+            address = kafka.prod.internal:9092
+            runsOn compute
+
+    network:
+        networkConnection private_path
+            name = Private service path
+            runsOn compute
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public edge
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+                    runsOn cloud
+            loadBalancer:
+                infrastructureComponent alb
+                    name = Application Load Balancer
+                    runsOn cloud
+            runsOn compute
+\`\`\`
+
+\`cloud\`, \`compute\`, \`storage\`, and \`publicGateway\` are slots on this
+specific \`prod\` environment. Another environment can fill the same slots with
+different concrete infrastructure.
+
+## Why Infrastructure Is Per Environment
+
+Infrastructure must be per environment because deployment is many-to-many:
+
+- one logical service can run in several environments;
+- each environment can use different compute, storage, gateways, regions, or
+  providers;
+- the same \`uses storage\` reference must resolve to the current environment's
+  storage instance, not to one global database node;
+- projection rules need environment-local inventory to expand logical edges into
+  physical paths.
+
+If infrastructure were modeled as global nodes, the model could not say:
+"Checkout API runs on EKS in production, Cloud Run in staging, and uses a
+different database in each environment" without duplicating logical services.
+
+## Attaching Deployment To C1-C3 Elements
+
+\`deployment\` is available on systems, containers/services, components, and
+wires. Attach it where it best represents the runtime boundary.
+
+Prefer C2 containers/services for most deployment mapping:
+
+- C1 systems are often too broad and hide real runtime placement.
+- C3 components are often too fine and can overfit code structure.
+- C2 containers/services usually represent deployable runtime units.
+
+Use C1 deployment only when the whole system is deployed as one unit. Use C3
+deployment when a component is independently deployed or has a distinct physical
+path. Use wire deployment when a specific logical relationship travels through
+infrastructure such as a public gateway, private gateway, broker, or egress path.
+
+## usesProfile, environmentsFrom, runsOn, and uses
+
+\`deploymentProfile\` names a reusable deployment scope:
+
+\`\`\`insight
+deploymentProfile global
+    environments:
+        prod
+        staging
+
+    runsOn compute
+\`\`\`
+
+\`usesProfile\` copies the profile's environments and deployment operators to a
+logical element:
+
+\`\`\`insight
+service checkout_api
+    name = Checkout API
+    deployment:
+        usesProfile global
+        uses storage
+\`\`\`
+
+\`runsOn compute\` resolves the \`compute\` slot inside each selected
+environment and stores it as the logical element's placement. \`uses storage\`
+resolves the environment-local \`storage\` slot and projects edges to it.
+
+\`environmentsFrom global\` copies only the environments from a profile. It is
+useful on a link when the path should share the same environment set but use its
+own infrastructure. It deliberately does not copy \`runsOn\` or \`uses\` from
+the profile:
+
+\`\`\`insight
+links:
+    -> checkout_api
+        deployment:
+            environmentsFrom global
+            uses publicGateway
+\`\`\`
+
+\`usesProfile global\` copies environments and profile operators. Use it on an
+element when the profile's defaults apply. Use \`environmentsFrom global\` on a
+link when only the environment scope should be reused.
+
+You can also use \`environmentsFrom\` on an element when it should share the
+profile's environment list but choose its own placement or dependencies:
+
+\`\`\`insight
+service batch_worker
+    name = Batch Worker
+    deployment:
+        environmentsFrom regional_service
+        runsOn compute
+        uses storage
+\`\`\`
+
+Here \`batch_worker\` deploys to the same environments as
+\`regional_service\`, but it does not inherit \`regional_service\` defaults such
+as \`uses observability\`. Add every desired \`runsOn\` and \`uses\` explicitly.
+
+## Deployment Archetypes
+
+Use \`deploymentProfile\` to create named deployment archetypes such as
+\`global_service\`, \`regional_service\`, or \`public_regional_service\`. A
+profile should select concrete \`environment\` instances and attach the common
+deployment operators that most services of that archetype need.
+
+Example environment inventory:
+
+\`\`\`insight
+environment global_edge
+    name = Global edge
+
+    compute:
+        compute edge_runtime
+            name = Edge runtime
+
+    publicGateway:
+        publicGateway edge_gateway
+            name = Global public gateway
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+            loadBalancer:
+                infrastructureComponent global_lb
+                    name = Global Load Balancer
+
+environment eu
+    name = Europe
+
+    compute:
+        compute kube_eu
+            name = Kubernetes EU
+
+    storage:
+        storage db_eu
+            name = PostgreSQL EU
+
+    observability:
+        monitoring otel_eu
+            name = OpenTelemetry Collector EU
+            display:
+                infrastructureComponent grafana
+                    name = Grafana Cloud
+\`\`\`
+
+Example profiles:
+
+\`\`\`insight
+deploymentProfile global_service
+    environments:
+        global_edge
+
+    runsOn compute
+    uses publicGateway
+
+deploymentProfile regional_service
+    environments:
+        eu
+
+    runsOn compute
+    uses observability
+\`\`\`
+
+Then attach the archetype with one \`usesProfile\`:
+
+\`\`\`insight
+container web_app
+    name = Web app
+    deployment:
+        usesProfile global_service
+
+service checkout_api
+    name = Checkout API
+    deployment:
+        usesProfile regional_service
+        uses storage
+\`\`\`
+
+The profile supplies the common environment scope, placement, and standard
+infrastructure. Additional local \`uses\` entries extend the profile for that
+specific element. In the example, \`checkout_api\` inherits regional compute and
+observability from \`regional_service\`, then adds its own \`uses storage\`
+because this service owns persistent state.
+
+Use separate profiles when the default infrastructure differs. For example,
+\`public_regional_service\` can include both \`uses observability\` and
+\`uses publicGateway\`, while \`regional_worker\` may use the same environments,
+compute, and observability but omit public ingress. Put path-only infrastructure
+such as \`network\` on the wire deployment when it represents a specific
+service-to-service path.
+
+When an element should reuse only the environments from an archetype, use
+\`environmentsFrom <profile>\` instead of \`usesProfile <profile>\` and then add
+the local \`runsOn\` / \`uses\` entries explicitly.
+
+Do not try to make infrastructure global to avoid repeating profiles. The
+profile should select environment instances; the selected environments provide
+their own concrete infrastructure through slots.
+
+## Projection Rules
+
+Projection rules live on infrastructure types. They explain how a logical
+\`uses <slot>\` reference expands into projected graph edges.
+
+Core defaults:
+
+- \`Storage\`: \`$from -> $this\`.
+- \`Broker\`: \`$from -> $this\` and \`$to -> $this\`, because both sides
+  physically connect to the broker.
+- \`NetworkConnection\`: \`$from -> $to\`, for an ordinary direct network call
+  that should still appear on the deployment layer.
+
+Custom infrastructure types can define their own projection rules.
+
+\`\`\`insight
+define type PublicGateway of InfrastructureComponent
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+
+    project:
+        $from -> cdn
+        cdn -> loadBalancer
+        loadBalancer -> $this
+        $this -> $to
+\`\`\`
+
+When a service says \`uses storage\`, the selected environment's storage instance
+receives a projected edge from the logical service:
+
+\`\`\`text
+checkout_api -> prod.orders_db
+checkout_api -> staging.orders_db
+\`\`\`
+
+When a wire says \`uses network\`, the selected environment's network connection
+keeps the logical source-to-target relationship visible in the deployment view:
+
+\`\`\`insight
+links:
+    -> checkout_api
+        deployment:
+            environmentsFrom regional_service
+            uses network
+\`\`\`
+
+If a logical relationship is missing from a C4/deployment diagram, check whether
+the wire has deployment information and uses a path-producing slot such as
+\`network\`, \`publicGateway\`, or another type with a \`project:\` rule. C4
+queries commonly select projected deployment edges; a plain logical wire without
+deployment projection may be correct in C2/C3 but absent from the deployment
+layer.
+
+Projection terms:
+
+- \`$from\` is the logical source of the deployment use.
+- \`$to\` is the logical target when the deployment is attached to a wire.
+- \`$this\` is the infrastructure component instance selected by \`uses\`.
+- plain names such as \`cdn\` or \`loadBalancer\` are attributes/slots on
+  \`$this\`.
+
+## Traffic Path Example
+
+A public gateway can expand one logical edge into a physical path:
+
+\`\`\`insight
+define type PublicGateway of InfrastructureComponent
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+
+    project:
+        $from -> cdn
+        cdn -> loadBalancer
+        loadBalancer -> $this
+        $this -> $to
+\`\`\`
+
+Given this logical relationship:
+
+\`\`\`insight
+external actor customer
+    name = Customer
+    links:
+        -> web_app
+            deployment:
+                environmentsFrom public_regional_service
+                uses publicGateway
+\`\`\`
+
+And this environment inventory:
+
+\`\`\`insight
+environment prod
+    name = Production
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public edge
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+            loadBalancer:
+                infrastructureComponent alb
+                    name = Application Load Balancer
+\`\`\`
+
+The projection creates the physical path:
+
+\`\`\`text
+customer -> cloudfront -> alb -> public_edge -> web_app
+\`\`\`
+
+The logical edge remains the authoring intent. The projected edges are derived
+from deployment inventory and the \`project:\` rule.
+
+## Compute and Grouping
+
+\`runsOn compute\` is placement, not a traffic path by itself. It resolves the
+selected environment's compute slot and marks where a logical element runs:
+
+\`\`\`insight
+deploymentProfile regional_service
+    environments:
+        prod
+        staging
+
+    runsOn compute
+    uses observability
+
+deploymentProfile public_regional_service
+    environments:
+        prod
+        staging
+
+    runsOn compute
+    uses observability
+    uses publicGateway
+
+service checkout_api
+    name = Checkout API
+    deployment:
+        usesProfile global
+\`\`\`
+
+If \`prod.compute\` is EKS and \`staging.compute\` is Cloud Run, the same
+\`checkout_api\` can render in both compute groups. The built-in C4 query groups
+by \`node.runsOn\`, so compute is usually the visual grouping anchor.
+
+Use \`runsOn\` on infrastructure too:
+
+\`\`\`insight
+storage orders_db
+    name = Orders PostgreSQL
+    runsOn cloud
+\`\`\`
+
+This places the database under its provider or parent infrastructure in the
+rendered deployment graph.
+
+## Many-To-Many Deployment
+
+This is the core reason for the model:
+
+\`\`\`insight
+deploymentProfile global
+    environments:
+        prod
+        staging
+
+    runsOn compute
+
+service checkout_api
+    name = Checkout API
+    deployment:
+        usesProfile global
+        uses storage
+\`\`\`
+
+If \`prod.compute = EKS\`, \`prod.storage = Aurora\`,
+\`staging.compute = Cloud Run\`, and \`staging.storage = Cloud SQL\`, the single
+logical service projects into both environments without duplicating
+\`checkout_api\`.
+
+## What Not To Put In C4
+
+- Global infrastructure nodes when the infrastructure differs by environment.
+- Logical components invented only to represent physical routing.
+- C3 internals unless they are independently deployed.
+- Cloud resources with no relationship to a deployment question.
+- A broker/gateway/load balancer in C2 just because it appears in deployment.
+
+## Common C4 Mistakes
+
+- Defining infrastructure types but forgetting to extend \`Environment\` with
+  slots for them.
+- Creating \`infrastructureComponent\` nodes at context level when they should
+  live in an \`environment\` inventory slot.
+- Using \`usesProfile\` on a wire when only \`environmentsFrom\` is intended.
+- Forgetting \`--source <c4-file.ai>\` when rendering C4.
+- Expecting \`runsOn\` to draw traffic; use \`project:\` rules and \`uses\` for
+  traffic/path projections.
+- Treating projected edges as source declarations; they are derived.
+
+## Validation Commands
+
+\`\`\`shell
+archinsight structure . --format text
+archinsight link . --format text
+archinsight render . -c deployment_shop -s c4-deployment.ai -v c4 -f svg -o deployment-c4.svg
+\`\`\`
+
+Use \`examples/c4-deployment-framework.ai\` and \`examples/c4-deployment.ai\` as
+a compact valid C4 model when syntax is unclear.
 `;
 }
 
@@ -1730,6 +3092,25 @@ Interpretation:
 Users can define more types in project files. Always inspect project structure
 and project framework files before assuming only core constructors exist.
 
+## Built-in Deployment Infrastructure
+
+\`core_deployment.ai\` provides common infrastructure inventory types:
+
+- \`InfrastructureComponent\`: optional \`name\`, \`technology\`,
+  \`description\`, plus deployment references.
+- \`Storage\` / constructor \`storage\`: for databases, buckets, volumes, and
+  other stateful stores.
+- \`Broker\` / constructor \`broker\`: for message brokers and event buses;
+  adds optional \`address\`.
+- \`Compute\` / constructor \`compute\`: for runtimes, clusters, nodes, and
+  platforms; adds optional \`address\` and can contain nested infrastructure
+  components in a \`components:\` block.
+- \`NetworkConnection\` / constructor \`networkConnection\`: for a direct
+  network hop that projects \`$from -> $to\` on deployment views.
+
+Extend \`Environment\` with slots for these types, then fill each concrete
+\`environment <id>\` with env-local instances.
+
 ## Reading Type Extensions
 
 Project files can extend built-in or custom types:
@@ -1738,6 +3119,7 @@ Project files can extend built-in or custom types:
 extend type Environment
     Compute compute
     Storage storage
+    Broker broker
 \`\`\`
 
 Interpretation:
@@ -2185,6 +3567,422 @@ system storefront
             name = Payment client
             technology = HTTP client
             responsibility = Calls the payment provider and normalizes errors
+`;
+}
+
+function genericC1ContextExample(): string {
+  return `context customer_portal
+    name = Customer Portal
+
+external actor customer
+    name = Customer
+    technology = Browser, mobile app
+    description = Manages account details and service requests
+    links:
+        -> portal
+            description = Views account state and submits requests
+
+external actor support_agent
+    name = Support agent
+    technology = Back-office browser
+    description = Helps customers resolve account and service issues
+    links:
+        -> service_console
+            description = Reviews account state and updates service requests
+
+external system identity_provider
+    name = Identity Provider
+    technology = OIDC
+    description = Authenticates customers and support staff
+
+external system notification_platform
+    name = Notification Platform
+    technology = Email, SMS
+    description = Sends customer notifications
+
+system portal
+    name = Portal
+    technology = Web application
+    description = Customer-facing self-service experience
+    links:
+        -> identity_provider
+            technology = OIDC
+            description = Authenticates customers
+        -> notification_platform
+            technology = HTTPS
+            description = Sends request status notifications
+
+system service_console
+    name = Service Console
+    technology = Internal web application
+    description = Support-facing account and request management
+    links:
+        -> portal
+            description = Reads customer account and request state
+        -> identity_provider
+            technology = OIDC
+            description = Authenticates support staff
+`;
+}
+
+function genericC2ContainersExample(): string {
+  return `context fulfillment
+    name = Fulfillment Platform
+
+external actor warehouse_operator
+    name = Warehouse operator
+    technology = Browser
+    description = Picks, packs, and ships orders
+    links:
+        -> warehouse_ui
+            description = Processes pick, pack, and ship work
+
+external system carrier_api
+    name = Carrier API
+    technology = HTTPS API
+    description = Books shipments and returns tracking updates
+
+external system notification_platform
+    name = Notification Platform
+    technology = HTTPS API
+    description = Sends shipment notifications to customers
+
+system fulfillment
+    name = Fulfillment
+    technology = Fulfillment system
+    description = Coordinates packing, shipping, and customer shipment updates
+
+    container warehouse_ui
+        name = Warehouse UI
+        technology = React, TypeScript
+        description = Guides warehouse operators through pick, pack, and ship flows
+        links:
+            -> fulfillment_api
+                technology = HTTPS, JSON
+                call = POST /shipments
+                description = Creates and updates shipment work
+
+    service fulfillment_api
+        name = Fulfillment API
+        technology = Kotlin, PostgreSQL
+        description = Owns fulfillment workflow state and carrier integration
+        links:
+            -> carrier_api
+                technology = HTTPS
+                call = POST /labels
+                description = Buys shipment labels
+            -> notification_worker
+                description = Enqueues shipment notification work
+
+    service notification_worker
+        name = Notification Worker
+        technology = Node.js worker
+        description = Sends asynchronous shipment notifications
+        links:
+            -> notification_platform
+                technology = HTTPS
+                call = POST /messages
+                description = Sends shipment status notifications
+`;
+}
+
+function genericC3ComponentsExample(): string {
+  return `context commerce
+    name = Commerce Platform
+
+external actor shopper
+    name = Shopper
+    technology = Browser
+    links:
+        -> web_app
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+external system analytics_platform
+    name = Analytics Platform
+    technology = Kafka consumer
+
+system storefront
+    name = Storefront
+    technology = Commerce system
+
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Presents checkout screens and calls the backend API
+
+        component checkout_page
+            name = Checkout page
+            technology = Svelte
+            responsibility = Collects checkout details and shows order progress
+            links:
+                -> api_client
+
+        component api_client
+            name = API client
+            technology = Fetch, JSON
+            responsibility = Wraps backend calls and maps transport errors to UI state
+            links:
+                -> checkout_api
+                    technology = HTTPS, JSON
+                    call = POST /checkout
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Prices carts, creates orders, and coordinates payment
+        links:
+            ~> analytics_platform
+                technology = Kafka
+                via = checkout.completed
+                description = Publishes completed checkout events
+
+        component checkout_controller
+            name = Checkout controller
+            technology = REST controller
+            responsibility = Accepts checkout requests and returns order status
+            links:
+                -> checkout_service
+
+        component checkout_service
+            name = Checkout service
+            technology = Kotlin
+            responsibility = Coordinates pricing, payment authorization, and order creation
+            links:
+                -> payment_gateway
+                    call = authorize(paymentCommand)
+                    description = Requests payment authorization
+                -> order_repository
+                ~> checkout_events
+                    technology = Kafka
+                    via = checkout.completed
+                    description = Publishes completed checkout events
+
+        component payment_gateway
+            name = Payment gateway
+            technology = HTTP client
+            responsibility = Translates internal payment commands to provider API calls
+            links:
+                -> payment_provider
+                    technology = HTTPS
+                    call = POST /payments/authorizations
+                    description = Authorizes customer payment
+
+        component order_repository
+            name = Order repository
+            technology = SQL
+            responsibility = Stores order state and checkout audit records
+
+        component checkout_events
+            name = Checkout events
+            technology = Kafka producer
+            responsibility = Publishes checkout lifecycle events for downstream consumers
+`;
+}
+
+function genericC4DeploymentFrameworkExample(): string {
+  return `extend type Environment
+    ServiceProvider cloud
+    Compute compute
+    Storage storage
+    Broker broker
+    PublicGateway publicGateway
+    Monitoring observability
+    NetworkConnection network
+
+define type ServiceProvider of InfrastructureComponent
+    constructor serviceProvider
+
+define type PublicGateway of InfrastructureComponent
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+
+    project:
+        $from -> cdn
+        cdn -> loadBalancer
+        loadBalancer -> $this
+        $this -> $to
+
+define type Monitoring of InfrastructureComponent
+    constructor monitoring
+    required InfrastructureComponent display
+
+    project:
+        $this -> $from
+        $this -> display
+
+`;
+}
+
+function genericC4DeploymentExample(): string {
+  return `context deployment_shop
+    name = Deployment Shop
+
+external actor shopper
+    name = Shopper
+    technology = Browser
+    links:
+        -> web_app
+            deployment:
+                environmentsFrom public_regional_service
+                uses publicGateway
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+deploymentProfile regional_service
+    environments:
+        prod
+        staging
+
+    runsOn compute
+    uses observability
+
+deploymentProfile public_regional_service
+    environments:
+        prod
+        staging
+
+    runsOn compute
+    uses observability
+    uses publicGateway
+
+environment prod
+    name = Production
+
+    cloud:
+        serviceProvider _
+            name = AWS
+
+    compute:
+        compute _
+            name = EKS
+            runsOn cloud
+
+    storage:
+        storage _
+            name = Aurora PostgreSQL
+            technology = PostgreSQL
+            runsOn cloud
+
+    broker:
+        broker _
+            name = Event broker
+            technology = MSK Kafka
+            address = kafka.prod.internal:9092
+            runsOn compute
+
+    publicGateway:
+        publicGateway _
+            name = Public edge
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+                    runsOn cloud
+            loadBalancer:
+                infrastructureComponent alb
+                    name = Application Load Balancer
+                    runsOn cloud
+            runsOn compute
+
+    observability:
+        monitoring _
+            name = OpenTelemetry Collector
+            display:
+                infrastructureComponent _
+                    name = Grafana Cloud
+            runsOn compute
+
+    network:
+        networkConnection _
+            name = Service mesh
+            runsOn compute
+
+environment staging
+    name = Staging
+
+    cloud:
+        serviceProvider _
+            name = Google Cloud
+
+    compute:
+        compute _
+            name = Cloud Run
+            runsOn cloud
+
+    storage:
+        storage _
+            name = Cloud SQL
+            technology = PostgreSQL
+            runsOn cloud
+
+    broker:
+        broker _
+            name = Event broker
+            technology = Pub/Sub
+            address = pubsub.googleapis.com
+            runsOn compute
+
+    publicGateway:
+        publicGateway _
+            name = Public edge
+            cdn:
+                infrastructureComponent cloud_cdn
+                    name = Cloud CDN
+                    runsOn cloud
+            loadBalancer:
+                infrastructureComponent https_lb
+                    name = HTTPS Load Balancer
+                    runsOn cloud
+            runsOn compute
+
+    observability:
+        monitoring _
+            name = Cloud Monitoring Agent
+            display:
+                infrastructureComponent _
+                    name = Cloud Monitoring
+            runsOn compute
+
+    network:
+        networkConnection _
+            name = Internal routes
+            runsOn compute
+
+system storefront
+    name = Storefront
+    technology = Commerce system
+
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Customer-facing checkout application
+        deployment:
+            usesProfile public_regional_service
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                call = POST /checkout
+                deployment:
+                    environmentsFrom regional_service
+                    uses network
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Creates orders and coordinates payment
+        deployment:
+            usesProfile regional_service
+            uses storage
+            uses broker
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
 `;
 }
 

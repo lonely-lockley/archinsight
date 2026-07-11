@@ -8,16 +8,6 @@ extend type Environment
     Monitoring observability
     Egress egress
 
-define type Compute of InfrastructureComponent
-    constructor compute
-
-define type Broker of InfrastructureComponent
-    constructor broker
-
-    project:
-        $from -> $this
-        $to -> $this
-
 define type Monitoring of InfrastructureComponent
     constructor metrics
 
@@ -25,12 +15,6 @@ define type Monitoring of InfrastructureComponent
     project:
         $this -> $from
         $this -> display
-
-define type Storage of InfrastructureComponent
-    constructor storage
-
-    project:
-        $from -> $this
 
 define type Internaletwork of InfrastructureComponent
     constructor internalServiceRoute

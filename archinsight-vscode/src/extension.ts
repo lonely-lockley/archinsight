@@ -100,6 +100,11 @@ interface VirtualWorkbenchDocument {
   readonly readOnly: boolean;
 }
 
+interface ArchinsightCliStatus {
+  readonly version: string;
+  readonly supportsAgentSkillTargets: boolean;
+}
+
 const semanticTokenTypes = insightSemanticTokenTypes;
 type SemanticTokenType = typeof semanticTokenTypes[number];
 const semanticTokenModifiers = insightSemanticTokenModifiers;
@@ -326,9 +331,19 @@ export function deactivate(): void {
 }
 
 async function checkCliCommand(): Promise<void> {
-  const version = await archinsightCliVersion();
-  if (version !== undefined) {
-    await vscode.window.showInformationMessage(`Archinsight CLI ${version} is available.`);
+  const status = await archinsightCliStatus();
+  if (status?.supportsAgentSkillTargets === true) {
+    await vscode.window.showInformationMessage(`Archinsight CLI ${status.version} is available.`);
+    return;
+  }
+  if (status !== undefined) {
+    const choice = await vscode.window.showWarningMessage(
+      `Archinsight CLI ${status.version} is available, but it does not support agent skill targets. Update the CLI before generating agent skills.`,
+      "Update CLI",
+    );
+    if (choice === "Update CLI") {
+      openCliInstallTerminal();
+    }
     return;
   }
   const choice = await vscode.window.showWarningMessage(
@@ -346,7 +361,7 @@ function openCliInstallTerminal(): void {
     cwd: workspaceRoot()?.fsPath,
   });
   terminal.show();
-  terminal.sendText("npm install -g @archinsight/cli");
+  terminal.sendText("npm install -g @archinsight/cli@next");
 }
 
 async function generateAgentSkillCommand(): Promise<void> {
@@ -356,13 +371,23 @@ async function generateAgentSkillCommand(): Promise<void> {
     return;
   }
 
-  const version = await archinsightCliVersion();
-  if (version === undefined) {
+  const status = await archinsightCliStatus();
+  if (status === undefined) {
     const choice = await vscode.window.showWarningMessage(
       "Archinsight CLI is required to generate an agent skill.",
       "Install CLI",
     );
     if (choice === "Install CLI") {
+      openCliInstallTerminal();
+    }
+    return;
+  }
+  if (!status.supportsAgentSkillTargets) {
+    const choice = await vscode.window.showWarningMessage(
+      `Archinsight CLI ${status.version} does not support agent skill targets. Update the CLI before generating an agent skill.`,
+      "Update CLI",
+    );
+    if (choice === "Update CLI") {
       openCliInstallTerminal();
     }
     return;
@@ -385,18 +410,33 @@ async function generateAgentSkillCommand(): Promise<void> {
   });
   terminal.show();
   terminal.sendText(`archinsight skill init . --target ${target}`);
-  output.appendLine(`Archinsight CLI ${version}: started skill generation for target '${target}' in ${root.fsPath}`);
+  output.appendLine(`Archinsight CLI ${status.version}: started skill generation for target '${target}' in ${root.fsPath}`);
 }
 
 function isAgentSkillTarget(value: string | undefined): value is AgentSkillTarget {
   return value === "generic" || value === "codex" || value === "claude";
 }
 
-async function archinsightCliVersion(): Promise<string | undefined> {
+async function archinsightCliStatus(): Promise<ArchinsightCliStatus | undefined> {
+  const version = (await execArchinsight(["--version"]))?.trim();
+  if (version === undefined || version === "") {
+    return undefined;
+  }
+  const help = await execArchinsight(["--help"]);
+  return {
+    version,
+    supportsAgentSkillTargets: help?.includes("--target") === true
+      && help.includes("archinsight skill init")
+      && help.includes("codex")
+      && help.includes("claude"),
+  };
+}
+
+async function execArchinsight(args: readonly string[]): Promise<string | undefined> {
   return new Promise((resolve) => {
     execFile(
       "archinsight",
-      ["--version"],
+      [...args],
       {
         timeout: 5000,
         windowsHide: true,
@@ -407,8 +447,7 @@ async function archinsightCliVersion(): Promise<string | undefined> {
           resolve(undefined);
           return;
         }
-        const version = stdout.trim();
-        resolve(version === "" ? undefined : version);
+        resolve(stdout);
       },
     );
   });

@@ -2,7 +2,7 @@
   "name": "archinsight-vscode",
   "displayName": "Archinsight",
   "description": "Native VSCode support for Insight architecture models.",
-  "version": "3.0.2",
+  "version": "3.0.4",
   "license": "Apache-2.0",
   "publisher": "archinsight",
   "icon": "assets/icon.png",

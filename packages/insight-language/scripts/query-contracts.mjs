@@ -1233,21 +1233,6 @@ function typedReferenceImplementationsMaterializeRunsOnGroups() {
 extend type Context
     List of Element _
 
-define type Broker of InfrastructureComponent
-    constructor broker
-
-    project:
-        $from -> $this
-
-define type Storage of InfrastructureComponent
-    constructor storage
-
-    project:
-        $from -> $this
-
-define type Compute of InfrastructureComponent
-    constructor compute
-
 extend type Environment
     InfrastructureComponent region
     InfrastructureComponent compute
@@ -1256,9 +1241,6 @@ extend type Environment
 
 extend type System
     DeploymentProfile deployment
-
-extend type InfrastructureComponent
-    List of TypeSlotReference _
 
 extend type Wire
     DeploymentProfile deployment
@@ -1409,10 +1391,12 @@ service worker
   assert(usRegionGroup.elements.includes("infra/ecs"));
   assert.equal(graph.elements["test/api"], undefined);
   assert.equal(graph.elements["test/worker"], undefined);
-  assert.equal(graph.edges.filter((edge) => edge.edge.projected === true).length, 8);
+  assert.equal(graph.edges.filter((edge) => edge.edge.projected === true).length, 6);
   assert.equal(graph.edges.filter((edge) => edge.edge.projected !== true).length, 0);
   assert(graph.edges.some((edge) => edge.source === "test/api@@infra/kube" && edge.target === "infra/db"));
   assert(graph.edges.some((edge) => edge.source === "test/api@@infra/ecs" && edge.target === "infra/dbUs"));
+  assert(graph.edges.some((edge) => edge.source === "test/api@@infra/kube" && edge.target === "infra/kafka"));
+  assert(graph.edges.some((edge) => edge.source === "test/worker@@infra/kube" && edge.target === "infra/kafka"));
   assert(!graph.externalElements.includes("infra/kafka"));
   assert(!graph.externalElements.includes("infra/db"));
   assert(!graph.externalElements.includes("infra/kafkaUs"));
@@ -1903,9 +1887,6 @@ system payments
 function c1QueryKeepsDeploymentElementsOutOfSystemLandscape() {
   const sources = [
     source("definitions.ai", `
-define type Broker of InfrastructureComponent
-    constructor broker
-
 extend type Wire
     List of InfrastructureComponent uses
 `),
@@ -2091,7 +2072,6 @@ function infraGroupingSnapshot(list) {
     {
       schemaVersion: "infra-grouping",
       types: [
-        { name: "Compute", baseType: "InfrastructureComponent" },
         {
           name: "Service",
           attributes: [
@@ -2101,9 +2081,7 @@ function infraGroupingSnapshot(list) {
           ],
         },
       ],
-      constructors: [
-        { spelling: "compute", ownerType: "Compute" },
-      ],
+      constructors: [],
       operators: [],
       enums: [],
     },
