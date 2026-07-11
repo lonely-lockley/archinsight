@@ -75,6 +75,12 @@ tasks.register('dist') {
     dependsOn 'npmPackage'
 }
 
+tasks.register('releaseCheck') {
+    group = 'verification'
+    description = 'Synchronizes metadata, checks, and builds the VSCode extension VSIX.'
+    dependsOn rootProject.tasks.named('syncPackageVersions'), 'npmCheck', 'npmPackage'
+}
+
 tasks.named('check') {
     dependsOn 'npmCheck'
 }

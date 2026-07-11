@@ -13,6 +13,7 @@ archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
 archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f text|json] [-o file]
 archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
+archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 ```
 
 `project-dir` defaults to the current directory.
@@ -27,6 +28,8 @@ archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-f
 - `-f, --format <format>` - command output format.
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
+- `--target <target>` - skill target for `skill init`: `generic`, `codex`, or `claude`.
+- `--force` - replace existing generated skill files.
 - `-V, --version` - print version.
 - `-h, --help` - print help.
 
@@ -44,6 +47,57 @@ Render DOT for a context using the C2 built-in query:
 ```shell
 node archinsight-cli/build/index.js render examples -c demo -s main.ai -v c2 -f dot
 ```
+
+Generate a portable AI-agent guide for an Insight project:
+
+```shell
+archinsight skill init --target generic
+```
+
+The generic target writes a runtime-neutral guide:
+
+```text
+.archinsight/agent/
+    archinsight.md
+    references/
+        syntax.md
+        layered-architecture.md
+        queries.md
+        validation.md
+    examples/
+        layered-architecture.ai
+        c2-containers.aiq
+```
+
+Codex and Claude targets package the same Insight reference directly into the
+native skill folders:
+
+```shell
+archinsight skill init --target codex
+archinsight skill init --target claude
+```
+
+```text
+.codex/skills/archinsight/
+    SKILL.md
+    agents/openai.yaml
+    references/
+    examples/
+
+.claude/skills/archinsight/
+    SKILL.md
+    references/
+    examples/
+```
+
+After generating a Codex or Claude skill into the default location, restart the
+agent session so the skill is discovered. Pass `--out <dir>` to write the same
+package somewhere else.
+
+The guide tells agents to treat `archinsight` as the validation source of truth,
+avoid guessing Insight syntax from other architecture DSLs, describe systems
+layer by layer from context to containers, components, and deployment details,
+and write custom `.aiq` diagram queries with the supported Cypher-style subset.
 
 ## Output Contract
 

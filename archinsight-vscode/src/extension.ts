@@ -1708,11 +1708,14 @@ function sleep(ms: number): Promise<void> {
 async function readWorkspaceSources(root: vscode.Uri): Promise<ProjectSource[]> {
   const files = await vscode.workspace.findFiles(
     new vscode.RelativePattern(root, "**/*.ai"),
-    "{**/node_modules/**,**/.git/**,**/build/**,**/dist/**}",
+    "{**/node_modules/**,**/.*/**,**/build/**,**/dist/**}",
   );
   const sources = new Map<string, ProjectSource>();
   for (const uri of files.sort((left, right) => left.fsPath.localeCompare(right.fsPath))) {
     const sourceName = sourceNameForUri(root, uri);
+    if (isIgnoredSource(sourceName)) {
+      continue;
+    }
     sources.set(sourceName, {
       sourceName,
       source: Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8"),
@@ -1721,6 +1724,9 @@ async function readWorkspaceSources(root: vscode.Uri): Promise<ProjectSource[]> 
   for (const document of vscode.workspace.textDocuments) {
     if (isInsightDocument(document) && isInside(root, document.uri)) {
       const sourceName = sourceNameForUri(root, document.uri);
+      if (isIgnoredSource(sourceName)) {
+        continue;
+      }
       sources.set(sourceName, { sourceName, source: document.getText() });
     }
   }
@@ -1737,6 +1743,16 @@ function workspaceRoot(): vscode.Uri | undefined {
 
 function sourceNameForUri(root: vscode.Uri, uri: vscode.Uri): string {
   return path.relative(root.fsPath, uri.fsPath).replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+function isIgnoredSource(sourceName: string): boolean {
+  const directories = sourceName.split("/").slice(0, -1);
+  return directories.some((directory) => (
+    directory.startsWith(".")
+    || directory === "node_modules"
+    || directory === "build"
+    || directory === "dist"
+  ));
 }
 
 function isInside(root: vscode.Uri, uri: vscode.Uri): boolean {

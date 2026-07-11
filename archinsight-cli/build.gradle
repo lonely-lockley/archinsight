@@ -57,6 +57,22 @@ tasks.register('npmPack', Exec) {
     commandLine npmCommand, 'pack', '--pack-destination', 'dist'
 }
 
+tasks.register('npmPackDryRun', Exec) {
+    group = 'verification'
+    description = 'Runs npm pack --dry-run for the Archinsight CLI package.'
+    dependsOn 'npmBuild', rootProject.tasks.named('copyLicenses')
+    inputs.file('package.json')
+    inputs.file('README.md')
+    inputs.file('LICENSE')
+    inputs.dir('build')
+    workingDir = projectDir
+    commandLine npmCommand, 'pack', '--dry-run'
+}
+
+tasks.named('npmPack') {
+    mustRunAfter 'npmPackDryRun'
+}
+
 tasks.register('npmCheck') {
     group = 'verification'
     description = 'Runs CLI checks.'
@@ -71,6 +87,12 @@ tasks.register('dist') {
     group = 'build'
     description = 'Builds the CLI distribution tarball.'
     dependsOn 'npmPack'
+}
+
+tasks.register('releaseCheck') {
+    group = 'verification'
+    description = 'Synchronizes metadata, checks, dry-packs, and builds the CLI release tarball.'
+    dependsOn rootProject.tasks.named('syncPackageVersions'), 'npmCheck', 'npmPackDryRun', 'npmPack'
 }
 
 tasks.named('check') {
