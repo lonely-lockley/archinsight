@@ -71,6 +71,7 @@ The generic target writes a runtime-neutral guide:
         project-structure.md
         core.md
         queries.md
+        query-recipes.md
         validation.md
     .core/
         *.ai
@@ -81,6 +82,12 @@ The generic target writes a runtime-neutral guide:
         c4-deployment-framework.ai
         c4-deployment.ai
         c2-containers.aiq
+        builtin-views/
+            no-filter.aiq
+            c1.aiq
+            c2.aiq
+            c3.aiq
+            c4.aiq
 ```
 
 Codex and Claude targets package the same Insight reference directly into the

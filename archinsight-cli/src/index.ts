@@ -907,6 +907,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericQueriesReference(),
     },
     {
+      path: "references/query-recipes.md",
+      content: genericQueryRecipesReference(),
+    },
+    {
       path: "examples/layered-architecture.ai",
       content: genericLayeredArchitectureExample(),
     },
@@ -933,6 +937,26 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     {
       path: "examples/c2-containers.aiq",
       content: genericC2QueryExample(),
+    },
+    {
+      path: "examples/builtin-views/no-filter.aiq",
+      content: noFilterQuery,
+    },
+    {
+      path: "examples/builtin-views/c1.aiq",
+      content: c1Query,
+    },
+    {
+      path: "examples/builtin-views/c2.aiq",
+      content: c2Query,
+    },
+    {
+      path: "examples/builtin-views/c3.aiq",
+      content: c3Query,
+    },
+    {
+      path: "examples/builtin-views/c4.aiq",
+      content: c4Query,
     },
     ...coreSkillFiles(),
   ];
@@ -1032,6 +1056,8 @@ If \`archinsight\` is not available, ask the user to install or expose
   attributes, presentations, or projections.
 - Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
   files.
+- Read \`references/query-recipes.md\` when a built-in view hides an expected
+  element/edge or needs customization.
 - Read \`references/validation.md\` before running checks, structure inspection,
   or rendering.
 - Use \`examples/layered-architecture.ai\` as a compact valid model.
@@ -1077,6 +1103,8 @@ Treat this \`SKILL.md\` as the entrypoint. Load reference files only when needed
   constructors, attributes, presentations, or projections.
 - Read \`references/queries.md\` before writing custom diagram queries or \`.aiq\`
   files.
+- Read \`references/query-recipes.md\` before customizing a built-in view or
+  explaining why an expected element/edge is hidden.
 - Read \`references/validation.md\` before running checks, structure inspection,
   or rendering commands.
 
@@ -1136,6 +1164,8 @@ If \`archinsight\` is not available, ask the user to install or expose
   attributes, presentations, or projections.
 - Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
   files.
+- Read \`references/query-recipes.md\` when a built-in view hides an expected
+  element/edge or needs customization.
 - Read \`references/validation.md\` before running checks, structure inspection,
   or rendering.
 - Use \`examples/layered-architecture.ai\` as a compact valid model.
@@ -1182,6 +1212,8 @@ they are needed:
   constructors, attributes, presentations, or projections.
 - Read \`references/queries.md\` before writing custom diagram queries or \`.aiq\`
   files.
+- Read \`references/query-recipes.md\` before customizing a built-in view or
+  explaining why an expected element/edge is hidden.
 - Read \`references/validation.md\` before asking the user to run validation,
   structure inspection, or rendering commands.
 
@@ -1261,6 +1293,8 @@ sections of Insight unless the existing layering is already understood.
   attributes, presentations, or projections.
 - Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
   files.
+- Read \`references/query-recipes.md\` when a built-in view hides an expected
+  element/edge or needs customization.
 - Read \`references/validation.md\` before running checks, structure inspection,
   or rendering.
 - Use \`examples/layered-architecture.ai\` as a compact valid model.
@@ -3921,6 +3955,16 @@ diagram needs stable layout.
 
 ## Built-In View Patterns
 
+Exact built-in query sources are bundled in:
+
+\`\`\`text
+examples/builtin-views/no-filter.aiq
+examples/builtin-views/c1.aiq
+examples/builtin-views/c2.aiq
+examples/builtin-views/c3.aiq
+examples/builtin-views/c4.aiq
+\`\`\`
+
 C1 usually selects systems in the selected context and rolls lower-level links
 up to system-level relationships.
 
@@ -3933,6 +3977,10 @@ and returns component relationships.
 C4 usually selects deployment and container nodes from \`$tab\`, uses
 \`OPTIONAL MATCH ROLLUP\`, and returns projected relationships.
 
+When a built-in view is close but hides the wrong thing, read
+\`references/query-recipes.md\`, copy the nearest built-in \`.aiq\`, and change
+the filter or grouping deliberately.
+
 ## Authoring Rules
 
 - Start from the view question: context, containers, components, or deployment.
@@ -3941,6 +3989,190 @@ C4 usually selects deployment and container nodes from \`$tab\`, uses
 - Add \`GROUP BY\` deliberately for diagrams with clusters.
 - Validate query files with \`archinsight query\` before rendering.
 - Keep custom queries in \`.aiq\` files when they are reused.
+`;
+}
+
+function genericQueryRecipesReference(): string {
+  return `# Query Recipes and Built-In View Customization
+
+Use this reference when a built-in C1/C2/C3/C4 view is close but not quite right:
+an expected element is hidden, a relationship is missing, infrastructure is too
+noisy, or the diagram needs a different scope.
+
+## Start From Built-In Queries
+
+The generated skill includes exact built-in view queries:
+
+\`\`\`text
+examples/builtin-views/no-filter.aiq
+examples/builtin-views/c1.aiq
+examples/builtin-views/c2.aiq
+examples/builtin-views/c3.aiq
+examples/builtin-views/c4.aiq
+\`\`\`
+
+Before inventing a query from scratch, open the nearest built-in query, copy it
+to the project, and make the smallest change.
+
+\`\`\`shell
+archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f text
+archinsight render . -c <context-id> -s <source.ai> -q queries/custom.aiq -f svg -o custom.svg
+\`\`\`
+
+Use \`references/queries.md\` for syntax details. Use this file for common
+customization patterns.
+
+## When To Customize
+
+Write or adjust a \`.aiq\` query when:
+
+- the built-in view hides a node or edge that exists in \`archinsight link\`;
+- the source/tab scope is right but the view intentionally filters out a type;
+- C4 should include actors, vendors, or a special deployment path;
+- the diagram should show only one layer, one flow, or one relationship class;
+- grouping needs to change, such as grouping by parent instead of \`runsOn\`.
+
+Do not compensate for a view filter by duplicating model elements. First inspect
+the built-in query and decide whether the model or the query owns the behavior.
+
+## Diagnose A Missing Element
+
+1. Validate the model:
+
+\`\`\`shell
+archinsight link . --format text
+\`\`\`
+
+2. Inspect declarations and source identities:
+
+\`\`\`shell
+archinsight structure . --format text
+\`\`\`
+
+3. Run the built-in query text explicitly:
+
+\`\`\`shell
+archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.aiq -f text
+\`\`\`
+
+4. Check the query filters:
+
+- \`node.sourceIdentity = $tab\` means the node must be declared in the selected
+  source file.
+- \`node IS DeploymentElement\` hides actors and ordinary logical elements.
+- \`{projected}\` means only derived deployment projection edges are selected.
+- \`{derived}\` means only rolled-up relationships are selected.
+- \`sourceIdentity: $tab\` on an edge means the relationship/projection must come
+  from the selected source.
+
+## Include External Actors In C4
+
+The built-in C4 query focuses on deployment/container nodes. If a deployment
+diagram needs the external actor that starts the traffic path, copy
+\`examples/builtin-views/c4.aiq\` and widen the node and projected target filters:
+
+\`\`\`cypher
+MATCH (node:Element)
+WHERE node.sourceIdentity = $tab
+  AND (node IS DeploymentElement OR node IS ContainerElement OR node IS Actor)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
+WHERE projectedTarget IS DeploymentElement
+   OR projectedTarget IS ContainerElement
+   OR projectedTarget IS External
+   OR projectedTarget IS Actor
+OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
+WHERE node IS DeploymentElement
+  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
+GROUP BY node.runsOn
+RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
+\`\`\`
+
+If the actor is declared in another source file, either render from that source
+or relax the \`node.sourceIdentity = $tab\` condition intentionally.
+
+## Show Only Async Flows
+
+Use edge attributes when the question is about relationship kind:
+
+\`\`\`cypher
+MATCH (source:Element)-[link]->(target:Element)
+WHERE source.context = $context
+  AND link.model = 'async'
+GROUP BY source.parent
+RETURN source, link, target
+\`\`\`
+
+This is useful for event-stream, broker, queue, or notification diagrams. Add
+\`source.sourceIdentity = $tab\` when the query should stay scoped to one file.
+
+## Hide Deployment Infrastructure
+
+When a C4-oriented source file is too noisy and you only need logical containers
+or services, select logical container elements and direct logical relationships:
+
+\`\`\`cypher
+MATCH (node:ContainerElement)
+WHERE node.sourceIdentity = $tab
+OPTIONAL MATCH (node)-[link]->(target:ContainerElement)
+GROUP BY node.parent
+RETURN node, link, target
+\`\`\`
+
+This is intentionally closer to C2 than C4. Use it when deployment annotations
+exist in the file but the diagram question is still logical.
+
+## Show Projected Edges Across Split Files
+
+The built-in C4 query restricts projected edges to \`sourceIdentity: $tab\`. That
+is usually correct for a focused deployment-view source file, but it can hide
+projected edges when traffic relationships were split across files.
+
+Copy \`examples/builtin-views/c4.aiq\` and relax only the projected edge selector:
+
+\`\`\`cypher
+MATCH (node:Element)
+WHERE node.sourceIdentity = $tab
+  AND (node IS DeploymentElement OR node IS ContainerElement)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
+WHERE projectedTarget IS DeploymentElement
+   OR projectedTarget IS ContainerElement
+   OR projectedTarget IS External
+OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
+WHERE node IS DeploymentElement
+  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
+GROUP BY node.runsOn
+RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
+\`\`\`
+
+Use this deliberately. Removing the source filter can bring in projections from
+other view files, so validate the result with \`archinsight query\` before
+rendering.
+
+## Change Grouping
+
+Grouping controls visual clusters. If C4 grouping by \`runsOn\` is not helpful,
+try grouping by parent:
+
+\`\`\`cypher
+MATCH (node:Element)
+WHERE node.sourceIdentity = $tab
+  AND (node IS DeploymentElement OR node IS ContainerElement)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
+WHERE projectedTarget IS DeploymentElement
+   OR projectedTarget IS ContainerElement
+   OR projectedTarget IS External
+GROUP BY node.parent
+RETURN node, projectedLink, projectedTarget
+\`\`\`
+
+Use \`GROUP BY node.runsOn\` for deployment placement; use \`GROUP BY node.parent\`
+for logical ownership.
+
+## Working Rule
+
+If a diagram looks wrong but \`archinsight link\` is clean, inspect the selected
+source, built-in query, and returned aliases before changing the model. Many
+display issues are query scope issues, not schema or linker bugs.
 `;
 }
 
