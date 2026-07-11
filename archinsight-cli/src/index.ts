@@ -1027,13 +1027,18 @@ If \`archinsight\` is not available, ask the user to install or expose
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
-4. When the task touches infrastructure, runtime placement, regions, or
-   deployment, decide per system whether pragmatic mixed C2 or clean
-   C4/deployment is appropriate.
-5. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-6. Keep definition/framework files separate from model files that declare
+4. Do not ask about deployment depth until the task touches infrastructure,
+   runtime placement, regions, brokers, gateways, storage, or deployment.
+5. At that point, decide per system whether pragmatic mixed C2 or clean
+   C4/deployment is appropriate. If modeling clean C4: attach placement/storage
+   to elements, attach path infrastructure that needs \`$to\` to wires, and make
+   pub/sub dependencies consumer-owned.
+6. If a diagram becomes noisy, adjust scope/query before changing a correct
+   graph model.
+7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
+8. Keep definition/framework files separate from model files that declare
    \`context <id>\`.
-7. Validate every Insight change with \`archinsight link . --format text\`.
+9. Validate every Insight change with \`archinsight link . --format text\`.
 
 ## References
 
@@ -1134,16 +1139,21 @@ If \`archinsight\` is not available, ask the user to install or expose
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
-4. When the task touches infrastructure, runtime placement, regions, or
-   deployment, decide per system whether pragmatic mixed C2 or clean
-   C4/deployment is appropriate.
-5. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-6. Keep definition/framework files separate from model files that declare
+4. Do not ask about deployment depth until the task touches infrastructure,
+   runtime placement, regions, brokers, gateways, storage, or deployment.
+5. At that point, decide per system whether pragmatic mixed C2 or clean
+   C4/deployment is appropriate. If modeling clean C4: attach placement/storage
+   to elements, attach path infrastructure that needs \`$to\` to wires, and make
+   pub/sub dependencies consumer-owned.
+6. If a diagram becomes noisy, adjust scope/query before changing a correct
+   graph model.
+7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
+8. Keep definition/framework files separate from model files that declare
    \`context <id>\`.
-7. Use \`archinsight structure . --format text\` before broad edits when the
+9. Use \`archinsight structure . --format text\` before broad edits when the
    project shape is unclear.
-8. Validate every Insight change with \`archinsight link . --format text\`.
-9. If validation fails, fix the first real syntax/type/linking error before
+10. Validate every Insight change with \`archinsight link . --format text\`.
+11. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
 
 ## References
@@ -1246,17 +1256,22 @@ install or expose \`@archinsight/cli\` before changing \`.ai\` files.
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, and deployment details.
-4. When the task touches infrastructure, runtime placement, regions, or
-   deployment, decide per system whether pragmatic mixed C2 or clean
-   C4/deployment is appropriate.
-5. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-6. Keep definition/framework files separate from model files that declare
+4. Do not ask about deployment depth until the task touches infrastructure,
+   runtime placement, regions, brokers, gateways, storage, or deployment.
+5. At that point, decide per system whether pragmatic mixed C2 or clean
+   C4/deployment is appropriate. If modeling clean C4: attach placement/storage
+   to elements, attach path infrastructure that needs \`$to\` to wires, and make
+   pub/sub dependencies consumer-owned.
+6. If a diagram becomes noisy, adjust scope/query before changing a correct
+   graph model.
+7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
+8. Keep definition/framework files separate from model files that declare
    \`context <id>\`.
-7. Use \`archinsight structure . --format text\` to inspect the current model
+9. Use \`archinsight structure . --format text\` to inspect the current model
    before broad edits when the CLI is available.
-8. Validate every Insight change with \`archinsight link . --format text\` when
+10. Validate every Insight change with \`archinsight link . --format text\` when
    shell access is available; otherwise ask the user to run validation.
-9. If validation fails, fix the first real syntax/type/linking error before
+11. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
 
 ## Communication
@@ -1454,6 +1469,15 @@ extra attribute.
 Use \`~>\` for asynchronous relationships. Model one async wire per meaningful
 topic or event flow between real producer and consumer elements.
 
+For pub/sub, make the dependency consumer-owned:
+
+- The producer/source declares the event topic as part of its contract, but does
+  not maintain a manual list of subscribers.
+- The consumer declares \`~> producer\` with \`via = <topic>\`, because the
+  consumer depends on the producer's event contract.
+- To answer "who depends on this event?", query the graph for incoming async
+  dependencies instead of editing a subscriber list on the producer.
+
 Do not invent a broker node just to make the diagram look familiar. If the
 chosen style is clean C4 and the broker is deployment infrastructure, model it
 in deployment/C4. If the chosen style is pragmatic mixed C2, a broker-like node
@@ -1605,10 +1629,10 @@ links:
         technology = HTTPS, JSON
         call = POST /checkout
         description = Places an order
-    ~> analytics
+    ~> order_events
         technology = Kafka
         via = orders.created
-        description = Publishes order events
+        description = Consumes order events
 \`\`\`
 
 \`call\` is singular and belongs to synchronous \`->\` links. \`via\` belongs to
@@ -1658,22 +1682,79 @@ Use \`extend type\` / \`extend presentation\` when patching existing vocabulary.
 Repeating \`define presentation X\` for an existing presentation is a diagnostic
 in current Archinsight.
 
-## Annotations
+## Comments and Notes
 
-Annotations decorate the next declaration or link:
+Use \`#\` for ordinary comments when you want to leave guidance for humans or
+agents without changing the model:
 
 \`\`\`insight
-@planned
-external system warehouse
-    name = Warehouse
+# This file owns the checkout bounded context.
+context checkout
 
-links:
-    @deprecated
-    ~> legacy_erp
+system checkout_platform
+    # Keep logical services here; deployment inventory belongs in C4 files.
+    name = Checkout Platform
 \`\`\`
 
-Use presentation definitions for durable visual styling. Avoid adding new
-Graphviz attributes directly unless the project already uses that convention.
+A \`#\` after an element or relationship line is an inline note. Notes are
+stored in the linked graph and can be rendered as note nodes near the element or
+edge:
+
+\`\`\`insight
+context checkout
+
+system checkout_platform
+    name = Checkout Platform
+
+    container api # Public API owned by the checkout team
+        name = Checkout API
+        links:
+            -> payment_gateway # PCI-sensitive request path
+                technology = HTTPS
+                call = POST /payments
+
+external system payment_gateway
+    name = Payment gateway
+\`\`\`
+
+Use comments for authoring hints that should stay invisible in diagrams. Use
+notes for architecture remarks that should travel with the model and help
+readers understand a specific element or relationship.
+
+## Annotations
+
+Annotations decorate the next declaration or relationship. Put each annotation
+on its own line immediately before the target:
+
+\`\`\`insight
+context fulfillment
+
+system fulfillment_platform
+    name = Fulfillment Platform
+
+    @planned
+    container fulfillment_adapter
+        name = Fulfillment adapter
+        links:
+            @deprecated(replace after ERP migration)
+            ~> legacy_erp # scheduled for removal
+
+external system legacy_erp
+    name = Legacy ERP
+\`\`\`
+
+Available annotations:
+
+- \`@planned\` marks an element or relationship as planned or not fully
+  implemented yet. The default Graphviz renderer highlights it in green.
+- \`@deprecated\` marks an element or relationship as legacy or scheduled for
+  removal. Add optional text in parentheses when the replacement or reason is
+  useful. The default Graphviz renderer highlights it in red.
+
+Annotations can be stacked and are preserved on projected relationships, so a
+C4 projection can still show that the original logical relationship was planned
+or deprecated. Annotations cannot decorate assignments; use a comment above the
+assignment when you only need a local authoring hint.
 
 ## Presentation Syntax
 
@@ -1996,11 +2077,13 @@ at context level. Prefer capability language over endpoint trivia.
 Use \`~>\` for meaningful asynchronous context flows:
 
 \`\`\`insight
-links:
-    ~> analytics_platform
-        technology = Kafka
-        via = order.completed
-        description = Publishes completed order events
+external system analytics_platform
+    name = Analytics Platform
+    links:
+        ~> storefront
+            technology = Kafka
+            via = order.completed
+            description = Consumes completed order events from Storefront
 \`\`\`
 
 ## What Not To Put In C1
@@ -2189,17 +2272,27 @@ Import the real declaration when it is shared.
 
 ## Async and Eventing Pattern
 
-Use \`~>\` for meaningful asynchronous relationships:
+Use \`~>\` for meaningful asynchronous dependencies. For pub/sub, declare the
+wire on the consumer, pointing at the producer/source whose topic contract it
+depends on:
 
 \`\`\`insight
-service checkout_api
-    name = Checkout API
+external system analytics_platform
+    name = Analytics Platform
+    technology = Kafka consumer
     links:
-        ~> analytics_platform
+        ~> checkout_api
             technology = Kafka
             via = checkout.completed
-            description = Publishes completed checkout events
+            description = Consumes completed checkout events
+
+service checkout_api
+    name = Checkout API
+    description = Publishes checkout.completed as an event contract
 \`\`\`
+
+Do not list consumers under the producer just to answer "who listens to this
+topic?" That answer belongs in a query over incoming async dependencies.
 
 Do not add a broker node just to make an event diagram look familiar. In clean
 C2, a broker is usually deployment/C4 infrastructure unless the project defines
@@ -2412,10 +2505,6 @@ extend service inventory_api
         links:
             -> inventory_policy
             -> reservation_repository
-            ~> inventory_events
-                technology = Kafka
-                via = inventory.reserved
-                description = Publishes successful reservation events
 
     component inventory_policy
         name = Inventory policy
@@ -2427,15 +2516,21 @@ extend service inventory_api
         technology = SQL
         responsibility = Stores reservation state and idempotency keys
 
-    component inventory_events
-        name = Inventory events
-        technology = Kafka producer
-        responsibility = Publishes inventory domain events for downstream systems
+    component stock_projection
+        name = Stock projection
+        technology = Kafka consumer
+        responsibility = Maintains a stock read model from reservation events
+        links:
+            ~> reservation_service
+                technology = Kafka
+                via = inventory.reserved
+                description = Consumes successful reservation events
 \`\`\`
 
 Use \`->\` for synchronous calls and \`~>\` for asynchronous flows. Use singular
 \`call\` for the synchronous operation and \`via\` for the asynchronous topic,
-queue, or channel.
+queue, or channel. For pub/sub, put the async link on the consumer and point it
+at the producer/source whose event contract it consumes.
 
 ## Imported Boundary Pattern
 
@@ -2514,9 +2609,9 @@ Use async details for events:
 
 \`\`\`insight
 links:
-    ~> inventory_events
+    ~> reservation_service
         via = inventory.reserved
-        description = Publishes reservation completion
+        description = Consumes reservation completion events
 \`\`\`
 
 Do not add a broker as a component unless the broker is actually part of the
@@ -2563,8 +2658,10 @@ projection rules.
 - Before You Use C4
 - Mental Model
 - C4 Workflow
+- C4 Decision Checklist
 - Environment Inventory
 - Why Infrastructure Is Per Environment
+- Graph Model vs Diagram Scope
 - Attaching Deployment To C1-C3 Elements
 - usesProfile, environmentsFrom, runsOn, and uses
 - Deployment Archetypes
@@ -2678,6 +2775,23 @@ environment prod
 8. Validate with \`archinsight link . --format text\`.
 9. Render with \`archinsight render . -c <context-id> -s <c4-file.ai> -v c4 -f svg -o c4.svg\`.
 
+## C4 Decision Checklist
+
+Use this before adding a \`deployment:\` block:
+
+- Placement/grouping? Put \`runsOn compute\` on the deployed element.
+- Stateful or sidecar-like dependency? Put \`uses storage\`, \`uses observability\`,
+  or similar element-level infrastructure on the deployed element.
+- Traffic path to a target? Put \`uses network\`, \`uses publicGateway\`, or any
+  infrastructure whose projection mentions \`$to\` on the relationship under
+  \`links:\`, not on the container/service.
+- Pub/sub path? Make the async wire consumer-owned: the consumer declares
+  \`~> producer\` with \`via = <topic>\`, then attach \`uses broker\` to that wire
+  when modeling clean C4 broker infrastructure.
+- Picture too noisy? Keep the graph model correct and change source scope or
+  write a custom query. Fan-in to a shared node is normal graph reality, not a
+  modeling error by itself.
+
 ## Environment Inventory
 
 Define infrastructure vocabulary in a definition file:
@@ -2750,6 +2864,12 @@ environment prod
 specific \`prod\` environment. Another environment can fill the same slots with
 different concrete infrastructure.
 
+Object ids are still unique within a context, even when the instances live in
+different environment slots. When the exact id is not important, use anonymous
+\`_\` instances inside each environment. When you need stable ids, make them
+environment-specific, such as \`envoy_prod\` and \`envoy_staging\`, instead of
+reusing \`envoy_public\` in several environments.
+
 ## Why Infrastructure Is Per Environment
 
 Infrastructure must be per environment because deployment is many-to-many:
@@ -2765,6 +2885,14 @@ Infrastructure must be per environment because deployment is many-to-many:
 If infrastructure were modeled as global nodes, the model could not say:
 "Checkout API runs on EKS in production, Cloud Run in staging, and uses a
 different database in each environment" without duplicating logical services.
+
+## Graph Model vs Diagram Scope
+
+The linked model is a graph; a diagram is only one scoped query over that graph.
+Fan-in to one broker, gateway, load balancer, or producer is often the correct
+physical model. If the picture explodes, do not rewrite the model just to make
+the image tidy. Narrow the selected source file, add a custom \`.aiq\` query,
+group differently, or aggregate the view.
 
 ## Attaching Deployment To C1-C3 Elements
 
@@ -3171,7 +3299,13 @@ logical service projects into both environments without duplicating
   slots for them.
 - Creating \`infrastructureComponent\` nodes at context level when they should
   live in an \`environment\` inventory slot.
+- Reusing the same concrete infrastructure id in several environments. Use
+  anonymous \`_\` instances or environment-specific ids.
 - Using \`usesProfile\` on a wire when only \`environmentsFrom\` is intended.
+- Attaching \`uses publicGateway\`, \`uses network\`, or another \`$to\`-based
+  path projection to a container/service. Move it to the specific wire.
+- Modeling pub/sub as a producer-owned subscriber list. Consumers should declare
+  \`~> producer\` with \`via = <topic>\`; use queries to list consumers.
 - Forgetting \`--source <c4-file.ai>\` when rendering C4.
 - Expecting \`runsOn\` to draw traffic; use \`project:\` rules and \`uses\` for
   traffic/path projections.
@@ -4109,6 +4243,24 @@ Write or adjust a \`.aiq\` query when:
 Do not compensate for a view filter by duplicating model elements. First inspect
 the built-in query and decide whether the model or the query owns the behavior.
 
+## Graph Is Not The Picture
+
+The linked model can have correct fan-in to one broker, gateway, load balancer,
+producer, or shared runtime node. A crowded diagram means the current view is too
+broad or not aggregated enough; it does not automatically mean the model is
+wrong.
+
+When the graph is right but the picture is noisy:
+
+- narrow \`-s <source.ai>\` to the file that owns the view;
+- copy the nearest \`examples/builtin-views/*.aiq\` query;
+- filter to the layer, flow, or relationship class the user asked for;
+- change \`GROUP BY\` to cluster by parent, runtime placement, or another useful
+  attribute.
+
+Do not duplicate infrastructure or invert dependencies only to make one render
+look cleaner.
+
 ## Diagnose A Missing Element
 
 1. Validate the model:
@@ -4436,6 +4588,11 @@ external system payment_provider
 external system analytics_platform
     name = Analytics Platform
     technology = Kafka consumer
+    links:
+        ~> checkout_api
+            technology = Kafka
+            via = checkout.completed
+            description = Consumes completed checkout events
 
 system storefront
     name = Storefront
@@ -4466,12 +4623,6 @@ system storefront
         name = Checkout API
         technology = Kotlin, PostgreSQL
         description = Prices carts, creates orders, and coordinates payment
-        links:
-            ~> analytics_platform
-                technology = Kafka
-                via = checkout.completed
-                description = Publishes completed checkout events
-
         component checkout_controller
             name = Checkout controller
             technology = REST controller
@@ -4488,10 +4639,6 @@ system storefront
                     call = authorize(paymentCommand)
                     description = Requests payment authorization
                 -> order_repository
-                ~> checkout_events
-                    technology = Kafka
-                    via = checkout.completed
-                    description = Publishes completed checkout events
 
         component payment_gateway
             name = Payment gateway
@@ -4508,10 +4655,15 @@ system storefront
             technology = SQL
             responsibility = Stores order state and checkout audit records
 
-        component checkout_events
-            name = Checkout events
-            technology = Kafka producer
-            responsibility = Publishes checkout lifecycle events for downstream consumers
+        component checkout_projection
+            name = Checkout projection
+            technology = Kafka consumer
+            responsibility = Maintains an internal checkout read model from events
+            links:
+                ~> checkout_service
+                    technology = Kafka
+                    via = checkout.completed
+                    description = Consumes checkout completion events
 `;
 }
 
@@ -4711,13 +4863,6 @@ system storefront
             usesProfile regional_service
             uses storage
         links:
-            ~> order_worker
-                technology = Kafka
-                via = orders.events
-                deployment:
-                    environmentsFrom regional_service
-                    uses broker
-
             -> payment_provider
                 technology = HTTPS
                 call = POST /payments/authorizations
@@ -4728,6 +4873,14 @@ system storefront
         description = Processes order events asynchronously
         deployment:
             usesProfile regional_service
+        links:
+            ~> checkout_api
+                technology = Kafka
+                via = orders.events
+                description = Consumes order events emitted by Checkout API
+                deployment:
+                    environmentsFrom regional_service
+                    uses broker
 `;
 }
 
