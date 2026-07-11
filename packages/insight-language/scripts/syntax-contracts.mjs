@@ -31,6 +31,7 @@ const cases = [
   rejectsNamedImportFromNonContextObject,
   parsesFrameworkAssignmentAtEofWithoutTrailingNewline,
   parsesPresentationDefinitions,
+  parsesPresentationExtensions,
   parsesFinalAnonymousListAttribute,
   parsesProjectAfterFinalAnonymousListAttribute,
   rejectsAnonymousAttributeWithNonListType,
@@ -334,6 +335,16 @@ define presentation Container
     graphviz
         shape = box
         margin = "0.12,0.08"
+`);
+}
+
+function parsesPresentationExtensions() {
+  assertParses(`
+extend presentation Container
+    subtitle = technology
+
+    graphviz
+        shape = box
 `);
 }
 

@@ -11,6 +11,7 @@ const cases = [
   duplicateBuiltinTypeDeclaration,
   duplicateTypeDeclarationFromBaseSnapshot,
   duplicateEnumDeclaration,
+  duplicatePresentationDeclaration,
   typeSystemOffersConstructorsAssignableToExpectedType,
   reportsTypeConstructorNameClashes,
   reportsOperatorConstructorNameClashes,
@@ -22,6 +23,8 @@ const cases = [
   allowsEnumValuesWithoutAttributes,
   rejectsEnumExtensionsWithoutDefinition,
   extendsDeclaredEnums,
+  rejectsPresentationExtensionsWithoutDefinition,
+  extendsDeclaredPresentations,
   capturesProjectionRules,
   reportsInvalidProjectionTermOncePerDefinition,
   inheritedProjectionTermIsValid,
@@ -107,6 +110,26 @@ define enum of Region
   ]);
 
   assert.equal(countDiagnostics(result, "ENUM_ALREADY_DECLARED", "Region"), 1);
+}
+
+function duplicatePresentationDeclaration() {
+  const result = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "presentations.ai",
+      source: `
+define type Widget of Element
+    constructor widget
+
+define presentation Widget
+    header = name
+
+define presentation Widget
+    body = description
+`,
+    },
+  ], [coreLanguageSnapshot]);
+
+  assert.equal(countDiagnostics(result, "PRESENTATION_ALREADY_DECLARED", "Widget"), 1);
 }
 
 function typeSystemOffersConstructorsAssignableToExpectedType() {
@@ -307,6 +330,52 @@ extend enum of Region
 
   assert.deepEqual(result.diagnostics, []);
   assert.deepEqual(result.snapshot.enums.find((enumeration) => enumeration.type === "Region")?.values, ["europe", "usa"]);
+}
+
+function rejectsPresentationExtensionsWithoutDefinition() {
+  const result = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "definitions.ai",
+      source: `
+define type Widget of Element
+    constructor widget
+
+extend presentation Widget
+    header = name
+`,
+    },
+  ]);
+
+  assert.equal(countDiagnostics(result, "PRESENTATION_NOT_DECLARED", "Widget"), 1);
+}
+
+function extendsDeclaredPresentations() {
+  const result = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "definitions.ai",
+      source: `
+define type Widget of Element
+    constructor widget
+
+    Text name
+    Text technology
+    Text description
+
+define presentation Widget
+    header = name
+    body = description
+
+extend presentation Widget
+    subtitle = technology
+`,
+    },
+  ], [coreLanguageSnapshot]);
+
+  assert.deepEqual(result.diagnostics, []);
+  const presentation = result.snapshot.presentations?.find((item) => item.name === "Widget");
+  assert.equal(presentation?.assignments?.header, "name");
+  assert.equal(presentation?.assignments?.subtitle, "technology");
+  assert.equal(presentation?.assignments?.body, "description");
 }
 
 function capturesProjectionRules() {

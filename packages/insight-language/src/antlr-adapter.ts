@@ -151,6 +151,14 @@ export function createSyntaxContext(
           cursorOffset,
           cursor,
         )
+        ?? activeChildText(
+          input.tree,
+          "extendPresentationDeclaration",
+          "presentationIdentifier",
+          input.ruleNames,
+          cursorOffset,
+          cursor,
+        )
         ?? activePresentationName(input.tokens, input.tokenName, cursorOffset),
     ),
     ...optionalProperty(
@@ -1106,7 +1114,8 @@ function activePresentationName(
     if (tokenStart(define) >= cursorOffset) {
       break;
     }
-    if (tokenName(tokenNameResolver, tokenType(define)) === "DEFINE"
+    const operation = tokenName(tokenNameResolver, tokenType(define));
+    if ((operation === "DEFINE" || operation === "EXTEND")
       && tokenName(tokenNameResolver, tokenType(presentation)) === "PRESENTATION"
       && tokenName(tokenNameResolver, tokenType(name)) === "TYPE_IDENTIFIER"
       && tokenStart(name) < cursorOffset) {
@@ -1178,6 +1187,7 @@ const DEFINITION_RULES = new Set([
   "definePresentationDeclaration",
   "extendTypeDeclaration",
   "extendEnumDeclaration",
+  "extendPresentationDeclaration",
   "operatorBodyItem",
   "typeBodyItem",
   "extendTypeBodyItem",

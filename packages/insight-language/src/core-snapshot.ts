@@ -28,6 +28,7 @@ import {
   DefinePresentationDeclarationContext,
   DefineTypeDeclarationContext,
   ExtendEnumDeclarationContext,
+  ExtendPresentationDeclarationContext,
   ExtendTypeDeclarationContext,
   InsightParser,
   OperatorConstructorDeclarationContext,
@@ -77,6 +78,7 @@ interface CollectedLanguageSnapshotSource {
   readonly enumDeclarations: readonly DeclarationReference[];
   readonly enumExtensions: readonly DeclarationReference[];
   readonly presentationDeclarations: readonly DeclarationReference[];
+  readonly presentationExtensions: readonly DeclarationReference[];
 }
 
 interface DeclarationReference {
@@ -135,6 +137,7 @@ export function buildLanguageSnapshotResultFromSources(
   const snapshots = [BUILTIN_LANGUAGE_SNAPSHOT, ...baseSnapshots, ...validSnapshots];
   const snapshot = mergeLanguageSnapshots(snapshots);
   const baseTypeDeclarations = baseSnapshots.flatMap((base) => typeDeclarationsFromSnapshot(base, "<snapshot>"));
+  const basePresentationDeclarations = baseSnapshots.flatMap((base) => presentationDeclarationsFromSnapshot(base, "<snapshot>"));
   const typeDeclarations = [
     ...builtinTypeDeclarations(baseTypeDeclarations),
     ...baseTypeDeclarations,
@@ -147,14 +150,22 @@ export function buildLanguageSnapshotResultFromSources(
   const sourceReferences = [
     ...collected.flatMap((source) => source.typeReferences),
     ...collected.flatMap((source) => source.presentationDeclarations),
+    ...collected.flatMap((source) => source.presentationExtensions),
   ];
+  const presentationDeclarations = [
+    ...basePresentationDeclarations,
+    ...collected.flatMap((source) => source.presentationDeclarations),
+  ];
+  const presentationExtensions = collected.flatMap((source) => source.presentationExtensions);
   return {
     snapshot,
     diagnostics: [
       ...collected.flatMap((source) => source.diagnostics),
       ...validateDuplicateDeclarations("TYPE_ALREADY_DECLARED", "Type", typeDeclarations),
       ...validateDuplicateDeclarations("ENUM_ALREADY_DECLARED", "Enum", enumDeclarations),
+      ...validateDuplicateDeclarations("PRESENTATION_ALREADY_DECLARED", "Presentation", presentationDeclarations),
       ...validateEnumExtensions(enumDeclarations, collected.flatMap((source) => source.enumExtensions)),
+      ...validatePresentationExtensions(presentationDeclarations, presentationExtensions),
       ...validateConstructorCollisions(snapshots),
       ...relocateSnapshotDiagnostics(validateLanguageSnapshot(snapshot), sourceReferences),
     ],
@@ -167,6 +178,7 @@ export function mergeLanguageSnapshots(snapshots: readonly LanguageSnapshot[]): 
   const operators = new Map<string, LanguageSnapshot["operators"][number]>();
   const enums = new Map<string, LanguageSnapshot["enums"][number]>();
   const presentations = new Map<string, PresentationDefinition>();
+  const presentationExtensions: PresentationDefinition[] = [];
 
   for (const snapshot of snapshots) {
     for (const type of snapshot.types) {
@@ -185,8 +197,21 @@ export function mergeLanguageSnapshots(snapshots: readonly LanguageSnapshot[]): 
       enums.set(enumeration.type, mergeEnumDefinition(enums.get(enumeration.type), enumeration));
     }
     for (const presentation of snapshot.presentations ?? []) {
-      presentations.set(presentation.name, mergePresentationDefinition(presentations.get(presentation.name), presentation));
+      if (!presentations.has(presentation.name)) {
+        presentations.set(presentation.name, presentation);
+      }
     }
+    presentationExtensions.push(...(snapshot.presentationExtensions ?? []));
+  }
+
+  const unresolvedPresentationExtensions: PresentationDefinition[] = [];
+  for (const extension of presentationExtensions) {
+    const existing = presentations.get(extension.name);
+    if (existing === undefined) {
+      unresolvedPresentationExtensions.push(extension);
+      continue;
+    }
+    presentations.set(extension.name, mergePresentationDefinition(existing, extension));
   }
 
   return {
@@ -196,6 +221,7 @@ export function mergeLanguageSnapshots(snapshots: readonly LanguageSnapshot[]): 
     operators: [...operators.values()],
     enums: [...enums.values()],
     presentations: [...presentations.values()],
+    ...(unresolvedPresentationExtensions.length === 0 ? {} : { presentationExtensions: unresolvedPresentationExtensions }),
   };
 }
 
@@ -319,6 +345,7 @@ function collectLanguageSnapshotSource(
   const typeDeclarations: DeclarationReference[] = [];
   const enumDeclarations: DeclarationReference[] = [];
   const enumExtensions: DeclarationReference[] = [];
+  const presentationExtensions: DeclarationReference[] = [];
   const lexer = new InsightLexer(CharStream.fromString(source));
   lexer.removeErrorListeners();
   lexer.addErrorListener(new SnapshotErrorListener(sourceName, diagnostics));
@@ -338,6 +365,7 @@ function collectLanguageSnapshotSource(
   const operators: OperatorDefinition[] = [];
   const enums: Array<LanguageSnapshot["enums"][number]> = [];
   const presentations: PresentationDefinition[] = [];
+  const presentationExtensionDefinitions: PresentationDefinition[] = [];
   const typeReferences = descendants(tree, "typeReference")
     .map((reference) => typeReferenceDeclaration(reference as TypeReferenceContext, sourceName));
   const presentationDeclarations: DeclarationReference[] = [];
@@ -448,6 +476,16 @@ function collectLanguageSnapshotSource(
       continue;
     }
 
+    const presentationExtension = firstChild<ExtendPresentationDeclarationContext>(declaration, "extendPresentationDeclaration");
+    if (presentationExtension !== undefined) {
+      presentationExtensions.push({
+        name: text(presentationExtension.presentationIdentifier()),
+        ...position(presentationExtension.presentationIdentifier(), sourceName),
+      });
+      presentationExtensionDefinitions.push(presentationDefinition(presentationExtension, sourceName));
+      continue;
+    }
+
     const enumExtension = firstChild<ExtendEnumDeclarationContext>(declaration, "extendEnumDeclaration");
     if (enumExtension !== undefined) {
       const enumType = typeReference(enumExtension.typeReference()).type;
@@ -469,6 +507,7 @@ function collectLanguageSnapshotSource(
     enumDeclarations,
     enumExtensions,
     presentationDeclarations,
+    presentationExtensions,
     snapshot: {
       schemaVersion: includeBuiltinTypes ? "core.ai" : "sources",
       types: [...types.values()].map((type) => ({
@@ -482,12 +521,13 @@ function collectLanguageSnapshotSource(
       operators,
       enums,
       presentations,
+      ...(presentationExtensionDefinitions.length === 0 ? {} : { presentationExtensions: presentationExtensionDefinitions }),
     },
   };
 }
 
 function presentationDefinition(
-  presentation: DefinePresentationDeclarationContext,
+  presentation: DefinePresentationDeclarationContext | ExtendPresentationDeclarationContext,
   sourceName: string,
 ): PresentationDefinition {
   const assignments: Record<string, string> = {};
@@ -937,6 +977,15 @@ function enumDeclarationsFromSnapshot(snapshot: LanguageSnapshot, sourceName: st
   }));
 }
 
+function presentationDeclarationsFromSnapshot(snapshot: LanguageSnapshot, sourceName: string): readonly DeclarationReference[] {
+  return (snapshot.presentations ?? []).map((presentation) => ({
+    name: presentation.name,
+    sourceName: presentation.source?.sourceName ?? sourceName,
+    line: presentation.source?.line ?? 1,
+    column: presentation.source?.column ?? 1,
+  }));
+}
+
 function validateDuplicateDeclarations(
   code: string,
   label: string,
@@ -992,6 +1041,20 @@ function validateEnumExtensions(
     .map((extension) => ({
       code: "ENUM_NOT_DECLARED",
       message: `Enum for type '${extension.name}' is not declared`,
+      ...diagnosticPosition(extension),
+    }));
+}
+
+function validatePresentationExtensions(
+  declarations: readonly DeclarationReference[],
+  extensions: readonly DeclarationReference[],
+): readonly LanguageDiagnostic[] {
+  const declared = new Set(declarations.map((declaration) => declaration.name));
+  return extensions
+    .filter((extension) => !declared.has(extension.name))
+    .map((extension) => ({
+      code: "PRESENTATION_NOT_DECLARED",
+      message: `Presentation '${extension.name}' is not declared`,
       ...diagnosticPosition(extension),
     }));
 }

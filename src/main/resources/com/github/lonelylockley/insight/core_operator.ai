@@ -65,7 +65,7 @@ define operator DeploymentUsesProfile of DeploymentProfileReference
 
 
 define presentation Wire
-    subtitle = technology
+    header = technology
     body = description
 
     light
@@ -82,10 +82,10 @@ define presentation Wire
         penwidth = 0.7
 
 define presentation SyncWire
-    # inherits Wire presentation
+    subtitle = call
 
 define presentation AsyncWire
-    # inherits Wire presentation
+    subtitle = via
 
     graphviz
         style = dashed

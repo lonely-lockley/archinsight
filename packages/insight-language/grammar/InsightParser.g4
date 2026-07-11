@@ -107,6 +107,7 @@ declaration
     | definePresentationDeclaration
     | extendTypeDeclaration
     | extendEnumDeclaration
+    | extendPresentationDeclaration
     ;
 
 defineOperatorDeclaration
@@ -196,6 +197,11 @@ extendTypeBodyItem
 extendEnumDeclaration
     : EXTEND ENUM OF typeReference EOL
       INDENT enumValueDeclaration* DEDENT
+    ;
+
+extendPresentationDeclaration
+    : EXTEND PRESENTATION presentationIdentifier EOL
+      INDENT presentationBodyItem* DEDENT
     ;
 
 operatorConstructorDeclaration

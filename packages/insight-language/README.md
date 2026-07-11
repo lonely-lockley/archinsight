@@ -44,6 +44,40 @@ This isolates runtime-specific recovery behavior from candidate generation.
 
 Add new language-core behavior to contract fixtures first, then implement the TypeScript runtime slice until the contract passes.
 
+Language-changing features must be delivered as a full product slice:
+
+1. update grammar and regenerated parser sources;
+2. update parser/syntax context, snapshot collection, linker/runtime semantics,
+   and diagnostics;
+3. update code completion for partial and incomplete editing states;
+4. add tests for every affected stage;
+5. update generated-agent skill guidance and examples;
+6. update user-facing and developer-facing documentation.
+
+If a layer does not apply, say why in the change summary.
+
+## Presentation Definitions
+
+Use `define presentation` once to create visual defaults for a type:
+
+```insight
+define presentation Container
+    header = name
+    subtitle = technology
+    body = description
+```
+
+Use `extend presentation` to patch an existing presentation:
+
+```insight
+extend presentation Container
+    graphviz
+        shape = box
+```
+
+Repeated `define presentation` blocks for the same target are diagnostics. This
+keeps accidental duplicates separate from intentional overrides.
+
 ## Consumers
 
 Active consumers:

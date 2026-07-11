@@ -1310,6 +1310,54 @@ element, while containers are allowed under systems because the \`System\` type
 declares a container child slot. For custom project types, inspect
 \`archinsight structure . --format text\` and \`.core/*.ai\` before nesting.
 
+## Graph Objects and Constructors
+
+Insight models a graph. Each object declaration calls a type constructor and
+creates one graph object instance in the current context:
+
+\`\`\`insight
+system storefront
+    name = Storefront
+
+service checkout_api
+    name = Checkout API
+\`\`\`
+
+Here \`system\` and \`service\` are constructors; \`storefront\` and
+\`checkout_api\` are object ids. Relationships under \`links:\` create graph
+edges between existing object ids.
+
+Definition files are different from model files. They declare vocabulary:
+\`define type\`, \`define operator\`, \`define presentation\`, \`extend type\`,
+\`extend enum of\`, and \`extend presentation\`. Model files usually start with
+\`context <id>\` and then create graph object instances with constructors.
+
+## Type Definitions and Extensions
+
+Use \`define type\` to create a new graph/value type. Use \`extend type\` to add
+attributes, child slots, or projection rules to an existing type.
+
+\`\`\`insight
+define type Queue of InfrastructureComponent
+    constructor queue
+
+    required Text name
+
+extend type Environment
+    Queue queue
+\`\`\`
+
+Type extension is a schema merge:
+
+- new attributes and child slots become available everywhere that type is used;
+- inherited attributes from base types remain available;
+- if a later type extension declares the same attribute name, the later
+  declaration wins for that attribute;
+- type inheritance still controls assignability and nesting.
+
+After changing a type definition, run \`archinsight structure . --format text\`
+to see the updated type tree and available constructors.
+
 ## Attributes
 
 Attributes are named and typed:
@@ -1376,6 +1424,20 @@ Use imports for elements from another context:
 import stripe from context external_systems
 \`\`\`
 
+There are three different \`extend\` forms. Do not mix them up:
+
+- \`extend service checkout_api\` extends an existing graph object instance in a
+  context. It adds attributes, children, or links to that object.
+- \`extend type Environment\` extends the schema/type definition. It adds
+  attributes or child slots to the type, not to one object instance.
+- \`extend presentation Wire\` extends visual defaults for a type. It updates
+  label slots, theme sections, or Graphviz settings for rendering.
+
+Use \`define type\` / \`define presentation\` only when creating new vocabulary.
+Use \`extend type\` / \`extend presentation\` when patching existing vocabulary.
+Repeating \`define presentation X\` for an existing presentation is a diagnostic
+in current Archinsight.
+
 ## Annotations
 
 Annotations decorate the next declaration or link:
@@ -1392,6 +1454,33 @@ links:
 
 Use presentation definitions for durable visual styling. Avoid adding new
 Graphviz attributes directly unless the project already uses that convention.
+
+## Presentation Syntax
+
+A presentation maps model attributes to up to three label slots:
+\`header\`, \`subtitle\`, and \`body\`.
+
+\`\`\`insight
+extend presentation SyncWire
+    header = technology
+    subtitle = call
+    body = description
+\`\`\`
+
+Each slot value is exactly one attribute name declared on the presented type or
+one of its descendants. It is not an expression, list, string template, or
+concatenation. These are invalid:
+
+\`\`\`insight
+body = description via
+body = description, via
+body = description (via)
+\`\`\`
+
+If the same slot is assigned twice in one effective presentation, the last
+assignment wins. Slots are not additive, so one slot cannot show both
+\`description\` and \`via\` unless the language/renderer later gains a compound
+label feature.
 
 ## Custom Types
 
@@ -1637,6 +1726,31 @@ Interpretation:
 Users can define more types in project files. Always inspect project structure
 and project framework files before assuming only core constructors exist.
 
+## Reading Type Extensions
+
+Project files can extend built-in or custom types:
+
+\`\`\`insight
+extend type Environment
+    Compute compute
+    Storage storage
+\`\`\`
+
+Interpretation:
+
+- this changes the \`Environment\` schema, not one concrete environment object;
+- every \`environment <id>\` can now contain or reference the added slots;
+- existing inherited attributes and child slots remain available;
+- later declarations with the same attribute name override that attribute
+  definition;
+- \`archinsight structure . --format text\` is the quickest way to inspect the
+  effective type tree after extensions are applied.
+
+Use \`extend service checkout_api\` or another constructor form only when you
+intend to extend one graph object instance in a \`context\`. Use \`extend type\`
+when you intend to change the available vocabulary/schema for all instances of
+that type.
+
 ## Reading Relationship Operators
 
 Core synchronous and asynchronous links are operators:
@@ -1693,6 +1807,57 @@ Presentations define durable visual defaults for rendered diagrams:
 - \`header\`, \`subtitle\`, and \`body\` map model attributes into labels.
 - \`light\` and \`dark\` define theme-specific colors.
 - \`graphviz\` carries renderer-specific layout/style hints.
+
+Use \`define presentation X\` once when creating a presentation for a new type.
+Use \`extend presentation X\` when changing a built-in or project presentation:
+
+\`\`\`insight
+extend presentation AsyncWire
+    header = technology
+    subtitle = via
+    body = description
+\`\`\`
+
+Presentation extension is a merge, not a full replacement:
+
+- omitted slots and section properties are inherited from the base type or
+  existing presentation;
+- assigning the same slot or section property overrides that one value;
+- inherited \`graphviz\` settings such as \`style = dashed\` survive unless the
+  extension overrides that property;
+- repeated \`define presentation X\` is an error in current Archinsight.
+
+Each label slot accepts exactly one attribute name. Do not use expressions,
+lists, text templates, or concatenation in \`header\`, \`subtitle\`, or \`body\`.
+\`body = description via\`, \`body = description, via\`, and
+\`body = description (via)\` mean "look for an attribute with that exact text"
+and will fail validation.
+
+The renderer has three label slots: \`header\`, \`subtitle\`, and \`body\`.
+If all three are already used, there is no built-in fourth line for additional
+metadata. Choose the most important attribute for each slot or ask the user
+whether they want a language/rendering change.
+
+Default wire presentations are:
+
+\`\`\`insight
+define presentation Wire
+    header = technology
+    body = description
+
+define presentation SyncWire
+    subtitle = call
+
+define presentation AsyncWire
+    subtitle = via
+
+    graphviz
+        style = dashed
+\`\`\`
+
+This means relationship diagrams normally show technology, then \`call\` or
+\`via\`, then description. To change that, extend \`Wire\`, \`SyncWire\`, or
+\`AsyncWire\` and validate with \`archinsight link . --format text\`.
 
 Do not copy presentation blocks into ordinary model files unless the user is
 creating or changing visual vocabulary. Prefer semantic attributes on elements

@@ -11,6 +11,8 @@ const cases = [
   frameworkDuplicateTypeDeclarationPointsToDuplicateTypeToken,
   frameworkDuplicateTypeConstructorPointsToDuplicateConstructorToken,
   frameworkDuplicateOperatorConstructorPointsToDuplicateOperatorToken,
+  frameworkDuplicatePresentationDeclarationPointsToDuplicatePresentationToken,
+  frameworkUnknownPresentationExtensionPointsToPresentationIdentifier,
   frameworkUnknownPresentationTypePointsToPresentationIdentifier,
   frameworkUnknownPresentationFieldPointsToFieldToken,
   frameworkUnknownPresentationAttributeValuePointsToValueToken,
@@ -113,6 +115,37 @@ define presentation Ghost
     source("definitions.ai", sourceText),
   ]);
   assertDiagnosticToken(result.diagnostics, sourceText, "UNKNOWN_PRESENTATION_TYPE", "Ghost", "Ghost");
+}
+
+function frameworkDuplicatePresentationDeclarationPointsToDuplicatePresentationToken() {
+  const sourceText = `
+define type Widget
+    constructor widget
+
+define presentation Widget
+    header = name
+
+define presentation Widget
+    body = description
+`.trimStart();
+  const result = buildLanguageSnapshotResultFromSources([
+    source("definitions.ai", sourceText),
+  ]);
+  assertDiagnosticToken(result.diagnostics, sourceText, "PRESENTATION_ALREADY_DECLARED", "Widget", "Widget");
+}
+
+function frameworkUnknownPresentationExtensionPointsToPresentationIdentifier() {
+  const sourceText = `
+define type Widget
+    constructor widget
+
+extend presentation Widget
+    header = name
+`.trimStart();
+  const result = buildLanguageSnapshotResultFromSources([
+    source("definitions.ai", sourceText),
+  ]);
+  assertDiagnosticToken(result.diagnostics, sourceText, "PRESENTATION_NOT_DECLARED", "Widget", "Widget");
 }
 
 function frameworkUnknownPresentationFieldPointsToFieldToken() {

@@ -39,6 +39,7 @@ const cases = [
   buildsPresentationIndexOutsideTheGraphAndResolvesTypeInheritance,
   validatesPresentationFieldsSectionsAndTargetAttributes,
   linksBaseFrameworkPresentations,
+  linksCoreWirePresentationFields,
   allowsTypedReferenceValuesInSingleSlots,
   allowsTypedReferenceValuesFromExplicitContexts,
   validatesTypedReferenceSlotCardinalityAndType,
@@ -1039,6 +1040,23 @@ function linksBaseFrameworkPresentations() {
   assert.equal(result.presentations.System?.basePresentation, "BoundaryElement");
   assert.equal(result.presentations.ExternalSystem?.basePresentation, "System");
   assert.equal(result.presentations.Wire?.basePresentation, "Edge");
+}
+
+function linksCoreWirePresentationFields() {
+  const result = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [],
+  });
+
+  assertNoErrors(result);
+  assert.equal(result.presentations.Wire?.assignments.header, "technology");
+  assert.equal(result.presentations.Wire?.assignments.body, "description");
+  assert.equal(result.presentations.SyncWire?.assignments.header, "technology");
+  assert.equal(result.presentations.SyncWire?.assignments.subtitle, "call");
+  assert.equal(result.presentations.SyncWire?.assignments.body, "description");
+  assert.equal(result.presentations.AsyncWire?.assignments.header, "technology");
+  assert.equal(result.presentations.AsyncWire?.assignments.subtitle, "via");
+  assert.equal(result.presentations.AsyncWire?.assignments.body, "description");
 }
 
 function allowsTypedReferenceValuesInSingleSlots() {

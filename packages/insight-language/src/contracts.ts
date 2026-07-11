@@ -122,6 +122,7 @@ export interface LanguageSnapshot {
   readonly operators: readonly OperatorDefinition[];
   readonly enums: readonly EnumDefinition[];
   readonly presentations?: readonly PresentationDefinition[];
+  readonly presentationExtensions?: readonly PresentationDefinition[];
 }
 
 export interface LanguageDiagnostic {

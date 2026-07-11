@@ -9,6 +9,7 @@ KEYWORD define enum of
 KEYWORD define presentation
 KEYWORD extend type
 KEYWORD extend enum of
+KEYWORD extend presentation
 --- lacks
 KEYWORD import
 CONSTRUCTOR actor
@@ -486,6 +487,7 @@ CONSTRUCTOR system
 CONSTRUCTOR actor
 --- lacks
 KEYWORD extend type
+KEYWORD extend presentation
 IDENTIFIER app
 
 === extend target filters by constructor type
@@ -550,6 +552,17 @@ TYPE Wire
 KEYWORD constructor
 KEYWORD required
 
+=== extend presentation name uses visible types
+--- source
+extend presentation <caret>
+--- contains
+TYPE System
+TYPE Service
+TYPE Wire
+--- lacks
+KEYWORD constructor
+KEYWORD required
+
 === presentation body suggests fields and sections
 --- source
 define presentation System
@@ -593,6 +606,20 @@ IDENTIFIER links
 --- lacks
 IDENTIFIER title
 ATTRIBUTE header
+
+=== extend presentation field value suggests target type attributes
+--- source
+extend presentation System
+    subtitle = <caret>
+--- contains
+IDENTIFIER name
+IDENTIFIER kind
+IDENTIFIER technology
+IDENTIFIER description
+IDENTIFIER links
+--- lacks
+IDENTIFIER title
+ATTRIBUTE subtitle
 CONSTRUCTOR service
 
 === framework type reference suggests declared types

@@ -143,13 +143,14 @@ function definitionItems(
       keyword("define presentation "),
       keyword("extend type "),
       keyword("extend enum of "),
+      keyword("extend presentation "),
     ];
   }
   if (syntax.previousToken?.type === "DEFINE") {
     return [keyword("type "), keyword("operator "), keyword("enum of "), keyword("presentation ")];
   }
   if (syntax.previousToken?.type === "EXTEND") {
-    return [keyword("type "), keyword("enum of ")];
+    return [keyword("type "), keyword("enum of "), keyword("presentation ")];
   }
   if (expectsTypeReference(syntax)) {
     return [
@@ -164,7 +165,8 @@ function definitionItems(
 
 function expectsPresentationName(syntax: SyntaxContext): boolean {
   return rule(syntax, "presentationIdentifier")
-    || (rule(syntax, "definePresentationDeclaration") && syntax.previousToken?.type === "PRESENTATION");
+    || ((rule(syntax, "definePresentationDeclaration") || rule(syntax, "extendPresentationDeclaration"))
+      && syntax.previousToken?.type === "PRESENTATION");
 }
 
 function expectsPresentationFieldValue(syntax: SyntaxContext): boolean {
@@ -177,6 +179,7 @@ function expectsPresentationBodyItem(line: LineContext, syntax: SyntaxContext): 
   return line.indentLevel > 0
     && (rule(syntax, "presentationBodyItem")
       || rule(syntax, "definePresentationDeclaration")
+      || rule(syntax, "extendPresentationDeclaration")
       || token(syntax, "TEXT_TYPE")
       || token(syntax, "TYPE")
       || token(syntax, "OPERATOR")
