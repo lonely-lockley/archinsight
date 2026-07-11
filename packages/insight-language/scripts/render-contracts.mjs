@@ -20,6 +20,7 @@ const cases = [
   skipsElementsWithInvisibleGraphvizPresentation,
   rendersSelectedContextAsClusterForWideDefaultQuery,
   rendersGroupOwnerClusterWhenOwnerIsNotReturned,
+  wrapsLongDisplayTextBlocks,
   rendersLegacyAnnotationsAsGraphvizOverrides,
 ];
 
@@ -464,6 +465,36 @@ system app
   assert(dot.includes('\n  subgraph "cluster_source"'));
   assert(!dot.includes("\"source\" ["));
   assert(dot.includes("App"));
+}
+
+function wrapsLongDisplayTextBlocks() {
+  const result = linkWithCore(source("source.ai", `
+context source
+
+system app # Alpha beta gamma delta epsilon zeta
+    name = Alpha beta gamma delta epsilon zeta
+    technology = Alpha beta gamma delta epsilon zeta
+    description = Alpha beta gamma delta epsilon zeta
+    links:
+        -> target # Alpha beta gamma delta epsilon zeta
+            technology = Alpha beta gamma delta epsilon zeta
+            call = Alpha beta gamma delta epsilon zeta
+            description = Alpha beta gamma delta epsilon zeta
+
+system target
+    name = Target
+`));
+  const projection = selectGraph(result, { context: "source" }, `
+MATCH (n:System)
+OPTIONAL MATCH (n)-[r]->(m:System)
+WHERE n.context = $context
+RETURN n, r, m
+`);
+  const dot = renderGraphviz(result, projection, "light");
+
+  assertNoErrors(result);
+  assert(dot.includes("Alpha beta gamma delta epsilon<br/>zeta"));
+  assert.equal(countOccurrences(dot, "Alpha beta gamma delta epsilon<br/>zeta"), 8);
 }
 
 function rendersLegacyAnnotationsAsGraphvizOverrides() {

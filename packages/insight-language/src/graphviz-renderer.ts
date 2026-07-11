@@ -358,7 +358,7 @@ function labelRow(value: string | undefined, bold: boolean, fontStyle?: string, 
   if (value === undefined) {
     return undefined;
   }
-  const text = `${open}${open === "" ? "" : " "}${escapeHtml(value).replace(/\n/g, "<br/>")}${close === "" ? "" : " "}${close}`;
+  const text = `${open}${open === "" ? "" : " "}${formattedText(value)}${close === "" ? "" : " "}${close}`;
   const styled = fontStyle === undefined ? text : `<font ${fontStyle}>${text}</font>`;
   return `<tr><td>${bold ? `<b>${styled}</b>` : styled}</td></tr>`;
 }
@@ -367,11 +367,36 @@ function noteRow(value: string | undefined): string | undefined {
   if (value === undefined) {
     return undefined;
   }
-  return `<tr><td><table border="0" cellborder="1" cellspacing="0" cellpadding="8" color="#edce07"><tr><td bgcolor="#faf6a2" fixedsize="true" width="120" height="44"><font color="#000000" point-size="10px">${escapeHtml(value).replace(/\n/g, "<br/>")}</font></td></tr></table></td></tr>`;
+  return `<tr><td><table border="0" cellborder="1" cellspacing="0" cellpadding="8" color="#edce07"><tr><td bgcolor="#faf6a2" fixedsize="true" width="120" height="44"><font color="#000000" point-size="10px">${formattedText(value)}</font></td></tr></table></td></tr>`;
 }
 
 function wrapTextIfNotFormatted(value: string): string {
-  return value.includes("\n") ? value : value;
+  if (value.includes("\n")) {
+    return value;
+  }
+  const maxLineLength = 32;
+  const words = value.trim().split(/\s+/).filter((word) => word.length > 0);
+  if (words.length === 0) {
+    return value;
+  }
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (line.length === 0) {
+      line = word;
+    } else if (line.length + 1 + word.length <= maxLineLength) {
+      line = `${line} ${word}`;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  lines.push(line);
+  return lines.join("\n");
+}
+
+function formattedText(value: string): string {
+  return escapeHtml(wrapTextIfNotFormatted(value)).replace(/\n/g, "<br/>");
 }
 
 function writeGraphBlock(lines: string[], name: string, properties: Record<string, string>): void {
