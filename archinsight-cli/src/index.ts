@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
@@ -272,11 +272,26 @@ async function runSkillInit(args: ParsedArgs, skillPackage: SkillPackage): Promi
   const usesDefaultOutput = args.output === undefined;
   const outputRoot = path.resolve(projectRoot, args.output ?? skillPackage.defaultOutput);
 
+  if (args.force && await exists(outputRoot)) {
+    assertSafeSkillOutputRoot(projectRoot, outputRoot);
+    await rm(outputRoot, { recursive: true, force: true });
+  }
+
   for (const file of skillPackage.files) {
     await writeGeneratedFile(path.join(outputRoot, file.path), file.content, args.force);
   }
 
   process.stdout.write(skillPackageSuccess(projectRoot, outputRoot, skillPackage, usesDefaultOutput));
+}
+
+function assertSafeSkillOutputRoot(projectRoot: string, outputRoot: string): void {
+  if (outputRoot === path.parse(outputRoot).root || outputRoot === process.cwd() || outputRoot === projectRoot) {
+    throw new CliError(`Refusing to delete unsafe skill output directory '${outputRoot}'. Choose a dedicated --out directory.`);
+  }
+  const projectRelativeToOutput = path.relative(outputRoot, projectRoot);
+  if (projectRelativeToOutput !== "" && !projectRelativeToOutput.startsWith("..") && !path.isAbsolute(projectRelativeToOutput)) {
+    throw new CliError(`Refusing to delete skill output directory '${outputRoot}' because it contains the project root.`);
+  }
 }
 
 async function loadProject(input: string): Promise<LoadedProject> {
@@ -780,7 +795,7 @@ Options:
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
   -t, --theme <theme>      Render theme, default: light.
       --target <target>    Skill target: generic, codex, or claude.
-      --force              Replace existing generated skill files.
+      --force              Delete and recreate the generated skill directory.
   -V, --version            Print version.
   -h, --help               Show help.
 
@@ -2599,7 +2614,27 @@ Prefer C2 containers/services for most deployment mapping:
 Use C1 deployment only when the whole system is deployed as one unit. Use C3
 deployment when a component is independently deployed or has a distinct physical
 path. Use wire deployment when a specific logical relationship travels through
-infrastructure such as a public gateway, private gateway, broker, or egress path.
+infrastructure such as a public gateway, network connection, broker, or egress
+path.
+
+## Element-Level vs Wire-Level Infrastructure
+
+Attach infrastructure to an element when the projection only needs the deployed
+element itself:
+
+- \`runsOn compute\`: placement/grouping.
+- \`uses storage\`: the element depends on stateful infrastructure.
+- \`uses observability\`: monitoring sidecars or collectors around the element.
+
+Attach infrastructure to a wire when the projection needs a real target:
+
+- \`uses publicGateway\`: expands a caller-to-service path through ingress.
+- \`uses network\`: keeps a direct source-to-target network path on C4.
+- \`uses broker\`: both producer and consumer physically connect to the broker.
+
+Rule of thumb: if the infrastructure type's \`project:\` block mentions \`$to\`,
+use it on a relationship under \`links:\`. Using it on an element is invalid
+because an element deployment has no separate target endpoint.
 
 ## usesProfile, environmentsFrom, runsOn, and uses
 
@@ -2716,7 +2751,6 @@ deploymentProfile global_service
         global_edge
 
     runsOn compute
-    uses publicGateway
 
 deploymentProfile regional_service
     environments:
@@ -2733,6 +2767,11 @@ container web_app
     name = Web app
     deployment:
         usesProfile global_service
+    links:
+        -> checkout_api
+            deployment:
+                environmentsFrom global_service
+                uses publicGateway
 
 service checkout_api
     name = Checkout API
@@ -2741,18 +2780,19 @@ service checkout_api
         uses storage
 \`\`\`
 
-The profile supplies the common environment scope, placement, and standard
+The profile supplies the common environment scope, placement, and element-level
 infrastructure. Additional local \`uses\` entries extend the profile for that
 specific element. In the example, \`checkout_api\` inherits regional compute and
 observability from \`regional_service\`, then adds its own \`uses storage\`
-because this service owns persistent state.
+because this service owns persistent state. The \`web_app -> checkout_api\` wire uses
+\`environmentsFrom global_service\` to reuse the environment list while attaching
+the path-only \`publicGateway\` projection to the relationship.
 
-Use separate profiles when the default infrastructure differs. For example,
-\`public_regional_service\` can include both \`uses observability\` and
-\`uses publicGateway\`, while \`regional_worker\` may use the same environments,
-compute, and observability but omit public ingress. Put path-only infrastructure
-such as \`network\` on the wire deployment when it represents a specific
-service-to-service path.
+Use separate profiles when the element-level defaults differ. For example,
+\`regional_service\` can include \`runsOn compute\` and \`uses observability\`,
+while \`regional_stateful_service\` can also include \`uses storage\`. Keep
+path-only infrastructure such as \`publicGateway\`, \`network\`, or \`broker\`
+on the wire deployment where the source and target are known.
 
 When an element should reuse only the environments from an archetype, use
 \`environmentsFrom <profile>\` instead of \`usesProfile <profile>\` and then add
@@ -2815,6 +2855,10 @@ the wire has deployment information and uses a path-producing slot such as
 queries commonly select projected deployment edges; a plain logical wire without
 deployment projection may be correct in C2/C3 but absent from the deployment
 layer.
+
+If validation reports \`PROJECTION_TARGET_REQUIRED\`, you attached a projection
+that uses \`$to\` to an element. Move that \`uses ...\` entry to the relevant
+wire and reuse the element's environment scope with \`environmentsFrom\`.
 
 Projection terms:
 
@@ -2900,7 +2944,6 @@ deploymentProfile public_regional_service
 
     runsOn compute
     uses observability
-    uses publicGateway
 
 service checkout_api
     name = Checkout API
@@ -3849,7 +3892,6 @@ deploymentProfile public_regional_service
 
     runsOn compute
     uses observability
-    uses publicGateway
 
 environment prod
     name = Production
@@ -3978,11 +4020,24 @@ system storefront
         deployment:
             usesProfile regional_service
             uses storage
-            uses broker
         links:
+            ~> order_worker
+                technology = Kafka
+                via = orders.events
+                deployment:
+                    environmentsFrom regional_service
+                    uses broker
+
             -> payment_provider
                 technology = HTTPS
                 call = POST /payments/authorizations
+
+    service order_worker
+        name = Order Worker
+        technology = Kotlin
+        description = Processes order events asynchronously
+        deployment:
+            usesProfile regional_service
 `;
 }
 

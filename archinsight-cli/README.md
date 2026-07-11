@@ -30,7 +30,7 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
 - `--target <target>` - skill target for `skill init`: `generic`, `codex`, or `claude`.
-- `--force` - replace existing generated skill files.
+- `--force` - delete and recreate the generated skill directory before writing.
 - `-V, --version` - print version.
 - `-h, --help` - print help.
 

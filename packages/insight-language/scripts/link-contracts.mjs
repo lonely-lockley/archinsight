@@ -69,6 +69,7 @@ const cases = [
   reportsDuplicateNamedSlots,
   appliesProjectionRulesFromElementReferenceAttributes,
   appliesProjectionRulesFromEdgeReferenceAttributes,
+  rejectsProjectionRulesThatNeedTargetWhenAttachedToElement,
   carriesEdgeAnnotationsToProjectedEdges,
   materializesAnonymousObjectValuesInEdgeReferenceAttributes,
   skipsProjectionRuleWhenOptionalAttributeIsMissing,
@@ -1881,6 +1882,33 @@ system worker
     && edge.target === "shared/kafka"));
 }
 
+function rejectsProjectionRulesThatNeedTargetWhenAttachedToElement() {
+  const result = linkProject({
+    snapshot: projectionSnapshot(),
+    sources: [
+      source("architecture.ai", `
+context shared
+
+broker kafka
+    name = Kafka
+
+system api
+    name = API
+    uses:
+        kafka
+`),
+    ],
+  });
+
+  assert(result.diagnostics.some((diagnostic) =>
+    diagnostic.code === "PROJECTION_TARGET_REQUIRED"
+    && diagnostic.message.includes("Broker")
+    && diagnostic.message.includes("$to")
+    && diagnostic.line === 9
+    && diagnostic.column === 9
+  ));
+}
+
 function carriesEdgeAnnotationsToProjectedEdges() {
   const result = linkProject({
     snapshot: projectionSnapshot(),
@@ -2206,8 +2234,18 @@ system api
             us
 
         runsOn compute
-        uses broker
-        uses publicGateway
+    links:
+        -> worker
+            deployment:
+                environments:
+                    eu
+                    us
+
+                uses broker
+                uses publicGateway
+
+system worker
+    name = Worker
 `),
   ];
   const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
@@ -2225,13 +2263,15 @@ system api
   assert.equal(countEdges(projected, "app/api", "infra/cdn"), 1);
   assert.equal(countEdges(projected, "infra/cdn", "infra/lb"), 1);
   assert.equal(countEdges(projected, "infra/lb", "infra/envoy"), 1);
-  assert.equal(countEdges(projected, "infra/envoy", "app/api"), 1);
+  assert.equal(countEdges(projected, "infra/envoy", "app/worker"), 1);
   assert.equal(countEdges(projected, "app/api", "infra/cdn_us"), 1);
   assert.equal(countEdges(projected, "infra/cdn_us", "infra/lb_us"), 1);
   assert.equal(countEdges(projected, "infra/lb_us", "infra/alb"), 1);
-  assert.equal(countEdges(projected, "infra/alb", "app/api"), 1);
+  assert.equal(countEdges(projected, "infra/alb", "app/worker"), 1);
   assert.equal(countEdges(projected, "app/api", "infra/kafka"), 1);
+  assert.equal(countEdges(projected, "app/worker", "infra/kafka"), 1);
   assert.equal(countEdges(projected, "app/api", "infra/sns"), 1);
+  assert.equal(countEdges(projected, "app/worker", "infra/sns"), 1);
   assert.equal(projected.filter((edge) => edge.source.startsWith("app/_anonymous_") || edge.target.startsWith("app/_anonymous_")).length, 0);
   assert.equal(projected.filter((edge) => edge.source === "infra/eu" || edge.target === "infra/eu").length, 0);
   assert.equal(projected.filter((edge) => edge.source === "infra/us" || edge.target === "infra/us").length, 0);

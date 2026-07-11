@@ -187,6 +187,10 @@ interface ResolvedImport {
 interface ResolvedReferenceValue {
   readonly id: string;
   readonly element?: ParsedElement;
+  readonly line?: number;
+  readonly column?: number;
+  readonly endLine?: number;
+  readonly endColumn?: number;
 }
 
 interface LinkExecutionContext {
@@ -1613,7 +1617,14 @@ function resolveAttributes(
         });
         continue;
       }
-      result[name] = [...(result[name] ?? []), { id: resolved.id, element: resolved }];
+      result[name] = [...(result[name] ?? []), {
+        id: resolved.id,
+        element: resolved,
+        line: value.line,
+        column: value.column,
+        ...(value.endLine === undefined ? {} : { endLine: value.endLine }),
+        ...(value.endColumn === undefined ? {} : { endColumn: value.endColumn }),
+      }];
     }
   }
   return result;
@@ -1694,7 +1705,25 @@ function addProjectedEdges(
       if (isDirectSlotReferenceSelfProjection(value.element, fromId, toId)) {
         continue;
       }
-      for (const rule of typeSystem.projectionRules(value.element.type)) {
+      const rules = typeSystem.projectionRules(value.element.type);
+      if (fromId === toId && rules.some(projectionRuleUsesTo)) {
+        const position = value.line === undefined || value.column === undefined
+          ? value.element
+          : {
+            line: value.line,
+            column: value.column,
+            ...(value.endLine === undefined ? {} : { endLine: value.endLine }),
+            ...(value.endColumn === undefined ? {} : { endColumn: value.endColumn }),
+          };
+        diagnostics.push({
+          code: "PROJECTION_TARGET_REQUIRED",
+          message: `Projection for '${value.element.type}' uses '$to' and must be attached to a relationship, not to element '${fromId}'`,
+          sourceName: sourceIdentity,
+          ...diagnosticPosition(position),
+        });
+        continue;
+      }
+      for (const rule of rules) {
         addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, projectionScope, annotations);
       }
       addProjectedEdges(
@@ -1893,6 +1922,14 @@ function referenceAttributesProperty(attributes: Readonly<Record<string, readonl
 
 function projectionRuleUsesOwner(rule: ProjectionRuleDefinition): boolean {
   return projectionTermUsesOwner(rule.source) || projectionTermUsesOwner(rule.target);
+}
+
+function projectionRuleUsesTo(rule: ProjectionRuleDefinition): boolean {
+  return projectionTermUsesTo(rule.source) || projectionTermUsesTo(rule.target);
+}
+
+function projectionTermUsesTo(term: ProjectionTermDefinition): boolean {
+  return term.kind === "to";
 }
 
 function projectionTermUsesOwner(term: ProjectionTermDefinition): boolean {

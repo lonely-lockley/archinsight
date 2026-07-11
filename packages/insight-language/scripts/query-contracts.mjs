@@ -645,11 +645,13 @@ system app
 
     container frontend
         name = Frontend
+        links:
+            -> backend
+                uses:
+                    gateway
 
-        component page
-            name = Page
-            uses:
-                gateway
+    container backend
+        name = Backend
 `)],
   });
 
@@ -667,7 +669,6 @@ system app
 
   assertNoErrors(result);
   assert(graph.edges.some((edge) => edge.source === "shared/frontend" && edge.target === "shared/proxy"));
-  assert.equal(graph.elements["shared/page"], undefined);
 }
 
 function filtersWithWhereAndBuiltinVariables() {
@@ -1323,7 +1324,6 @@ deploymentProfile global
         eu
         us
     runsOn compute
-    uses broker
 
 service api
     name = API
@@ -2038,6 +2038,18 @@ function projectedOriginRollupSnapshot() {
     {
       schemaVersion: "projected-origin-rollup",
       types: [
+        {
+          name: "Container",
+          attributes: [
+            { name: "links", type: "List", list: true, listElementType: "Wire" },
+          ],
+        },
+        {
+          name: "Wire",
+          attributes: [
+            { name: "uses", type: "List", list: true, listElementType: "InfrastructureComponent" },
+          ],
+        },
         {
           name: "InfrastructureComponent",
           attributes: [
