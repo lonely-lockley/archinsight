@@ -133,6 +133,8 @@
     error?: string;
   };
 
+  type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query'>;
+
   function readonlyCoreTabId(sourceIdentity: string): string {
     return `__readonly__/${sourceIdentity}`;
   }
@@ -546,8 +548,16 @@
     }
   }
 
-  async function openFile(path: string, activate = true, render = true, restored?: WorkspaceTabState): Promise<void> {
-    if (tabs.some((tab) => tab.filePath === path)) {
+  async function openFile(
+    path: string,
+    activate = true,
+    render = true,
+    restored?: WorkspaceTabState,
+    queryState?: DiagramQueryState
+  ): Promise<void> {
+    const existing = tabs.find((tab) => tab.filePath === path);
+    if (existing !== undefined) {
+      applyInheritedQuery(existing.id, queryState);
       if (activate) {
         await activateTab(path);
       }
@@ -580,7 +590,7 @@
         sourceIdentity: path,
         diagnostics: [],
         local: localContent !== undefined,
-        ...tabToolbarState(restored)
+        ...tabToolbarState({ ...restored, ...queryState })
       }
     ];
     refreshEditorTokenVocabulary();
@@ -595,20 +605,22 @@
   }
 
   async function goToDeclaration(declaration: SourceLocation): Promise<void> {
+    const queryState = currentDiagramQueryState();
     if (coreSourceByName.has(declaration.source)) {
-      await openCoreSource(declaration.source);
+      await openCoreSource(declaration.source, queryState);
     } else {
-      await openFile(declaration.source);
+      await openFile(declaration.source, true, true, undefined, queryState);
     }
     await tick();
     revealEditorLocation(declaration);
   }
 
-  async function openCoreSource(sourceIdentity = coreSourceIdentity): Promise<void> {
+  async function openCoreSource(sourceIdentity = coreSourceIdentity, queryState?: DiagramQueryState): Promise<void> {
     const tabId = readonlyCoreTabId(sourceIdentity);
     const source = coreSourceByName.get(sourceIdentity) ?? coreSource;
     const existing = tabs.find((tab) => tab.id === tabId);
     if (existing !== undefined) {
+      applyInheritedQuery(existing.id, queryState);
       await activateTab(existing.id);
       return;
     }
@@ -625,11 +637,34 @@
         local: false,
         readOnly: true,
         projectSource: false,
-        ...tabToolbarState()
+        ...tabToolbarState(queryState)
       }
     ];
     refreshEditorTokenVocabulary();
     await activateTab(tabId);
+  }
+
+  function currentDiagramQueryState(): DiagramQueryState | undefined {
+    if (activeTab === undefined) {
+      return undefined;
+    }
+    return {
+      diagramMode: activeDiagramMode,
+      query: activeQuery
+    };
+  }
+
+  function applyInheritedQuery(tabId: string, queryState: DiagramQueryState | undefined): void {
+    if (queryState === undefined) {
+      return;
+    }
+    const next = tabToolbarState(queryState);
+    updateTab(tabId, {
+      diagramMode: next.diagramMode,
+      query: next.query,
+      dot: undefined
+    });
+    persistWorkspace();
   }
 
   function revealEditorLocation(location: SourceLocation): void {
@@ -1980,7 +2015,7 @@
   }
 
   function tabToolbarState(
-    tab?: WorkspaceTabState
+    tab?: Partial<WorkspaceTabState>
   ): Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'> {
     const query = tab?.query ?? defaultQuery;
     const diagramMode = normalizeDiagramMode(tab?.diagramMode) ?? diagramModeForQuery(query) ?? defaultDiagramMode;

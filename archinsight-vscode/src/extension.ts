@@ -39,6 +39,11 @@ interface PreviewState {
   readonly error?: string;
 }
 
+interface DiagramQueryState {
+  readonly view: DiagramView;
+  readonly query: string;
+}
+
 type PreviewMessage =
   | { readonly command: "ready" }
   | { readonly command: "png"; readonly dataUrl: string };
@@ -779,6 +784,7 @@ class CoreSourceContentProvider implements vscode.TextDocumentContentProvider {
 
 class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly sessions = new Set<ArchinsightWorkbenchEditorSession>();
+  private readonly pendingInitialStates = new Map<string, DiagramQueryState>();
 
   constructor(
     private readonly project: ProjectModel,
@@ -795,15 +801,22 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     document: vscode.TextDocument | undefined,
     panel: vscode.WebviewPanel,
     virtualDocument?: VirtualWorkbenchDocument,
+    initialState?: DiagramQueryState,
   ): Promise<ArchinsightWorkbenchEditorSession> {
+    const sessionUri = document?.uri ?? virtualDocument?.uri;
+    const pendingState = sessionUri === undefined ? undefined : this.pendingInitialStates.get(sessionUri.toString());
+    if (sessionUri !== undefined) {
+      this.pendingInitialStates.delete(sessionUri.toString());
+    }
     const session = new ArchinsightWorkbenchEditorSession(
       this.project,
       this.extensionUri,
       this.controls,
       document,
       panel,
-      (location) => this.openLocation(location),
+      (location, state) => this.openLocation(location, state),
       virtualDocument,
+      initialState ?? pendingState,
     );
     this.sessions.add(session);
     activeWorkbenchEditor = session;
@@ -828,26 +841,36 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     await Promise.all([...this.sessions].map((session) => session.refreshFromProject(current)));
   }
 
-  async openLocation(location: vscode.Location): Promise<void> {
+  async openLocation(location: vscode.Location, state?: DiagramQueryState): Promise<void> {
     if (location.uri.scheme === coreSourceScheme) {
-      await this.openCoreSource(location.range, path.basename(location.uri.path));
+      await this.openCoreSource(location.range, path.basename(location.uri.path), state);
       return;
     }
     const existing = this.sessionFor(location.uri);
     if (existing !== undefined) {
       activeWorkbenchEditor = existing;
       existing.activate();
+      if (state !== undefined) {
+        await existing.render(state.view, state.query);
+      }
       await existing.reveal(location.range.start);
       return;
     }
 
+    if (state !== undefined) {
+      this.pendingInitialStates.set(location.uri.toString(), state);
+    }
     await vscode.commands.executeCommand("vscode.openWith", location.uri, archinsightEditorViewType, { preview: false });
     const session = await this.waitForSession(location.uri);
     if (session === undefined) {
+      this.pendingInitialStates.delete(location.uri.toString());
       await vscode.window.showTextDocument(location.uri, { preview: false, selection: location.range });
       return;
     }
     activeWorkbenchEditor = session;
+    if (state !== undefined && (session.currentView() !== state.view || session.currentQuery() !== state.query)) {
+      await session.render(state.view, state.query);
+    }
     await session.reveal(location.range.start);
   }
 
@@ -881,13 +904,16 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     return undefined;
   }
 
-  private async openCoreSource(selection: vscode.Range, sourceName = coreSourceName): Promise<void> {
+  private async openCoreSource(selection: vscode.Range, sourceName = coreSourceName, state?: DiagramQueryState): Promise<void> {
     const uri = coreSourceUriFor(sourceName);
     const source = coreSourceByName.get(sourceName) ?? coreSource;
     const existing = this.sessionFor(uri);
     if (existing !== undefined) {
       activeWorkbenchEditor = existing;
       existing.activate();
+      if (state !== undefined) {
+        await existing.render(state.view, state.query);
+      }
       await existing.reveal(selection.start);
       return;
     }
@@ -903,7 +929,7 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       fileName: sourceName,
       source,
       readOnly: true,
-    });
+    }, state);
     activeWorkbenchEditor = session;
     await session.reveal(selection.start);
   }
@@ -911,8 +937,8 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
 
 class ArchinsightWorkbenchEditorSession {
   private state: PreviewState | undefined;
-  private view: DiagramView = "c1";
-  private query = viewQueries.c1;
+  private view: DiagramView;
+  private query: string;
   private disposed = false;
   private applyingEdit = false;
   private renderGeneration = 0;
@@ -928,9 +954,12 @@ class ArchinsightWorkbenchEditorSession {
     private readonly controls: ArchinsightControlsProvider,
     private readonly document: vscode.TextDocument | undefined,
     private readonly panel: vscode.WebviewPanel,
-    private readonly openLocation: (location: vscode.Location) => Promise<void>,
+    private readonly openLocation: (location: vscode.Location, state?: DiagramQueryState) => Promise<void>,
     private readonly virtualDocument?: VirtualWorkbenchDocument,
+    initialState?: DiagramQueryState,
   ) {
+    this.view = initialState?.view ?? "c1";
+    this.query = initialState?.query ?? viewQueries.c1;
   }
 
   currentView(): DiagramView {
@@ -1141,8 +1170,9 @@ class ArchinsightWorkbenchEditorSession {
     if (current === undefined) {
       return;
     }
+    const queryState = { view: this.view, query: this.query };
     if (coreSourceByName.has(declaration.source)) {
-      await this.openLocation(new vscode.Location(coreSourceUriFor(declaration.source), locationRange({ line: declaration.line, column: declaration.column })));
+      await this.openLocation(new vscode.Location(coreSourceUriFor(declaration.source), locationRange({ line: declaration.line, column: declaration.column })), queryState);
       return;
     }
     const uri = current.sourceUris.get(declaration.source);
@@ -1150,7 +1180,7 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     const position = new vscode.Position(Math.max(0, declaration.line - 1), Math.max(0, declaration.column - 1));
-    await this.openLocation(new vscode.Location(uri, new vscode.Range(position, position)));
+    await this.openLocation(new vscode.Location(uri, new vscode.Range(position, position)), queryState);
   }
 
   async reveal(position: vscode.Position): Promise<void> {
