@@ -5,8 +5,6 @@ context archinsight
 import ghost_cms from context external_systems
 import google from context external_systems
 import github from context external_systems
-import global from context infrastructure
-
 external actor user
     name = Archinsight User
     technology = Web browser
@@ -29,13 +27,8 @@ system archinsight_web
         technology = Quarkus, RESTEasy Reactive, MyBatis, Flyway, Hikari
         description = Authenticated API for projects, repository files, language pipeline, and 
             render fallback
-        deployment:
-            usesProfile global
-            uses storage
 
     service renderer_service
         name = Renderer service
         technology = Node.js, viz-js, Graphviz WASM
         description = Hardened internal service for backend fallback SVG and PNG rendering
-        deployment:
-            usesProfile global

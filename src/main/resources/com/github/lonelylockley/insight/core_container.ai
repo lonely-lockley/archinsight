@@ -6,7 +6,6 @@ define type Container of ContainerElement
     Text name
     Text technology
     Text description
-    DeploymentProfile deployment
     List of Wire links
     List of Component _
 

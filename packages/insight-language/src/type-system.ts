@@ -4,13 +4,14 @@ import type {
   EnumDefinition,
   LanguageSnapshot,
   OperatorDefinition,
-  ProjectionRuleDefinition,
   TypeDefinition,
 } from "./contracts.js";
 
 export const NOTHING = "Nothing";
 export const CONTEXT = "Context";
 export const EDGE = "Edge";
+export const PROJECTION = "Projection";
+export const PROJECTION_TERM = "ProjectionTerm";
 export const TYPE_SLOT_REFERENCE = "TypeSlotReference";
 
 export class TypeSystem {
@@ -28,6 +29,10 @@ export class TypeSystem {
 
   declaredTypes(): ReadonlySet<string> {
     return new Set(this.types.keys());
+  }
+
+  descendantTypes(type: string): readonly string[] {
+    return [...this.types.keys()].filter((candidate) => candidate !== type && this.isAssignable(candidate, type));
   }
 
   isDeclared(type: string): boolean {
@@ -57,10 +62,15 @@ export class TypeSystem {
       .filter((constructor) => this.isAssignable(constructor.ownerType, expectedType));
   }
 
-  findConstructor(spelling: string, _parentType = NOTHING): ConstructorDefinition | undefined {
-    return this.constructorsBySpelling
-      .get(spelling)
-      ?.[0];
+  findConstructor(spelling: string, expectedType = NOTHING): ConstructorDefinition | undefined {
+    const candidates = this.constructorsBySpelling.get(spelling) ?? [];
+    if (expectedType === NOTHING) {
+      return candidates[0];
+    }
+    return candidates
+      .filter((constructor) => this.isAssignable(constructor.ownerType, expectedType))
+      .at(-1)
+      ?? candidates[0];
   }
 
   hasOperatorConstructor(spelling: string): boolean {
@@ -110,12 +120,6 @@ export class TypeSystem {
     return this.inheritanceChain(type).slice(1);
   }
 
-  projectionRules(type: string): readonly ProjectionRuleDefinition[] {
-    return this.inheritanceChain(type)
-      .reverse()
-      .flatMap((item) => this.types.get(item)?.projectionRules ?? []);
-  }
-
   operatorConstructorsFrom(ownerType: string): readonly OperatorDefinition[] {
     return [...this.operatorsBySpelling.values()]
       .flat()
@@ -134,6 +138,17 @@ export class TypeSystem {
       .get(spelling)
       ?.find((operator) => (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))
         && this.isAssignable(targetType, operator.targetType));
+  }
+
+  relationOperatorConstructors(expectedType?: string): readonly OperatorDefinition[] {
+    return this.operatorConstructorsFrom(PROJECTION_TERM)
+      .filter((operator) => this.isAssignable(operator.targetType, PROJECTION_TERM))
+      .filter((operator) => expectedType === undefined || this.isAssignable(operator.ownerType, expectedType));
+  }
+
+  relationOperatorConstructor(spelling: string): OperatorDefinition | undefined {
+    return this.relationOperatorConstructors()
+      .find((operator) => operator.spelling === spelling);
   }
 
   slotOperatorConstructor(spelling: string, ownerType: string, expectedType: string): OperatorDefinition | undefined {

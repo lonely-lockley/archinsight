@@ -53,7 +53,7 @@ export interface AttributeDefinition {
 }
 
 export type ProjectionTermKind = "from" | "to" | "this" | "attribute" | "slot";
-export type ProjectionPlacement = "source" | "target";
+export type ProjectionPlacement = "source" | "target" | "fixed";
 
 export interface ProjectionTermDefinition {
   readonly kind: ProjectionTermKind;
@@ -61,6 +61,8 @@ export interface ProjectionTermDefinition {
   readonly placement: ProjectionPlacement;
   readonly placementText?: string;
   readonly placementSource?: SourceLocation;
+  readonly fixedEnvironment?: string;
+  readonly fixedEnvironmentSource?: SourceLocation;
   readonly ownerAttribute?: string;
   readonly source?: SourceLocation;
 }
@@ -77,7 +79,6 @@ export interface TypeDefinition {
   readonly name: string;
   readonly baseType?: string;
   readonly attributes?: readonly AttributeDefinition[];
-  readonly projectionRules?: readonly ProjectionRuleDefinition[];
   readonly declaration?: SourceLocation;
 }
 

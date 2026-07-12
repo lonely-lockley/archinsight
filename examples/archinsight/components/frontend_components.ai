@@ -1,7 +1,5 @@
 context archinsight
 
-import global from context infrastructure
-
 extend container frontend
 
     component workspace_page
@@ -36,9 +34,6 @@ extend container frontend
             -> api_resources from archinsight
                 technology = REST
                 description = Sends live syntax checks and link requests
-                deployment:
-                    environmentsFrom global
-                    uses publicGateway
     component diagram_preview
         name = Diagram preview
         technology = SVG, browser Graphviz WASM

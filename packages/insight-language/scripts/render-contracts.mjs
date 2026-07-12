@@ -19,7 +19,6 @@ const cases = [
   rendersNestedAttributeObjectsAsNestedClusters,
   skipsElementsWithInvisibleGraphvizPresentation,
   rendersSelectedContextAsClusterForWideDefaultQuery,
-  rendersReplicationEdgesAsDashed,
   rendersStorageWithDatabaseShape,
   rendersBrokersAsDashedBoxes,
   rendersSystemsServicesAndComponentsAsRoundedBoxes,
@@ -450,100 +449,6 @@ RETURN n, r, m
   assert(!dot.includes("\"source\" ["));
   assert(dot.includes("App"));
   assert(dot.includes("API"));
-}
-
-function rendersReplicationEdgesAsDashed() {
-  const result = linkWithCoreDefinitions(
-    source("definitions.ai", `
-define type ReplicatedBroker of InfrastructureComponent
-    constructor replicatedBroker
-
-    project:
-        source $from originalLink source $this
-        target $to connectTo target $this
-        target $this replicateFrom source $this
-
-extend type Environment
-    Compute compute
-    ReplicatedBroker broker
-`),
-    source("infra.ai", `
-context infra
-
-environment env_c
-    name = Environment C
-
-    compute:
-        compute compute_c
-            name = Compute C
-
-    broker:
-        replicatedBroker kafka_c
-            name = Kafka C
-            runsOn compute
-
-environment env_d
-    name = Environment D
-
-    compute:
-        compute compute_d
-            name = Compute D
-
-    broker:
-        replicatedBroker kafka_d
-            name = Kafka D
-            runsOn compute
-`),
-    source("c.ai", `
-context system_c
-
-import env_c from context infra
-import env_d from context infra
-import d from context system_d
-
-system c
-    name = System C
-    deployment:
-        environments:
-            env_c
-
-        runsOn compute
-    links:
-        ~> d
-            technology = Kafka
-            via = c.events
-            deployment:
-                environments:
-                    env_c
-                    env_d
-
-                uses broker
-`),
-    source("d.ai", `
-context system_d
-
-import env_d from context infra
-
-system d
-    name = System D
-    deployment:
-        environments:
-            env_d
-
-        runsOn compute
-`),
-  );
-  const projection = selectGraph(result, { context: "system_c" }, `
-MATCH (n:Element)-[r {projected}]->(m:Element)
-RETURN n, r, m
-`);
-  assertNoErrors(result);
-  const dot = renderGraphviz(result, projection, "light");
-
-  assert(dot.includes("\"infra__kafka_d\" -> \"infra__kafka_c\""));
-  assert(dot.includes("style=\"dashed\""));
-  assert(dot.includes("color=\"#000000\""));
-  assert(!dot.includes("color=\"#4a4a4a\""));
 }
 
 function rendersStorageWithDatabaseShape() {

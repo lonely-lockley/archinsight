@@ -1,10 +1,10 @@
-extend type Environment
-    ServiceProvider csp
-    ServiceProvider cdn
+define type ArchinsightEnvironment of Environment
+    ArchinsightServiceProvider csp
+    ArchinsightServiceProvider cdn
     Compute compute
     Storage storage
-    PublicGateway publicGateway
-    PrivateGateway privateGateway
+    ArchinsightPublicGateway publicGateway
+    ArchinsightPrivateGateway privateGateway
     Monitoring observability
     Egress egress
 
@@ -12,46 +12,25 @@ define type Monitoring of InfrastructureComponent
     constructor metrics
 
     required InfrastructureComponent display
-    project:
-        target $this connectTo source $from
-        target $this connectTo target display
 
 define type Internaletwork of InfrastructureComponent
     constructor internalServiceRoute
 
-    project:
-        source $from originalLink target $to
-
-define type PublicGateway of InfrastructureComponent
-    constructor publicGateway
+define type ArchinsightPublicGateway of InfrastructureComponent
+    constructor archinsightPublicGateway
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
-    project:
-        source $from originalLink target cdn
-        target cdn connectTo target loadBalancer
-        target loadBalancer connectTo target $this
-        target $this connectTo target $to
 
-define type PrivateGateway of InfrastructureComponent
-    constructor privateGateway
-    project:
-        source $from originalLink target $to
+define type ArchinsightPrivateGateway of InfrastructureComponent
+    constructor archinsightPrivateGateway
 
 define type Egress of InfrastructureComponent
     constructor egress
-    project:
-        source $from originalLink target $to
 
-define type ServiceProvider of InfrastructureComponent
-    constructor serviceProvider
+define type ArchinsightServiceProvider of InfrastructureComponent
+    constructor archinsightServiceProvider
 
-define operator Observed of TypeSlotReference
-    constructor observedBy Environment
-        on DeploymentProfile
-
-    implementation = "@insight/deployment.uses"
-
-define presentation PrivateGateway 
+define presentation ArchinsightPrivateGateway 
     graphviz
         visible = false
 

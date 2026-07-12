@@ -30,7 +30,7 @@ function coreTypesCarryDeclarationMetadata() {
   const service = coreLanguageSnapshot.types.find((item) => item.name === "Service");
   assert(service?.declaration !== undefined, "Missing Service type declaration");
   assert.equal(service.declaration.sourceName, "core_container.ai");
-  assert.equal(service.declaration.line, 13);
+  assert.equal(service.declaration.line, 12);
   assert.equal(service.declaration.column, 13);
 
   const wire = coreLanguageSnapshot.types.find((item) => item.name === "Wire");

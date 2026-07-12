@@ -33,7 +33,7 @@ const cases = [
   parsesPresentationDefinitions,
   parsesPresentationExtensions,
   parsesFinalAnonymousListAttribute,
-  parsesProjectAfterFinalAnonymousListAttribute,
+  parsesConcreteProjectionBlock,
   rejectsAnonymousAttributeWithNonListType,
   rejectsNamedAttributeAfterAnonymousListAttribute,
   rejectsMultipleAnonymousListAttributes,
@@ -355,18 +355,16 @@ define type System of Element
 `);
 }
 
-function parsesProjectAfterFinalAnonymousListAttribute() {
+function parsesConcreteProjectionBlock() {
   assertParses(`
-define type InfrastructureComponent of Element
-    constructor infrastructure
+context test
 
-define type Compute of InfrastructureComponent
-    constructor compute
+infrastructureComponent gateway
+    name = Gateway
 
-    List of InfrastructureComponent _
-
-    project:
-        source $from -> target $this
+    projection:
+        source $from originalLink target $this
+        source gateway connectTo fixed tgw in latam
 `);
 }
 

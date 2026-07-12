@@ -1,49 +1,52 @@
-context infrastructure
-
-deploymentProfile global
-    environments:
-        eu
-    
-    runsOn compute
-    observedBy observability
-
 environment eu
     name = Europe
 
+deployment production
     csp:
         name = Digitalocean
 
     cdn:
-        serviceProvider cf
+        archinsightServiceProvider cf
             name = Cloudflare
 
     compute:
         name = Kubernetes
-        runsOn csp
 
     storage:
         name = Postgres
-        runsOn csp
 
     publicGateway:
-        name = Envoy EU
-        cdn:
-            cf
-        loadBalancer:
-            infrastructureComponent _
-                name = Load Balancer
-                runsOn csp
-        runsOn compute
+        archinsightPublicGateway publicGateway
+            name = Envoy EU
+            cdn:
+                cf
+            loadBalancer:
+                infrastructureComponent lb
+                    name = Load Balancer
+            projection:
+                source $from originalLink target cdn
+                target cdn connectTo target loadBalancer
+                target loadBalancer connectTo target $this
+                target $this connectTo target $to
 
     privateGateway:
-        name = Private Network
+        archinsightPrivateGateway privateGateway
+            name = Private Network
+            projection:
+                source $from originalLink target $to
 
     egress:
-        name = Egress
+        egress egress
+            name = Egress
+            projection:
+                source $from originalLink target $to
 
     observability:
-        name = Grafana Agent
-        display:
-            infrastructureComponent _
-                name = Grafana Cloud
-        runsOn compute
+        metrics observability
+            name = Grafana Agent
+            display:
+                infrastructureComponent grafana
+                    name = Grafana Cloud
+            projection:
+                target $this connectTo source $from
+                target $this connectTo target display

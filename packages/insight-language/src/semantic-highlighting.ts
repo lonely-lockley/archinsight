@@ -63,6 +63,7 @@ const keywordTokens = new Set([
   "FROM",
   "AS",
   "CONTEXT",
+  "ENVIRONMENT",
   "PROJECT",
   "IMPLEMENTATION",
 ]);
@@ -132,9 +133,13 @@ function classifyTree(
     case "contextDeclaration":
       markFirstChildRule(tree, "contextDeclarationName", ruleNames, classifications, "variable", ["declaration"]);
       break;
+    case "environmentDeclaration":
+      markFirstChildRule(tree, "environmentDeclarationName", ruleNames, classifications, "variable", ["declaration"]);
+      break;
     case "namedImportDeclaration":
       markFirstChildRule(tree, "identifierReference", ruleNames, classifications, "variable");
       markFirstChildRule(tree, "contextReference", ruleNames, classifications, "variable");
+      markFirstChildRule(tree, "environmentReference", ruleNames, classifications, "variable");
       markFirstChildRule(tree, "importAlias", ruleNames, classifications, "variable", ["declaration"]);
       break;
     case "objectDeclaration":
@@ -178,15 +183,15 @@ function classifyTree(
     case "enumValueDeclaration":
       markFirstChildRule(tree, "identifier", ruleNames, classifications, "variable", ["declaration"]);
       break;
-    case "projectionRule":
+    case "relationInvocation":
       markFirstChildRule(tree, "operatorIdentifier", ruleNames, classifications, "operator");
       break;
-    case "projectionTerm":
+    case "relationReference":
       if (firstChildByRule(tree, "identifier", ruleNames) !== undefined) {
         markFirstChildRule(tree, "identifier", ruleNames, classifications, "property");
       }
       break;
-    case "projectionSlotDereference":
+    case "relationSlotDereference":
       markFirstChildRule(tree, "identifier", ruleNames, classifications, "property");
       break;
   }

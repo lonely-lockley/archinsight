@@ -239,14 +239,64 @@ function createCompletionScope(
     : firstDescendantByRule(input.tree, "architectureFile", input.ruleNames);
   if (architecture !== undefined) {
     const contextDeclaration = firstChildByRule(architecture, "contextDeclaration", input.ruleNames);
+    const environmentFile = firstChildByRule(architecture, "environmentFile", input.ruleNames);
+    const environmentDeclaration = environmentFile === undefined
+      ? undefined
+      : firstChildByRule(environmentFile, "environmentDeclaration", input.ruleNames);
     const contextName = contextDeclaration === undefined
       ? undefined
       : firstChildByRule(contextDeclaration, "contextDeclarationName", input.ruleNames);
     if (contextName !== undefined && startsBefore(contextName, cursorOffset)) {
       state.contextId = textOf(contextName);
     }
+    const environmentName = environmentDeclaration === undefined
+      ? undefined
+      : firstChildByRule(environmentDeclaration, "environmentDeclarationName", input.ruleNames);
+    if (contextName === undefined && environmentName !== undefined && startsBefore(environmentName, cursorOffset)) {
+      state.contextId = textOf(environmentName);
+    }
+    let environmentFrame: MutableElementFrame | undefined;
+    if (environmentDeclaration !== undefined && startsBefore(environmentDeclaration, cursorOffset)) {
+      const baseEnvironmentType = typeSystem.findConstructor("environment", "Environment")?.ownerType;
+      const environmentType = baseEnvironmentType === undefined
+        ? undefined
+        : completionEnvironmentDeclarationType(typeSystem, baseEnvironmentType, environmentDeclaration, input.ruleNames);
+      if (environmentName !== undefined && environmentType !== undefined) {
+        state.visibleIdentifiers.set(textOf(environmentName), {
+          label: textOf(environmentName),
+          type: environmentType,
+          imported: false,
+        });
+      }
+      if ((contains(environmentDeclaration, cursorOffset, cursor)
+        || (environmentFile !== undefined && contains(environmentFile, cursorOffset, cursor)))
+        && environmentType !== undefined) {
+        environmentFrame = mutableFrame(indentLevel(environmentDeclaration), environmentType);
+        state.frames.unshift(environmentFrame);
+        const environmentBody = firstChildByRule(environmentDeclaration, "objectBody", input.ruleNames);
+        if (environmentBody !== undefined) {
+          processBody(environmentBody, environmentType, undefined, cursorOffset, cursor, typeSystem, state, input.ruleNames, environmentFrame);
+        }
+      }
+    }
     for (const item of directChildrenByRule(architecture, "architectureTopLevelItem", input.ruleNames)) {
       processArchitectureItem(item, CONTEXT, undefined, cursorOffset, cursor, typeSystem, state, input.ruleNames);
+    }
+    if (environmentFile !== undefined) {
+      const environmentType = environmentFrame?.type ?? typeSystem.findConstructor("environment", "Environment")?.ownerType;
+      for (const item of directChildrenByRule(environmentFile, "architectureTopLevelItem", input.ruleNames)) {
+        processArchitectureItem(
+          item,
+          environmentType ?? CONTEXT,
+          undefined,
+          cursorOffset,
+          cursor,
+          typeSystem,
+          state,
+          input.ruleNames,
+          environmentFrame,
+        );
+      }
     }
     const contextBody = contextDeclaration === undefined
       ? undefined
@@ -320,13 +370,59 @@ function processLineFallbackScope(
   }
 }
 
+function completionEnvironmentDeclarationType(
+  typeSystem: TypeSystem,
+  baseType: string,
+  declaration: AntlrParseTreeLike,
+  ruleNames: readonly string[],
+): string {
+  const projectEnvironmentTypes = typeSystem.descendantTypes(baseType)
+    .filter((type) => !typeSystem.constructorsForExpectedType(type).some((constructor) => constructor.ownerType === type));
+  const capabilityNames = completionEnvironmentCapabilityNames(declaration, ruleNames);
+  if (capabilityNames.size > 0) {
+    const matchingTypes = projectEnvironmentTypes.filter((type) =>
+      [...capabilityNames].every((name) => typeSystem.attribute(type, name) !== undefined)
+    );
+    if (matchingTypes.length === 1) {
+      return matchingTypes[0]!;
+    }
+  }
+  return projectEnvironmentTypes.length === 1 ? projectEnvironmentTypes[0]! : baseType;
+}
+
+function completionEnvironmentCapabilityNames(
+  declaration: AntlrParseTreeLike,
+  ruleNames: readonly string[],
+): ReadonlySet<string> {
+  const result = new Set<string>();
+  const body = firstChildByRule(declaration, "objectBody", ruleNames);
+  if (body !== undefined) {
+    collectNamedListNamesFromBody(body, result, ruleNames);
+  }
+  return result;
+}
+
+function collectNamedListNamesFromBody(
+  body: AntlrParseTreeLike,
+  result: Set<string>,
+  ruleNames: readonly string[],
+): void {
+  for (const item of directChildrenByRule(body, "architectureBodyItem", ruleNames)) {
+    const list = firstChildByRule(item, "namedList", ruleNames);
+    const name = list === undefined ? undefined : firstChildByRule(list, "listName", ruleNames);
+    if (name !== undefined) {
+      result.add(textOf(name));
+    }
+  }
+}
+
 function assignmentNameFromLine(content: string): string | undefined {
   const match = /^([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(content);
   return match?.[1];
 }
 
 function objectDeclarationFromLine(content: string): { readonly constructor: string; readonly identifier: string } | undefined {
-  const match = /^([A-Za-z_][A-Za-z0-9_]*|context)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.exec(content);
+  const match = /^([A-Za-z_][A-Za-z0-9_]*|context|environment)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.exec(content);
   if (match === null) {
     return undefined;
   }
@@ -369,7 +465,7 @@ function collectContextDeclarations(
     const token = tokens[index];
     const id = tokens[index + 1];
     if (token === undefined || id === undefined
-      || tokenName(tokenNameResolver, tokenType(token)) !== "CONTEXT"
+      || !["CONTEXT", "ENVIRONMENT"].includes(tokenName(tokenNameResolver, tokenType(token)))
       || tokenName(tokenNameResolver, tokenType(id)) !== "IDENTIFIER"
       || previousRealTokenName(tokens, tokenNameResolver, index) === "FROM") {
       continue;
@@ -681,7 +777,7 @@ function collectImportAliases(
     if (imported === undefined || from === undefined || context === undefined || contextName === undefined
       || tokenName(tokenNameResolver, tokenType(imported)) !== "IDENTIFIER"
       || tokenName(tokenNameResolver, tokenType(from)) !== "FROM"
-      || tokenName(tokenNameResolver, tokenType(context)) !== "CONTEXT"
+      || !["CONTEXT", "ENVIRONMENT"].includes(tokenName(tokenNameResolver, tokenType(context)))
       || tokenName(tokenNameResolver, tokenType(contextName)) !== "IDENTIFIER") {
       continue;
     }
@@ -714,7 +810,7 @@ function collectElementDeclarations(
     const id = tokens[index + 1];
     if (constructor === undefined || id === undefined
       || tokenName(tokenNameResolver, tokenType(id)) !== "IDENTIFIER"
-      || !["IDENTIFIER", "CONTEXT"].includes(tokenName(tokenNameResolver, tokenType(constructor)))
+      || !["IDENTIFIER", "CONTEXT", "ENVIRONMENT"].includes(tokenName(tokenNameResolver, tokenType(constructor)))
       || previousRealTokenName(tokens, tokenNameResolver, index) === "EXTEND") {
       continue;
     }

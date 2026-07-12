@@ -19,20 +19,14 @@ const cases = [
   labelsAreCaseSensitive,
   selectsReferencesReturnedByCypher,
   keepsParallelReferencesBetweenSameElements,
-  projectedRelationshipsRequireProjectedSelector,
-  c4StyleQueryReturnsRealAndProjectedEdges,
   c4QueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements,
-  c4QueryReturnsTargetOwnedIncomingGatewayPath,
   rollsChildReferencesUpToOwningElementForQuery,
-  rollsProjectedReferencesUpToOwningElementForQuery,
   rollsNestedReferencesUpToOwningSystems,
   rollsNestedReferencesUpToOwningContexts,
   doesNotRollInternalNestedReferencesIntoOwningSystemSelfEdges,
   relationshipsWithoutDerivedSelectorUseDefaultNonDerivedEdges,
   optionalMatchKeepsPreviouslySelectedNodeWhenRelationshipIsMissing,
   optionalMatchWhereFiltersOptionalPatternOnly,
-  rollupMatchSelectsNearestAcceptedEndpoints,
-  rollupMatchUsesProjectedOriginsForInternalProjectionFragments,
   filtersWithWhereAndBuiltinVariables,
   missingScopeValuesDoNotMatchMissingOrDefinedProperties,
   filtersWithWhereOr,
@@ -52,7 +46,6 @@ const cases = [
   groupsSelectedElementsByTypedReferenceAttribute,
   groupsSelectedElementsByImportedTypedReferenceAttribute,
   groupsSelectedElementsByTypedReferenceAttributeFromExtension,
-  typedReferenceImplementationsMaterializeRunsOnGroups,
   groupsSelectedElementsByListValuedReferenceAttribute,
   groupsSelectedElementsBySingleEntryListValuedTypedReferenceAttribute,
   groupsSelectedElementsByMultiEntryListValuedTypedReferenceAttribute,
@@ -324,7 +317,6 @@ system app
     OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
     WHERE node IS DeploymentElement
       AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-    GROUP BY node.runsOn
     RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
     `,
   );
@@ -337,140 +329,6 @@ system app
   assert(graph.elements["shared/backend"]);
   assert(graph.edges.some((edge) => edge.source === "shared/gateway" && edge.target === "shared/compute" && edge.edge.projected !== true));
   assert(!graph.edges.some((edge) => edge.source === "shared/frontend" && edge.target === "shared/backend"));
-}
-
-function c4QueryReturnsTargetOwnedIncomingGatewayPath() {
-  const sources = [
-    source("framework.ai", `
-extend type Environment
-    Compute compute
-    NetworkConnection network
-    PrivateGateway privateGateway
-
-define type PrivateGateway of InfrastructureComponent
-    constructor privateGateway
-
-    project:
-        source $from originalLink target $this
-        target $this connectTo target $to
-`),
-    source("infra.ai", `
-context infra
-
-environment sourceEnv
-    name = Source Env
-
-    compute:
-        compute sourceCompute
-            name = Source Compute
-
-    network:
-        networkConnection sourceNetwork
-            name = Source Network
-
-environment targetEnv
-    name = Target Env
-
-    compute:
-        compute targetCompute
-            name = Target Compute
-
-    privateGateway:
-        privateGateway targetGateway
-            name = Target Private Gateway
-            runsOn compute
-
-deploymentProfile sourceProfile
-    environments:
-        sourceEnv
-
-    runsOn compute
-
-deploymentProfile targetProfile
-    environments:
-        targetEnv
-
-    runsOn compute
-`),
-    source("source-system.ai", `
-context services
-
-import target from context services
-import payment from context external
-import sourceProfile from context infra
-import targetProfile from context infra
-
-system sourceSystem
-    name = Source System
-
-    service caller
-        name = Caller
-        deployment:
-            usesProfile sourceProfile
-        links:
-            -> target from services
-                technology = HTTPS
-                deployment:
-                    environmentsFrom sourceProfile
-                    environmentsFrom targetProfile
-                    uses privateGateway
-            -> payment from external
-                technology = HTTPS
-                deployment:
-                    environmentsFrom sourceProfile
-                    uses network
-`),
-    source("target-system.ai", `
-context services
-
-import targetProfile from context infra
-
-system targetSystem
-    name = Target System
-
-    service target
-        name = Target
-        deployment:
-            usesProfile targetProfile
-`),
-    source("external.ai", `
-context external
-
-external system payment
-    name = Payment Provider
-`),
-  ];
-  const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
-  const result = linkProject({
-    snapshot: snapshot.snapshot,
-    sources,
-  });
-
-  const graph = selectGraph(
-    result,
-    { context: "services", tab: "target-system.ai" },
-    builtinC4Query,
-  );
-
-  assertNoErrors(snapshot);
-  assertNoErrors(result);
-  assert(graph.elements["services/target"]);
-  assert(graph.elements["services/caller"], "Expected C4 target tab to include incoming caller");
-  assert(graph.elements["infra/targetGateway"], "Expected C4 target tab to include target private gateway");
-  assert(graph.edges.some((edge) => edge.source === "services/caller" && edge.target === "infra/targetGateway"));
-  assert(graph.edges.some((edge) => edge.source === "infra/targetGateway" && edge.target === "services/target"));
-  assert(!graph.edges.some((edge) => edge.source === "services/caller" && edge.target === "services/target"));
-
-  const sourceGraph = selectGraph(
-    result,
-    { context: "services", tab: "source-system.ai" },
-    builtinC4Query,
-  );
-
-  assert(sourceGraph.elements["external/payment"], "Expected source C4 tab to keep outgoing external projections");
-  assert(sourceGraph.elements["services/target"], "Expected source C4 tab to keep cross-system logical peer target");
-  assert(sourceGraph.edges.some((edge) => edge.source === "services/caller" && edge.target === "services/target"));
-  assert(!sourceGraph.elements["infra/targetGateway"], "Expected source C4 tab not to include target-owned private gateway");
 }
 
 function rollsChildReferencesUpToOwningElementForQuery() {
@@ -1287,7 +1145,7 @@ system app
 
     service api
         name = API
-        runsOn:
+        placement:
             kube
 `)],
   });
@@ -1295,7 +1153,7 @@ system app
   const graph = selectGraph(
     result,
     { context: "shared", tab: "architecture.ai" },
-    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.runsOn RETURN node",
+    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.placement RETURN node",
   );
 
   assertNoErrors(result);
@@ -1322,7 +1180,7 @@ system app
 
     service api
         name = API
-        runsOn:
+        placement:
             kube
 `),
     ],
@@ -1331,7 +1189,7 @@ system app
   const graph = selectGraph(
     result,
     { context: "shared", tab: "architecture.ai" },
-    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.runsOn RETURN node",
+    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.placement RETURN node",
   );
 
   assertNoErrors(result);
@@ -1354,7 +1212,7 @@ system app
         name = API
 
 extend service api
-    runsOn:
+    placement:
         kube
 `)],
   });
@@ -1362,217 +1220,11 @@ extend service api
   const graph = selectGraph(
     result,
     { context: "shared", tab: "architecture.ai" },
-    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.runsOn RETURN node",
+    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.placement RETURN node",
   );
 
   assertNoErrors(result);
   assert.deepEqual(graph.groups.find((group) => group.owner === "shared/kube")?.elements, ["shared/api"]);
-}
-
-function typedReferenceImplementationsMaterializeRunsOnGroups() {
-  const sources = [
-    source("test.ai", `
-extend type Context
-    List of Element _
-
-extend type Environment
-    InfrastructureComponent region
-    InfrastructureComponent compute
-    InfrastructureComponent broker
-    InfrastructureComponent storage
-
-extend type System
-    DeploymentProfile deployment
-
-extend type Wire
-    DeploymentProfile deployment
-`),
-    source("test2.ai", `
-context infra
-
-infrastructureComponent euRegion
-    name = Europe Region
-
-infrastructureComponent usRegion
-    name = United States Region
-
-environment eu
-    name = Europe
-    region:
-        euRegion
-
-    compute:
-        compute kube
-            name = Kubernetes
-            runsOn region
-
-    broker:
-        broker kafka
-            name = Kafka
-            runsOn compute
-
-    storage:
-        storage db
-            name = Postgres
-            runsOn compute
-
-environment us
-    name = United States
-    region:
-        usRegion
-
-    compute:
-        compute ecs
-            name = ECS
-            runsOn region
-
-    broker:
-        broker kafkaUs
-            name = Kafka US
-            runsOn compute
-
-    storage:
-        storage dbUs
-            name = Postgres US
-            runsOn compute
-`),
-    source("infrastructure.ai", `
-context infrastructure
-
-environment prod
-    name = Production
-
-    compute:
-        compute kubeProd
-            name = Kubernetes Production
-
-    broker:
-        broker kafkaProd
-            name = Kafka Production
-
-    storage:
-        storage dbProd
-            name = Postgres Production
-`),
-    source("test3.ai", `
-context test
-
-import eu from context infra
-import us from context infra
-
-deploymentProfile global
-    environments:
-        eu
-        us
-    runsOn compute
-
-service api
-    name = API
-    deployment:
-        usesProfile global
-        uses storage
-    links:
-        -> worker
-            deployment:
-                environmentsFrom global
-                uses broker
-
-service worker
-    name = Worker
-    deployment:
-        usesProfile global
-`),
-  ];
-  const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
-  const result = linkProject({
-    snapshot: snapshot.snapshot,
-    sources,
-  });
-
-  const graph = selectGraph(
-    result,
-    { context: "test", tab: "test3.ai" },
-    `
-    MATCH (node:Element)
-    WHERE node.sourceIdentity = $tab
-      AND (node IS DeploymentElement OR node IS ContainerElement)
-    OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
-    WHERE projectedTarget IS DeploymentElement
-       OR projectedTarget IS ContainerElement
-       OR projectedTarget IS External
-    OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
-    WHERE node IS DeploymentElement
-      AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-    GROUP BY node.runsOn
-    RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
-    `,
-  );
-
-  assertNoErrors(snapshot);
-  assertNoErrors(result);
-  assert.deepEqual(result.elements.find((element) => element.id === "test/api")?.attributes.runsOn, ["infra/kube", "infra/ecs"]);
-  assert.deepEqual(result.elements.find((element) => element.id === "test/worker")?.attributes.runsOn, ["infra/kube", "infra/ecs"]);
-  const euComputeGroup = graph.groups.find((group) => group.owner === "infra/kube");
-  const usComputeGroup = graph.groups.find((group) => group.owner === "infra/ecs");
-  const euRegionGroup = graph.groups.find((group) => group.owner === "infra/euRegion");
-  const usRegionGroup = graph.groups.find((group) => group.owner === "infra/usRegion");
-  assert(euComputeGroup !== undefined, "Expected C4 group for EU compute runsOn target");
-  assert(usComputeGroup !== undefined, "Expected C4 group for US compute runsOn target");
-  assert(euRegionGroup !== undefined, "Expected C4 group for EU compute parent");
-  assert(usRegionGroup !== undefined, "Expected C4 group for US compute parent");
-  assert(euComputeGroup.elements.includes("test/api@@infra/kube"));
-  assert(euComputeGroup.elements.includes("test/worker@@infra/kube"));
-  assert(euComputeGroup.elements.includes("infra/kafka"));
-  assert(euComputeGroup.elements.includes("infra/db"));
-  assert(usComputeGroup.elements.includes("test/api@@infra/ecs"));
-  assert(usComputeGroup.elements.includes("test/worker@@infra/ecs"));
-  assert(usComputeGroup.elements.includes("infra/kafkaUs"));
-  assert(usComputeGroup.elements.includes("infra/dbUs"));
-  assert(euRegionGroup.elements.includes("infra/kube"));
-  assert(usRegionGroup.elements.includes("infra/ecs"));
-  assert.equal(graph.elements["test/api"], undefined);
-  assert.equal(graph.elements["test/worker"], undefined);
-  assert.equal(graph.edges.filter((edge) => edge.edge.projected === true).length, 6);
-  assert.equal(graph.edges.filter((edge) => edge.edge.projected !== true).length, 0);
-  assert(graph.edges.some((edge) => edge.source === "test/api@@infra/kube" && edge.target === "infra/db"));
-  assert(graph.edges.some((edge) => edge.source === "test/api@@infra/ecs" && edge.target === "infra/dbUs"));
-  assert(graph.edges.some((edge) => edge.source === "test/api@@infra/kube" && edge.target === "infra/kafka"));
-  assert(graph.edges.some((edge) => edge.source === "test/worker@@infra/kube" && edge.target === "infra/kafka"));
-  assert(!graph.externalElements.includes("infra/kafka"));
-  assert(!graph.externalElements.includes("infra/db"));
-  assert(!graph.externalElements.includes("infra/kafkaUs"));
-  assert(!graph.externalElements.includes("infra/dbUs"));
-  assert.equal(graph.elements["infrastructure/prod"], undefined);
-  assert.equal(graph.elements["infrastructure/kubeProd"], undefined);
-  assert.equal(graph.elements["infrastructure/kafkaProd"], undefined);
-  assert.equal(graph.elements["infrastructure/dbProd"], undefined);
-
-  const infraGraph = selectGraph(
-    result,
-    { context: "infra", tab: "test2.ai" },
-    `
-    MATCH (node:Element)
-    WHERE node.sourceIdentity = $tab
-      AND (node IS DeploymentElement OR node IS ContainerElement)
-    OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
-    WHERE projectedTarget IS DeploymentElement
-       OR projectedTarget IS ContainerElement
-       OR projectedTarget IS External
-    OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
-    WHERE node IS DeploymentElement
-      AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-    GROUP BY node.runsOn
-    RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
-    `,
-  );
-
-  assert(infraGraph.elements["infra/euRegion"]);
-  assert(infraGraph.elements["infra/usRegion"]);
-  assert.equal(infraGraph.elements["test/api"], undefined);
-  assert.equal(infraGraph.elements["test/worker"], undefined);
-  assert.equal(infraGraph.elements["infrastructure/prod"], undefined);
-  assert.equal(infraGraph.elements["infrastructure/kubeProd"], undefined);
-  assert.equal(infraGraph.edges.filter((edge) => edge.edge.projected === true).length, 0);
 }
 
 function groupsSelectedElementsByListValuedReferenceAttribute() {
@@ -1625,7 +1277,7 @@ system app
 
     service api
         name = API
-        runsOn:
+        placement:
             kube
 `)],
   });
@@ -1633,7 +1285,7 @@ system app
   const graph = selectGraph(
     result,
     { context: "shared", tab: "architecture.ai" },
-    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.runsOn RETURN node",
+    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.placement RETURN node",
   );
 
   assertNoErrors(result);
@@ -1657,7 +1309,7 @@ system app
 
     service api
         name = API
-        runsOn:
+        placement:
             kube
             ecs
 `)],
@@ -1666,7 +1318,7 @@ system app
   const graph = selectGraph(
     result,
     { context: "shared", tab: "architecture.ai" },
-    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.runsOn RETURN node",
+    "MATCH (node:Service) WHERE node.sourceIdentity = $tab GROUP BY node.placement RETURN node",
   );
 
   assertNoErrors(result);
@@ -2229,8 +1881,8 @@ function infraGroupingSnapshot(list) {
           name: "Service",
           attributes: [
             list
-              ? { name: "runsOn", type: "List", list: true, listElementType: "Compute" }
-              : { name: "runsOn", type: "Compute" },
+              ? { name: "placement", type: "List", list: true, listElementType: "Compute" }
+              : { name: "placement", type: "Compute" },
           ],
         },
       ],

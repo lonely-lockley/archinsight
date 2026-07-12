@@ -9,14 +9,11 @@ import type {
 import { CharStream, Token } from "antlr4ng";
 import { InsightLexer } from "./generated/InsightLexer.js";
 import { lineContextAt, type LineContext } from "./line-context.js";
-import { CONTEXT, EDGE, NOTHING, TYPE_SLOT_REFERENCE, TypeSystem } from "./type-system.js";
+import { CONTEXT, EDGE, NOTHING, PROJECTION_TERM, TYPE_SLOT_REFERENCE, TypeSystem } from "./type-system.js";
 
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
 const PRESENTATION_SECTIONS = ["light", "dark", "graphviz"];
-const PROJECTION_PLACEMENTS = ["source", "target"];
 const PROJECTION_ENDPOINTS = ["$from", "$to", "$this"];
-const PROJECTION_OPERATORS = ["originalLink", "connectTo", "replicateFrom"];
-const PROJECTION_WIRE_ATTRIBUTES = ["technology", "description", "call", "via"];
 const PRESENTATION_SECTION_PROPERTIES = [
   "fill",
   "stroke",
@@ -100,7 +97,7 @@ function ambiguousTopLevelItems(
   visibleTypes: ReadonlySet<string>,
   typeSystem: TypeSystem,
 ): CompletionItem[] {
-  return [keyword("context "), ...definitionItems(line, emptySyntax(), visibleTypes, typeSystem)];
+  return [keyword("context "), keyword("environment "), ...definitionItems(line, emptySyntax(), visibleTypes, typeSystem)];
 }
 
 function definitionItems(
@@ -109,10 +106,6 @@ function definitionItems(
   visibleTypes: ReadonlySet<string>,
   typeSystem: TypeSystem,
 ): CompletionItem[] {
-  const projectionItems = projectionDefinitionItems(line, syntax, typeSystem);
-  if (projectionItems !== undefined) {
-    return projectionItems;
-  }
   if (expectsPresentationName(syntax)) {
     return [...visibleTypes].map((name) => type(`${name} `));
   }
@@ -175,78 +168,258 @@ function projectionDefinitionItems(
   line: LineContext,
   syntax: SyntaxContext,
   typeSystem: TypeSystem,
+  context: CompletionScope,
 ): CompletionItem[] | undefined {
-  if (!rule(syntax, "projectDeclaration") && !rule(syntax, "projectionRule")) {
+  const relationList = currentRelationEdgeList(typeSystem, context, line.indentLevel);
+  if (!rule(syntax, "relationInvocation") && relationList === undefined) {
     return undefined;
   }
   if (isProjectionRuleBodyAttributePosition(line, syntax)) {
-    return PROJECTION_WIRE_ATTRIBUTES.map((name) => attributeItem(`${name} = `));
+    return projectionRelationAttributeItems(typeSystem, relationList?.expectedType);
   }
   const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
-  if (words.length === 0 || expectsProjectionPlacement(syntax) || isProjectionPlacementPosition(words)) {
-    return PROJECTION_PLACEMENTS.map((placement) => keyword(`${placement} `));
-  }
-  if (expectsProjectionTerm(syntax) || isProjectionTermPosition(words)) {
-    return projectionTermItems(syntax, typeSystem);
-  }
-  if (isProjectionOperatorPosition(words)) {
-    return PROJECTION_OPERATORS.map((operator) => operatorItem(`${operator} `));
+  const positionalItems = projectionItemsForWords(words, syntax, typeSystem, context, relationList);
+  if (positionalItems !== undefined) {
+    return positionalItems;
   }
   return undefined;
+}
+
+function currentRelationEdgeList(
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+  indent: number,
+): { readonly expectedType: string } | undefined {
+  const list = currentList(context, indent);
+  if (list === undefined) {
+    return undefined;
+  }
+  const expectedType = typeSystem.attribute(list.ownerType, list.attribute)?.listElementType;
+  return expectedType !== undefined && typeSystem.relationOperatorConstructors(expectedType).length > 0
+    ? { expectedType }
+    : undefined;
 }
 
 function isProjectionRuleBodyAttributePosition(
   line: LineContext,
   syntax: SyntaxContext,
 ): boolean {
-  return rule(syntax, "projectionRule")
+  return rule(syntax, "relationInvocation")
     && line.hasOnlyIndentBeforeCursor
     && line.indentLevel >= 3;
 }
 
-function expectsProjectionTerm(syntax: SyntaxContext): boolean {
-  return rule(syntax, "projectionTerm")
-    || syntax.expectedTokenNames.has("PROJECTION_FROM")
-    || syntax.expectedTokenNames.has("PROJECTION_TO")
-    || syntax.expectedTokenNames.has("PROJECTION_THIS")
-    || syntax.expectedTokenNames.has("PROJECTION_SLOT")
-    || (rule(syntax, "projectDeclaration") && syntax.expectedTokenNames.has("IDENTIFIER"));
+function projectionItemsForWords(
+  words: readonly string[],
+  syntax: SyntaxContext,
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+  relationList: { readonly expectedType: string } | undefined,
+): CompletionItem[] | undefined {
+  const expectedInput = relationExpectedInput(words, typeSystem, relationList);
+  if (expectedInput === undefined) {
+    return undefined;
+  }
+  return relationExpectedInputItems(expectedInput, syntax, typeSystem, context, relationList);
 }
 
-function expectsProjectionPlacement(syntax: SyntaxContext): boolean {
-  return rule(syntax, "projectionPlacement")
-    || (rule(syntax, "projectionPlacedTerm") && syntax.expectedTokenNames.has("IDENTIFIER"));
+type RelationExpectedInput =
+  | { readonly kind: "placement" }
+  | { readonly kind: "term"; readonly expectedType: string; readonly placement: string }
+  | { readonly kind: "operator"; readonly expectedType?: string }
+  | { readonly kind: "fixed-scope" }
+  | { readonly kind: "fixed-environment"; readonly expectedType: string };
+
+function relationExpectedInput(
+  words: readonly string[],
+  typeSystem: TypeSystem,
+  relationList: { readonly expectedType: string } | undefined,
+): RelationExpectedInput | undefined {
+  const firstTerm = consumeRelationTerm(words, 0);
+  if (firstTerm.expect === "placement") {
+    return { kind: "placement" };
+  }
+  if (firstTerm.expect === "term") {
+    return { kind: "term", expectedType: PROJECTION_TERM, placement: firstTerm.placement };
+  }
+  if (firstTerm.expect === "fixed-scope") {
+    return { kind: "fixed-scope" };
+  }
+  if (firstTerm.expect === "fixed-environment") {
+    return { kind: "fixed-environment", expectedType: "Environment" };
+  }
+  if (firstTerm.expect !== "complete") {
+    return undefined;
+  }
+
+  const operatorIndex = firstTerm.next;
+  if (words.length === operatorIndex || !projectionOperatorSpellings(typeSystem, relationList?.expectedType).includes(words[operatorIndex] ?? "")) {
+    return relationList?.expectedType === undefined
+      ? { kind: "operator" }
+      : { kind: "operator", expectedType: relationList.expectedType };
+  }
+
+  const secondTerm = consumeRelationTerm(words, operatorIndex + 1);
+  if (secondTerm.expect === "placement") {
+    return { kind: "placement" };
+  }
+  if (secondTerm.expect === "term") {
+    return { kind: "term", expectedType: PROJECTION_TERM, placement: secondTerm.placement };
+  }
+  if (secondTerm.expect === "fixed-scope") {
+    return { kind: "fixed-scope" };
+  }
+  return secondTerm.expect === "fixed-environment"
+    ? { kind: "fixed-environment", expectedType: "Environment" }
+    : undefined;
 }
 
-function isProjectionPlacementPosition(words: readonly string[]): boolean {
-  return words.length === 0
-    || (words.length === 3 && PROJECTION_OPERATORS.includes(words[2] ?? ""));
+function relationExpectedInputItems(
+  input: RelationExpectedInput,
+  syntax: SyntaxContext,
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+  relationList: { readonly expectedType: string } | undefined,
+): CompletionItem[] {
+  switch (input.kind) {
+    case "placement":
+      return relationPlacementItems(typeSystem);
+    case "term":
+      return valueItemsForExpectedType(
+        typeSystem,
+        context,
+        input.expectedType,
+        { typeSlotTargetTypes: relationPlacementTargetTypes(typeSystem, input.placement) },
+      );
+    case "operator":
+      return projectionOperatorItems(typeSystem, input.expectedType);
+    case "fixed-scope":
+      return [keyword("in ")];
+    case "fixed-environment":
+      return valueItemsForExpectedType(typeSystem, context, input.expectedType, {
+        includeConstructors: false,
+        includeContextReferences: true,
+      });
+  }
 }
 
-function isProjectionTermPosition(words: readonly string[]): boolean {
-  return (words.length === 1 && PROJECTION_PLACEMENTS.includes(words[0] ?? ""))
-    || (words.length === 4 && PROJECTION_PLACEMENTS.includes(words[3] ?? ""));
+function relationPlacementItems(typeSystem: TypeSystem): CompletionItem[] {
+  return projectionPlacementOperators(typeSystem).map((operator) => keyword(`${operator.spelling} `));
 }
 
-function isProjectionOperatorPosition(words: readonly string[]): boolean {
-  return words.length === 2 && PROJECTION_PLACEMENTS.includes(words[0] ?? "");
+function projectionPlacementOperators(typeSystem: TypeSystem) {
+  return typeSlotOperatorsForOwner(typeSystem, PROJECTION_TERM);
+}
+
+function relationPlacementTargetTypes(typeSystem: TypeSystem, placement: string): readonly string[] {
+  return projectionPlacementOperators(typeSystem)
+    .filter((operator) => operator.spelling === placement)
+    .map((operator) => operator.targetType);
+}
+
+type RelationTermConsumption =
+  | { readonly expect: "placement" | "fixed-scope" | "fixed-environment" }
+  | { readonly expect: "term"; readonly placement: string }
+  | { readonly expect: "complete"; readonly next: number };
+
+function consumeRelationTerm(words: readonly string[], start: number): RelationTermConsumption {
+  const placement = words[start];
+  if (placement === undefined) {
+    return { expect: "placement" };
+  }
+  if (words.length === start + 1) {
+    return { expect: "term", placement };
+  }
+  if (placement !== "fixed") {
+    return { expect: "complete", next: start + 2 };
+  }
+  if (words.length === start + 2) {
+    return { expect: "fixed-scope" };
+  }
+  if (words[start + 2] !== "in") {
+    return { expect: "fixed-scope" };
+  }
+  if (words.length === start + 3) {
+    return { expect: "fixed-environment" };
+  }
+  return { expect: "complete", next: start + 4 };
+}
+
+function projectionOperatorItems(typeSystem: TypeSystem, expectedType?: string): CompletionItem[] {
+  return projectionOperatorSpellings(typeSystem, expectedType).map((operator) => operatorItem(`${operator} `));
+}
+
+function projectionOperatorSpellings(typeSystem: TypeSystem, expectedType?: string): string[] {
+  return unique(typeSystem.relationOperatorConstructors(expectedType).map((operator) => operator.spelling));
+}
+
+function projectionRelationAttributeItems(typeSystem: TypeSystem, expectedType?: string): CompletionItem[] {
+  const attributes = unique(typeSystem.relationOperatorConstructors(expectedType)
+    .flatMap((operator) => [...typeSystem.attributes(operator.ownerType).values()])
+    .filter((attribute) => attribute.list !== true)
+    .map((attribute) => attribute.name));
+  return attributes.map((name) => attributeItem(`${name} = `));
 }
 
 function projectionTermItems(
-  syntax: SyntaxContext,
   typeSystem: TypeSystem,
+  context: CompletionScope,
+  typeSlotTargetTypes: readonly string[],
 ): CompletionItem[] {
-  const ownerType = syntax.activeDefinitionTypeName;
-  const attributeItems = ownerType === undefined
+  const attributeItems = typeSlotTargetTypes.length === 0
     ? []
-    : [...typeSystem.attributes(ownerType).values()]
-      .filter((attribute) => attribute.name !== "_")
-      .filter((attribute) => typeSystem.nestedElementType(attribute) !== undefined)
-      .map((attribute) => attributeItem(attribute.name));
+    : unique(typeSlotTargetTypes.flatMap((targetType) => projectionSlotAttributeItemsForType(typeSystem, targetType))
+      .map((item) => item.label))
+      .map(attributeItem);
   return [
     ...PROJECTION_ENDPOINTS.map((endpoint) => variableItem(`${endpoint} `)),
     ...attributeItems,
+    ...visibleIdentifierItemsForType(typeSystem, context, "Element"),
   ];
+}
+
+function projectionSlotAttributeItemsForType(
+  typeSystem: TypeSystem,
+  targetType: string,
+): CompletionItem[] {
+  const attributes = new Map([
+    ...[targetType, ...typeSystem.descendantTypes(targetType)]
+      .flatMap((type) => [...typeSystem.attributes(type).entries()]),
+  ]);
+  return [...attributes.values()]
+    .filter((attribute) => attribute.name !== "_")
+    .filter((attribute) => {
+      const valueType = referenceAttributeValueType(attribute);
+      return valueType !== undefined && typeSystem.isAssignable(valueType, "Element");
+    })
+    .map((attribute) => attributeItem(attribute.name));
+}
+
+function valueItemsForExpectedType(
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+  expectedType: string,
+  options: {
+    readonly typeSlotTargetTypes?: readonly string[];
+    readonly includeConstructors?: boolean;
+    readonly includeContextReferences?: boolean;
+  } = {},
+): CompletionItem[] {
+  const result: CompletionItem[] = [
+    ...typeSystem.enumValues(expectedType).map(enumValue),
+    ...visibleIdentifierItemsForType(typeSystem, context, expectedType),
+  ];
+  if (options.includeConstructors !== false) {
+    result.push(...typeSystem.constructorsForExpectedType(expectedType)
+      .map((constructor) => constructorItem(`${constructor.spelling} `)));
+  }
+  if (expectedType === PROJECTION_TERM) {
+    result.push(...projectionTermItems(typeSystem, context, options.typeSlotTargetTypes ?? []));
+  }
+  if (options.includeContextReferences === true) {
+    result.push(...contextReferenceItems(context));
+  }
+  return result;
 }
 
 function expectsPresentationName(syntax: SyntaxContext): boolean {
@@ -286,6 +459,10 @@ function architectureItems(
   typeSystem: TypeSystem,
   context: CompletionScope,
 ): CompletionItem[] {
+  const projectionItems = projectionDefinitionItems(line, syntax, typeSystem, context);
+  if (projectionItems !== undefined) {
+    return projectionItems;
+  }
   const edgeList = currentEdgeList(typeSystem, context, line.indentLevel);
   if (!line.hasOnlyIndentBeforeCursor
     && currentOperator(context, line.indentLevel) === undefined
@@ -397,6 +574,7 @@ function identifierPositionItems(
   }
   if (line.indentLevel === 0 && context.contextId === undefined) {
     result.push(keyword("context "));
+    result.push(keyword("environment "));
   }
   return result;
 }
@@ -463,7 +641,9 @@ function expectsIdentifier(syntax: SyntaxContext): boolean {
 
 function expectsContextReference(syntax: SyntaxContext): boolean {
   return rule(syntax, "contextReference")
+    || rule(syntax, "environmentReference")
     || (rule(syntax, "namedImportDeclaration") && syntax.previousToken?.type === "CONTEXT")
+    || (rule(syntax, "namedImportDeclaration") && syntax.previousToken?.type === "ENVIRONMENT")
     || (rule(syntax, "anonymousImportDeclaration") && syntax.previousToken?.type === "CONTEXT")
     || (syntax.previousToken?.type === "CONTEXT" && syntax.previousPreviousToken?.type === "FROM");
 }
@@ -492,8 +672,10 @@ function expectsIdentifierDeclaration(
     return false;
   }
   return rule(syntax, "contextDeclarationName")
+    || rule(syntax, "environmentDeclarationName")
     || rule(syntax, "identifierDeclaration")
     || syntax.previousToken?.type === "CONTEXT"
+    || syntax.previousToken?.type === "ENVIRONMENT"
     || (syntax.previousToken !== undefined
       && previousTypeConstructor(syntax, typeSystem, parentType(context, line.indentLevel)) !== undefined);
 }
@@ -620,7 +802,11 @@ function slotAttributeItemsForType(
   typeSystem: TypeSystem,
   targetType: string,
 ): CompletionItem[] {
-  return [...typeSystem.attributes(targetType).values()]
+  const attributes = new Map([
+    ...[targetType, ...typeSystem.descendantTypes(targetType)]
+      .flatMap((type) => [...typeSystem.attributes(type).entries()]),
+  ]);
+  return [...attributes.values()]
     .filter((attribute) => attribute.name !== "_")
     .filter((attribute) => {
       const valueType = referenceAttributeValueType(attribute);
@@ -801,6 +987,10 @@ function annotation(text: string): CompletionItem {
 
 function annotationItems(): CompletionItem[] {
   return [annotation("@planned"), annotation("@deprecated")];
+}
+
+function unique<T>(items: readonly T[]): T[] {
+  return [...new Set(items)];
 }
 
 function newline(indentLevel: number): CompletionItem {

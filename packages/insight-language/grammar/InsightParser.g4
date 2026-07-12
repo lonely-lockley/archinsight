@@ -14,6 +14,11 @@ definitionFile
 
 architectureFile
     : contextDeclaration architectureTopLevelItem*
+    | environmentFile
+    ;
+
+environmentFile
+    : environmentDeclaration architectureTopLevelItem*
     ;
 
 architectureTopLevelItem
@@ -24,11 +29,20 @@ architectureTopLevelItem
     ;
 
 namedImportDeclaration
-    : IMPORT identifierReference FROM CONTEXT contextReference (AS importAlias)? EOL
+    : IMPORT identifierReference FROM importScopeReference (AS importAlias)? EOL
+    ;
+
+importScopeReference
+    : CONTEXT contextReference
+    | ENVIRONMENT environmentReference
     ;
 
 contextDeclaration
     : CONTEXT contextDeclarationName note? EOL objectBody?
+    ;
+
+environmentDeclaration
+    : ENVIRONMENT environmentDeclarationName note? EOL objectBody?
     ;
 
 annotatedObjectDeclaration
@@ -50,6 +64,7 @@ objectBody
 architectureBodyItem
     : assignment
     | namedList
+    | relationInvocation
     | annotatedObjectDeclaration
     | objectExtension
     | annotatedOperatorInvocation
@@ -119,14 +134,13 @@ operatorBodyItem
     : operatorConstructorDeclaration
     | attributeDeclaration
     | implementationAssignment
-    | projectDeclaration
     | commentLine
     | EOL
     ;
 
 defineTypeDeclaration
     : DEFINE TYPE typeIdentifier (OF typeReference)? EOL
-      (INDENT typeBodyItem* anonymousListAttributeDeclaration? projectDeclaration? trivia* DEDENT)?
+      (INDENT typeBodyItem* anonymousListAttributeDeclaration? trivia* DEDENT)?
     ;
 
 typeBodyItem
@@ -170,6 +184,8 @@ presentationPropertyIdentifier
     | OPERATOR
     | ENUM
     | CONTEXT
+    | ENVIRONMENT
+    | PROJECTION
     | PROJECT
     | IMPLEMENTATION
     ;
@@ -219,6 +235,8 @@ typeConstructorDeclaration
 constructorIdentifier
     : operatorIdentifier
     | CONTEXT
+    | ENVIRONMENT
+    | FIXED
     ;
 
 operatorIdentifier
@@ -229,6 +247,7 @@ operatorIdentifier
 constructorName
     : identifier
     | CONTEXT
+    | ENVIRONMENT
     ;
 
 attributeDeclaration
@@ -239,31 +258,31 @@ anonymousListAttributeDeclaration
     : LIST_TYPE OF typeReference ANONYMOUS_ATTRIBUTE EOL
     ;
 
-projectDeclaration
-    : PROJECT COLON EOL
-      INDENT projectionRule* DEDENT
-    ;
-
-projectionRule
-    : projectionPlacedTerm operatorIdentifier projectionPlacedTerm EOL
+relationInvocation
+    : relationTerm operatorIdentifier relationTerm EOL
       (INDENT (assignment | commentLine | EOL)* DEDENT)?
     ;
 
-projectionPlacedTerm
-    : projectionPlacement projectionTerm
+relationTerm
+    : relationPlacement relationReference fixedRelationScope?
     ;
 
-projectionPlacement
+relationPlacement
     : identifier
+    | FIXED
     ;
 
-projectionTerm
-    : projectionSlotDereference
+fixedRelationScope
+    : IN environmentReference
+    ;
+
+relationReference
+    : relationSlotDereference
     | projectionEndpoint
     | identifier
     ;
 
-projectionSlotDereference
+relationSlotDereference
     : PROJECTION_SLOT FROM PROJECTION_OWNER identifier
     ;
 
@@ -306,9 +325,14 @@ presentationIdentifier
 identifier
     : IDENTIFIER
     | PROJECT
+    | PROJECTION
     ;
 
 contextDeclarationName
+    : identifier
+    ;
+
+environmentDeclarationName
     : identifier
     ;
 
@@ -316,8 +340,13 @@ contextReference
     : identifier
     ;
 
+environmentReference
+    : identifier
+    ;
+
 elementConstructor
     : identifier
+    | ENVIRONMENT
     ;
 
 identifierDeclaration

@@ -3,8 +3,6 @@ context archinsight
 import ghost_cms from context external_systems
 import google from context external_systems
 import github from context external_systems
-import global from context infrastructure
-
 extend service backend
 
     component api_resources
@@ -33,13 +31,7 @@ extend service backend
         links:
             -> userdata_mapper
             -> google
-                deployment:
-                    environmentsFrom global
-                    uses egress
             -> ghost_cms
-                deployment:
-                    environmentsFrom global
-                    uses privateGateway
 
     component repository_service
         name = Repository service
@@ -50,9 +42,6 @@ extend service backend
             -> github
                 technology = GitHub API
                 description = Planned repository backend for project sources
-                deployment:
-                    environmentsFrom global
-                    uses egress
 
     component repository_mapper
         name = Repository mapper
@@ -82,9 +71,6 @@ extend service backend
         responsibility = Calls internal renderer service for server-side SVG or PNG generation
         links:
             -> renderer_api from archinsight
-                deployment:
-                    environmentsFrom global
-                    uses privateGateway
 
     component layout_lexer
         name = Layout lexer helper

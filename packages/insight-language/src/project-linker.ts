@@ -31,10 +31,6 @@ import { IndexedGraph, type GraphNode, type GraphRelation, type RelationKind } f
 import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
 
 const ELEMENT_TYPE = "Element";
-const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
-const RUNS_ON_ATTRIBUTE = "runsOn";
-const ENVIRONMENTS_ATTRIBUTE = "environments";
-const DEPLOYMENT_PROFILE_ATTRIBUTE = "profile";
 const ORIGINAL_LINK_OPERATOR = "originalLink";
 
 interface ParsedDocument {
@@ -84,6 +80,7 @@ interface ParsedElement {
   readonly anonymous: boolean;
   graphElement?: boolean;
   projectionRoot?: boolean;
+  readonly projectionRules: ProjectionRuleDefinition[];
   readonly operatorDefinition?: OperatorDefinition;
   readonly parent?: string;
   readonly attributes: Record<string, ParsedAttributeValue[]>;
@@ -194,28 +191,12 @@ interface ResolvedReferenceValue {
   readonly endColumn?: number;
 }
 
-interface LinkExecutionContext {
-  readonly typeSystem: TypeSystem;
-  readonly elementsById: ReadonlyMap<string, ParsedElement>;
-  readonly resolvedElementAttributes: Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>;
-  readonly linkedEdges: LinkedEdge[];
-  readonly ownerIndependentProjectionKeys: Set<string>;
-  readonly edgeScopesByCarrierId: ReadonlyMap<string, readonly ProjectionScope[]>;
-  readonly placementByElementAndScope: Map<string, string>;
-  readonly diagnostics: LanguageDiagnostic[];
-}
-
 interface ProjectionScope {
   readonly sourceIdentity: string;
   readonly fromId: string;
   readonly toId: string;
   readonly projectedAttributes?: Readonly<Record<string, readonly string[]>>;
   readonly projectedOperator?: string;
-  readonly slotParent?: ParsedElement;
-  readonly sourceSlotParent?: ParsedElement;
-  readonly targetSlotParent?: ParsedElement;
-  readonly fromProjectionScope?: string;
-  readonly toProjectionScope?: string;
   readonly annotations?: readonly LinkedAnnotation[];
 }
 
@@ -256,17 +237,9 @@ interface ElementPrefixResult {
   readonly diagnostics?: readonly LanguageDiagnostic[];
 }
 
-interface SlotCarrierInput {
-  readonly carrier: ParsedElement;
-  readonly operator: OperatorDefinition;
-  readonly context: LinkExecutionContext;
-}
-
 interface LinkOperatorImplementation {
-  readonly slotCarrierPhase?: number;
   materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult;
   applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult;
-  applySlotCarrier(input: SlotCarrierInput): void;
 }
 
 export function linkProject(request: LinkProjectRequest): LinkProjectResult {
@@ -293,7 +266,6 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
 
   const linkedEdges: LinkedEdge[] = [];
   const ownerIndependentProjectionKeys = new Set<string>();
-  const edgeScopesByCarrierId = new Map<string, ProjectionScope[]>();
   const pendingProjections: PendingProjection[] = [];
   const linkedElementsById = new Map<string, ParsedElement>();
   for (const element of elements) {
@@ -341,14 +313,6 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       diagnostics.push(...(materialized.diagnostics ?? []));
       if (materialized.edge !== undefined) {
         linkedEdges.push(materialized.edge);
-        addEdgeScopes(edgeScopesByCarrierId, edgeAttributes, {
-          sourceIdentity: edge.sourceName,
-          fromId: edge.source,
-          toId: target.id,
-          projectedAttributes: materialized.edge.attributes,
-          projectedOperator: materialized.edge.operator,
-          ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
-        });
         pendingProjections.push({
           sourceIdentity: edge.sourceName,
           fromId: edge.source,
@@ -360,30 +324,6 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
         });
       }
     }
-  }
-  const linkExecutionContext: LinkExecutionContext = {
-    typeSystem,
-    elementsById: linkedElementsById,
-    resolvedElementAttributes,
-    linkedEdges,
-    ownerIndependentProjectionKeys,
-    edgeScopesByCarrierId,
-    placementByElementAndScope: new Map(),
-    diagnostics,
-  };
-  const slotCarriers = elements
-    .flatMap((carrier) => carrier.operatorDefinition === undefined ? [] : [{
-      carrier,
-      operator: carrier.operatorDefinition,
-      implementation: implementationFor(carrier.operatorDefinition, typeSystem),
-    }]);
-  slotCarriers.sort((left, right) => (left.implementation.slotCarrierPhase ?? 1) - (right.implementation.slotCarrierPhase ?? 1));
-  for (const carrier of slotCarriers) {
-    carrier.implementation.applySlotCarrier({
-      carrier: carrier.carrier,
-      operator: carrier.operator,
-      context: linkExecutionContext,
-    });
   }
   for (const projection of pendingProjections) {
     addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator);
@@ -482,7 +422,11 @@ function parseDocument(sourceName: string, source: string, typeSystem: TypeSyste
   const tree = parser.insight();
   const architecture = firstDescendant(tree, "architectureFile");
   const contextDeclaration = architecture === undefined ? undefined : firstChild(architecture, "contextDeclaration");
-  const contextId = contextDeclaration === undefined ? sourceName : firstChild(contextDeclaration, "contextDeclarationName")?.getText() ?? sourceName;
+  const environmentFile = architecture === undefined ? undefined : firstChild(architecture, "environmentFile");
+  const environmentDeclaration = environmentFile === undefined ? undefined : firstChild(environmentFile, "environmentDeclaration");
+  const contextId = contextDeclaration === undefined
+    ? environmentDeclaration === undefined ? sourceName : firstChild(environmentDeclaration, "environmentDeclarationName")?.getText() ?? sourceName
+    : firstChild(contextDeclaration, "contextDeclarationName")?.getText() ?? sourceName;
   const contextType = typeSystem.findConstructor("context", NOTHING)?.ownerType ?? CONTEXT;
   const contextPosition = position(contextDeclaration, sourceName);
   const document: MutableParsedDocument = {
@@ -513,8 +457,17 @@ function parseDocument(sourceName: string, source: string, typeSystem: TypeSyste
     collectBodyItems(contextBody, contextType, undefined, document, typeSystem);
   }
 
-  for (const item of children(architecture, "architectureTopLevelItem")) {
-    collectTopLevelItem(item, document, typeSystem);
+  const environmentRoot = environmentDeclaration === undefined
+    ? undefined
+    : collectEnvironmentDeclaration(environmentDeclaration, environmentFile, document, typeSystem);
+  if (environmentFile !== undefined) {
+    for (const item of children(environmentFile, "architectureTopLevelItem")) {
+      collectTopLevelItem(item, document, typeSystem, environmentRoot);
+    }
+  } else {
+    for (const item of children(architecture, "architectureTopLevelItem")) {
+      collectTopLevelItem(item, document, typeSystem);
+    }
   }
   return document;
 }
@@ -525,11 +478,128 @@ function nextAnonymousLocalId(document: MutableParsedDocument): string {
   return `_anonymous_${next}`;
 }
 
-function collectTopLevelItem(item: RuleNode, document: MutableParsedDocument, typeSystem: TypeSystem): void {
+function collectEnvironmentDeclaration(
+  declaration: RuleNode,
+  environmentFile: RuleNode | undefined,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): ParsedElement | undefined {
+  const constructor = typeSystem.findConstructor("environment", "Environment");
+  const environmentType = environmentDeclarationType(typeSystem, constructor?.ownerType ?? "Environment", declaration, environmentFile);
+  const name = firstChild(declaration, "environmentDeclarationName");
+  const localId = name?.getText() ?? document.context.id;
+  if (constructor === undefined) {
+    document.diagnostics.push({
+      code: "CONSTRUCTOR_NOT_DECLARED",
+      message: "Unknown element kind 'environment'",
+      sourceName: document.sourceName,
+      ...position(declaration, document.sourceName),
+    });
+    return undefined;
+  }
+  const element: ParsedElement = {
+    id: `${document.context.id}/${localId}`,
+    context: document.context.id,
+    localId,
+    type: environmentType,
+    constructor: constructor.spelling,
+    sourceName: document.sourceName,
+    anonymous: false,
+    projectionRules: [],
+    attributes: {},
+    referenceAttributePositions: {},
+    scalarAttributes: { ...(constructor.defaults ?? {}) },
+    scalarAttributePositions: {},
+    assignedScalarAttributes: new Set(),
+    annotations: [],
+    ...noteProperty(declaration, document.sourceName),
+    ...position(declaration, document.sourceName),
+    ...prefixedPosition("id", name, document.sourceName),
+  };
+  document.elements.push(element);
+  const body = firstChild(declaration, "objectBody");
+  if (body !== undefined) {
+    collectBodyItems(body, element.type, element, document, typeSystem);
+  }
+  return element;
+}
+
+function environmentDeclarationType(
+  typeSystem: TypeSystem,
+  baseType: string,
+  declaration: RuleNode,
+  environmentFile: RuleNode | undefined,
+): string {
+  const projectEnvironmentTypes = typeSystem.descendantTypes(baseType)
+    .filter((type) => !typeSystem.constructorsForExpectedType(type).some((constructor) => constructor.ownerType === type));
+  const capabilityNames = environmentCapabilityNames(declaration, environmentFile, typeSystem);
+  if (capabilityNames.size > 0) {
+    const matchingTypes = projectEnvironmentTypes.filter((type) =>
+      [...capabilityNames].every((name) => typeSystem.attribute(type, name) !== undefined)
+    );
+    if (matchingTypes.length === 1) {
+      return matchingTypes[0]!;
+    }
+  }
+  return projectEnvironmentTypes.length === 1 ? projectEnvironmentTypes[0]! : baseType;
+}
+
+function environmentCapabilityNames(
+  declaration: RuleNode,
+  environmentFile: RuleNode | undefined,
+  typeSystem: TypeSystem,
+): ReadonlySet<string> {
+  const result = new Set<string>();
+  const body = firstChild(declaration, "objectBody");
+  if (body !== undefined) {
+    collectNamedListNames(body, result);
+  }
+  if (environmentFile !== undefined) {
+    for (const item of children(environmentFile, "architectureTopLevelItem")) {
+      const object = firstDescendant(item, "objectDeclaration");
+      if (object === undefined || !isDeploymentObject(object, typeSystem)) {
+        continue;
+      }
+      const objectBody = firstChild(object, "objectBody");
+      if (objectBody !== undefined) {
+        collectNamedListNames(objectBody, result);
+      }
+    }
+  }
+  return result;
+}
+
+function collectNamedListNames(body: RuleNode, result: Set<string>): void {
+  for (const item of children(body, "architectureBodyItem")) {
+    const list = firstChild(item, "namedList");
+    if (list === undefined) {
+      continue;
+    }
+    const name = firstChild(list, "listName")?.getText();
+    if (name !== undefined && name.length > 0) {
+      result.add(name);
+    }
+  }
+}
+
+function isDeploymentObject(object: RuleNode, typeSystem: TypeSystem): boolean {
+  const constructorName = firstChild(object, "elementConstructor")?.getText();
+  const constructor = constructorName === undefined
+    ? undefined
+    : typeSystem.findConstructor(constructorName, "DeploymentElement");
+  return constructor !== undefined && typeSystem.isAssignable(constructor.ownerType, "Deployment");
+}
+
+function collectTopLevelItem(
+  item: RuleNode,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+  environmentRoot?: ParsedElement,
+): void {
   const importDeclaration = firstChild(item, "namedImportDeclaration");
   if (importDeclaration !== undefined) {
-    const importedReference = firstChild(importDeclaration, "identifierReference");
-    const contextReference = firstChild(importDeclaration, "contextReference");
+	    const importedReference = firstChild(importDeclaration, "identifierReference");
+	    const contextReference = firstDescendant(importDeclaration, "contextReference") ?? firstDescendant(importDeclaration, "environmentReference");
     const importedId = importedReference?.getText() ?? "";
     const sourceContext = contextReference?.getText() ?? "";
     const alias = firstChild(importDeclaration, "importAlias")?.getText() ?? importedId;
@@ -556,7 +626,14 @@ function collectTopLevelItem(item: RuleNode, document: MutableParsedDocument, ty
   if (annotatedObject !== undefined) {
     const object = firstChild(annotatedObject, "objectDeclaration");
     if (object !== undefined) {
-      collectObject(object, document.context.type, undefined, document, typeSystem, annotations(annotatedObject, document));
+      collectObject(
+        object,
+        environmentRoot?.type ?? document.context.type,
+        environmentRoot,
+        document,
+        typeSystem,
+        annotations(annotatedObject, document),
+      );
     }
     return;
   }
@@ -599,6 +676,17 @@ function collectBodyItem(
   const list = firstChild(item, "namedList");
   if (list !== undefined) {
     collectNamedList(list, ownerType, owner, document, typeSystem);
+    return;
+  }
+
+  const relation = firstChild(item, "relationInvocation");
+  if (relation !== undefined) {
+    document.diagnostics.push({
+      code: "TYPE_MISMATCH",
+      message: "Relation invocation expects an Edge list",
+      sourceName: document.sourceName,
+      ...position(relation, document.sourceName),
+    });
     return;
   }
 
@@ -667,6 +755,9 @@ function collectNamedList(
   if (collectImplicitObjectAttribute(list, listName, listNameNode, ownerType, owner, document, typeSystem)) {
     return;
   }
+  if (collectGroupingList(list, ownerType, owner, document, typeSystem)) {
+    return;
+  }
   if (owner !== undefined) {
     if (owner.attributes[listName] !== undefined) {
       document.diagnostics.push({
@@ -706,6 +797,21 @@ function collectNamedList(
         continue;
       }
 
+      const relation = firstChild(bodyItem, "relationInvocation");
+      if (relation !== undefined && owner !== undefined) {
+        if (isEdgeList(typeSystem, ownerType, listName)) {
+          owner.projectionRules.push(concreteProjectionRule(relation, document.sourceName));
+        } else {
+          document.diagnostics.push({
+            code: "TYPE_MISMATCH",
+            message: `Attribute '${listName}' on type '${ownerType}' expects an Edge list`,
+            sourceName: document.sourceName,
+            ...position(relation, document.sourceName),
+          });
+        }
+        continue;
+      }
+
       const annotatedObject = firstChild(bodyItem, "annotatedObjectDeclaration");
       if (annotatedObject !== undefined) {
         const object = firstChild(annotatedObject, "objectDeclaration");
@@ -724,6 +830,91 @@ function collectNamedList(
       }
     }
   }
+}
+
+function collectGroupingList(
+  list: RuleNode,
+  ownerType: string,
+  owner: ParsedElement | undefined,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): boolean {
+  if (owner === undefined || namedListHasDirectValue(list)) {
+    return false;
+  }
+  const listName = firstChild(list, "listName")?.getText() ?? "";
+  if (!typeSystem.isAssignable(ownerType, "Deployment")
+    || typeSystem.attribute(ownerType, listName) !== undefined
+    || typeSystem.anonymousListAttribute(ownerType) === undefined) {
+    return false;
+  }
+  if (collectImplicitDeploymentGroupObject(list, listName, owner, document, typeSystem)) {
+    return true;
+  }
+  for (const item of children(list, "listBodyItem")) {
+    const bodyItem = firstChild(item, "architectureBodyItem");
+    if (bodyItem !== undefined) {
+      collectBodyItem(bodyItem, ownerType, owner, document, typeSystem);
+    }
+  }
+  return true;
+}
+
+function collectImplicitDeploymentGroupObject(
+  list: RuleNode,
+  listName: string,
+  owner: ParsedElement,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): boolean {
+  if (namedListHasExplicitObject(list)) {
+    return false;
+  }
+  const diagnosticCount = document.diagnostics.length;
+  const constructor = resolveDeploymentGroupConstructor(listName, firstChild(list, "listName"), owner, document, typeSystem);
+  if (constructor === undefined) {
+    return document.diagnostics.length > diagnosticCount;
+  }
+  const element = collectImplicitObjectElement(list, firstChild(list, "listName"), constructor, owner, document);
+  addAttributeValue(owner.attributes, "_", elementReference(element));
+  collectNamedListBodyItemsAsObjectBody(list, constructor.ownerType, element, document, typeSystem);
+  return true;
+}
+
+function resolveDeploymentGroupConstructor(
+  listName: string,
+  listNameNode: RuleNode | undefined,
+  owner: ParsedElement,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): ConstructorDefinition | undefined {
+  const parent = owner.parent === undefined
+    ? undefined
+    : document.elements.find((element) => element.id === owner.parent);
+  const parentAttribute = parent === undefined ? undefined : typeSystem.attribute(parent.type, listName);
+  const attributeType = parentAttribute === undefined
+    ? undefined
+    : parentAttribute.list === true
+      ? parentAttribute.listElementType ?? parentAttribute.type
+      : parentAttribute.type;
+  if (attributeType !== undefined) {
+    return resolveImplicitObjectConstructor(attributeType, listName, listNameNode, document, typeSystem);
+  }
+  const constructors = typeSystem.constructorsForExpectedType("DeploymentElement")
+    .filter((constructor) => constructor.spelling === listName);
+  if (constructors.length === 0) {
+    return undefined;
+  }
+  if (constructors.length > 1) {
+    document.diagnostics.push({
+      code: "CONSTRUCTOR_AMBIGUOUS",
+      message: `Deployment group '${listName}' has multiple constructors: ${constructors.map((constructor) => `'${constructor.spelling}' for type '${constructor.ownerType}'`).join(", ")}`,
+      sourceName: document.sourceName,
+      ...position(listNameNode, document.sourceName),
+    });
+    return undefined;
+  }
+  return constructors[0]!;
 }
 
 function collectImplicitObjectAttribute(
@@ -812,6 +1003,7 @@ function collectImplicitObjectElement(
     constructor: constructor.spelling,
     sourceName: document.sourceName,
     anonymous: true,
+    projectionRules: [],
     parent: parent.id,
     attributes: {},
     referenceAttributePositions: {},
@@ -829,6 +1021,14 @@ function collectImplicitObjectElement(
 function namedListHasDirectValue(list: RuleNode): boolean {
   return children(list, "listBodyItem")
     .some((item) => firstChild(item, "listValue") !== undefined);
+}
+
+function namedListHasExplicitObject(list: RuleNode): boolean {
+  return children(list, "listBodyItem").some((item) => {
+    const bodyItem = firstChild(item, "architectureBodyItem");
+    const annotatedObject = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedObjectDeclaration");
+    return annotatedObject !== undefined && firstChild(annotatedObject, "objectDeclaration") !== undefined;
+  });
 }
 
 function namedListHasExplicitObjectForType(
@@ -888,7 +1088,7 @@ function collectObject(
   }
   const anonymous = declaredId === "_";
 
-  const typeConstructor = typeSystem.findConstructor(constructor, parentType);
+  const typeConstructor = typeSystem.findConstructor(constructor, expectedType);
   if (typeConstructor === undefined) {
     const slotElement = collectSlotOperatorObject(
       object,
@@ -957,6 +1157,7 @@ function collectObject(
     constructor,
     sourceName: document.sourceName,
     anonymous,
+    projectionRules: [],
     ...(parent === undefined ? {} : { parent: parent.id }),
     attributes: {},
     referenceAttributePositions: {},
@@ -992,29 +1193,23 @@ function collectSlotOperatorObject(
   if (slotOperator === undefined) {
     return undefined;
   }
-  if (isDeploymentProfileReferenceOperator(slotOperator)) {
-    return collectDirectReferenceSlotOperatorObject(
-      object,
-      slotOperator,
-      slotName,
-      parent,
-      document,
-      annotations,
-    );
-  }
   const slotAttribute = typeSystem.attribute(slotOperator.targetType, slotName);
   if (slotAttribute === undefined) {
-    document.diagnostics.push({
-      code: "ATTRIBUTE_NOT_DECLARED",
-      message: `Slot '${slotName}' is not declared on type '${slotOperator.targetType}'`,
-      sourceName: document.sourceName,
-      ...position(firstChild(object, "identifierDeclaration"), document.sourceName),
-    });
-    return undefined;
+    if (!typeSystem.isAssignable(slotOperator.targetType, "Environment")) {
+      document.diagnostics.push({
+        code: "ATTRIBUTE_NOT_DECLARED",
+        message: `Slot '${slotName}' is not declared on type '${slotOperator.targetType}'`,
+        sourceName: document.sourceName,
+        ...position(firstChild(object, "identifierDeclaration"), document.sourceName),
+      });
+      return undefined;
+    }
   }
-  const slotValueType = slotAttribute.list === true
-    ? slotAttribute.listElementType ?? slotAttribute.type
-    : slotAttribute.type;
+  const slotValueType = slotAttribute === undefined
+    ? ELEMENT_TYPE
+    : slotAttribute.list === true
+      ? slotAttribute.listElementType ?? slotAttribute.type
+      : slotAttribute.type;
   const localId = nextAnonymousLocalId(document);
   const identifierDeclaration = firstChild(object, "identifierDeclaration");
   const element: ParsedElement = {
@@ -1027,6 +1222,7 @@ function collectSlotOperatorObject(
     anonymous: true,
     graphElement: false,
     projectionRoot: false,
+    projectionRules: [],
     operatorDefinition: slotOperator,
     ...(parent === undefined ? {} : { parent: parent.id }),
     attributes: {},
@@ -1054,61 +1250,6 @@ function collectSlotOperatorObject(
   if (body !== undefined) {
     collectBodyItems(body, slotOperator.ownerType, element, document, typeSystem);
   }
-  return element;
-}
-
-function collectDirectReferenceSlotOperatorObject(
-  object: RuleNode,
-  slotOperator: OperatorDefinition,
-  targetId: string,
-  parent: ParsedElement | undefined,
-  document: MutableParsedDocument,
-  annotations: readonly LinkedAnnotation[],
-): ParsedElement | undefined {
-  if (parent === undefined) {
-    return undefined;
-  }
-  const identifierDeclaration = firstChild(object, "identifierDeclaration");
-  const localId = nextAnonymousLocalId(document);
-  const element: ParsedElement = {
-    id: `${document.context.id}/${localId}`,
-    context: document.context.id,
-    localId,
-    type: slotOperator.ownerType,
-    constructor: slotOperator.spelling,
-    sourceName: document.sourceName,
-    anonymous: true,
-    graphElement: false,
-    projectionRoot: false,
-    operatorDefinition: slotOperator,
-    parent: parent.id,
-    attributes: {
-      [DEPLOYMENT_PROFILE_ATTRIBUTE]: [{
-        targetId,
-        ...position(identifierDeclaration, document.sourceName),
-      }],
-    },
-    referenceAttributePositions: {
-      [DEPLOYMENT_PROFILE_ATTRIBUTE]: position(identifierDeclaration, document.sourceName),
-    },
-    scalarAttributes: {
-      ...(slotOperator.defaults ?? {}),
-      parentType: slotOperator.targetType,
-      attributeName: DEPLOYMENT_PROFILE_ATTRIBUTE,
-      attributeType: slotOperator.targetType,
-    },
-    scalarAttributePositions: {
-      parentType: position(identifierDeclaration, document.sourceName),
-      attributeName: position(identifierDeclaration, document.sourceName),
-      attributeType: position(identifierDeclaration, document.sourceName),
-    },
-    assignedScalarAttributes: new Set(),
-    annotations,
-    ...noteProperty(object, document.sourceName),
-    ...position(object, document.sourceName),
-    ...prefixedPosition("id", identifierDeclaration, document.sourceName),
-  };
-  document.elements.push(element);
   return element;
 }
 
@@ -1704,7 +1845,10 @@ function addProjectedEdges(
   projectedOperator?: string,
   visitedProjectionElements = new Set<string>(),
 ): void {
-  for (const values of Object.values(attributes)) {
+  for (const [attributeName, values] of Object.entries(attributes)) {
+    if (attributeName === "_") {
+      continue;
+    }
     for (const value of values) {
       if (value.element === undefined) {
         continue;
@@ -1720,7 +1864,7 @@ function addProjectedEdges(
       if (isDirectSlotReferenceSelfProjection(value.element, fromId, toId)) {
         continue;
       }
-      const rules = typeSystem.projectionRules(value.element.type);
+      const rules = value.element.projectionRules;
       if (fromId === toId && rules.some(projectionRuleUsesTo)) {
         const position = value.line === undefined || value.column === undefined
           ? value.element
@@ -1796,22 +1940,6 @@ function addProjectedEdgesForValues(
   );
 }
 
-function addEdgeScopes(
-  scopesByCarrierId: Map<string, ProjectionScope[]>,
-  attributes: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
-  scope: ProjectionScope,
-): void {
-  for (const values of Object.values(attributes)) {
-    for (const value of values) {
-      if (value.element === undefined) {
-        continue;
-      }
-      const scopes = scopesByCarrierId.get(value.element.id) ?? [];
-      scopesByCarrierId.set(value.element.id, [...scopes, scope]);
-    }
-  }
-}
-
 function isDirectSlotReferenceSelfProjection(element: ParsedElement, fromId: string, toId: string): boolean {
   return fromId === toId
     && element.parent === fromId
@@ -1836,8 +1964,11 @@ function addProjectedRuleEdge(
   projectedAttributes?: Readonly<Record<string, readonly string[]>>,
   projectedOperator?: string,
 ): void {
-  const sources = projectionTerm(rule.source, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, diagnostics, projectionScope);
-  const targets = projectionTerm(rule.target, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, diagnostics, projectionScope);
+  if (!validateConcreteProjectionRule(rule, typeSystem, diagnostics)) {
+    return;
+  }
+  const sources = projectionTerm(rule.source, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics, projectionScope);
+  const targets = projectionTerm(rule.target, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics, projectionScope);
   const effectiveOperator = rule.operator === ORIGINAL_LINK_OPERATOR
     ? projectedOperator ?? "->"
     : rule.operator;
@@ -1896,6 +2027,34 @@ function addProjectedRuleEdge(
       });
     }
   }
+}
+
+function validateConcreteProjectionRule(
+  rule: ProjectionRuleDefinition,
+  typeSystem: TypeSystem,
+  diagnostics: LanguageDiagnostic[],
+): boolean {
+  let valid = true;
+  if (typeSystem.relationOperatorConstructor(rule.operator) === undefined) {
+    diagnostics.push({
+      code: "UNSUPPORTED_PROJECTION_OPERATOR",
+      message: `Projection operator '${rule.operator}' is not declared for ProjectionTerm`,
+      ...(rule.operatorSource ?? { sourceName: "projection", line: 1, column: 1 }),
+    });
+    valid = false;
+  }
+  for (const term of [rule.source, rule.target]) {
+    if (term.placementText === "source" || term.placementText === "target" || term.placementText === "fixed") {
+      continue;
+    }
+    diagnostics.push({
+      code: "UNSUPPORTED_PROJECTION_PLACEMENT",
+      message: `Projection placement '${term.placementText ?? ""}' is not supported; use 'source', 'target', or 'fixed'`,
+      ...(term.placementSource ?? { sourceName: "projection", line: 1, column: 1 }),
+    });
+    valid = false;
+  }
+  return valid;
 }
 
 function mergeProjectedEdge(
@@ -1992,65 +2151,89 @@ function projectionTerm(
   projectionElement: ParsedElement,
   elementsById: ReadonlyMap<string, ParsedElement>,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
   diagnostics: LanguageDiagnostic[],
   projectionScope?: ProjectionScope,
 ): readonly string[] {
+  if (term.placement === "fixed") {
+    return resolveFixedProjectionTerm(term, elementsById, diagnostics);
+  }
   switch (term.kind) {
     case "from":
       return [fromId];
     case "to":
       return [toId];
     case "this":
-      return resolveThisProjectionTerm(term, projectionElement, resolvedElementAttributes, projectionScope);
+      return resolveThisProjectionTerm(projectionElement);
     case "attribute":
-      return resolveAttributeProjectionTerm(term, projectionElement, resolvedElementAttributes, projectionScope);
+      return resolveAttributeProjectionTerm(term, projectionElement, elementsById, resolvedElementAttributes, diagnostics);
     case "slot":
-      return resolveSlotProjectionTerm(term, projectionElement, elementsById, resolvedElementAttributes, diagnostics);
+      return resolveSlotProjectionTerm(term, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics);
   }
 }
 
-function resolveThisProjectionTerm(
+function resolveFixedProjectionTerm(
   term: ProjectionTermDefinition,
-  projectionElement: ParsedElement,
-  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
-  projectionScope?: ProjectionScope,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  diagnostics: LanguageDiagnostic[],
 ): readonly string[] {
-  const slotParent = projectionSlotParent(term.placement, projectionScope);
-  if (slotParent === undefined || projectionElement.parent === undefined) {
-    return [projectionElement.id];
+  const environment = term.fixedEnvironment;
+  if (environment === undefined) {
+    diagnostics.push({
+      code: "REQUIRED_ATTRIBUTE_MISSING",
+      message: "Fixed projection term requires 'in <environment>'",
+      ...(term.placementSource ?? { sourceName: "projection", line: 1, column: 1 }),
+    });
+    return [];
   }
-  const originalParentAttributes = resolvedElementAttributes.get(projectionElement.parent) ?? {};
-  const slotName = Object.entries(originalParentAttributes)
-    .find(([, values]) => values.some((value) => value.id === projectionElement.id))?.[0];
-  if (slotName === undefined) {
-    return [projectionElement.id];
+  if (term.kind !== "attribute") {
+    diagnostics.push({
+      code: "TYPE_MISMATCH",
+      message: `Fixed projection term expects an environment-local identifier, got '${term.value}'`,
+      ...(term.source ?? term.placementSource ?? { sourceName: "projection", line: 1, column: 1 }),
+    });
+    return [];
   }
-  const scopedValues = resolvedElementAttributes.get(slotParent.id)?.[slotName] ?? [];
-  return scopedValues.length === 0
-    ? []
-    : scopedValues.map((value) => value.id);
+  const element = [...elementsById.values()]
+    .find((candidate) => candidate.context === environment && candidate.localId === term.value);
+  if (element === undefined) {
+    diagnostics.push({
+      code: "UNDECLARED_IDENTIFIER",
+      message: `Element '${term.value}' is not declared in environment '${environment}'`,
+      ...(term.source ?? { sourceName: "projection", line: 1, column: 1 }),
+    });
+    return [];
+  }
+  return [element.id];
+}
+
+function resolveThisProjectionTerm(projectionElement: ParsedElement): readonly string[] {
+  return [projectionElement.id];
 }
 
 function resolveAttributeProjectionTerm(
   term: ProjectionTermDefinition,
   projectionElement: ParsedElement,
+  elementsById: ReadonlyMap<string, ParsedElement>,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
-  projectionScope?: ProjectionScope,
+  diagnostics: LanguageDiagnostic[],
 ): readonly string[] {
-  const owners = resolveThisProjectionTerm(
-    { ...term, kind: "this", value: "$this" },
-    projectionElement,
-    resolvedElementAttributes,
-    projectionScope,
-  );
+  const owners = resolveThisProjectionTerm(projectionElement);
   const scopedValues = owners.flatMap((owner) => resolvedElementAttributes.get(owner)?.[term.value] ?? []);
   if (scopedValues.length > 0) {
     return uniqueIds(scopedValues.map((value) => value.id));
   }
-  if (projectionScope?.slotParent !== undefined || projectionScope?.sourceSlotParent !== undefined || projectionScope?.targetSlotParent !== undefined) {
-    return [];
+  const localElement = [...elementsById.values()]
+    .find((candidate) => candidate.context === projectionElement.context && candidate.localId === term.value);
+  if (localElement !== undefined) {
+    return [localElement.id];
   }
-  return resolvedElementAttributes.get(projectionElement.id)?.[term.value]?.map((value) => value.id) ?? [];
+  diagnostics.push({
+    code: "UNDECLARED_IDENTIFIER",
+    message: `Projection term '${term.value}' is not declared as an attribute of '${projectionElement.localId}' or as an element in environment '${projectionElement.context}'`,
+    ...(term.source ?? { sourceName: projectionElement.sourceName, line: projectionElement.line, column: projectionElement.column }),
+  });
+  return [];
 }
 
 function uniqueIds(values: readonly string[]): readonly string[] {
@@ -2059,20 +2242,19 @@ function uniqueIds(values: readonly string[]): readonly string[] {
 
 function projectionRuleOwnerPlacement(rule: ProjectionRuleDefinition): "source" | "target" {
   return rule.operator === ORIGINAL_LINK_OPERATOR
-    ? rule.target.placement
-    : rule.source.placement;
+    ? fixedAsTarget(rule.target.placement)
+    : fixedAsTarget(rule.source.placement);
+}
+
+function fixedAsTarget(placement: "source" | "target" | "fixed"): "source" | "target" {
+  return placement === "source" ? "source" : "target";
 }
 
 function projectionPlacementScope(
-  placement: "source" | "target",
-  projectionScope?: ProjectionScope,
+  _placement: "source" | "target",
+  _projectionScope?: ProjectionScope,
 ): string | undefined {
-  if (projectionSlotParent(placement, projectionScope) === undefined) {
-    return undefined;
-  }
-  return placement === "target"
-    ? projectionScope?.toProjectionScope
-    : projectionScope?.fromProjectionScope;
+  return undefined;
 }
 
 function projectionPlacementSourceIdentity(
@@ -2084,26 +2266,12 @@ function projectionPlacementSourceIdentity(
   return elementsById.get(placement === "target" ? toId : fromId)?.sourceName;
 }
 
-function projectionSlotParent(
-  placement: "source" | "target",
-  projectionScope?: ProjectionScope,
-): ParsedElement | undefined {
-  if (projectionScope === undefined) {
-    return undefined;
-  }
-  if (placement === "target") {
-    return projectionScope.targetSlotParent
-      ?? (projectionScope.toProjectionScope === undefined ? undefined : projectionScope.slotParent);
-  }
-  return projectionScope.sourceSlotParent
-    ?? (projectionScope.fromProjectionScope === undefined ? undefined : projectionScope.slotParent);
-}
-
 function resolveSlotProjectionTerm(
   term: ProjectionTermDefinition,
   projectionElement: ParsedElement,
   elementsById: ReadonlyMap<string, ParsedElement>,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
   diagnostics: LanguageDiagnostic[],
 ): readonly string[] {
   const ownerAttribute = term.ownerAttribute;
@@ -2137,7 +2305,7 @@ function resolveSlotProjectionTerm(
     if (value.element === undefined) {
       continue;
     }
-    if (value.element.type !== parentType) {
+    if (!typeSystem.isAssignable(value.element.type, parentType)) {
       diagnostics.push({
         code: "TYPE_MISMATCH",
         message: `Projection owner attribute '${ownerAttribute}' contains '${value.element.type}', expected '${parentType}'`,
@@ -2579,10 +2747,6 @@ class CoreEdgeImplementation implements LinkOperatorImplementation {
   applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult {
     return unsupportedOperatorResult(input.operator, input.prefix, "element materialization", input.sourceName, input.sourcePosition);
   }
-
-  applySlotCarrier(_input: SlotCarrierInput): void {
-    // Core edge operators do not consume TypeSlotReference carrier objects.
-  }
 }
 
 class CoreElementImplementation implements LinkOperatorImplementation {
@@ -2595,414 +2759,6 @@ class CoreElementImplementation implements LinkOperatorImplementation {
   applyElementPrefix(_input: ElementPrefixInput): ElementPrefixResult {
     return { accepted: true };
   }
-
-  applySlotCarrier(_input: SlotCarrierInput): void {
-    // Core element operators do not consume TypeSlotReference carrier objects.
-  }
-}
-
-class DeploymentRunsOnImplementation implements LinkOperatorImplementation {
-  static readonly id = "@insight/deployment.runsOn";
-  readonly slotCarrierPhase = 0;
-
-  materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult {
-    return unsupportedEdgeOperatorResult(input.operator, input.edge, "edge materialization");
-  }
-
-  applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult {
-    return unsupportedOperatorResult(input.operator, input.prefix, "element materialization", input.sourceName, input.sourcePosition);
-  }
-
-  applySlotCarrier(input: SlotCarrierInput): void {
-    const parent = input.carrier.parent === undefined
-      ? undefined
-      : input.context.elementsById.get(input.carrier.parent);
-    if (parent === undefined) {
-      return;
-    }
-    if (isStandaloneDeploymentProfile(parent, input.context)) {
-      return;
-    }
-    applyDeploymentRunsOnCarrier(input.carrier, parent, input.context);
-  }
-}
-
-class DeploymentUsesImplementation implements LinkOperatorImplementation {
-  static readonly id = "@insight/deployment.uses";
-
-  materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult {
-    return unsupportedEdgeOperatorResult(input.operator, input.edge, "edge materialization");
-  }
-
-  applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult {
-    return unsupportedOperatorResult(input.operator, input.prefix, "element materialization", input.sourceName, input.sourcePosition);
-  }
-
-  applySlotCarrier(input: SlotCarrierInput): void {
-    const parent = input.carrier.parent === undefined
-      ? undefined
-      : input.context.elementsById.get(input.carrier.parent);
-    if (parent === undefined) {
-      return;
-    }
-    if (isStandaloneDeploymentProfile(parent, input.context)) {
-      return;
-    }
-    applyDeploymentUsesCarrier(input.carrier, parent, input.context);
-  }
-}
-
-class DeploymentEnvironmentsFromProfileImplementation implements LinkOperatorImplementation {
-  static readonly id = "@insight/deployment.environmentsFrom";
-  readonly slotCarrierPhase = -1;
-
-  materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult {
-    return unsupportedEdgeOperatorResult(input.operator, input.edge, "edge materialization");
-  }
-
-  applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult {
-    return unsupportedOperatorResult(input.operator, input.prefix, "element materialization", input.sourceName, input.sourcePosition);
-  }
-
-  applySlotCarrier(input: SlotCarrierInput): void {
-    const parent = input.carrier.parent === undefined
-      ? undefined
-      : input.context.elementsById.get(input.carrier.parent);
-    if (parent === undefined) {
-      return;
-    }
-    copyDeploymentProfileEnvironments(input.carrier, parent, input.context);
-  }
-}
-
-class DeploymentUsesProfileImplementation implements LinkOperatorImplementation {
-  static readonly id = "@insight/deployment.usesProfile";
-  readonly slotCarrierPhase = -1;
-
-  materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult {
-    return unsupportedEdgeOperatorResult(input.operator, input.edge, "edge materialization");
-  }
-
-  applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult {
-    return unsupportedOperatorResult(input.operator, input.prefix, "element materialization", input.sourceName, input.sourcePosition);
-  }
-
-  applySlotCarrier(input: SlotCarrierInput): void {
-    const parent = input.carrier.parent === undefined
-      ? undefined
-      : input.context.elementsById.get(input.carrier.parent);
-    if (parent === undefined) {
-      return;
-    }
-    const profiles = profileReferences(input.carrier, input.context);
-    for (const profile of profiles) {
-      if (profile.element === undefined) {
-        continue;
-      }
-      copyReferenceAttributes(profile.element, parent, input.context, input.carrier, (attributeName) => attributeName !== "_");
-      for (const carrier of profileSlotCarriers(profile.element, input.context)) {
-        const operatorId = carrier.operatorDefinition === undefined ? undefined : implementationId(carrier.operatorDefinition);
-        if (operatorId === DeploymentRunsOnImplementation.id) {
-          applyDeploymentRunsOnCarrier(carrier, parent, input.context);
-        } else if (operatorId === DeploymentUsesImplementation.id) {
-          applyDeploymentUsesCarrier(carrier, parent, input.context);
-        }
-      }
-    }
-  }
-}
-
-function isDeploymentProfileReferenceOperator(operator: OperatorDefinition): boolean {
-  const id = implementationId(operator);
-  return id === DeploymentEnvironmentsFromProfileImplementation.id
-    || id === DeploymentUsesProfileImplementation.id;
-}
-
-function copyDeploymentProfileEnvironments(
-  carrier: ParsedElement,
-  parent: ParsedElement,
-  context: LinkExecutionContext,
-): void {
-  for (const profile of profileReferences(carrier, context)) {
-    if (profile.element === undefined) {
-      continue;
-    }
-    copyReferenceAttributes(profile.element, parent, context, carrier, (attributeName) => attributeName === ENVIRONMENTS_ATTRIBUTE);
-  }
-}
-
-function profileReferences(
-  carrier: ParsedElement,
-  context: LinkExecutionContext,
-): readonly ResolvedReferenceValue[] {
-  return context.resolvedElementAttributes.get(carrier.id)?.[DEPLOYMENT_PROFILE_ATTRIBUTE] ?? [];
-}
-
-function copyReferenceAttributes(
-  source: ParsedElement,
-  target: ParsedElement,
-  context: LinkExecutionContext,
-  diagnosticSource: ParsedElement,
-  predicate: (attributeName: string) => boolean,
-): void {
-  const sourceAttributes = context.resolvedElementAttributes.get(source.id) ?? {};
-  for (const [attributeName, values] of Object.entries(sourceAttributes)) {
-    if (!predicate(attributeName)) {
-      continue;
-    }
-    const targetAttribute = context.typeSystem.attribute(target.type, attributeName);
-    if (targetAttribute === undefined) {
-      context.diagnostics.push({
-        code: "ATTRIBUTE_NOT_DECLARED",
-        message: `Attribute '${attributeName}' is not declared on type '${target.type}'`,
-        sourceName: diagnosticSource.sourceName,
-        ...diagnosticPosition(diagnosticSource),
-      });
-      continue;
-    }
-    if (targetAttribute.list !== true && (context.resolvedElementAttributes.get(target.id)?.[attributeName]?.length ?? 0) > 0) {
-      context.diagnostics.push({
-        code: "ATTRIBUTE_SHADOWS_PREVIOUS",
-        message: `Attribute '${attributeName}' is already assigned`,
-        sourceName: diagnosticSource.sourceName,
-        ...diagnosticPosition(diagnosticSource),
-      });
-      continue;
-    }
-    for (const value of values) {
-      addResolvedAttributeValue(context.resolvedElementAttributes, target.id, attributeName, value);
-    }
-  }
-}
-
-function profileSlotCarriers(
-  profile: ParsedElement,
-  context: LinkExecutionContext,
-): readonly ParsedElement[] {
-  return [...context.elementsById.values()]
-    .filter((element) => element.parent === profile.id && element.operatorDefinition !== undefined)
-    .sort((left, right) => {
-      const leftPhase = left.operatorDefinition === undefined
-        ? 1
-        : implementationFor(left.operatorDefinition, context.typeSystem).slotCarrierPhase ?? 1;
-      const rightPhase = right.operatorDefinition === undefined
-        ? 1
-        : implementationFor(right.operatorDefinition, context.typeSystem).slotCarrierPhase ?? 1;
-      return leftPhase - rightPhase;
-    });
-}
-
-function applyDeploymentRunsOnCarrier(
-  carrier: ParsedElement,
-  parent: ParsedElement,
-  context: LinkExecutionContext,
-): void {
-  markModelCarrier(parent, context);
-  const owner = placementOwner(parent, context);
-  if (owner === undefined) {
-    return;
-  }
-  for (const scope of projectionScopes(parent, context)) {
-    for (const target of resolveTypeSlotValues(carrier, parent, context, scope)) {
-      addResolvedAttributeValue(context.resolvedElementAttributes, owner.id, RUNS_ON_ATTRIBUTE, target);
-      if (scope.slotParent !== undefined) {
-        context.placementByElementAndScope.set(placementKey(owner.id, scope.slotParent.id), target.id);
-      }
-    }
-  }
-}
-
-function applyDeploymentUsesCarrier(
-  carrier: ParsedElement,
-  parent: ParsedElement,
-  context: LinkExecutionContext,
-): void {
-  markModelCarrier(parent, context);
-  const scopes = projectionScopes(parent, context);
-  for (const scope of scopes) {
-    const slotValues = resolveTypeSlotValues(carrier, parent, context, scope);
-    const annotations = uniqueAnnotations([...(scope.annotations ?? []), ...carrier.annotations]);
-    addProjectedEdgesForValues(
-      context.linkedEdges,
-      scope.sourceIdentity,
-      scope.fromId,
-      scope.toId,
-      slotValues,
-      context.elementsById,
-      context.resolvedElementAttributes,
-      context.ownerIndependentProjectionKeys,
-      context.typeSystem,
-      context.diagnostics,
-      scope,
-      annotations,
-      scope.projectedAttributes,
-      scope.projectedOperator,
-    );
-  }
-}
-
-function isStandaloneDeploymentProfile(element: ParsedElement, context: LinkExecutionContext): boolean {
-  return element.parent === undefined && context.typeSystem.isAssignable(element.type, DEPLOYMENT_PROFILE_TYPE);
-}
-
-function placementKey(elementId: string, scopeId: string): string {
-  return `${elementId}\0${scopeId}`;
-}
-
-function markModelCarrier(element: ParsedElement, context: LinkExecutionContext): void {
-  if (context.resolvedElementAttributes.get(element.id)?.environments !== undefined) {
-    element.graphElement = false;
-    element.projectionRoot = false;
-  }
-}
-
-function placementOwner(parent: ParsedElement, context: LinkExecutionContext): ParsedElement | undefined {
-  const parentAttributes = context.resolvedElementAttributes.get(parent.id) ?? {};
-  const hasEnvironmentScope = parentAttributes.environments !== undefined;
-  return hasEnvironmentScope && parent.parent !== undefined
-    ? context.elementsById.get(parent.parent)
-    : parent;
-}
-
-function projectionScopes(parent: ParsedElement, context: LinkExecutionContext): readonly ProjectionScope[] {
-  const edgeScopes = context.edgeScopesByCarrierId.get(parent.id) ?? [];
-  const baseScopes = edgeScopes.length > 0
-    ? edgeScopes
-    : placementScopes(parent, context);
-  const slotParents = explicitSlotParents(parent, context);
-  if (slotParents.length === 0) {
-    return baseScopes.map((scope) => enrichProjectionScope(scope, context));
-  }
-  if (edgeScopes.length > 0) {
-    return baseScopes.flatMap((scope) => pairedProjectionScopes(scope, slotParents, context));
-  }
-  return baseScopes.flatMap((scope) => slotParents.map((slotParent) => ({
-    ...scope,
-    slotParent,
-  }))).map((scope) => enrichProjectionScope(scope, context));
-}
-
-function enrichProjectionScope(scope: ProjectionScope, context: LinkExecutionContext): ProjectionScope {
-  const sourceSlotParent = scope.sourceSlotParent ?? scope.slotParent;
-  const targetSlotParent = scope.targetSlotParent ?? scope.slotParent;
-  if (sourceSlotParent === undefined && targetSlotParent === undefined) {
-    return scope;
-  }
-  const fromProjectionScope = sourceSlotParent === undefined
-    ? undefined
-    : context.placementByElementAndScope.get(placementKey(scope.fromId, sourceSlotParent.id));
-  const toProjectionScope = targetSlotParent === undefined
-    ? undefined
-    : context.placementByElementAndScope.get(placementKey(scope.toId, targetSlotParent.id));
-  return {
-    ...scope,
-    ...(fromProjectionScope === undefined ? {} : { fromProjectionScope }),
-    ...(toProjectionScope === undefined ? {} : { toProjectionScope }),
-  };
-}
-
-function pairedProjectionScopes(
-  scope: ProjectionScope,
-  slotParents: readonly ParsedElement[],
-  context: LinkExecutionContext,
-): readonly ProjectionScope[] {
-  const enriched = slotParents.map((slotParent) => enrichProjectionScope({ ...scope, slotParent }, context));
-  const samePlacement = enriched.filter((candidate) => candidate.fromProjectionScope !== undefined && candidate.toProjectionScope !== undefined);
-  if (samePlacement.length > 0) {
-    return samePlacement;
-  }
-  const sourceScopes = enriched.filter((candidate) => candidate.fromProjectionScope !== undefined);
-  const targetScopes = enriched.filter((candidate) => candidate.toProjectionScope !== undefined);
-  if (sourceScopes.length === 0 || targetScopes.length === 0) {
-    return enriched;
-  }
-  return sourceScopes.flatMap((sourceScope) => targetScopes.map((targetScope) => {
-    const sourceSlotParent = sourceScope.slotParent;
-    const targetSlotParent = targetScope.slotParent;
-    return {
-      ...scope,
-      ...(sourceSlotParent === undefined ? {} : { sourceSlotParent }),
-      ...(targetSlotParent === undefined ? {} : { targetSlotParent }),
-      ...(sourceScope.fromProjectionScope === undefined ? {} : { fromProjectionScope: sourceScope.fromProjectionScope }),
-      ...(targetScope.toProjectionScope === undefined ? {} : { toProjectionScope: targetScope.toProjectionScope }),
-    };
-  }));
-}
-
-function placementScopes(parent: ParsedElement, context: LinkExecutionContext): readonly ProjectionScope[] {
-  const owner = placementOwner(parent, context);
-  if (owner === undefined) {
-    return [];
-  }
-  return [{
-    sourceIdentity: parent.sourceName,
-    fromId: owner.id,
-    toId: owner.id,
-  }];
-}
-
-function explicitSlotParents(parent: ParsedElement, context: LinkExecutionContext): readonly ParsedElement[] {
-  const slotParents = context.resolvedElementAttributes.get(parent.id)?.environments
-    ?.flatMap((value) => value.element === undefined ? [] : [value.element]) ?? [];
-  for (const element of slotParents) {
-    element.graphElement = false;
-    element.projectionRoot = false;
-  }
-  return slotParents;
-}
-
-function resolveTypeSlotValues(
-  carrier: ParsedElement,
-  parent: ParsedElement,
-  context: LinkExecutionContext,
-  scope?: ProjectionScope,
-): readonly ResolvedReferenceValue[] {
-  const attributeName = carrier.scalarAttributes.attributeName;
-  const parentType = carrier.scalarAttributes.parentType;
-  if (attributeName === undefined || parentType === undefined) {
-    context.diagnostics.push({
-      code: "TYPE_MISMATCH",
-      message: "Type slot reference is missing parentType or attributeName",
-      sourceName: carrier.sourceName,
-      ...diagnosticPosition(carrier),
-    });
-    return [];
-  }
-  const scopedParents = scopedTypeSlotParents(parent, parentType, context, scope);
-  const result: ResolvedReferenceValue[] = [];
-  for (const scopedParent of scopedParents) {
-    for (const value of context.resolvedElementAttributes.get(scopedParent.id)?.[attributeName] ?? []) {
-      if (value.element !== undefined && !result.some((item) => item.id === value.id)) {
-        result.push(value);
-      }
-    }
-  }
-  return result;
-}
-
-function scopedTypeSlotParents(
-  parent: ParsedElement,
-  parentType: string,
-  context: LinkExecutionContext,
-  scope?: ProjectionScope,
-): readonly ParsedElement[] {
-  if (scope?.slotParent !== undefined) {
-    return context.typeSystem.isAssignable(scope.slotParent.type, parentType)
-      ? [scope.slotParent]
-      : [];
-  }
-  const explicitScope = context.resolvedElementAttributes.get(parent.id)?.environments
-    ?.flatMap((value) => value.element === undefined ? [] : [value.element])
-    .filter((element) => context.typeSystem.isAssignable(element.type, parentType)) ?? [];
-  if (explicitScope.length > 0) {
-    for (const element of explicitScope) {
-      element.graphElement = false;
-      element.projectionRoot = false;
-    }
-    return explicitScope;
-  }
-  const ancestor = nearestAncestor(parent, context.elementsById, (element) => context.typeSystem.isAssignable(element.type, parentType));
-  return ancestor === undefined ? [] : [ancestor];
 }
 
 class UnsupportedOperatorImplementation implements LinkOperatorImplementation {
@@ -3013,24 +2769,11 @@ class UnsupportedOperatorImplementation implements LinkOperatorImplementation {
   applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult {
     return unsupportedOperatorResult(input.operator, input.prefix, "element materialization", input.sourceName, input.sourcePosition);
   }
-
-  applySlotCarrier(input: SlotCarrierInput): void {
-    input.context.diagnostics.push({
-      code: "UNSUPPORTED_OPERATOR_IMPLEMENTATION",
-      message: `Operator '${input.operator.spelling}' uses unsupported implementation '${implementationId(input.operator) ?? "<none>"}' for slot carrier materialization`,
-      sourceName: input.carrier.sourceName,
-      ...diagnosticPosition(input.carrier),
-    });
-  }
 }
 
 const operatorImplementations = new Map<string, LinkOperatorImplementation>([
   [CoreEdgeImplementation.id, new CoreEdgeImplementation()],
   [CoreElementImplementation.id, new CoreElementImplementation()],
-  [DeploymentRunsOnImplementation.id, new DeploymentRunsOnImplementation()],
-  [DeploymentUsesImplementation.id, new DeploymentUsesImplementation()],
-  [DeploymentEnvironmentsFromProfileImplementation.id, new DeploymentEnvironmentsFromProfileImplementation()],
-  [DeploymentUsesProfileImplementation.id, new DeploymentUsesProfileImplementation()],
 ]);
 const unsupportedOperatorImplementation = new UnsupportedOperatorImplementation();
 
@@ -3089,40 +2832,6 @@ function unsupportedOperatorResult(
       ...diagnosticPosition(sourcePosition),
     }],
   };
-}
-
-function addResolvedAttributeValue(
-  attributesByElement: Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
-  elementId: string,
-  attributeName: string,
-  value: ResolvedReferenceValue,
-): void {
-  const attributes = attributesByElement.get(elementId) ?? {};
-  const values = attributes[attributeName] ?? [];
-  if (values.some((item) => item.id === value.id)) {
-    return;
-  }
-  attributesByElement.set(elementId, {
-    ...attributes,
-    [attributeName]: [...values, value],
-  });
-}
-
-function nearestAncestor(
-  element: ParsedElement,
-  elementsById: ReadonlyMap<string, ParsedElement>,
-  predicate: (element: ParsedElement) => boolean,
-): ParsedElement | undefined {
-  let current = element.parent === undefined ? undefined : elementsById.get(element.parent);
-  const visited = new Set<string>([element.id]);
-  while (current !== undefined && !visited.has(current.id)) {
-    if (predicate(current)) {
-      return current;
-    }
-    visited.add(current.id);
-    current = current.parent === undefined ? undefined : elementsById.get(current.parent);
-  }
-  return undefined;
 }
 
 function inspectGraph(
@@ -3402,6 +3111,67 @@ function textValue(root: RuleNode | undefined): string {
     }
   }
   return result.join("");
+}
+
+function concreteProjectionRule(ruleNode: RuleNode, sourceName: string): ProjectionRuleDefinition {
+  const terms = children(ruleNode, "relationTerm");
+  const operator = firstChild(ruleNode, "operatorIdentifier");
+  const attributes = concreteProjectionRuleAttributes(ruleNode);
+  return {
+    source: concreteProjectionTerm(terms[0], sourceName),
+    operator: operator?.getText() ?? "",
+    operatorSource: sourceLocation(sourceName, position(operator, sourceName)),
+    target: concreteProjectionTerm(terms[1], sourceName),
+    ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
+  };
+}
+
+function concreteProjectionRuleAttributes(ruleNode: RuleNode): Readonly<Record<string, readonly string[]>> {
+  return Object.fromEntries(
+    children(ruleNode, "assignment").map((assignment) => [
+      firstChild(assignment, "attributeName")?.getText() ?? "",
+      [textValue(firstChild(assignment, "textValue"))],
+    ]),
+  );
+}
+
+function concreteProjectionTerm(termNode: RuleNode | undefined, sourceName: string): ProjectionTermDefinition {
+  const placementNode = termNode === undefined ? undefined : firstChild(termNode, "relationPlacement");
+  const projectionTermNode = termNode === undefined ? undefined : firstChild(termNode, "relationReference");
+  const fixedScope = termNode === undefined ? undefined : firstChild(termNode, "fixedRelationScope");
+  const fixedEnvironment = fixedScope === undefined ? undefined : firstChild(fixedScope, "environmentReference");
+  const placementText = placementNode?.getText() ?? "";
+  const value = projectionTermNode?.getText() ?? "";
+  const base = {
+    placement: placementText === "fixed" ? "fixed" as const : placementText === "target" ? "target" as const : "source" as const,
+    placementText,
+    placementSource: sourceLocation(sourceName, position(placementNode, sourceName)),
+    ...(fixedEnvironment === undefined ? {} : {
+      fixedEnvironment: fixedEnvironment.getText(),
+      fixedEnvironmentSource: sourceLocation(sourceName, position(fixedEnvironment, sourceName)),
+    }),
+    source: sourceLocation(sourceName, position(projectionTermNode, sourceName)),
+  };
+  const slot = projectionTermNode === undefined ? undefined : firstChild(projectionTermNode, "relationSlotDereference");
+  if (slot !== undefined) {
+    const ownerAttribute = firstChild(slot, "identifier")?.getText();
+    return {
+      ...base,
+      kind: "slot",
+      value: "$slot",
+      ...(ownerAttribute === undefined ? {} : { ownerAttribute }),
+    };
+  }
+  if (value === "$from") {
+    return { ...base, kind: "from", value };
+  }
+  if (value === "$to") {
+    return { ...base, kind: "to", value };
+  }
+  if (value === "$this") {
+    return { ...base, kind: "this", value };
+  }
+  return { ...base, kind: "attribute", value };
 }
 
 function rule(node: RuleNode): string | undefined {

@@ -6,13 +6,14 @@ define type InfrastructureComponent of DeploymentElement
     Text name
     Text technology
     Text description
-    List of TypeSlotReference _
+    InfrastructureComponent runsOn
+    List of PhysicalWire projection
+    List of InfrastructureComponent _
+
+define type ProjectionTerm
 
 define type Storage of InfrastructureComponent
     constructor storage
-
-    project:
-        source $from originalLink target $this
 
 define presentation Storage
     graphviz
@@ -22,10 +23,6 @@ define type Broker of InfrastructureComponent
     constructor broker
 
     Text address
-
-    project:
-        source $from originalLink source $this
-        target $to connectTo target $this
 
 define presentation Broker
     graphviz
@@ -41,26 +38,18 @@ define type Compute of InfrastructureComponent
 define type NetworkConnection of InfrastructureComponent
     constructor networkConnection
 
-    project:
-        source $from originalLink target $to
-
 define type Environment of BoundaryElement
     constructor environment
 
     required Text name
+    Text region
+    List of DeploymentElement _
 
-define type DeploymentProfile of BoundaryElement
-    constructor deploymentProfile
+define type Deployment of DeploymentElement
+    constructor deployment
 
-    List of Environment environments
-    List of TypeSlotReference _
-
-define type DeploymentProfileReference of TypeSlotReference
-    required DeploymentProfile profile
-
-define presentation DeploymentProfile
-    graphviz
-        visible = false
+    Text name
+    List of DeploymentElement _
 
 define presentation NetworkConnection
     graphviz

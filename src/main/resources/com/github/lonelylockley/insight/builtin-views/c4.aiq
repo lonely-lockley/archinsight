@@ -20,5 +20,4 @@ WHERE (incomingProjectedOrigin IS DeploymentElement
    OR incomingProjectedOrigin IS ContainerElement
    OR incomingProjectedOrigin IS External)
   AND incomingProjectedOrigin.id <> incomingProjectedSource.id
-GROUP BY node.runsOn
 RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, logicalPeerLink, logicalPeerTarget, incomingProjectedLink, incomingProjectedSource, incomingProjectedOriginLink, incomingProjectedOrigin

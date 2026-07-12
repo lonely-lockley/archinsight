@@ -11,6 +11,7 @@ const cases = [
   highlightsOperatorsAndConstructorsByRuleContext,
   highlightsProjectionTermsByRuleContext,
   highlightsContextDeclarationWhileTyping,
+  highlightsEnvironmentDeclarationAndImports,
   highlightsAttributeNamesWhenValueIsInvalid,
   highlightsAnnotationNameWithoutAnnotationValue,
 ];
@@ -68,10 +69,10 @@ broker queue
 
 function highlightsProjectionTermsByRuleContext() {
   const source = `
-define type Gateway of Element
-    constructor gateway
+context infra
 
-    project:
+infrastructureComponent gateway
+    projection:
         source $from originalLink target cdn
         target cdn connectTo target $this
         source $slot from $owner publicGateway connectTo target $to
@@ -94,6 +95,21 @@ function highlightsContextDeclarationWhileTyping() {
 
   assertToken(tokens, "context", "keyword");
   assertToken(tokens, "demo", "variable", ["declaration"]);
+}
+
+function highlightsEnvironmentDeclarationAndImports() {
+  const source = `
+environment prod
+    name = Production
+
+import gateway from environment prod as prod_gateway
+`.trimStart();
+  const tokens = tokensByText(source);
+
+  assertToken(tokens, "environment", "keyword");
+  assertToken(tokens, "prod", "variable", ["declaration"]);
+  assertToken(tokens, "prod", "variable");
+  assertToken(tokens, "prod_gateway", "variable", ["declaration"]);
 }
 
 function highlightsAttributeNamesWhenValueIsInvalid() {

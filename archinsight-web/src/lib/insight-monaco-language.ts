@@ -26,6 +26,7 @@ const keywordTokens = new Set([
   'FROM',
   'AS',
   'CONTEXT',
+  'ENVIRONMENT',
   'PROJECT',
   'IMPLEMENTATION'
 ]);

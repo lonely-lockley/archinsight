@@ -53,7 +53,11 @@ IMPORT      : 'import';
 FROM        : 'from';
 AS          : 'as';
 CONTEXT     : 'context';
+ENVIRONMENT : 'environment';
 PROJECT     : 'project';
+PROJECTION  : 'projection';
+FIXED       : 'fixed';
+IN          : 'in';
 IMPLEMENTATION
             : 'implementation';
 

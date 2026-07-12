@@ -18,7 +18,6 @@ define type System of SystemElement
     required Text kind
     Text technology
     Text description
-    DeploymentProfile deployment
     List of Wire links
     List of Container _
 

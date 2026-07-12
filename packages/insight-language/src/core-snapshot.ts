@@ -14,8 +14,6 @@ import type {
   LanguageBuildResult,
   LanguageDiagnostic,
   OperatorDefinition,
-  ProjectionRuleDefinition,
-  ProjectionTermDefinition,
   SourceLocation,
 } from "./contracts.js";
 import { InsightLexer } from "./generated/InsightLexer.js";
@@ -34,9 +32,6 @@ import {
   OperatorConstructorDeclarationContext,
   PresentationAssignmentContext,
   PresentationSectionContext,
-  ProjectionPlacedTermContext,
-  ProjectionRuleContext,
-  ProjectionTermContext,
   TextValueContext,
   TypeConstructorDeclarationContext,
   TypeReferenceContext,
@@ -48,7 +43,6 @@ interface MutableTypeDefinition {
   name: string;
   baseType?: string;
   attributes: AttributeDefinition[];
-  projectionRules: ProjectionRuleDefinition[];
   declaration?: SourceLocation;
 }
 
@@ -316,12 +310,10 @@ function mergeTypeDefinition(
     return next;
   }
   const attributes = mergeAttributes(existing.attributes ?? [], next.attributes ?? []);
-  const projectionRules = [...(existing.projectionRules ?? []), ...(next.projectionRules ?? [])];
   return {
     name: existing.name,
     ...(next.baseType !== undefined ? { baseType: next.baseType } : existing.baseType === undefined ? {} : { baseType: existing.baseType }),
     ...(attributes.length === 0 ? {} : { attributes }),
-    ...(projectionRules.length === 0 ? {} : { projectionRules }),
     ...(next.declaration !== undefined ? { declaration: next.declaration } : existing.declaration === undefined ? {} : { declaration: existing.declaration }),
   };
 }
@@ -407,10 +399,6 @@ function collectLanguageSnapshotSource(
       if (anonymous !== null) {
         type.attributes.push(anonymousListAttribute(anonymous));
       }
-      const project = typeDeclaration.projectDeclaration();
-      if (project !== null) {
-        type.projectionRules.push(...project.projectionRule().map((rule) => projectionRuleDefinition(rule, sourceName)));
-      }
       continue;
     }
 
@@ -428,10 +416,6 @@ function collectLanguageSnapshotSource(
         const attribute = item.attributeDeclaration();
         if (attribute !== null) {
           type.attributes.push(attributeDefinition(attribute));
-        }
-        const project = firstChild<unknown>(item, "projectDeclaration");
-        if (project !== undefined) {
-          type.projectionRules.push(...collectProjectionRules(project, sourceName));
         }
       }
       const anonymous = operatorDeclaration.anonymousListAttributeDeclaration();
@@ -524,7 +508,6 @@ function collectLanguageSnapshotSource(
         name: type.name,
         ...(type.baseType === undefined ? {} : { baseType: type.baseType }),
         ...(type.attributes.length === 0 ? {} : { attributes: type.attributes }),
-        ...(type.projectionRules.length === 0 ? {} : { projectionRules: type.projectionRules }),
         ...(type.declaration === undefined ? {} : { declaration: type.declaration }),
       })),
       constructors,
@@ -603,7 +586,7 @@ function ensureType(types: Map<string, MutableTypeDefinition>, name: string): Mu
   if (existing !== undefined) {
     return existing;
   }
-  const created: MutableTypeDefinition = { name, attributes: [], projectionRules: [] };
+  const created: MutableTypeDefinition = { name, attributes: [] };
   types.set(name, created);
   return created;
 }
@@ -719,86 +702,10 @@ function defaultsProperty(defaults: Readonly<Record<string, string>>): { readonl
   return Object.keys(defaults).length === 0 ? {} : { defaults };
 }
 
-function projectionRuleDefinition(rule: ProjectionRuleContext, sourceName: string): ProjectionRuleDefinition {
-  const terms = rule.projectionPlacedTerm();
-  const operator = rule.operatorIdentifier();
-  const attributes = projectionRuleAttributes(rule);
-  return {
-    source: projectionTermDefinition(terms[0]!, sourceName),
-    operator: text(operator),
-    operatorSource: position(operator, sourceName),
-    target: projectionTermDefinition(terms[1]!, sourceName),
-    ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
-  };
-}
-
-function projectionRuleAttributes(rule: ProjectionRuleContext): Readonly<Record<string, readonly string[]>> {
-  return Object.fromEntries(
-    rule.assignment().map((assignment) => [
-      text(assignment.attributeName()),
-      [textValue(assignment.textValue())],
-    ]),
-  );
-}
-
-function projectionTermDefinition(term: ProjectionPlacedTermContext, sourceName: string): ProjectionTermDefinition {
-  const placementNode = term.projectionPlacement();
-  const termNode = term.projectionTerm();
-  const placement = text(placementNode);
-  const value = text(termNode);
-  const source = position(termNode, sourceName);
-  const placementSource = position(placementNode, sourceName);
-  const base = {
-    placement: placement === "target" ? "target" as const : "source" as const,
-    placementText: placement,
-    placementSource,
-    source,
-  };
-  const slot = firstChild<unknown>(termNode, "projectionSlotDereference");
-  if (slot !== undefined) {
-    return {
-      ...base,
-      kind: "slot",
-      value: "$slot",
-      ownerAttribute: text(firstChild(slot, "identifier") as { getText(): string } | null),
-    };
-  }
-  if (value === "$from") {
-    return { ...base, kind: "from", value };
-  }
-  if (value === "$to") {
-    return { ...base, kind: "to", value };
-  }
-  if (value === "$this") {
-    return { ...base, kind: "this", value };
-  }
-  return { ...base, kind: "attribute", value };
-}
-
-function collectProjectionRules(project: unknown, sourceName: string): ProjectionRuleDefinition[] {
-  const rules: ProjectionRuleDefinition[] = [];
-  for (let index = 0; index < childCount(project); index++) {
-    const item = child(project, index);
-    if (rule(item) === "projectionRule") {
-      rules.push(projectionRuleDefinition(item as ProjectionRuleContext, sourceName));
-    }
-  }
-  return rules;
-}
-
 export function validateLanguageSnapshot(snapshot: LanguageSnapshot): readonly LanguageDiagnostic[] {
   const diagnostics: LanguageDiagnostic[] = [];
   validateTypeReferences(snapshot, diagnostics);
   validateRequiredConstructors(snapshot, diagnostics);
-  for (const type of snapshot.types) {
-    for (const rule of type.projectionRules ?? []) {
-      validateProjectionOperator(rule, diagnostics);
-      validateProjectionPlacement(rule.source, diagnostics);
-      validateProjectionPlacement(rule.target, diagnostics);
-      validateProjectionTerm(snapshot, type, rule.source, diagnostics);
-      validateProjectionTerm(snapshot, type, rule.target, diagnostics);
-    }
-  }
   return diagnostics;
 }
 
@@ -878,6 +785,9 @@ function validateRequiredConstructors(snapshot: LanguageSnapshot, diagnostics: L
 }
 
 function requiresConstructor(snapshot: LanguageSnapshot, type: string): boolean {
+  if (type !== "Environment" && isAssignable(snapshot, type, "Environment")) {
+    return false;
+  }
   return type === "Context"
     || (type !== "Element" && isAssignable(snapshot, type, "Element"))
     || (type !== "Edge" && isAssignable(snapshot, type, "Edge"));
@@ -946,61 +856,6 @@ function validateOperatorConstructorCollisions(
     }
   }
   return diagnostics;
-}
-
-function validateProjectionOperator(
-  rule: ProjectionRuleDefinition,
-  diagnostics: LanguageDiagnostic[],
-): void {
-  if (rule.operator !== "->" && rule.operator !== "~>") {
-    return;
-  }
-  diagnostics.push({
-    code: "UNSUPPORTED_PROJECTION_OPERATOR",
-    message: `Projection operator '${rule.operator}' is not supported in projection rules; use 'originalLink', 'connectTo', 'replicateFrom', or a textual projection operator`,
-    ...snapshotDiagnosticLocation(rule.operatorSource),
-  });
-}
-
-function validateProjectionPlacement(
-  term: ProjectionTermDefinition,
-  diagnostics: LanguageDiagnostic[],
-): void {
-  if (term.placementText === "source" || term.placementText === "target") {
-    return;
-  }
-  diagnostics.push({
-    code: "UNSUPPORTED_PROJECTION_PLACEMENT",
-    message: `Projection placement '${term.placementText ?? ""}' is not supported; use 'source' or 'target'`,
-    ...snapshotDiagnosticLocation(term.placementSource),
-  });
-}
-
-function validateProjectionTerm(
-  snapshot: LanguageSnapshot,
-  owner: LanguageSnapshot["types"][number],
-  term: ProjectionTermDefinition,
-  diagnostics: LanguageDiagnostic[],
-): void {
-  if (term.kind !== "attribute") {
-    return;
-  }
-  const attribute = attributes(snapshot, owner.name).get(term.value);
-  if (attribute === undefined) {
-    diagnostics.push({
-      code: "ATTRIBUTE_NOT_DECLARED",
-      message: `Projection term '${term.value}' is not declared on type '${owner.name}'`,
-      ...snapshotDiagnosticLocation(term.source),
-    });
-    return;
-  }
-  if (nestedElementType(attribute) === undefined) {
-    diagnostics.push({
-      code: "TYPE_MISMATCH",
-      message: `Projection term '${term.value}' must reference an element attribute`,
-      ...snapshotDiagnosticLocation(term.source),
-    });
-  }
 }
 
 function builtinTypeDeclarations(baseDeclarations: readonly DeclarationReference[]): readonly DeclarationReference[] {
@@ -1172,17 +1027,6 @@ function snapshotDiagnosticLocation(
   };
 }
 
-function attributes(snapshot: LanguageSnapshot, ownerType: string): ReadonlyMap<string, AttributeDefinition> {
-  const result = new Map<string, AttributeDefinition>();
-  for (const type of [...inheritanceChain(snapshot, ownerType)].reverse()) {
-    const definition = snapshot.types.find((candidate) => candidate.name === type);
-    for (const attribute of definition?.attributes ?? []) {
-      result.set(attribute.name, attribute);
-    }
-  }
-  return result;
-}
-
 function inheritanceChain(snapshot: LanguageSnapshot, type: string): readonly string[] {
   const result: string[] = [];
   const visited = new Set<string>();
@@ -1193,13 +1037,6 @@ function inheritanceChain(snapshot: LanguageSnapshot, type: string): readonly st
     current = snapshot.types.find((candidate) => candidate.name === current)?.baseType;
   }
   return result;
-}
-
-function nestedElementType(attribute: AttributeDefinition): string | undefined {
-  if (attribute.list === true) {
-    return attribute.listElementType;
-  }
-  return attribute.type === "Text" || attribute.type === "text" ? undefined : attribute.type;
 }
 
 function typeUnion(union: TypeUnionContext): readonly string[] {

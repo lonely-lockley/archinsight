@@ -14,12 +14,12 @@ const cases = [
   importContextCompletionUsesProvidedContextIds,
   typedSlotCompletionUsesIndexedImportAliasTypes,
   wireUsesCompletionMarksOnlyImportedIdentifiersAsImported,
+  topLevelCompletionSuggestsEnvironmentKeyword,
   contextBodySuggestsExternalPrefixOperatorAtLineStart,
   contextBodySuggestsObjectExtensionAtLineStart,
   annotationCompletionWorksAfterAtPrefix,
   customPrefixOperatorsCompleteFromCurrentOwnerAndExpectedElementType,
   anonymousObjectInEdgeReferenceListSuggestsItsAttributes,
-  coreTypeSlotReferenceUsesOperatorTargetsEnvironmentSlots,
   customTypeSlotReferenceOperatorsUseCurrentOwnerType,
   customTypeSlotReferenceOperatorTargetsUseOperatorTargetType,
   customTypeSlotReferenceOperatorsWorkInDeepNestedObjects,
@@ -342,41 +342,18 @@ system c
   assert(labels.has("name"), [...labels].join(", "));
 }
 
-function coreTypeSlotReferenceUsesOperatorTargetsEnvironmentSlots() {
-  const sourceWithCursor = `
-context test
-
-import global from context infrastructure
-
-component api
-    name = API
-    links:
-        -> repository
-            deployment:
-                environmentsFrom global
-                uses __CURSOR__
-
-component repository
-    name = Repository
-`.trimStart();
-  const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
-  const source = sourceWithCursor.replace("__CURSOR__", "");
-  const result = complete(source, cursorOffset, { snapshot: environmentSlotSnapshot() });
+function topLevelCompletionSuggestsEnvironmentKeyword() {
+  const result = complete("", 0);
   const labels = itemLabels(result);
 
-  for (const expected of ["broker", "publicGateway", "storage"]) {
-    assert(labels.has(expected), `${expected} missing from ${[...labels].join(", ")}`);
-  }
-  assert(!labels.has("name"), [...labels].join(", "));
-  assert(!labels.has("global"), [...labels].join(", "));
+  assert(labels.has("environment"), [...labels].join(", "));
+  assert(labels.has("context"), [...labels].join(", "));
 }
 
 function edgeListOperatorsCompleteAfterNestedObjectAttribute() {
   const sourceWithCursor = `
 context test
 
-import global from context infrastructure
-
 system system_a
     name = System A
 
@@ -384,32 +361,24 @@ system system_a
         name = Service A
         links:
             -> target
-                deployment:
-                    usesProfile global
-                    uses privateGateway
+                description = Calls target
             __CURSOR__
 `.trimStart();
   const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
   const source = sourceWithCursor.replace("__CURSOR__", "");
-  const result = complete(source, cursorOffset, {
-    indexedIdentifiers: new Map([
-      ["global", { label: "global", type: "DeploymentProfile", imported: true }],
-      ["privateGateway", { label: "privateGateway", type: "InfrastructureComponent", imported: true }],
-    ]),
-  });
+  const result = complete(source, cursorOffset);
   const labels = itemLabels(result);
 
   assert(labels.has("->"), [...labels].join(", "));
   assert(labels.has("~>"), [...labels].join(", "));
-  assert(!labels.has("usesProfile"), [...labels].join(", "));
+  assert(!labels.has("connectTo"), [...labels].join(", "));
+  assert(!labels.has("replicateFrom"), [...labels].join(", "));
 }
 
 function wireAttributesCompleteAfterNestedObjectAttribute() {
   const sourceWithCursor = `
 context test
 
-import global from context infrastructure
-
 system system_a
     name = System A
 
@@ -417,24 +386,15 @@ system system_a
         name = Service A
         links:
             -> target
-                deployment:
-                    usesProfile global
-                    uses privateGateway
+                description = Calls target
                 __CURSOR__
 `.trimStart();
   const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
   const source = sourceWithCursor.replace("__CURSOR__", "");
-  const result = complete(source, cursorOffset, {
-    indexedIdentifiers: new Map([
-      ["global", { label: "global", type: "DeploymentProfile", imported: true }],
-      ["privateGateway", { label: "privateGateway", type: "InfrastructureComponent", imported: true }],
-    ]),
-  });
+  const result = complete(source, cursorOffset);
   const labels = itemLabels(result);
 
-  assert(labels.has("deployment"), [...labels].join(", "));
-  assert(labels.has("description"), [...labels].join(", "));
-  assert(!labels.has("usesProfile"), [...labels].join(", "));
+  assert(labels.has("technology"), [...labels].join(", "));
 }
 
 function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
@@ -442,10 +402,22 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
     coreLanguageSnapshot,
     {
       schemaVersion: "projection-completion",
-      constructors: [],
       operators: [],
       enums: [],
       types: [
+        {
+          name: "IndriveEnvironment",
+          baseType: "Environment",
+          attributes: [
+            { name: "cloud", type: "ServiceProvider", required: true },
+            { name: "compute", type: "Compute", required: true },
+            { name: "network", type: "NetworkConnection", required: true },
+            { name: "publicGateway", type: "PublicGateway", required: true },
+          ],
+        },
+        { name: "CustomRuntime", baseType: "DeploymentElement" },
+        { name: "ServiceProvider", baseType: "InfrastructureComponent" },
+        { name: "Compute", baseType: "InfrastructureComponent" },
         { name: "InfrastructureComponent", baseType: "Element" },
         {
           name: "PublicGateway",
@@ -456,56 +428,187 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
           ],
         },
       ],
+      constructors: [
+        { spelling: "runtime", ownerType: "CustomRuntime" },
+        { spelling: "publicGateway", ownerType: "PublicGateway" },
+      ],
     },
   ]);
-  const operatorLabels = itemLabels(completeAtMarker(`
-define type PublicGateway of InfrastructureComponent
-    required InfrastructureComponent cdn
-    required InfrastructureComponent loadBalancer
-    project:
-        source $from __CURSOR__ target cdn
-`, { snapshot }));
-  assert(operatorLabels.has("originalLink"), [...operatorLabels].join(", "));
-  assert(operatorLabels.has("connectTo"), [...operatorLabels].join(", "));
-  assert(operatorLabels.has("replicateFrom"), [...operatorLabels].join(", "));
-  assert(!operatorLabels.has("->"), [...operatorLabels].join(", "));
 
-  const termLabels = itemLabels(completeAtMarker(`
-define type PublicGateway of InfrastructureComponent
-    required InfrastructureComponent cdn
-    required InfrastructureComponent loadBalancer
-    project:
-        source $from connectTo target __CURSOR__
-`, { snapshot }));
-  assert(termLabels.has("$to"), [...termLabels].join(", "));
-  assert(termLabels.has("$this"), [...termLabels].join(", "));
-  assert(termLabels.has("cdn"), [...termLabels].join(", "));
-  assert(termLabels.has("loadBalancer"), [...termLabels].join(", "));
+  assertProjectionCompletion("__CURSOR__", {
+    snapshot,
+    includes: ["source", "target", "fixed"],
+    excludes: ["$from", "connectTo"],
+  });
+  assertProjectionCompletion("source __CURSOR__", {
+    snapshot,
+    includes: ["$from", "$to", "$this", "cdn", "loadBalancer"],
+    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+  });
+  assertProjectionCompletion("source $from __CURSOR__", {
+    snapshot,
+    includes: ["originalLink", "connectTo", "replicateFrom"],
+    excludes: ["source", "target", "fixed", "$to", "->"],
+  });
+  assertProjectionCompletion("source $from connectTo __CURSOR__", {
+    snapshot,
+    includes: ["source", "target", "fixed"],
+    excludes: ["$from", "connectTo"],
+  });
+  assertProjectionCompletion("source $from connectTo target __CURSOR__", {
+    snapshot,
+    includes: ["$to", "$this", "cdn", "loadBalancer"],
+    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+  });
+
+  assertProjectionCompletion("__CURSOR__source $from connectTo target cdn", {
+    snapshot,
+    includes: ["source", "target", "fixed"],
+    excludes: ["$from", "connectTo"],
+  });
+  assertProjectionCompletion("source __CURSOR__$from connectTo target cdn", {
+    snapshot,
+    includes: ["$from", "$to", "$this", "cdn", "loadBalancer"],
+    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+  });
+  assertProjectionCompletion("source $from __CURSOR__connectTo target cdn", {
+    snapshot,
+    includes: ["originalLink", "connectTo", "replicateFrom"],
+    excludes: ["source", "target", "fixed", "$to", "->"],
+  });
+  assertProjectionCompletion("source $from connectTo __CURSOR__target cdn", {
+    snapshot,
+    includes: ["source", "target", "fixed"],
+    excludes: ["$from", "connectTo"],
+  });
+  assertProjectionCompletion("source $from connectTo target __CURSOR__cdn", {
+    snapshot,
+    includes: ["$to", "$this", "cdn", "loadBalancer"],
+    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+  });
+  assertProjectionCompletion("fixed cdn in __CURSOR__", {
+    snapshot,
+    includes: ["infra", "latam"],
+    excludes: ["source", "target", "fixed", "$from", "connectTo", "cdn"],
+  });
+  assertProjectionCompletion("source $from connectTo fixed loadBalancer in __CURSOR__", {
+    snapshot,
+    includes: ["infra", "latam"],
+    excludes: ["source", "target", "fixed", "$from", "connectTo", "cdn"],
+  });
+  assertNestedDeploymentProjectionCompletion("source __CURSOR__", {
+    snapshot,
+    includes: ["$from", "$to", "$this", "cdn", "loadBalancer", "cloud", "compute", "network"],
+    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+  });
+  assertCustomRuntimeProjectionCompletion("source __CURSOR__", {
+    snapshot,
+    includes: ["$from", "$to", "$this", "cdn", "loadBalancer", "cloud", "compute", "network"],
+    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+  });
 
   assertProjectionRelationAttributes(`
-define type PublicGateway of InfrastructureComponent
-    required InfrastructureComponent cdn
-    required InfrastructureComponent loadBalancer
-    project:
+context infra
+
+publicGateway gateway
+    projection:
         source $from connectTo target cdn
             __CURSOR__
 `, { snapshot });
   assertProjectionRelationAttributes(`
-define type PublicGateway of InfrastructureComponent
-    required InfrastructureComponent cdn
-    required InfrastructureComponent loadBalancer
-    project:
+context infra
+
+publicGateway gateway
+    projection:
         source $from originalLink target cdn
             __CURSOR__
 `, { snapshot });
   assertProjectionRelationAttributes(`
-define type PublicGateway of InfrastructureComponent
-    required InfrastructureComponent cdn
-    required InfrastructureComponent loadBalancer
-    project:
+context infra
+
+publicGateway gateway
+    projection:
         target cdn replicateFrom target loadBalancer
             __CURSOR__
 `, { snapshot });
+}
+
+function assertProjectionCompletion(line, { snapshot, includes, excludes }) {
+  const labels = itemLabels(completeAtMarker(`
+context infra
+
+publicGateway gateway
+    projection:
+        ${line}
+`, { snapshot, contextIds: ["latam"] }));
+  for (const label of includes) {
+    assert(labels.has(label), `${label} not found in ${[...labels].join(", ")}`);
+  }
+  for (const label of excludes) {
+    assert(!labels.has(label), `${label} should not be present in ${[...labels].join(", ")}`);
+  }
+}
+
+function assertNestedDeploymentProjectionCompletion(line, { snapshot, includes, excludes }) {
+  const labels = itemLabels(completeAtMarker(`
+environment ala
+    name = Almaty
+
+deployment production
+    cloud:
+        name = AWS Outpost
+
+    compute:
+        name = EKS
+
+    network:
+        name = Cluster network
+
+    publicGateway:
+        publicGateway publicGateway
+            cdn:
+                infrastructureComponent cdn
+                    name = CloudFront
+            projection:
+                ${line}
+`, { snapshot }));
+  for (const label of includes) {
+    assert(labels.has(label), `${label} not found in ${[...labels].join(", ")}`);
+  }
+  for (const label of excludes) {
+    assert(!labels.has(label), `${label} should not be present in ${[...labels].join(", ")}`);
+  }
+}
+
+function assertCustomRuntimeProjectionCompletion(line, { snapshot, includes, excludes }) {
+  const labels = itemLabels(completeAtMarker(`
+environment ala
+    name = Almaty
+
+runtime production
+    cloud:
+        name = AWS Outpost
+
+    compute:
+        name = EKS
+
+    network:
+        name = Cluster network
+
+    publicGateway:
+        publicGateway publicGateway
+            cdn:
+                infrastructureComponent cdn
+                    name = CloudFront
+            projection:
+                ${line}
+`, { snapshot, contextIds: ["latam"] }));
+  for (const label of includes) {
+    assert(labels.has(label), `${label} not found in ${[...labels].join(", ")}`);
+  }
+  for (const label of excludes) {
+    assert(!labels.has(label), `${label} should not be present in ${[...labels].join(", ")}`);
+  }
 }
 
 function assertProjectionRelationAttributes(source, options) {
