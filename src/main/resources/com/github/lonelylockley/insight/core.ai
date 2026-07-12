@@ -24,7 +24,7 @@ define presentation Element
 
     graphviz
         shape = box
-        style = filled
+        style = filled,rounded
         width = 2
         height = 1
 
@@ -36,8 +36,8 @@ define presentation Edge
     body = description
 
     light
-        stroke = "#4a4a4a"
-        text = "#4a4a4a"
+        stroke = "#000000"
+        text = "#000000"
 
     dark
         stroke = "#66CCFF"

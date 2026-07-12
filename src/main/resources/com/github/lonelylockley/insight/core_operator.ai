@@ -83,8 +83,8 @@ define presentation Wire
     body = description
 
     light
-        stroke = "#4a4a4a"
-        text = "#4a4a4a"
+        stroke = "#000000"
+        text = "#000000"
 
     dark
         stroke = "#66CCFF"
@@ -101,5 +101,9 @@ define presentation SyncWire
 define presentation AsyncWire
     subtitle = via
 
+    graphviz
+        style = dashed
+
+define presentation ReplicateFrom
     graphviz
         style = dashed

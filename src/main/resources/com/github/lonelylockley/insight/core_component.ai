@@ -14,3 +14,7 @@ define presentation Component
     header = name
     subtitle = technology
     body = responsibility
+
+    graphviz
+        shape = box
+        style = filled,rounded

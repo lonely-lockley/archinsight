@@ -1066,7 +1066,8 @@ container api
   });
 
   assertNoErrors(result);
-  assert.equal(Object.keys(result.presentations).length, 2);
+  assert(result.presentations.Element);
+  assert(result.presentations.Container);
   assert.equal(result.presentations.Container?.basePresentation, "Element");
   assert.equal(result.presentations.Container?.assignments.header, "name");
   assert.equal(result.presentations.Container?.assignments.subtitle, "technology");
@@ -1118,6 +1119,7 @@ function linksBaseFrameworkPresentations() {
   assert.equal(result.presentations.System?.basePresentation, "BoundaryElement");
   assert.equal(result.presentations.ExternalSystem?.basePresentation, "System");
   assert.equal(result.presentations.Wire?.basePresentation, "Edge");
+  assert.equal(result.presentations.ConnectTo?.basePresentation, "SyncWire");
 }
 
 function linksCoreWirePresentationFields() {
@@ -1135,6 +1137,11 @@ function linksCoreWirePresentationFields() {
   assert.equal(result.presentations.AsyncWire?.assignments.header, "technology");
   assert.equal(result.presentations.AsyncWire?.assignments.subtitle, "via");
   assert.equal(result.presentations.AsyncWire?.assignments.body, "description");
+  assert.equal(result.presentations.ConnectTo?.assignments.header, "technology");
+  assert.equal(result.presentations.ConnectTo?.assignments.subtitle, "call");
+  assert.equal(result.presentations.ConnectTo?.assignments.body, "description");
+  assert.equal(result.presentations.ConnectTo?.sections.light?.stroke, "\"#000000\"");
+  assert.equal(result.presentations.ReplicateFrom?.sections.graphviz?.style, "dashed");
 }
 
 function allowsTypedReferenceValuesInSingleSlots() {

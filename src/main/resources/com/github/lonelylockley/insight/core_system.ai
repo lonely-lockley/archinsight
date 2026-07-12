@@ -36,7 +36,7 @@ define presentation System
 
     graphviz
         shape = box
-        style = filled
+        style = filled,rounded
 
 define presentation Actor
     light
@@ -66,7 +66,7 @@ define presentation ExternalSystem
 
     graphviz
         shape = box
-        style = filled
+        style = filled,rounded
 
 define presentation ExternalActor
     light

@@ -19,6 +19,10 @@ const cases = [
   rendersNestedAttributeObjectsAsNestedClusters,
   skipsElementsWithInvisibleGraphvizPresentation,
   rendersSelectedContextAsClusterForWideDefaultQuery,
+  rendersReplicationEdgesAsDashed,
+  rendersStorageWithDatabaseShape,
+  rendersBrokersAsDashedBoxes,
+  rendersSystemsServicesAndComponentsAsRoundedBoxes,
   rendersGroupOwnerClusterWhenOwnerIsNotReturned,
   wrapsLongDisplayTextBlocks,
   rendersLegacyAnnotationsAsGraphvizOverrides,
@@ -133,7 +137,8 @@ RETURN n, r, m
   assert(dot.includes("API note"));
   assert(dot.includes("Edge note"));
   assert(dot.includes("cellborder=\"1\""));
-  assert(dot.includes("fixedsize=\"true\" width=\"120\" height=\"44\""));
+  assert(dot.includes("width=\"120\" height=\"44\""));
+  assert(!dot.includes("fixedsize=\"true\""));
   assert(dot.includes("shape=\"note\""));
   assert(dot.includes("fillcolor=\"#faf6a2\""));
   assert(dot.includes("dir=\"none\""));
@@ -447,6 +452,182 @@ RETURN n, r, m
   assert(dot.includes("API"));
 }
 
+function rendersReplicationEdgesAsDashed() {
+  const result = linkWithCoreDefinitions(
+    source("definitions.ai", `
+define type ReplicatedBroker of InfrastructureComponent
+    constructor replicatedBroker
+
+    project:
+        source $from originalLink source $this
+        target $to connectTo target $this
+        target $this replicateFrom source $this
+
+extend type Environment
+    Compute compute
+    ReplicatedBroker broker
+`),
+    source("infra.ai", `
+context infra
+
+environment env_c
+    name = Environment C
+
+    compute:
+        compute compute_c
+            name = Compute C
+
+    broker:
+        replicatedBroker kafka_c
+            name = Kafka C
+            runsOn compute
+
+environment env_d
+    name = Environment D
+
+    compute:
+        compute compute_d
+            name = Compute D
+
+    broker:
+        replicatedBroker kafka_d
+            name = Kafka D
+            runsOn compute
+`),
+    source("c.ai", `
+context system_c
+
+import env_c from context infra
+import env_d from context infra
+import d from context system_d
+
+system c
+    name = System C
+    deployment:
+        environments:
+            env_c
+
+        runsOn compute
+    links:
+        ~> d
+            technology = Kafka
+            via = c.events
+            deployment:
+                environments:
+                    env_c
+                    env_d
+
+                uses broker
+`),
+    source("d.ai", `
+context system_d
+
+import env_d from context infra
+
+system d
+    name = System D
+    deployment:
+        environments:
+            env_d
+
+        runsOn compute
+`),
+  );
+  const projection = selectGraph(result, { context: "system_c" }, `
+MATCH (n:Element)-[r {projected}]->(m:Element)
+RETURN n, r, m
+`);
+  assertNoErrors(result);
+  const dot = renderGraphviz(result, projection, "light");
+
+  assert(dot.includes("\"infra__kafka_d\" -> \"infra__kafka_c\""));
+  assert(dot.includes("style=\"dashed\""));
+  assert(dot.includes("color=\"#000000\""));
+  assert(!dot.includes("color=\"#4a4a4a\""));
+}
+
+function rendersStorageWithDatabaseShape() {
+  const result = linkWithCoreDefinitions(
+    source("definitions.ai", `
+extend type Environment
+    Storage storage
+`),
+    source("source.ai", `
+context source
+
+environment prod
+    name = Production
+
+    storage:
+        storage db
+            name = Database
+`),
+  );
+  const projection = selectGraph(result, { context: "source" }, "MATCH (n:Storage) WHERE n.context = $context RETURN n");
+  assertNoErrors(result);
+  const dot = renderGraphviz(result, projection, "light");
+
+  assert(dot.includes("Database"));
+  assert(dot.includes("shape=\"cylinder\""));
+}
+
+function rendersBrokersAsDashedBoxes() {
+  const result = linkWithCoreDefinitions(
+    source("definitions.ai", `
+extend type Environment
+    Broker broker
+`),
+    source("source.ai", `
+context source
+
+environment prod
+    name = Production
+
+    broker:
+        broker kafka
+            name = Kafka
+`),
+  );
+  const projection = selectGraph(result, { context: "source" }, "MATCH (n:Broker) WHERE n.context = $context RETURN n");
+  assertNoErrors(result);
+  const dot = renderGraphviz(result, projection, "light");
+
+  assert(dot.includes("Kafka"));
+  assert(dot.includes("shape=\"box\""));
+  assert(dot.includes("style=\"filled,dashed\""));
+  assert(!dot.includes("style=\"filled,rounded\""));
+}
+
+function rendersSystemsServicesAndComponentsAsRoundedBoxes() {
+  const result = linkWithCore(source("source.ai", `
+context source
+
+system app
+    name = App
+
+    service api
+        name = API
+
+        component handler
+            name = Handler
+`));
+  const projection = selectGraph(result, { context: "source" }, "MATCH (n:Element) WHERE n.context = $context RETURN n");
+  const dot = renderGraphviz(result, projection, "light");
+
+  assertNoErrors(result);
+  assert(dot.includes("\"source__app\" ["));
+  assert(dot.includes("shape=\"box\""));
+  assert(!dot.includes("shape=\"component\""));
+  assert(!dot.includes("penwidth=\"1.8\""));
+  assert(dot.includes("<font point-size=\"9px\">{system}</font>"));
+  assert(dot.includes("\"source__api\" ["));
+  assert(dot.includes("style=\"filled,rounded\""));
+  assert(dot.includes("<font point-size=\"9px\">{service}</font>"));
+  assert(dot.includes("\"source__handler\" ["));
+  assert(!dot.includes("style=\"filled,rounded,dashed\""));
+  assert(dot.includes("<font point-size=\"9px\">{component}</font>"));
+}
+
 function rendersGroupOwnerClusterWhenOwnerIsNotReturned() {
   const result = linkWithCore(source("source.ai", `
 context source
@@ -471,15 +652,15 @@ function wrapsLongDisplayTextBlocks() {
   const result = linkWithCore(source("source.ai", `
 context source
 
-system app # Alpha beta gamma delta epsilon zeta
-    name = Alpha beta gamma delta epsilon zeta
-    technology = Alpha beta gamma delta epsilon zeta
-    description = Alpha beta gamma delta epsilon zeta
+system app # Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
+    name = Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
+    technology = Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
+    description = Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
     links:
-        -> target # Alpha beta gamma delta epsilon zeta
-            technology = Alpha beta gamma delta epsilon zeta
-            call = Alpha beta gamma delta epsilon zeta
-            description = Alpha beta gamma delta epsilon zeta
+        -> target # Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
+            technology = Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
+            call = Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
+            description = Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu
 
 system target
     name = Target
@@ -493,8 +674,9 @@ RETURN n, r, m
   const dot = renderGraphviz(result, projection, "light");
 
   assertNoErrors(result);
-  assert(dot.includes("Alpha beta gamma delta epsilon<br/>zeta"));
-  assert.equal(countOccurrences(dot, "Alpha beta gamma delta epsilon<br/>zeta"), 8);
+  assert(dot.includes("Alpha beta gamma delta epsilon zeta eta theta iota<br/>kappa lambda mu"));
+  assert.equal(countOccurrences(dot, "Alpha beta gamma delta epsilon zeta eta theta iota<br/>kappa lambda mu"), 8);
+  assert(dot.includes("<font color=\"#000000\" point-size=\"10px\">Alpha beta gamma delta epsilon zeta eta theta iota<br/>kappa lambda mu</font>"));
 }
 
 function rendersLegacyAnnotationsAsGraphvizOverrides() {
@@ -534,6 +716,17 @@ RETURN n, r, m
 function linkWithCore(...sources) {
   return linkProject({
     snapshot: coreLanguageSnapshot,
+    sources,
+  });
+}
+
+function linkWithCoreDefinitions(definitions, ...sources) {
+  const snapshot = mergeLanguageSnapshots([
+    coreLanguageSnapshot,
+    buildLanguageSnapshotResultFromSources([definitions], [coreLanguageSnapshot]).snapshot,
+  ]);
+  return linkProject({
+    snapshot,
     sources,
   });
 }

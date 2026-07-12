@@ -133,6 +133,8 @@ function writeGroup(
       field(ownerPresentation, "header", ownerElement) ?? fallbackName(ownerElement.id),
       field(ownerPresentation, "subtitle", ownerElement),
       field(ownerPresentation, "body", ownerElement),
+      undefined,
+      ownerElement.constructor,
     )}`);
     lines.push(`${contentIndent}tooltip=${quoted("Go to declaration")}`);
     lines.push(`${contentIndent}URL=${quoted(declarationUrl(ownerElement))}`);
@@ -195,6 +197,8 @@ function writeElement(lines: string[], result: LinkProjectResult, graph: RenderG
     field(resolvedPresentation, "header", element) ?? fallbackName(element.id),
     field(resolvedPresentation, "subtitle", element),
     field(resolvedPresentation, "body", element),
+    undefined,
+    element.constructor,
   ) ?? "";
   writeStatement(lines, nodeId(element.id), properties, indent);
   if (element.note !== undefined) {
@@ -341,17 +345,25 @@ function parseAttributeProperties(value: string): Record<string, string> {
     }));
 }
 
-function htmlLabel(header?: string, subtitle?: string, body?: string, note?: string): string | undefined {
-  if (header === undefined && subtitle === undefined && body === undefined && note === undefined) {
+function htmlLabel(header?: string, subtitle?: string, body?: string, note?: string, typeLabel?: string): string | undefined {
+  if (header === undefined && subtitle === undefined && body === undefined && note === undefined && typeLabel === undefined) {
     return undefined;
   }
   const rows = [
+    typeLabelRow(typeLabel),
     labelRow(header, true),
     labelRow(subtitle, false, "point-size=\"10px\"", "[", "]"),
     labelRow(body, false, "point-size=\"10px\""),
     noteRow(note),
   ].filter((row): row is string => row !== undefined).join("");
   return `<<table border="0">${rows}</table>>`;
+}
+
+function typeLabelRow(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return `<tr><td><font point-size="9px">{${formattedText(value)}}</font></td></tr>`;
 }
 
 function labelRow(value: string | undefined, bold: boolean, fontStyle?: string, open = "", close = ""): string | undefined {
@@ -367,14 +379,14 @@ function noteRow(value: string | undefined): string | undefined {
   if (value === undefined) {
     return undefined;
   }
-  return `<tr><td><table border="0" cellborder="1" cellspacing="0" cellpadding="8" color="#edce07"><tr><td bgcolor="#faf6a2" fixedsize="true" width="120" height="44"><font color="#000000" point-size="10px">${formattedText(value)}</font></td></tr></table></td></tr>`;
+  return `<tr><td><table border="0" cellborder="1" cellspacing="0" cellpadding="8" color="#edce07"><tr><td bgcolor="#faf6a2" width="120" height="44"><font color="#000000" point-size="10px">${formattedText(value)}</font></td></tr></table></td></tr>`;
 }
 
 function wrapTextIfNotFormatted(value: string): string {
   if (value.includes("\n")) {
     return value;
   }
-  const maxLineLength = 32;
+  const maxLineLength = 50;
   const words = value.trim().split(/\s+/).filter((word) => word.length > 0);
   if (words.length === 0) {
     return value;

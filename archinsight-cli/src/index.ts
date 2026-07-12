@@ -871,6 +871,8 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       path: "examples/c4-deployment.ai",
       content: genericC4DeploymentExample(),
     },
+    ...genericC4PrivateGatewayExampleFiles(),
+    ...genericC4ReplicatedKafkaExampleFiles(),
     {
       path: "examples/c2-containers.aiq",
       content: genericC2QueryExample(),
@@ -2604,6 +2606,7 @@ projection rules.
 - Deployment Archetypes
 - Projection Rules
 - Traffic Path Example
+- Complex C4 Examples
 - Compute and Grouping
 - Many-To-Many Deployment
 - What Not To Put In C4
@@ -3040,11 +3043,12 @@ Projection rules live on infrastructure types. They explain how a logical
 
 Core defaults:
 
-- \`Storage\`: \`$from -> $this\`.
-- \`Broker\`: \`$from -> $this\` and \`$to -> $this\`, because both sides
-  physically connect to the broker.
-- \`NetworkConnection\`: \`$from -> $to\`, for an ordinary direct network call
-  that should still appear on the deployment layer.
+- \`Storage\`: \`source $from originalLink target $this\`.
+- \`Broker\`: \`source $from originalLink source $this\` and
+  \`target $to connectTo target $this\`, because both sides physically connect
+  to the broker.
+- \`NetworkConnection\`: \`source $from originalLink target $to\`, for an
+  ordinary direct network call that should still appear on the deployment layer.
 
 Custom infrastructure types can define their own projection rules.
 
@@ -3055,10 +3059,13 @@ define type PublicGateway of InfrastructureComponent
     required InfrastructureComponent loadBalancer
 
     project:
-        $from -> cdn
-        cdn -> loadBalancer
-        loadBalancer -> $this
-        $this -> $to
+        source $from originalLink target cdn
+        target cdn connectTo target loadBalancer
+            technology = HTTPS
+        target loadBalancer connectTo target $this
+            technology = HTTPS
+        target $this connectTo target $to
+            technology = HTTPS
 \`\`\`
 
 When a service says \`uses storage\`, the selected environment's storage instance
@@ -3098,6 +3105,25 @@ Projection terms:
 - \`$this\` is the infrastructure component instance selected by \`uses\`.
 - plain names such as \`cdn\` or \`loadBalancer\` are attributes/slots on
   \`$this\`.
+- Every projection endpoint is placed with \`source\` or \`target\`. Use
+  \`source ...\` for source-side ownership and \`target ...\` for receiver-side
+  ownership. For ingress/private-gateway patterns, intermediate gateway pieces
+  normally use \`target\` so they belong to the target system/environment.
+- \`originalLink\` creates a projected wire that copies standard attributes from
+  the original logical relationship, such as \`technology\`, \`description\`,
+  \`call\`, and \`via\` when they exist.
+- \`connectTo\` creates an additional physical synchronous wire. You can attach
+  normal wire attributes under the projection rule statement:
+
+\`\`\`insight
+project:
+    target cdn connectTo target loadBalancer
+        technology = HTTPS
+        description = Edge forwards request to the load balancer
+\`\`\`
+
+- Other textual relationship operators, such as \`replicateFrom\`, can be used
+  the same way when the project or core operator vocabulary defines them.
 
 ## Traffic Path Example
 
@@ -3110,10 +3136,13 @@ define type PublicGateway of InfrastructureComponent
     required InfrastructureComponent loadBalancer
 
     project:
-        $from -> cdn
-        cdn -> loadBalancer
-        loadBalancer -> $this
-        $this -> $to
+        source $from originalLink target cdn
+        target cdn connectTo target loadBalancer
+            technology = HTTPS
+        target loadBalancer connectTo target $this
+            technology = HTTPS
+        target $this connectTo target $to
+            technology = HTTPS
 \`\`\`
 
 Given this logical relationship:
@@ -3153,6 +3182,30 @@ customer -> cloudfront -> alb -> public_edge -> web_app
 
 The logical edge remains the authoring intent. The projected edges are derived
 from deployment inventory and the \`project:\` rule.
+
+## Complex C4 Examples
+
+The generated skill includes two multi-file C4 scenarios that are closer to
+real project layouts than the compact examples above:
+
+- \`examples/c4-private-gateway/\`: two systems in different source files and
+  different environments. A source-side caller invokes a target service through
+  the target environment's private gateway. Use this when modeling ingress owned
+  by the receiver, not by the caller.
+- \`examples/c4-replicated-kafka/\`: two systems in different contexts and
+  environments exchange async events through environment-local Kafka brokers,
+  with \`replicateFrom\` edges between the brokers. Use this when each side writes
+  to its own regional broker and cross-region movement is broker replication.
+
+Validate them with:
+
+\`\`\`shell
+archinsight link examples/c4-private-gateway --format text
+archinsight render examples/c4-private-gateway -c services -s target-system.ai -v c4 -f svg -o private-gateway.svg
+
+archinsight link examples/c4-replicated-kafka --format text
+archinsight render examples/c4-replicated-kafka -c system_c -s c.ai -v c4 -f svg -o replicated-kafka-c.svg
+\`\`\`
 
 ## Compute and Grouping
 
@@ -3303,10 +3356,13 @@ define type PublicGateway of InfrastructureComponent
     required InfrastructureComponent loadBalancer
 
     project:
-        $from -> cdn
-        cdn -> loadBalancer
-        loadBalancer -> $this
-        $this -> $to
+        source $from originalLink target cdn
+        target cdn connectTo target loadBalancer
+            technology = HTTPS
+        target loadBalancer connectTo target $this
+            technology = HTTPS
+        target $this connectTo target $to
+            technology = HTTPS
 
 extend type Environment
     Compute compute
@@ -4639,18 +4695,21 @@ define type PublicGateway of InfrastructureComponent
     required InfrastructureComponent loadBalancer
 
     project:
-        $from -> cdn
-        cdn -> loadBalancer
-        loadBalancer -> $this
-        $this -> $to
+        source $from originalLink target cdn
+        target cdn connectTo target loadBalancer
+            technology = HTTPS
+        target loadBalancer connectTo target $this
+            technology = HTTPS
+        target $this connectTo target $to
+            technology = HTTPS
 
 define type Monitoring of InfrastructureComponent
     constructor monitoring
     required InfrastructureComponent display
 
     project:
-        $this -> $from
-        $this -> display
+        target $this connectTo source $from
+        target $this connectTo target display
 
 `;
 }
@@ -4835,6 +4894,228 @@ system storefront
                     environmentsFrom regional_service
                     uses broker
 `;
+}
+
+function genericC4PrivateGatewayExampleFiles(): readonly GeneratedFile[] {
+  return [
+    {
+      path: "examples/c4-private-gateway/deployment-framework.ai",
+      content: `define type PrivateGateway of InfrastructureComponent
+    constructor privateGateway
+
+    project:
+        source $from originalLink target $this
+        target $this connectTo target $to
+            technology = HTTPS
+
+extend type Environment
+    Compute compute
+    NetworkConnection network
+    PrivateGateway privateGateway
+`,
+    },
+    {
+      path: "examples/c4-private-gateway/infra.ai",
+      content: `context infra
+
+environment source_env
+    name = Source Environment
+
+    compute:
+        compute source_compute
+            name = Source Compute
+
+    network:
+        networkConnection source_network
+            name = Source Network
+
+environment target_env
+    name = Target Environment
+
+    compute:
+        compute target_compute
+            name = Target Compute
+
+    privateGateway:
+        privateGateway target_gateway
+            name = Target Private Gateway
+            runsOn compute
+
+deploymentProfile source_profile
+    environments:
+        source_env
+
+    runsOn compute
+
+deploymentProfile target_profile
+    environments:
+        target_env
+
+    runsOn compute
+`,
+    },
+    {
+      path: "examples/c4-private-gateway/source-system.ai",
+      content: `context services
+
+import target from context services
+import source_profile from context infra
+import target_profile from context infra
+import payment from context external
+
+system source_system
+    name = Source System
+
+    service caller
+        name = Caller
+        deployment:
+            usesProfile source_profile
+        links:
+            -> target from services
+                technology = HTTPS
+                call = GET /private
+                deployment:
+                    environmentsFrom source_profile
+                    environmentsFrom target_profile
+                    uses privateGateway
+            -> payment from external
+                technology = HTTPS
+                deployment:
+                    environmentsFrom source_profile
+                    uses network
+`,
+    },
+    {
+      path: "examples/c4-private-gateway/target-system.ai",
+      content: `context services
+
+import target_profile from context infra
+
+system target_system
+    name = Target System
+
+    service target
+        name = Target
+        deployment:
+            usesProfile target_profile
+`,
+    },
+    {
+      path: "examples/c4-private-gateway/external.ai",
+      content: `context external
+
+external system payment
+    name = Payment Provider
+`,
+    },
+  ];
+}
+
+function genericC4ReplicatedKafkaExampleFiles(): readonly GeneratedFile[] {
+  return [
+    {
+      path: "examples/c4-replicated-kafka/deployment-framework.ai",
+      content: `define type ReplicatedBroker of InfrastructureComponent
+    constructor replicatedBroker
+
+    project:
+        source $from originalLink source $this
+        target $to connectTo target $this
+        target $this replicateFrom source $this
+
+extend type Environment
+    Compute compute
+    ReplicatedBroker broker
+`,
+    },
+    {
+      path: "examples/c4-replicated-kafka/infra.ai",
+      content: `context infra
+
+environment env_c
+    name = Environment C
+
+    compute:
+        compute compute_c
+            name = Compute C
+
+    broker:
+        replicatedBroker kafka_c
+            name = Kafka C
+            technology = Kafka
+            runsOn compute
+
+environment env_d
+    name = Environment D
+
+    compute:
+        compute compute_d
+            name = Compute D
+
+    broker:
+        replicatedBroker kafka_d
+            name = Kafka D
+            technology = Kafka
+            runsOn compute
+`,
+    },
+    {
+      path: "examples/c4-replicated-kafka/c.ai",
+      content: `context system_c
+
+import env_c from context infra
+import env_d from context infra
+import d from context system_d
+
+system c
+    name = System C
+    deployment:
+        environments:
+            env_c
+
+        runsOn compute
+    links:
+        ~> d
+            technology = Kafka
+            via = c.events
+            description = System D consumes events produced by System C
+            deployment:
+                environments:
+                    env_c
+                    env_d
+
+                uses broker
+`,
+    },
+    {
+      path: "examples/c4-replicated-kafka/d.ai",
+      content: `context system_d
+
+import env_d from context infra
+import env_c from context infra
+import c from context system_c
+
+system d
+    name = System D
+    deployment:
+        environments:
+            env_d
+
+        runsOn compute
+    links:
+        ~> c
+            technology = Kafka
+            via = d.events
+            description = System C consumes events produced by System D
+            deployment:
+                environments:
+                    env_d
+                    env_c
+
+                uses broker
+`,
+    },
+  ];
 }
 
 function genericC2QueryExample(): string {

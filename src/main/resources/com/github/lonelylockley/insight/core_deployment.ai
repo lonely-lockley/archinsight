@@ -14,6 +14,10 @@ define type Storage of InfrastructureComponent
     project:
         source $from originalLink target $this
 
+define presentation Storage
+    graphviz
+        shape = cylinder
+
 define type Broker of InfrastructureComponent
     constructor broker
 
@@ -22,6 +26,11 @@ define type Broker of InfrastructureComponent
     project:
         source $from originalLink source $this
         target $to connectTo target $this
+
+define presentation Broker
+    graphviz
+        shape = box
+        style = filled,dashed
 
 define type Compute of InfrastructureComponent
     constructor compute

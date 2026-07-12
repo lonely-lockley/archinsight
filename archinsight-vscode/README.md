@@ -12,7 +12,7 @@ external actor user
     name = User
     technology = Web browser
     links:
-        -> frontend from example
+        -> frontend
 
 system application
     name = Application

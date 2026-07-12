@@ -2213,6 +2213,9 @@ function buildPresentationIndex(
   for (const name of byName.keys()) {
     resolvePresentation(name, byName, typeSystem, resolved, new Set(), diagnostics);
   }
+  for (const name of typeSystem.declaredTypes()) {
+    resolvePresentation(name, byName, typeSystem, resolved, new Set(), diagnostics);
+  }
   return Object.fromEntries(resolved);
 }
 
@@ -2302,7 +2305,8 @@ function resolvePresentation(
     return existing;
   }
   const declaration = presentations.get(name);
-  if (declaration === undefined) {
+  const baseName = inferPresentationBase(name, presentations, typeSystem);
+  if (declaration === undefined && baseName === undefined) {
     return undefined;
   }
   if (visiting.has(name)) {
@@ -2316,7 +2320,6 @@ function resolvePresentation(
     return undefined;
   }
   visiting.add(name);
-  const baseName = inferPresentationBase(name, presentations, typeSystem);
   const base = baseName === undefined
     ? undefined
     : resolvePresentation(baseName, presentations, typeSystem, resolved, visiting, diagnostics);
@@ -2326,9 +2329,9 @@ function resolvePresentation(
     ...(baseName === undefined ? {} : { basePresentation: baseName }),
     assignments: {
       ...(base?.assignments ?? {}),
-      ...(declaration.assignments ?? {}),
+      ...(declaration?.assignments ?? {}),
     },
-    sections: mergeResolvedPresentationSections(base?.sections ?? {}, declaration.sections ?? {}),
+    sections: mergeResolvedPresentationSections(base?.sections ?? {}, declaration?.sections ?? {}),
   };
   resolved.set(name, item);
   return item;

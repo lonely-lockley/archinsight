@@ -29,7 +29,9 @@ define presentation Container
 
     graphviz
         shape = box
-        style = filled
+        style = filled,rounded
 
 define presentation Service
-    # inherits Container presentation
+    graphviz
+        shape = box
+        style = filled,rounded
