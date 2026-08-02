@@ -43,7 +43,31 @@ The language supports:
 * Graphviz rendering with model metadata for navigation and editor integration
 * Deployment modeling that connects logical relationships to deployment capabilities via projections
 
-Deployment can be modeled together with the logical architecture. Core deployment definitions include common infrastructure inventory types such as `Compute`, `Storage`, `Broker`, and `NetworkConnection`; projects can extend environments with those slots and add their own gateways, routes, load balancers, or service-mesh concepts. Projection rules then connect logical relationships to the physical capabilities that realize them.
+Deployment can be modeled together with the logical architecture. Core deployment definitions include common infrastructure inventory types such as `Compute`, `Storage`, `Broker`, and `NetworkConnection`; projects can extend environments with those slots and add their own gateways, routes, load balancers, or service-mesh concepts. A context-owned `DeploymentProfile` maps logical elements to concrete `Deployment` objects through `appliesTo`, while wire deployment accepts only `NetworkConnection` infrastructure. Projection rules then connect logical relationships to the physical capabilities that realize them.
+
+```insight
+context example
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses observability
+
+system application
+    service backend
+        deployment:
+            uses production_service
+        links:
+            -> payment_provider
+                deployment:
+                    uses egress
+
+external system payment_provider
+```
+
+Profiles attached to the same element may target the same environment but not the same concrete deployment: `test from eu` and `production from eu` are independent, while applying two profiles to `production from eu` is an error. A wire resolves its network slot only in deployments selected by its endpoints; deployments that do not provide that slot are skipped.
 
 The current codebase is a TypeScript workspace built around a shared headless language core. The web editor, CLI, and VSCode extension all use the same `@insight/language` package for parsing, linking, diagnostics, completions, queries, and Graphviz output.
 

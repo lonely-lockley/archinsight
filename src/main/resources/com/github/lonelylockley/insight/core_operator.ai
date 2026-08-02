@@ -3,6 +3,24 @@ define operator Wire of Edge
     Text description
     required Text model
 
+    List of Edge deployment
+    List of NetworkConnection uses
+
+define operator DeploymentProfileUse of Edge
+    constructor uses DeploymentProfile
+        on Element
+
+define operator InfrastructureUse of Edge
+    constructor uses InfrastructureComponent
+        on DeploymentProfile or Element
+
+    constructor uses NetworkConnection
+        on Wire
+
+define operator InfrastructurePlacement of Edge
+    constructor runsOn InfrastructureComponent
+        on DeploymentProfile or Element
+
 define operator SyncWire of Wire
     constructor -> Element
         on Element
@@ -62,10 +80,6 @@ define operator SourceProjectionTerm of TypeSlotReference
 
 define operator TargetProjectionTerm of TypeSlotReference
     constructor target Environment or InfrastructureComponent
-        on ProjectionTerm
-
-define operator FixedProjectionTerm of TypeSlotReference
-    constructor fixed Environment or InfrastructureComponent
         on ProjectionTerm
 
 define operator ExternalSystem of System

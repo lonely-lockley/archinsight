@@ -1,4 +1,9 @@
-define type DeploymentElement of Element
+define type DeploymentElement of BoundaryElement
+
+extend type Element
+    List of Edge deployment
+    InfrastructureComponent runsOn
+    List of InfrastructureComponent uses
 
 define type InfrastructureComponent of DeploymentElement
     constructor infrastructureComponent
@@ -11,6 +16,11 @@ define type InfrastructureComponent of DeploymentElement
     List of InfrastructureComponent _
 
 define type ProjectionTerm
+
+define type DeploymentProfile of BoundaryElement
+    constructor deploymentProfile
+
+    required List of Deployment appliesTo
 
 define type Storage of InfrastructureComponent
     constructor storage
@@ -50,6 +60,10 @@ define type Deployment of DeploymentElement
 
     Text name
     List of DeploymentElement _
+
+define presentation DeploymentProfile
+    graphviz
+        visible = false
 
 define presentation NetworkConnection
     graphviz

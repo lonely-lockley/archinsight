@@ -34,6 +34,7 @@ const cases = [
   parsesPresentationExtensions,
   parsesFinalAnonymousListAttribute,
   parsesConcreteProjectionBlock,
+  rejectsFixedProjectionTerm,
   rejectsAnonymousAttributeWithNonListType,
   rejectsNamedAttributeAfterAnonymousListAttribute,
   rejectsMultipleAnonymousListAttributes,
@@ -364,6 +365,16 @@ infrastructureComponent gateway
 
     projection:
         source $from originalLink target $this
+        source gateway connectTo target $to
+`);
+}
+
+function rejectsFixedProjectionTerm() {
+  assertRejects(`
+context test
+
+infrastructureComponent gateway
+    projection:
         source gateway connectTo fixed tgw in latam
 `);
 }

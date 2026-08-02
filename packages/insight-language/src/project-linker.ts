@@ -32,6 +32,16 @@ import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
 
 const ELEMENT_TYPE = "Element";
 const ORIGINAL_LINK_OPERATOR = "originalLink";
+const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
+const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
+const NETWORK_CONNECTION_TYPE = "NetworkConnection";
+const DEPLOYMENT_TYPE = "Deployment";
+const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
+const APPLIES_TO_ATTRIBUTE = "appliesTo";
+const RUNS_ON_OPERATOR = "runsOn";
+const USES_OPERATOR = "uses";
+const RUNS_ON_ATTRIBUTE = "runsOn";
+const USES_ATTRIBUTE = "uses";
 
 interface ParsedDocument {
   readonly sourceName: string;
@@ -74,6 +84,7 @@ interface ParsedElement {
   readonly id: string;
   readonly context: string;
   readonly localId: string;
+  slotName?: string;
   readonly type: string;
   readonly constructor: string;
   readonly sourceName: string;
@@ -88,6 +99,7 @@ interface ParsedElement {
   readonly scalarAttributes: Record<string, string>;
   readonly scalarAttributePositions: Record<string, SourcePosition>;
   readonly assignedScalarAttributes: Set<string>;
+  readonly deploymentActions: ParsedDeploymentAction[];
   readonly note?: string;
   readonly noteSource?: SourceLocation;
   readonly annotations: readonly LinkedAnnotation[];
@@ -117,6 +129,7 @@ interface ParsedEdge {
   readonly scalarAttributes: Record<string, string>;
   readonly scalarAttributePositions: Record<string, SourcePosition>;
   readonly assignedScalarAttributes: Set<string>;
+  readonly deploymentActions: ParsedDeploymentAction[];
   readonly note?: string;
   readonly noteSource?: SourceLocation;
   readonly annotations: readonly LinkedAnnotation[];
@@ -127,6 +140,29 @@ interface ParsedEdge {
 interface ParsedAttributeValue {
   readonly targetId: string;
   readonly targetContext?: string;
+  readonly line: number;
+  readonly column: number;
+  readonly endLine?: number;
+  readonly endColumn?: number;
+}
+
+interface ParsedDeploymentAction {
+  readonly sourceName: string;
+  readonly ownerId: string;
+  readonly ownerType: string;
+  readonly operator: string;
+  readonly targetId: string;
+  readonly targetContext?: string;
+  readonly targetLine: number;
+  readonly targetColumn: number;
+  readonly targetEndLine?: number;
+  readonly targetEndColumn?: number;
+  readonly attributes: Record<string, ParsedAttributeValue[]>;
+  readonly referenceAttributePositions: Record<string, SourcePosition>;
+  readonly scalarAttributes: Record<string, string>;
+  readonly scalarAttributePositions: Record<string, SourcePosition>;
+  readonly assignedScalarAttributes: Set<string>;
+  readonly inherited?: boolean;
   readonly line: number;
   readonly column: number;
   readonly endLine?: number;
@@ -210,6 +246,39 @@ interface PendingProjection {
   readonly annotations?: readonly LinkedAnnotation[];
 }
 
+interface DeploymentExpansionContext {
+  readonly sourceElementsBySourceAndLocalId: ReadonlyMap<string, ParsedElement>;
+  readonly elementsByContextAndLocalId: ReadonlyMap<string, readonly ParsedElement[]>;
+  readonly importsBySourceAndAlias: ReadonlyMap<string, ResolvedImport>;
+  readonly linkedElementsById: Map<string, ParsedElement>;
+  readonly resolvedElementAttributes: Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>;
+  readonly effectiveDeploymentsByElementId: Map<string, readonly ParsedElement[]>;
+  readonly typeSystem: TypeSystem;
+  readonly diagnostics: LanguageDiagnostic[];
+  readonly elements: ParsedElement[];
+  nextCloneId(owner: ParsedElement, source: ParsedElement): string;
+}
+
+interface DeploymentUse {
+  readonly element: ParsedElement;
+  readonly deploymentId?: string;
+  readonly action: ParsedDeploymentAction;
+  readonly inherited: boolean;
+}
+
+interface DeploymentApplication {
+  readonly deployments: readonly ParsedElement[];
+  readonly runsOn: readonly DeploymentUse[];
+  readonly uses: readonly DeploymentUse[];
+}
+
+interface DeploymentApplicationState {
+  deployments: ParsedElement[];
+  readonly profileByDeploymentId: Map<string, ParsedElement>;
+  readonly runsOn: DeploymentUse[];
+  readonly usesByFamily: Map<string, DeploymentUse>;
+}
+
 interface EdgeMaterializationInput {
   readonly edge: ParsedEdge;
   readonly operator: OperatorDefinition;
@@ -278,6 +347,48 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       resolveAttributes(element, element.type, element.attributes, element.referenceAttributePositions, element.scalarAttributes, element.scalarAttributePositions, element.context, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, typeSystem, diagnostics),
     );
   }
+  let deploymentCloneCounter = 0;
+  const deploymentContext: DeploymentExpansionContext = {
+    sourceElementsBySourceAndLocalId,
+    elementsByContextAndLocalId,
+    importsBySourceAndAlias,
+    linkedElementsById,
+    resolvedElementAttributes,
+    effectiveDeploymentsByElementId: new Map<string, readonly ParsedElement[]>(),
+    typeSystem,
+    diagnostics,
+    elements,
+    nextCloneId(owner, source) {
+      deploymentCloneCounter += 1;
+      return `${owner.context}/_deployment_${sanitizeLocalId(owner.localId)}_${sanitizeLocalId(source.localId)}_${deploymentCloneCounter}`;
+    },
+  };
+  for (const element of elements) {
+    if (typeSystem.isAssignable(element.type, DEPLOYMENT_PROFILE_TYPE)) {
+      continue;
+    }
+    const application = element.deploymentActions.length === 0
+      ? { deployments: [], runsOn: [], uses: [] }
+      : resolveDeploymentApplication(element, element.deploymentActions, false, deploymentContext);
+    const inheritedDeployments = element.parent === undefined
+      ? []
+      : deploymentContext.effectiveDeploymentsByElementId.get(element.parent) ?? [];
+    const effectiveDeployments = application.deployments.length > 0
+      ? application.deployments
+      : inheritedDeployments;
+    deploymentContext.effectiveDeploymentsByElementId.set(element.id, effectiveDeployments);
+    if (element.deploymentActions.length === 0 && effectiveDeployments.length === 0) {
+      continue;
+    }
+    resolvedElementAttributes.set(
+      element.id,
+      mergeResolvedReferenceAttributes(resolvedElementAttributes.get(element.id) ?? {}, {
+        [APPLIES_TO_ATTRIBUTE]: effectiveDeployments.map((deployment) => resolvedValueForElement(deployment, deployment)),
+        [RUNS_ON_ATTRIBUTE]: application.runsOn.map((item) => resolvedValueForElement(item.element, item.action)),
+        [USES_ATTRIBUTE]: application.uses.map((item) => resolvedValueForElement(item.element, item.action)),
+      }),
+    );
+  }
 
   for (const document of documents) {
     for (const edge of document.edges) {
@@ -301,13 +412,17 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       const edgeType = operator?.ownerType ?? edge.operator;
       const edgeScalarAttributes = { ...(operator?.defaults ?? {}), ...edge.scalarAttributes };
       const edgeAttributes = resolveAttributes(edge, edgeType, edge.attributes, edge.referenceAttributePositions, edgeScalarAttributes, edge.scalarAttributePositions, document.context.id, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, typeSystem, diagnostics);
+      const deploymentAttributes = edge.deploymentActions.length === 0
+        ? {}
+        : deploymentAttributesForWire(edge, target, deploymentContext);
+      const effectiveEdgeAttributes = mergeResolvedReferenceAttributes(edgeAttributes, deploymentAttributes);
       const materialized = implementationFor(operator, typeSystem).materializeEdge({
         edge,
         operator,
         target,
         edgeType,
         edgeScalarAttributes,
-        edgeAttributes,
+        edgeAttributes: effectiveEdgeAttributes,
         typeSystem,
       });
       diagnostics.push(...(materialized.diagnostics ?? []));
@@ -317,7 +432,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
           sourceIdentity: edge.sourceName,
           fromId: edge.source,
           toId: target.id,
-          attributes: edgeAttributes,
+          attributes: effectiveEdgeAttributes,
           projectedAttributes: materialized.edge.attributes,
           projectedOperator: materialized.edge.operator,
           ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
@@ -511,6 +626,7 @@ function collectEnvironmentDeclaration(
     scalarAttributes: { ...(constructor.defaults ?? {}) },
     scalarAttributePositions: {},
     assignedScalarAttributes: new Set(),
+    deploymentActions: [],
     annotations: [],
     ...noteProperty(declaration, document.sourceName),
     ...position(declaration, document.sourceName),
@@ -693,6 +809,13 @@ function collectBodyItem(
   const annotatedObject = firstChild(item, "annotatedObjectDeclaration");
   if (annotatedObject !== undefined) {
     const object = firstChild(annotatedObject, "objectDeclaration");
+    if (object !== undefined && owner !== undefined && typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+      const action = buildDeploymentActionFromObject(object, owner, owner.type, document, typeSystem);
+      if (action !== undefined) {
+        owner.deploymentActions.push(action);
+        return;
+      }
+    }
     if (object !== undefined) {
       const element = collectObject(object, ownerType, owner, document, typeSystem, annotations(annotatedObject, document));
       if (owner !== undefined && element !== undefined && typeSystem.anonymousListAttribute(ownerType) !== undefined) {
@@ -704,6 +827,11 @@ function collectBodyItem(
 
   const annotatedOperator = firstChild(item, "annotatedOperatorInvocation");
   if (annotatedOperator !== undefined && owner !== undefined) {
+    const invocation = firstChild(annotatedOperator, "operatorInvocation");
+    if (invocation !== undefined && typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+      collectDeploymentAction(invocation, owner, owner.type, document, typeSystem);
+      return;
+    }
     document.diagnostics.push({
       code: "TYPE_MISMATCH",
       message: "Operator invocation expects an Edge list",
@@ -752,6 +880,10 @@ function collectNamedList(
 ): void {
   const listNameNode = firstChild(list, "listName");
   const listName = listNameNode?.getText() ?? "";
+  if (listName === DEPLOYMENT_LIST_ATTRIBUTE && owner !== undefined) {
+    collectDeploymentList(list, owner, owner.type, document, typeSystem);
+    return;
+  }
   if (collectImplicitObjectAttribute(list, listName, listNameNode, ownerType, owner, document, typeSystem)) {
     return;
   }
@@ -854,7 +986,13 @@ function collectGroupingList(
   for (const item of children(list, "listBodyItem")) {
     const bodyItem = firstChild(item, "architectureBodyItem");
     if (bodyItem !== undefined) {
+      const before = document.elements.length;
       collectBodyItem(bodyItem, ownerType, owner, document, typeSystem);
+      for (const element of document.elements.slice(before)) {
+        if (element.parent === owner.id && element.slotName === undefined) {
+          element.slotName = listName;
+        }
+      }
     }
   }
   return true;
@@ -875,7 +1013,7 @@ function collectImplicitDeploymentGroupObject(
   if (constructor === undefined) {
     return document.diagnostics.length > diagnosticCount;
   }
-  const element = collectImplicitObjectElement(list, firstChild(list, "listName"), constructor, owner, document);
+  const element = collectImplicitObjectElement(list, firstChild(list, "listName"), constructor, owner, document, listName);
   addAttributeValue(owner.attributes, "_", elementReference(element));
   collectNamedListBodyItemsAsObjectBody(list, constructor.ownerType, element, document, typeSystem);
   return true;
@@ -952,7 +1090,7 @@ function collectImplicitObjectAttribute(
     return true;
   }
 
-  const element = collectImplicitObjectElement(list, attributeNameNode, constructor, owner, document);
+  const element = collectImplicitObjectElement(list, attributeNameNode, constructor, owner, document, attributeName);
   addAttributeValue(owner.attributes, attributeName, elementReference(element));
   collectNamedListBodyItemsAsObjectBody(list, constructor.ownerType, element, document, typeSystem);
   return true;
@@ -993,12 +1131,14 @@ function collectImplicitObjectElement(
   constructor: ConstructorDefinition,
   parent: ParsedElement,
   document: MutableParsedDocument,
+  slotName?: string,
 ): ParsedElement {
   const localId = nextAnonymousLocalId(document);
   const element: ParsedElement = {
     id: `${document.context.id}/${localId}`,
     context: document.context.id,
     localId,
+    ...(slotName === undefined ? {} : { slotName }),
     type: constructor.ownerType,
     constructor: constructor.spelling,
     sourceName: document.sourceName,
@@ -1010,6 +1150,7 @@ function collectImplicitObjectElement(
     scalarAttributes: { ...(constructor.defaults ?? {}) },
     scalarAttributePositions: {},
     assignedScalarAttributes: new Set(),
+    deploymentActions: [],
     annotations: [],
     ...position(list, document.sourceName),
     ...prefixedPosition("id", attributeNameNode, document.sourceName),
@@ -1164,6 +1305,7 @@ function collectObject(
     scalarAttributes: { ...(typeConstructor?.defaults ?? {}), ...(prefixOperator?.defaults ?? {}) },
     scalarAttributePositions: {},
     assignedScalarAttributes: new Set(),
+    deploymentActions: [],
     annotations,
     ...noteProperty(object, document.sourceName),
     ...position(object, document.sourceName),
@@ -1239,6 +1381,7 @@ function collectSlotOperatorObject(
       attributeType: position(identifierDeclaration, document.sourceName),
     },
     assignedScalarAttributes: new Set(),
+    deploymentActions: [],
     annotations,
     ...noteProperty(object, document.sourceName),
     ...position(object, document.sourceName),
@@ -1280,10 +1423,11 @@ function collectOperatorInvocation(
   const scalarAttributes: Record<string, string> = {};
   const scalarAttributePositions: Record<string, SourcePosition> = {};
   const assignedScalarAttributes = new Set<string>();
+  const deploymentActions: ParsedDeploymentAction[] = [];
   const body = firstChild(invocation, "objectBody");
   const edgeOperator = firstChild(invocation, "operatorIdentifier")?.getText() ?? "";
   if (body !== undefined) {
-    collectReferenceAttributes(body, owner, edgeOperator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, document, typeSystem);
+    collectReferenceAttributes(body, owner, edgeOperator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, deploymentActions, document, typeSystem);
   }
   document.edges.push({
     sourceName: document.sourceName,
@@ -1301,16 +1445,158 @@ function collectOperatorInvocation(
     scalarAttributes,
     scalarAttributePositions,
     assignedScalarAttributes,
+    deploymentActions,
     annotations,
     ...noteProperty(invocation, document.sourceName),
     ...position(invocation, document.sourceName),
   });
 }
 
-function collectReferenceAttributes(
+function collectDeploymentList(
+  list: RuleNode,
+  owner: ParsedElement,
+  ownerType: string,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): void {
+  for (const item of children(list, "listBodyItem")) {
+    const value = firstChild(item, "listValue");
+    if (value !== undefined) {
+      document.diagnostics.push({
+        code: "TYPE_MISMATCH",
+        message: "Deployment list expects operator invocations such as 'uses <profile-or-infra>' or 'runsOn <infra>'",
+        sourceName: document.sourceName,
+        ...position(value, document.sourceName),
+      });
+      continue;
+    }
+    const bodyItem = firstChild(item, "architectureBodyItem");
+    const annotatedOperator = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedOperatorInvocation");
+    const invocation = annotatedOperator === undefined ? undefined : firstChild(annotatedOperator, "operatorInvocation");
+    if (invocation !== undefined) {
+      collectDeploymentAction(invocation, owner, ownerType, document, typeSystem);
+      continue;
+    }
+    const annotatedObject = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedObjectDeclaration");
+    const object = annotatedObject === undefined ? undefined : firstChild(annotatedObject, "objectDeclaration");
+    const action = object === undefined ? undefined : buildDeploymentActionFromObject(object, owner, ownerType, document, typeSystem);
+    if (action !== undefined) {
+      owner.deploymentActions.push(action);
+      continue;
+    }
+    if (bodyItem !== undefined && firstChild(bodyItem, "trivia") === undefined) {
+      document.diagnostics.push({
+        code: "TYPE_MISMATCH",
+        message: "Deployment list expects operator invocations",
+        sourceName: document.sourceName,
+        ...position(bodyItem, document.sourceName),
+      });
+    }
+  }
+}
+
+function collectDeploymentAction(
+  invocation: RuleNode,
+  owner: ParsedElement,
+  ownerType: string,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): void {
+  owner.deploymentActions.push(buildDeploymentAction(invocation, owner, ownerType, document, typeSystem));
+}
+
+function buildDeploymentAction(
+  invocation: RuleNode,
+  owner: ParsedElement,
+  ownerType: string,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): ParsedDeploymentAction {
+  const targetReference = firstChild(invocation, "identifierReference");
+  const targetPosition = position(targetReference, document.sourceName);
+  const anonymousImport = firstChild(invocation, "anonymousImportDeclaration");
+  const attributes: Record<string, ParsedAttributeValue[]> = {};
+  const referenceAttributePositions: Record<string, SourcePosition> = {};
+  const scalarAttributes: Record<string, string> = {};
+  const scalarAttributePositions: Record<string, SourcePosition> = {};
+  const assignedScalarAttributes = new Set<string>();
+  const body = firstChild(invocation, "objectBody");
+  const operator = firstChild(invocation, "operatorIdentifier")?.getText() ?? "";
+  if (body !== undefined) {
+    collectDeploymentActionAttributes(body, owner, operator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, document, typeSystem);
+  }
+  return {
+    sourceName: document.sourceName,
+    ownerId: owner.id,
+    ownerType,
+    operator,
+    targetId: targetReference?.getText() ?? "",
+    ...(anonymousImport === undefined ? {} : { targetContext: firstChild(anonymousImport, "contextReference")?.getText() ?? "" }),
+    targetLine: targetPosition.line,
+    targetColumn: targetPosition.column,
+    ...(targetPosition.endLine === undefined ? {} : { targetEndLine: targetPosition.endLine }),
+    ...(targetPosition.endColumn === undefined ? {} : { targetEndColumn: targetPosition.endColumn }),
+    attributes,
+    referenceAttributePositions,
+    scalarAttributes,
+    scalarAttributePositions,
+    assignedScalarAttributes,
+    ...position(invocation, document.sourceName),
+  };
+}
+
+function buildDeploymentActionFromObject(
+  object: RuleNode,
+  owner: ParsedElement,
+  ownerType: string,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): ParsedDeploymentAction | undefined {
+  const prefixOperatorNode = firstChild(object, "namedPrefixOperatorInvocation");
+  const prefixedOperator = prefixOperatorNode?.getText();
+  const operatorNode = prefixedOperator === undefined
+    ? firstChild(object, "elementConstructor")
+    : prefixOperatorNode;
+  const operator = operatorNode?.getText() ?? "";
+  if (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR) {
+    return undefined;
+  }
+  const targetReference = prefixedOperator === undefined
+    ? firstChild(object, "identifierDeclaration")
+    : firstChild(object, "elementConstructor");
+  const targetPosition = position(targetReference, document.sourceName);
+  const attributes: Record<string, ParsedAttributeValue[]> = {};
+  const referenceAttributePositions: Record<string, SourcePosition> = {};
+  const scalarAttributes: Record<string, string> = {};
+  const scalarAttributePositions: Record<string, SourcePosition> = {};
+  const assignedScalarAttributes = new Set<string>();
+  const body = firstChild(object, "objectBody");
+  if (body !== undefined) {
+    collectDeploymentActionAttributes(body, owner, operator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, document, typeSystem);
+  }
+  return {
+    sourceName: document.sourceName,
+    ownerId: owner.id,
+    ownerType,
+    operator,
+    targetId: targetReference?.getText() ?? "",
+    targetLine: targetPosition.line,
+    targetColumn: targetPosition.column,
+    ...(targetPosition.endLine === undefined ? {} : { targetEndLine: targetPosition.endLine }),
+    ...(targetPosition.endColumn === undefined ? {} : { targetEndColumn: targetPosition.endColumn }),
+    attributes,
+    referenceAttributePositions,
+    scalarAttributes,
+    scalarAttributePositions,
+    assignedScalarAttributes,
+    ...position(object, document.sourceName),
+  };
+}
+
+function collectDeploymentActionAttributes(
   body: RuleNode,
   owner: ParsedElement,
-  edgeOperator: string,
+  operator: string,
   attributes: Record<string, ParsedAttributeValue[]>,
   referenceAttributePositions: Record<string, SourcePosition>,
   scalarAttributes: Record<string, string>,
@@ -1331,6 +1617,72 @@ function collectReferenceAttributes(
     }
     const listNameNode = firstChild(list, "listName");
     const listName = listNameNode?.getText() ?? "";
+    if (collectImplicitReferenceObjectAttribute(list, listName, listNameNode, owner, operator, attributes, referenceAttributePositions, document, typeSystem)) {
+      continue;
+    }
+    referenceAttributePositions[listName] = position(listNameNode, document.sourceName);
+    for (const listItem of children(list, "listBodyItem")) {
+      const value = firstChild(listItem, "listValue");
+      if (value !== undefined) {
+        addAttributeValue(attributes, listName, referenceValue(value, document.sourceName));
+      }
+    }
+  }
+}
+
+function collectReferenceAttributes(
+  body: RuleNode,
+  owner: ParsedElement,
+  edgeOperator: string,
+  attributes: Record<string, ParsedAttributeValue[]>,
+  referenceAttributePositions: Record<string, SourcePosition>,
+  scalarAttributes: Record<string, string>,
+  scalarAttributePositions: Record<string, SourcePosition>,
+  assignedScalarAttributes: Set<string>,
+  deploymentActions: ParsedDeploymentAction[],
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): void {
+  for (const item of children(body, "architectureBodyItem")) {
+    const assignment = firstChild(item, "assignment");
+    if (assignment !== undefined) {
+      assignScalarAttribute({ scalarAttributes, scalarAttributePositions, assignedScalarAttributes }, assignment, document.sourceName, document.diagnostics);
+      continue;
+    }
+    const list = firstChild(item, "namedList");
+    if (list === undefined) {
+      continue;
+    }
+    const listNameNode = firstChild(list, "listName");
+    const listName = listNameNode?.getText() ?? "";
+    if (listName === DEPLOYMENT_LIST_ATTRIBUTE) {
+      for (const listItem of children(list, "listBodyItem")) {
+        const bodyItem = firstChild(listItem, "architectureBodyItem");
+        const annotatedOperator = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedOperatorInvocation");
+        const invocation = annotatedOperator === undefined ? undefined : firstChild(annotatedOperator, "operatorInvocation");
+        if (invocation !== undefined) {
+          deploymentActions.push(buildDeploymentAction(invocation, owner, "Wire", document, typeSystem));
+          continue;
+        }
+        const annotatedObject = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedObjectDeclaration");
+        const object = annotatedObject === undefined ? undefined : firstChild(annotatedObject, "objectDeclaration");
+        const action = object === undefined ? undefined : buildDeploymentActionFromObject(object, owner, "Wire", document, typeSystem);
+        if (action !== undefined) {
+          deploymentActions.push(action);
+          continue;
+        }
+        const value = firstChild(listItem, "listValue");
+        if (value !== undefined) {
+          document.diagnostics.push({
+            code: "TYPE_MISMATCH",
+            message: "Wire deployment list expects operator invocations",
+            sourceName: document.sourceName,
+            ...position(value, document.sourceName),
+          });
+        }
+      }
+      continue;
+    }
     if (collectImplicitReferenceObjectAttribute(list, listName, listNameNode, owner, edgeOperator, attributes, referenceAttributePositions, document, typeSystem)) {
       continue;
     }
@@ -1676,23 +2028,26 @@ function resolveAttributes(
   importsBySourceAndAlias: ReadonlyMap<string, ResolvedImport>,
   typeSystem: TypeSystem,
   diagnostics: LanguageDiagnostic[],
+  checkRequired = true,
 ): Readonly<Record<string, readonly ResolvedReferenceValue[]>> {
   const result: Record<string, ResolvedReferenceValue[]> = {};
-  for (const attribute of typeSystem.attributes(ownerType).values()) {
-    if (attribute.required === true
+  if (checkRequired) {
+    for (const attribute of typeSystem.attributes(ownerType).values()) {
+      if (attribute.required === true
       && scalarAttributes[attribute.name] === undefined
       && attributes[attribute.name] === undefined) {
-      diagnostics.push({
-        code: "REQUIRED_ATTRIBUTE_MISSING",
-        message: `Required attribute '${attribute.name}' is missing on type '${ownerType}'`,
-        sourceName: owner.sourceName,
-        ...diagnosticPosition({
-          line: owner.line ?? 1,
-          column: owner.column ?? 1,
-          ...(owner.endLine === undefined ? {} : { endLine: owner.endLine }),
-          ...(owner.endColumn === undefined ? {} : { endColumn: owner.endColumn }),
-        }),
-      });
+        diagnostics.push({
+          code: "REQUIRED_ATTRIBUTE_MISSING",
+          message: `Required attribute '${attribute.name}' is missing on type '${ownerType}'`,
+          sourceName: owner.sourceName,
+          ...diagnosticPosition({
+            line: owner.line ?? 1,
+            column: owner.column ?? 1,
+            ...(owner.endLine === undefined ? {} : { endLine: owner.endLine }),
+            ...(owner.endColumn === undefined ? {} : { endColumn: owner.endColumn }),
+          }),
+        });
+      }
     }
   }
   for (const name of Object.keys(scalarAttributes)) {
@@ -1809,6 +2164,7 @@ function resolveReferenceValue(
     scalarAttributes: {},
     scalarAttributePositions: {},
     assignedScalarAttributes: new Set(),
+    deploymentActions: [],
     annotations: [],
     line: value.line,
     column: value.column,
@@ -1826,6 +2182,459 @@ function flattenAttributes(
     ...Object.fromEntries(Object.entries(scalarAttributes).map(([name, value]) => [name, [value]])),
     ...Object.fromEntries(Object.entries(attributes).map(([name, values]) => [name, values.map((value) => value.id)])),
   };
+}
+
+function deploymentAttributesForWire(
+  edge: ParsedEdge,
+  target: ParsedElement,
+  context: DeploymentExpansionContext,
+): Readonly<Record<string, readonly ResolvedReferenceValue[]>> {
+  const source = context.linkedElementsById.get(edge.source);
+  if (source === undefined) {
+    return {};
+  }
+  const deployments = mergeUniqueElements(
+    context.effectiveDeploymentsByElementId.get(source.id) ?? [],
+    context.effectiveDeploymentsByElementId.get(target.id) ?? [],
+  );
+  const application = resolveDeploymentApplication(source, edge.deploymentActions, true, context, deployments);
+  return {
+    [USES_ATTRIBUTE]: application.uses.map((item) => resolvedValueForElement(item.element, item.action)),
+  };
+}
+
+function resolveDeploymentApplication(
+  owner: ParsedElement,
+  actions: readonly ParsedDeploymentAction[],
+  wire: boolean,
+  context: DeploymentExpansionContext,
+  initialDeployments: readonly ParsedElement[] = [],
+): DeploymentApplication {
+  const state = {
+    deployments: [...initialDeployments],
+    profileByDeploymentId: new Map<string, ParsedElement>(),
+    runsOn: [] as DeploymentUse[],
+    usesByFamily: new Map<string, DeploymentUse>(),
+  };
+  for (const action of actions) {
+    applyDeploymentAction(owner, action, false, wire, state, context);
+  }
+  return {
+    deployments: state.deployments,
+    runsOn: state.runsOn,
+    uses: [...state.usesByFamily.values()],
+  };
+}
+
+function applyDeploymentAction(
+  owner: ParsedElement,
+  action: ParsedDeploymentAction,
+  inherited: boolean,
+  wire: boolean,
+  state: DeploymentApplicationState,
+  context: DeploymentExpansionContext,
+  resolutionDeployments: readonly ParsedElement[] = state.deployments,
+): void {
+  const target = lookupElementReference(
+    action.targetId,
+    action.targetContext,
+    action.sourceName,
+    owner.context,
+    context.sourceElementsBySourceAndLocalId,
+    context.elementsByContextAndLocalId,
+    context.importsBySourceAndAlias,
+  );
+  if (action.operator === USES_OPERATOR && target !== undefined && context.typeSystem.isAssignable(target.type, DEPLOYMENT_PROFILE_TYPE)) {
+    if (wire) {
+      context.diagnostics.push({
+        code: "TYPE_MISMATCH",
+        message: `Wire deployment cannot use '${DEPLOYMENT_PROFILE_TYPE}'; use '${NETWORK_CONNECTION_TYPE}' infrastructure`,
+        sourceName: action.sourceName,
+        ...diagnosticPosition(action),
+      });
+      return;
+    }
+    applyDeploymentProfile(owner, action, target, wire, state, context);
+    return;
+  }
+  if (action.operator !== USES_OPERATOR && action.operator !== RUNS_ON_OPERATOR) {
+    context.diagnostics.push({
+      code: "TYPE_MISMATCH",
+      message: `Deployment operator '${action.operator}' is not supported; use 'uses' or 'runsOn'`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return;
+  }
+  if (wire && action.operator === RUNS_ON_OPERATOR) {
+    if (!inherited) {
+      context.diagnostics.push({
+        code: "TYPE_MISMATCH",
+        message: "Wire deployment does not support 'runsOn'; use NetworkConnection infrastructure with 'uses'",
+        sourceName: action.sourceName,
+        ...diagnosticPosition(action),
+      });
+    }
+    return;
+  }
+  const selected = resolveDeploymentInfrastructure(owner, action, target, resolutionDeployments, inherited, wire, context);
+  for (const item of selected) {
+    if (wire && !context.typeSystem.isAssignable(item.element.type, NETWORK_CONNECTION_TYPE)) {
+      if (!inherited) {
+        context.diagnostics.push({
+          code: "TYPE_MISMATCH",
+          message: `Wire deployment can use only '${NETWORK_CONNECTION_TYPE}' infrastructure, got '${item.element.type}'`,
+          sourceName: action.sourceName,
+          ...diagnosticPosition(action),
+        });
+      }
+      continue;
+    }
+    const use = {
+      ...item,
+      inherited,
+    };
+    if (action.operator === RUNS_ON_OPERATOR) {
+      state.runsOn.push(use);
+      continue;
+    }
+    state.usesByFamily.set(deploymentUseFamilyKey(item.element, item.deploymentId, context.typeSystem), use);
+  }
+}
+
+function applyDeploymentProfile(
+  owner: ParsedElement,
+  action: ParsedDeploymentAction,
+  profile: ParsedElement,
+  wire: boolean,
+  state: DeploymentApplicationState,
+  context: DeploymentExpansionContext,
+): void {
+  const operator = context.typeSystem.operatorConstructor(action.operator, owner.type, profile.type);
+  if (operator === undefined) {
+    context.diagnostics.push({
+      code: "TYPE_MISMATCH",
+      message: `Operator '${action.operator}' cannot be applied from '${owner.type}' to '${profile.type}'`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return;
+  }
+  const deployments = profileDeployments(profile, context);
+  const overlaps = deployments.flatMap((deployment) => {
+    const previousProfile = state.profileByDeploymentId.get(deployment.id);
+    return previousProfile === undefined ? [] : [{ deployment, previousProfile }];
+  });
+  if (overlaps.length > 0) {
+    const details = overlaps
+      .map(({ deployment, previousProfile }) => `'${deployment.localId} from ${deployment.context}' (already selected by '${previousProfile.localId}')`)
+      .join(", ");
+    context.diagnostics.push({
+      code: "DEPLOYMENT_PROFILE_DEPLOYMENT_OVERLAP",
+      message: `Deployment profile '${profile.localId}' overlaps in deployment(s) ${details}`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return;
+  }
+  for (const deployment of deployments) {
+    state.profileByDeploymentId.set(deployment.id, profile);
+  }
+  state.deployments = mergeUniqueElements(state.deployments, deployments);
+  for (const profileAction of profile.deploymentActions) {
+    applyDeploymentAction(owner, profileAction, true, wire, state, context, deployments);
+  }
+}
+
+function profileDeployments(
+  profile: ParsedElement,
+  context: DeploymentExpansionContext,
+): readonly ParsedElement[] {
+  const deployments = (context.resolvedElementAttributes.get(profile.id)?.[APPLIES_TO_ATTRIBUTE] ?? [])
+    .flatMap((value) => value.element === undefined ? [] : [value.element])
+    .filter((element) => context.typeSystem.isAssignable(element.type, DEPLOYMENT_TYPE));
+  return mergeUniqueElements([], deployments);
+}
+
+function resolveDeploymentInfrastructure(
+  owner: ParsedElement,
+  action: ParsedDeploymentAction,
+  target: ParsedElement | undefined,
+  deployments: readonly ParsedElement[],
+  inherited: boolean,
+  wire: boolean,
+  context: DeploymentExpansionContext,
+): readonly DeploymentUse[] {
+  if (target !== undefined) {
+    if (context.typeSystem.isAssignable(target.type, INFRASTRUCTURE_COMPONENT_TYPE)) {
+      return [materializeInfrastructureUse(owner, target, action, undefined, context, inherited)];
+    }
+    context.diagnostics.push({
+      code: "TYPE_MISMATCH",
+      message: `Deployment operator '${action.operator}' expects '${DEPLOYMENT_PROFILE_TYPE}' or '${INFRASTRUCTURE_COMPONENT_TYPE}', got '${target.type}'`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return [];
+  }
+  if (action.targetContext !== undefined) {
+    context.diagnostics.push({
+      code: "UNDECLARED_IDENTIFIER",
+      message: `Element '${action.targetId}' is not declared in context '${action.targetContext}'`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return [];
+  }
+  if (deployments.length === 0) {
+    if (wire) {
+      return [];
+    }
+    context.diagnostics.push({
+      code: "REQUIRED_ATTRIBUTE_MISSING",
+      message: `Deployment operator '${action.operator}' cannot resolve deployment slot '${action.targetId}' without a deployment profile`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return [];
+  }
+  const result: DeploymentUse[] = [];
+  for (const deployment of deployments) {
+    const values = deploymentSlotValues(deployment, action.targetId, context);
+    if (values.length === 0) {
+      if (!wire) {
+        context.diagnostics.push({
+          code: "REQUIRED_ATTRIBUTE_MISSING",
+          message: `Deployment '${deployment.localId} from ${deployment.context}' does not provide slot '${action.targetId}'`,
+          sourceName: action.sourceName,
+          ...diagnosticPosition(action),
+        });
+      }
+      continue;
+    }
+    for (const value of values) {
+      if (value.element === undefined) {
+        continue;
+      }
+      result.push(materializeInfrastructureUse(owner, value.element, action, deployment.id, context, inherited));
+    }
+  }
+  return result;
+}
+
+function materializeInfrastructureUse(
+  owner: ParsedElement,
+  source: ParsedElement,
+  action: ParsedDeploymentAction,
+  deploymentId: string | undefined,
+  context: DeploymentExpansionContext,
+  inherited: boolean,
+): DeploymentUse {
+  if (!deploymentActionHasOverrides(action)) {
+    return {
+      element: source,
+      ...(deploymentId === undefined ? {} : { deploymentId }),
+      action,
+      inherited,
+    };
+  }
+  const cloneMap = new Map<string, ParsedElement>();
+  const root = cloneInfrastructureElement(owner, source, action, context, cloneMap, undefined, true);
+  return {
+    element: root,
+    ...(deploymentId === undefined ? {} : { deploymentId }),
+    action,
+    inherited,
+  };
+}
+
+function deploymentActionHasOverrides(action: ParsedDeploymentAction): boolean {
+  return action.assignedScalarAttributes.size > 0 || Object.keys(action.attributes).length > 0;
+}
+
+function cloneInfrastructureElement(
+  owner: ParsedElement,
+  source: ParsedElement,
+  action: ParsedDeploymentAction,
+  context: DeploymentExpansionContext,
+  cloneMap: Map<string, ParsedElement>,
+  parentId: string | undefined,
+  root: boolean,
+): ParsedElement {
+  const existing = cloneMap.get(source.id);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const id = context.nextCloneId(owner, source);
+  const localId = id.slice(id.lastIndexOf("/") + 1);
+  const clone: ParsedElement = {
+    ...source,
+    id,
+    context: owner.context,
+    localId,
+    sourceName: owner.sourceName,
+    anonymous: true,
+    ...(parentId === undefined ? { parent: owner.id } : { parent: parentId }),
+    scalarAttributes: {
+      ...source.scalarAttributes,
+      ...(root ? action.scalarAttributes : {}),
+    },
+    scalarAttributePositions: {
+      ...source.scalarAttributePositions,
+      ...(root ? action.scalarAttributePositions : {}),
+    },
+    assignedScalarAttributes: new Set([
+      ...source.assignedScalarAttributes,
+      ...(root ? action.assignedScalarAttributes : new Set<string>()),
+    ]),
+  };
+  cloneMap.set(source.id, clone);
+  context.elements.push(clone);
+  context.linkedElementsById.set(clone.id, clone);
+
+  const sourceAttributes = context.resolvedElementAttributes.get(source.id) ?? {};
+  const clonedAttributes: Record<string, ResolvedReferenceValue[]> = {};
+  for (const [name, values] of Object.entries(sourceAttributes)) {
+    if (root && action.attributes[name] !== undefined) {
+      continue;
+    }
+    clonedAttributes[name] = values.map((value) => {
+      if (value.element === undefined || !context.typeSystem.isAssignable(value.element.type, INFRASTRUCTURE_COMPONENT_TYPE)) {
+        return value;
+      }
+      const child = cloneInfrastructureElement(owner, value.element, action, context, cloneMap, clone.id, false);
+      return remapResolvedValue(value, child);
+    });
+  }
+  const overrideAttributes = root
+    ? resolveAttributes(action, source.type, action.attributes, action.referenceAttributePositions, action.scalarAttributes, action.scalarAttributePositions, owner.context, context.sourceElementsBySourceAndLocalId, context.elementsByContextAndLocalId, context.importsBySourceAndAlias, context.typeSystem, context.diagnostics, false)
+    : {};
+  context.resolvedElementAttributes.set(clone.id, applyResolvedReferenceOverrides(clonedAttributes, overrideAttributes));
+  return clone;
+}
+
+function applyResolvedReferenceOverrides(
+  base: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
+  overrides: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
+): Readonly<Record<string, readonly ResolvedReferenceValue[]>> {
+  const result: Record<string, ResolvedReferenceValue[]> = Object.fromEntries(
+    Object.entries(base).map(([name, values]) => [name, [...values]]),
+  );
+  for (const [name, values] of Object.entries(overrides)) {
+    if (values.length > 0) {
+      result[name] = [...values];
+    }
+  }
+  return result;
+}
+
+function remapResolvedValue(value: ResolvedReferenceValue, element: ParsedElement): ResolvedReferenceValue {
+  return {
+    ...value,
+    id: element.id,
+    element,
+  };
+}
+
+function deploymentSlotValues(
+  deployment: ParsedElement,
+  slot: string,
+  context: DeploymentExpansionContext,
+): readonly ResolvedReferenceValue[] {
+  const direct = context.resolvedElementAttributes.get(deployment.id)?.[slot] ?? [];
+  if (direct.length > 0) {
+    return direct;
+  }
+  const result: ResolvedReferenceValue[] = [];
+  for (const element of context.elements) {
+    if (element.parent === deployment.id && element.slotName === slot) {
+      result.push(resolvedValueForElement(element, element));
+    }
+  }
+  return result;
+}
+
+function deploymentUseFamilyKey(
+  element: ParsedElement,
+  deploymentId: string | undefined,
+  typeSystem: TypeSystem,
+): string {
+  return `${deploymentId ?? element.context}\0${deploymentUseFamily(element.type, typeSystem)}`;
+}
+
+function deploymentUseFamily(type: string, typeSystem: TypeSystem): string {
+  if (typeSystem.isAssignable(type, NETWORK_CONNECTION_TYPE)) {
+    return NETWORK_CONNECTION_TYPE;
+  }
+  return [type, ...typeSystem.baseTypes(type)]
+    .find((candidate) => candidate !== INFRASTRUCTURE_COMPONENT_TYPE
+      && typeSystem.baseTypes(candidate).includes(INFRASTRUCTURE_COMPONENT_TYPE))
+    ?? type;
+}
+
+function resolvedValueForElement(element: ParsedElement, source: SourcePosition): ResolvedReferenceValue {
+  return {
+    id: element.id,
+    element,
+    line: source.line,
+    column: source.column,
+    ...(source.endLine === undefined ? {} : { endLine: source.endLine }),
+    ...(source.endColumn === undefined ? {} : { endColumn: source.endColumn }),
+  };
+}
+
+function mergeResolvedReferenceAttributes(
+  base: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
+  override: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
+): Readonly<Record<string, readonly ResolvedReferenceValue[]>> {
+  const result: Record<string, ResolvedReferenceValue[]> = Object.fromEntries(
+    Object.entries(base).map(([name, values]) => [name, [...values]]),
+  );
+  for (const [name, values] of Object.entries(override)) {
+    if (values.length === 0) {
+      continue;
+    }
+    const attribute = name === RUNS_ON_ATTRIBUTE ? "single" : "list";
+    result[name] = attribute === "single" ? [...values] : [...(result[name] ?? []), ...values];
+  }
+  return result;
+}
+
+function lookupElementReference(
+  targetId: string,
+  targetContext: string | undefined,
+  sourceName: string,
+  currentContext: string,
+  sourceElementsBySourceAndLocalId: ReadonlyMap<string, ParsedElement>,
+  elementsByContextAndLocalId: ReadonlyMap<string, readonly ParsedElement[]>,
+  importsBySourceAndAlias: ReadonlyMap<string, ResolvedImport>,
+): ParsedElement | undefined {
+  if (targetContext !== undefined) {
+    return elementsByContextAndLocalId.get(`${targetContext}\0${targetId}`)?.[0];
+  }
+  return sourceElementsBySourceAndLocalId.get(`${sourceName}\0${targetId}`)
+    ?? importsBySourceAndAlias.get(`${sourceName}\0${targetId}`)?.element
+    ?? elementsByContextAndLocalId.get(`${currentContext}\0${targetId}`)?.[0];
+}
+
+function mergeUniqueElements(
+  left: readonly ParsedElement[],
+  right: readonly ParsedElement[],
+): ParsedElement[] {
+  const seen = new Set(left.map((element) => element.id));
+  const result = [...left];
+  for (const element of right) {
+    if (seen.has(element.id)) {
+      continue;
+    }
+    seen.add(element.id);
+    result.push(element);
+  }
+  return result;
+}
+
+function sanitizeLocalId(value: string): string {
+  return value.replace(/[^A-Za-z0-9_]/g, "_");
 }
 
 function addProjectedEdges(
@@ -2044,12 +2853,12 @@ function validateConcreteProjectionRule(
     valid = false;
   }
   for (const term of [rule.source, rule.target]) {
-    if (term.placementText === "source" || term.placementText === "target" || term.placementText === "fixed") {
+    if (term.placementText === "source" || term.placementText === "target") {
       continue;
     }
     diagnostics.push({
       code: "UNSUPPORTED_PROJECTION_PLACEMENT",
-      message: `Projection placement '${term.placementText ?? ""}' is not supported; use 'source', 'target', or 'fixed'`,
+      message: `Projection placement '${term.placementText ?? ""}' is not supported; use 'source' or 'target'`,
       ...(term.placementSource ?? { sourceName: "projection", line: 1, column: 1 }),
     });
     valid = false;
@@ -2155,9 +2964,6 @@ function projectionTerm(
   diagnostics: LanguageDiagnostic[],
   projectionScope?: ProjectionScope,
 ): readonly string[] {
-  if (term.placement === "fixed") {
-    return resolveFixedProjectionTerm(term, elementsById, diagnostics);
-  }
   switch (term.kind) {
     case "from":
       return [fromId];
@@ -2170,41 +2976,6 @@ function projectionTerm(
     case "slot":
       return resolveSlotProjectionTerm(term, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics);
   }
-}
-
-function resolveFixedProjectionTerm(
-  term: ProjectionTermDefinition,
-  elementsById: ReadonlyMap<string, ParsedElement>,
-  diagnostics: LanguageDiagnostic[],
-): readonly string[] {
-  const environment = term.fixedEnvironment;
-  if (environment === undefined) {
-    diagnostics.push({
-      code: "REQUIRED_ATTRIBUTE_MISSING",
-      message: "Fixed projection term requires 'in <environment>'",
-      ...(term.placementSource ?? { sourceName: "projection", line: 1, column: 1 }),
-    });
-    return [];
-  }
-  if (term.kind !== "attribute") {
-    diagnostics.push({
-      code: "TYPE_MISMATCH",
-      message: `Fixed projection term expects an environment-local identifier, got '${term.value}'`,
-      ...(term.source ?? term.placementSource ?? { sourceName: "projection", line: 1, column: 1 }),
-    });
-    return [];
-  }
-  const element = [...elementsById.values()]
-    .find((candidate) => candidate.context === environment && candidate.localId === term.value);
-  if (element === undefined) {
-    diagnostics.push({
-      code: "UNDECLARED_IDENTIFIER",
-      message: `Element '${term.value}' is not declared in environment '${environment}'`,
-      ...(term.source ?? { sourceName: "projection", line: 1, column: 1 }),
-    });
-    return [];
-  }
-  return [element.id];
 }
 
 function resolveThisProjectionTerm(projectionElement: ParsedElement): readonly string[] {
@@ -2242,12 +3013,8 @@ function uniqueIds(values: readonly string[]): readonly string[] {
 
 function projectionRuleOwnerPlacement(rule: ProjectionRuleDefinition): "source" | "target" {
   return rule.operator === ORIGINAL_LINK_OPERATOR
-    ? fixedAsTarget(rule.target.placement)
-    : fixedAsTarget(rule.source.placement);
-}
-
-function fixedAsTarget(placement: "source" | "target" | "fixed"): "source" | "target" {
-  return placement === "source" ? "source" : "target";
+    ? rule.target.placement
+    : rule.source.placement;
 }
 
 function projectionPlacementScope(
@@ -3138,18 +3905,12 @@ function concreteProjectionRuleAttributes(ruleNode: RuleNode): Readonly<Record<s
 function concreteProjectionTerm(termNode: RuleNode | undefined, sourceName: string): ProjectionTermDefinition {
   const placementNode = termNode === undefined ? undefined : firstChild(termNode, "relationPlacement");
   const projectionTermNode = termNode === undefined ? undefined : firstChild(termNode, "relationReference");
-  const fixedScope = termNode === undefined ? undefined : firstChild(termNode, "fixedRelationScope");
-  const fixedEnvironment = fixedScope === undefined ? undefined : firstChild(fixedScope, "environmentReference");
   const placementText = placementNode?.getText() ?? "";
   const value = projectionTermNode?.getText() ?? "";
   const base = {
-    placement: placementText === "fixed" ? "fixed" as const : placementText === "target" ? "target" as const : "source" as const,
+    placement: placementText === "target" ? "target" as const : "source" as const,
     placementText,
     placementSource: sourceLocation(sourceName, position(placementNode, sourceName)),
-    ...(fixedEnvironment === undefined ? {} : {
-      fixedEnvironment: fixedEnvironment.getText(),
-      fixedEnvironmentSource: sourceLocation(sourceName, position(fixedEnvironment, sourceName)),
-    }),
     source: sourceLocation(sourceName, position(projectionTermNode, sourceName)),
   };
   const slot = projectionTermNode === undefined ? undefined : firstChild(projectionTermNode, "relationSlotDereference");

@@ -2,15 +2,38 @@
 context archinsight
     name = Archinsight
 
-import ghost_cms from context external_systems
 import google from context external_systems
-import github from context external_systems
+
+deploymentProfile archinsight_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses observability
+
+deploymentProfile archinsight_stateful_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses storage
+    uses observability
+
 external actor user
     name = Archinsight User
     technology = Web browser
     description = Runs the editor UI, Monaco, and browser Graphviz rendering
     links:
-        -> workspace_page from archinsight
+        -> frontend
+            technology = HTTPS
+            description = Loads the Archinsight web application
+            deployment:
+                uses publicGateway
+        -> backend
+            technology = HTTPS, REST
+            description = Uses the public Archinsight API
+            deployment:
+                uses publicGateway
 
 system archinsight_web
     name = Archinsight Editor
@@ -21,14 +44,20 @@ system archinsight_web
         name = Frontend
         technology = SvelteKit, TypeScript, Monaco
         description = Browser editor shell, repository navigation, query UI, and diagram viewer
+        deployment:
+            uses archinsight_service
         
     service backend
         name = Backend API
         technology = Quarkus, RESTEasy Reactive, MyBatis, Flyway, Hikari
         description = Authenticated API for projects, repository files, language pipeline, and 
             render fallback
+        deployment:
+            uses archinsight_stateful_service
 
     service renderer_service
         name = Renderer service
         technology = Node.js, viz-js, Graphviz WASM
         description = Hardened internal service for backend fallback SVG and PNG rendering
+        deployment:
+            uses archinsight_service

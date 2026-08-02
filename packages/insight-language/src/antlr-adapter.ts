@@ -11,6 +11,12 @@ import type {
 } from "./contracts.js";
 import { CONTEXT, NOTHING, TypeSystem } from "./type-system.js";
 
+const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
+const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
+const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
+const USES_OPERATOR = "uses";
+const RUNS_ON_OPERATOR = "runsOn";
+
 export interface AntlrTokenLike {
   readonly type?: number;
   readonly tokenType?: number;
@@ -560,6 +566,9 @@ function processArchitectureItem(
     ? undefined
     : firstChildByRule(annotatedObject, "objectDeclaration", ruleNames);
   if (objectDeclaration !== undefined) {
+    if (processDeploymentActionObject(objectDeclaration, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames)) {
+      return;
+    }
     processElementDeclaration(
       objectDeclaration,
       ownerType,
@@ -584,6 +593,47 @@ function processArchitectureItem(
   if (operatorInvocation !== undefined) {
     processOperator(operatorInvocation, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames);
   }
+}
+
+function processDeploymentActionObject(
+  declaration: AntlrParseTreeLike,
+  ownerType: string,
+  cursorOffset: number,
+  cursor: CursorPosition,
+  typeSystem: TypeSystem,
+  state: FileContextState,
+  ruleNames: readonly string[],
+): boolean {
+  const operatorNode = firstChildByRule(declaration, "namedPrefixOperatorInvocation", ruleNames)
+    ?? firstChildByRule(declaration, "elementConstructor", ruleNames);
+  const operator = operatorNode === undefined ? undefined : textOf(operatorNode);
+  if (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR) {
+    return false;
+  }
+  const inDeploymentList = state.lists.some((list) => list.attribute === DEPLOYMENT_LIST_ATTRIBUTE);
+  if (!inDeploymentList && !typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+    return false;
+  }
+  if (contains(declaration, cursorOffset, cursor)) {
+    state.currentOperatorSpelling = operator;
+  }
+  if (!contains(declaration, cursorOffset, cursor)) {
+    return true;
+  }
+  const target = firstChildByRule(declaration, "namedPrefixOperatorInvocation", ruleNames) === undefined
+    ? firstChildByRule(declaration, "identifierDeclaration", ruleNames)
+    : firstChildByRule(declaration, "elementConstructor", ruleNames);
+  const completionTypes = deploymentActionOverrideTypes(operator, target, ownerType, typeSystem, state);
+  if (completionTypes.length === 0) {
+    return true;
+  }
+  const frame = mutableFrame(indentLevel(declaration), completionTypes[0]!, completionTypes);
+  state.operatorFrames.unshift(frame);
+  const body = firstChildByRule(declaration, "objectBody", ruleNames);
+  if (body !== undefined) {
+    processBody(body, frame.type, undefined, cursorOffset, cursor, typeSystem, state, ruleNames, frame);
+  }
+  return true;
 }
 
 function processList(
@@ -731,15 +781,63 @@ function processOperator(
     ? ownerType
     : state.visibleIdentifiers.get(textOf(target))?.type ?? ownerType;
   const edgeType = typeSystem.operatorConstructor(operator, ownerType, targetType)?.ownerType;
-  if (!contains(invocation, cursorOffset, cursor) || edgeType === undefined) {
+  const completionTypes = deploymentActionOverrideTypes(operator, target, ownerType, typeSystem, state);
+  if (!contains(invocation, cursorOffset, cursor) || (edgeType === undefined && completionTypes.length === 0)) {
     return;
   }
-  const frame = mutableFrame(indentLevel(invocation), edgeType);
+  const frame = mutableFrame(indentLevel(invocation), completionTypes[0] ?? edgeType!, completionTypes);
   state.operatorFrames.unshift(frame);
   const body = firstChildByRule(invocation, "objectBody", ruleNames);
   if (body !== undefined) {
-    processBody(body, edgeType, undefined, cursorOffset, cursor, typeSystem, state, ruleNames, frame);
+    processBody(body, frame.type, undefined, cursorOffset, cursor, typeSystem, state, ruleNames, frame);
   }
+}
+
+function deploymentActionOverrideTypes(
+  operator: string,
+  target: AntlrParseTreeLike | undefined,
+  ownerType: string,
+  typeSystem: TypeSystem,
+  state: FileContextState,
+): readonly string[] {
+  if (target === undefined || (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR)) {
+    return [];
+  }
+  const inDeploymentList = state.lists.some((list) => list.attribute === DEPLOYMENT_LIST_ATTRIBUTE);
+  if (!inDeploymentList && !typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+    return [];
+  }
+  const targetText = textOf(target);
+  const identifierType = state.visibleIdentifiers.get(targetText)?.type;
+  if (identifierType !== undefined && typeSystem.isAssignable(identifierType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+    return [identifierType];
+  }
+  if (identifierType !== undefined) {
+    return [];
+  }
+  return unique(typeSlotAttributeTypes(typeSystem, "Environment", targetText)
+    .filter((type) => typeSystem.isAssignable(type, INFRASTRUCTURE_COMPONENT_TYPE)));
+}
+
+function typeSlotAttributeTypes(
+  typeSystem: TypeSystem,
+  ownerBaseType: string,
+  attributeName: string,
+): readonly string[] {
+  return [ownerBaseType, ...typeSystem.descendantTypes(ownerBaseType)]
+    .flatMap((type) => {
+      const attribute = typeSystem.attribute(type, attributeName);
+      const valueType = attribute === undefined ? undefined : referenceAttributeValueType(attribute);
+      return valueType === undefined ? [] : [valueType];
+    });
+}
+
+function referenceAttributeValueType(attribute: { readonly type: string; readonly list?: boolean; readonly listElementType?: string }): string | undefined {
+  return attribute.list === true ? attribute.listElementType : attribute.type;
+}
+
+function unique<T>(items: readonly T[]): T[] {
+  return [...new Set(items)];
 }
 
 function inferMode(
@@ -1264,8 +1362,13 @@ function cursorPosition(source: string, offset: number): CursorPosition {
   return { line, column };
 }
 
-function mutableFrame(indent: number, type: string): MutableElementFrame {
-  return { indent, type, assignedAttributes: new Set() };
+function mutableFrame(indent: number, type: string, completionTypes?: readonly string[]): MutableElementFrame {
+  return {
+    indent,
+    type,
+    ...(completionTypes === undefined || completionTypes.length === 0 ? {} : { completionTypes }),
+    assignedAttributes: new Set(),
+  };
 }
 
 function lowerFirst(text: string): string {

@@ -1,8 +1,7 @@
 context archinsight
 
-import ghost_cms from context external_systems
 import google from context external_systems
-import github from context external_systems
+
 extend service backend
 
     component api_resources
@@ -18,8 +17,8 @@ extend service backend
     component auth_filter
         name = Auth filter and context
         technology = Jakarta REST filter, request scoped context
-        responsibility = Resolves current user through local-dev, standalone, or 
-            Ghost SSR strategies
+        responsibility = Resolves current user through local-dev, standalone, or
+            authenticated session strategies
         links:
             -> userdata_mapper
 
@@ -31,7 +30,8 @@ extend service backend
         links:
             -> userdata_mapper
             -> google
-            -> ghost_cms
+                deployment:
+                    uses egress
 
     component repository_service
         name = Repository service
@@ -39,9 +39,6 @@ extend service backend
         responsibility = Provides project-scoped file operations over repository abstraction
         links:
             -> repository_mapper
-            -> github
-                technology = GitHub API
-                description = Planned repository backend for project sources
 
     component repository_mapper
         name = Repository mapper
@@ -71,6 +68,8 @@ extend service backend
         responsibility = Calls internal renderer service for server-side SVG or PNG generation
         links:
             -> renderer_api from archinsight
+                deployment:
+                    uses privateGateway
 
     component layout_lexer
         name = Layout lexer helper

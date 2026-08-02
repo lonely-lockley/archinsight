@@ -80,6 +80,7 @@ The generic target writes a runtime-neutral guide:
         c2-containers.ai
         c3-components.ai
         c4-deployment-framework.ai
+        c4-deployment-infrastructure.ai
         c4-deployment.ai
         c2-containers.aiq
         builtin-views/
@@ -120,10 +121,10 @@ avoid guessing Insight syntax from other architecture DSLs, inspect project
 structure before broad edits or imports, read bundled core language sources for
 built-in types/presentations/projections, describe systems layer by layer, and
 write custom `.aiq` diagram queries with the supported Cypher-style subset.
-The bundled core reference includes standard deployment infrastructure
-constructors such as `compute`, `storage`, `broker`, and `networkConnection`,
-including projection rules for storage, broker dependencies, and direct network
-paths.
+The bundled deployment reference explains context-owned profiles with
+`appliesTo: <deployment> from <environment>`, element placement through those
+profiles, and wire-level `uses` restricted to `NetworkConnection` descendants.
+Its examples also cover projection rules for storage and physical network paths.
 
 ## Output Contract
 

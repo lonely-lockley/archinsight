@@ -53,7 +53,7 @@ export interface AttributeDefinition {
 }
 
 export type ProjectionTermKind = "from" | "to" | "this" | "attribute" | "slot";
-export type ProjectionPlacement = "source" | "target" | "fixed";
+export type ProjectionPlacement = "source" | "target";
 
 export interface ProjectionTermDefinition {
   readonly kind: ProjectionTermKind;
@@ -61,8 +61,6 @@ export interface ProjectionTermDefinition {
   readonly placement: ProjectionPlacement;
   readonly placementText?: string;
   readonly placementSource?: SourceLocation;
-  readonly fixedEnvironment?: string;
-  readonly fixedEnvironmentSource?: SourceLocation;
   readonly ownerAttribute?: string;
   readonly source?: SourceLocation;
 }
@@ -259,7 +257,7 @@ export interface OperatorInvocationScopeV1 {
   readonly context?: LinkedContext;
   readonly sourceIdentity?: string;
   readonly owner?: LinkedElement;
-  readonly environments?: readonly LinkedElement[];
+  readonly deployments?: readonly LinkedElement[];
   readonly values?: Readonly<Record<string, readonly string[]>>;
 }
 
@@ -364,6 +362,7 @@ export interface ListFrame {
 export interface ElementFrame {
   readonly indent: number;
   readonly type: string;
+  readonly completionTypes?: readonly string[];
   readonly assignedAttributes: ReadonlySet<string>;
 }
 

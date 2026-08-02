@@ -1,7 +1,7 @@
 define type ArchinsightEnvironment of Environment
     ArchinsightServiceProvider csp
     ArchinsightServiceProvider cdn
-    Compute compute
+    InfrastructureComponent compute
     Storage storage
     ArchinsightPublicGateway publicGateway
     ArchinsightPrivateGateway privateGateway
@@ -13,18 +13,22 @@ define type Monitoring of InfrastructureComponent
 
     required InfrastructureComponent display
 
-define type Internaletwork of InfrastructureComponent
+define type Internaletwork of NetworkConnection
     constructor internalServiceRoute
 
-define type ArchinsightPublicGateway of InfrastructureComponent
+define type ArchinsightPublicGateway of NetworkConnection
     constructor archinsightPublicGateway
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
+    required InfrastructureComponent ingress
 
-define type ArchinsightPrivateGateway of InfrastructureComponent
+define type ArchinsightPrivateGateway of NetworkConnection
     constructor archinsightPrivateGateway
 
-define type Egress of InfrastructureComponent
+define type Ingress of NetworkConnection
+    constructor ingress
+
+define type Egress of NetworkConnection 
     constructor egress
 
 define type ArchinsightServiceProvider of InfrastructureComponent
@@ -37,3 +41,7 @@ define presentation ArchinsightPrivateGateway
 define presentation Egress 
     graphviz
         visible = false
+
+define presentation Ingress 
+    graphviz
+        visible = true

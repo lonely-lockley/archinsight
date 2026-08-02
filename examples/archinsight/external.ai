@@ -1,18 +1,7 @@
 context external_systems
     name = External systems
 
-external system ghost_cms
-    name = Ghost CMS
-    technology = Ghost Admin API
-    description = Optional website identity/profile integration for archinsight.org
-
 external system google
     name = Google Identity
     technology = OAuth 2.0, OpenID Connect
     description = Optional sign-in provider
-
-@planned
-external system github
-    name = GitHub
-    technology = Git, REST API
-    description = Future repository provider for project files and collaboration

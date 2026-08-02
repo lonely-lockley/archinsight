@@ -9,6 +9,7 @@ import {
 
 const completion = new CompletionEngine(createGeneratedInsightSyntaxProvider());
 let cachedCustomTypeSlotSnapshot;
+let cachedDeploymentProfileSnapshot;
 
 const cases = [
   importContextCompletionUsesProvidedContextIds,
@@ -27,6 +28,7 @@ const cases = [
   edgeListOperatorsCompleteAfterNestedObjectAttribute,
   wireAttributesCompleteAfterNestedObjectAttribute,
   projectionRulesCompleteTextualOperatorsTermsAndAttributes,
+  deploymentBlocksCompleteProfilesAndInfrastructureSlots,
   objectBodyDoesNotSuggestAssignedScalarAttributes,
   identifierDeclarationsHaveNoCandidates,
   archinsightExampleCompletionDoesNotLeakTextWordsAtLineEnds,
@@ -437,7 +439,7 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
 
   assertProjectionCompletion("__CURSOR__", {
     snapshot,
-    includes: ["source", "target", "fixed"],
+    includes: ["source", "target"],
     excludes: ["$from", "connectTo"],
   });
   assertProjectionCompletion("source __CURSOR__", {
@@ -452,7 +454,7 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
   });
   assertProjectionCompletion("source $from connectTo __CURSOR__", {
     snapshot,
-    includes: ["source", "target", "fixed"],
+    includes: ["source", "target"],
     excludes: ["$from", "connectTo"],
   });
   assertProjectionCompletion("source $from connectTo target __CURSOR__", {
@@ -463,7 +465,7 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
 
   assertProjectionCompletion("__CURSOR__source $from connectTo target cdn", {
     snapshot,
-    includes: ["source", "target", "fixed"],
+    includes: ["source", "target"],
     excludes: ["$from", "connectTo"],
   });
   assertProjectionCompletion("source __CURSOR__$from connectTo target cdn", {
@@ -478,23 +480,13 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
   });
   assertProjectionCompletion("source $from connectTo __CURSOR__target cdn", {
     snapshot,
-    includes: ["source", "target", "fixed"],
+    includes: ["source", "target"],
     excludes: ["$from", "connectTo"],
   });
   assertProjectionCompletion("source $from connectTo target __CURSOR__cdn", {
     snapshot,
     includes: ["$to", "$this", "cdn", "loadBalancer"],
     excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
-  });
-  assertProjectionCompletion("fixed cdn in __CURSOR__", {
-    snapshot,
-    includes: ["infra", "latam"],
-    excludes: ["source", "target", "fixed", "$from", "connectTo", "cdn"],
-  });
-  assertProjectionCompletion("source $from connectTo fixed loadBalancer in __CURSOR__", {
-    snapshot,
-    includes: ["infra", "latam"],
-    excludes: ["source", "target", "fixed", "$from", "connectTo", "cdn"],
   });
   assertNestedDeploymentProjectionCompletion("source __CURSOR__", {
     snapshot,
@@ -514,7 +506,7 @@ publicGateway gateway
     projection:
         source $from connectTo target cdn
             __CURSOR__
-`, { snapshot });
+	`, { snapshot, includes: ["technology", "description"] });
   assertProjectionRelationAttributes(`
 context infra
 
@@ -522,7 +514,7 @@ publicGateway gateway
     projection:
         source $from originalLink target cdn
             __CURSOR__
-`, { snapshot });
+	`, { snapshot, includes: ["technology", "description", "call", "via"] });
   assertProjectionRelationAttributes(`
 context infra
 
@@ -530,7 +522,155 @@ publicGateway gateway
     projection:
         target cdn replicateFrom target loadBalancer
             __CURSOR__
-`, { snapshot });
+	`, { snapshot, includes: ["technology", "description"] });
+}
+
+function deploymentBlocksCompleteProfilesAndInfrastructureSlots() {
+  const snapshot = deploymentProfileSnapshot();
+  const elementBody = itemLabels(completeAtMarker(`
+context app
+
+import eu from environment eu
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses internalNetwork
+    uses database
+
+system application
+    name = Application
+
+    service backend
+        name = Backend
+        deployment:
+            __CURSOR__
+`, { snapshot, contextIds: ["eu"] }));
+  assert(elementBody.has("uses"), [...elementBody].join(", "));
+  assert(elementBody.has("runsOn"), [...elementBody].join(", "));
+  assert(!elementBody.has("->"), [...elementBody].join(", "));
+
+  const elementTarget = itemLabels(completeAtMarker(`
+context app
+
+import eu from environment eu
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+system application
+    name = Application
+
+    service backend
+        name = Backend
+        deployment:
+            uses __CURSOR__
+`, { snapshot, contextIds: ["eu"] }));
+  for (const expected of ["globalProfile", "compute", "database", "internalNetwork", "publicGateway"]) {
+    assert(elementTarget.has(expected), `${expected} missing from ${[...elementTarget].join(", ")}`);
+  }
+
+  const wireBody = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+system application
+    name = Application
+
+    service frontend
+        name = Frontend
+        links:
+            -> backend
+                deployment:
+                    __CURSOR__
+
+    service backend
+        name = Backend
+`, { snapshot, contextIds: ["eu"] }));
+  assert(wireBody.has("uses"), [...wireBody].join(", "));
+  assert(!wireBody.has("runsOn"), [...wireBody].join(", "));
+
+  const wireTarget = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+system application
+    name = Application
+
+    service frontend
+        name = Frontend
+        links:
+            -> backend
+                deployment:
+                    uses __CURSOR__
+
+    service backend
+        name = Backend
+`, { snapshot, contextIds: ["eu"] }));
+  assert(!wireTarget.has("globalProfile"), [...wireTarget].join(", "));
+  assert(wireTarget.has("internalNetwork"), [...wireTarget].join(", "));
+  assert(wireTarget.has("publicGateway"), [...wireTarget].join(", "));
+  assert(!wireTarget.has("database"), [...wireTarget].join(", "));
+  assert(!wireTarget.has("broker"), [...wireTarget].join(", "));
+
+  const elementOverrideBody = itemLabels(completeAtMarker(`
+context app
+
+import eu from environment eu
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+system application
+    name = Application
+
+    service backend
+        name = Backend
+        deployment:
+            uses globalProfile
+            uses database
+                __CURSOR__
+`, { snapshot, contextIds: ["eu"] }));
+  for (const expected of ["name", "technology", "description", "address"]) {
+    assert(elementOverrideBody.has(expected), `${expected} missing from ${[...elementOverrideBody].join(", ")}`);
+  }
+  assert(!elementOverrideBody.has("appliesTo"), [...elementOverrideBody].join(", "));
+
+  const wireOverrideBody = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+system application
+    name = Application
+
+    service frontend
+        name = Frontend
+        links:
+            -> backend
+                deployment:
+                    uses publicGateway
+                        __CURSOR__
+
+    service backend
+        name = Backend
+`, { snapshot, contextIds: ["eu"] }));
+  for (const expected of ["name", "technology", "description", "cidr"]) {
+    assert(wireOverrideBody.has(expected), `${expected} missing from ${[...wireOverrideBody].join(", ")}`);
+  }
+  assert(!wireOverrideBody.has("appliesTo"), [...wireOverrideBody].join(", "));
 }
 
 function assertProjectionCompletion(line, { snapshot, includes, excludes }) {
@@ -613,10 +753,12 @@ runtime production
 
 function assertProjectionRelationAttributes(source, options) {
   const attributeLabels = itemLabels(completeAtMarker(source, options));
-  assert(attributeLabels.has("technology"), [...attributeLabels].join(", "));
-  assert(attributeLabels.has("description"), [...attributeLabels].join(", "));
-  assert(attributeLabels.has("call"), [...attributeLabels].join(", "));
-  assert(attributeLabels.has("via"), [...attributeLabels].join(", "));
+  for (const expected of options.includes) {
+    assert(attributeLabels.has(expected), `${expected} missing from ${[...attributeLabels].join(", ")}`);
+  }
+  for (const excluded of options.excludes ?? []) {
+    assert(!attributeLabels.has(excluded), `${excluded} should not be present in ${[...attributeLabels].join(", ")}`);
+  }
 }
 
 function customTypeSlotReferenceOperatorsUseCurrentOwnerType() {
@@ -1012,6 +1154,35 @@ extend type Environment
   ], [coreLanguageSnapshot]);
   assert.deepEqual(result.diagnostics, []);
   return result.snapshot;
+}
+
+function deploymentProfileSnapshot() {
+  if (cachedDeploymentProfileSnapshot !== undefined) {
+    return cachedDeploymentProfileSnapshot;
+  }
+  const result = buildLanguageSnapshotResultFromSources([
+    source("deployment_profile_completion.ai", `
+define type MysqlDatabase of Storage
+    constructor mysqlDatabase
+
+    Text address
+
+define type PublicGateway of NetworkConnection
+    constructor publicGateway
+
+    Text cidr
+
+define type TestEnvironment of Environment
+    Compute compute
+    MysqlDatabase database
+    Broker broker
+    NetworkConnection internalNetwork
+    PublicGateway publicGateway
+`),
+  ], [coreLanguageSnapshot]);
+  assert.deepEqual(result.diagnostics, []);
+  cachedDeploymentProfileSnapshot = result.snapshot;
+  return cachedDeploymentProfileSnapshot;
 }
 
 function source(sourceName, sourceText) {

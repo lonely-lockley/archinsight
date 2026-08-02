@@ -236,7 +236,6 @@ constructorIdentifier
     : operatorIdentifier
     | CONTEXT
     | ENVIRONMENT
-    | FIXED
     ;
 
 operatorIdentifier
@@ -264,16 +263,11 @@ relationInvocation
     ;
 
 relationTerm
-    : relationPlacement relationReference fixedRelationScope?
+    : relationPlacement relationReference
     ;
 
 relationPlacement
     : identifier
-    | FIXED
-    ;
-
-fixedRelationScope
-    : IN environmentReference
     ;
 
 relationReference

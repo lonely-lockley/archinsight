@@ -868,6 +868,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericC4DeploymentFrameworkExample(),
     },
     {
+      path: "examples/c4-deployment-infrastructure.ai",
+      content: genericC4DeploymentInfrastructureExample(),
+    },
+    {
       path: "examples/c4-deployment.ai",
       content: genericC4DeploymentExample(),
     },
@@ -1392,11 +1396,11 @@ next to services when the user wants a quick single-environment diagram. The
 cost is that C2 now mixes logical containers with infrastructure, and C4 is
 effectively absent for that system.
 
-Clean C4 keeps C2 logical and moves physical realization into deployment
-profiles, environments, inventory slots, and projection rules. This is more work
-up front, but it supports many-to-many deployment: one logical service can run
-in several environments whose infrastructure differs by region, provider, or
-organizational boundary.
+Clean C4 keeps C2 logical and moves physical realization into concrete
+deployments, context-owned deployment profiles, inventory slots, and projection
+rules. This is more work up front, but it supports many-to-many deployment: one
+logical service can target several concrete deployments whose infrastructure
+differs by stage, region, provider, or organizational boundary.
 
 This choice is per-system, not global. A critical system can use clean C4 while
 peripheral systems stay pragmatic in C2. Starting cheap is acceptable, but know
@@ -1514,7 +1518,8 @@ files and validate the whole project.
 ## Type Definitions and Extensions
 
 Use \`define type\` to create a new graph/value type. Use \`extend type\` to add
-attributes, child slots, or projection rules to an existing type.
+attributes or child slots to an existing type. Projection rules belong to
+concrete infrastructure instances, not to type definitions.
 
 \`\`\`insight
 define type Queue of InfrastructureComponent
@@ -1831,12 +1836,19 @@ Use deployment profiles and infrastructure types when physical realization is
 important. Read \`references/c4-deployment.md\` before writing a real C4 model.
 
 \`\`\`insight
-deploymentProfile production
-    environments:
-        eu
-
 environment eu
     name = Europe
+
+deployment production
+    name = Production
+\`\`\`
+
+\`\`\`insight
+context application
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
 \`\`\`
 
 Attach deployment details to systems, containers, services, components, or links
@@ -2587,730 +2599,225 @@ unclear.
 function genericC4DeploymentReference(): string {
   return `# C4 Deployment and Infrastructure
 
-Use this reference only for C4 work: deployment profiles, environments,
-environment-scoped infrastructure inventory, \`uses\` / \`runsOn\`, and
-projection rules.
+Use clean C4 when the model must explain where logical elements run and which
+physical infrastructure realizes their dependencies. Keep C1-C3 logical;
+deployment inventory and projections supply the physical view.
 
-## Contents
+## Model
 
-- What C4 Answers
-- Before You Use C4
-- Mental Model
-- C4 Workflow
-- C4 Decision Checklist
-- Environment Inventory
-- Why Infrastructure Is Per Environment
-- Graph Model vs Diagram Scope
-- Attaching Deployment To C1-C3 Elements
-- usesProfile, environmentsFrom, runsOn, and uses
-- Deployment Archetypes
-- Projection Rules
-- Traffic Path Example
-- Complex C4 Examples
-- Compute and Grouping
-- Many-To-Many Deployment
-- What Not To Put In C4
-- Common C4 Mistakes
-- Validation Commands
+There are four distinct concepts:
 
-## What C4 Answers
+1. \`Environment\` owns one or more named \`Deployment\` objects, such as
+   \`test\` and \`production\`.
+2. A concrete \`Deployment\` fills infrastructure slots defined by the
+   environment type.
+3. A context-owned \`DeploymentProfile\` maps logical elements to concrete
+   deployments with \`appliesTo\` and supplies reusable \`runsOn\` / \`uses\`
+   actions.
+4. A logical wire uses only a \`NetworkConnection\` slot. The linker resolves
+   that slot in deployments selected by the wire endpoints and applies the
+   concrete network instance's projection.
 
-A C4/deployment view answers: "Where do logical architecture elements run, what
-environment-specific infrastructure do they use, and what physical path does a
-logical relationship expand into?"
+Do not put application deployment profiles in environment inventory files.
+Environment files own concrete infrastructure. The application context owns
+the profiles that decide where its systems, containers, and services run.
 
-C4 is not just another decomposition level. C1-C3 mostly describe logical
-architecture. C4 maps logical elements and links onto environment-local
-infrastructure inventory.
+## Framework and inventory
 
-## Before You Use C4
-
-C4/deployment is optional. Do not push the user into environments, projection
-rules, and infrastructure inventory when they only need a quick logical/runtime
-view.
-
-If the work has reached infrastructure, runtime placement, regions, compute, or
-deployment, ask or infer the intended style for the current system:
-
-- Pragmatic mixed C2: put simple infrastructure-like runtime nodes such as a
-  database, broker, gateway, or vault near the services in C2. This is fast and
-  easier for simple or single-environment systems, but it mixes abstraction
-  levels and does not produce a real C4 model.
-- Clean C4: keep C2 logical and describe physical realization through
-  \`Environment\` slots, deployment profiles, inventory, \`runsOn\`, \`uses\`,
-  and projection rules. This takes more design work, but supports region/env
-  differences, many-to-many deployment, and organization-specific runtime
-  complexity.
-
-The choice is per-system. Model a critical system with clean C4 and keep a
-peripheral system pragmatic in C2 if that matches the user's needs. If a system
-starts as mixed C2 and later needs multi-env deployment, expect a migration:
-infrastructure nodes must move into environment inventory and links must gain
-deployment/projection semantics.
-
-## Mental Model
-
-There are three layers:
-
-1. Schema: extend \`Environment\` with infrastructure slots such as
-   \`Compute compute\`, \`Storage storage\`, \`Broker broker\`,
-   \`NetworkConnection network\`, or \`PublicGateway publicGateway\`.
-   \`Compute\`, \`Storage\`, \`Broker\`, and \`NetworkConnection\` are core
-   deployment types.
-2. Inventory: each \`environment <id>\` fills those slots with concrete
-   infrastructure instances for that environment.
-3. Deployment references: logical systems, containers, services, components, or
-   links use \`deployment:\` with \`runsOn\`, \`uses\`, \`usesProfile\`, or
-   \`environmentsFrom\` to reference the inventory.
-
-An \`InfrastructureComponent\` is not an orphan. It is usually inventory inside
-an \`environment\` slot. The hook is the type extension:
+Define the available slots on an environment type:
 
 \`\`\`insight
-extend type Environment
+define type ApplicationEnvironment of Environment
     Compute compute
     Storage storage
-    Broker broker
-    NetworkConnection network
+    Monitoring observability
     PublicGateway publicGateway
-\`\`\`
-
-After that, every \`environment <id>\` can provide those slots:
-
-\`\`\`insight
-environment prod
-    name = Production
-
-    compute:
-        compute kube
-            name = Kubernetes
-
-    storage:
-        storage db
-            name = PostgreSQL
-
-    broker:
-        broker events
-            name = Event broker
-            address = kafka.prod.internal:9092
-
-    network:
-        networkConnection private_path
-            name = Private service path
-\`\`\`
-
-## C4 Workflow
-
-1. Inspect existing deployment types with \`archinsight structure . --format text\`.
-2. Read \`references/core.md\` and project framework files for existing
-   \`extend type Environment\`, infrastructure types, and projection rules.
-3. Add or reuse infrastructure types in a definition file. Prefer core
-   \`Compute\`, \`Storage\`, \`Broker\`, and \`NetworkConnection\` for common
-   deployment inventory.
-4. Extend \`Environment\` with slots for the infrastructure inventory.
-5. Create one or more \`environment <id>\` declarations and fill the slots.
-6. Add \`deploymentProfile\` declarations that select environments and common
-   \`runsOn\` / \`uses\` defaults.
-7. Attach \`deployment:\` blocks to logical elements or links.
-8. Validate with \`archinsight link . --format text\`.
-9. Render with \`archinsight render . -c <context-id> -s <c4-file.ai> -v c4 -f svg -o c4.svg\`.
-
-## C4 Decision Checklist
-
-Use this before adding a \`deployment:\` block:
-
-- Placement/grouping? Put \`runsOn compute\` on the deployed element.
-- Stateful or sidecar-like dependency? Put \`uses storage\`, \`uses observability\`,
-  or similar element-level infrastructure on the deployed element.
-- Traffic path to a target? Put \`uses network\`, \`uses publicGateway\`, or any
-  infrastructure whose projection mentions \`$to\` on the relationship under
-  \`links:\`, not on the container/service.
-- Pub/sub path? Make the async wire consumer-owned: the consumer declares
-  \`~> producer\` with \`via = <topic>\`, then attach \`uses broker\` to that wire
-  when modeling clean C4 broker infrastructure.
-- Picture too noisy? Keep the graph model correct and change source scope or
-  write a custom query. Fan-in to a shared node is normal graph reality, not a
-  modeling error by itself.
-
-## Environment Inventory
-
-Define infrastructure vocabulary in a definition file:
-
-\`\`\`insight
-extend type Environment
-    ServiceProvider cloud
-    Compute compute
-    Storage storage
-    Broker broker
     NetworkConnection network
-    PublicGateway publicGateway
+    Egress egress
 
-define type ServiceProvider of InfrastructureComponent
-    constructor serviceProvider
-
-define type PublicGateway of InfrastructureComponent
+define type PublicGateway of NetworkConnection
     constructor publicGateway
-    required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
+
+define type Egress of NetworkConnection
+    constructor egress
 \`\`\`
 
-Then fill concrete environments:
+Fill those slots inside concrete deployments:
 
 \`\`\`insight
-environment prod
-    name = Production
-
-    cloud:
-        serviceProvider aws
-            name = AWS
-
-    compute:
-        compute eks
-            name = EKS
-            runsOn cloud
-
-    storage:
-        storage orders_db
-            name = Orders PostgreSQL
-            runsOn cloud
-
-    broker:
-        broker events
-            name = Event broker
-            technology = Kafka
-            address = kafka.prod.internal:9092
-            runsOn compute
-
-    network:
-        networkConnection private_path
-            name = Private service path
-            runsOn compute
-
-    publicGateway:
-        publicGateway public_edge
-            name = Public edge
-            cdn:
-                infrastructureComponent cloudfront
-                    name = CloudFront
-                    runsOn cloud
-            loadBalancer:
-                infrastructureComponent alb
-                    name = Application Load Balancer
-                    runsOn cloud
-            runsOn compute
-\`\`\`
-
-\`cloud\`, \`compute\`, \`storage\`, and \`publicGateway\` are slots on this
-specific \`prod\` environment. Another environment can fill the same slots with
-different concrete infrastructure.
-
-Object ids are still unique within a context, even when the instances live in
-different environment slots. When the exact id is not important, use anonymous
-\`_\` instances inside each environment. When you need stable ids, make them
-environment-specific, such as \`envoy_prod\` and \`envoy_staging\`, instead of
-reusing \`envoy_public\` in several environments.
-
-## Why Infrastructure Is Per Environment
-
-Infrastructure must be per environment because deployment is many-to-many:
-
-- one logical service can run in several environments;
-- each environment can use different compute, storage, gateways, regions, or
-  providers;
-- the same \`uses storage\` reference must resolve to the current environment's
-  storage instance, not to one global database node;
-- projection rules need environment-local inventory to expand logical edges into
-  physical paths.
-
-If infrastructure were modeled as global nodes, the model could not say:
-"Checkout API runs on EKS in production, Cloud Run in staging, and uses a
-different database in each environment" without duplicating logical services.
-
-## Graph Model vs Diagram Scope
-
-The linked model is a graph; a diagram is only one scoped query over that graph.
-Fan-in to one broker, gateway, load balancer, or producer is often the correct
-physical model. If the picture explodes, do not rewrite the model just to make
-the image tidy. Narrow the selected source file, add a custom \`.aiq\` query,
-group differently, or aggregate the view.
-
-## Attaching Deployment To C1-C3 Elements
-
-\`deployment\` is available on systems, containers/services, components, and
-wires. Attach it where it best represents the runtime boundary.
-
-Prefer C2 containers/services for most deployment mapping:
-
-- C1 systems are often too broad and hide real runtime placement.
-- C3 components are often too fine and can overfit code structure.
-- C2 containers/services usually represent deployable runtime units.
-
-Use C1 deployment only when the whole system is deployed as one unit. Use C3
-deployment when a component is independently deployed or has a distinct physical
-path. Use wire deployment when a specific logical relationship travels through
-infrastructure such as a public gateway, network connection, broker, or egress
-path.
-
-## Element-Level vs Wire-Level Infrastructure
-
-Attach infrastructure to an element when the projection only needs the deployed
-element itself:
-
-- \`runsOn compute\`: placement/grouping.
-- \`uses storage\`: the element depends on stateful infrastructure.
-- \`uses observability\`: monitoring sidecars or collectors around the element.
-
-Attach infrastructure to a wire when the projection needs a real target:
-
-- \`uses publicGateway\`: expands a caller-to-service path through ingress.
-- \`uses network\`: keeps a direct source-to-target network path on C4.
-- \`uses broker\`: both producer and consumer physically connect to the broker.
-
-Rule of thumb: if the infrastructure type's \`project:\` block mentions \`$to\`,
-use it on a relationship under \`links:\`. Using it on an element is invalid
-because an element deployment has no separate target endpoint.
-
-## usesProfile, environmentsFrom, runsOn, and uses
-
-\`deploymentProfile\` names a reusable deployment scope:
-
-\`\`\`insight
-deploymentProfile global
-    environments:
-        prod
-        staging
-
-    runsOn compute
-\`\`\`
-
-\`usesProfile\` copies the profile's environments and deployment operators to a
-logical element:
-
-\`\`\`insight
-service checkout_api
-    name = Checkout API
-    deployment:
-        usesProfile global
-        uses storage
-\`\`\`
-
-\`runsOn compute\` resolves the \`compute\` slot inside each selected
-environment and stores it as the logical element's placement. \`uses storage\`
-resolves the environment-local \`storage\` slot and projects edges to it.
-
-\`environmentsFrom global\` copies only the environments from a profile. It is
-useful on a link when the path should share the same environment set but use its
-own infrastructure. It deliberately does not copy \`runsOn\` or \`uses\` from
-the profile:
-
-\`\`\`insight
-links:
-    -> checkout_api
-        deployment:
-            environmentsFrom global
-            uses publicGateway
-\`\`\`
-
-\`usesProfile global\` copies environments and profile operators. Use it on an
-element when the profile's defaults apply. Use \`environmentsFrom global\` on a
-link when only the environment scope should be reused.
-
-You can also use \`environmentsFrom\` on an element when it should share the
-profile's environment list but choose its own placement or dependencies:
-
-\`\`\`insight
-service batch_worker
-    name = Batch Worker
-    deployment:
-        environmentsFrom regional_service
-        runsOn compute
-        uses storage
-\`\`\`
-
-Here \`batch_worker\` deploys to the same environments as
-\`regional_service\`, but it does not inherit \`regional_service\` defaults such
-as \`uses observability\`. Add every desired \`runsOn\` and \`uses\` explicitly.
-
-## Deployment Archetypes
-
-Use \`deploymentProfile\` to create named deployment archetypes such as
-\`global_service\`, \`regional_service\`, or \`public_regional_service\`. A
-profile should select concrete \`environment\` instances and attach the common
-deployment operators that most services of that archetype need.
-
-Example environment inventory:
-
-\`\`\`insight
-environment global_edge
-    name = Global edge
-
-    compute:
-        compute edge_runtime
-            name = Edge runtime
-
-    publicGateway:
-        publicGateway edge_gateway
-            name = Global public gateway
-            cdn:
-                infrastructureComponent cloudfront
-                    name = CloudFront
-            loadBalancer:
-                infrastructureComponent global_lb
-                    name = Global Load Balancer
-
 environment eu
     name = Europe
 
+deployment production
     compute:
-        compute kube_eu
-            name = Kubernetes EU
+        compute kubernetes
+            name = Kubernetes
 
     storage:
-        storage db_eu
-            name = PostgreSQL EU
-
-    observability:
-        monitoring otel_eu
-            name = OpenTelemetry Collector EU
-            display:
-                infrastructureComponent grafana
-                    name = Grafana Cloud
-\`\`\`
-
-Example profiles:
-
-\`\`\`insight
-deploymentProfile global_service
-    environments:
-        global_edge
-
-    runsOn compute
-
-deploymentProfile regional_service
-    environments:
-        eu
-
-    runsOn compute
-    uses observability
-\`\`\`
-
-Then attach the archetype with one \`usesProfile\`:
-
-\`\`\`insight
-container web_app
-    name = Web app
-    deployment:
-        usesProfile global_service
-    links:
-        -> checkout_api
-            deployment:
-                environmentsFrom global_service
-                uses publicGateway
-
-service checkout_api
-    name = Checkout API
-    deployment:
-        usesProfile regional_service
-        uses storage
-\`\`\`
-
-The profile supplies the common environment scope, placement, and element-level
-infrastructure. Additional local \`uses\` entries extend the profile for that
-specific element. In the example, \`checkout_api\` inherits regional compute and
-observability from \`regional_service\`, then adds its own \`uses storage\`
-because this service owns persistent state. The \`web_app -> checkout_api\` wire uses
-\`environmentsFrom global_service\` to reuse the environment list while attaching
-the path-only \`publicGateway\` projection to the relationship.
-
-Use separate profiles when the element-level defaults differ. For example,
-\`regional_service\` can include \`runsOn compute\` and \`uses observability\`,
-while \`regional_stateful_service\` can also include \`uses storage\`. Keep
-path-only infrastructure such as \`publicGateway\`, \`network\`, or \`broker\`
-on the wire deployment where the source and target are known.
-
-When an element should reuse only the environments from an archetype, use
-\`environmentsFrom <profile>\` instead of \`usesProfile <profile>\` and then add
-the local \`runsOn\` / \`uses\` entries explicitly.
-
-Do not try to make infrastructure global to avoid repeating profiles. The
-profile should select environment instances; the selected environments provide
-their own concrete infrastructure through slots.
-
-## Projection Rules
-
-Projection rules live on infrastructure types. They explain how a logical
-\`uses <slot>\` reference expands into projected graph edges.
-
-Core defaults:
-
-- \`Storage\`: \`source $from originalLink target $this\`.
-- \`Broker\`: \`source $from originalLink source $this\` and
-  \`target $to connectTo target $this\`, because both sides physically connect
-  to the broker.
-- \`NetworkConnection\`: \`source $from originalLink target $to\`, for an
-  ordinary direct network call that should still appear on the deployment layer.
-
-Custom infrastructure types can define their own projection rules.
-
-\`\`\`insight
-define type PublicGateway of InfrastructureComponent
-    constructor publicGateway
-    required InfrastructureComponent cdn
-    required InfrastructureComponent loadBalancer
-
-    project:
-        source $from originalLink target cdn
-        target cdn connectTo target loadBalancer
-            technology = HTTPS
-        target loadBalancer connectTo target $this
-            technology = HTTPS
-        target $this connectTo target $to
-            technology = HTTPS
-\`\`\`
-
-When a service says \`uses storage\`, the selected environment's storage instance
-receives a projected edge from the logical service:
-
-\`\`\`text
-checkout_api -> prod.orders_db
-checkout_api -> staging.orders_db
-\`\`\`
-
-When a wire says \`uses network\`, the selected environment's network connection
-keeps the logical source-to-target relationship visible in the deployment view:
-
-\`\`\`insight
-links:
-    -> checkout_api
-        deployment:
-            environmentsFrom regional_service
-            uses network
-\`\`\`
-
-If a logical relationship is missing from a C4/deployment diagram, check whether
-the wire has deployment information and uses a path-producing slot such as
-\`network\`, \`publicGateway\`, or another type with a \`project:\` rule. C4
-queries commonly select projected deployment edges; a plain logical wire without
-deployment projection may be correct in C2/C3 but absent from the deployment
-layer.
-
-If validation reports \`PROJECTION_TARGET_REQUIRED\`, you attached a projection
-that uses \`$to\` to an element. Move that \`uses ...\` entry to the relevant
-wire and reuse the element's environment scope with \`environmentsFrom\`.
-
-Projection terms:
-
-- \`$from\` is the logical source of the deployment use.
-- \`$to\` is the logical target when the deployment is attached to a wire.
-- \`$this\` is the infrastructure component instance selected by \`uses\`.
-- plain names such as \`cdn\` or \`loadBalancer\` are attributes/slots on
-  \`$this\`.
-- Every projection endpoint is placed with \`source\` or \`target\`. Use
-  \`source ...\` for source-side ownership and \`target ...\` for receiver-side
-  ownership. For ingress/private-gateway patterns, intermediate gateway pieces
-  normally use \`target\` so they belong to the target system/environment.
-- \`originalLink\` creates a projected wire that copies standard attributes from
-  the original logical relationship, such as \`technology\`, \`description\`,
-  \`call\`, and \`via\` when they exist.
-- \`connectTo\` creates an additional physical synchronous wire. You can attach
-  normal wire attributes under the projection rule statement:
-
-\`\`\`insight
-project:
-    target cdn connectTo target loadBalancer
-        technology = HTTPS
-        description = Edge forwards request to the load balancer
-\`\`\`
-
-- Other textual relationship operators, such as \`replicateFrom\`, can be used
-  the same way when the project or core operator vocabulary defines them.
-
-## Traffic Path Example
-
-A public gateway can expand one logical edge into a physical path:
-
-\`\`\`insight
-define type PublicGateway of InfrastructureComponent
-    constructor publicGateway
-    required InfrastructureComponent cdn
-    required InfrastructureComponent loadBalancer
-
-    project:
-        source $from originalLink target cdn
-        target cdn connectTo target loadBalancer
-            technology = HTTPS
-        target loadBalancer connectTo target $this
-            technology = HTTPS
-        target $this connectTo target $to
-            technology = HTTPS
-\`\`\`
-
-Given this logical relationship:
-
-\`\`\`insight
-external actor customer
-    name = Customer
-    links:
-        -> web_app
-            deployment:
-                environmentsFrom public_regional_service
-                uses publicGateway
-\`\`\`
-
-And this environment inventory:
-
-\`\`\`insight
-environment prod
-    name = Production
+        storage postgres
+            name = PostgreSQL
+            projection:
+                source $from originalLink target $this
 
     publicGateway:
         publicGateway public_edge
-            name = Public edge
-            cdn:
-                infrastructureComponent cloudfront
-                    name = CloudFront
+            name = Public ingress
             loadBalancer:
-                infrastructureComponent alb
-                    name = Application Load Balancer
+                infrastructureComponent load_balancer
+                    name = Load balancer
+            projection:
+                source $from originalLink target loadBalancer
+                target loadBalancer connectTo target $to
+
+    network:
+        networkConnection service_network
+            name = Service network
+            projection:
+                source $from originalLink target $to
 \`\`\`
 
-The projection creates the physical path:
+An explicit object id may differ from the slot name: \`public_edge\` still fills
+the \`publicGateway\` slot of \`eu/production\`.
 
-\`\`\`text
-customer -> cloudfront -> alb -> public_edge -> web_app
-\`\`\`
+## Context-owned deployment profiles
 
-The logical edge remains the authoring intent. The projected edges are derived
-from deployment inventory and the \`project:\` rule.
-
-## Complex C4 Examples
-
-The generated skill includes two multi-file C4 scenarios that are closer to
-real project layouts than the compact examples above:
-
-- \`examples/c4-private-gateway/\`: two systems in different source files and
-  different environments. A source-side caller invokes a target service through
-  the target environment's private gateway. Use this when modeling ingress owned
-  by the receiver, not by the caller.
-- \`examples/c4-replicated-kafka/\`: two systems in different contexts and
-  environments exchange async events through environment-local Kafka brokers,
-  with \`replicateFrom\` edges between the brokers. Use this when each side writes
-  to its own regional broker and cross-region movement is broker replication.
-
-Validate them with:
-
-\`\`\`shell
-archinsight link examples/c4-private-gateway --format text
-archinsight render examples/c4-private-gateway -c services -s target-system.ai -v c4 -f svg -o private-gateway.svg
-
-archinsight link examples/c4-replicated-kafka --format text
-archinsight render examples/c4-replicated-kafka -c system_c -s c.ai -v c4 -f svg -o replicated-kafka-c.svg
-\`\`\`
-
-## Compute and Grouping
-
-\`runsOn compute\` is placement, not a traffic path by itself. It resolves the
-selected environment's compute slot and marks where a logical element runs:
+Declare profiles in the logical context and reference concrete deployments with
+the standard anonymous-import syntax:
 
 \`\`\`insight
-deploymentProfile regional_service
-    environments:
-        prod
-        staging
+context shop
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+        production from us
 
     runsOn compute
     uses observability
 
-deploymentProfile public_regional_service
-    environments:
-        prod
-        staging
+deploymentProfile test_service
+    appliesTo:
+        test from eu
 
     runsOn compute
-    uses observability
-
-service checkout_api
-    name = Checkout API
-    deployment:
-        usesProfile global
 \`\`\`
 
-If \`prod.compute\` is EKS and \`staging.compute\` is Cloud Run, the same
-\`checkout_api\` can render in both compute groups. The built-in C4 query groups
-by \`node.runsOn\`, so compute is usually the visual grouping anchor.
+\`appliesTo\` is required and contains \`Deployment\` references, not environment
+references. The full identity is the pair of environment context and deployment
+id. Therefore \`production from eu\` and \`test from eu\` are different targets.
 
-Use \`runsOn\` on infrastructure too:
+Apply profiles only to logical elements:
 
 \`\`\`insight
-storage orders_db
-    name = Orders PostgreSQL
-    runsOn cloud
+service checkout
+    name = Checkout
+    deployment:
+        uses production_service
 \`\`\`
 
-This places the database under its provider or parent infrastructure in the
-rendered deployment graph.
+Several profiles may be applied to one element only when their concrete
+deployment sets are disjoint. Applying two profiles that both contain
+\`production from eu\` is an error. Profiles may share the same environment when
+they select different deployments, such as \`test\` and \`production\`.
 
-## Many-To-Many Deployment
+Profile slot actions resolve independently in every concrete deployment from
+\`appliesTo\`. A missing \`runsOn compute\` or element-level \`uses storage\` slot
+is an error because the selected deployment cannot realize the profile.
 
-This is the core reason for the model:
+Infrastructure is copy-on-write. A plain \`uses storage\` reuses the concrete
+deployment instance. Nested overrides create a local clone:
 
 \`\`\`insight
-deploymentProfile global
-    environments:
-        prod
-        staging
-
-    runsOn compute
-
-service checkout_api
-    name = Checkout API
-    deployment:
-        usesProfile global
-        uses storage
+deployment:
+    uses production_service
+    uses storage
+        description = jdbc:postgresql://orders/app
 \`\`\`
 
-If \`prod.compute = EKS\`, \`prod.storage = Aurora\`,
-\`staging.compute = Cloud Run\`, and \`staging.storage = Cloud SQL\`, the single
-logical service projects into both environments without duplicating
-\`checkout_api\`.
+## Wire deployment
 
-## What Not To Put In C4
+A wire deployment accepts \`uses\` of \`NetworkConnection\` descendants only:
 
-- Global infrastructure nodes when the infrastructure differs by environment.
-- Logical components invented only to represent physical routing.
-- C3 internals unless they are independently deployed.
-- Cloud resources with no relationship to a deployment question.
-- A broker/gateway/load balancer in C2 just because it appears in deployment,
-  unless the system intentionally uses the pragmatic mixed-C2 style.
+\`\`\`insight
+external actor customer
+    links:
+        -> frontend
+            deployment:
+                uses publicGateway
 
-## Common C4 Mistakes
+service frontend
+    deployment:
+        uses production_service
+    links:
+        -> checkout
+            deployment:
+                uses network
+\`\`\`
 
-- Defining infrastructure types but forgetting to extend \`Environment\` with
-  slots for them.
-- Creating \`infrastructureComponent\` nodes at context level when they should
-  live in an \`environment\` inventory slot.
-- Reusing the same concrete infrastructure id in several environments. Use
-  anonymous \`_\` instances or environment-specific ids.
-- Using \`usesProfile\` on a wire when only \`environmentsFrom\` is intended.
-- Attaching \`uses publicGateway\`, \`uses network\`, or another \`$to\`-based
-  path projection to a container/service. Move it to the specific wire.
-- Modeling pub/sub as a producer-owned subscriber list. Consumers should declare
-  \`~> producer\` with \`via = <topic>\`; use queries to list consumers.
-- Forgetting \`--source <c4-file.ai>\` when rendering C4.
-- Expecting \`runsOn\` to draw traffic; use \`project:\` rules and \`uses\` for
-  traffic/path projections.
-- Treating projected edges as source declarations; they are derived.
+Do not attach \`DeploymentProfile\`, \`runsOn\`, \`Storage\`, \`Compute\`, or another
+non-network infrastructure type to a wire. In particular, ingress, egress,
+service-mesh, VPN, and broker paths used by wires must inherit
+\`NetworkConnection\`.
 
-## Validation Commands
+For each relevant concrete deployment, the linker checks the requested slot:
+
+- when the deployment provides a compatible network instance, its projection
+  is applied to the logical relationship;
+- when that deployment does not fill the slot, it is skipped;
+- when the slot resolves to a non-network type or several ambiguous values,
+  linking fails.
+
+This makes public exposure deployment-specific. A logical user-to-service link
+can project through \`publicGateway\` in production and have no physical ingress
+path in test without creating a fake wire profile.
+
+Components inherit effective deployments from their nearest deployed logical
+ancestor, normally a container or service. Put profiles on independently
+deployable C2 elements unless a C3 component truly has distinct placement.
+
+## Projection ownership
+
+Projection rules belong to concrete infrastructure instances because paths can
+differ between deployments and operator overrides can clone instances. Use:
+
+- \`$from\` and \`$to\` for the logical endpoints;
+- \`$this\` for the infrastructure instance owning the projection;
+- named attributes for intermediate infrastructure.
+
+\`\`\`insight
+projection:
+    source $from originalLink target cdn
+    target cdn connectTo target loadBalancer
+    target loadBalancer connectTo target $to
+\`\`\`
+
+Do not declare projections on infrastructure types. Put them on concrete
+instances inside a deployment so regional and stage-specific paths stay local.
+
+## Diagram scope and scale
+
+Each concrete deployment is an independent physical scope. Profiles from many
+systems may refer to the same deployment, producing one shared deployment view.
+If several regions are physically identical and separate diagrams add no value,
+model one intentional global environment/deployment and record its region list
+as project-specific metadata. Large deployment graphs should be narrowed by
+query, context, source identity, domain, or team instead of corrupting the model
+to make a picture smaller.
+
+## Validation
+
+Run:
 
 \`\`\`shell
-archinsight structure . --format text
 archinsight link . --format text
-archinsight render . -c deployment_shop -s c4-deployment.ai -v c4 -f svg -o deployment-c4.svg
+archinsight render . -c <context> -s <source.ai> -v c4 -f svg -o c4.svg
 \`\`\`
 
-Use \`examples/c4-deployment-framework.ai\` and \`examples/c4-deployment.ai\` as
-a compact valid C4 model when syntax is unclear.
+Treat missing slots, overlapping profile deployments, non-network wire uses,
+and ambiguous references as model errors. If a physical arrow is absent, check
+the endpoint profiles, their \`appliesTo\` deployments, the requested network
+slot, and the concrete instance projection in that order.
 `;
 }
 
@@ -3325,44 +2832,34 @@ duplicating them.
 
 Prefer one shared framework per repository:
 
-- one definitions/framework area for \`extend type Environment\`, custom
-  infrastructure types, presentation tweaks, projection-capable infrastructure,
-  and reusable deployment profiles;
+- one definitions/framework area for environment types, custom infrastructure
+  types, and presentation tweaks;
 - source files grouped by context directories when the repository is large;
 - model files that usually focus on one primary owned system being detailed;
 - one or more inventory files for concrete \`environment <id>\` instances and
   their env-local infrastructure;
 - shared external contexts for external actors and systems reused by many
   systems;
-- focused deployment-view files that attach deployment profiles and per-view
-  traffic paths.
+- context-owned deployment profile files that map logical elements to concrete
+  deployments;
+- wire deployment that names network slots directly, without call profiles.
 
-Do not copy the same \`extend type Environment\`, infra type definitions, or
-\`deploymentProfile\` blocks into every system file. Define the vocabulary and
-reusable archetypes once, import or reference them where needed, and validate the
-whole project.
+Do not copy the same environment or infrastructure type definitions into every
+system file. Keep concrete inventory in environment files and keep each
+application's deployment profiles in its logical context.
 
 ## Framework Once, Use Everywhere
 
 A typical deployment framework file contains only shared vocabulary: type
-definitions, type extensions, projection rules, and presentation overrides. Do
+definitions, type extensions, and presentation overrides. Do
 not mix \`define type\` / \`extend type\` declarations and \`context\`
 declarations in the same source file.
 
 \`\`\`insight
-define type PublicGateway of InfrastructureComponent
+define type PublicGateway of NetworkConnection
     constructor publicGateway
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
-
-    project:
-        source $from originalLink target cdn
-        target cdn connectTo target loadBalancer
-            technology = HTTPS
-        target loadBalancer connectTo target $this
-            technology = HTTPS
-        target $this connectTo target $to
-            technology = HTTPS
 
 extend type Environment
     Compute compute
@@ -3372,15 +2869,13 @@ extend type Environment
     NetworkConnection network
 \`\`\`
 
-Concrete inventory/profile files then declare contexts, environments, and
-profiles:
+Concrete environment files contain inventory and instance-level projections:
 
 \`\`\`insight
-context infra
-    name = Shared Infrastructure
-
 environment prod_eu
     name = Production EU
+
+deployment production
     compute:
         compute ecs
             name = ECS
@@ -3390,16 +2885,24 @@ environment prod_eu
             name = Kafka
             technology = MSK
             address = kafka.prod.eu.internal
+            projection:
+                source $from originalLink source $this
+                target $to connectTo target $this
+\`\`\`
+
+\`\`\`insight
+context commerce
 
 deploymentProfile regional_service
-    environments:
-        prod_eu
+    appliesTo:
+        production from prod_eu
 
     runsOn compute
 \`\`\`
 
-System files should reuse these definitions instead of recreating \`compute\`,
-\`broker\`, or profile declarations locally.
+System files in the same logical context should import the context-owned profile
+when it is declared in a different source identity. Wires name compatible
+\`NetworkConnection\` slots directly.
 
 ## System Files and External Contexts
 
@@ -3479,6 +2982,8 @@ That means splitting one context across files still requires imports:
 context services
 
 deploymentProfile eu_service
+    appliesTo:
+        production from eu
 \`\`\`
 
 \`\`\`insight
@@ -3489,7 +2994,7 @@ import eu_service from context services
 system checkout
     name = Checkout
     deployment:
-        usesProfile eu_service
+        uses eu_service
 \`\`\`
 
 This is intentional. If a file is extracted, removed, or not included in the
@@ -3542,10 +3047,9 @@ For C4, keep these responsibilities separate:
 
 - framework file: type extensions, infra constructors, presentation/projection
   definitions;
-- inventory/profile file: concrete environments and reusable deployment
-  profiles;
-- deployment-view file: the relationships whose deployment path you want to
-  render for one selected view.
+- environment inventory files: concrete deployments and instance projections;
+- logical context files: deployment profiles with \`appliesTo\` references and
+  the relationships whose network paths should render.
 
 When rendering C4 with \`-s <source.ai>\`, remember that source/tab scoping is
 part of the view. Put the view-driving logical relationships in the selected
@@ -3572,8 +3076,8 @@ infrastructure nodes; fix the source selection or the file boundary.
 5. Keep each ordinary system file focused on one owned system being detailed.
 6. Put external actors/systems in shared external contexts, not one file per
    external element.
-7. Move reusable environments and deployment profiles into inventory/profile
-   files.
+7. Keep concrete deployments in environment files; put deployment profiles in
+   the logical context that owns the deployed elements.
 8. Add explicit imports for every cross-file dependency, including same-context
    dependencies.
 9. Add inline \`from <context-id>\` on relationship targets that live outside
@@ -3679,7 +3183,7 @@ import eu_service from context services
 
 system checkout_api
     deployment:
-        usesProfile eu_service
+        uses eu_service
 \`\`\`
 
 The explicit import is intentional. If the source file that declared
@@ -4681,36 +4185,98 @@ function genericC4DeploymentFrameworkExample(): string {
     ServiceProvider cloud
     Compute compute
     Storage storage
-    Broker broker
-    PublicGateway publicGateway
     Monitoring observability
+    PublicGateway publicGateway
     NetworkConnection network
+    Egress egress
 
 define type ServiceProvider of InfrastructureComponent
     constructor serviceProvider
 
-define type PublicGateway of InfrastructureComponent
+define type PublicGateway of NetworkConnection
     constructor publicGateway
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
 
-    project:
-        source $from originalLink target cdn
-        target cdn connectTo target loadBalancer
-            technology = HTTPS
-        target loadBalancer connectTo target $this
-            technology = HTTPS
-        target $this connectTo target $to
-            technology = HTTPS
+define type Egress of NetworkConnection
+    constructor egress
 
 define type Monitoring of InfrastructureComponent
     constructor monitoring
     required InfrastructureComponent display
+`;
+}
 
-    project:
-        target $this connectTo source $from
-        target $this connectTo target display
+function genericC4DeploymentInfrastructureExample(): string {
+  return `environment eu
+    name = Europe
 
+deployment production
+    cloud:
+        serviceProvider aws
+            name = AWS
+
+    compute:
+        compute kubernetes
+            name = Kubernetes
+            runsOn:
+                aws
+
+    storage:
+        storage postgres
+            name = PostgreSQL
+            runsOn:
+                aws
+            projection:
+                source $from originalLink target $this
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public ingress
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+                    runsOn:
+                        aws
+            loadBalancer:
+                infrastructureComponent alb
+                    name = Application Load Balancer
+                    runsOn:
+                        aws
+            projection:
+                source $from originalLink target cdn
+                target cdn connectTo target loadBalancer
+                    technology = HTTPS
+                target loadBalancer connectTo target $to
+                    technology = HTTPS
+
+    network:
+        networkConnection service_network
+            name = Service network
+            runsOn:
+                kubernetes
+            projection:
+                source $from originalLink target $to
+
+    egress:
+        egress outbound
+            name = Outbound network
+            runsOn:
+                kubernetes
+            projection:
+                source $from originalLink target $to
+
+    observability:
+        monitoring telemetry
+            name = OpenTelemetry Collector
+            runsOn:
+                kubernetes
+            display:
+                infrastructureComponent grafana
+                    name = Grafana Cloud
+            projection:
+                target $this connectTo source $from
+                target $this connectTo target display
 `;
 }
 
@@ -4718,181 +4284,55 @@ function genericC4DeploymentExample(): string {
   return `context deployment_shop
     name = Deployment Shop
 
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses observability
+
+deploymentProfile production_stateful_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses storage
+    uses observability
+
 external actor shopper
     name = Shopper
     technology = Browser
     links:
         -> web_app
             deployment:
-                environmentsFrom public_regional_service
                 uses publicGateway
 
 external system payment_provider
     name = Payment Provider
     technology = HTTPS API
 
-deploymentProfile regional_service
-    environments:
-        prod
-        staging
-
-    runsOn compute
-    uses observability
-
-deploymentProfile public_regional_service
-    environments:
-        prod
-        staging
-
-    runsOn compute
-    uses observability
-
-environment prod
-    name = Production
-
-    cloud:
-        serviceProvider _
-            name = AWS
-
-    compute:
-        compute _
-            name = EKS
-            runsOn cloud
-
-    storage:
-        storage _
-            name = Aurora PostgreSQL
-            technology = PostgreSQL
-            runsOn cloud
-
-    broker:
-        broker _
-            name = Event broker
-            technology = MSK Kafka
-            address = kafka.prod.internal:9092
-            runsOn compute
-
-    publicGateway:
-        publicGateway _
-            name = Public edge
-            cdn:
-                infrastructureComponent cloudfront
-                    name = CloudFront
-                    runsOn cloud
-            loadBalancer:
-                infrastructureComponent alb
-                    name = Application Load Balancer
-                    runsOn cloud
-            runsOn compute
-
-    observability:
-        monitoring _
-            name = OpenTelemetry Collector
-            display:
-                infrastructureComponent _
-                    name = Grafana Cloud
-            runsOn compute
-
-    network:
-        networkConnection _
-            name = Service mesh
-            runsOn compute
-
-environment staging
-    name = Staging
-
-    cloud:
-        serviceProvider _
-            name = Google Cloud
-
-    compute:
-        compute _
-            name = Cloud Run
-            runsOn cloud
-
-    storage:
-        storage _
-            name = Cloud SQL
-            technology = PostgreSQL
-            runsOn cloud
-
-    broker:
-        broker _
-            name = Event broker
-            technology = Pub/Sub
-            address = pubsub.googleapis.com
-            runsOn compute
-
-    publicGateway:
-        publicGateway _
-            name = Public edge
-            cdn:
-                infrastructureComponent cloud_cdn
-                    name = Cloud CDN
-                    runsOn cloud
-            loadBalancer:
-                infrastructureComponent https_lb
-                    name = HTTPS Load Balancer
-                    runsOn cloud
-            runsOn compute
-
-    observability:
-        monitoring _
-            name = Cloud Monitoring Agent
-            display:
-                infrastructureComponent _
-                    name = Cloud Monitoring
-            runsOn compute
-
-    network:
-        networkConnection _
-            name = Internal routes
-            runsOn compute
-
 system storefront
     name = Storefront
-    technology = Commerce system
 
     container web_app
         name = Web app
-        technology = SvelteKit, TypeScript
-        description = Customer-facing checkout application
+        technology = SvelteKit
         deployment:
-            usesProfile public_regional_service
+            uses production_service
         links:
             -> checkout_api
-                technology = HTTPS, JSON
-                call = POST /checkout
                 deployment:
-                    environmentsFrom regional_service
                     uses network
 
     service checkout_api
         name = Checkout API
         technology = Kotlin, PostgreSQL
-        description = Creates orders and coordinates payment
         deployment:
-            usesProfile regional_service
-            uses storage
+            uses production_stateful_service
         links:
             -> payment_provider
-                technology = HTTPS
-                call = POST /payments/authorizations
-
-    service order_worker
-        name = Order Worker
-        technology = Kotlin
-        description = Processes order events asynchronously
-        deployment:
-            usesProfile regional_service
-        links:
-            ~> checkout_api
-                technology = Kafka
-                via = orders.events
-                description = Consumes order events emitted by Checkout API
                 deployment:
-                    environmentsFrom regional_service
-                    uses broker
+                    uses egress
 `;
 }
 
@@ -4900,58 +4340,48 @@ function genericC4PrivateGatewayExampleFiles(): readonly GeneratedFile[] {
   return [
     {
       path: "examples/c4-private-gateway/deployment-framework.ai",
-      content: `define type PrivateGateway of InfrastructureComponent
+      content: `define type PrivateGateway of NetworkConnection
     constructor privateGateway
 
-    project:
-        source $from originalLink target $this
-        target $this connectTo target $to
-            technology = HTTPS
+define type DirectNetwork of NetworkConnection
+    constructor directNetwork
 
-extend type Environment
+define type PrivateGatewayEnvironment of Environment
     Compute compute
-    NetworkConnection network
+    DirectNetwork network
     PrivateGateway privateGateway
 `,
     },
     {
-      path: "examples/c4-private-gateway/infra.ai",
-      content: `context infra
-
-environment source_env
+      path: "examples/c4-private-gateway/source-infra.ai",
+      content: `environment source_env
     name = Source Environment
 
+deployment production
     compute:
-        compute source_compute
-            name = Source Compute
+        name = Source Compute
 
     network:
-        networkConnection source_network
-            name = Source Network
-
-environment target_env
+        name = Source Network
+        projection:
+            source $from originalLink target $to
+`,
+    },
+    {
+      path: "examples/c4-private-gateway/target-infra.ai",
+      content: `environment target_env
     name = Target Environment
 
+deployment production
     compute:
-        compute target_compute
-            name = Target Compute
+        name = Target Compute
 
     privateGateway:
-        privateGateway target_gateway
-            name = Target Private Gateway
-            runsOn compute
-
-deploymentProfile source_profile
-    environments:
-        source_env
-
-    runsOn compute
-
-deploymentProfile target_profile
-    environments:
-        target_env
-
-    runsOn compute
+        name = Target Private Gateway
+        projection:
+            source $from originalLink target $this
+            target $this connectTo target $to
+                technology = HTTPS
 `,
     },
     {
@@ -4959,9 +4389,13 @@ deploymentProfile target_profile
       content: `context services
 
 import target from context services
-import source_profile from context infra
-import target_profile from context infra
 import payment from context external
+
+deploymentProfile source_profile
+    appliesTo:
+        production from source_env
+
+    runsOn compute
 
 system source_system
     name = Source System
@@ -4969,19 +4403,16 @@ system source_system
     service caller
         name = Caller
         deployment:
-            usesProfile source_profile
+            uses source_profile
         links:
             -> target from services
                 technology = HTTPS
                 call = GET /private
                 deployment:
-                    environmentsFrom source_profile
-                    environmentsFrom target_profile
                     uses privateGateway
             -> payment from external
                 technology = HTTPS
                 deployment:
-                    environmentsFrom source_profile
                     uses network
 `,
     },
@@ -4989,7 +4420,11 @@ system source_system
       path: "examples/c4-private-gateway/target-system.ai",
       content: `context services
 
-import target_profile from context infra
+deploymentProfile target_profile
+    appliesTo:
+        production from target_env
+
+    runsOn compute
 
 system target_system
     name = Target System
@@ -4997,7 +4432,7 @@ system target_system
     service target
         name = Target
         deployment:
-            usesProfile target_profile
+            uses target_profile
 `,
     },
     {
@@ -5015,75 +4450,78 @@ function genericC4ReplicatedKafkaExampleFiles(): readonly GeneratedFile[] {
   return [
     {
       path: "examples/c4-replicated-kafka/deployment-framework.ai",
-      content: `define type ReplicatedBroker of InfrastructureComponent
+      content: `define type ReplicatedBroker of NetworkConnection
     constructor replicatedBroker
+    required InfrastructureComponent peer
 
-    project:
-        source $from originalLink source $this
-        target $to connectTo target $this
-        target $this replicateFrom source $this
-
-extend type Environment
+define type ReplicatedBrokerEnvironment of Environment
     Compute compute
     ReplicatedBroker broker
 `,
     },
     {
-      path: "examples/c4-replicated-kafka/infra.ai",
-      content: `context infra
-
-environment env_c
+      path: "examples/c4-replicated-kafka/env-c.ai",
+      content: `environment env_c
     name = Environment C
 
+deployment production
     compute:
-        compute compute_c
-            name = Compute C
+        name = Compute C
 
     broker:
         replicatedBroker kafka_c
             name = Kafka C
             technology = Kafka
-            runsOn compute
-
-environment env_d
+            peer:
+                kafka_d from env_d
+            projection:
+                source $from originalLink target $this
+                target $this replicateFrom target peer
+                target peer connectTo target $to
+`,
+    },
+    {
+      path: "examples/c4-replicated-kafka/env-d.ai",
+      content: `environment env_d
     name = Environment D
 
+deployment production
     compute:
-        compute compute_d
-            name = Compute D
+        name = Compute D
 
     broker:
         replicatedBroker kafka_d
             name = Kafka D
             technology = Kafka
-            runsOn compute
+            peer:
+                kafka_c from env_c
+            projection:
+                source $from originalLink target $this
+                target $this replicateFrom target peer
+                target peer connectTo target $to
 `,
     },
     {
       path: "examples/c4-replicated-kafka/c.ai",
       content: `context system_c
 
-import env_c from context infra
-import env_d from context infra
 import d from context system_d
+
+deploymentProfile c_profile
+    appliesTo:
+        production from env_c
+
+    runsOn compute
 
 system c
     name = System C
     deployment:
-        environments:
-            env_c
-
-        runsOn compute
+        uses c_profile
     links:
         ~> d
             technology = Kafka
             via = c.events
-            description = System D consumes events produced by System C
             deployment:
-                environments:
-                    env_c
-                    env_d
-
                 uses broker
 `,
     },
@@ -5091,27 +4529,23 @@ system c
       path: "examples/c4-replicated-kafka/d.ai",
       content: `context system_d
 
-import env_d from context infra
-import env_c from context infra
 import c from context system_c
+
+deploymentProfile d_profile
+    appliesTo:
+        production from env_d
+
+    runsOn compute
 
 system d
     name = System D
     deployment:
-        environments:
-            env_d
-
-        runsOn compute
+        uses d_profile
     links:
         ~> c
             technology = Kafka
             via = d.events
-            description = System C consumes events produced by System D
             deployment:
-                environments:
-                    env_d
-                    env_c
-
                 uses broker
 `,
     },

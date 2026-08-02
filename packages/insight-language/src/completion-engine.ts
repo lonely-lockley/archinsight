@@ -14,6 +14,12 @@ import { CONTEXT, EDGE, NOTHING, PROJECTION_TERM, TYPE_SLOT_REFERENCE, TypeSyste
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
 const PRESENTATION_SECTIONS = ["light", "dark", "graphviz"];
 const PROJECTION_ENDPOINTS = ["$from", "$to", "$this"];
+const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
+const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
+const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
+const NETWORK_CONNECTION_TYPE = "NetworkConnection";
+const USES_OPERATOR = "uses";
+const RUNS_ON_OPERATOR = "runsOn";
 const PRESENTATION_SECTION_PROPERTIES = [
   "fill",
   "stroke",
@@ -226,9 +232,7 @@ function projectionItemsForWords(
 type RelationExpectedInput =
   | { readonly kind: "placement" }
   | { readonly kind: "term"; readonly expectedType: string; readonly placement: string }
-  | { readonly kind: "operator"; readonly expectedType?: string }
-  | { readonly kind: "fixed-scope" }
-  | { readonly kind: "fixed-environment"; readonly expectedType: string };
+  | { readonly kind: "operator"; readonly expectedType?: string };
 
 function relationExpectedInput(
   words: readonly string[],
@@ -241,12 +245,6 @@ function relationExpectedInput(
   }
   if (firstTerm.expect === "term") {
     return { kind: "term", expectedType: PROJECTION_TERM, placement: firstTerm.placement };
-  }
-  if (firstTerm.expect === "fixed-scope") {
-    return { kind: "fixed-scope" };
-  }
-  if (firstTerm.expect === "fixed-environment") {
-    return { kind: "fixed-environment", expectedType: "Environment" };
   }
   if (firstTerm.expect !== "complete") {
     return undefined;
@@ -266,12 +264,7 @@ function relationExpectedInput(
   if (secondTerm.expect === "term") {
     return { kind: "term", expectedType: PROJECTION_TERM, placement: secondTerm.placement };
   }
-  if (secondTerm.expect === "fixed-scope") {
-    return { kind: "fixed-scope" };
-  }
-  return secondTerm.expect === "fixed-environment"
-    ? { kind: "fixed-environment", expectedType: "Environment" }
-    : undefined;
+  return undefined;
 }
 
 function relationExpectedInputItems(
@@ -293,13 +286,6 @@ function relationExpectedInputItems(
       );
     case "operator":
       return projectionOperatorItems(typeSystem, input.expectedType);
-    case "fixed-scope":
-      return [keyword("in ")];
-    case "fixed-environment":
-      return valueItemsForExpectedType(typeSystem, context, input.expectedType, {
-        includeConstructors: false,
-        includeContextReferences: true,
-      });
   }
 }
 
@@ -318,7 +304,7 @@ function relationPlacementTargetTypes(typeSystem: TypeSystem, placement: string)
 }
 
 type RelationTermConsumption =
-  | { readonly expect: "placement" | "fixed-scope" | "fixed-environment" }
+  | { readonly expect: "placement" }
   | { readonly expect: "term"; readonly placement: string }
   | { readonly expect: "complete"; readonly next: number };
 
@@ -330,19 +316,7 @@ function consumeRelationTerm(words: readonly string[], start: number): RelationT
   if (words.length === start + 1) {
     return { expect: "term", placement };
   }
-  if (placement !== "fixed") {
-    return { expect: "complete", next: start + 2 };
-  }
-  if (words.length === start + 2) {
-    return { expect: "fixed-scope" };
-  }
-  if (words[start + 2] !== "in") {
-    return { expect: "fixed-scope" };
-  }
-  if (words.length === start + 3) {
-    return { expect: "fixed-environment" };
-  }
-  return { expect: "complete", next: start + 4 };
+  return { expect: "complete", next: start + 2 };
 }
 
 function projectionOperatorItems(typeSystem: TypeSystem, expectedType?: string): CompletionItem[] {
@@ -459,6 +433,10 @@ function architectureItems(
   typeSystem: TypeSystem,
   context: CompletionScope,
 ): CompletionItem[] {
+  const deploymentItems = deploymentDefinitionItems(line, typeSystem, context);
+  if (deploymentItems !== undefined) {
+    return deploymentItems;
+  }
   const projectionItems = projectionDefinitionItems(line, syntax, typeSystem, context);
   if (projectionItems !== undefined) {
     return projectionItems;
@@ -504,6 +482,11 @@ function architectureItems(
   if (typeSlotTargetItems !== undefined) {
     return typeSlotTargetItems;
   }
+  if (line.hasOnlyIndentBeforeCursor
+    && nearestFrame(context, line.indentLevel) !== undefined
+    && !(currentOperator(context, line.indentLevel) === undefined && edgeList !== undefined)) {
+    return identifierPositionItems(line, typeSystem, context);
+  }
   if (expectsIdentifierDeclaration(syntax, typeSystem, context, line)) {
     return [];
   }
@@ -527,6 +510,83 @@ function architectureItems(
   return [];
 }
 
+function deploymentDefinitionItems(
+  line: LineContext,
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+): CompletionItem[] | undefined {
+  const list = currentList(context, line.indentLevel);
+  if (list?.attribute !== DEPLOYMENT_LIST_ATTRIBUTE) {
+    return undefined;
+  }
+  const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
+  if (words.length === 0) {
+    return deploymentOperatorItems(typeSystem, list.ownerType);
+  }
+  if (words.length === 1 && deploymentOperatorSpellings(typeSystem, list.ownerType).includes(words[0] ?? "")) {
+    return deploymentTargetItems(typeSystem, context, list.ownerType, words[0] ?? "");
+  }
+  return [];
+}
+
+function deploymentOperatorItems(typeSystem: TypeSystem, ownerType: string): CompletionItem[] {
+  return deploymentOperatorSpellings(typeSystem, ownerType).map((operator) => operatorItem(`${operator} `));
+}
+
+function deploymentOperatorSpellings(typeSystem: TypeSystem, ownerType: string): string[] {
+  return unique(typeSystem.operatorConstructorsFrom(ownerType)
+    .filter((operator) => typeSystem.isAssignable(operator.ownerType, EDGE))
+    .filter((operator) => typeSystem.isAssignable(operator.targetType, DEPLOYMENT_PROFILE_TYPE)
+      || typeSystem.isAssignable(operator.targetType, INFRASTRUCTURE_COMPONENT_TYPE))
+    .map((operator) => operator.spelling));
+}
+
+function deploymentTargetItems(
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+  ownerType: string,
+  operatorSpelling: string,
+): CompletionItem[] {
+  const targetTypes = typeSystem.operatorConstructorsFrom(ownerType)
+    .filter((operator) => operator.spelling === operatorSpelling)
+    .filter((operator) => typeSystem.isAssignable(operator.ownerType, EDGE))
+    .map((operator) => operator.targetType);
+  const operatorSpellings = new Set(deploymentOperatorSpellings(typeSystem, ownerType));
+  const identifiers = targetTypes.flatMap((targetType) =>
+    valueItemsForExpectedType(typeSystem, context, targetType, {
+      includeConstructors: false,
+    })
+  ).filter((item) => !operatorSpellings.has(item.label));
+  const slots = targetTypes.flatMap((targetType) =>
+    deploymentSlotItems(typeSystem, ownerType, targetType, operatorSpelling)
+  );
+  return uniqueByInsertText([...identifiers, ...slots]);
+}
+
+function deploymentSlotItems(
+  typeSystem: TypeSystem,
+  ownerType: string,
+  targetType: string,
+  operatorSpelling: string,
+): CompletionItem[] {
+  if (!typeSystem.isAssignable(targetType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+    return [];
+  }
+  const expectedSlotType = operatorSpelling === USES_OPERATOR && typeSystem.isAssignable(ownerType, "Wire")
+    ? NETWORK_CONNECTION_TYPE
+    : INFRASTRUCTURE_COMPONENT_TYPE;
+  return unique([...typeSystem.declaredTypes()]
+    .filter((type) => typeSystem.isAssignable(type, "Environment"))
+    .flatMap((type) => [...typeSystem.attributes(type).values()])
+    .filter((attribute) => attribute.name !== "_")
+    .filter((attribute) => {
+      const valueType = referenceAttributeValueType(attribute);
+      return valueType !== undefined && typeSystem.isAssignable(valueType, expectedSlotType);
+    })
+    .map((attribute) => attribute.name))
+    .map(identifierItem);
+}
+
 function identifierPositionItems(
   line: LineContext,
   typeSystem: TypeSystem,
@@ -542,12 +602,17 @@ function identifierPositionItems(
     return slotReferenceItems;
   }
   result.push(...slotReferenceItems);
-  const currentOwnerType = implicitObjectType ?? ownerType(context, line.indentLevel);
+  const currentOwnerTypes = implicitObjectType === undefined
+    ? ownerTypes(context, line.indentLevel)
+    : [implicitObjectType];
+  const currentOwnerType = currentOwnerTypes[0] ?? CONTEXT;
   if (line.indentLevel > 0) {
     const assigned = implicitObjectType === undefined
       ? assignedAttributes(context, line.indentLevel)
       : new Set<string>();
-    for (const attribute of typeSystem.attributes(currentOwnerType).values()) {
+    const attributes = new Map(currentOwnerTypes
+      .flatMap((type) => [...typeSystem.attributes(type).entries()]));
+    for (const attribute of attributes.values()) {
       if (attribute.name !== "_" && !assigned.has(attribute.name)) {
         result.push(attributeItem(typeSystem.isNestedAttribute(attribute) ? `${attribute.name}:` : `${attribute.name} = `));
       }
@@ -870,7 +935,15 @@ function operatorAllowedInEdgeList(
 }
 
 function ownerType(context: CompletionScope, indent: number): string {
-  return nearestFrame(context, indent)?.frame.type ?? CONTEXT;
+  return ownerTypes(context, indent)[0] ?? CONTEXT;
+}
+
+function ownerTypes(context: CompletionScope, indent: number): readonly string[] {
+  const frame = nearestFrame(context, indent)?.frame;
+  if (frame === undefined) {
+    return [CONTEXT];
+  }
+  return frame.completionTypes ?? [frame.type];
 }
 
 function parentType(context: CompletionScope, indent: number): string {
@@ -898,7 +971,7 @@ function assignedAttributes(context: CompletionScope, indent: number): ReadonlyS
 function nearestFrame(
   context: CompletionScope,
   indent: number,
-): { readonly kind: "element" | "operator"; readonly frame: { readonly indent: number; readonly type: string; readonly assignedAttributes: ReadonlySet<string> } } | undefined {
+): { readonly kind: "element" | "operator"; readonly frame: { readonly indent: number; readonly type: string; readonly completionTypes?: readonly string[]; readonly assignedAttributes: ReadonlySet<string> } } | undefined {
   return [
     ...context.frames.map((frame) => ({ kind: "element" as const, frame })),
     ...context.operatorFrames.map((frame) => ({ kind: "operator" as const, frame })),
@@ -912,21 +985,28 @@ function frameKindRank(kind: "element" | "operator"): number {
 }
 
 function sortAndFilter(items: readonly CompletionItem[], replacementPrefix: string): CompletionItem[] {
-  const seen = new Set<string>();
-  return items
+  return uniqueByInsertText(items)
     .filter((item) => {
       if (!(replacementPrefix.length === 0
         || item.insertText.startsWith(replacementPrefix)
         || item.label.startsWith(replacementPrefix))) {
         return false;
       }
+      return true;
+    })
+    .sort((left, right) => left.kind.localeCompare(right.kind) || left.label.localeCompare(right.label));
+}
+
+function uniqueByInsertText(items: readonly CompletionItem[]): CompletionItem[] {
+  const seen = new Set<string>();
+  return [...items]
+    .filter((item) => {
       if (seen.has(item.insertText)) {
         return false;
       }
       seen.add(item.insertText);
       return true;
-    })
-    .sort((left, right) => left.kind.localeCompare(right.kind) || left.label.localeCompare(right.label));
+    });
 }
 
 function rule(syntax: SyntaxContext, name: string): boolean {

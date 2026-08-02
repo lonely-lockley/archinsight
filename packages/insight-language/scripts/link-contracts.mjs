@@ -69,7 +69,23 @@ const cases = [
   validatesEnumAttributeValues,
   reportsDuplicateNamedSlots,
   appliesConcreteProjectionRulesFromReferenceAttributes,
-  resolvesFixedProjectionTermsAgainstEnvironmentInstances,
+  rejectsFixedProjectionTerms,
+  appliesDeploymentProfileDefaultsToElements,
+  reusesDeploymentInfrastructureWithoutOverrides,
+  overridesClonedDeploymentUsesLocally,
+  clonesDeploymentInfrastructureForReferenceOverrides,
+  reusesWireDeploymentInfrastructureWithoutOverrides,
+  inheritsDeploymentTargetsForComponentWires,
+  appliesAndOverridesWireDeploymentNetworkUses,
+  rejectsDeploymentProfilesOnWires,
+  rejectsNonNetworkInfrastructureOnWires,
+  skipsUnavailableWireNetworksPerDeployment,
+  requiresDeploymentProfileTargets,
+  rejectsEnvironmentTargetsInDeploymentProfiles,
+  rejectsDeploymentProfilesInsideEnvironments,
+  rejectsOverlappingDeploymentProfiles,
+  isolatesDisjointDeploymentProfilesInSameEnvironment,
+  rejectsLocalAppliesToOverrideInDeploymentBlocks,
   buildsIndexedGraphFromLinkedProject,
   updatesProjectLinkerStateWithGraphImpact,
 ];
@@ -1969,7 +1985,7 @@ system worker
   assert.deepEqual(physicalHop?.attributes.technology, ["HTTPS"]);
 }
 
-function resolvesFixedProjectionTermsAgainstEnvironmentInstances() {
+function rejectsFixedProjectionTerms() {
   const result = linkProject({
     snapshot: concreteProjectionSnapshot(),
     sources: [
@@ -2011,14 +2027,428 @@ system worker
     ],
   });
 
+  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "SYNTAX_ERROR"));
+}
+
+function appliesDeploymentProfileDefaultsToElements() {
+  const result = linkDeploymentProfileProject(`
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+`);
+
   assertNoErrors(result);
-  assert(result.contexts.some((context) => context.id === "latam"));
-  assert(result.elements.some((element) => element.id === "latam/tgw"));
-  const transit = result.edges.find((edge) => edge.projected === true
-    && edge.source === "shared/local_tgw"
-    && edge.target === "latam/tgw");
-  assert.equal(transit?.operator, "connectTo");
-  assert.deepEqual(transit?.attributes.technology, ["Transit"]);
+  const backend = result.elements.find((element) => element.id === "app/backend");
+  assert.deepEqual(backend?.attributes.runsOn?.map((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0]), ["Kubernetes"]);
+  assert.deepEqual(backend?.attributes.uses?.map((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0]), ["Application database"]);
+  assert.deepEqual(backend?.attributes.appliesTo, ["eu/production"]);
+}
+
+function reusesDeploymentInfrastructureWithoutOverrides() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+`);
+
+  assertNoErrors(result);
+  const compute = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Kubernetes");
+  const database = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Application database");
+  for (const serviceId of ["app/frontend", "app/backend"]) {
+    const service = result.elements.find((element) => element.id === serviceId);
+    assert.deepEqual(service?.attributes.runsOn, [compute?.id]);
+    assert.deepEqual(service?.attributes.uses, [database?.id]);
+    assert(result.edges.some((edge) => edge.source === serviceId
+      && edge.target === database?.id
+      && edge.projected === true));
+  }
+  assert(!result.elements.some((element) => element.localId.startsWith("_deployment_")));
+}
+
+function overridesClonedDeploymentUsesLocally() {
+  const result = linkDeploymentProfileProject(`
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+        uses database
+            description = mysql://connection_line
+`);
+
+  assertNoErrors(result);
+  const backend = result.elements.find((element) => element.id === "app/backend");
+  const databaseId = backend?.attributes.uses?.find((id) => result.elements.find((element) => element.id === id)?.type === "Storage");
+  const database = result.elements.find((element) => element.id === databaseId);
+  const originalDatabase = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Application database");
+  assert.notEqual(database?.id, originalDatabase?.id);
+  assert.deepEqual(database?.attributes.name, ["Application database"]);
+  assert.deepEqual(database?.attributes.description, ["mysql://connection_line"]);
+  assert.deepEqual(originalDatabase?.attributes.description, ["default connection"]);
+}
+
+function clonesDeploymentInfrastructureForReferenceOverrides() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("deployment-framework.ai", `
+define type ReplicatedStorage of Storage
+    constructor replicatedStorage
+    InfrastructureComponent endpoint
+
+extend type Environment
+    ReplicatedStorage database
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("eu.ai", `
+environment eu
+    name = EU
+
+deployment production
+    database:
+        name = Application database
+        endpoint:
+            infrastructureComponent default_endpoint
+                name = Default endpoint
+`),
+      source("app.ai", `
+context app
+
+import eu from environment eu
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+    uses database
+
+infrastructureComponent private_endpoint
+    name = Private endpoint
+
+system application
+    name = Application
+
+    service backend
+        name = Backend
+        deployment:
+            uses globalProfile
+            uses database
+                endpoint:
+                    private_endpoint
+`),
+    ],
+  });
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  const backend = result.elements.find((element) => element.id === "app/backend");
+  const database = result.elements.find((element) => element.id === backend?.attributes.uses?.[0]);
+  const originalDatabase = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Application database");
+  const originalEndpoint = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Default endpoint");
+  assert.notEqual(database?.id, originalDatabase?.id);
+  assert.deepEqual(database?.attributes.endpoint, ["app/private_endpoint"]);
+  assert.deepEqual(originalDatabase?.attributes.endpoint, [originalEndpoint?.id]);
+  assert(!result.elements.some((element) => element.context === "app" && element.attributes.name?.[0] === "Default endpoint"));
+}
+
+function reusesWireDeploymentInfrastructureWithoutOverrides() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+    links:
+        -> backend
+            deployment:
+                uses internalNetwork
+
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+`);
+
+  assertNoErrors(result);
+  const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
+  const network = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Cluster network");
+  assert.deepEqual(edge?.attributes.uses, [network?.id]);
+  assert(!result.elements.some((element) => element.localId.startsWith("_deployment_")));
+}
+
+function inheritsDeploymentTargetsForComponentWires() {
+  const result = linkDeploymentProfileProject(`
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+
+    component caller
+        name = Caller
+        links:
+            -> callee
+                deployment:
+                    uses internalNetwork
+
+    component callee
+        name = Callee
+`);
+
+  assertNoErrors(result);
+  const edge = result.edges.find((candidate) => candidate.source === "app/caller" && candidate.target === "app/callee" && candidate.projected !== true);
+  const network = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Cluster network");
+  assert.deepEqual(edge?.attributes.uses, [network?.id]);
+}
+
+function appliesAndOverridesWireDeploymentNetworkUses() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+    links:
+        -> backend
+            deployment:
+                uses publicGateway
+                    description = Public ingress for this call
+
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+`);
+
+  assertNoErrors(result);
+  const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
+  assert.equal(edge?.attributes.uses?.length, 1);
+  const gateway = result.elements.find((element) => element.id === edge?.attributes.uses?.[0]);
+  const originalGateway = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Public gateway");
+  assert.notEqual(gateway?.id, originalGateway?.id);
+  assert.deepEqual(gateway?.attributes.name, ["Public gateway"]);
+  assert.deepEqual(gateway?.attributes.description, ["Public ingress for this call"]);
+  assert.deepEqual(originalGateway?.attributes.description, undefined);
+  assert(!edge?.attributes.uses?.some((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0] === "Application database"));
+}
+
+function rejectsDeploymentProfilesOnWires() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+    links:
+        -> backend
+            deployment:
+                uses globalProfile
+
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+`);
+
+  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
+    && diagnostic.message.includes("Wire deployment cannot use 'DeploymentProfile'")));
+}
+
+function rejectsNonNetworkInfrastructureOnWires() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+    links:
+        -> backend
+            deployment:
+                uses database
+
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+`);
+
+  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
+    && diagnostic.message.includes("Wire deployment can use only 'NetworkConnection'")));
+}
+
+function skipsUnavailableWireNetworksPerDeployment() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+    links:
+        -> backend
+            deployment:
+                uses missingNetwork
+
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+`);
+
+  assertNoErrors(result);
+  const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
+  assert.equal(edge?.attributes.uses, undefined);
+}
+
+function requiresDeploymentProfileTargets() {
+  const result = linkDeploymentProfileProject("", `
+deploymentProfile missingTargets
+`);
+
+  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "REQUIRED_ATTRIBUTE_MISSING"
+    && diagnostic.message.includes("appliesTo")));
+}
+
+function rejectsEnvironmentTargetsInDeploymentProfiles() {
+  const result = linkDeploymentProfileProject("", `
+deploymentProfile invalidTarget
+    appliesTo:
+        eu
+`);
+
+  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
+    && diagnostic.message.includes("not assignable to expected type 'Deployment'")));
+}
+
+function rejectsDeploymentProfilesInsideEnvironments() {
+  const result = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [source("eu.ai", `
+environment eu
+    name = EU
+
+deployment production
+
+deploymentProfile misplaced
+    appliesTo:
+        production
+`)],
+  });
+
+  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
+    && diagnostic.message.includes("'DeploymentProfile' is not assignable to expected type 'DeploymentElement'")));
+}
+
+function rejectsOverlappingDeploymentProfiles() {
+  const result = linkDeploymentProfileProject(`
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+        uses overlappingProfile
+`, `
+deploymentProfile overlappingProfile
+    appliesTo:
+        production from eu
+
+    uses broker
+`);
+
+  const overlap = result.diagnostics.find((diagnostic) => diagnostic.code === "DEPLOYMENT_PROFILE_DEPLOYMENT_OVERLAP");
+  assert(overlap?.message.includes("overlappingProfile"));
+  assert(overlap?.message.includes("globalProfile"));
+  assert(overlap?.message.includes("'production from eu'"));
+  const backend = result.elements.find((element) => element.id === "app/backend");
+  assert(!backend?.attributes.uses?.some((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0] === "Kafka"));
+}
+
+function isolatesDisjointDeploymentProfilesInSameEnvironment() {
+  const definitions = buildLanguageSnapshotResultFromSources([
+    source("deployment-framework.ai", `
+define type TestEnvironment of Environment
+    Storage database
+    Broker broker
+`),
+  ], [coreLanguageSnapshot]);
+  assertNoErrors(definitions);
+  const result = linkProject({
+    snapshot: definitions.snapshot,
+    sources: [
+      source("eu.ai", `
+environment eu
+    name = EU
+
+deployment production
+    database:
+        name = Production database
+
+    broker:
+        name = Production broker
+
+deployment test
+    database:
+        name = Test database
+
+    broker:
+        name = Test broker
+`),
+      source("app.ai", `
+context app
+
+import eu from environment eu
+
+deploymentProfile productionProfile
+    appliesTo:
+        production from eu
+
+    uses database
+
+deploymentProfile testProfile
+    appliesTo:
+        test from eu
+
+    uses broker
+
+system application
+    name = Application
+
+    service forward
+        name = Forward order
+        deployment:
+            uses productionProfile
+            uses testProfile
+
+    service reverse
+        name = Reverse order
+        deployment:
+            uses testProfile
+            uses productionProfile
+`),
+    ],
+  });
+
+  assertNoErrors(result);
+  for (const serviceId of ["app/forward", "app/reverse"]) {
+    const service = result.elements.find((element) => element.id === serviceId);
+    const infrastructureNames = service?.attributes.uses?.map((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0]);
+    assert.deepEqual(new Set(infrastructureNames), new Set(["Production database", "Test broker"]));
+  }
+}
+
+function rejectsLocalAppliesToOverrideInDeploymentBlocks() {
+  const result = linkDeploymentProfileProject(`
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+        appliesTo:
+            production from eu
+`);
+
+  assert(result.diagnostics.some((diagnostic) =>
+    diagnostic.code === "TYPE_MISMATCH"
+    && diagnostic.message.includes("Deployment list expects operator")
+  ));
 }
 
 function appliesProjectionRulesFromElementReferenceAttributes() {
@@ -3000,6 +3430,76 @@ function optionalProjectionSnapshot() {
       enums: [],
     },
   ]);
+}
+
+function linkDeploymentProfileProject(appBody, rootBody = "") {
+  const definitions = buildLanguageSnapshotResultFromSources([
+    source("deployment-framework.ai", `
+define type TestEnvironment of Environment
+    Compute compute
+    Storage database
+    Broker broker
+    NetworkConnection internalNetwork
+    NetworkConnection publicGateway
+`),
+  ], [coreLanguageSnapshot]);
+  assert.deepEqual(definitions.diagnostics, []);
+  return linkProject({
+    snapshot: definitions.snapshot,
+    sources: deploymentProfileSources(appBody, rootBody),
+  });
+}
+
+function deploymentProfileSources(appBody, rootBody = "") {
+  return [
+    source("eu.ai", `
+environment eu
+    name = EU
+
+deployment production
+    compute:
+        name = Kubernetes
+
+    database:
+        name = Application database
+        description = default connection
+        projection:
+            source $from originalLink target $this
+
+    broker:
+        name = Kafka
+
+    internalNetwork:
+        name = Cluster network
+
+    publicGateway:
+        networkConnection sharedGateway
+            name = Public gateway
+`),
+    source("app.ai", `
+context app
+
+import eu from environment eu
+
+deploymentProfile globalProfile
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses database
+
+${rootBody.trim()}
+
+system application
+    name = Application
+${indentBlock(appBody.trimStart(), 4)}
+`),
+  ];
+}
+
+function indentBlock(text, spaces) {
+  const indent = " ".repeat(spaces);
+  return text.split(/\r?\n/).map((line) => line.length === 0 ? line : `${indent}${line}`).join("\n");
 }
 
 function source(sourceName, sourceText) {

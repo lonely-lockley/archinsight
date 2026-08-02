@@ -20,6 +20,8 @@ const cases = [
   selectsReferencesReturnedByCypher,
   keepsParallelReferencesBetweenSameElements,
   c4QueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements,
+  c4QuerySelectsSharedDeploymentReferences,
+  c4QuerySeparatesDeploymentsInsideOneEnvironment,
   rollsChildReferencesUpToOwningElementForQuery,
   rollsNestedReferencesUpToOwningSystems,
   rollsNestedReferencesUpToOwningContexts,
@@ -329,6 +331,128 @@ system app
   assert(graph.elements["shared/backend"]);
   assert(graph.edges.some((edge) => edge.source === "shared/gateway" && edge.target === "shared/compute" && edge.edge.projected !== true));
   assert(!graph.edges.some((edge) => edge.source === "shared/frontend" && edge.target === "shared/backend"));
+}
+
+function c4QuerySelectsSharedDeploymentReferences() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("deployment_slots.ai", `
+extend type Environment
+    Compute compute
+    Storage storage
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("eu.ai", `
+environment eu
+    name = EU
+
+deployment production
+    compute:
+        name = Kubernetes
+
+    storage:
+        name = Postgres
+        projection:
+            source $from originalLink target $this
+`),
+      source("app.ai", `
+context app
+
+deploymentProfile standard
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses storage
+
+system application
+    name = Application
+
+    service backend
+        name = Backend
+        deployment:
+            uses standard
+`),
+    ],
+  });
+
+  const graph = selectGraph(result, { context: "app", tab: "app.ai" }, builtinC4Query);
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  const compute = Object.values(graph.elements).find((element) => element.attributes.name?.[0] === "Kubernetes");
+  const storage = Object.values(graph.elements).find((element) => element.attributes.name?.[0] === "Postgres");
+  assert(compute);
+  assert(storage);
+  assert.deepEqual(graph.groups.find((group) => group.owner === compute.id)?.elements, ["app/backend"]);
+  assert(graph.edges.some((edge) => edge.source === "app/backend"
+    && edge.target === storage.id
+    && edge.edge.projected === true));
+}
+
+function c4QuerySeparatesDeploymentsInsideOneEnvironment() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("deployment_slots.ai", `
+extend type Environment
+    Compute compute
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("eu.ai", `
+environment eu
+    name = EU
+
+deployment production
+    compute:
+        compute productionCompute
+            name = Production Kubernetes
+
+deployment test
+    compute:
+        compute testCompute
+            name = Test Kubernetes
+`),
+      source("app.ai", `
+context app
+
+deploymentProfile productionProfile
+    appliesTo:
+        production from eu
+
+    runsOn compute
+
+deploymentProfile testProfile
+    appliesTo:
+        test from eu
+
+    runsOn compute
+
+system application
+    name = Application
+
+    service productionService
+        name = Production service
+        deployment:
+            uses productionProfile
+
+    service testService
+        name = Test service
+        deployment:
+            uses testProfile
+`),
+    ],
+  });
+
+  const graph = selectGraph(result, { context: "app", tab: "app.ai" }, builtinC4Query);
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert.deepEqual(graph.groups.find((group) => group.owner === "eu/productionCompute")?.elements, ["app/productionService"]);
+  assert.deepEqual(graph.groups.find((group) => group.owner === "eu/testCompute")?.elements, ["app/testService"]);
 }
 
 function rollsChildReferencesUpToOwningElementForQuery() {
