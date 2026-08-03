@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-  import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+  import type * as Monaco from 'monaco-editor';
   import { BUILTIN_VIEW_QUERIES } from './generated/builtin-view-queries';
   import type { DiagramMode } from './workspace-types';
 
@@ -136,7 +136,7 @@
     if (!queryVisible || queryHost === undefined || queryEditor !== undefined) {
       return;
     }
-    monaco = await import('monaco-editor/esm/vs/editor/editor.api');
+    monaco = await import('monaco-editor');
     registerQueryLanguage(monaco);
     queryModel = monaco.editor.createModel(query, 'archinsight-query');
     queryEditor = monaco.editor.create(queryHost, {

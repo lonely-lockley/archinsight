@@ -1,10 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import 'monaco-editor/esm/vs/editor/editor.all.js';
-  import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
-  import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon-modifiers.css';
-  import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
-  import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+  import 'monaco-editor';
+  import type * as Monaco from 'monaco-editor';
+  import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
   import {
     CompletionEngine,
     buildLanguageSnapshotFromSources,
@@ -351,7 +349,7 @@
   }
 
   async function setupMonaco(): Promise<void> {
-    monaco = await import('monaco-editor/esm/vs/editor/editor.api');
+    monaco = await import('monaco-editor');
     completionEngine = new CompletionEngine(createGeneratedInsightSyntaxProvider());
     tokenVocabulary = createInsightTokenVocabulary(editorSymbols);
     monaco.languages.register({ id: 'insight' });
@@ -373,7 +371,7 @@
       fontSize: 12,
       tabSize: 4,
       insertSpaces: true,
-      hover: { enabled: true },
+      hover: { enabled: 'on' },
       fixedOverflowWidgets: true,
       occurrencesHighlight: 'off',
       selectionHighlight: false,

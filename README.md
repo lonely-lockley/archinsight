@@ -101,6 +101,7 @@ npm --prefix packages/insight-language run test:runtime
 npm --prefix archinsight-web run check
 npm --prefix archinsight-web run test:server
 npm --prefix archinsight-web run test:security
+npm --prefix archinsight-web run test:postgres
 npm --prefix archinsight-cli run check
 npm --prefix archinsight-vscode run check
 npm --prefix archinsight-renderer test

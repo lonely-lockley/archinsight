@@ -7,6 +7,7 @@ services:
       - "127.0.0.1:3000:3000"
     environment:
       NODE_ENV: production
+      HOST: "0.0.0.0"
       PORT: "3000"
       MAX_BODY_BYTES: "1048576"
       MAX_RENDER_COUNT: "16"
@@ -15,6 +16,8 @@ services:
       MAX_PNG_DPI: "600"
       MAX_PNG_BYTES: "16777216"
       RENDER_TIMEOUT_MS: "5000"
+      MAX_CONCURRENT_RENDERS: "2"
+      MAX_QUEUED_RENDERS: "16"
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=16m

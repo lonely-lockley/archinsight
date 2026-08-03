@@ -17,6 +17,12 @@ export async function postgresDatabase(env: EnvSource | undefined): Promise<Post
   if (!pool) {
     pool = createDatabase(config);
     pools.set(key, pool);
+    const pending = pool;
+    void pending.catch(() => {
+      if (pools.get(key) === pending) {
+        pools.delete(key);
+      }
+    });
   }
   return pool;
 }
@@ -72,11 +78,20 @@ export function normalizePostgresResult<T extends QueryResultRow>(
 }
 
 async function createDatabase(config: DatabaseConfig): Promise<PostgresDatabase> {
-  const database = new PostgresDatabase(new Pool(poolConfig(config)));
-  if (config.migrationsEnabled) {
-    await migrateDatabase(database);
+  const pool = new Pool(poolConfig(config));
+  pool.on('error', (error) => {
+    console.error('Postgres idle connection failed; the pool will reconnect on a later request', error);
+  });
+  const database = new PostgresDatabase(pool);
+  try {
+    if (config.migrationsEnabled) {
+      await migrateDatabase(database);
+    }
+    return database;
+  } catch (error) {
+    await pool.end().catch(() => undefined);
+    throw error;
   }
-  return database;
 }
 
 function poolConfig(config: DatabaseConfig): PoolConfig {

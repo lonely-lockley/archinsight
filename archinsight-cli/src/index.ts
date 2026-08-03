@@ -944,10 +944,39 @@ function skillPackageSuccess(
   return lines.join("\n");
 }
 
+function skillTaskModesGuide(): string {
+  return `## Task modes
+
+Choose one mode before acting:
+
+- **Analyze:** stay read-only. Inspect sources, run \`structure\`, \`link\`, and
+  the relevant query/render, then separate model, linker, query, and layout
+  findings with evidence.
+- **Repair:** reproduce the defect first. For a visual defect, request the
+  current image or rendered output when it is not available. Make the smallest
+  model or query change and validate the same path again.
+- **Build or rebuild:** perform discovery before editing, then model from the
+  outside inward and validate after each architectural layer.
+- **Extend or migrate:** inventory existing ids, imports, edges, and view scope;
+  preserve stable identities and compare the linked/rendered result before and
+  after each focused change.
+
+Before any build, rebuild, or migration edit, inspect the supplied context and
+ask one short, non-repetitive discovery message. Ask only for missing facts that
+could materially change the model: existing descriptions, diagrams or documents,
+unclear boundaries and flows, and relevant deployment constraints. Do not use a
+questionnaire or ask about the audience by default. If the request already
+answers everything, only invite the user to share any existing artifacts before
+proceeding. Use supplied material as the source of truth; do not invent missing
+architecture.
+`;
+}
+
 function genericSkillGuide(): string {
   return `# Archinsight Agent Guide
 
-Use this guide when creating or editing Insight \`.ai\` architecture models.
+Use this guide when creating, analyzing, repairing, or migrating Insight \`.ai\`
+architecture models.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
@@ -963,6 +992,8 @@ archinsight link . --format text
 
 If \`archinsight\` is not available, ask the user to install or expose
 \`@archinsight/cli\` before changing \`.ai\` files.
+
+${skillTaskModesGuide()}
 
 ## Workflow
 
@@ -1018,12 +1049,13 @@ If \`archinsight\` is not available, ask the user to install or expose
 function codexSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model software architecture with Archinsight.
+description: Create, edit, migrate, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
 
-Use this skill when creating or editing Insight \`.ai\` architecture models.
+Use this skill when creating, analyzing, repairing, or migrating Insight \`.ai\`
+architecture models.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
@@ -1075,6 +1107,8 @@ archinsight link . --format text
 
 If \`archinsight\` is not available, ask the user to install or expose
 \`@archinsight/cli\` before changing \`.ai\` files.
+
+${skillTaskModesGuide()}
 
 ## Workflow
 
@@ -1134,12 +1168,13 @@ If \`archinsight\` is not available, ask the user to install or expose
 function claudeSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model software architecture with Archinsight.
+description: Create, edit, migrate, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
 
-Use this skill when creating or editing Insight \`.ai\` architecture models.
+Use this skill when creating, analyzing, repairing, or migrating Insight \`.ai\`
+architecture models.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
@@ -1192,6 +1227,8 @@ archinsight link . --format text
 
 If \`archinsight\` is not available in Claude's environment, ask the user to
 install or expose \`@archinsight/cli\` before changing \`.ai\` files.
+
+${skillTaskModesGuide()}
 
 ## Workflow
 
@@ -1272,7 +1309,7 @@ function codexOpenAiYaml(): string {
   return `interface:
   display_name: "Archinsight"
   short_description: "Work with Insight architecture models"
-  default_prompt: "Use $archinsight to model or validate Insight architecture-as-code files."
+  default_prompt: "Use $archinsight to model, analyze, repair, or validate Insight architecture-as-code files."
 
 policy:
   allow_implicit_invocation: true
@@ -2776,24 +2813,76 @@ Components inherit effective deployments from their nearest deployed logical
 ancestor, normally a container or service. Put profiles on independently
 deployable C2 elements unless a C3 component truly has distinct placement.
 
-## Projection ownership
+## Projection execution semantics
 
 Projection rules belong to concrete infrastructure instances because paths can
-differ between deployments and operator overrides can clone instances. Use:
+differ between deployments and operator overrides can clone instances. Do not
+declare them on infrastructure types.
 
-- \`$from\` and \`$to\` for the logical endpoints;
-- \`$this\` for the infrastructure instance owning the projection;
-- named attributes for intermediate infrastructure.
+A projection is activated in one of two contexts:
+
+- element deployment: \`uses\` or \`runsOn\` projects a single logical element;
+  \`$from\` is that element and \`$to\` is not available;
+- wire deployment: \`uses <network-slot>\` projects one logical relationship;
+  \`$from\` and \`$to\` are its logical source and target.
+
+Using \`$to\` in a projection reached from an element is an error. Use an
+element projection for dependencies such as service-to-storage:
+
+\`\`\`insight
+storage postgres
+    projection:
+        source $from originalLink target $this
+\`\`\`
+
+Use these terms inside a projection:
+
+- \`$from\` and \`$to\`: logical relationship endpoints;
+- \`$this\`: the concrete infrastructure instance owning the projection;
+- an attribute name such as \`cdn\` or \`loadBalancer\`: the value of that slot
+  on \`$this\`. Use the slot name even when the nested object's id is different.
+
+\`originalLink\` and \`connectTo\` have different jobs:
+
+- \`originalLink\` substitutes one physical hop for the original logical
+  relationship. On a wire it preserves the logical operator, relationship
+  attributes, and annotations; attributes written on the projection rule
+  override carried values for that hop.
+- \`connectTo\` creates a new physical \`connectTo\` edge. It uses only the
+  attributes written on that projection rule; relationship annotations are
+  still retained for traceability.
+
+The leading \`source\` or \`target\` on a projection term is its placement on the
+logical source or target side. It controls ownership/source scoping; it does not
+reverse the edge. The left term is always the physical edge source and the right
+term is its target. For example, this line points from the gateway to the
+logical caller even though their placements are target and source:
+
+\`\`\`insight
+target $this connectTo source $from
+\`\`\`
+
+Projection lines are declarative independent edges, not imperative steps. Form
+a path by repeating the same term at adjacent ends; branch by using one term in
+several rules:
 
 \`\`\`insight
 projection:
     source $from originalLink target cdn
     target cdn connectTo target loadBalancer
+        technology = HTTPS
     target loadBalancer connectTo target $to
+        technology = HTTPS
 \`\`\`
 
-Do not declare projections on infrastructure types. Put them on concrete
-instances inside a deployment so regional and stage-specific paths stay local.
+This projects an incoming logical wire as \`$from -> cdn -> loadBalancer -> $to\`.
+Only the first hop keeps the original logical operator and its attributes.
+
+For a wire, the linker evaluates the union of effective deployments of both
+endpoints. An undeployed external actor therefore still uses the target
+service's deployments. For each deployment, the named network slot is resolved
+and its concrete instance projection is applied; a deployment without that slot
+is skipped.
 
 ## Diagram scope and scale
 

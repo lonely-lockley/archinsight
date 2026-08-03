@@ -29,6 +29,8 @@ Common local settings:
 - `ARCHINSIGHT_REPOSITORY_BACKEND=postgres` enables the Postgres repository backend.
 - `ARCHINSIGHT_DATABASE_URL=postgres://...` configures the database connection.
 - `ARCHINSIGHT_DATABASE_MIGRATIONS_ENABLED=true` runs built-in migrations.
+- `ARCHINSIGHT_AUTH_TOKEN_SECRET=...` configures the persistent session-signing
+  secret and is required in production, Postgres, and OIDC modes.
 - `ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED=true` enables the development login route.
 - `ARCHINSIGHT_AUTH_OIDC_*` configures OIDC providers.
 - `ARCHINSIGHT_LIMITS_*` controls request size and render limits.
@@ -59,7 +61,11 @@ Core server adapters live under `src/lib/server/`:
 npm --prefix archinsight-web run check
 npm --prefix archinsight-web run test:server
 npm --prefix archinsight-web run test:security
+npm --prefix archinsight-web run test:postgres
 ```
+
+`test:postgres` is the real-database concurrency test. It uses
+`ARCHINSIGHT_TEST_DATABASE_URL` when set, otherwise `ARCHINSIGHT_DATABASE_URL`.
 
 Gradle also exposes:
 

@@ -69,6 +69,7 @@ export function getAuthConfig(env?: EnvSource): AuthConfig {
   const standaloneSyncApiToken = optionalValue(source.ARCHINSIGHT_AUTH_STANDALONE_SYNC_API_TOKEN);
   const ghost = ghostConfig(source);
   const oidc = oidcConfig(source);
+  const tokenSecret = authTokenSecret(source, mode);
 
   return {
     contextRoot,
@@ -84,7 +85,7 @@ export function getAuthConfig(env?: EnvSource): AuthConfig {
     tokenCookieName,
     cookieSecure: booleanValue(source.ARCHINSIGHT_AUTH_COOKIE_SECURE, true),
     token: {
-      secret: optionalValue(source.ARCHINSIGHT_AUTH_TOKEN_SECRET) ?? runtimeTokenSecret,
+      secret: tokenSecret,
       issuer: source.ARCHINSIGHT_AUTH_TOKEN_ISSUER ?? 'archinsight',
       audience: source.ARCHINSIGHT_AUTH_TOKEN_AUDIENCE ?? 'archinsight-editor',
       ttlMinutes: numberValue(source.ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES, 43200)
@@ -93,6 +94,22 @@ export function getAuthConfig(env?: EnvSource): AuthConfig {
     oidc
   };
 
+}
+
+function authTokenSecret(env: EnvSource, mode: string): string {
+  const configured = optionalValue(env.ARCHINSIGHT_AUTH_TOKEN_SECRET);
+  if (configured) {
+    return configured;
+  }
+  const persistentSecretRequired = env.NODE_ENV === 'production'
+    || booleanValue(env.ARCHINSIGHT_DATABASE_ENABLED, false)
+    || (env.ARCHINSIGHT_REPOSITORY_BACKEND ?? '').toLowerCase() === 'postgres'
+    || mode === 'oidc'
+    || splitCsv(env.ARCHINSIGHT_AUTH_OIDC_PROVIDERS).length > 0;
+  if (persistentSecretRequired) {
+    throw new Error('ARCHINSIGHT_AUTH_TOKEN_SECRET must be configured for production, Postgres, or OIDC authentication');
+  }
+  return runtimeTokenSecret;
 }
 
 function ghostConfig(env: EnvSource): GhostConfig {

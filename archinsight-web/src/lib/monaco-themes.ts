@@ -1,4 +1,4 @@
-import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as Monaco from 'monaco-editor';
 import insightDark from './themes/monaco/insight_dark.json';
 import insightLight from './themes/monaco/insight_light.json';
 

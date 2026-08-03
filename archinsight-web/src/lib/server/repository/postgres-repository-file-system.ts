@@ -101,7 +101,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     const projectIdentifier = nullableText(request?.projectIdentifier, 50, 'projectIdentifier');
 
     return this.database.transaction(async (client) => {
-      const repository = await this.requireRepository(client, ownerId, projectId);
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
       const existing = findNode(root, filePath);
       if (existing?.type === 'd') {
@@ -153,7 +153,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
       throw new Error(`Source and target file paths are equal: ${sourcePath}`);
     }
     return this.database.transaction(async (client) => {
-      const repository = await this.requireRepository(client, ownerId, projectId);
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
       const source = requireFile(root, sourcePath);
       moveNode(root, source, targetPath, 'f');
@@ -181,7 +181,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   async delete(ownerId: string, projectId: string, path: string): Promise<void> {
     const filePath = normalizeFileName(path);
     await this.database.transaction(async (client) => {
-      const repository = await this.requireRepository(client, ownerId, projectId);
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
       const node = requireFile(root, filePath);
       removeNode(root, node);
@@ -209,7 +209,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     }
     const folderPath = normalizeDirectoryPath(request.path);
     return this.database.transaction(async (client) => {
-      const repository = await this.requireRepository(client, ownerId, projectId);
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
       addDirectoryNode(root, folderPath);
       await this.saveTree(client, ownerId, repository.id, root);
@@ -230,7 +230,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
       throw new Error(`Folder cannot be moved inside itself: ${sourcePath}`);
     }
     return this.database.transaction(async (client) => {
-      const repository = await this.requireRepository(client, ownerId, projectId);
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
       const source = requireDirectory(root, sourcePath);
       moveNode(root, source, targetPath, 'd');
@@ -242,7 +242,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   async deleteFolder(ownerId: string, projectId: string, path: string): Promise<void> {
     const folderPath = normalizeDirectoryPath(path);
     await this.database.transaction(async (client) => {
-      const repository = await this.requireRepository(client, ownerId, projectId);
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
       const folder = requireDirectory(root, folderPath);
       const ids = fileIds(folder);
@@ -281,8 +281,13 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     return result;
   }
 
-  private async requireRepository(client: Queryable, ownerId: string, projectId: string): Promise<RepositoryRow> {
-    const repository = await this.resolveRepository(client, ownerId, projectId);
+  private async requireRepository(
+    client: Queryable,
+    ownerId: string,
+    projectId: string,
+    forUpdate = false
+  ): Promise<RepositoryRow> {
+    const repository = await this.resolveRepository(client, ownerId, projectId, forUpdate);
     if (!repository) {
       throw new Error(`Repository not found: ${projectId}`);
     }
@@ -292,7 +297,8 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   private async resolveRepository(
     client: Queryable,
     ownerId: string,
-    projectId: string
+    projectId: string,
+    forUpdate: boolean
   ): Promise<RepositoryRow | null> {
     const normalized = projectId.trim();
     if (normalized === '') {
@@ -305,6 +311,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
           from public.repository
           where owner_id = $1
             and id = $2
+          ${forUpdate ? 'for update' : ''}
         `,
         [ownerId, normalized]
       );
@@ -318,6 +325,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
           and name = $2
         order by updated desc
         limit 1
+        ${forUpdate ? 'for update' : ''}
       `,
       [ownerId, normalized]
     );

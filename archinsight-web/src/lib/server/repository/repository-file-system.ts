@@ -96,7 +96,17 @@ class LazyPostgresRepositoryFileSystem implements RepositoryFileSystem {
   }
 
   private async fileSystem(): Promise<PostgresRepositoryFileSystem> {
-    this.fileSystemPromise ??= postgresDatabase(this.env).then((database) => new PostgresRepositoryFileSystem(database));
-    return this.fileSystemPromise;
+    let fileSystem = this.fileSystemPromise;
+    if (!fileSystem) {
+      fileSystem = postgresDatabase(this.env).then((database) => new PostgresRepositoryFileSystem(database));
+      this.fileSystemPromise = fileSystem;
+      const pending = fileSystem;
+      void pending.catch(() => {
+        if (this.fileSystemPromise === pending) {
+          this.fileSystemPromise = undefined;
+        }
+      });
+    }
+    return fileSystem;
   }
 }

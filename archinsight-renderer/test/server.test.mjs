@@ -15,7 +15,9 @@ test('serves health, svg render, and png render endpoints', async (t) => {
       PORT: String(port),
       DEFAULT_PNG_DPI: '200',
       MAX_PNG_DPI: '600',
-      MAX_PNG_BYTES: String(1024 * 1024)
+      MAX_PNG_BYTES: String(1024 * 1024),
+      MAX_CONCURRENT_RENDERS: '1',
+      MAX_QUEUED_RENDERS: '0'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -61,6 +63,15 @@ test('serves health, svg render, and png render endpoints', async (t) => {
     const missing = await fetch(`${baseUrl}/render/svg`);
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: 'not found' });
+
+    const concurrent = await Promise.all([
+      postResponse('/render/svg', renderPayload()),
+      postResponse('/render/svg', renderPayload())
+    ]);
+    assert.deepEqual(concurrent.map((response) => response.status).sort(), [200, 503]);
+    const overloaded = concurrent.find((response) => response.status === 503);
+    assert.equal(overloaded.headers.get('retry-after'), '1');
+    assert.deepEqual(await overloaded.json(), { error: 'renderer queue is full' });
   } finally {
     if (server.exitCode !== null && /listen EPERM/.test(stderr)) {
       t.skip('sandbox does not allow listening sockets');
@@ -104,13 +115,17 @@ async function waitForHealth(server, stderr) {
 }
 
 async function post(path, body, expectedStatus = 200) {
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  const response = await postResponse(path, body);
   if (response.status !== expectedStatus) {
     assert.equal(response.status, expectedStatus, await response.text());
   }
   return response.json();
+}
+
+function postResponse(path, body) {
+  return fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body)
+  });
 }

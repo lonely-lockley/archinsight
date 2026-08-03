@@ -104,7 +104,8 @@ Response:
 Environment variables:
 
 - `PORT` - default `3000`.
-- `HOST` - default `0.0.0.0`; local debug uses `127.0.0.1`.
+- `HOST` - default `127.0.0.1`; set `0.0.0.0` explicitly only behind a private
+  container network or equivalent ingress boundary.
 - `MAX_BODY_BYTES` - default `1048576`.
 - `MAX_RENDER_COUNT` - default `16`.
 - `MAX_DOT_BYTES` - default `1048576`.
@@ -112,6 +113,9 @@ Environment variables:
 - `MAX_PNG_DPI` - default `600`.
 - `MAX_PNG_BYTES` - default `16777216`.
 - `RENDER_TIMEOUT_MS` - default `5000`.
+- `MAX_CONCURRENT_RENDERS` - maximum active worker threads, default `2`.
+- `MAX_QUEUED_RENDERS` - bounded waiting queue, default `16`; excess requests
+  receive `503 Service Unavailable` with `Retry-After: 1`.
 
 ## Runtime Hardening
 

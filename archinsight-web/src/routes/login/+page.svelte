@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
+  import '@vscode/codicons/dist/codicon.css';
   import { fetchCurrentUser, routePath, type AuthUserResponse } from '$lib/api';
 
   let user: AuthUserResponse = { authenticated: false };

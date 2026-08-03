@@ -8,7 +8,7 @@ import {
   type InsightLineToken,
   type LanguageSnapshot
 } from '@insight/language';
-import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import type * as Monaco from 'monaco-editor';
 
 const keywordTokens = new Set([
   'DEFINE',

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import 'monaco-editor/esm/vs/editor/contrib/symbolIcons/browser/symbolIcons.css';
+  import 'monaco-editor/editor/contrib/symbolIcons/browser/symbolIcons.js';
   import type { LanguageSnapshot, TypeDefinition } from '@insight/language';
   import type { ProjectStructure, StructureDeclaration } from './api';
   import StructureTreeNode from './StructureTreeNode.svelte';
