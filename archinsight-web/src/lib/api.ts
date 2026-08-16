@@ -111,6 +111,21 @@ export type AuthUserResponse = {
   loginUrl?: string | null;
   logoutUrl?: string | null;
   loginOptions?: AuthLoginOption[] | null;
+  roles?: AppRole[];
+  capabilities?: AppCapability[];
+};
+
+export type AppRole = 'user' | 'playground_admin';
+export type AppCapability = 'repository:read-own' | 'repository:write-own' | 'publication:manage';
+export type WorkspaceSurface = 'editor' | 'playground';
+
+export type PlaygroundPublication = {
+  slot: string;
+  repositoryId: string;
+  ownerId: string;
+  publishedBy: string;
+  publishedAt: string;
+  updatedAt: string;
 };
 
 const API_BASE = import.meta.env.VITE_INSIGHT_API_BASE ?? base;
@@ -127,17 +142,19 @@ export function routePath(path: string): string {
   return `${base}${normalized}`;
 }
 
-export async function fetchProjects(): Promise<ProjectListResponse> {
-  return getJson('/api/projects');
+export async function fetchProjects(surface: WorkspaceSurface = 'editor'): Promise<ProjectListResponse> {
+  return getJson(surface === 'playground' ? '/api/playground' : '/api/projects');
 }
 
-export async function fetchTree(projectId: string): Promise<FileTreeResponse> {
-  return getJson(`/api/projects/${encodeURIComponent(projectId)}/files`);
+export async function fetchTree(projectId: string, surface: WorkspaceSurface = 'editor'): Promise<FileTreeResponse> {
+  return getJson(surface === 'playground' ? '/api/playground/files' : `/api/projects/${encodeURIComponent(projectId)}/files`);
 }
 
-export async function fetchFile(projectId: string, path: string): Promise<FileContentResponse> {
+export async function fetchFile(projectId: string, path: string, surface: WorkspaceSurface = 'editor'): Promise<FileContentResponse> {
   return getJson(
-    `/api/projects/${encodeURIComponent(projectId)}/files/content?path=${encodeURIComponent(path)}`
+    surface === 'playground'
+      ? `/api/playground/files/content?path=${encodeURIComponent(path)}`
+      : `/api/projects/${encodeURIComponent(projectId)}/files/content?path=${encodeURIComponent(path)}`
   );
 }
 
@@ -187,37 +204,62 @@ export async function deleteFolder(projectId: string, path: string): Promise<voi
   }
 }
 
-export async function fetchProjectSymbols(projectId: string): Promise<ProjectSymbols> {
-  return normalizeProjectSymbols(await getJson<ProjectSymbols>(`/api/projects/${encodeURIComponent(projectId)}/symbols`));
+export async function fetchProjectSymbols(projectId: string, surface: WorkspaceSurface = 'editor'): Promise<ProjectSymbols> {
+  const path = surface === 'playground' ? '/api/playground/symbols' : `/api/projects/${encodeURIComponent(projectId)}/symbols`;
+  return normalizeProjectSymbols(await getJson<ProjectSymbols>(path));
 }
 
 export async function fetchProjectStructure(
   projectId: string,
-  overlays: Record<string, string> = {}
+  overlays: Record<string, string> = {},
+  surface: WorkspaceSurface = 'editor'
 ): Promise<ProjectStructure> {
-  return postJson(`/api/projects/${encodeURIComponent(projectId)}/structure`, { overlays });
+  return postJson(surface === 'playground' ? '/api/playground/structure' : `/api/projects/${encodeURIComponent(projectId)}/structure`, { overlays });
 }
 
 export async function linkProject(
   projectId: string,
   openSourceIdentities: string[],
   overlays: Record<string, string>,
-  query: string
+  query: string,
+  surface: WorkspaceSurface = 'editor'
 ): Promise<LinkResponse> {
-  return postJson(`/api/projects/${encodeURIComponent(projectId)}/link`, { openSourceIdentities, overlays, query });
+  return postJson(surface === 'playground' ? '/api/playground/link' : `/api/projects/${encodeURIComponent(projectId)}/link`, { openSourceIdentities, overlays, query });
 }
 
 export async function renderProjectSvg(
   projectId: string,
   openSourceIdentities: string[],
   overlays: Record<string, string>,
-  query: string
+  query: string,
+  surface: WorkspaceSurface = 'editor'
 ): Promise<SvgRenderResponse> {
-  return postJson(`/api/projects/${encodeURIComponent(projectId)}/render/svg`, {
+  return postJson(surface === 'playground' ? '/api/playground/render/svg' : `/api/projects/${encodeURIComponent(projectId)}/render/svg`, {
     openSourceIdentities,
     overlays,
     query
   });
+}
+
+export async function fetchPlaygroundPublication(): Promise<PlaygroundPublication | null> {
+  return getJson('/api/admin/playground/publication');
+}
+
+export async function publishToPlayground(projectId: string): Promise<PlaygroundPublication> {
+  return requestJson('PUT', '/api/admin/playground/publication', { projectId });
+}
+
+export async function unpublishFromPlayground(): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/admin/playground/publication`, {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+  if (response.status === 401) {
+    throw new AuthRequiredError();
+  }
+  if (!response.ok) {
+    throw new Error(await responseErrorMessage(response));
+  }
 }
 
 export async function fetchCurrentUser(): Promise<AuthUserResponse> {

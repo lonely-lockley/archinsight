@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
+  import type { ControlState } from './actions/action-model';
 
   export let onNewFile: () => void;
   export let onSave: () => void;
@@ -10,7 +11,8 @@
   export let canDownloadSvg = false;
   export let canDownloadPng = false;
   export let canDownloadDot = false;
-  export let saveDisabled = false;
+  export let newFileState: ControlState = { hidden: false, disabled: false };
+  export let saveState: ControlState = { hidden: false, disabled: false };
 
   let downloadOpen = false;
 
@@ -50,12 +52,16 @@
 </script>
 
 <div class="file-actions" aria-label="File actions">
-  <button aria-label="New" class="icon-button has-tooltip" data-tooltip="New" type="button" on:click={onNewFile}>
-    <span aria-hidden="true" class="codicon codicon-new-file"></span>
-  </button>
-  <button aria-label="Save" class="icon-button has-tooltip" data-tooltip="Save" disabled={saveDisabled} type="button" on:click={onSave}>
-    <span aria-hidden="true" class="codicon codicon-save"></span>
-  </button>
+  {#if !newFileState.hidden}
+    <button aria-label="New" class="icon-button has-tooltip" data-tooltip={newFileState.reason ?? 'New'} disabled={newFileState.disabled} type="button" on:click={onNewFile}>
+      <span aria-hidden="true" class="codicon codicon-new-file"></span>
+    </button>
+  {/if}
+  {#if !saveState.hidden}
+    <button aria-label="Save" class="icon-button has-tooltip" data-tooltip={saveState.reason ?? 'Save'} disabled={saveState.disabled} type="button" on:click={onSave}>
+      <span aria-hidden="true" class="codicon codicon-save"></span>
+    </button>
+  {/if}
   <div class="download-action">
     <button aria-expanded={downloadOpen} aria-haspopup="menu" aria-label="Download" class="icon-button has-tooltip" data-tooltip="Download" type="button" on:click={toggleDownloadMenu}>
       <span aria-hidden="true" class="codicon codicon-cloud-download"></span>

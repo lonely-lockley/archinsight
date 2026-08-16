@@ -125,3 +125,9 @@ packages/insight-language/src/generated/core-source.ts
 
 Run `npm run sync:core` after editing `core.ai`. Do not hand-edit the generated
 snapshot.
+
+## License
+
+Copyright 2021-2026 Alexey Zaytsev
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](../../LICENSE).

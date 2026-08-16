@@ -60,6 +60,7 @@ function flattenedYamlToEnv(flattened: Record<string, string>): EnvSource {
   const env: EnvSource = {};
   map(flattened, env, 'archinsight.context-root', 'ARCHINSIGHT_CONTEXT_ROOT');
   map(flattened, env, 'archinsight.editor-path', 'ARCHINSIGHT_EDITOR_PATH');
+  map(flattened, env, 'archinsight.runtime-profile', 'ARCHINSIGHT_RUNTIME_PROFILE');
 
   map(flattened, env, 'archinsight.auth.mode', 'ARCHINSIGHT_AUTH_MODE');
   map(flattened, env, 'archinsight.auth.dev-user-id', 'ARCHINSIGHT_AUTH_DEV_USER_ID');

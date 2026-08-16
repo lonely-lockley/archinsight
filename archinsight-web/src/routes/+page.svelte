@@ -15,6 +15,7 @@
     type CompletionKind
   } from '@insight/language';
   import AuthMenu from '$lib/AuthMenu.svelte';
+  import PublicationToggle from '$lib/PublicationToggle.svelte';
   import ProjectNavigationPanel from '$lib/ProjectNavigationPanel.svelte';
   import {
     defaultDiagramMode,
@@ -53,14 +54,17 @@
     fetchProjects,
     fetchProjectStructure,
     fetchProjectSymbols,
+    fetchPlaygroundPublication,
     fetchTree,
     linkProject,
     logoutCurrentUser,
+    publishToPlayground,
     renameFile,
     renameFolder,
     renderProjectSvg,
     routePath,
     saveFile,
+    unpublishFromPlayground,
     AuthRequiredError,
     type AuthUserResponse,
     type Diagnostic,
@@ -68,6 +72,12 @@
     type FileTreeNode,
     type ProjectStructure
   } from '$lib/api';
+  import {
+    canExecute,
+    controlState,
+    type ActionId,
+    type WorkspaceSurface
+  } from '$lib/actions/action-model';
   import {
     clearLocalWorkspaceStorage,
     hasLocalSource,
@@ -137,6 +147,8 @@
     return `__readonly__/${sourceIdentity}`;
   }
 
+  export let surface: WorkspaceSurface = 'editor';
+
   let tree: TreeNode | undefined;
   let projectSymbols: LanguageSnapshot = emptySymbols;
   let projectStructure: ProjectStructure | undefined;
@@ -180,10 +192,13 @@
   let fileDialog: FileDialogState | undefined;
   let deleteDialog: DeleteDialogState | undefined;
   let currentUser: AuthUserResponse = { authenticated: false };
+  let publishedProjectId: string | undefined;
+  let publicationBusy = false;
 
   $: activeTab = tabs.find((tab) => tab.id === activeTabId);
   $: projectId = activeProjectId ?? '';
-  $: emptyStrategy = emptyWorkspaceStrategy(projectRegistry.projects, activeProjectId);
+  $: storageProjectId = surface === 'playground' ? `playground:${projectId}` : projectId;
+  $: emptyStrategy = controlledEmptyStrategy();
   $: activeFilePath = activeTab?.filePath;
   $: activeDiagramMode = activeTab?.diagramMode ?? defaultDiagramMode;
   $: activeQuery = activeTab?.query ?? defaultQuery;
@@ -194,6 +209,17 @@
   $: activeViewMode = activeTab?.viewMode ?? defaultViewMode;
   $: activeEditorSplitRatio = activeTab?.editorSplitRatio ?? defaultEditorSplitRatio;
   $: activeReadOnly = activeTab?.readOnly === true;
+  $: capabilities = currentUser.capabilities ?? [];
+  $: newFileState = actionState('repository.file.create', activeProjectId !== undefined, 'No active project');
+  $: saveState = actionState('repository.file.save', activeTab !== undefined && !activeReadOnly, activeReadOnly ? 'File is read-only' : 'No active file');
+  $: createFolderState = actionState('repository.folder.create', activeProjectId !== undefined, 'No active project');
+  $: renameFileState = actionState('repository.file.rename', activeProjectId !== undefined, 'No active project');
+  $: renameFolderState = actionState('repository.folder.rename', activeProjectId !== undefined, 'No active project');
+  $: deleteFileState = actionState('repository.file.delete', activeProjectId !== undefined, 'No active project');
+  $: deleteFolderState = actionState('repository.folder.delete', activeProjectId !== undefined, 'No active project');
+  $: publicationState = controlState('publication.toggle', { surface, capabilities, available: activeProjectId !== undefined, unavailableReason: 'No active project' });
+  $: tabsRightPadding = publicationState.hidden ? 44 : 170;
+  $: projectPublished = activeProjectId !== undefined && activeProjectId === publishedProjectId;
   $: errorSourceIdentities = diagnosticErrorSources(localDiagnostics, linkerDiagnostics);
   $: workspaceHasErrors = diagnosticsHaveErrors(localDiagnostics) || diagnosticsHaveErrors(linkerDiagnostics);
   $: canDownloadCurrentDiagram = activeTab !== undefined
@@ -219,17 +245,24 @@
       getWorker: () => new EditorWorker()
     };
     setupLanguageWorker();
-    const userLoaded = await refreshCurrentUser();
-    if (!userLoaded) {
-      return;
-    }
-    if (!currentUser.authenticated) {
-      window.location.href = loginRoute();
-      return;
+    if (surface === 'editor') {
+      const userLoaded = await refreshCurrentUser();
+      if (!userLoaded) {
+        return;
+      }
+      if (!currentUser.authenticated) {
+        window.location.href = loginRoute();
+        return;
+      }
+    } else {
+      currentUser = { authenticated: false, roles: [], capabilities: [] };
     }
     try {
       await setupMonaco();
       await loadProjects();
+      if (surface === 'editor' && capabilities.includes('publication:manage')) {
+        await loadPublication();
+      }
       if (activeProjectId !== undefined) {
         await loadProject();
       }
@@ -273,7 +306,9 @@
   function handleGlobalKeydown(event: KeyboardEvent): void {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
       event.preventDefault();
-      void saveActiveTab();
+      if (canExecute(saveState)) {
+        void saveActiveTab();
+      }
     }
   }
 
@@ -284,15 +319,59 @@
   function handleEmptyWorkspaceAction(action: EmptyWorkspaceAction): void {
     switch (action.id) {
       case 'create-tab':
-        void newFile();
+        if (canExecute(newFileState)) {
+          void newFile();
+        }
         return;
       case 'create-project':
+        if (!requireAction('repository.project.create')) {
+          return;
+        }
         appendInfoMessage('Project creation UI is not implemented yet');
         return;
       case 'manage-projects':
+        if (!requireAction('repository.project.manage')) {
+          return;
+        }
         appendInfoMessage('Project management UI is not implemented yet');
         return;
     }
+  }
+
+  function controlledEmptyStrategy() {
+    const strategy = emptyWorkspaceStrategy(projectRegistry.projects, activeProjectId);
+    return {
+      ...strategy,
+      actions: strategy.actions.map((action) => {
+        const actionId: ActionId = action.id === 'create-project'
+          ? 'repository.project.create'
+          : action.id === 'manage-projects'
+            ? 'repository.project.manage'
+            : 'repository.file.create';
+        const state = actionState(
+          actionId,
+          action.id !== 'create-tab' || activeProjectId !== undefined,
+          'No active project'
+        );
+        return { ...action, disabled: state.disabled, reason: state.reason };
+      })
+    };
+  }
+
+  function actionState(
+    actionId: ActionId,
+    available = true,
+    unavailableReason = 'Action is unavailable'
+  ) {
+    return controlState(actionId, { surface, capabilities, available, unavailableReason });
+  }
+
+  function requireAction(actionId: ActionId, state = actionState(actionId)): boolean {
+    if (canExecute(state)) {
+      return true;
+    }
+    appendInfoMessage(state.reason ?? 'Action is unavailable');
+    return false;
   }
 
   async function refreshCurrentUser(): Promise<boolean> {
@@ -391,7 +470,7 @@
       updateTab(tab.id, { content, local: true, dot: undefined });
       if (tab.filePath !== undefined) {
         overlays = { ...overlays, [tab.filePath]: content };
-        writeLocalSource(projectId, tab.filePath, content);
+        writeLocalSource(storageProjectId, tab.filePath, content);
       }
       scheduleLink();
       persistWorkspace();
@@ -483,7 +562,7 @@
   }
 
   async function loadProjects(): Promise<void> {
-    const response = await fetchProjects();
+    const response = await fetchProjects(surface);
     const projects = response.projects.map((project) => ({ id: project.id, name: project.name }));
     const stored = readProjectRegistry();
     const preferredActiveProjectId = stored.activeProjectId !== undefined
@@ -509,21 +588,50 @@
     }
   }
 
+  async function loadPublication(): Promise<void> {
+    const publication = await fetchPlaygroundPublication();
+    publishedProjectId = publication?.repositoryId;
+  }
+
+  async function togglePublication(published: boolean): Promise<void> {
+    if (!requireAction('publication.toggle', publicationState) || activeProjectId === undefined) {
+      return;
+    }
+    publicationBusy = true;
+    try {
+      if (published) {
+        const publication = await publishToPlayground(activeProjectId);
+        publishedProjectId = publication.repositoryId;
+        appendInfoMessage('Project published in playground');
+      } else {
+        await unpublishFromPlayground();
+        publishedProjectId = undefined;
+        appendInfoMessage('Project removed from playground');
+      }
+    } catch (error) {
+      if (!redirectIfAuthRequired(error)) {
+        appendErrorMessage(`Publication failed: ${errorMessage(error)}`);
+      }
+    } finally {
+      publicationBusy = false;
+    }
+  }
+
   async function loadProject(): Promise<void> {
     if (activeProjectId === undefined) {
       return;
     }
     try {
       const [treeResponse, symbols, structure] = await Promise.all([
-        fetchTree(projectId),
-        fetchProjectSymbols(projectId),
-        fetchProjectStructure(projectId)
+        fetchTree(projectId, surface),
+        fetchProjectSymbols(projectId, surface),
+        fetchProjectStructure(projectId, {}, surface)
       ]);
       tree = treeResponse.root;
       projectSymbols = symbols;
       acceptProjectStructureSnapshot(structure);
       refreshEditorSymbols();
-      const workspace = readWorkspace(projectId);
+      const workspace = readWorkspace(storageProjectId);
       projectUi = normalizeProjectUi(workspace.ui, workspace.tabs);
       for (const tab of workspace.tabs) {
         if (tab.filePath !== undefined) {
@@ -562,10 +670,10 @@
       return;
     }
 
-    const localContent = readLocalSource(projectId, path);
+    const localContent = readLocalSource(storageProjectId, path);
     let content: string;
     try {
-      content = localContent ?? (await fetchFile(projectId, path)).content;
+      content = localContent ?? (await fetchFile(projectId, path, surface)).content;
     } catch (error) {
       if (redirectIfAuthRequired(error)) {
         return;
@@ -573,7 +681,7 @@
       appendErrorMessage(`Server error: ${errorMessage(error)}`);
       return;
     }
-    if (hasLocalSource(projectId, path)) {
+    if (hasLocalSource(storageProjectId, path)) {
       overlays = { ...overlays, [path]: content };
     }
     ensureEditorModel(path, content);
@@ -683,6 +791,9 @@
   }
 
   async function newFile(): Promise<void> {
+    if (!requireAction('repository.file.create', newFileState)) {
+      return;
+    }
     const id = `untitled:${untitledCounter++}`;
     const sourceIdentity = virtualSourceIdentity(id);
     tabs = [
@@ -736,7 +847,7 @@
   function closeTab(id: string): void {
     const tab = tabs.find((item) => item.id === id);
     if (tab?.filePath !== undefined) {
-      removeLocalSource(projectId, tab.filePath);
+      removeLocalSource(storageProjectId, tab.filePath);
       delete overlays[tab.filePath];
     }
     if (tab !== undefined) {
@@ -812,7 +923,7 @@
       : [activeTab.sourceIdentity];
 
     try {
-      const link = await linkProject(projectId, renderSourceIdentities, linkOverlays, activeQuery);
+      const link = await linkProject(projectId, renderSourceIdentities, linkOverlays, activeQuery, surface);
       if (sequence !== linkSequence) {
         return;
       }
@@ -872,7 +983,7 @@
     try {
       return await renderDotInBrowser(renders);
     } catch {
-      return renderProjectSvg(projectId, openSourceIdentities, overlays, query);
+      return renderProjectSvg(projectId, openSourceIdentities, overlays, query, surface);
     }
   }
 
@@ -1246,7 +1357,7 @@
       return;
     }
     const persistentTabs = tabs.filter(isProjectSourceTab);
-    writeWorkspace(projectId, {
+    writeWorkspace(storageProjectId, {
       tabs: persistentTabs.map(workspaceTabState),
       activeTab: activeTabId !== undefined && persistentTabs.some((tab) => tab.id === activeTabId) ? activeTabId : undefined,
       ui: projectUi
@@ -1268,6 +1379,9 @@
   }
 
   async function saveActiveTab(): Promise<void> {
+    if (!requireAction('repository.file.save', saveState)) {
+      return;
+    }
     const tab = activeTab;
     if (tab === undefined) {
       return;
@@ -1292,10 +1406,13 @@
   }
 
   async function saveTabToPath(tab: WorkspaceTab, path: string): Promise<void> {
+    if (!requireAction('repository.file.save', saveState)) {
+      return;
+    }
     try {
       const result = await saveFile(projectId, path, { content: tab.content });
-      removeLocalSource(projectId, tab.filePath ?? path);
-      removeLocalSource(projectId, result.path);
+      removeLocalSource(storageProjectId, tab.filePath ?? path);
+      removeLocalSource(storageProjectId, result.path);
       delete overlays[tab.filePath ?? path];
       delete overlays[result.path];
       if (tab.filePath === undefined || tab.filePath !== result.path) {
@@ -1466,6 +1583,9 @@
 
   function newRepositoryFile(directory: string): void {
     closeRepositoryMenu();
+    if (!requireAction('repository.file.create', newFileState)) {
+      return;
+    }
     openFileDialog({
       mode: 'new',
       target: 'file',
@@ -1478,6 +1598,9 @@
 
   function newRepositoryFolder(directory: string): void {
     closeRepositoryMenu();
+    if (!requireAction('repository.folder.create', createFolderState)) {
+      return;
+    }
     openFileDialog({
       mode: 'new',
       target: 'folder',
@@ -1489,6 +1612,9 @@
 
   function renameRepositoryFile(path: string): void {
     closeRepositoryMenu();
+    if (!requireAction('repository.file.rename', renameFileState)) {
+      return;
+    }
     openFileDialog({
       mode: 'rename',
       target: 'file',
@@ -1501,6 +1627,9 @@
 
   function renameRepositoryFolder(path: string): void {
     closeRepositoryMenu();
+    if (!requireAction('repository.folder.rename', renameFolderState)) {
+      return;
+    }
     openFileDialog({
       mode: 'rename',
       target: 'folder',
@@ -1513,11 +1642,17 @@
 
   function deleteRepositoryFile(path: string): void {
     closeRepositoryMenu();
+    if (!requireAction('repository.file.delete', deleteFileState)) {
+      return;
+    }
     deleteDialog = { path, target: 'file' };
   }
 
   function deleteRepositoryFolder(path: string): void {
     closeRepositoryMenu();
+    if (!requireAction('repository.folder.delete', deleteFolderState)) {
+      return;
+    }
     deleteDialog = { path, target: 'folder' };
   }
 
@@ -1530,6 +1665,12 @@
       return;
     }
     const dialog = deleteDialog;
+    const actionId = dialog.target === 'folder' ? 'repository.folder.delete' : 'repository.file.delete';
+    const state = dialog.target === 'folder' ? deleteFolderState : deleteFileState;
+    if (!requireAction(actionId, state)) {
+      deleteDialog = undefined;
+      return;
+    }
     try {
       const deletedFiles = dialog.target === 'folder' ? filePathsInDirectory(dialog.path) : [dialog.path];
       if (dialog.target === 'folder') {
@@ -1539,7 +1680,7 @@
       }
       for (const path of deletedFiles) {
         closeFileTab(path);
-        removeLocalSource(projectId, path);
+        removeLocalSource(storageProjectId, path);
         delete overlays[path];
         delete localDiagnostics[path];
         delete linkerDiagnostics[path];
@@ -1575,6 +1716,24 @@
       return;
     }
     const dialog = fileDialog;
+    const actionId: ActionId = dialog.mode === 'rename'
+      ? (dialog.target === 'folder' ? 'repository.folder.rename' : 'repository.file.rename')
+      : dialog.target === 'folder'
+        ? 'repository.folder.create'
+        : dialog.mode === 'save'
+          ? 'repository.file.save'
+          : 'repository.file.create';
+    const state = dialog.mode === 'rename'
+      ? (dialog.target === 'folder' ? renameFolderState : renameFileState)
+      : dialog.target === 'folder'
+        ? createFolderState
+        : dialog.mode === 'save'
+          ? saveState
+          : newFileState;
+    if (!requireAction(actionId, state)) {
+      fileDialog = undefined;
+      return;
+    }
     const targetFileName = normalizeDialogName(dialog.fileName, dialog.target);
     const nameValidation = validateNodeName(targetFileName, dialog.target);
     if (nameValidation !== undefined) {
@@ -1636,16 +1795,16 @@
   function retargetTabsForRename(sourcePath: string, targetPath: string): void {
     const tab = tabs.find((item) => item.filePath === sourcePath);
     if (tab === undefined) {
-      removeLocalSource(projectId, sourcePath);
+      removeLocalSource(storageProjectId, sourcePath);
       delete overlays[sourcePath];
       return;
     }
     retargetOpenTab(tab.id, targetPath, tab.content, tab.local);
     if (tab.local) {
       overlays[targetPath] = tab.content;
-      writeLocalSource(projectId, targetPath, tab.content);
+      writeLocalSource(storageProjectId, targetPath, tab.content);
     }
-    removeLocalSource(projectId, sourcePath);
+    removeLocalSource(storageProjectId, sourcePath);
     delete overlays[sourcePath];
   }
 
@@ -1751,8 +1910,8 @@
 
   async function refreshProjectMetadata(): Promise<void> {
     const [treeResponse, symbols] = await Promise.all([
-      fetchTree(projectId),
-      fetchProjectSymbols(projectId)
+      fetchTree(projectId, surface),
+      fetchProjectSymbols(projectId, surface)
     ]);
     tree = treeResponse.root;
     projectSymbols = symbols;
@@ -2299,14 +2458,22 @@
 
   <section class="main">
     <div class="auth-menu-host">
-      <AuthMenu
-        user={currentUser}
-        onLogin={login}
-        onSettings={openSettings}
-        onLogout={() => void logout()}
+      <PublicationToggle
+        state={publicationState}
+        checked={projectPublished}
+        busy={publicationBusy}
+        onToggle={(checked) => void togglePublication(checked)}
       />
+      {#if surface === 'editor'}
+        <AuthMenu
+          user={currentUser}
+          onLogin={login}
+          onSettings={openSettings}
+          onLogout={() => void logout()}
+        />
+      {/if}
     </div>
-    <section class="tabs">
+    <section class="tabs" style={`padding-right: ${tabsRightPadding}px;`}>
       {#each tabs as tab (tab.id)}
         <div class:active={tab.id === activeTabId} class:error-tab={errorSourceIdentities.has(tab.sourceIdentity)} class="tab">
           <button class="tab-main" type="button" on:click={() => void activateTab(tab.id)}>
@@ -2365,7 +2532,8 @@
         canDownloadSvg={canDownloadCurrentDiagram}
         canDownloadPng={canDownloadCurrentDiagram}
         canDownloadDot={canDownloadCurrentDot}
-        saveDisabled={activeReadOnly}
+        {newFileState}
+        {saveState}
       />
     </WorkspaceEditor>
   </section>
@@ -2382,33 +2550,45 @@
     on:contextmenu|preventDefault
   >
     {#if repositoryMenu.node.type === 'directory'}
-      <button type="button" role="menuitem" on:click={() => newRepositoryFile(repositoryMenu?.node.path ?? '')}>
-        <span aria-hidden="true" class="codicon codicon-new-file"></span>
-        <span>New file</span>
-      </button>
-      <button type="button" role="menuitem" on:click={() => newRepositoryFolder(repositoryMenu?.node.path ?? '')}>
-        <span aria-hidden="true" class="codicon codicon-new-folder"></span>
-        <span>New folder</span>
-      </button>
+      {#if !newFileState.hidden}
+        <button type="button" role="menuitem" disabled={newFileState.disabled} title={newFileState.reason} on:click={() => newRepositoryFile(repositoryMenu?.node.path ?? '')}>
+          <span aria-hidden="true" class="codicon codicon-new-file"></span>
+          <span>New file</span>
+        </button>
+      {/if}
+      {#if !createFolderState.hidden}
+        <button type="button" role="menuitem" disabled={createFolderState.disabled} title={createFolderState.reason} on:click={() => newRepositoryFolder(repositoryMenu?.node.path ?? '')}>
+          <span aria-hidden="true" class="codicon codicon-new-folder"></span>
+          <span>New folder</span>
+        </button>
+      {/if}
       {#if repositoryMenu.node.path !== ''}
-        <button type="button" role="menuitem" on:click={() => repositoryMenu && renameRepositoryFolder(repositoryMenu.node.path)}>
+        {#if !renameFolderState.hidden}
+          <button type="button" role="menuitem" disabled={renameFolderState.disabled} title={renameFolderState.reason} on:click={() => repositoryMenu && renameRepositoryFolder(repositoryMenu.node.path)}>
+            <span aria-hidden="true" class="codicon codicon-edit"></span>
+            <span>Rename / Move</span>
+          </button>
+        {/if}
+        {#if !deleteFolderState.hidden}
+          <button type="button" role="menuitem" disabled={deleteFolderState.disabled} title={deleteFolderState.reason} on:click={() => repositoryMenu && deleteRepositoryFolder(repositoryMenu.node.path)}>
+            <span aria-hidden="true" class="codicon codicon-trash"></span>
+            <span>Delete</span>
+          </button>
+        {/if}
+      {/if}
+    {:else}
+      {#if !renameFileState.hidden}
+        <button type="button" role="menuitem" disabled={renameFileState.disabled} title={renameFileState.reason} on:click={() => repositoryMenu && renameRepositoryFile(repositoryMenu.node.path)}>
           <span aria-hidden="true" class="codicon codicon-edit"></span>
           <span>Rename / Move</span>
         </button>
-        <button type="button" role="menuitem" on:click={() => repositoryMenu && deleteRepositoryFolder(repositoryMenu.node.path)}>
+      {/if}
+      {#if !deleteFileState.hidden}
+        <button type="button" role="menuitem" disabled={deleteFileState.disabled} title={deleteFileState.reason} on:click={() => repositoryMenu && deleteRepositoryFile(repositoryMenu.node.path)}>
           <span aria-hidden="true" class="codicon codicon-trash"></span>
           <span>Delete</span>
         </button>
       {/if}
-    {:else}
-      <button type="button" role="menuitem" on:click={() => repositoryMenu && renameRepositoryFile(repositoryMenu.node.path)}>
-        <span aria-hidden="true" class="codicon codicon-edit"></span>
-        <span>Rename / Move</span>
-      </button>
-      <button type="button" role="menuitem" on:click={() => repositoryMenu && deleteRepositoryFile(repositoryMenu.node.path)}>
-        <span aria-hidden="true" class="codicon codicon-trash"></span>
-        <span>Delete</span>
-      </button>
     {/if}
   </div>
 {/if}
@@ -2562,12 +2742,14 @@
     top: 4px;
     right: 8px;
     z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .tabs {
     display: flex;
     min-width: 0;
-    padding-right: 44px;
     overflow: auto hidden;
     border-bottom: 1px solid #393939;
     background: #2b2b2b;
@@ -2685,6 +2867,12 @@
     background: #36511f;
     color: #ffffff;
     outline: none;
+  }
+
+  .context-menu button:disabled {
+    background: transparent;
+    color: #707070;
+    cursor: not-allowed;
   }
 
   .modal-backdrop {

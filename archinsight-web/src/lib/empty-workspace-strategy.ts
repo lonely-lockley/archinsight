@@ -7,6 +7,8 @@ export type EmptyWorkspaceAction = {
   label: string;
   icon: string;
   primary?: boolean;
+  disabled?: boolean;
+  reason?: string;
 };
 
 export type EmptyWorkspaceStrategy = {

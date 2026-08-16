@@ -10,7 +10,15 @@ export type AuthenticatedUser = {
   displayName?: string | null;
   avatar?: string | null;
   tokenVersion: number;
+  roles: AppRole[];
 };
+
+export type AppRole = 'user' | 'playground_admin';
+
+export type AppCapability =
+  | 'repository:read-own'
+  | 'repository:write-own'
+  | 'publication:manage';
 
 export type UserdataProfile = {
   id?: string | null;
@@ -35,6 +43,8 @@ export type AuthUserResponse = {
   loginUrl?: string | null;
   logoutUrl?: string | null;
   loginOptions?: AuthLoginOption[] | null;
+  roles?: AppRole[];
+  capabilities?: AppCapability[];
 };
 
 export type StandaloneTokenConfig = {

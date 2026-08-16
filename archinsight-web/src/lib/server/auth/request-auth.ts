@@ -2,6 +2,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { getAuthConfig, loginOptions, type EnvSource } from './auth-config';
 import { verifyStandaloneToken } from './standalone-token';
 import { authenticateSsrSession, authenticateStandaloneClaims } from './userdata-store';
+import { capabilitiesFor } from './authorization';
 import type { AuthenticatedUser, AuthUserResponse } from './types';
 
 export async function currentUserResponse(cookies: Cookies, env: EnvSource | undefined): Promise<AuthUserResponse> {
@@ -22,7 +23,9 @@ export async function currentUserResponse(cookies: Cookies, env: EnvSource | und
       avatar: null,
       loginUrl: config.loginUrl,
       logoutUrl: null,
-      loginOptions: options
+      loginOptions: options,
+      roles: [],
+      capabilities: []
     };
   }
 
@@ -34,7 +37,9 @@ export async function currentUserResponse(cookies: Cookies, env: EnvSource | und
     avatar: user.avatar ?? null,
     loginUrl: null,
     logoutUrl: config.logoutUrl,
-    loginOptions: loginOptions(config)
+    loginOptions: loginOptions(config),
+    roles: user.roles,
+    capabilities: capabilitiesFor(user)
   };
 }
 

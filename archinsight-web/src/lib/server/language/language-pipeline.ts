@@ -10,8 +10,9 @@ import {
 } from '@insight/language';
 import type { Cookies } from '@sveltejs/kit';
 import type { EnvSource } from '$lib/server/auth/auth-config';
-import { sourcesWithOverlays } from '$lib/server/repository/project-file-service';
-import { requestLimits, validateQuery } from '$lib/server/security/request-limits';
+import { sourcesForProjectWithOverlays, sourcesWithOverlays } from '$lib/server/repository/project-file-service';
+import { requestLimits, validateOverlays, validateQuery } from '$lib/server/security/request-limits';
+import { normalizeSourceIdentity } from '$lib/server/repository/path';
 import type {
   DiagnosticDto,
   LinkRequest,
@@ -25,6 +26,19 @@ const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 
 export async function symbols(cookies: Cookies, env: EnvSource | undefined, projectId: string) {
   const sources = await projectSources(cookies, env, projectId, {});
+  return symbolsFromSources(sources);
+}
+
+export async function symbolsForProject(env: EnvSource | undefined, ownerId: string, projectId: string) {
+  const sources = await referencedProjectSources(env, ownerId, projectId, {});
+  return symbolsFromSources(sources);
+}
+
+export function symbolsForSources(sources: ReadonlyMap<string, string>) {
+  return symbolsFromSources(projectSourceList(sources));
+}
+
+function symbolsFromSources(sources: ProjectSource[]) {
   const projectSnapshot = buildProjectSnapshot(sources).snapshot;
   return projectSnapshot;
 }
@@ -37,6 +51,29 @@ export async function structure(
 ): Promise<ProjectStructureResponse> {
   validateRequest(request, env);
   const sources = await projectSources(cookies, env, projectId, request?.overlays ?? {});
+  return structureFromSources(sources);
+}
+
+export async function structureForProject(
+  env: EnvSource | undefined,
+  ownerId: string,
+  projectId: string,
+  request: ProjectStructureRequest | null
+): Promise<ProjectStructureResponse> {
+  validateRequest(request, env);
+  return structureFromSources(await referencedProjectSources(env, ownerId, projectId, request?.overlays ?? {}));
+}
+
+export function structureForSources(
+  env: EnvSource | undefined,
+  sources: ReadonlyMap<string, string>,
+  request: ProjectStructureRequest | null
+): ProjectStructureResponse {
+  validateRequest(request, env);
+  return structureFromSources(projectSourceList(withOverlays(sources, request?.overlays)));
+}
+
+function structureFromSources(sources: ProjectSource[]): ProjectStructureResponse {
   const projectSnapshot = buildProjectSnapshot(sources);
   const result = service.link({
     sources,
@@ -53,6 +90,29 @@ export async function link(
 ): Promise<LinkResponse> {
   validateRequest(request, env);
   const sources = await projectSources(cookies, env, projectId, request?.overlays ?? {});
+  return linkFromSources(sources, request);
+}
+
+export async function linkForProject(
+  env: EnvSource | undefined,
+  ownerId: string,
+  projectId: string,
+  request: LinkRequest | null
+): Promise<LinkResponse> {
+  validateRequest(request, env);
+  return linkFromSources(await referencedProjectSources(env, ownerId, projectId, request?.overlays ?? {}), request);
+}
+
+export function linkForSources(
+  env: EnvSource | undefined,
+  sources: ReadonlyMap<string, string>,
+  request: LinkRequest | null
+): LinkResponse {
+  validateRequest(request, env);
+  return linkFromSources(projectSourceList(withOverlays(sources, request?.overlays)), request);
+}
+
+function linkFromSources(sources: ProjectSource[], request: LinkRequest | null): LinkResponse {
   const projectSnapshot = buildProjectSnapshot(sources);
   const result = service.link({ sources, snapshot: projectSnapshot.snapshot });
   const resultWithSnapshotDiagnostics = withSnapshotDiagnostics(result, projectSnapshot);
@@ -101,6 +161,7 @@ function withSnapshotDiagnostics(result: LinkProjectResult, projectSnapshot: Lan
 
 function validateRequest(request: LinkRequest | ProjectStructureRequest | null, env: EnvSource | undefined): void {
   validateQuery('query' in (request ?? {}) ? (request as LinkRequest).query : null, requestLimits(env));
+  validateOverlays(request?.overlays, requestLimits(env));
 }
 
 async function projectSources(
@@ -113,6 +174,33 @@ async function projectSources(
     sourceName,
     source
   }));
+}
+
+async function referencedProjectSources(
+  env: EnvSource | undefined,
+  ownerId: string,
+  projectId: string,
+  overlays: Record<string, string> | null | undefined
+): Promise<ProjectSource[]> {
+  return [...(await sourcesForProjectWithOverlays(env, ownerId, projectId, overlays)).entries()].map(([sourceName, source]) => ({
+    sourceName,
+    source
+  }));
+}
+
+function withOverlays(
+  sources: ReadonlyMap<string, string>,
+  overlays: Record<string, string> | null | undefined
+): Map<string, string> {
+  const result = new Map(sources);
+  for (const [sourceName, source] of Object.entries(overlays ?? {})) {
+    result.set(normalizeSourceIdentity(sourceName), source);
+  }
+  return result;
+}
+
+function projectSourceList(sources: ReadonlyMap<string, string>): ProjectSource[] {
+  return [...sources.entries()].map(([sourceName, source]) => ({ sourceName, source }));
 }
 
 function renderPaths(request: LinkRequest | null, result: LinkProjectResult): string[] {

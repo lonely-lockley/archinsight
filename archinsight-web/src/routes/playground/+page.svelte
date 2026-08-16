@@ -2,4 +2,4 @@
   import EditorPage from '../+page.svelte';
 </script>
 
-<EditorPage surface="editor" />
+<EditorPage surface="playground" />

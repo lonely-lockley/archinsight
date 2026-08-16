@@ -181,3 +181,9 @@ npm --prefix archinsight-cli run publish:npm
 
 Before publishing, update the package version in `package.json`, commit the
 change, and make sure the working tree is clean.
+
+## License
+
+Copyright 2021-2026 Alexey Zaytsev
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

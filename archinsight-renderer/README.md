@@ -156,3 +156,9 @@ docker compose -f archinsight-renderer/compose.debug.yaml up --build
 In Kubernetes, enforce the same model with `securityContext`,
 `resources.limits`, and a `NetworkPolicy` that allows ingress only from the
 backend and denies egress.
+
+## License
+
+Copyright 2021-2026 Alexey Zaytsev
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](../LICENSE).

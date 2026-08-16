@@ -1,52 +1,123 @@
 # Archinsight
 
-Archinsight is an architecture-as-code toolkit built around the Insight language.
+Archinsight is a toolkit for software architecture modelling as code. Models
+written in the typed Insight language are linked into a project graph used for
+validation, navigation, queries, and diagram generation.
 
-Insight is a domain-specific language for describing software architecture as code. It is based on the C4 model and allows a user to describe architecture from a system-level view down to individual components inside a selected service. The Insight language core links these descriptions into a single project graph and uses that graph for checks, queries, navigation, and diagram generation.
+The project includes a CLI, a VSCode extension, a generated skill for AI agents,
+and a web viewer. They share one language core, so types, diagnostics, queries,
+and rendering behave consistently across all four interfaces.
 
-The language is designed to read like an architecture note. It uses named descriptive attributes, natural component nesting, and explicit relationships to express the technical details that matter for the model. The syntax is based on indentation, so a small model can be written without much ceremony.
+## Why Archinsight
+
+- **Model with a type system.** Types describe required attributes,
+  references, valid nesting, relationships, and deployment mappings. The linker
+  checks those rules across the project, while editors and agents use the shared
+  schema for completion and navigation.
+- **Capture the vocabulary of an organization.** Teams can define their own
+  types, constructors, operators, infrastructure capabilities, and visual
+  conventions. Reviewed framework definitions then become reusable building
+  blocks for every service model.
+- **Trace logical dependencies through deployment.** Profiles map services to
+  concrete deployments, and projections expand a logical dependency into the
+  network or infrastructure path that implements it. Different environments
+  can realize the same relationship in different ways.
+- **Organize large models around ownership.** Contexts form explicit boundaries,
+  imports record dependencies between them, and `extend` lets several sources
+  contribute to one element. File and directory layout can evolve separately
+  from the architecture.
+- **Keep declarations readable as the schema grows.** Model values have stable
+  names, and relationships are declared under their source element. Each
+  declaration carries enough context to be read on its own, and every arrow
+  remains attached to the element responsible for it.
+- **Adapt a view to the question at hand.** The built-in C1, C2, C3, C4, and
+  unfiltered views are graph queries over the linked model. Their query text can
+  be adjusted to focus a diagram on the relevant elements and relationships.
+
+## How the model works
+
+Insight starts with C4-style concepts for contexts, systems, containers,
+services, components, actors, and external systems. Projects can use the
+built-in framework directly or extend it with concepts from their own technical
+domain.
+
+Every declaration has an identity and a set of named attributes. A constructor
+selects its type, indentation establishes ownership, and a `links` block keeps
+outgoing relationships with their source element:
 
 ```insight
-context example
-    name = Example System
+context storefront
+    name = Storefront
 
-external actor user
-    name = User
-    technology = Web browser
+external actor customer
+    name = Customer
     links:
-        -> frontend from example
+        -> frontend
 
-system application
-    name = Application
+system commerce
+    name = Commerce Platform
 
     container frontend
-        name = Frontend
+        name = Web application
         technology = SvelteKit, TypeScript
         links:
-            -> backend
+            -> orders
 
-    service backend
-        name = Backend API
-        technology = Quarkus, PostgreSQL
+    service orders
+        name = Orders API
+        technology = Kotlin, PostgreSQL
 ```
 
-Insight is a strictly typed language. The built-in framework provides common architecture concepts for C4-style models, and projects can extend it with their own concepts when the architecture needs a more specific vocabulary. This allows a larger team to work with shared architecture concepts captured directly in the model.
+Names such as `name` and `technology` are part of the declaration schema. This
+keeps their meaning stable when a type gains new optional attributes and gives
+language tooling an exact schema at the editing position.
 
-The language supports:
-
-* C4-style modeling with contexts, systems, containers, services, components, actors, and external systems
-* Strict typing for model elements, attributes, references, constructors, and language extensions
-* User-defined types for organization-specific architecture concepts
-* Named attributes and natural nesting for readable source files
-* Imports and extensions for splitting large models across files and contexts
-* Query-driven diagram generation from the linked project graph using a Cypher-style query language
-* Graphviz rendering with model metadata for navigation and editor integration
-* Deployment modeling that connects logical relationships to deployment capabilities via projections
-
-Deployment can be modeled together with the logical architecture. Core deployment definitions include common infrastructure inventory types such as `Compute`, `Storage`, `Broker`, and `NetworkConnection`; projects can extend environments with those slots and add their own gateways, routes, load balancers, or service-mesh concepts. A context-owned `DeploymentProfile` maps logical elements to concrete `Deployment` objects through `appliesTo`, while wire deployment accepts only `NetworkConnection` infrastructure. Projection rules then connect logical relationships to the physical capabilities that realize them.
+Framework definitions add project-specific concepts and constraints:
 
 ```insight
-context example
+define type PublicApi of Service
+    constructor publicApi
+
+    required Text owner
+    required Text protocol
+
+define presentation PublicApi
+    subtitle = protocol
+```
+
+`PublicApi` inherits the service schema, adds two required attributes, and
+receives its own constructor and presentation. The linker requires `owner` and
+`protocol` on every `publicApi` declaration, and the completion engine offers
+them while the model is being edited. Framework definitions can also introduce
+typed references and lists, allowed children, relationship operators, and
+projection rules.
+
+The linker combines every `.ai` source into one project graph. A `context`
+establishes a logical scope, `import` makes an element from another context
+available, and `extend` contributes additional attributes, children, or
+relationships to an existing declaration. Resolution follows logical
+identities; file paths remain an organization detail.
+
+Linked elements and relationships retain their source identity. A query can use
+the selected file as its focus and include connected declarations from the rest
+of the graph. This gives a small source file a useful local diagram while its
+contents still participate in the complete context.
+
+Archinsight provides built-in graph queries for C1, C2, C3, C4, and unfiltered
+views. Each view exposes editable query text. The query language currently
+supports a limited set of selection, filtering, optional matching, and grouping
+operations. Queries run against the linked graph and can include its elements,
+relationships, and deployment projections.
+
+## Deployment modeling
+
+Deployment is described in the same project as the logical architecture.
+Infrastructure templates define typed compute, storage, broker, and network
+capabilities. A context-owned deployment profile maps a logical element to
+concrete deployments in one or more environments.
+
+```insight
+context storefront
 
 deploymentProfile production_service
     appliesTo:
@@ -55,74 +126,124 @@ deploymentProfile production_service
     runsOn compute
     uses observability
 
-system application
-    service backend
+system commerce
+    service orders
         deployment:
             uses production_service
+
         links:
             -> payment_provider
                 deployment:
-                    uses egress
+                    uses publicGateway
 
 external system payment_provider
 ```
 
-Profiles attached to the same element may target the same environment but not the same concrete deployment: `test from eu` and `production from eu` are independent, while applying two profiles to `production from eu` is an error. A wire resolves its network slot only in deployments selected by its endpoints; deployments that do not provide that slot are skipped.
+Profiles can be reused across services and configured at the point of use. The
+linker rejects profiles that assign the same element to the same concrete
+deployment more than once. Relationship deployment selects a typed network
+capability, and projections connect logical dependencies to the infrastructure
+that implements them.
 
-The current codebase is a TypeScript workspace built around a shared headless language core. The web editor, CLI, and VSCode extension all use the same `@insight/language` package for parsing, linking, diagnostics, completions, queries, and Graphviz output.
+This allows a project to keep the service model compact while infrastructure
+templates hold the shared deployment conventions.
 
-## Components
+## CLI
 
-- [Web editor](archinsight-web/README.md) - SvelteKit application with repository APIs, Monaco editing, authentication, and browser-side diagram rendering.
-- [CLI](archinsight-cli/README.md) - local command-line tool for linking, querying, rendering, and inspecting `.ai` projects.
-- [VSCode extension](archinsight-vscode/README.md) - native editor support, diagnostics, completions, structure view, and diagram preview.
-- [Language core](packages/insight-language/README.md) - shared TypeScript parser/runtime, linker, query engine, completion engine, and Graphviz renderer.
-- [Renderer service](archinsight-renderer/README.md) - hardened DOT-to-SVG/PNG service for server-side rendering paths.
+The CLI is the local and automation interface for an Insight project. It links
+and validates models, prints project structure, executes graph queries, renders
+diagrams, and generates agent skills.
 
-## Repository Layout
+Install the CLI from npm:
 
-```text
-archinsight-web/         SvelteKit web app and HTTP API
-archinsight-cli/         Node.js CLI
-archinsight-vscode/      VSCode extension and webviews
-archinsight-renderer/    Optional server-side render service
-packages/insight-language/
-                         Shared TypeScript Insight language core
-src/main/resources/com/github/lonelylockley/insight/
-                         Built-in Insight framework sources
+```shell
+npm install -g @archinsight/cli
+archinsight --version
 ```
 
-## Development
+Run commands from a directory containing `.ai` files. The project directory
+defaults to the current directory:
 
-Install dependencies per package, then use the package scripts or Gradle wrapper tasks. The most useful checks are:
+```shell
+archinsight link .
+archinsight structure .
+archinsight render . --context storefront --view c2 --format svg --out architecture.svg
+```
+
+The [CLI reference](archinsight-cli/README.md) describes the query, render, and
+output options.
+
+## VSCode extension
+
+The
+[Archinsight VSCode extension](https://marketplace.visualstudio.com/items?itemName=archinsight.archinsight-vscode)
+provides diagnostics, completion, semantic highlighting, project structure,
+source navigation, and a source/diagram split editor. It supports the built-in
+views, custom graph queries, and SVG, PNG, and DOT export.
+
+Open a workspace containing `.ai` files and then open a model. The extension
+embeds the language runtime for interactive editing and diagram preview. The CLI
+adds command-line validation, CI integration, and AI-agent access.
+
+## AI agent skill
+
+The CLI can place an Insight skill directly into a project:
+
+```shell
+archinsight skill init . --target codex
+```
+
+Targets are available for `codex`, `claude`, and `generic`. The generated skill
+contains the modeling workflow, language references, built-in framework
+sources, query recipes, and examples. It instructs the agent to inspect the
+existing project and validate changes through the CLI.
+
+```shell
+archinsight skill init . --target claude
+archinsight skill init . --target generic
+```
+
+Restart a Codex or Claude session after generating its native skill so the new
+skill is discovered.
+
+## Web viewer
+
+The SvelteKit web viewer presents linked projects in a browser using the same
+language core and editor components. It provides an authenticated owner-scoped
+application and an anonymous read-only playground containing one explicitly
+published project.
+
+## Repository
+
+The main modules are documented separately:
+
+- [CLI](archinsight-cli/README.md)
+- [VSCode extension](archinsight-vscode/README.md)
+- [Language core](packages/insight-language/README.md)
+- [Web viewer](archinsight-web/README.md)
+- [Renderer service](archinsight-renderer/README.md)
+
+The language core lives in `packages/insight-language`. Built-in Insight
+framework sources are stored under
+`src/main/resources/com/github/lonelylockley/insight`. The CLI, extension, and
+web viewer consume a generated snapshot of those sources.
+
+Useful development checks:
 
 ```shell
 npm --prefix packages/insight-language run test:runtime
-npm --prefix archinsight-web run check
-npm --prefix archinsight-web run test:server
-npm --prefix archinsight-web run test:security
-npm --prefix archinsight-web run test:postgres
 npm --prefix archinsight-cli run check
 npm --prefix archinsight-vscode run check
+npm --prefix archinsight-web run check
+npm --prefix archinsight-web run test:server
 npm --prefix archinsight-renderer test
 ```
 
-Gradle exposes wrapper tasks for the application packages:
-
-```shell
-./gradlew :archinsight-web:npmCheck
-./gradlew :archinsight-cli:npmCheck
-./gradlew :archinsight-vscode:npmCheck
-./gradlew :archinsight-renderer:test
-```
-
-Editing the built-in framework files under `src/main/resources/.../insight/` requires regenerating the TypeScript snapshot:
+After editing the built-in framework, regenerate the TypeScript snapshot:
 
 ```shell
 npm --prefix packages/insight-language run sync:core
 ```
-
-Generated outputs such as `.svelte-kit/`, `dist/`, package build directories, generated ANTLR sources, and `archinsight-cli/src/version.ts` are intentionally ignored.
 
 ## License
 

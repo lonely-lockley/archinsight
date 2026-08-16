@@ -3,7 +3,7 @@ import { postgresDatabase } from '$lib/server/database/postgres-database';
 import { getDatabaseConfig } from '$lib/server/database/database-config';
 import type { Queryable, TransactionalDatabase } from '$lib/server/database/types';
 import type { EnvSource } from './auth-config';
-import type { AuthenticatedUser, StandaloneTokenClaims, UserdataProfile } from './types';
+import type { AppRole, AuthenticatedUser, StandaloneTokenClaims, UserdataProfile } from './types';
 
 type UserdataRow = {
   id: string;
@@ -18,6 +18,7 @@ type UserdataRow = {
   locale: string | null;
   ssr_session: string | null;
   token_version: string | number;
+  roles: string[] | null;
 };
 
 export async function authenticateStandaloneClaims(
@@ -33,7 +34,8 @@ export async function authenticateStandaloneClaims(
       email: claims.email ?? null,
       displayName: claims.displayName ?? null,
       avatar: claims.avatar ?? null,
-      tokenVersion: claims.tokenVersion
+      tokenVersion: claims.tokenVersion,
+      roles: ['user']
     };
   }
   const store = new PostgresUserdataStore(await postgresDatabase(env));
@@ -51,7 +53,8 @@ export async function upsertUserdataProfile(
       email,
       displayName: displayName(profile),
       avatar: blankToNull(profile.avatar),
-      tokenVersion: 1
+      tokenVersion: 1,
+      roles: ['user']
     };
   }
   const store = new PostgresUserdataStore(await postgresDatabase(env));
@@ -176,6 +179,14 @@ export class PostgresUserdataStore {
           ]
         );
       }
+      await client.query(
+        `
+          insert into public.userdata_role (user_id, role)
+          values ($1, 'user')
+          on conflict (user_id, role) do nothing
+        `,
+        [id]
+      );
       const saved = await findById(client, id);
       if (!saved) {
         throw new Error(`User was not saved: ${email}`);
@@ -248,7 +259,13 @@ export class PostgresUserdataStore {
 
 const userColumns = `
   id, origin_id, email, email_verified, first_name, last_name,
-  display_name, avatar, source, locale, ssr_session, token_version
+  display_name, avatar, source, locale, ssr_session, token_version,
+  array(
+    select role
+    from public.userdata_role
+    where user_id = public.userdata.id
+    order by role
+  ) as roles
 `;
 
 async function findById(client: Queryable, id: string): Promise<UserdataRow | null> {
@@ -332,7 +349,8 @@ function rowFromProfile(profile: UserdataProfile, email: string, id: string): Us
     source: blankToNull(profile.source) ?? 'standalone',
     locale: blankToNull(profile.locale),
     ssr_session: blankToNull(profile.ssrSession),
-    token_version: 0
+    token_version: 0,
+    roles: ['user']
   };
 }
 
@@ -342,8 +360,19 @@ function authenticatedUser(row: UserdataRow): AuthenticatedUser {
     email: row.email,
     displayName: row.display_name,
     avatar: row.avatar,
-    tokenVersion: Number(row.token_version)
+    tokenVersion: Number(row.token_version),
+    roles: normalizedRoles(row.roles)
   };
+}
+
+function normalizedRoles(roles: string[] | null): AppRole[] {
+  const result = new Set<AppRole>(['user']);
+  for (const role of roles ?? []) {
+    if (role === 'user' || role === 'playground_admin') {
+      result.add(role);
+    }
+  }
+  return [...result];
 }
 
 function displayName(profile: UserdataProfile): string {

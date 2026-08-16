@@ -94,6 +94,52 @@ const migrations: Migration[] = [
       set ssr_session = null
       where ssr_session is not null
     `
+  },
+  {
+    version: 7,
+    name: 'add_rbac_and_playground_publication',
+    sql: `
+      create table if not exists public.userdata_role (
+        user_id UUID not null references public.userdata(id) on delete cascade,
+        role VARCHAR(32) not null,
+        granted_at TIMESTAMP WITH TIME ZONE not null default now(),
+        granted_by UUID null references public.userdata(id) on delete set null,
+        primary key (user_id, role),
+        constraint userdata_role_name_check check (role in ('user', 'playground_admin'))
+      );
+
+      insert into public.userdata_role (user_id, role)
+      select id, 'user'
+      from public.userdata
+      on conflict (user_id, role) do nothing;
+
+      create table if not exists public.playground_publication (
+        slot VARCHAR(50) primary key,
+        repository_id UUID not null references public.repository(id) on delete cascade,
+        published_by UUID not null references public.userdata(id) on delete cascade,
+        published_at TIMESTAMP WITH TIME ZONE not null default now(),
+        updated_at TIMESTAMP WITH TIME ZONE not null default now()
+      )
+    `
+  },
+  {
+    version: 8,
+    name: 'add_playground_read_model',
+    sql: `
+      create or replace view public.playground_current_repository
+      with (security_barrier = true) as
+      select r.id, r.owner_id, r.name, r.structure, r.updated, p.slot, p.updated_at as publication_updated_at
+      from public.playground_publication p
+      join public.repository r on r.id = p.repository_id
+      where p.slot = 'default';
+
+      create or replace view public.playground_current_file
+      with (security_barrier = true) as
+      select f.id, f.repository_id, f.file_name, f.content, f.level, f.project_identifier, f.updated
+      from public.playground_publication p
+      join public.file f on f.repository_id = p.repository_id
+      where p.slot = 'default'
+    `
   }
 ];
 

@@ -17,7 +17,7 @@ type JwtPayload = {
   token_version?: number;
 };
 
-export function issueStandaloneToken(user: AuthenticatedUser, config: StandaloneTokenConfig): string {
+export function issueStandaloneToken(user: Omit<AuthenticatedUser, 'roles'> & { roles?: AuthenticatedUser['roles'] }, config: StandaloneTokenConfig): string {
   const issuedAt = Math.floor(Date.now() / 1000);
   const expiresAt = issuedAt + Math.floor(config.ttlMinutes * 60);
   const header = base64UrlJson({ alg: 'HS256', typ: 'JWT' });

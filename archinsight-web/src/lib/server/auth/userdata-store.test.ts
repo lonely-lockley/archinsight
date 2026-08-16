@@ -49,6 +49,17 @@ describe('PostgresUserdataStore', () => {
     });
   });
 
+  it('loads playground administration as an additive database role', async () => {
+    const database = new FakeUserdataDatabase();
+    const store = new PostgresUserdataStore(database);
+    await store.upsert({ id: userId, email: 'admin@example.com', displayName: 'Admin' });
+    database.grantRole(userId, 'playground_admin');
+
+    await expect(store.authenticateStandaloneClaims({ userId, tokenVersion: 0 })).resolves.toMatchObject({
+      roles: ['user', 'playground_admin']
+    });
+  });
+
   it('updates existing userdata by id without inserting a duplicate primary key', async () => {
     const database = new FakeUserdataDatabase();
     const store = new PostgresUserdataStore(database);
@@ -115,10 +126,18 @@ type UserRecord = Record<string, unknown> & {
   token_version: number;
   deleted_at: string | null;
   last_login: string | null;
+  roles: string[];
 };
 
 class FakeUserdataDatabase implements TransactionalDatabase {
   readonly users = new Map<string, UserRecord>();
+
+  grantRole(id: string, role: string): void {
+    const user = this.users.get(id);
+    if (user && !user.roles.includes(role)) {
+      user.roles.push(role);
+    }
+  }
 
   async transaction<T>(handler: (client: Queryable) => Promise<T>): Promise<T> {
     return handler(this);
@@ -129,6 +148,13 @@ class FakeUserdataDatabase implements TransactionalDatabase {
     params: unknown[] = []
   ): Promise<QueryResult<T>> {
     const statement = normalizeSql(sql);
+    if (statement.startsWith('insert into public.userdata_role')) {
+      const user = this.users.get(String(params[0]));
+      if (user && !user.roles.includes('user')) {
+        user.roles.push('user');
+      }
+      return asResult(changed());
+    }
     if (statement.includes('from public.userdata') && statement.includes('where id = $1') && !statement.includes('token_version = $2')) {
       const user = this.users.get(String(params[0]));
       return asResult(rows(user && !user.deleted_at ? [user] : []));
@@ -159,7 +185,8 @@ class FakeUserdataDatabase implements TransactionalDatabase {
         ssr_session: nullable(params[10]),
         token_version: 0,
         deleted_at: null,
-        last_login: null
+        last_login: null,
+        roles: []
       });
       return asResult(changed());
     }

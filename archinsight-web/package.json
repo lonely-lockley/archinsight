@@ -14,8 +14,8 @@
     "precheck": "npm --prefix ../packages/insight-language run sync:core",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:security": "vitest run src/lib/svg-sanitizer.test.ts --environment happy-dom",
-    "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts",
-    "test:postgres": "ARCHINSIGHT_POSTGRES_INTEGRATION=true vitest run src/lib/server/repository/postgres-repository-file-system.integration.test.ts"
+    "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts src/lib/actions/*.test.ts",
+    "test:postgres": "ARCHINSIGHT_POSTGRES_INTEGRATION=true vitest run --no-file-parallelism src/lib/server/repository/postgres-repository-file-system.integration.test.ts src/lib/server/publication/playground-publication-store.integration.test.ts"
   },
   "dependencies": {
     "@insight/language": "file:../packages/insight-language",

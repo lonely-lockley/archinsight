@@ -71,7 +71,7 @@ Install the CLI separately when you want AI agents or shell workflows to work
 with Insight models:
 
 ```shell
-npm install -g @archinsight/cli@next
+npm install -g @archinsight/cli
 ```
 
 The extension never installs global npm packages silently. Use
@@ -140,4 +140,6 @@ The custom editor reuses shared Svelte editor components from `archinsight-web/s
 
 ## License
 
-Apache-2.0
+Copyright 2021-2026 Alexey Zaytsev
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

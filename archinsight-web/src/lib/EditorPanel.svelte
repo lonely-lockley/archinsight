@@ -101,7 +101,7 @@
       <div class="empty-panel">
         <div class:single={emptyStrategy?.actions.length === 1} class="empty-actions">
           {#each emptyStrategy?.actions ?? [] as action (action.id)}
-            <button aria-label={action.label} class:primary={action.primary} class="empty-action" type="button" on:click={() => onEmptyAction(action)}>
+            <button aria-label={action.label} class:primary={action.primary} class="empty-action" disabled={action.disabled} title={action.reason} type="button" on:click={() => onEmptyAction(action)}>
               <span class="empty-action-icon" aria-hidden="true">
                 <span class={`codicon codicon-${action.icon}`}></span>
                 <span class="empty-action-label">{action.label}</span>
