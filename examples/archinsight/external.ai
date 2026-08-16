@@ -1,0 +1,7 @@
+context external_systems
+    name = External systems
+
+external system google
+    name = Google Identity
+    technology = OAuth 2.0, OpenID Connect
+    description = Optional sign-in provider

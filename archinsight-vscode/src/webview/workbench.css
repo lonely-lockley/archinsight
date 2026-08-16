@@ -1,0 +1,70 @@
+:root {
+  --app-primary-font-family: "Montserrat", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  --lumo-font-family: "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
+  --color-cta: #FF7043;
+  --color-primary: #36d074;
+  --archinsight-panel-bg: var(--vscode-editor-background, #1f1f1f);
+  --archinsight-toolbar-bg: var(--vscode-editor-background, #1f1f1f);
+  --archinsight-preview-bg: var(--vscode-editor-background, #1f1f1f);
+  --archinsight-control-group-bg: var(--vscode-editor-background, #1f1f1f);
+  --archinsight-control-bg: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background, #2a2a2a));
+  --archinsight-control-hover-bg: var(--vscode-toolbar-hoverBackground, #343434);
+  --archinsight-control-active-bg: var(--vscode-list-activeSelectionBackground, #354436);
+  --archinsight-control-active-fg: var(--vscode-list-activeSelectionForeground, var(--vscode-editor-foreground, #ffffff));
+  --archinsight-border: var(--vscode-panel-border, #3a3a3a);
+  --archinsight-border-strong: var(--vscode-panel-border, #3b3b3b);
+  --archinsight-foreground: var(--vscode-editor-foreground, #eeeeee);
+  --archinsight-muted-foreground: var(--vscode-descriptionForeground, #8f8f8f);
+  --archinsight-disabled-foreground: var(--vscode-disabledForeground, #666666);
+  --archinsight-tooltip-bg: var(--vscode-editorHoverWidget-background, #181818);
+  --archinsight-tooltip-border: var(--vscode-editorHoverWidget-border, var(--vscode-panel-border, #444444));
+  --archinsight-menu-bg: var(--vscode-menu-background, var(--vscode-editorWidget-background, #202020));
+  --archinsight-menu-shadow: none;
+  --archinsight-resize-bg: var(--vscode-sideBarSectionHeader-background, var(--vscode-editor-background, #262626));
+  --archinsight-resize-hover-bg: var(--vscode-focusBorder, var(--color-primary));
+  --archinsight-svg-background-fill: transparent;
+  --archinsight-svg-background-stroke: transparent;
+
+  font-family: var(--vscode-font-family, var(--lumo-font-family));
+  color: var(--vscode-editor-foreground, #e6e6e6);
+  background: var(--vscode-editor-background, #1f1f1f);
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+body,
+#app {
+  display: grid;
+}
+
+button {
+  font: inherit;
+}
+
+.toolbar button:focus,
+.toolbar button:focus-visible {
+  outline: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.svg-host svg > polygon:first-of-type,
+.svg-host svg > g.graph > polygon:first-of-type {
+  fill: var(--archinsight-svg-background-fill) !important;
+  stroke: var(--archinsight-svg-background-stroke) !important;
+}
+
+.svg-host svg g.cluster > polygon {
+  fill: transparent !important;
+}

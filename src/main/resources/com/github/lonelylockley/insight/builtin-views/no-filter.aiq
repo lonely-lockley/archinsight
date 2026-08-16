@@ -1,0 +1,5 @@
+MATCH (element)
+WHERE element.context = $context
+OPTIONAL MATCH (element)-[link]->(targetElement)
+GROUP BY element.parent
+RETURN element, link, targetElement

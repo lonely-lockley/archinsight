@@ -1,0 +1,14 @@
+MATCH (container:ContainerElement)
+WHERE container.sourceIdentity = $tab
+OPTIONAL MATCH (container)-[internalLink]->(targetContainer:ContainerElement)
+OPTIONAL MATCH (container)-[rollupOutboundLink {derived}]->(rollupContainer:ContainerElement)
+OPTIONAL MATCH (container)-[outboundLink]->(externalSystem:SystemElement)
+WHERE externalSystem IS External
+OPTIONAL MATCH (sourceSystem:SystemElement)-[inboundLink]->(container)
+WHERE sourceSystem IS External
+OPTIONAL MATCH (container)-[rollupExternalOutboundLink {derived}]->(rollupExternalSystem:SystemElement)
+WHERE rollupExternalSystem IS External
+OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(container)
+WHERE rollupExternalSourceSystem IS External
+GROUP BY container.parent
+RETURN container, internalLink, targetContainer, rollupOutboundLink, rollupContainer, outboundLink, externalSystem, inboundLink, sourceSystem, rollupExternalOutboundLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem

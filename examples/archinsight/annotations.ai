@@ -1,0 +1,24 @@
+# Lifecycle annotations and the legacy Graphviz attribute annotation.
+# New visual conventions should be defined through presentations.
+context annotations
+
+# For Graphviz attributes description please refer to:
+# https://graphviz.org/doc/info/attrs.html
+@planned
+system source
+    name = Source system
+    links:
+        @attribute(style=dotted,arrowhead=diamond)
+        -> target
+            technology = HTTP, REST
+            call = method
+            description = Do something
+
+system target
+    name = Target system
+    links:
+        @deprecated
+        ~> source
+            technology = Kafka, JSON
+            via = topic
+            description = Notify other systems

@@ -1,0 +1,288 @@
+{
+  "name": "archinsight-vscode",
+  "displayName": "Archinsight",
+  "description": "Native VSCode support for Insight architecture models.",
+  "version": "3.0.7",
+  "license": "Apache-2.0",
+  "publisher": "archinsight",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lonely-lockley/archinsight.git",
+    "directory": "archinsight-vscode"
+  },
+  "homepage": "https://github.com/lonely-lockley/archinsight/tree/master/archinsight-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/lonely-lockley/archinsight/issues"
+  },
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization"
+  ],
+  "keywords": [
+    "architecture",
+    "architecture-as-code",
+    "c4",
+    "diagram",
+    "graphviz",
+    "insight"
+  ],
+  "galleryBanner": {
+    "color": "#1B1F24",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onLanguage:insight",
+    "onCommand:archinsight.linkProject",
+    "onCommand:archinsight.previewDiagram",
+    "onCommand:archinsight.showStructure",
+    "onCommand:archinsight.checkCli",
+    "onCommand:archinsight.installCli",
+    "onCommand:archinsight.generateAgentSkill",
+    "onCommand:archinsight.structure.filter",
+    "onCommand:archinsight.structure.clearFilter",
+    "onCommand:archinsight.preview.noFilter",
+    "onCommand:archinsight.preview.c1",
+    "onCommand:archinsight.preview.c2",
+    "onCommand:archinsight.preview.c3",
+    "onCommand:archinsight.preview.c4",
+    "onCommand:archinsight.preview.editQuery",
+    "onCommand:archinsight.preview.downloadSource",
+    "onCommand:archinsight.preview.downloadSvg",
+    "onCommand:archinsight.preview.downloadPng",
+    "onCommand:archinsight.preview.downloadDot",
+    "onView:archinsightControls",
+    "onCustomEditor:archinsight.editor"
+  ],
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "languages": [
+      {
+        "id": "insight",
+        "aliases": [
+          "Insight",
+          "insight"
+        ],
+        "extensions": [
+          ".ai"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "insight",
+        "scopeName": "source.insight",
+        "path": "./syntaxes/insight.tmLanguage.json"
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "archinsight.editor",
+        "displayName": "Archinsight Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.ai"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "archinsight.linkProject",
+        "title": "Archinsight: Link Project"
+      },
+      {
+        "command": "archinsight.previewDiagram",
+        "title": "Archinsight: Preview Diagram",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "archinsight.showStructure",
+        "title": "Archinsight: Show Structure"
+      },
+      {
+        "command": "archinsight.checkCli",
+        "title": "Archinsight: Check CLI"
+      },
+      {
+        "command": "archinsight.installCli",
+        "title": "Archinsight: Install CLI"
+      },
+      {
+        "command": "archinsight.generateAgentSkill",
+        "title": "Archinsight: Generate Agent Skill"
+      },
+      {
+        "command": "archinsight.structure.filter",
+        "title": "Filter Project Structure",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "archinsight.structure.clearFilter",
+        "title": "Clear Project Structure Filter",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "archinsight.preview.noFilter",
+        "title": "No filter",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "archinsight.preview.c1",
+        "title": "C1",
+        "icon": "$(symbol-namespace)"
+      },
+      {
+        "command": "archinsight.preview.c2",
+        "title": "C2",
+        "icon": "$(symbol-class)"
+      },
+      {
+        "command": "archinsight.preview.c3",
+        "title": "C3",
+        "icon": "$(symbol-method)"
+      },
+      {
+        "command": "archinsight.preview.c4",
+        "title": "C4",
+        "icon": "$(server-process)"
+      },
+      {
+        "command": "archinsight.preview.editQuery",
+        "title": "Edit query",
+        "icon": "$(database)"
+      },
+      {
+        "command": "archinsight.preview.downloadSource",
+        "title": "Download source",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "archinsight.preview.downloadSvg",
+        "title": "Download diagram as SVG",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "archinsight.preview.downloadPng",
+        "title": "Download diagram as PNG",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "archinsight.preview.downloadDot",
+        "title": "Download diagram as DOT",
+        "icon": "$(cloud-download)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "archinsight.structure.filter",
+          "when": "view == archinsightStructure",
+          "group": "navigation@1"
+        },
+        {
+          "command": "archinsight.structure.clearFilter",
+          "when": "view == archinsightStructure",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "archinsight",
+          "title": "Archinsight Query",
+          "icon": "assets/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "archinsight": [
+        {
+          "type": "webview",
+          "id": "archinsightControls",
+          "name": "Archinsight Query"
+        }
+      ],
+      "explorer": [
+        {
+          "id": "archinsightStructure",
+          "name": "Project Structure"
+        }
+      ]
+    },
+    "configurationDefaults": {
+      "[insight]": {
+        "breadcrumbs.enabled": false
+      },
+      "editor.semanticHighlighting.enabled": true,
+      "editor.semanticTokenColorCustomizations": {
+        "[*Dark*]": {
+          "enabled": true,
+          "rules": {
+            "annotation:insight": "#f2cc60",
+            "comment:insight": "#959da5",
+            "function:insight": "#7ee787",
+            "keyword:insight": "#39c5bb",
+            "keyword.declaration:insight": "#d19a66",
+            "operator:insight": "#f6f8fa",
+            "property:insight": "#f6f8fa",
+            "string:insight": "#79b8ff",
+            "type:insight": "#b392f0",
+            "variable:insight": "#fb8532"
+          }
+        },
+        "[*Light*]": {
+          "enabled": true,
+          "rules": {
+            "annotation:insight": "#b08800",
+            "comment:insight": "#6a737d",
+            "function:insight": "#22863a",
+            "keyword:insight": "#008b8b",
+            "keyword.declaration:insight": "#b05a00",
+            "operator:insight": "#24292e",
+            "property:insight": "#24292e",
+            "string:insight": "#032f62",
+            "type:insight": "#6f42c1",
+            "variable:insight": "#e36209"
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs",
+    "prepare:web": "npm --prefix ../archinsight-web run sync:svelte-kit",
+    "build:webview": "npm run prepare:web && vite build --config vite.webview.config.mts",
+    "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.cjs --external:vscode --external:@viz-js/viz",
+    "build": "npm run build:webview && npm run build:extension",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check": "npm run typecheck && npm run build",
+    "package": "npm run check && vsce package --out dist/archinsight-vscode-${npm_package_version}.vsix",
+    "publish:marketplace": "npm run check && vsce publish"
+  },
+  "dependencies": {
+    "@viz-js/viz": "^3.28.0"
+  },
+  "devDependencies": {
+    "@insight/language": "file:../packages/insight-language",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.92.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "monaco-editor": "^0.55.1",
+    "svelte": "^5.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.3": true
+  }
+}

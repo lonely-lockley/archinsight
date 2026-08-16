@@ -1,0 +1,70 @@
+define type DeploymentElement of BoundaryElement
+
+extend type Element
+    List of Edge deployment
+    InfrastructureComponent runsOn
+    List of InfrastructureComponent uses
+
+define type InfrastructureComponent of DeploymentElement
+    constructor infrastructureComponent
+
+    Text name
+    Text technology
+    Text description
+    InfrastructureComponent runsOn
+    List of PhysicalWire projection
+    List of InfrastructureComponent _
+
+define type ProjectionTerm
+
+define type DeploymentProfile of BoundaryElement
+    constructor deploymentProfile
+
+    required List of Deployment appliesTo
+
+define type Storage of InfrastructureComponent
+    constructor storage
+
+define presentation Storage
+    graphviz
+        shape = cylinder
+
+define type Broker of InfrastructureComponent
+    constructor broker
+
+    Text address
+
+define presentation Broker
+    graphviz
+        shape = box
+        style = filled,dashed
+
+define type Compute of InfrastructureComponent
+    constructor compute
+
+    Text address
+    List of InfrastructureComponent components
+
+define type NetworkConnection of InfrastructureComponent
+    constructor networkConnection
+
+define type Environment of BoundaryElement
+    constructor environment
+
+    required Text name
+    Text region
+    List of DeploymentElement _
+
+define type Deployment of DeploymentElement
+    constructor deployment
+
+    Text name
+    List of DeploymentElement _
+
+define presentation DeploymentProfile
+    graphviz
+        visible = false
+
+define presentation NetworkConnection
+    graphviz
+        visible = false

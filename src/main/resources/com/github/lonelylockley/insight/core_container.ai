@@ -1,0 +1,36 @@
+define type ContainerElement of Element
+
+define type Container of ContainerElement
+    constructor container
+
+    Text name
+    Text technology
+    Text description
+    List of Wire links
+    List of Component _
+
+define type Service of Container
+    constructor service
+
+    required Text name
+
+
+define presentation Container
+    light
+        fill = "#438dd5"
+        stroke = "#f4f4f4"
+        text = "#f4f4f4"
+
+    dark
+        fill = "#5A189A"
+        stroke = "#2e2e2e"
+        text = "#f4f4f4"
+
+    graphviz
+        shape = box
+        style = filled,rounded
+
+define presentation Service
+    graphviz
+        shape = box
+        style = filled,rounded

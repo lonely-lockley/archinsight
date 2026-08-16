@@ -1,0 +1,55 @@
+plugins {
+    id 'base'
+}
+
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+def imageRepository = providers.gradleProperty('archinsightImageRepository').getOrElse('lonelylockley/archinsight')
+def releaseImage = "${imageRepository}:renderer-${project.version}"
+def releasePlatforms = providers.gradleProperty('archinsightDockerPlatforms').getOrElse('linux/amd64')
+
+tasks.register('npmInstall', Exec) {
+    dependsOn rootProject.tasks.named('syncPackageVersions')
+    inputs.file('package.json')
+    inputs.file('package-lock.json')
+    outputs.dir('node_modules')
+    commandLine npmCommand, 'install'
+}
+
+tasks.register('test', Exec) {
+    group = 'verification'
+    description = 'Runs renderer service tests.'
+    dependsOn 'npmInstall'
+    commandLine npmCommand, 'test'
+}
+
+tasks.register('dockerBuild', Exec) {
+    group = 'build'
+    description = "Builds the hardened Archinsight renderer service container image ${releaseImage}."
+    commandLine 'docker', 'build', '-t', releaseImage, '.'
+}
+
+tasks.register('dockerPush', Exec) {
+    group = 'publishing'
+    description = "Builds and publishes the multi-platform Archinsight renderer image ${releaseImage}."
+    commandLine 'docker', 'buildx', 'build',
+        '--platform', releasePlatforms,
+        '--tag', releaseImage,
+        '--push',
+        '.'
+}
+
+tasks.register('dist') {
+    group = 'build'
+    description = 'Builds the renderer distribution image.'
+    dependsOn 'dockerBuild'
+}
+
+tasks.register('dockerDebug', Exec) {
+    group = 'application'
+    description = 'Runs the Archinsight renderer service with local sandbox-oriented Docker settings.'
+    commandLine 'docker', 'compose', '-f', 'compose.debug.yaml', 'up', '--build'
+}
+
+tasks.named('check') {
+    dependsOn 'test'
+}

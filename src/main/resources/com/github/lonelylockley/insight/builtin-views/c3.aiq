@@ -1,0 +1,13 @@
+MATCH (container:ContainerElement)-[contains:CONTAINS]->(component:ComponentElement)
+WHERE container.sourceIdentity = $tab
+OPTIONAL MATCH (component)-[link]->(targetComponent:ComponentElement)
+OPTIONAL MATCH (component)-[externalLink]->(externalSystem:SystemElement)
+WHERE externalSystem IS External
+OPTIONAL MATCH (externalSourceSystem:SystemElement)-[externalInboundLink]->(component)
+WHERE externalSourceSystem IS External
+OPTIONAL MATCH (component)-[rollupExternalLink {derived}]->(rollupExternalSystem:SystemElement)
+WHERE rollupExternalSystem IS External
+OPTIONAL MATCH (rollupExternalSourceSystem:SystemElement)-[rollupExternalInboundLink {derived}]->(component)
+WHERE rollupExternalSourceSystem IS External
+GROUP BY component.parent
+RETURN component, link, targetComponent, externalLink, externalSystem, externalInboundLink, externalSourceSystem, rollupExternalLink, rollupExternalSystem, rollupExternalInboundLink, rollupExternalSourceSystem

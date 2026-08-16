@@ -1,0 +1,89 @@
+plugins {
+    id 'base'
+}
+
+def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+
+tasks.register('npmInstall', Exec) {
+    group = 'build'
+    description = 'Installs VSCode extension dependencies.'
+    dependsOn rootProject.tasks.named('syncPackageVersions')
+    inputs.file('package.json')
+    if (file('package-lock.json').exists()) {
+        inputs.file('package-lock.json')
+    }
+    outputs.dir('node_modules')
+    workingDir = projectDir
+    commandLine npmCommand, 'install'
+}
+
+tasks.register('npmBuild', Exec) {
+    group = 'build'
+    description = 'Builds the Archinsight VSCode extension.'
+    dependsOn 'npmInstall', rootProject.tasks.named('generateLanguageSources'), project(':archinsight-web').tasks.named('svelteKitSync')
+    inputs.dir('src')
+    inputs.dir('syntaxes')
+    inputs.file('language-configuration.json')
+    inputs.file('vite.webview.config.mts')
+    inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/insight-language/src')
+    outputs.dir('dist')
+    workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine npmCommand, 'run', 'build'
+}
+
+tasks.register('npmCheck', Exec) {
+    group = 'verification'
+    description = 'Runs VSCode extension checks.'
+    dependsOn 'npmInstall', rootProject.tasks.named('generateLanguageSources'), project(':archinsight-web').tasks.named('svelteKitSync')
+    inputs.dir('src')
+    inputs.dir('syntaxes')
+    inputs.file('language-configuration.json')
+    inputs.file('vite.webview.config.mts')
+    inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/insight-language/src')
+    outputs.dir('dist')
+    workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine npmCommand, 'run', 'check'
+}
+
+tasks.register('npmPackage', Exec) {
+    group = 'build'
+    description = 'Packages the Archinsight VSCode extension as a VSIX.'
+    dependsOn 'npmInstall', rootProject.tasks.named('copyLicenses'), rootProject.tasks.named('generateLanguageSources'), project(':archinsight-web').tasks.named('svelteKitSync')
+    inputs.dir('src')
+    inputs.dir('syntaxes')
+    inputs.file('language-configuration.json')
+    inputs.file('vite.webview.config.mts')
+    inputs.file('package.json')
+    inputs.file('README.md')
+    inputs.file('LICENSE')
+    inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/insight-language/src')
+    outputs.dir('dist')
+    workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine npmCommand, 'run', 'package'
+}
+
+tasks.named('assemble') {
+    dependsOn 'npmBuild'
+}
+
+tasks.register('dist') {
+    group = 'build'
+    description = 'Builds the VSCode extension VSIX.'
+    dependsOn 'npmPackage'
+}
+
+tasks.register('releaseCheck') {
+    group = 'verification'
+    description = 'Synchronizes metadata, checks, and builds the VSCode extension VSIX.'
+    dependsOn rootProject.tasks.named('syncPackageVersions'), 'npmCheck', 'npmPackage'
+}
+
+tasks.named('check') {
+    dependsOn 'npmCheck'
+}

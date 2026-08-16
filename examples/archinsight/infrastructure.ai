@@ -1,0 +1,75 @@
+environment eu
+    name = Europe
+
+deployment production
+    csp:
+        archinsightServiceProvider csp
+            name = Digitalocean
+
+    cdn:
+        archinsightServiceProvider cf
+            name = Cloudflare
+
+    compute:
+        compute compute
+            name = Kubernetes
+            runsOn:
+                csp
+
+    storage:
+        storage storage
+            name = Postgres
+            runsOn:
+                csp
+            projection:
+                source $from originalLink target $this
+
+    publicGateway:
+        archinsightPublicGateway publicGateway
+            name = Public ingress path
+            cdn:
+                cf
+            loadBalancer:
+                infrastructureComponent lb
+                    name = DigitalOcean Load Balancers
+                    runsOn:
+                        csp
+            ingress:
+                ingress traefik
+                    name = Traefik
+                    technology = Traefik Proxy
+                    description = Kubernetes ingress controller for public frontend and API traffic
+                    runsOn:
+                        compute
+            projection:
+                source $from originalLink target cdn
+                target cdn connectTo target loadBalancer
+                target loadBalancer connectTo target ingress
+                target ingress connectTo target $to
+
+    privateGateway:
+        archinsightPrivateGateway privateGateway
+            name = Private Network
+            runsOn:
+                compute
+            projection:
+                source $from originalLink target $to
+
+    egress:
+        egress egress
+            name = Egress
+            runsOn:
+                compute
+            projection:
+                source $from originalLink target $to
+
+    observability:
+        metrics observability
+            name = Grafana Agent
+            runsOn:
+                compute
+            display:
+                infrastructureComponent grafana
+                    name = Grafana Cloud
+            projection:
+                target $this connectTo target display

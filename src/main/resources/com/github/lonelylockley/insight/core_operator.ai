@@ -1,0 +1,144 @@
+define type WireModel
+
+define enum of WireModel
+    sync
+    async
+
+define operator Wire of Edge
+    Text technology
+    Text description
+    required WireModel model
+
+    List of Edge deployment
+    List of NetworkConnection uses
+
+define operator DeploymentProfileUse of Edge
+    constructor uses DeploymentProfile
+        on Element
+
+define operator InfrastructureUse of Edge
+    constructor uses InfrastructureComponent
+        on DeploymentProfile or Element
+
+    constructor uses NetworkConnection
+        on Wire
+
+define operator InfrastructurePlacement of Edge
+    constructor runsOn InfrastructureComponent
+        on DeploymentProfile or Element
+
+define operator SyncWire of Wire
+    constructor -> Element
+        on Element
+        model = sync
+
+    implementation = "@insight/core.edge"
+
+    Text call
+
+define operator AsyncWire of Wire
+    constructor ~> Element
+        on Element
+        model = async
+
+    implementation = "@insight/core.edge"
+
+    Text via
+
+define operator PhysicalWire of Edge
+    Text technology
+    Text description
+
+define operator ConnectTo of PhysicalWire
+    constructor connectTo Element
+        on Element
+
+    constructor connectTo ProjectionTerm
+        on ProjectionTerm
+
+    implementation = "@insight/core.edge"
+
+define operator ReplicateFrom of PhysicalWire
+    constructor replicateFrom Element
+        on Element
+
+    constructor replicateFrom ProjectionTerm
+        on ProjectionTerm
+
+    implementation = "@insight/core.edge"
+
+define operator OriginalLink of PhysicalWire
+    constructor originalLink ProjectionTerm
+        on ProjectionTerm
+
+    Text call
+    Text via
+
+define operator SourceProjectionTerm of TypeSlotReference
+    constructor source Environment or InfrastructureComponent
+        on ProjectionTerm
+
+define operator TargetProjectionTerm of TypeSlotReference
+    constructor target Environment or InfrastructureComponent
+        on ProjectionTerm
+
+define operator ExternalSystem of System
+    constructor external System
+        on Context
+        kind = external
+
+    implementation = "@insight/core.element"
+
+define operator ExternalActor of Actor
+    constructor external Actor
+        on Context
+        kind = external
+
+    implementation = "@insight/core.element"
+
+define presentation Wire
+    header = technology
+    body = description
+
+    light
+        stroke = "#000000"
+        text = "#000000"
+
+    dark
+        stroke = "#66CCFF"
+        text = "#f4f4f4"
+
+    graphviz
+        minlen = 1.5
+        fontsize = "8px"
+        penwidth = 0.7
+
+define presentation SyncWire
+    subtitle = call
+
+define presentation AsyncWire
+    subtitle = via
+
+    graphviz
+        style = dashed
+
+define presentation PhysicalWire
+    header = technology
+    body = description
+
+    light
+        stroke = "#000000"
+        text = "#000000"
+
+    dark
+        stroke = "#66CCFF"
+        text = "#f4f4f4"
+
+    graphviz
+        minlen = 1.5
+        fontsize = "8px"
+        penwidth = 0.7
+
+define presentation ReplicateFrom
+    graphviz
+        style = dashed

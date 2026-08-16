@@ -1,2 +1,28 @@
-rootProject.name = 'archinsight'
-include 'common', 'database', 'insight-lang', 'translator', 'renderer', 'editor-ui', 'repository', 'identity'
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'insight'
+
+gradle.ext.archinsightVersions = [
+    language: '3.0.0',
+    web     : '3.0.0',
+    renderer: '3.0.0',
+    cli     : '3.0.0',
+    vscode  : '3.0.7'
+]
+
+include 'archinsight-web'
+include 'archinsight-renderer'
+include 'archinsight-cli'
+include 'archinsight-vscode'
