@@ -5,7 +5,6 @@
   export let user: AuthUserResponse = { authenticated: false };
   export let onLogin: () => void;
   export let onManageProjects: () => void;
-  export let onSettings: () => void;
   export let onLogout: () => void;
 
   let open = false;
@@ -43,11 +42,6 @@
     return user.displayName ?? user.email ?? 'Signed in';
   }
 
-  function selectSettings(): void {
-    close();
-    onSettings();
-  }
-
   function selectManageProjects(): void {
     close();
     onManageProjects();
@@ -80,10 +74,6 @@
         <button type="button" role="menuitem" on:click={selectManageProjects}>
           <span aria-hidden="true" class="codicon codicon-folder-library"></span>
           <span>Manage Projects</span>
-        </button>
-        <button type="button" role="menuitem" on:click={selectSettings}>
-          <span aria-hidden="true" class="codicon codicon-settings-gear"></span>
-          <span>Settings</span>
         </button>
         <button type="button" role="menuitem" on:click={selectLogout}>
           <span aria-hidden="true" class="codicon codicon-sign-out"></span>

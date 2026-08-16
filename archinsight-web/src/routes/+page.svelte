@@ -611,10 +611,6 @@
     window.location.href = loginRoute();
   }
 
-  function openSettings(): void {
-    appendInfoMessage('Settings UI is not implemented yet');
-  }
-
   function manageProjects(): void {
     if (requireAction('repository.project.manage')) {
       openProjectDialog(false);
@@ -2660,7 +2656,6 @@
           user={currentUser}
           onLogin={login}
           onManageProjects={manageProjects}
-          onSettings={openSettings}
           onLogout={() => void logout()}
         />
       {:else}
