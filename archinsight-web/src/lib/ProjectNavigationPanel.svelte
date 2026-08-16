@@ -31,10 +31,10 @@
 
 <aside class:collapsed={!visible} class="sidebar">
   {#if visible}
-    <div class="brand">
+    <a class="brand" href="/" aria-label="Archinsight home">
       <img class="brand-logo" src={routePath('/archinsight-logo-no-background.svg')} alt="" aria-hidden="true" />
       <div>Archinsight</div>
-    </div>
+    </a>
     <div class="panel-tabs">
       <button class:active={activePanel === 'repository'} type="button" on:click={() => activePanel = 'repository'}>
         <span aria-hidden="true" class="codicon codicon-list-tree"></span>
@@ -77,9 +77,9 @@
     ></div>
   {:else}
     <div class="collapsed-rail" aria-label="Collapsed sidebar">
-      <button aria-label="Show panel" class="rail-brand has-tooltip tooltip-right" data-tooltip="Show panel" type="button" on:click={onShowSidebar}>
+      <a aria-label="Archinsight home" class="rail-brand has-tooltip tooltip-right" data-tooltip="Archinsight home" href="/">
         <img class="rail-logo" src={routePath('/archinsight-logo-no-background.svg')} alt="" aria-hidden="true" />
-      </button>
+      </a>
       <button aria-label="Repository" class:active={activePanel === 'repository'} class="rail-tab has-tooltip tooltip-right" data-tooltip="Repository" type="button" on:click={() => showPanel('repository')}>
         <span aria-hidden="true" class="codicon codicon-list-tree"></span>
       </button>
@@ -247,6 +247,7 @@
     color: var(--color-primary);
     font-family: var(--app-primary-font-family);
     font-weight: 700;
+    text-decoration: none;
   }
 
   .brand-logo {
@@ -371,6 +372,7 @@
     height: 34px;
     place-items: center;
     border-radius: 4px;
+    text-decoration: none;
   }
 
   .rail-logo {

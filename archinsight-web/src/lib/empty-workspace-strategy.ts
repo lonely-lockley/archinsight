@@ -25,7 +25,7 @@ export function emptyWorkspaceStrategy(
       kind: 'no-projects',
       actions: [
         { id: 'create-tab', label: 'Create New Tab', icon: 'new-file', primary: true },
-        { id: 'create-project', label: 'Create project', icon: 'repo-create' }
+        { id: 'manage-projects', label: 'Manage Projects', icon: 'folder-library' }
       ]
     };
   }

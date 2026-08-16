@@ -56,6 +56,7 @@ interface ParsedDocument {
 interface ParsedContext {
   readonly id: string;
   readonly type: string;
+  readonly synthetic: boolean;
   readonly line: number;
   readonly column: number;
   readonly endLine?: number;
@@ -477,6 +478,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
     id: document.context.id,
     type: document.context.type,
     sourceIdentity: document.sourceName,
+    ...(document.context.synthetic ? { synthetic: true } : {}),
     declaration: sourceLocation(document.sourceName, document.context),
     attributes: flattenAttributes(document.context.scalarAttributes, {}),
   }));
@@ -549,6 +551,7 @@ function parseDocument(sourceName: string, source: string, typeSystem: TypeSyste
     context: {
       id: contextId,
       type: contextType,
+      synthetic: contextDeclaration === undefined && environmentDeclaration === undefined,
       line: contextPosition.line,
       column: contextPosition.column,
       scalarAttributes: {},

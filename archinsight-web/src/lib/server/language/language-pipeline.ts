@@ -208,7 +208,7 @@ function renderPaths(request: LinkRequest | null, result: LinkProjectResult): st
   if (requested.length > 0) {
     return [...new Set(requested)];
   }
-  return result.contexts.map((context) => context.sourceIdentity);
+  return result.contexts.filter((context) => context.synthetic !== true).map((context) => context.sourceIdentity);
 }
 
 function projectStructure(result: LinkProjectResult): ProjectStructureResponse {
@@ -234,7 +234,7 @@ function projectStructure(result: LinkProjectResult): ProjectStructureResponse {
 
   return {
     schemaVersion: 'project-structure.v1',
-    contexts: result.contexts.map((context) => ({
+    contexts: result.contexts.filter((context) => context.synthetic !== true).map((context) => ({
       id: context.id,
       kind: 'context',
       constructor: context.type,

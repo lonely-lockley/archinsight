@@ -344,7 +344,7 @@
     const strategy = emptyWorkspaceStrategy(projectRegistry.projects, activeProjectId);
     return {
       ...strategy,
-      actions: strategy.actions.map((action) => {
+      actions: strategy.actions.flatMap((action) => {
         const actionId: ActionId = action.id === 'create-tab'
           ? 'workspace.tab.create'
           : action.id === 'create-project'
@@ -353,7 +353,9 @@
             ? 'repository.project.manage'
             : 'repository.file.create';
         const state = actionState(actionId, true, 'Action is unavailable', actionSurface, actionCapabilities);
-        return { ...action, disabled: state.disabled, reason: state.reason };
+        return state.hidden
+          ? []
+          : [{ ...action, disabled: state.disabled, reason: state.reason }];
       })
     };
   }

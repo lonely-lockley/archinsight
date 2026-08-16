@@ -161,6 +161,7 @@ export interface LinkedContext {
   readonly id: string;
   readonly type: string;
   readonly sourceIdentity: string;
+  readonly synthetic?: boolean;
   readonly declaration?: SourceLocation;
   readonly attributes: Readonly<Record<string, readonly string[]>>;
 }

@@ -12,8 +12,8 @@ export type ActionDefinition = {
 
 export const actionCatalog = {
   'workspace.tab.create': { effect: 'workspace-local', whenDenied: 'disabled' },
-  'repository.project.create': { effect: 'repository-write', capability: 'repository:write-own', whenDenied: 'disabled' },
-  'repository.project.manage': { effect: 'repository-write', capability: 'repository:write-own', whenDenied: 'disabled' },
+  'repository.project.create': { effect: 'repository-write', capability: 'repository:write-own', whenDenied: 'hidden' },
+  'repository.project.manage': { effect: 'repository-write', capability: 'repository:write-own', whenDenied: 'hidden' },
   'repository.file.create': { effect: 'repository-write', capability: 'repository:write-own', whenDenied: 'disabled' },
   'repository.file.save': { effect: 'repository-write', capability: 'repository:write-own', whenDenied: 'disabled' },
   'repository.file.rename': { effect: 'repository-write', capability: 'repository:write-own', whenDenied: 'disabled' },

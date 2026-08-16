@@ -11,7 +11,10 @@ describe('action control model', () => {
         surface: 'playground',
         capabilities: ['repository:write-own']
       });
-      expect(state).toMatchObject({ hidden: false, disabled: true });
+      expect(state).toMatchObject({
+        hidden: action.whenDenied === 'hidden',
+        disabled: true
+      });
       expect(canExecute(state)).toBe(false);
     }
   });
@@ -20,6 +23,18 @@ describe('action control model', () => {
     expect(controlState('publication.toggle', { surface: 'editor', capabilities: [] })).toMatchObject({
       hidden: true,
       disabled: true
+    });
+  });
+
+  it('hides project creation without authenticated repository access', () => {
+    expect(controlState('repository.project.create', { surface: 'editor', capabilities: [] })).toEqual({
+      hidden: true,
+      disabled: true,
+      reason: 'Action is not permitted'
+    });
+    expect(controlState('workspace.tab.create', { surface: 'playground', capabilities: [] })).toEqual({
+      hidden: false,
+      disabled: false
     });
   });
 
