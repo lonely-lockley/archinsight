@@ -9,6 +9,9 @@ import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const env = {
+  ARCHINSIGHT_DATABASE_ENABLED: 'false',
+  ARCHINSIGHT_REPOSITORY_BACKEND: 'memory',
+  ARCHINSIGHT_AUTH_GHOST_ENABLED: 'false',
   ARCHINSIGHT_AUTH_TOKEN_SECRET: 'standalone-token-test-secret',
   ARCHINSIGHT_AUTH_COOKIE_SECURE: 'false'
 };

@@ -66,6 +66,21 @@ describe('PostgresRepositoryFileSystem', () => {
     expect(database.repositories.size).toBe(0);
     expect(database.files.size).toBe(0);
   });
+
+  it('locks the owner-scoped repository row before changing its tree', async () => {
+    const database = new FakeRepositoryDatabase();
+    const fs = new PostgresRepositoryFileSystem(database);
+
+    await fs.save(ownerId, repositoryId, 'second.ai', { content: 'context second' });
+
+    const lock = database.queries.find((query) =>
+      query.sql.includes('from public.repository') && query.sql.includes('for update')
+    );
+    expect(lock?.params).toEqual([ownerId, repositoryId]);
+    expect(database.queries.findIndex((query) => query === lock)).toBeLessThan(
+      database.queries.findIndex((query) => query.sql.startsWith('insert into public.file'))
+    );
+  });
 });
 
 type RepositoryRecord = {
@@ -91,6 +106,7 @@ type FileRecord = {
 class FakeRepositoryDatabase implements TransactionalDatabase {
   readonly repositories = new Map<string, RepositoryRecord>();
   readonly files = new Map<string, FileRecord>();
+  readonly queries: Array<{ sql: string; params: unknown[] }> = [];
   private revision = 1;
 
   constructor() {
@@ -137,6 +153,7 @@ class FakeRepositoryDatabase implements TransactionalDatabase {
     params: unknown[] = []
   ): Promise<QueryResult<T>> {
     const statement = normalizeSql(sql);
+    this.queries.push({ sql: statement, params: [...params] });
     if (statement.startsWith('select r.id, r.name, r.created')) {
       return asResult(rows([...this.repositories.values()]
         .filter((repo) => repo.owner_id === params[0])

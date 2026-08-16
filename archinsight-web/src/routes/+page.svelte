@@ -224,7 +224,8 @@
   $: activeEditorSplitRatio = activeTab?.editorSplitRatio ?? defaultEditorSplitRatio;
   $: activeReadOnly = activeTab?.readOnly === true;
   $: capabilities = currentUser.capabilities ?? [];
-  $: newFileState = actionState('workspace.tab.create', true, 'Action is unavailable', surface, capabilities);
+  $: newTabState = actionState('workspace.tab.create', true, 'Action is unavailable', surface, capabilities);
+  $: createFileState = actionState('repository.file.create', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: saveState = actionState('repository.file.save', activeTab !== undefined && !activeReadOnly, activeReadOnly ? 'File is read-only' : 'No active file', surface, capabilities);
   $: createFolderState = actionState('repository.folder.create', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: renameFileState = actionState('repository.file.rename', activeProjectId !== undefined, 'No active project', surface, capabilities);
@@ -334,7 +335,7 @@
   function handleEmptyWorkspaceAction(action: EmptyWorkspaceAction): void {
     switch (action.id) {
       case 'create-tab':
-        if (canExecute(newFileState)) {
+        if (canExecute(newTabState)) {
           void newFile();
         }
         return;
@@ -987,7 +988,7 @@
   }
 
   async function newFile(): Promise<void> {
-    if (!requireAction('repository.file.create', newFileState)) {
+    if (!requireAction('workspace.tab.create', newTabState)) {
       return;
     }
     const id = `untitled:${untitledCounter++}`;
@@ -1779,7 +1780,7 @@
 
   function newRepositoryFile(directory: string): void {
     closeRepositoryMenu();
-    if (!requireAction('repository.file.create', newFileState)) {
+    if (!requireAction('repository.file.create', createFileState)) {
       return;
     }
     openFileDialog({
@@ -1925,7 +1926,7 @@
         ? createFolderState
         : dialog.mode === 'save'
           ? saveState
-          : newFileState;
+          : createFileState;
     if (!requireAction(actionId, state)) {
       fileDialog = undefined;
       return;
@@ -2732,7 +2733,7 @@
         canDownloadSvg={canDownloadCurrentDiagram}
         canDownloadPng={canDownloadCurrentDiagram}
         canDownloadDot={canDownloadCurrentDot}
-        {newFileState}
+        newFileState={newTabState}
         {saveState}
       />
     </WorkspaceEditor>
@@ -2750,8 +2751,8 @@
     on:contextmenu|preventDefault
   >
     {#if repositoryMenu.node.type === 'directory'}
-      {#if !newFileState.hidden}
-        <button type="button" role="menuitem" disabled={newFileState.disabled} title={newFileState.reason} on:click={() => newRepositoryFile(repositoryMenu?.node.path ?? '')}>
+      {#if !createFileState.hidden}
+        <button type="button" role="menuitem" disabled={createFileState.disabled} title={createFileState.reason} on:click={() => newRepositoryFile(repositoryMenu?.node.path ?? '')}>
           <span aria-hidden="true" class="codicon codicon-new-file"></span>
           <span>New file</span>
         </button>

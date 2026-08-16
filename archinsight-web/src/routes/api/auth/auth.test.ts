@@ -11,6 +11,8 @@ import { verifyGhostSessionSignature } from '$lib/server/auth/ghost-session';
 import { getAuthConfig } from '$lib/server/auth/auth-config';
 
 const devConfig = {
+  ARCHINSIGHT_DATABASE_ENABLED: 'false',
+  ARCHINSIGHT_REPOSITORY_BACKEND: 'memory',
   ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED: 'true',
   ARCHINSIGHT_AUTH_DEV_USER_ID: '5913933c-2268-41e1-a558-622dc11f675a',
   ARCHINSIGHT_AUTH_TOKEN_SECRET: 'standalone-token-test-secret',

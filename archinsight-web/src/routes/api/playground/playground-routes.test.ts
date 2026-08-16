@@ -10,7 +10,11 @@ import {
 } from '$lib/server/publication/playground-publication-store';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
-const env = { ARCHINSIGHT_RUNTIME_PROFILE: 'playground' };
+const env = {
+  ARCHINSIGHT_RUNTIME_PROFILE: 'playground',
+  ARCHINSIGHT_DATABASE_ENABLED: 'false',
+  ARCHINSIGHT_REPOSITORY_BACKEND: 'memory'
+};
 let publications: InMemoryPlaygroundPublicationStore;
 
 describe('playground API', () => {
