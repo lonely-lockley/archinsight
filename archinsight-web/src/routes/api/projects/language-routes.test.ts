@@ -114,6 +114,47 @@ cloudEnvironment do
   });
 
   it('renders linked project DOT to SVG', async () => {
+    let rendererRequest: { authorization: string | null; dot: string } | undefined;
+    const response = await renderSvg(
+      event(
+        '/api/projects/project-1/render/svg',
+        {
+          openSourceIdentities: ['main.ai'],
+          overlays: {},
+          query: 'MATCH (node:System) WHERE node.sourceIdentity = $tab RETURN node'
+        },
+        {
+          ARCHINSIGHT_RENDERER_ENABLED: 'true',
+          ARCHINSIGHT_RENDERER_URL: 'http://renderer.internal:3000',
+          ARCHINSIGHT_RENDERER_TOKEN: 'language-route-renderer-token'
+        },
+        async (_input, init) => {
+          const payload = JSON.parse(String(init?.body)) as { renders: Array<{ sourceIdentity: string; diagram: string; dot: string }> };
+          rendererRequest = {
+            authorization: new Headers(init?.headers).get('authorization'),
+            dot: payload.renders[0].dot
+          };
+          return new Response(JSON.stringify({
+            diagnostics: [],
+            svgs: [{ sourceIdentity: 'main.ai', diagram: 'query', svg: '<svg><text>App</text></svg>' }],
+            warnings: []
+          }), { status: 200, headers: { 'content-type': 'application/json' } });
+        }
+      )
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.diagnostics.some((diagnostic: { level: string }) => diagnostic.level === 'ERROR')).toBe(false);
+    expect(body.svgs).toHaveLength(1);
+    expect(body.svgs[0].sourceIdentity).toBe('main.ai');
+    expect(body.svgs[0].svg).toContain('<svg');
+    expect(body.svgs[0].svg).toContain('App');
+    expect(rendererRequest).toMatchObject({ authorization: 'Bearer language-route-renderer-token' });
+    expect(rendererRequest?.dot).toContain('digraph "demo"');
+  });
+
+  it('does not use an external renderer when the optional fallback is disabled', async () => {
     const response = await renderSvg(
       event('/api/projects/project-1/render/svg', {
         openSourceIdentities: ['main.ai'],
@@ -124,11 +165,10 @@ cloudEnvironment do
 
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.diagnostics.some((diagnostic: { level: string }) => diagnostic.level === 'ERROR')).toBe(false);
-    expect(body.svgs).toHaveLength(1);
-    expect(body.svgs[0].sourceIdentity).toBe('main.ai');
-    expect(body.svgs[0].svg).toContain('<svg');
-    expect(body.svgs[0].svg).toContain('App');
+    expect(body.svgs).toEqual([]);
+    expect(body.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'EXTERNAL_RENDERER_DISABLED', level: 'ERROR' })
+    ]));
   });
 
   it('rejects queries over the configured character limit', async () => {
@@ -189,7 +229,12 @@ cloudEnvironment do
   });
 });
 
-function event(url: string, body?: unknown, envOverride: Record<string, string> = {}) {
+function event(
+  url: string,
+  body?: unknown,
+  envOverride: Record<string, string> = {},
+  fetcher?: typeof fetch
+) {
   return {
     cookies: cookies({
       'archinsight-session': issueStandaloneToken(
@@ -210,6 +255,7 @@ function event(url: string, body?: unknown, envOverride: Record<string, string> 
     request: {
       json: async () => body ?? null
     },
+    fetch: fetcher,
     url: new URL(url, 'http://localhost'),
     platform: { env: { ...env, ...envOverride } }
   } as never;

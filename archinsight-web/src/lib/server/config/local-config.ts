@@ -62,6 +62,14 @@ function flattenedYamlToEnv(flattened: Record<string, string>): EnvSource {
   map(flattened, env, 'archinsight.editor-path', 'ARCHINSIGHT_EDITOR_PATH');
   map(flattened, env, 'archinsight.runtime-profile', 'ARCHINSIGHT_RUNTIME_PROFILE');
 
+  map(flattened, env, 'archinsight.renderer.enabled', 'ARCHINSIGHT_RENDERER_ENABLED');
+  map(flattened, env, 'archinsight.renderer.url', 'ARCHINSIGHT_RENDERER_URL');
+  map(flattened, env, 'archinsight.renderer.token', 'ARCHINSIGHT_RENDERER_TOKEN');
+  map(flattened, env, 'archinsight.renderer.timeout-ms', 'ARCHINSIGHT_RENDERER_TIMEOUT_MS');
+  map(flattened, env, 'archinsight.renderer.max-response-bytes', 'ARCHINSIGHT_RENDERER_MAX_RESPONSE_BYTES');
+  map(flattened, env, 'archinsight.renderer.max-svg-bytes', 'ARCHINSIGHT_RENDERER_MAX_SVG_BYTES');
+  map(flattened, env, 'archinsight.renderer.max-total-svg-bytes', 'ARCHINSIGHT_RENDERER_MAX_TOTAL_SVG_BYTES');
+
   map(flattened, env, 'archinsight.auth.mode', 'ARCHINSIGHT_AUTH_MODE');
   map(flattened, env, 'archinsight.auth.dev-user-id', 'ARCHINSIGHT_AUTH_DEV_USER_ID');
   map(flattened, env, 'archinsight.auth.dev-login.enabled', 'ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED');

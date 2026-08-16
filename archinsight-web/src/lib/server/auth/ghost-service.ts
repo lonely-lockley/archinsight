@@ -87,6 +87,7 @@ export async function synchronizeGhostUser(
   const sessionCookies = await signinCookies(config.ghost, member, fetcher);
   const ssrSession = sessionCookies.find((cookie) => cookie.name === config.ghost.ssrCookieName)?.value ?? null;
   await storeSsrSession(user.email ?? profile.email, ssrSession, env, config.token.secret);
+  cookies.delete(config.tokenCookieName, { path: '/' });
   for (const cookie of sessionCookies) {
     cookies.set(cookie.name, cookie.value, {
       path: '/',

@@ -33,9 +33,22 @@ Common local settings:
   exposed by a deployment. Use `all` only for local development.
 - `ARCHINSIGHT_AUTH_TOKEN_SECRET=...` configures the persistent session-signing
   secret and is required in production, Postgres, and OIDC modes.
-- `ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED=true` enables the development login route.
+- `ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED=true` enables the development login route
+  outside production. Production startup fails if this setting is enabled.
+- `ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES=1440` controls standalone session lifetime;
+  the default is 24 hours.
 - `ARCHINSIGHT_AUTH_OIDC_*` configures OIDC providers.
 - `ARCHINSIGHT_LIMITS_*` controls request size and render limits.
+- `ARCHINSIGHT_RENDERER_ENABLED=false` keeps the optional backend renderer off.
+  In this mode the backend neither executes Graphviz nor calls an external renderer.
+  Browser Graphviz remains the primary path and is sufficient for a one-container
+  installation. When enabled, configure `ARCHINSIGHT_RENDERER_URL`, a shared
+  `ARCHINSIGHT_RENDERER_TOKEN`, timeout, and response limits; the backend calls
+  the isolated service only after browser rendering fails.
+
+Standalone JWT authentication is the default. Authentication sessions are
+mutually exclusive: deployments use the ArchInsight JWT cookie unless Ghost
+integration is explicitly enabled with `ARCHINSIGHT_AUTH_GHOST_ENABLED=true`.
 
 The server also accepts legacy `local/application.yaml` files through
 `src/lib/server/config/local-config.ts`. Keep local files out of git.

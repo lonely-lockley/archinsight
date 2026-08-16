@@ -86,12 +86,24 @@ export async function storeSsrSession(
   await store.storeSsrSession(email, session, tokenSecret);
 }
 
-export async function revokeStandaloneTokens(userId: string, env: EnvSource | undefined): Promise<void> {
+export async function revokeUserSessions(userId: string, env: EnvSource | undefined): Promise<void> {
   if (!getDatabaseConfig(env).enabled) {
     return;
   }
   const store = new PostgresUserdataStore(await postgresDatabase(env));
-  await store.revokeStandaloneTokens(userId);
+  await store.revokeUserSessions(userId);
+}
+
+export async function revokeSsrSession(
+  session: string,
+  env: EnvSource | undefined,
+  tokenSecret: string
+): Promise<boolean> {
+  if (!getDatabaseConfig(env).enabled) {
+    return false;
+  }
+  const store = new PostgresUserdataStore(await postgresDatabase(env));
+  return store.revokeSsrSession(session, tokenSecret);
 }
 
 export class PostgresUserdataStore {
@@ -225,17 +237,33 @@ export class PostgresUserdataStore {
     );
   }
 
-  async revokeStandaloneTokens(userId: string): Promise<void> {
+  async revokeUserSessions(userId: string): Promise<void> {
     await this.database.query(
       `
         update public.userdata
-        set token_version = token_version + 1,
+        set ssr_session = null,
+            token_version = token_version + 1,
             updated_at = now()
         where id = $1
           and deleted_at is null
       `,
       [userId]
     );
+  }
+
+  async revokeSsrSession(session: string, tokenSecret: string): Promise<boolean> {
+    const result = await this.database.query(
+      `
+        update public.userdata
+        set ssr_session = null,
+            token_version = token_version + 1,
+            updated_at = now()
+        where ssr_session = $1
+          and deleted_at is null
+      `,
+      [sessionHash(session, tokenSecret)]
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   private async findByIdAndTokenVersion(

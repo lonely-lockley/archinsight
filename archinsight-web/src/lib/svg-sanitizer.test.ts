@@ -22,11 +22,13 @@ describe('sanitizeSvg', () => {
     const sanitized = sanitizeSvg(`
       <svg xmlns="http://www.w3.org/2000/svg">
         <a href="https://attacker.example/"><text>external</text></a>
+        <a xlink:href="javascript:alert(1)"><text>script</text></a>
         <a href="insight://goto?source=app.ai&amp;line=2&amp;column=1"><text>goto</text></a>
       </svg>
     `);
 
     expect(sanitized).not.toContain('https://attacker.example/');
+    expect(sanitized).not.toContain('javascript:');
     expect(sanitized).toContain('insight://goto?source=app.ai');
   });
 

@@ -12,7 +12,7 @@ export const POST = (event) =>
       pathParam(event, 'projectId'),
       (await event.request.json()) as LinkRequest | null
     );
-    const rendered = await renderSvg(linked.renders, requestEnv);
+    const rendered = await renderSvg(linked.renders, requestEnv, event.fetch);
     return {
       diagnostics: [...linked.diagnostics, ...rendered.diagnostics],
       svgs: rendered.svgs

@@ -24,6 +24,9 @@ export async function issueStandaloneSession(
   env: EnvSource | undefined
 ): Promise<Response> {
   const config = getAuthConfig(env);
+  if (config.ghost.enabled) {
+    return jsonError('Standalone token endpoint is unavailable in Ghost mode', 404);
+  }
   if (!config.standaloneSyncApiToken) {
     return jsonError('Standalone token endpoint is not configured', 404);
   }
@@ -36,6 +39,8 @@ export async function issueStandaloneSession(
 
   const user = await upsertUserdataProfile(profileFromStandaloneRequest(request), env);
   const token = issueStandaloneToken(user, config.token);
+  cookies.delete(config.ghost.ssrCookieName, { path: '/' });
+  cookies.delete(`${config.ghost.ssrCookieName}.sig`, { path: '/' });
   cookies.set(config.tokenCookieName, token, {
     path: '/',
     httpOnly: true,

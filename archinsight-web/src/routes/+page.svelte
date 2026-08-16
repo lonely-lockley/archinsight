@@ -26,6 +26,7 @@
   import WorkspaceEditor from '$lib/WorkspaceEditor.svelte';
   import WorkspaceToolbar from '$lib/WorkspaceToolbar.svelte';
   import { renderDotInBrowser, terminateBrowserGraphvizWorker } from '$lib/graphviz-renderer';
+  import { sanitizeSvg } from '$lib/svg-sanitizer';
   import { emptyWorkspaceStrategy, type EmptyWorkspaceAction } from '$lib/empty-workspace-strategy';
   import {
     createInsightSemanticTokensProvider,
@@ -112,6 +113,8 @@
   const maxDiagramScale = 3;
   const minEditorSplitRatio = 20;
   const maxEditorSplitRatio = 80;
+  const maxDownloadRasterDimension = 8192;
+  const maxDownloadRasterPixels = 16_777_216;
   const defaultNewFileName = 'untitled';
   const coreSourceIdentity = coreSources.some((source) => source.sourceName === 'core.ai') ? 'core.ai' : coreSources[0]?.sourceName ?? 'core.ai';
   const coreSourceByName = new Map(coreSources.map((source) => [source.sourceName, source.source]));
@@ -1638,7 +1641,12 @@
     if (tab === undefined || !canDownloadCurrentDiagram) {
       return;
     }
-    downloadText(fileNameWithExtension(tab.title, '.svg'), tab.svg, 'image/svg+xml;charset=utf-8');
+    const sanitized = sanitizeSvg(tab.svg);
+    if (!sanitized) {
+      appendErrorMessage('Download failed: SVG content is invalid');
+      return;
+    }
+    downloadText(fileNameWithExtension(tab.title, '.svg'), sanitized, 'image/svg+xml;charset=utf-8');
   }
 
   async function downloadActiveDiagramPng(): Promise<void> {
@@ -1647,7 +1655,11 @@
       return;
     }
     try {
-      const blob = await svgToPngBlob(tab.svg);
+      const sanitized = sanitizeSvg(tab.svg);
+      if (!sanitized) {
+        throw new Error('SVG content is invalid');
+      }
+      const blob = await svgToPngBlob(sanitized);
       downloadBlob(fileNameWithExtension(tab.title, '.png'), blob);
     } catch (error) {
       appendErrorMessage(`Download failed: ${errorMessage(error)}`);
@@ -1678,10 +1690,11 @@
   }
 
   async function svgToPngBlob(svg: string): Promise<Blob> {
+    const dimensions = svgDimensions(svg);
+    validateRasterDimensions(dimensions.width, dimensions.height);
     const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
     try {
       const image = new Image();
-      const dimensions = svgDimensions(svg);
       await new Promise<void>((resolve, reject) => {
         image.onload = () => resolve();
         image.onerror = () => reject(new Error('SVG image could not be decoded'));
@@ -1689,6 +1702,7 @@
       });
       const width = Math.max(1, Math.round(image.naturalWidth || dimensions.width || 1200));
       const height = Math.max(1, Math.round(image.naturalHeight || dimensions.height || 800));
+      validateRasterDimensions(width, height);
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -1711,6 +1725,18 @@
     }
   }
 
+  function validateRasterDimensions(width: number | undefined, height: number | undefined): void {
+    if (width === undefined || height === undefined) {
+      return;
+    }
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      throw new Error('SVG dimensions are invalid');
+    }
+    if (width > maxDownloadRasterDimension || height > maxDownloadRasterDimension || width * height > maxDownloadRasterPixels) {
+      throw new Error(`Diagram is too large to rasterize: ${Math.ceil(width)} × ${Math.ceil(height)}`);
+    }
+  }
+
   function svgDimensions(svg: string): { width?: number; height?: number } {
     const documentSvg = new DOMParser().parseFromString(svg, 'image/svg+xml');
     const root = documentSvg.documentElement;
@@ -1719,7 +1745,7 @@
     if (width !== undefined && height !== undefined) {
       return { width, height };
     }
-    const viewBox = root.getAttribute('viewBox')?.trim().split(/\s+/).map(Number);
+    const viewBox = root.getAttribute('viewBox')?.trim().split(/[\s,]+/).map(Number);
     return {
       width: width ?? (viewBox?.length === 4 && Number.isFinite(viewBox[2]) ? viewBox[2] : undefined),
       height: height ?? (viewBox?.length === 4 && Number.isFinite(viewBox[3]) ? viewBox[3] : undefined)

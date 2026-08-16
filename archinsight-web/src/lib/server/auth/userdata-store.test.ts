@@ -40,13 +40,45 @@ describe('PostgresUserdataStore', () => {
       email: 'dev@example.com',
       displayName: 'Development User'
     });
-    await store.revokeStandaloneTokens(userId);
+    await store.revokeUserSessions(userId);
 
     await expect(store.authenticateStandaloneClaims({ userId, tokenVersion: 0 })).resolves.toBeNull();
     await expect(store.authenticateStandaloneClaims({ userId, tokenVersion: 1 })).resolves.toMatchObject({
       id: userId,
       tokenVersion: 1
     });
+    expect(database.users.get(userId)?.ssr_session).toBeNull();
+  });
+
+  it('revokes a Ghost session and every standalone token for the same user', async () => {
+    const database = new FakeUserdataDatabase();
+    const store = new PostgresUserdataStore(database);
+
+    await store.upsert({
+      id: userId,
+      email: 'ghost@example.com',
+      displayName: 'Ghost User'
+    });
+    await store.storeSsrSession('ghost@example.com', 'ghost-session', 'token-secret');
+
+    await expect(store.authenticateSsrSession('ghost-session', 'token-secret')).resolves.toMatchObject({
+      id: userId,
+      tokenVersion: 0
+    });
+    await expect(store.revokeSsrSession('ghost-session', 'token-secret')).resolves.toBe(true);
+    await expect(store.authenticateSsrSession('ghost-session', 'token-secret')).resolves.toBeNull();
+    await expect(store.authenticateStandaloneClaims({ userId, tokenVersion: 0 })).resolves.toBeNull();
+    await expect(store.authenticateStandaloneClaims({ userId, tokenVersion: 1 })).resolves.toMatchObject({
+      id: userId,
+      tokenVersion: 1
+    });
+  });
+
+  it('does not report an unknown Ghost session as revoked', async () => {
+    const database = new FakeUserdataDatabase();
+    const store = new PostgresUserdataStore(database);
+
+    await expect(store.revokeSsrSession('unknown-session', 'token-secret')).resolves.toBe(false);
   });
 
   it('loads playground administration as an additive database role', async () => {
@@ -170,6 +202,10 @@ class FakeUserdataDatabase implements TransactionalDatabase {
       const user = this.users.get(String(params[0]));
       return asResult(rows(user && user.token_version === Number(params[1]) && !user.deleted_at ? [user] : []));
     }
+    if (statement.includes('from public.userdata') && statement.includes('where ssr_session = $1')) {
+      const user = [...this.users.values()].find((candidate) => candidate.ssr_session === params[0] && !candidate.deleted_at);
+      return asResult(rows(user ? [user] : []));
+    }
     if (statement.startsWith('insert into public.userdata')) {
       this.users.set(String(params[0]), {
         id: String(params[0]),
@@ -215,11 +251,29 @@ class FakeUserdataDatabase implements TransactionalDatabase {
       }
       return asResult(changed());
     }
-    if (statement.startsWith('update public.userdata set token_version')) {
+    if (statement.startsWith('update public.userdata set ssr_session = $2')) {
+      const user = [...this.users.values()].find((candidate) => candidate.email.toLowerCase() === String(params[0]).toLowerCase() && !candidate.deleted_at);
+      if (!user) {
+        return asResult({ rows: [], rowCount: 0 });
+      }
+      user.ssr_session = nullable(params[1]);
+      return asResult(changed());
+    }
+    if (statement.startsWith('update public.userdata set ssr_session = null') && statement.includes('where id = $1')) {
       const user = this.users.get(String(params[0]));
       if (user) {
+        user.ssr_session = null;
         user.token_version += 1;
       }
+      return asResult(user ? changed() : { rows: [], rowCount: 0 });
+    }
+    if (statement.startsWith('update public.userdata set ssr_session = null') && statement.includes('where ssr_session = $1')) {
+      const user = [...this.users.values()].find((candidate) => candidate.ssr_session === params[0] && !candidate.deleted_at);
+      if (!user) {
+        return asResult({ rows: [], rowCount: 0 });
+      }
+      user.ssr_session = null;
+      user.token_version += 1;
       return asResult(changed());
     }
     throw new Error(`Unexpected SQL in fake userdata database: ${statement}`);

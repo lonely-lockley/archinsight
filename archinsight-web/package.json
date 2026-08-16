@@ -13,7 +13,7 @@
     "sync:svelte-kit": "svelte-kit sync",
     "precheck": "npm --prefix ../packages/insight-language run sync:core",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test:security": "vitest run src/lib/svg-sanitizer.test.ts --environment happy-dom",
+    "test:security": "vitest run src/lib/svg-sanitizer.test.ts src/lib/graphviz-renderer.test.ts --environment happy-dom",
     "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts src/lib/actions/*.test.ts"
   },
   "dependencies": {

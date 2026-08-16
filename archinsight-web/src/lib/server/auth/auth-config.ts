@@ -63,6 +63,9 @@ export function getAuthConfig(env?: EnvSource): AuthConfig {
   const mode = (source.ARCHINSIGHT_AUTH_MODE ?? 'standalone').toLowerCase();
   const tokenCookieName = source.ARCHINSIGHT_AUTH_TOKEN_COOKIE_NAME ?? 'archinsight-session';
   const devLoginEnabled = booleanValue(source.ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED, false);
+  if (devLoginEnabled && (source.NODE_ENV ?? '').trim().toLowerCase() === 'production') {
+    throw new Error('ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED cannot be enabled in production');
+  }
   const devUserId = optionalValue(source.ARCHINSIGHT_AUTH_DEV_USER_ID);
   const devUserEmail = source.ARCHINSIGHT_AUTH_DEV_USER_EMAIL ?? 'dev@archinsight.local';
   const devUserDisplayName = source.ARCHINSIGHT_AUTH_DEV_USER_DISPLAY_NAME ?? 'Development User';
@@ -90,7 +93,7 @@ export function getAuthConfig(env?: EnvSource): AuthConfig {
       secret: tokenSecret,
       issuer: source.ARCHINSIGHT_AUTH_TOKEN_ISSUER ?? 'archinsight',
       audience: source.ARCHINSIGHT_AUTH_TOKEN_AUDIENCE ?? 'archinsight-editor',
-      ttlMinutes: numberValue(source.ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES, 43200)
+      ttlMinutes: numberValue(source.ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES, 1440)
     },
     ghost,
     oidc

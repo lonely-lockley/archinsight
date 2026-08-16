@@ -1,16 +1,32 @@
 const defaultMaxRenderCount = 16;
 const defaultMaxDotBytes = 1024 * 1024;
+const defaultMaxTotalDotBytes = 1024 * 1024;
 const defaultPngDpi = 200;
 const defaultMaxPngDpi = 600;
-const defaultMaxPngBytes = 16 * 1024 * 1024;
+const defaultMaxPngBytes = 8 * 1024 * 1024;
+const defaultMaxPngWidth = 8192;
+const defaultMaxPngHeight = 8192;
+const defaultMaxPngPixels = 16_777_216;
+const defaultMaxSvgBytes = 2 * 1024 * 1024;
+const defaultMaxTotalOutputBytes = 12 * 1024 * 1024;
+const defaultMaxResponseBytes = 16 * 1024 * 1024;
+const defaultMaxWarningBytes = 64 * 1024;
 
 export function requestLimitsFromEnv(env = process.env) {
   return {
     maxRenderCount: positiveInteger(env.MAX_RENDER_COUNT, defaultMaxRenderCount),
     maxDotBytes: positiveInteger(env.MAX_DOT_BYTES, defaultMaxDotBytes),
+    maxTotalDotBytes: positiveInteger(env.MAX_TOTAL_DOT_BYTES, defaultMaxTotalDotBytes),
     defaultPngDpi: positiveInteger(env.DEFAULT_PNG_DPI, defaultPngDpi),
     maxPngDpi: positiveInteger(env.MAX_PNG_DPI, defaultMaxPngDpi),
-    maxPngBytes: positiveInteger(env.MAX_PNG_BYTES, defaultMaxPngBytes)
+    maxPngBytes: positiveInteger(env.MAX_PNG_BYTES, defaultMaxPngBytes),
+    maxPngWidth: positiveInteger(env.MAX_PNG_WIDTH, defaultMaxPngWidth),
+    maxPngHeight: positiveInteger(env.MAX_PNG_HEIGHT, defaultMaxPngHeight),
+    maxPngPixels: positiveInteger(env.MAX_PNG_PIXELS, defaultMaxPngPixels),
+    maxSvgBytes: positiveInteger(env.MAX_SVG_BYTES, defaultMaxSvgBytes),
+    maxTotalOutputBytes: positiveInteger(env.MAX_TOTAL_OUTPUT_BYTES, defaultMaxTotalOutputBytes),
+    maxResponseBytes: positiveInteger(env.MAX_RESPONSE_BYTES, defaultMaxResponseBytes),
+    maxWarningBytes: positiveInteger(env.MAX_WARNING_BYTES, defaultMaxWarningBytes)
   };
 }
 
@@ -37,7 +53,12 @@ function validateRenders(payload, limits) {
   if (renders.length > limits.maxRenderCount) {
     throw new Error(`too many renders: ${renders.length}`);
   }
-  return renders.map((render, index) => validateRender(render, index, limits));
+  const validated = renders.map((render, index) => validateRender(render, index, limits));
+  const totalDotBytes = validated.reduce((total, render) => total + byteLength(render.dot), 0);
+  if (totalDotBytes > limits.maxTotalDotBytes) {
+    throw new Error(`total DOT payload is too large: ${totalDotBytes}`);
+  }
+  return validated;
 }
 
 function validateRender(render, index, limits) {

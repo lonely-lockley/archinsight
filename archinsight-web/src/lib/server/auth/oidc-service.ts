@@ -107,17 +107,21 @@ export async function completeOidcLogin(
     return jsonError('OIDC token response does not contain id_token', 400);
   }
   const profile = await userProfile(provider, token, expected.nonce, fetcher);
-  const user = config.ghost.enabled
-    ? (await synchronizeGhostUser(profile, cookies, env, fetcher)).user
-    : await upsertUserdataProfile(profile, env);
-  const sessionToken = issueStandaloneToken(user, config.token);
+  if (config.ghost.enabled) {
+    await synchronizeGhostUser(profile, cookies, env, fetcher);
+  } else {
+    const user = await upsertUserdataProfile(profile, env);
+    const sessionToken = issueStandaloneToken(user, config.token);
+    cookies.delete(config.ghost.ssrCookieName, { path: '/' });
+    cookies.delete(`${config.ghost.ssrCookieName}.sig`, { path: '/' });
+    cookies.set(config.tokenCookieName, sessionToken, {
+      path: '/',
+      httpOnly: true,
+      secure: config.cookieSecure,
+      sameSite: 'lax'
+    });
+  }
   cookies.delete(stateCookieName(config, provider.id), { path: '/' });
-  cookies.set(config.tokenCookieName, sessionToken, {
-    path: '/',
-    httpOnly: true,
-    secure: config.cookieSecure,
-    sameSite: 'lax'
-  });
 
   return loginCompletionResponse(postLoginRedirect(config, expected.returnTo));
 }

@@ -145,7 +145,7 @@ The main modules are documented separately:
 - [VSCode extension](archinsight-vscode/README.md)
 - [Language core](packages/insight-language/README.md)
 - [Web viewer](archinsight-web/README.md)
-- [Renderer service](archinsight-renderer/README.md)
+- [Optional renderer service](archinsight-renderer/README.md)
 
 The language core lives in `packages/insight-language`. Built-in Insight framework sources are stored under `src/main/resources/com/github/lonelylockley/insight`. The CLI, extension, and web viewer consume a generated snapshot of those sources.
 

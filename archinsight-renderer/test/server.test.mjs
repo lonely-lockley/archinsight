@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 
 const port = 33080;
 const baseUrl = `http://127.0.0.1:${port}`;
+const rendererToken = 'renderer-server-test-token';
 
 test('serves health, svg render, and png render endpoints', async (t) => {
   let stderr = '';
@@ -13,6 +15,8 @@ test('serves health, svg render, and png render endpoints', async (t) => {
       ...process.env,
       HOST: '127.0.0.1',
       PORT: String(port),
+      RENDERER_API_TOKEN: rendererToken,
+      BODY_TIMEOUT_MS: '250',
       DEFAULT_PNG_DPI: '200',
       MAX_PNG_DPI: '600',
       MAX_PNG_BYTES: String(1024 * 1024),
@@ -32,6 +36,14 @@ test('serves health, svg render, and png render endpoints', async (t) => {
     assert.equal(health.headers.get('cache-control'), 'no-store');
     assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
     assert.deepEqual(await health.json(), { ok: true });
+
+    const unauthorized = await fetch(`${baseUrl}/render/svg`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(renderPayload())
+    });
+    assert.equal(unauthorized.status, 401);
+    assert.deepEqual(await unauthorized.json(), { error: 'unauthorized' });
 
     const svg = await post('/render/svg', renderPayload());
     assert.equal(svg.diagnostics.length, 0);
@@ -59,6 +71,13 @@ test('serves health, svg render, and png render endpoints', async (t) => {
 
     const malformedSvg = await post('/render/svg', {}, 400);
     assert.match(malformedSvg.error, /renders must be an array/);
+
+    const slowBody = postSlowBody();
+    const whileSlowBodyIsOpen = await postResponse('/render/svg', renderPayload());
+    assert.equal(whileSlowBodyIsOpen.status, 200);
+    const slowBodyResponse = await slowBody;
+    assert.equal(slowBodyResponse.status, 408);
+    assert.match(slowBodyResponse.body.error, /request body timed out/);
 
     const missing = await fetch(`${baseUrl}/render/svg`);
     assert.equal(missing.status, 404);
@@ -125,7 +144,32 @@ async function post(path, body, expectedStatus = 200) {
 function postResponse(path, body) {
   return fetch(`${baseUrl}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      authorization: `Bearer ${rendererToken}`,
+      'content-type': 'application/json'
+    },
     body: JSON.stringify(body)
+  });
+}
+
+function postSlowBody() {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(`${baseUrl}/render/svg`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${rendererToken}`,
+        'content-type': 'application/json',
+        'content-length': '100'
+      }
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.once('end', () => resolve({
+        status: response.statusCode,
+        body: JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      }));
+    });
+    request.once('error', reject);
+    request.write('{');
   });
 }

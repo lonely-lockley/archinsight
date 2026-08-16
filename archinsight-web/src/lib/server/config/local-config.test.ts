@@ -6,6 +6,11 @@ describe('local config compatibility loader', () => {
     const env = legacyYamlToEnv(`
 archinsight:
   context-root: /app
+  renderer:
+    enabled: 'true'
+    url: 'http://localhost:3000'
+    token: 'renderer-secret'
+    timeout-ms: '7000'
   database:
     enabled: 'true'
     jdbc-url: 'jdbc:postgresql://localhost:5432/repository'
@@ -38,6 +43,10 @@ archinsight:
 
     expect(env).toMatchObject({
       ARCHINSIGHT_CONTEXT_ROOT: '/app',
+      ARCHINSIGHT_RENDERER_ENABLED: 'true',
+      ARCHINSIGHT_RENDERER_URL: 'http://localhost:3000',
+      ARCHINSIGHT_RENDERER_TOKEN: 'renderer-secret',
+      ARCHINSIGHT_RENDERER_TIMEOUT_MS: '7000',
       ARCHINSIGHT_DATABASE_ENABLED: 'true',
       ARCHINSIGHT_DATABASE_HOST: 'localhost',
       ARCHINSIGHT_DATABASE_PORT: '5432',

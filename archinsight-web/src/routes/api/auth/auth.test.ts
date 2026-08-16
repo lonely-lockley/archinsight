@@ -143,9 +143,9 @@ describe('auth API', () => {
     expect(response.status).toBe(307);
     expect(jar.setCalls.map((call) => call.name)).toEqual(expect.arrayContaining([
       'ghost-members-ssr',
-      'ghost-members-ssr.sig',
-      'archinsight-session'
+      'ghost-members-ssr.sig'
     ]));
+    expect(jar.get('archinsight-session')).toBeUndefined();
 
     expect(verifyGhostSessionSignature(
       jar.get('ghost-members-ssr'),
@@ -263,12 +263,11 @@ describe('auth API', () => {
     expect(callback.status).toBe(200);
     expect(callback.headers.get('content-type')).toBe('text/html; charset=utf-8');
     await expect(callback.text()).resolves.toContain('window.location.replace(redirect)');
-    expect(jar.deleteCalls[0]).toEqual({
+    expect(jar.deleteCalls).toContainEqual({
       name: 'archinsight-oidc-state-google',
       options: { path: '/' }
     });
-    const session = jar.setCalls.find((call) => call.name === 'archinsight-session');
-    expect(session?.value).toContain('.');
+    expect(jar.get('archinsight-session')).toBeUndefined();
     expect(jar.setCalls).toContainEqual(expect.objectContaining({
       name: 'ghost-members-ssr',
       value: 'ghost-session'
@@ -287,6 +286,17 @@ describe('auth API', () => {
 
     expect(response.status).toBe(404);
     await expect(response.json()).resolves.toEqual({ error: 'Standalone token endpoint is not configured' });
+  });
+
+  it('does not expose standalone token sync in Ghost mode', async () => {
+    const response = await standaloneToken({
+      cookies: cookies(),
+      request: jsonRequest({ email: 'standalone@example.com' }, 'Bearer standalone-sync-token'),
+      platform: { env: { ...ghostConfig, ARCHINSIGHT_AUTH_STANDALONE_SYNC_API_TOKEN: 'standalone-sync-token' } }
+    } as never);
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'Standalone token endpoint is unavailable in Ghost mode' });
   });
 
   it('rejects standalone token sync with an invalid bearer token', async () => {

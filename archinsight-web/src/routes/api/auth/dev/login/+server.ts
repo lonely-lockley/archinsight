@@ -18,19 +18,20 @@ export const GET = async (event) => {
     displayName: config.devUserDisplayName,
     source: 'local-dev'
   };
-  const user = config.ghost.enabled
-    ? (await synchronizeGhostUser(profile, event.cookies, env, event.fetch)).user
-    : await upsertUserdataProfile(profile, env);
-  const token = issueStandaloneToken(
-    user,
-    config.token
-  );
-  event.cookies.set(config.tokenCookieName, token, {
-    path: '/',
-    httpOnly: true,
-    secure: config.cookieSecure,
-    sameSite: 'lax'
-  });
+  if (config.ghost.enabled) {
+    await synchronizeGhostUser(profile, event.cookies, env, event.fetch);
+  } else {
+    const user = await upsertUserdataProfile(profile, env);
+    const token = issueStandaloneToken(user, config.token);
+    event.cookies.delete(config.ghost.ssrCookieName, { path: '/' });
+    event.cookies.delete(`${config.ghost.ssrCookieName}.sig`, { path: '/' });
+    event.cookies.set(config.tokenCookieName, token, {
+      path: '/',
+      httpOnly: true,
+      secure: config.cookieSecure,
+      sameSite: 'lax'
+    });
+  }
 
   return new Response(null, {
     status: 307,

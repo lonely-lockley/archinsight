@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { getAuthConfig } from './auth-config';
 
 describe('getAuthConfig', () => {
+  it('uses standalone JWT authentication by default', () => {
+    const config = getAuthConfig({
+      NODE_ENV: 'development',
+      ARCHINSIGHT_AUTH_TOKEN_SECRET: 'default-auth-test-secret'
+    });
+
+    expect(config.mode).toBe('standalone');
+    expect(config.ghost.enabled).toBe(false);
+  });
+
   it('allows the process-local fallback only for non-persistent local development', () => {
     const first = getAuthConfig({ NODE_ENV: 'development', ARCHINSIGHT_AUTH_MODE: 'local-dev' });
     const second = getAuthConfig({ NODE_ENV: 'development', ARCHINSIGHT_AUTH_MODE: 'local-dev' });
@@ -27,6 +37,23 @@ describe('getAuthConfig', () => {
     });
 
     expect(config.token.secret).toBe('persistent-test-secret');
+  });
+
+  it('rejects development login in production', () => {
+    expect(() => getAuthConfig({
+      NODE_ENV: 'production',
+      ARCHINSIGHT_AUTH_TOKEN_SECRET: 'persistent-test-secret',
+      ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED: 'true'
+    })).toThrow('ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED cannot be enabled in production');
+  });
+
+  it('limits standalone sessions to 24 hours by default', () => {
+    const config = getAuthConfig({
+      NODE_ENV: 'development',
+      ARCHINSIGHT_AUTH_MODE: 'local-dev'
+    });
+
+    expect(config.token.ttlMinutes).toBe(1440);
   });
 
   it('requires the Ghost SSR signing secret when Ghost authentication is enabled', () => {

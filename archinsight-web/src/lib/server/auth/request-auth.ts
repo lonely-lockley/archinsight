@@ -59,7 +59,7 @@ export async function authenticateRequired(cookies: Cookies, env: EnvSource | un
   return user;
 }
 
-function verifiedGhostSession(cookies: Cookies, ghost: ReturnType<typeof getAuthConfig>['ghost']): string | null {
+export function verifiedGhostSession(cookies: Cookies, ghost: ReturnType<typeof getAuthConfig>['ghost']): string | null {
   const session = cookies.get(ghost.ssrCookieName);
   const signature = cookies.get(`${ghost.ssrCookieName}.sig`);
   return verifyGhostSessionSignature(session, signature, ghost) ? session ?? null : null;

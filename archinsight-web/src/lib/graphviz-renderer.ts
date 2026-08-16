@@ -28,8 +28,7 @@ export async function renderDotInBrowser(renders: DotRender[]): Promise<SvgRende
   const requestId = ++requestSequence;
   return new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
-      pending.delete(requestId);
-      reject(new Error('Browser Graphviz render timed out'));
+      resetWorker(new Error('Browser Graphviz render timed out'));
     }, renderTimeoutMs);
     pending.set(requestId, { resolve, reject, timeout });
     ensureWorker().postMessage({ requestId, renders });
@@ -37,13 +36,7 @@ export async function renderDotInBrowser(renders: DotRender[]): Promise<SvgRende
 }
 
 export function terminateBrowserGraphvizWorker(): void {
-  worker?.terminate();
-  worker = undefined;
-  for (const [requestId, request] of pending) {
-    window.clearTimeout(request.timeout);
-    request.reject(new Error('Browser Graphviz worker terminated'));
-    pending.delete(requestId);
-  }
+  resetWorker(new Error('Browser Graphviz worker terminated'));
 }
 
 function ensureWorker(): Worker {
@@ -68,9 +61,7 @@ function ensureWorker(): Worker {
     });
   };
   worker.onerror = (event) => {
-    rejectAll(new Error(event.message || 'Browser Graphviz worker failed'));
-    worker?.terminate();
-    worker = undefined;
+    resetWorker(new Error(event.message || 'Browser Graphviz worker failed'));
   };
   return worker;
 }
@@ -81,4 +72,11 @@ function rejectAll(error: Error): void {
     request.reject(error);
     pending.delete(requestId);
   }
+}
+
+function resetWorker(error: Error): void {
+  const activeWorker = worker;
+  worker = undefined;
+  activeWorker?.terminate();
+  rejectAll(error);
 }

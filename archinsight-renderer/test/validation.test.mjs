@@ -49,16 +49,41 @@ test('reads positive integer limits from environment', () => {
   assert.deepEqual(requestLimitsFromEnv({
     MAX_RENDER_COUNT: '4',
     MAX_DOT_BYTES: '2048',
+    MAX_TOTAL_DOT_BYTES: '4096',
     DEFAULT_PNG_DPI: '300',
     MAX_PNG_DPI: '900',
-    MAX_PNG_BYTES: '123456'
+    MAX_PNG_BYTES: '123456',
+    MAX_PNG_WIDTH: '4000',
+    MAX_PNG_HEIGHT: '3000',
+    MAX_PNG_PIXELS: '12000000',
+    MAX_SVG_BYTES: '500000',
+    MAX_TOTAL_OUTPUT_BYTES: '700000',
+    MAX_RESPONSE_BYTES: '900000',
+    MAX_WARNING_BYTES: '10000'
   }), {
     maxRenderCount: 4,
     maxDotBytes: 2048,
+    maxTotalDotBytes: 4096,
     defaultPngDpi: 300,
     maxPngDpi: 900,
-    maxPngBytes: 123456
+    maxPngBytes: 123456,
+    maxPngWidth: 4000,
+    maxPngHeight: 3000,
+    maxPngPixels: 12000000,
+    maxSvgBytes: 500000,
+    maxTotalOutputBytes: 700000,
+    maxResponseBytes: 900000,
+    maxWarningBytes: 10000
   });
+});
+
+test('enforces aggregate DOT bytes', () => {
+  assert.throws(() => validateRenderPayload({
+    renders: [
+      { sourceIdentity: 'one.ai', diagram: 'query', dot: '12345' },
+      { sourceIdentity: 'two.ai', diagram: 'query', dot: '67890' }
+    ]
+  }, { maxRenderCount: 2, maxDotBytes: 10, maxTotalDotBytes: 9 }), /total DOT payload is too large/);
 });
 
 test('validates png dpi with default and maximum', () => {
