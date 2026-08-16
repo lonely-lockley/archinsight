@@ -15,7 +15,6 @@
     type CompletionKind
   } from '@insight/language';
   import AuthMenu from '$lib/AuthMenu.svelte';
-  import PublicationToggle from '$lib/PublicationToggle.svelte';
   import ProjectNavigationPanel from '$lib/ProjectNavigationPanel.svelte';
   import {
     defaultDiagramMode,
@@ -147,8 +146,9 @@
   };
 
   type ProjectDialogState = {
-    mode: 'list' | 'create' | 'rename' | 'delete';
+    mode: 'list' | 'create' | 'edit' | 'delete';
     name: string;
+    published: boolean;
     busy: boolean;
     targetId?: string;
     error?: string;
@@ -208,7 +208,6 @@
   let currentUser: AuthUserResponse = { authenticated: false };
   let capabilities: AppCapability[] = [];
   let publishedProjectId: string | undefined;
-  let publicationBusy = false;
 
   $: activeTab = tabs.find((tab) => tab.id === activeTabId);
   $: projectId = activeProjectId ?? '';
@@ -232,11 +231,10 @@
   $: renameFolderState = actionState('repository.folder.rename', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: deleteFileState = actionState('repository.file.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: deleteFolderState = actionState('repository.folder.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
-  $: publicationState = controlState('publication.toggle', { surface, capabilities, available: activeProjectId !== undefined, unavailableReason: 'No active project' });
+  $: publicationFormState = controlState('publication.toggle', { surface, capabilities });
   $: tabsRightPadding = surface === 'playground'
     ? currentUser.authenticated ? 120 : 190
-    : publicationState.hidden ? 44 : 170;
-  $: projectPublished = activeProjectId !== undefined && activeProjectId === publishedProjectId;
+    : 44;
   $: errorSourceIdentities = diagnosticErrorSources(localDiagnostics, linkerDiagnostics);
   $: workspaceHasErrors = diagnosticsHaveErrors(localDiagnostics) || diagnosticsHaveErrors(linkerDiagnostics);
   $: canDownloadCurrentDiagram = activeTab !== undefined
@@ -359,6 +357,7 @@
     projectDialog = {
       mode: create || projectRegistry.projects.length === 0 ? 'create' : 'list',
       name: '',
+      published: false,
       busy: false
     };
   }
@@ -379,16 +378,29 @@
       projectDialog = { ...projectDialog, error: 'Project name is required' };
       return;
     }
+    const publish = canExecute(publicationFormState) && projectDialog.published;
     projectDialog = { ...projectDialog, busy: true, error: undefined };
+    let createdProjectId: string | undefined;
     try {
       const project = await createProject(name);
-      projectRegistry = { projects: [project, ...projectRegistry.projects], activeProjectId: project.id };
+      createdProjectId = project.id;
+      projectRegistry = { projects: [project, ...projectRegistry.projects], activeProjectId };
+      await applyProjectPublication(project.id, publish);
       await switchProject(project.id);
       projectDialog = undefined;
     } catch (error) {
       if (!redirectIfAuthRequired(error)) {
         if (projectDialog !== undefined) {
-          projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
+          projectDialog = createdProjectId === undefined
+            ? { ...projectDialog, busy: false, error: errorMessage(error) }
+            : {
+                mode: 'edit',
+                name,
+                published: publish,
+                targetId: createdProjectId,
+                busy: false,
+                error: `Project was created, but its Playground setting could not be saved: ${errorMessage(error)}`
+              };
         }
       }
     }
@@ -397,13 +409,20 @@
   function editProject(projectId: string): void {
     const project = projectRegistry.projects.find((item) => item.id === projectId);
     if (projectDialog === undefined || project === undefined) return;
-    projectDialog = { mode: 'rename', name: project.name, targetId: project.id, busy: false };
+    projectDialog = {
+      mode: 'edit',
+      name: project.name,
+      published: publishedProjectId === project.id,
+      targetId: project.id,
+      busy: false
+    };
   }
 
-  async function confirmRenameProject(): Promise<void> {
+  async function confirmEditProject(): Promise<void> {
     if (projectDialog === undefined || projectDialog.busy || projectDialog.targetId === undefined) return;
     const targetId = projectDialog.targetId;
     const name = projectDialog.name.trim();
+    const publish = canExecute(publicationFormState) && projectDialog.published;
     if (name.length === 0) {
       projectDialog = { ...projectDialog, error: 'Project name is required' };
       return;
@@ -417,7 +436,8 @@
       };
       writeProjectRegistry(projectRegistry);
       if (tree !== undefined && updated.id === activeProjectId) tree = { ...tree, name: updated.name };
-      projectDialog = { mode: 'list', name: '', busy: false };
+      await applyProjectPublication(targetId, publish);
+      projectDialog = { mode: 'list', name: '', published: false, busy: false };
     } catch (error) {
       if (!redirectIfAuthRequired(error) && projectDialog !== undefined) {
         projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
@@ -428,7 +448,7 @@
   function askDeleteProject(projectId: string): void {
     const project = projectRegistry.projects.find((item) => item.id === projectId);
     if (projectDialog === undefined || project === undefined) return;
-    projectDialog = { mode: 'delete', name: project.name, targetId: project.id, busy: false };
+    projectDialog = { mode: 'delete', name: project.name, published: false, targetId: project.id, busy: false };
   }
 
   async function confirmDeleteProject(): Promise<void> {
@@ -459,8 +479,8 @@
         writeProjectRegistry(projectRegistry);
       }
       projectDialog = projects.length === 0
-        ? { mode: 'create', name: '', busy: false }
-        : { mode: 'list', name: '', busy: false };
+        ? { mode: 'create', name: '', published: false, busy: false }
+        : { mode: 'list', name: '', published: false, busy: false };
     } catch (error) {
       if (!redirectIfAuthRequired(error) && projectDialog !== undefined) {
         projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
@@ -468,22 +488,14 @@
     }
   }
 
-  async function setProjectPublished(projectId: string, checked: boolean): Promise<void> {
-    if (projectDialog === undefined || projectDialog.busy || !capabilities.includes('publication:manage')) return;
-    projectDialog = { ...projectDialog, busy: true, error: undefined };
-    try {
-      if (checked) {
-        const publication = await publishToPlayground(projectId);
-        publishedProjectId = publication.repositoryId;
-      } else if (publishedProjectId === projectId) {
-        await unpublishFromPlayground();
-        publishedProjectId = undefined;
-      }
-      projectDialog = { ...projectDialog, busy: false };
-    } catch (error) {
-      if (!redirectIfAuthRequired(error) && projectDialog !== undefined) {
-        projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
-      }
+  async function applyProjectPublication(projectId: string, published: boolean): Promise<void> {
+    if (!canExecute(publicationFormState)) return;
+    if (published && publishedProjectId !== projectId) {
+      const publication = await publishToPlayground(projectId);
+      publishedProjectId = publication.repositoryId;
+    } else if (!published && publishedProjectId === projectId) {
+      await unpublishFromPlayground();
+      publishedProjectId = undefined;
     }
   }
 
@@ -799,30 +811,6 @@
   async function loadPublication(): Promise<void> {
     const publication = await fetchPlaygroundPublication();
     publishedProjectId = publication?.repositoryId;
-  }
-
-  async function togglePublication(published: boolean): Promise<void> {
-    if (!requireAction('publication.toggle', publicationState) || activeProjectId === undefined) {
-      return;
-    }
-    publicationBusy = true;
-    try {
-      if (published) {
-        const publication = await publishToPlayground(activeProjectId);
-        publishedProjectId = publication.repositoryId;
-        appendInfoMessage('Project published in playground');
-      } else {
-        await unpublishFromPlayground();
-        publishedProjectId = undefined;
-        appendInfoMessage('Project removed from playground');
-      }
-    } catch (error) {
-      if (!redirectIfAuthRequired(error)) {
-        appendErrorMessage(`Publication failed: ${errorMessage(error)}`);
-      }
-    } finally {
-      publicationBusy = false;
-    }
   }
 
   async function loadProject(): Promise<void> {
@@ -2666,12 +2654,6 @@
 
   <section class="main">
     <div class="auth-menu-host">
-      <PublicationToggle
-        state={publicationState}
-        checked={projectPublished}
-        busy={publicationBusy}
-        onToggle={(checked) => void togglePublication(checked)}
-      />
       {#if surface === 'editor'}
         <AuthMenu
           user={currentUser}
@@ -2815,6 +2797,7 @@
   <div class="modal-backdrop" role="presentation" on:click={closeProjectDialog}>
     <div
       class="file-dialog project-dialog"
+      class:project-list-dialog={projectDialog.mode === 'list'}
       role="dialog"
       aria-modal="true"
       aria-label="Manage Projects"
@@ -2825,31 +2808,23 @@
       {#if projectDialog.mode === 'list'}
         <header class="project-dialog-header">
           <h2>Manage Projects</h2>
-          <button type="button" on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'create', error: undefined }}>New Project</button>
+          <button type="button" on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'create', name: '', published: false, error: undefined }}>New Project</button>
         </header>
         <div class="project-list">
           {#each projectRegistry.projects as project (project.id)}
             <div class:active={project.id === activeProjectId} class="project-row">
               <button class="project-select" type="button" disabled={projectDialog.busy} on:click={() => void switchProject(project.id)}>
-                <span class="project-name">{project.name}</span>
+                <span class="project-title">
+                  <span class="project-name">{project.name}</span>
+                  {#if project.id === activeProjectId}<span class="active-project-label">Active</span>{/if}
+                  {#if project.id === publishedProjectId}<span class="playground-project-label">Playground</span>{/if}
+                </span>
                 <span class="project-stat"><strong>Created</strong>{projectDate(project.created)}</span>
                 <span class="project-stat"><strong>Last modified</strong>{projectDate(project.updated)}</span>
                 <span class="project-stat"><strong>Files</strong>{project.fileCount ?? 0}</span>
-                {#if project.id === activeProjectId}<span class="active-project-label">Active</span>{/if}
               </button>
               <div class="project-row-actions">
-                {#if capabilities.includes('publication:manage')}
-                  <label title="Make this project publicly available">
-                    <input
-                      type="checkbox"
-                      checked={publishedProjectId === project.id}
-                      disabled={projectDialog.busy}
-                      on:change={(event) => void setProjectPublished(project.id, event.currentTarget.checked)}
-                    />
-                    <span>Public</span>
-                  </label>
-                {/if}
-                <button aria-label={`Rename ${project.name}`} title="Rename project" type="button" disabled={projectDialog.busy} on:click={() => editProject(project.id)}>
+                <button aria-label={`Edit ${project.name}`} title="Edit project" type="button" disabled={projectDialog.busy} on:click={() => editProject(project.id)}>
                   <span aria-hidden="true" class="codicon codicon-edit"></span>
                 </button>
                 <button aria-label={`Delete ${project.name}`} title="Delete project" type="button" disabled={projectDialog.busy} on:click={() => askDeleteProject(project.id)}>
@@ -2878,29 +2853,41 @@
                 on:input={() => projectDialog = projectDialog && { ...projectDialog, error: undefined }}
               />
             </label>
+            {#if !publicationFormState.hidden}
+              <label class="project-publication-field">
+                <input type="checkbox" disabled={projectDialog.busy} bind:checked={projectDialog.published} />
+                <span>Available in Playground</span>
+              </label>
+            {/if}
             {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
           </div>
           <footer>
             {#if projectRegistry.projects.length > 0}
-              <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'list', error: undefined }}>Back</button>
+              <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'list', name: '', published: false, error: undefined }}>Back</button>
             {:else}
               <button type="button" disabled={projectDialog.busy} on:click={closeProjectDialog}>Cancel</button>
             {/if}
             <button type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Creating…' : 'Create'}</button>
           </footer>
         </form>
-      {:else if projectDialog.mode === 'rename'}
-        <form on:submit|preventDefault={() => void confirmRenameProject()}>
-          <header><h2>Rename Project</h2></header>
+      {:else if projectDialog.mode === 'edit'}
+        <form on:submit|preventDefault={() => void confirmEditProject()}>
+          <header><h2>Edit Project</h2></header>
           <div class="file-dialog-body">
             <label class="file-name-field">
               <span>Name</span>
               <input autocomplete="off" maxlength="100" spellcheck="false" disabled={projectDialog.busy} bind:value={projectDialog.name} />
             </label>
+            {#if !publicationFormState.hidden}
+              <label class="project-publication-field">
+                <input type="checkbox" disabled={projectDialog.busy} bind:checked={projectDialog.published} />
+                <span>Available in Playground</span>
+              </label>
+            {/if}
             {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
           </div>
           <footer>
-            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', busy: false }}>Back</button>
+            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', published: false, busy: false }}>Back</button>
             <button type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Saving…' : 'Save'}</button>
           </footer>
         </form>
@@ -2912,7 +2899,7 @@
             {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
           </div>
           <footer>
-            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', busy: false }}>Cancel</button>
+            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', published: false, busy: false }}>Cancel</button>
             <button class="danger-button" type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Deleting…' : 'Delete'}</button>
           </footer>
         </form>
@@ -3268,6 +3255,13 @@
     width: min(820px, calc(100vw - 32px));
   }
 
+  .project-dialog.project-list-dialog {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: min(520px, calc(100vh - 32px));
+    overflow: hidden;
+  }
+
   .project-dialog-header {
     justify-content: space-between;
     gap: 16px;
@@ -3285,10 +3279,12 @@
 
   .project-list {
     display: grid;
+    align-content: start;
     gap: 8px;
-    max-height: min(520px, calc(100vh - 180px));
+    min-height: 0;
     padding: 12px 16px;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .project-row {
@@ -3314,7 +3310,6 @@
   }
 
   .project-select {
-    position: relative;
     display: grid;
     grid-template-columns: minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(130px, 1fr) 70px;
     gap: 14px;
@@ -3333,15 +3328,6 @@
     align-items: center;
     gap: 6px;
     padding: 0 10px;
-  }
-
-  .project-row-actions label {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-right: 4px;
-    color: #cccccc;
-    font-size: 11px;
   }
 
   .project-row-actions button {
@@ -3375,6 +3361,13 @@
     white-space: nowrap;
   }
 
+  .project-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 8px;
+  }
+
   .project-stat {
     display: grid;
     gap: 4px;
@@ -3391,10 +3384,24 @@
   }
 
   .active-project-label {
-    position: absolute;
-    top: 5px;
-    right: 8px;
+    flex: none;
+    padding: 2px 5px;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 65%, transparent);
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
     color: var(--color-primary);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .playground-project-label {
+    flex: none;
+    padding: 2px 5px;
+    border: 1px solid #557b9d;
+    border-radius: 3px;
+    background: #263847;
+    color: #9dccf3;
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -3414,7 +3421,7 @@
       padding: 0 10px 10px;
     }
 
-    .project-name {
+    .project-title {
       grid-column: 1 / -1;
     }
   }
@@ -3487,6 +3494,15 @@
     gap: 6px;
     font-size: 12px;
     color: #cfcfcf;
+  }
+
+  .project-publication-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    color: #cfcfcf;
+    font-size: 12px;
   }
 
   .file-name-field input {
