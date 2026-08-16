@@ -35,9 +35,11 @@ export type OidcConfig = {
 export type GhostConfig = {
   enabled: boolean;
   adminApiUrl: string | null;
+  publicUrl: string | null;
   adminApiKey: string | null;
   syncApiToken: string | null;
   ssrCookieName: string;
+  ssrSecretKey: string | null;
 };
 
 export type OidcProviderConfig = {
@@ -113,12 +115,19 @@ function authTokenSecret(env: EnvSource, mode: string): string {
 }
 
 function ghostConfig(env: EnvSource): GhostConfig {
+  const enabled = booleanValue(env.ARCHINSIGHT_AUTH_GHOST_ENABLED, false);
+  const ssrSecretKey = optionalValue(env.ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY);
+  if (enabled && !ssrSecretKey) {
+    throw new Error('ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY must be configured when Ghost integration is enabled');
+  }
   return {
-    enabled: booleanValue(env.ARCHINSIGHT_AUTH_GHOST_ENABLED, false),
+    enabled,
     adminApiUrl: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_ADMIN_API_URL),
+    publicUrl: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_PUBLIC_URL),
     adminApiKey: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_ADMIN_API_KEY),
     syncApiToken: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_SYNC_API_TOKEN),
-    ssrCookieName: env.ARCHINSIGHT_AUTH_GHOST_SSR_COOKIE_NAME ?? 'ghost-members-ssr'
+    ssrCookieName: env.ARCHINSIGHT_AUTH_GHOST_SSR_COOKIE_NAME ?? 'ghost-members-ssr',
+    ssrSecretKey
   };
 }
 

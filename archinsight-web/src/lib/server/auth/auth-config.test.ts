@@ -28,4 +28,11 @@ describe('getAuthConfig', () => {
 
     expect(config.token.secret).toBe('persistent-test-secret');
   });
+
+  it('requires the Ghost SSR signing secret when Ghost authentication is enabled', () => {
+    expect(() => getAuthConfig({
+      ARCHINSIGHT_AUTH_MODE: 'local-dev',
+      ARCHINSIGHT_AUTH_GHOST_ENABLED: 'true'
+    })).toThrow('ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY must be configured');
+  });
 });

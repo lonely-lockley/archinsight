@@ -23,7 +23,10 @@ export function emptyWorkspaceStrategy(
   if (projects.length === 0) {
     return {
       kind: 'no-projects',
-      actions: [{ id: 'create-project', label: 'Create project', icon: 'repo-create', primary: true }]
+      actions: [
+        { id: 'create-tab', label: 'Create New Tab', icon: 'new-file', primary: true },
+        { id: 'create-project', label: 'Create project', icon: 'repo-create' }
+      ]
     };
   }
   if (activeProjectId !== undefined && projects.some((project) => project.id === activeProjectId)) {
@@ -37,6 +40,9 @@ export function emptyWorkspaceStrategy(
   }
   return {
     kind: 'no-active-project',
-    actions: [{ id: 'manage-projects', label: 'Manage Projects', icon: 'folder-library', primary: true }]
+    actions: [
+      { id: 'create-tab', label: 'Create New Tab', icon: 'new-file', primary: true },
+      { id: 'manage-projects', label: 'Manage Projects', icon: 'folder-library' }
+    ]
   };
 }

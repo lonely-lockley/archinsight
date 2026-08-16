@@ -67,9 +67,11 @@ function flattenedYamlToEnv(flattened: Record<string, string>): EnvSource {
   map(flattened, env, 'archinsight.auth.dev-login.enabled', 'ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED');
   map(flattened, env, 'archinsight.auth.ghost.enabled', 'ARCHINSIGHT_AUTH_GHOST_ENABLED');
   map(flattened, env, 'archinsight.auth.ghost.admin-api-url', 'ARCHINSIGHT_AUTH_GHOST_ADMIN_API_URL');
+  map(flattened, env, 'archinsight.auth.ghost.public-url', 'ARCHINSIGHT_AUTH_GHOST_PUBLIC_URL');
   map(flattened, env, 'archinsight.auth.ghost.admin-api-key', 'ARCHINSIGHT_AUTH_GHOST_ADMIN_API_KEY');
   map(flattened, env, 'archinsight.auth.ghost.sync-api-token', 'ARCHINSIGHT_AUTH_GHOST_SYNC_API_TOKEN');
   map(flattened, env, 'archinsight.auth.ghost.ssr-cookie-name', 'ARCHINSIGHT_AUTH_GHOST_SSR_COOKIE_NAME');
+  map(flattened, env, 'archinsight.auth.ghost.ssr-secret-key', 'ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY');
   map(flattened, env, 'archinsight.auth.login-url', 'ARCHINSIGHT_AUTH_LOGIN_URL');
   map(flattened, env, 'archinsight.auth.logout-url', 'ARCHINSIGHT_AUTH_LOGOUT_URL');
   map(flattened, env, 'archinsight.auth.token.secret', 'ARCHINSIGHT_AUTH_TOKEN_SECRET');
@@ -116,6 +118,7 @@ function mapOidcProvider(flattened: Record<string, string>, env: EnvSource, prov
   const prefix = `ARCHINSIGHT_AUTH_OIDC_${provider.toUpperCase()}_`;
   map(flattened, env, `archinsight.auth.oidc.${provider}.client-id`, `${prefix}CLIENT_ID`);
   map(flattened, env, `archinsight.auth.oidc.${provider}.client-secret`, `${prefix}CLIENT_SECRET`);
+  map(flattened, env, `archinsight.auth.oidc.${provider}.redirect-uri`, `${prefix}REDIRECT_URI`);
 }
 
 function mapJdbcUrl(flattened: Record<string, string>, env: EnvSource): void {

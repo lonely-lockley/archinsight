@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createSign, generateKeyPairSync } from 'node:crypto';
+import { createHmac, createSign, generateKeyPairSync } from 'node:crypto';
 import { GET as devLogin } from './dev/login/+server';
 import { GET as me } from './me/+server';
-import { POST as logout } from './logout/+server';
+import { GET as portalLogout, POST as logout } from './logout/+server';
 import { POST as ghostSync } from './ghost/sync/+server';
 import { POST as standaloneToken } from './standalone/token/+server';
 import { GET as oidcLogin } from './oidc/login/[provider]/+server';
@@ -32,7 +32,12 @@ const ghostConfig = {
   ARCHINSIGHT_AUTH_GHOST_ADMIN_API_URL: 'https://ghost.example',
   ARCHINSIGHT_AUTH_GHOST_ADMIN_API_KEY: 'ghost-key:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   ARCHINSIGHT_AUTH_GHOST_SYNC_API_TOKEN: 'ghost-sync-token',
+  ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY: 'ghost-ssr-secret',
   ARCHINSIGHT_AUTH_COOKIE_SECURE: 'false'
+};
+const oidcGhostConfig = {
+  ...oidcConfig,
+  ...ghostConfig
 };
 const standaloneSyncConfig = {
   ...devConfig,
@@ -136,6 +141,39 @@ describe('auth API', () => {
     });
   });
 
+  it('supports the legacy Portal GET logout contract', async () => {
+    const jar = cookies({
+      'archinsight-session': 'app-session',
+      'ghost-members-ssr': 'ghost-session',
+      'ghost-members-ssr.sig': 'ghost-signature'
+    });
+    const response = await portalLogout({ cookies: jar, platform: { env: ghostConfig } } as never);
+
+    expect(response.status).toBe(200);
+    expect(jar.deleteCalls.map((call) => call.name)).toEqual([
+      'archinsight-session',
+      'ghost-members-ssr',
+      'ghost-members-ssr.sig'
+    ]);
+  });
+
+  it('does not use the standalone session as a fallback in Ghost mode', async () => {
+    const standaloneJar = cookies();
+    await devLogin({
+      cookies: standaloneJar,
+      url: new URL('http://localhost/api/auth/dev/login'),
+      platform: { env: devConfig }
+    } as never);
+    const standaloneSession = standaloneJar.setCalls.find((call) => call.name === 'archinsight-session')?.value ?? '';
+
+    const response = await me({
+      cookies: cookies({ 'archinsight-session': standaloneSession }),
+      platform: { env: ghostConfig }
+    } as never);
+
+    await expect(response.json()).resolves.toMatchObject({ authenticated: false });
+  });
+
   it('starts and completes OIDC login with a verified id_token', async () => {
     const keyPair = generateKeyPairSync('rsa', { modulusLength: 2048 });
     const publicJwk = keyPair.publicKey.export({ format: 'jwk' });
@@ -144,7 +182,7 @@ describe('auth API', () => {
       cookies: jar,
       params: { provider: 'google' },
       url: new URL('http://localhost/api/auth/oidc/login/google?returnTo=/editor'),
-      platform: { env: oidcConfig }
+      platform: { env: oidcGhostConfig }
     } as never);
 
     expect(login.status).toBe(307);
@@ -179,7 +217,7 @@ describe('auth API', () => {
       cookies: jar,
       params: { provider: 'google' },
       url: new URL(`http://localhost/api/auth/oidc/callback/google?code=code-1&state=${encodeURIComponent(state)}`),
-      platform: { env: oidcConfig },
+      platform: { env: oidcGhostConfig },
       fetch: fakeOidcFetch({
         token: {
           access_token: 'access-token',
@@ -192,17 +230,25 @@ describe('auth API', () => {
           email: 'user@example.com',
           name: 'Google User From UserInfo'
         }
-      })
+      }, true)
     } as never);
 
-    expect(callback.status).toBe(307);
-    expect(callback.headers.get('location')).toBe('/editor');
+    expect(callback.status).toBe(200);
+    expect(callback.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    await expect(callback.text()).resolves.toContain('window.location.replace(redirect)');
     expect(jar.deleteCalls[0]).toEqual({
       name: 'archinsight-oidc-state-google',
       options: { path: '/' }
     });
     const session = jar.setCalls.find((call) => call.name === 'archinsight-session');
     expect(session?.value).toContain('.');
+    expect(jar.setCalls).toContainEqual(expect.objectContaining({
+      name: 'ghost-members-ssr',
+      value: 'ghost-session'
+    }));
+    expect(jar.setCalls).toContainEqual(expect.objectContaining({
+      name: 'ghost-members-ssr.sig'
+    }));
   });
 
   it('rejects standalone token sync when the endpoint is not configured', async () => {
@@ -379,8 +425,9 @@ function fakeOidcFetch(responses: {
   token: Record<string, unknown>;
   jwks: Record<string, unknown>;
   userInfo: Record<string, unknown>;
-}) {
-  return async (input: RequestInfo | URL) => {
+}, includeGhost = false) {
+  const ghostFetch = fakeGhostFetch();
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === 'https://oauth2.googleapis.com/token') {
       return jsonResponse(responses.token);
@@ -390,6 +437,9 @@ function fakeOidcFetch(responses: {
     }
     if (url === 'https://openidconnect.googleapis.com/v1/userinfo') {
       return jsonResponse(responses.userInfo);
+    }
+    if (includeGhost && url.startsWith('https://ghost.example/')) {
+      return ghostFetch(input, init);
     }
     throw new Error(`Unexpected fetch: ${url}`);
   };
@@ -414,11 +464,14 @@ function fakeGhostFetch(requests: Array<{ url: string; authorization: string | n
       return jsonResponse({ member_signin_urls: [{ url: 'https://ghost.example/members/api/send-magic-link/' }] });
     }
     if (url === 'https://ghost.example/members/api/send-magic-link/') {
+      const session = 'ghost-session';
+      const signature = createHmac('sha1', 'ghost-ssr-secret').update(`ghost-members-ssr=${session}`).digest('base64url');
+      const headers = new Headers();
+      headers.append('set-cookie', `ghost-members-ssr=${session}; Path=/; HttpOnly; SameSite=Lax`);
+      headers.append('set-cookie', `ghost-members-ssr.sig=${signature}; Path=/; HttpOnly; SameSite=Lax`);
       return new Response(null, {
         status: 302,
-        headers: {
-          'set-cookie': 'ghost-members-ssr=ghost-session; Path=/; HttpOnly; SameSite=Lax'
-        }
+        headers
       });
     }
     throw new Error(`Unexpected fetch: ${url}`);

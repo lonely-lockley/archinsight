@@ -3,7 +3,7 @@ import type { Cookies } from '@sveltejs/kit';
 import { getAuthConfig, type EnvSource, type GhostConfig } from './auth-config';
 import { bearerTokenMatches } from './bearer-token';
 import { storeSsrSession, upsertUserdataProfile } from './userdata-store';
-import type { AuthUserResponse, UserdataProfile } from './types';
+import type { AuthenticatedUser, AuthUserResponse, UserdataProfile } from './types';
 
 type GhostSyncRequest = {
   email?: string | null;
@@ -38,6 +38,11 @@ type GhostSessionCookie = {
 
 const defaultFetch: typeof fetch = (...args) => fetch(...args);
 
+export type GhostSynchronizationResult = {
+  user: AuthenticatedUser;
+  response: AuthUserResponse;
+};
+
 export async function syncGhostUser(
   authorization: string | null,
   request: GhostSyncRequest | null,
@@ -57,7 +62,26 @@ export async function syncGhostUser(
     return jsonError('Ghost sync request is required', 400);
   }
 
-  const profile = profileFromGhostRequest(request);
+  const result = await synchronizeGhostUser(profileFromGhostRequest(request), cookies, env, fetcher);
+
+  return new Response(JSON.stringify(result.response), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json'
+    }
+  });
+}
+
+export async function synchronizeGhostUser(
+  profile: UserdataProfile,
+  cookies: Cookies,
+  env: EnvSource | undefined,
+  fetcher: typeof fetch = defaultFetch
+): Promise<GhostSynchronizationResult> {
+  const config = getAuthConfig(env);
+  if (!config.ghost.enabled) {
+    throw new Error('Ghost integration is disabled');
+  }
   const user = await upsertUserdataProfile(profile, env);
   const member = await resolveMember(config.ghost, user.email ?? profile.email, user.displayName ?? profile.displayName ?? profile.email, fetcher);
   const sessionCookies = await signinCookies(config.ghost, member, fetcher);
@@ -72,8 +96,9 @@ export async function syncGhostUser(
     });
   }
 
-  return new Response(
-    JSON.stringify({
+  return {
+    user,
+    response: {
       authenticated: true,
       id: user.id,
       email: user.email ?? null,
@@ -82,14 +107,8 @@ export async function syncGhostUser(
       loginUrl: null,
       logoutUrl: config.logoutUrl,
       loginOptions: []
-    } satisfies AuthUserResponse),
-    {
-      status: 200,
-      headers: {
-        'content-type': 'application/json'
-      }
     }
-  );
+  };
 }
 
 async function resolveMember(
@@ -202,11 +221,12 @@ function resolveGhostUrl(ghost: GhostConfig, pathAndQuery: string): string {
 }
 
 function requireGhostOrigin(ghost: GhostConfig, url: string): string {
-  if (!ghost.adminApiUrl) {
-    throw new Error('ARCHINSIGHT_AUTH_GHOST_ADMIN_API_URL must be configured');
+  const expectedUrl = ghost.publicUrl ?? ghost.adminApiUrl;
+  if (!expectedUrl) {
+    throw new Error('ARCHINSIGHT_AUTH_GHOST_PUBLIC_URL or ARCHINSIGHT_AUTH_GHOST_ADMIN_API_URL must be configured');
   }
   const actual = new URL(url);
-  const expected = new URL(ghost.adminApiUrl);
+  const expected = new URL(expectedUrl);
   if (actual.protocol !== expected.protocol || actual.hostname !== expected.hostname || effectivePort(actual) !== effectivePort(expected)) {
     throw new Error('Ghost signin URL points to an unexpected origin');
   }

@@ -12,6 +12,7 @@ import {
 } from './auth-config';
 import { issueStandaloneToken } from './standalone-token';
 import { upsertUserdataProfile } from './userdata-store';
+import { synchronizeGhostUser } from './ghost-service';
 import type { UserdataProfile } from './types';
 
 type OidcTokenResponse = {
@@ -106,7 +107,9 @@ export async function completeOidcLogin(
     return jsonError('OIDC token response does not contain id_token', 400);
   }
   const profile = await userProfile(provider, token, expected.nonce, fetcher);
-  const user = await upsertUserdataProfile(profile, env);
+  const user = config.ghost.enabled
+    ? (await synchronizeGhostUser(profile, cookies, env, fetcher)).user
+    : await upsertUserdataProfile(profile, env);
   const sessionToken = issueStandaloneToken(user, config.token);
   cookies.delete(stateCookieName(config, provider.id), { path: '/' });
   cookies.set(config.tokenCookieName, sessionToken, {
@@ -116,12 +119,39 @@ export async function completeOidcLogin(
     sameSite: 'lax'
   });
 
-  return new Response(null, {
-    status: 307,
-    headers: {
-      location: postLoginRedirect(config, expected.returnTo)
+  return loginCompletionResponse(postLoginRedirect(config, expected.returnTo));
+}
+
+function loginCompletionResponse(redirect: string): Response {
+  const encodedRedirect = JSON.stringify(redirect).replaceAll('<', '\\u003c');
+  return new Response(
+    `<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Archinsight sign in</title></head>
+  <body>
+    <script>
+      const redirect = ${encodedRedirect};
+      if (window.opener && !window.opener.closed) {
+        if (typeof window.opener.loginCallback === 'function') {
+          window.opener.loginCallback();
+        } else {
+          window.opener.location.reload();
+        }
+        window.close();
+      } else {
+        window.location.replace(redirect);
+      }
+    </script>
+  </body>
+</html>`,
+    {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store'
+      }
     }
-  });
+  );
 }
 
 async function exchangeAuthorizationCode(

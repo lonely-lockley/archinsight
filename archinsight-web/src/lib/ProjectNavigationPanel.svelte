@@ -2,7 +2,7 @@
   import type { LanguageSnapshot } from '@insight/language';
   import FileTreeNode from './FileTreeNode.svelte';
   import StructurePanel from './StructurePanel.svelte';
-  import type { ProjectStructure } from './api';
+  import { routePath, type ProjectStructure } from './api';
   import type { ProjectUiState, SourceLocation, TreeNode } from './workspace-types';
 
   export let tree: TreeNode | undefined;
@@ -32,7 +32,7 @@
 <aside class:collapsed={!visible} class="sidebar">
   {#if visible}
     <div class="brand">
-      <img class="brand-logo" src="/archinsight-logo-no-background.svg" alt="" aria-hidden="true" />
+      <img class="brand-logo" src={routePath('/archinsight-logo-no-background.svg')} alt="" aria-hidden="true" />
       <div>Archinsight</div>
     </div>
     <div class="panel-tabs">
@@ -78,7 +78,7 @@
   {:else}
     <div class="collapsed-rail" aria-label="Collapsed sidebar">
       <button aria-label="Show panel" class="rail-brand has-tooltip tooltip-right" data-tooltip="Show panel" type="button" on:click={onShowSidebar}>
-        <img class="rail-logo" src="/archinsight-logo-no-background.svg" alt="" aria-hidden="true" />
+        <img class="rail-logo" src={routePath('/archinsight-logo-no-background.svg')} alt="" aria-hidden="true" />
       </button>
       <button aria-label="Repository" class:active={activePanel === 'repository'} class="rail-tab has-tooltip tooltip-right" data-tooltip="Repository" type="button" on:click={() => showPanel('repository')}>
         <span aria-hidden="true" class="codicon codicon-list-tree"></span>

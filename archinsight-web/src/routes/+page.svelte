@@ -65,6 +65,7 @@
     routePath,
     saveFile,
     unpublishFromPlayground,
+    type AppCapability,
     AuthRequiredError,
     type AuthUserResponse,
     type Diagnostic,
@@ -192,13 +193,14 @@
   let fileDialog: FileDialogState | undefined;
   let deleteDialog: DeleteDialogState | undefined;
   let currentUser: AuthUserResponse = { authenticated: false };
+  let capabilities: AppCapability[] = [];
   let publishedProjectId: string | undefined;
   let publicationBusy = false;
 
   $: activeTab = tabs.find((tab) => tab.id === activeTabId);
   $: projectId = activeProjectId ?? '';
   $: storageProjectId = surface === 'playground' ? `playground:${projectId}` : projectId;
-  $: emptyStrategy = controlledEmptyStrategy();
+  $: emptyStrategy = controlledEmptyStrategy(surface, capabilities);
   $: activeFilePath = activeTab?.filePath;
   $: activeDiagramMode = activeTab?.diagramMode ?? defaultDiagramMode;
   $: activeQuery = activeTab?.query ?? defaultQuery;
@@ -210,13 +212,13 @@
   $: activeEditorSplitRatio = activeTab?.editorSplitRatio ?? defaultEditorSplitRatio;
   $: activeReadOnly = activeTab?.readOnly === true;
   $: capabilities = currentUser.capabilities ?? [];
-  $: newFileState = actionState('repository.file.create', activeProjectId !== undefined, 'No active project');
-  $: saveState = actionState('repository.file.save', activeTab !== undefined && !activeReadOnly, activeReadOnly ? 'File is read-only' : 'No active file');
-  $: createFolderState = actionState('repository.folder.create', activeProjectId !== undefined, 'No active project');
-  $: renameFileState = actionState('repository.file.rename', activeProjectId !== undefined, 'No active project');
-  $: renameFolderState = actionState('repository.folder.rename', activeProjectId !== undefined, 'No active project');
-  $: deleteFileState = actionState('repository.file.delete', activeProjectId !== undefined, 'No active project');
-  $: deleteFolderState = actionState('repository.folder.delete', activeProjectId !== undefined, 'No active project');
+  $: newFileState = actionState('workspace.tab.create', true, 'Action is unavailable', surface, capabilities);
+  $: saveState = actionState('repository.file.save', activeTab !== undefined && !activeReadOnly, activeReadOnly ? 'File is read-only' : 'No active file', surface, capabilities);
+  $: createFolderState = actionState('repository.folder.create', activeProjectId !== undefined, 'No active project', surface, capabilities);
+  $: renameFileState = actionState('repository.file.rename', activeProjectId !== undefined, 'No active project', surface, capabilities);
+  $: renameFolderState = actionState('repository.folder.rename', activeProjectId !== undefined, 'No active project', surface, capabilities);
+  $: deleteFileState = actionState('repository.file.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
+  $: deleteFolderState = actionState('repository.folder.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: publicationState = controlState('publication.toggle', { surface, capabilities, available: activeProjectId !== undefined, unavailableReason: 'No active project' });
   $: tabsRightPadding = publicationState.hidden ? 44 : 170;
   $: projectPublished = activeProjectId !== undefined && activeProjectId === publishedProjectId;
@@ -338,21 +340,19 @@
     }
   }
 
-  function controlledEmptyStrategy() {
+  function controlledEmptyStrategy(actionSurface: WorkspaceSurface, actionCapabilities: readonly AppCapability[]) {
     const strategy = emptyWorkspaceStrategy(projectRegistry.projects, activeProjectId);
     return {
       ...strategy,
       actions: strategy.actions.map((action) => {
-        const actionId: ActionId = action.id === 'create-project'
+        const actionId: ActionId = action.id === 'create-tab'
+          ? 'workspace.tab.create'
+          : action.id === 'create-project'
           ? 'repository.project.create'
           : action.id === 'manage-projects'
             ? 'repository.project.manage'
             : 'repository.file.create';
-        const state = actionState(
-          actionId,
-          action.id !== 'create-tab' || activeProjectId !== undefined,
-          'No active project'
-        );
+        const state = actionState(actionId, true, 'Action is unavailable', actionSurface, actionCapabilities);
         return { ...action, disabled: state.disabled, reason: state.reason };
       })
     };
@@ -361,9 +361,16 @@
   function actionState(
     actionId: ActionId,
     available = true,
-    unavailableReason = 'Action is unavailable'
+    unavailableReason = 'Action is unavailable',
+    actionSurface = surface,
+    actionCapabilities: readonly AppCapability[] = capabilities
   ) {
-    return controlState(actionId, { surface, capabilities, available, unavailableReason });
+    return controlState(actionId, {
+      surface: actionSurface,
+      capabilities: actionCapabilities,
+      available,
+      unavailableReason
+    });
   }
 
   function requireAction(actionId: ActionId, state = actionState(actionId)): boolean {

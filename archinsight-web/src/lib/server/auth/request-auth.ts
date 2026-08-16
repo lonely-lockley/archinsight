@@ -3,16 +3,15 @@ import { getAuthConfig, loginOptions, type EnvSource } from './auth-config';
 import { verifyStandaloneToken } from './standalone-token';
 import { authenticateSsrSession, authenticateStandaloneClaims } from './userdata-store';
 import { capabilitiesFor } from './authorization';
+import { verifyGhostSessionSignature } from './ghost-session';
 import type { AuthenticatedUser, AuthUserResponse } from './types';
 
 export async function currentUserResponse(cookies: Cookies, env: EnvSource | undefined): Promise<AuthUserResponse> {
   const config = getAuthConfig(env);
-  const claims = verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token);
-  const user =
-    (await authenticateStandaloneClaims(claims, env)) ??
-    (config.ghost.enabled
-      ? await authenticateSsrSession(cookies.get(config.ghost.ssrCookieName), env, config.token.secret)
-      : null);
+  const ghostSession = verifiedGhostSession(cookies, config.ghost);
+  const user = config.ghost.enabled
+    ? await authenticateSsrSession(ghostSession, env, config.token.secret)
+    : await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), env);
   if (!user) {
     const options = loginOptions(config);
     return {
@@ -45,11 +44,10 @@ export async function currentUserResponse(cookies: Cookies, env: EnvSource | und
 
 export async function authenticateRequired(cookies: Cookies, env: EnvSource | undefined): Promise<AuthenticatedUser> {
   const config = getAuthConfig(env);
-  const user =
-    (await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), env)) ??
-    (config.ghost.enabled
-      ? await authenticateSsrSession(cookies.get(config.ghost.ssrCookieName), env, config.token.secret)
-      : null);
+  const ghostSession = verifiedGhostSession(cookies, config.ghost);
+  const user = config.ghost.enabled
+    ? await authenticateSsrSession(ghostSession, env, config.token.secret)
+    : await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), env);
   if (!user) {
     throw new Response(JSON.stringify({ error: 'Authentication required' }), {
       status: 401,
@@ -59,4 +57,10 @@ export async function authenticateRequired(cookies: Cookies, env: EnvSource | un
     });
   }
   return user;
+}
+
+function verifiedGhostSession(cookies: Cookies, ghost: ReturnType<typeof getAuthConfig>['ghost']): string | null {
+  const session = cookies.get(ghost.ssrCookieName);
+  const signature = cookies.get(`${ghost.ssrCookieName}.sig`);
+  return verifyGhostSessionSignature(session, signature, ghost) ? session ?? null : null;
 }

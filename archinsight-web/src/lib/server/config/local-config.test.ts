@@ -17,6 +17,10 @@ archinsight:
     dev-user-id: '5913933c-2268-41e1-a558-622dc11f675a'
     dev-login:
       enabled: 'true'
+    ghost:
+      enabled: 'true'
+      public-url: 'https://ghost.example'
+      ssr-secret-key: 'ghost-secret'
     cookie:
       secure: 'false'
     token:
@@ -27,6 +31,7 @@ archinsight:
       google:
         client-id: 'google-client'
         client-secret: 'google-secret'
+        redirect-uri: 'https://archinsight.example/oauth/callback/google'
   limits:
     max-query-chars: 42
 `);
@@ -44,12 +49,16 @@ archinsight:
       ARCHINSIGHT_AUTH_MODE: 'local-dev',
       ARCHINSIGHT_AUTH_DEV_USER_ID: '5913933c-2268-41e1-a558-622dc11f675a',
       ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED: 'true',
+      ARCHINSIGHT_AUTH_GHOST_ENABLED: 'true',
+      ARCHINSIGHT_AUTH_GHOST_PUBLIC_URL: 'https://ghost.example',
+      ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY: 'ghost-secret',
       ARCHINSIGHT_AUTH_COOKIE_SECURE: 'false',
       ARCHINSIGHT_AUTH_TOKEN_SECRET: 'secret',
       ARCHINSIGHT_AUTH_OIDC_PROVIDERS: 'google',
       ARCHINSIGHT_AUTH_OIDC_CALLBACK_BASE_URL: 'http://localhost:5173',
       ARCHINSIGHT_AUTH_OIDC_GOOGLE_CLIENT_ID: 'google-client',
       ARCHINSIGHT_AUTH_OIDC_GOOGLE_CLIENT_SECRET: 'google-secret',
+      ARCHINSIGHT_AUTH_OIDC_GOOGLE_REDIRECT_URI: 'https://archinsight.example/oauth/callback/google',
       ARCHINSIGHT_LIMITS_MAX_QUERY_CHARS: '42'
     });
   });
