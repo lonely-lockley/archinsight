@@ -876,7 +876,6 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericC4DeploymentExample(),
     },
     ...genericC4PrivateGatewayExampleFiles(),
-    ...genericC4ReplicatedKafkaExampleFiles(),
     {
       path: "examples/c2-containers.aiq",
       content: genericC2QueryExample(),
@@ -1010,8 +1009,7 @@ ${skillTaskModesGuide()}
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-8. Keep definition/framework files separate from model files that declare
-   \`context <id>\`.
+8. Keep definition, context, and environment sources in separate files.
 9. Validate every Insight change with \`archinsight link . --format text\`.
 
 ## References
@@ -1125,8 +1123,7 @@ ${skillTaskModesGuide()}
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-8. Keep definition/framework files separate from model files that declare
-   \`context <id>\`.
+8. Keep definition, context, and environment sources in separate files.
 9. Use \`archinsight structure . --format text\` before broad edits when the
    project shape is unclear.
 10. Validate every Insight change with \`archinsight link . --format text\`.
@@ -1245,8 +1242,7 @@ ${skillTaskModesGuide()}
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
-8. Keep definition/framework files separate from model files that declare
-   \`context <id>\`.
+8. Keep definition, context, and environment sources in separate files.
 9. Use \`archinsight structure . --format text\` to inspect the current model
    before broad edits when the CLI is available.
 10. Validate every Insight change with \`archinsight link . --format text\` when
@@ -1327,16 +1323,17 @@ question before changing files.
 Keep language/framework definitions separate from graph model files.
 
 - Definition/framework files contain \`define type\`, \`define operator\`,
-  \`define presentation\`, \`extend type\`, \`extend enum of\`, and
-  \`extend presentation\`.
-- Model files declare \`context <id>\` and create graph objects with
-  constructors such as \`system\`, \`service\`, \`component\`, \`environment\`,
-  or \`deploymentProfile\`.
+  \`define enum of\`, \`define presentation\`, \`extend type\`,
+  \`extend enum of\`, and \`extend presentation\`.
+- Context files begin with \`context <id>\` and describe logical architecture.
+- Environment files begin with \`environment <id>\` and describe concrete
+  deployments and infrastructure inventory.
 
-Do not mix definition declarations and \`context\` declarations in one source
-file. Put shared vocabulary in a framework file, then put concrete contexts,
-systems, environments, profiles, and links in model files. This keeps schema
-changes reviewable and avoids source-level syntax failures.
+Each source has one role. Do not mix definitions, a context, and an environment
+in one file. Put shared vocabulary in framework files, logical objects and
+context-owned deployment profiles in context files, and concrete infrastructure
+in environment files. This keeps schema changes reviewable and avoids
+source-level syntax failures.
 
 ## Model Source Granularity
 
@@ -1476,17 +1473,42 @@ boundary or owner.
 function genericSyntaxReference(): string {
   return `# Insight Syntax Reference
 
-## Files and Contexts
+Insight is case-sensitive. \`System\`, \`system\`, and \`SYSTEM\` are different
+names. Declarations are resolved independently of their order, provided the
+referenced value is visible in the current source through local declaration or
+an explicit import.
 
-Every model starts with a context:
+## Files and Root Scopes
+
+Logical model files start with a context:
 
 \`\`\`insight
 context ecommerce
     name = E-commerce Platform
 \`\`\`
 
+Infrastructure inventory files start with an environment:
+
+\`\`\`insight
+environment eu
+    name = Europe
+\`\`\`
+
+Definitions, contexts, and environments are separate source roles. Never put
+more than one of these roles in the same file.
+
 Use indentation to define ownership. Children belong to the nearest less-indented
 parent.
+
+## Identifiers
+
+Type names begin with an uppercase ASCII letter. Object ids, attributes, enum
+values, and word-based constructors and operators begin with a lowercase ASCII
+letter. Later characters may be ASCII letters, digits, or underscores. Names
+cannot begin with a digit or contain spaces.
+
+Use every name with its declared case. Keep object ids stable because imports,
+extensions, links, queries, and generated navigation refer to those identities.
 
 ## Common Elements
 
@@ -1542,15 +1564,16 @@ Here \`system\` and \`service\` are constructors; \`storefront\` and
 \`checkout_api\` are object ids. Relationships under \`links:\` create graph
 edges between existing object ids.
 
-Definition files are different from model files. They declare vocabulary:
+Definition files are different from architecture files. They declare vocabulary:
 \`define type\`, \`define operator\`, \`define presentation\`, \`extend type\`,
-\`extend enum of\`, and \`extend presentation\`. Model files usually start with
-\`context <id>\` and then create graph object instances with constructors.
+\`define enum of\`, \`extend enum of\`, and \`extend presentation\`. Architecture
+files start with either \`context <id>\` or \`environment <id>\` and then create
+graph object instances with constructors.
 
 Do not mix these source forms in one file. A framework/definitions file should
-contain only vocabulary/schema declarations. A model file should declare a
-\`context <id>\` and graph object instances. If both are needed, create two
-files and validate the whole project.
+contain only vocabulary/schema declarations. Keep each context or environment
+in its own architecture source role. If definitions and instances are both
+needed, create separate files and validate the whole project.
 
 ## Type Definitions and Extensions
 
@@ -1572,16 +1595,65 @@ Type extension is a schema merge:
 
 - new attributes and child slots become available everywhere that type is used;
 - inherited attributes from base types remain available;
-- if a later type extension declares the same attribute name, the later
-  declaration wins for that attribute;
 - type inheritance still controls assignability and nesting.
 
-Extending the same type more than once is allowed but reported as a warning.
-Prefer one definition file for each type's extensions so the effective schema is
-easy to inspect and review.
+Keep all additions to one type in one \`extend type\` declaration and one
+definition file. The linker can combine several extensions for compatibility,
+but reports a warning because a scattered effective schema is difficult to
+inspect and review. An agent should consolidate them rather than create another
+extension elsewhere.
 
 After changing a type definition, run \`archinsight structure . --format text\`
 to see the updated type tree and available constructors.
+
+### Abstract types and constructors
+
+A type without a constructor can serve as an abstract schema shared by concrete
+descendants:
+
+\`\`\`insight
+define type Api of Service
+    required Text owner
+
+define type PublicApi of Api
+    constructor publicApi
+\`\`\`
+
+Do not create a direct instance of a constructorless type. Use it as an expected
+attribute type, query label, presentation base, or inheritance contract.
+
+A constructor can provide defaults, including values of required attributes:
+
+\`\`\`insight
+define type InternalApi of Service
+    constructor internalApi
+        exposure = internal
+
+    required Text exposure
+\`\`\`
+
+An explicit assignment on an instance replaces the constructor default.
+
+### Object-valued attributes
+
+A named object attribute supports a full named declaration, a full anonymous
+declaration, or a shortened declaration when exactly one constructor is valid:
+
+\`\`\`insight
+config:
+    runtimeConfig catalog_runtime
+
+config:
+    runtimeConfig _
+
+config:
+    image = registry.example/catalog:1.4
+\`\`\`
+
+Use a named id when another declaration must reference the nested object. The
+\`_\` form creates an anonymous instance. The shortened form infers both its
+constructor and anonymous identity and is rejected when construction is
+ambiguous.
 
 ## Attributes
 
@@ -1599,6 +1671,36 @@ Long text can continue on indented following lines:
 description = Handles checkout orchestration and keeps payment provider details
     outside the storefront.
 \`\`\`
+
+Prefix an attribute with \`required\` in a type definition when every instance
+must supply it explicitly or through a constructor default. Scalar attributes
+accept one value; assigning them twice is an error.
+
+One type may declare one anonymous child attribute:
+
+\`\`\`insight
+List of Component _
+\`\`\`
+
+It must be the last attribute in the type body. Compatible child declarations
+can then appear directly under the parent. The \`_\` symbol can also replace an
+object id when no source-level reference to that instance is needed.
+
+## Enumerations
+
+An enum uses a constructorless type as its closed value domain:
+
+\`\`\`insight
+define type Criticality
+
+define enum of Criticality
+    low
+    medium
+    high
+\`\`\`
+
+Use the enum type for scalar or list attributes. Values are case-sensitive and
+must be declared by \`define enum of\` or \`extend enum of\`.
 
 ## Relationships
 
@@ -1702,6 +1804,9 @@ Use comments for authoring hints that should stay invisible in diagrams. Use
 notes for architecture remarks that should travel with the model and help
 readers understand a specific element or relationship.
 
+On an attribute assignment, all text after \`=\` is the attribute value. A \`#\`
+there does not start a comment; put the comment on its own line instead.
+
 ## Annotations
 
 Annotations decorate the next declaration or relationship. Put each annotation
@@ -1736,6 +1841,15 @@ Annotations can be stacked and are preserved on projected relationships, so a
 C4 projection can still show that the original logical relationship was planned
 or deprecated. Annotations cannot decorate assignments; use a comment above the
 assignment when you only need a local authoring hint.
+
+If both lifecycle annotations are present, \`@planned\` has visual priority in
+the current renderer. Prefer one lifecycle annotation so the declaration has
+one clear state.
+
+Legacy \`@attribute(key=value)\` applies raw Graphviz properties to one element
+or relationship. It exists only for backward compatibility, is deprecated, and
+may be removed in a future language version. Recognize it when maintaining old
+models, but use typed presentations for new visual conventions.
 
 ## Presentation Syntax
 
@@ -1776,6 +1890,15 @@ define type Cache of InfrastructureComponent
 When adding custom types, follow the existing framework files and validate
 immediately. Do not invent constructors without checking whether the project
 already defines the needed type.
+
+## Operator implementations
+
+An Insight operator declaration is the typed call surface for a TypeScript
+runtime implementation. Edge and element operators use the built-in
+\`@insight/core.edge\` and \`@insight/core.element\` implementations unless an
+explicit implementation is selected. Any other behavior requires a registered
+TypeScript implementation in the application. A project cannot introduce new
+arbitrary runtime behavior only by adding an Insight definition file.
 `;
 }
 
@@ -1867,7 +1990,7 @@ Components should describe responsibilities, not every class or function.
 As with C2, a C3 file often focuses one container or service, but custom queries
 can intentionally choose a different scope.
 
-## C4 and Deployment
+## C4: Deployment
 
 Use deployment profiles and infrastructure types when physical realization is
 important. Read \`references/c4-deployment.md\` before writing a real C4 model.
@@ -1920,6 +2043,10 @@ owned systems, external systems, and high-level relationships.
 A C1 view answers: "What system are we discussing, who uses it, and which
 outside systems does it depend on?"
 
+The built-in C1 query selects the complete context boundary. It shows all C1
+systems and actors in the selected context even when their declarations are
+split across several files; C1 is scoped by context rather than by one tab.
+
 Do not include containers, services, components, databases, queues, or runtime
 nodes unless the project deliberately treats them as context-level systems. C1
 is about boundaries and responsibilities, not implementation structure.
@@ -1944,6 +2071,10 @@ Choose the modeled boundary before choosing constructors.
   interacts with the system from outside.
 - Use \`import <id> from context <context-id>\` when a reusable outside system is
   declared in another context.
+
+When the same actor participates in several contexts, declare it once in a
+shared external context and import it. Declaring a separate local actor in every
+context creates several identities for what readers understand as one actor.
 
 Externality is relative. A system can be external to the current system but
 still owned in the same context. A vendor platform or regulator is usually
@@ -2062,6 +2193,13 @@ links:
 Add \`technology\`, \`call\`, or \`via\` only when the detail is stable and useful
 at context level. Prefer capability language over endpoint trivia.
 
+The declaration owner is always the wire source, and the referenced target is
+the arrow destination. Lower-level C2 and C3 relationships are rolled up to
+their owning systems by the built-in C1 view. When a precise lower-level wire
+already describes the dependency, remove an equivalent C1 wire to avoid
+duplicate edges, ambiguity, and shadowing. Keep a direct C1 wire only when it
+expresses a distinct system-level interaction.
+
 Use \`~>\` for meaningful asynchronous context flows:
 
 \`\`\`insight
@@ -2109,12 +2247,17 @@ function genericC2ContainersReference(): string {
   return `# C2 Containers and Services
 
 Use this reference only for C2 work: decomposing one selected owned system into
-deployable containers, backend services, and their runtime collaborations.
+its main logical runtime units and their collaborations.
 
 ## What C2 Answers
 
 A C2 view answers: "Inside this system, which deployable or executable units
 exist, what technologies do they use, and how do they collaborate?"
+
+\`Container\` and \`Service\` belong to the same modeling level. \`Service\` is a
+specialized \`Container\`; use the two constructors as semantic synonyms that
+make an element's intended role clearer. They do not create separate diagram
+levels or different deployment behavior.
 
 Prefer one focal system per C2 source file. The built-in C2 view is scoped by
 the selected source file, so a C2 file should usually contain the selected
@@ -2143,12 +2286,11 @@ because one system needs that style.
    existing containers/services, and external declarations.
 2. Create or edit a C2 file in the same \`context <id>\`.
 3. Import external systems from other contexts when needed.
-4. Add \`container\` declarations for deployable applications or executables.
-5. Add \`service\` declarations for backend services or service-like runtime
-   units.
-6. Add runtime links between containers/services and real external systems.
-7. Validate with \`archinsight link . --format text\`.
-8. Render with \`archinsight render . -c <context-id> -s <c2-file.ai> -v c2 -f svg -o c2.svg\`.
+4. Add \`container\` or \`service\` declarations for the system's logical runtime
+   units, choosing the word that best communicates each unit's role.
+5. Add runtime links between containers/services and real external systems.
+6. Validate with \`archinsight link . --format text\`.
+7. Render with \`archinsight render . -c <context-id> -s <c2-file.ai> -v c2 -f svg -o c2.svg\`.
 
 ## File Split Pattern
 
@@ -2197,8 +2339,8 @@ extend system storefront
 
 ## Frontend and Backend Pattern
 
-Use \`container\` for applications and executables that have an addressable
-runtime boundary:
+Use \`container\` when "application" or "executable unit" best communicates the
+role:
 
 \`\`\`insight
 container web_app
@@ -2207,7 +2349,7 @@ container web_app
     description = Browser-facing application for customers
 \`\`\`
 
-Use \`service\` for backend services and service-like runtime units:
+Use \`service\` when "service" best communicates the role:
 
 \`\`\`insight
 service checkout_api
@@ -2218,6 +2360,10 @@ service checkout_api
 
 Do not turn every library, package, or class into a C2 node. Those belong to C3
 only when they become stable architectural responsibilities.
+
+The constructors are interchangeable at C2 from the view and deployment
+perspective. Follow the vocabulary already used by the project rather than
+reclassifying elements only because of their implementation technology.
 
 ## External System Pattern
 
@@ -2303,6 +2449,12 @@ links:
 \`call\` is singular. Use \`via\` for async topics or channels. Keep endpoint
 details at C2 only when they clarify the architecture; otherwise use a plain
 \`description\`.
+
+The element containing a wire owns it and becomes its source; the referenced
+element is the arrow target. C2 relationships are rolled up to their owning
+systems in C1. Once a dependency is expressed at C2, remove an equivalent C1
+wire so the most precise declaration remains authoritative and the rollup does
+not compete with a broad duplicate.
 
 ## What Not To Put In C2
 
@@ -2576,6 +2728,8 @@ leave it out or ask for a more architectural boundary.
 ## Links in C3
 
 Links should explain runtime collaboration inside the focal container/service.
+The component containing the wire owns it and becomes its source; the referenced
+element is the arrow target.
 
 Use internal component links:
 
@@ -2606,6 +2760,11 @@ Do not add a broker as a component unless the broker is actually part of the
 focal container/service. Shared brokers, queues, gateways, and runtime placement
 usually belong to deployment/C4 or infrastructure modeling.
 
+The built-in views roll a component dependency up to its owning containers at
+C2 and, when it crosses system boundaries, to its owning systems at C1. Remove
+equivalent broader wires after the C3 relationship becomes the authoritative
+declaration. Keep a broader wire only when it describes a different interaction.
+
 ## Common C3 Mistakes
 
 - Writing C3 components under a \`system\` instead of under a container/service
@@ -2634,11 +2793,23 @@ unclear.
 }
 
 function genericC4DeploymentReference(): string {
-  return `# C4 Deployment and Infrastructure
+  return `# C4 Deployment
 
-Use clean C4 when the model must explain where logical elements run and which
-physical infrastructure realizes their dependencies. Keep C1-C3 logical;
-deployment inventory and projections supply the physical view.
+Use C4 to project the logical architecture onto physical infrastructure: where
+logical elements run, which infrastructure they use, and how their wires pass
+through the physical world. Keep C1-C3 logical; deployment inventory and
+projections supply the physical view.
+
+Model the infrastructure immediately relevant to those logical elements and
+connections. Do not expand C4 into a complete provider, transit, replication,
+or network topology. Keep replication modes and deeper operational detail in
+\`description\`, \`technology\`, \`via\`, notes, or project-specific attributes
+unless an intermediate component is itself important to the architecture.
+
+When a project models deployment explicitly, databases, storage, brokers,
+gateways, network connections, compute, and observability belong at C4. Leave
+them at C2 only when the project deliberately chooses a compact mixed model and
+does not plan to describe deployment in detail.
 
 ## Model
 
@@ -2658,6 +2829,10 @@ There are four distinct concepts:
 Do not put application deployment profiles in environment inventory files.
 Environment files own concrete infrastructure. The application context owns
 the profiles that decide where its systems, containers, and services run.
+
+One environment can contain several deployment schemes. Profiles may select
+different schemes such as \`production from eu\` and \`test from eu\` without a
+conflict because these are different concrete deployments.
 
 ## Framework and inventory
 
@@ -3134,17 +3309,17 @@ instead of creating a hidden dependency on file layout.
 
 For C4, keep these responsibilities separate:
 
-- framework file: type extensions, infra constructors, presentation/projection
-  definitions;
+- framework file: environment schemas, infrastructure constructors, and
+  presentation definitions;
 - environment inventory files: concrete deployments and instance projections;
 - logical context files: deployment profiles with \`appliesTo\` references and
   the relationships whose network paths should render.
 
 When rendering C4 with \`-s <source.ai>\`, remember that source/tab scoping is
-part of the view. Put the view-driving logical relationships in the selected
-source file, or render from the source file that owns those relationships. Keep
-imported framework and inventory reusable, but validate the rendered C4 output
-after moving traffic relationships across files:
+part of the view. The selected tab includes the full model fragment rooted in
+that source, including relationships contributed to those roots by \`extend\`
+files. Keep imported framework and inventory reusable, and validate the rendered
+C4 output after changing which root a traffic relationship extends:
 
 \`\`\`shell
 archinsight link . --format text
@@ -3152,9 +3327,9 @@ archinsight render . -c deployment_shop -s c4-deployment.ai -v c4 -f svg -o depl
 \`\`\`
 
 If projected infrastructure edges disappear after a split, first check whether
-the selected \`-s\` file still contains the source logical relationship or an
-intended imported deployment-view relationship. Do not fix that by duplicating
-infrastructure nodes; fix the source selection or the file boundary.
+the logical relationship still belongs to a root declared by the selected tab.
+Do not fix that by duplicating infrastructure nodes; fix the source selection,
+the extension target, or the file boundary.
 
 ## Practical Workflow
 
@@ -3189,14 +3364,16 @@ contains.
 Keep source files in one role:
 
 - definition/framework files: \`define type\`, \`define operator\`,
-  \`define presentation\`, \`extend type\`, \`extend enum of\`, and
-  \`extend presentation\`;
-- model files: \`context <id>\`, imports, graph object declarations,
-  relationships, environments, and deployment profiles.
+  \`define enum of\`, \`define presentation\`, \`extend type\`,
+  \`extend enum of\`, and \`extend presentation\`;
+- context files: \`context <id>\`, imports, logical graph objects,
+  relationships, object extensions, and deployment profiles;
+- environment files: \`environment <id>\`, concrete deployments, and
+  infrastructure inventory.
 
-Do not mix definition/framework declarations with \`context <id>\` in one file.
-When a model needs custom vocabulary, add or edit a framework file first, then
-use the resulting constructors and attributes from model files.
+Do not mix these three roles in one file. When a model needs custom vocabulary,
+add or edit a framework file first, then use the resulting constructors and
+attributes from context and environment files.
 
 ## Directory and File Granularity
 
@@ -3360,8 +3537,10 @@ and project framework files before assuming only core constructors exist.
 - \`Compute\` / constructor \`compute\`: for runtimes, clusters, nodes, and
   platforms; adds optional \`address\` and can contain nested infrastructure
   components in a \`components:\` block.
-- \`NetworkConnection\` / constructor \`networkConnection\`: for a direct
-  network hop that projects \`$from -> $to\` on deployment views.
+- \`NetworkConnection\` / constructor \`networkConnection\`: for infrastructure
+  that carries a logical wire. Its projection may connect \`$from\` directly to
+  \`$to\` or expand the relationship through relevant gateways and other
+  first-order infrastructure.
 
 Extend \`Environment\` with slots for these types, then fill each concrete
 \`environment <id>\` with env-local instances.
@@ -3382,9 +3561,8 @@ Interpretation:
 - this changes the \`Environment\` schema, not one concrete environment object;
 - every \`environment <id>\` can now contain or reference the added slots;
 - existing inherited attributes and child slots remain available;
-- later declarations with the same attribute name override that attribute
-  definition;
-- multiple \`extend type Environment\` blocks are allowed but produce a warning;
+- the project should keep all additions to \`Environment\` in this one
+  extension;
 - \`archinsight structure . --format text\` is the quickest way to inspect the
   effective type tree after extensions are applied.
 
@@ -3393,20 +3571,27 @@ intend to extend one graph object instance in a \`context\`. Use \`extend type\`
 when you intend to change the available vocabulary/schema for all instances of
 that type.
 
-Keep repeated type extensions in one framework/definitions file when possible.
 If validation reports \`TYPE_EXTENDED_MULTIPLE_TIMES\`, consolidate the
-extensions or confirm with the user that the split is intentional.
+extensions into one framework/definitions file.
 
 ## Reading Relationship Operators
 
 Core synchronous and asynchronous links are operators:
 
 \`\`\`insight
+define type WireModel
+
+define enum of WireModel
+    sync
+    async
+
 define operator Wire of Edge
     Text technology
     Text description
-    required Text model
-    DeploymentProfile deployment
+    required WireModel model
+
+    List of Edge deployment
+    List of NetworkConnection uses
 
 define operator SyncWire of Wire
     constructor -> Element
@@ -3427,11 +3612,12 @@ Interpretation:
 
 - \`->\` creates a synchronous \`SyncWire\`.
 - \`~>\` creates an asynchronous \`AsyncWire\`.
-- \`technology\`, \`description\`, and \`deployment\` are common wire attributes.
+- \`technology\`, \`description\`, \`model\`, \`deployment\`, and \`uses\` are
+  common wire attributes.
 - \`call\` is singular and belongs to \`->\`.
 - \`via\` belongs to \`~>\`.
-- \`model\` is set by the operator constructor; do not author it manually unless
-  the project explicitly uses that convention.
+- \`model\` is a \`WireModel\` enum selected by the operator constructor. Do not
+  assign or override it in architecture sources; use it for typed queries.
 
 ## Reading Presentations
 
@@ -3608,7 +3794,9 @@ archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagr
 The scope variables are:
 
 - \`$context\` - selected context id from \`--context\`.
-- \`$tab\` - selected source identity from \`--source\` / \`--tab\`.
+- \`$tab\` - the semantic model fragment rooted in the source selected by
+  \`--source\` / \`--tab\`. It includes content contributed to those roots by
+  \`extend\` in other files.
 
 Pass \`--source\` when a query uses \`$tab\`.
 
@@ -3708,6 +3896,9 @@ WHERE node.context = $context AND NOT node IS External
 \`\`\`
 
 Use single quotes for string literals.
+
+\`CONTAINS\` is case-sensitive. For scalar text it performs substring matching;
+for a list property it tests membership. Match the stored spelling exactly.
 
 ## Relationship Selectors
 
@@ -3869,13 +4060,14 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.
 
 4. Check the query filters:
 
-- \`node.sourceIdentity = $tab\` means the node must be declared in the selected
-  source file.
+- \`node.sourceIdentity = $tab\` selects the semantic fragment rooted in the
+  selected source, including contributions added to those roots through
+  \`extend\` in other files.
 - \`node IS DeploymentElement\` hides actors and ordinary logical elements.
 - \`{projected}\` means only derived deployment projection edges are selected.
 - \`{derived}\` means only rolled-up relationships are selected.
-- \`sourceIdentity: $tab\` on an edge means the relationship/projection must come
-  from the selected source.
+- \`sourceIdentity: $tab\` on an edge selects relationships and projections that
+  belong to the same semantic source fragment.
 - The built-in C4 view also returns target-side incoming projection aliases:
   \`incomingProjectedLink\`, \`incomingProjectedSource\`,
   \`incomingProjectedOriginLink\`, and \`incomingProjectedOrigin\`. Keep them when
@@ -4270,7 +4462,7 @@ system storefront
 }
 
 function genericC4DeploymentFrameworkExample(): string {
-  return `extend type Environment
+  return `define type ApplicationEnvironment of Environment
     ServiceProvider cloud
     Compute compute
     Storage storage
@@ -4530,112 +4722,6 @@ system target_system
 
 external system payment
     name = Payment Provider
-`,
-    },
-  ];
-}
-
-function genericC4ReplicatedKafkaExampleFiles(): readonly GeneratedFile[] {
-  return [
-    {
-      path: "examples/c4-replicated-kafka/deployment-framework.ai",
-      content: `define type ReplicatedBroker of NetworkConnection
-    constructor replicatedBroker
-    required InfrastructureComponent peer
-
-define type ReplicatedBrokerEnvironment of Environment
-    Compute compute
-    ReplicatedBroker broker
-`,
-    },
-    {
-      path: "examples/c4-replicated-kafka/env-c.ai",
-      content: `environment env_c
-    name = Environment C
-
-deployment production
-    compute:
-        name = Compute C
-
-    broker:
-        replicatedBroker kafka_c
-            name = Kafka C
-            technology = Kafka
-            peer:
-                kafka_d from env_d
-            projection:
-                source $from originalLink target $this
-                target $this replicateFrom target peer
-                target peer connectTo target $to
-`,
-    },
-    {
-      path: "examples/c4-replicated-kafka/env-d.ai",
-      content: `environment env_d
-    name = Environment D
-
-deployment production
-    compute:
-        name = Compute D
-
-    broker:
-        replicatedBroker kafka_d
-            name = Kafka D
-            technology = Kafka
-            peer:
-                kafka_c from env_c
-            projection:
-                source $from originalLink target $this
-                target $this replicateFrom target peer
-                target peer connectTo target $to
-`,
-    },
-    {
-      path: "examples/c4-replicated-kafka/c.ai",
-      content: `context system_c
-
-import d from context system_d
-
-deploymentProfile c_profile
-    appliesTo:
-        production from env_c
-
-    runsOn compute
-
-system c
-    name = System C
-    deployment:
-        uses c_profile
-    links:
-        ~> d
-            technology = Kafka
-            via = c.events
-            deployment:
-                uses broker
-`,
-    },
-    {
-      path: "examples/c4-replicated-kafka/d.ai",
-      content: `context system_d
-
-import c from context system_c
-
-deploymentProfile d_profile
-    appliesTo:
-        production from env_d
-
-    runsOn compute
-
-system d
-    name = System D
-    deployment:
-        uses d_profile
-    links:
-        ~> c
-            technology = Kafka
-            via = d.events
-            deployment:
-                uses broker
 `,
     },
   ];

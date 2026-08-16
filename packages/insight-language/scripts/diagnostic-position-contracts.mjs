@@ -28,7 +28,7 @@ const cases = [
   architectureMissingImportPointsToTargetToken,
   architectureUndeclaredExtensionTargetPointsToTargetToken,
   architectureInvalidExtensionConstructorPointsToConstructorToken,
-  architectureTypedAttributeMismatchPointsToAttributeToken,
+  architectureInvalidScalarEnumPointsToAttributeToken,
   unknownImportContextPointsToContextIdentifier,
   unknownImportedElementPointsToImportedIdentifier,
   isolatedElementCoversIdentifierToken,
@@ -355,7 +355,7 @@ extend actor app
   assertDiagnosticToken(result.diagnostics, sourceText, "TYPE_MISMATCH", "actor", "actor");
 }
 
-function architectureTypedAttributeMismatchPointsToAttributeToken() {
+function architectureInvalidScalarEnumPointsToAttributeToken() {
   const sourceText = `
 context shared
 
@@ -370,7 +370,7 @@ system app
     snapshot: mergeLanguageSnapshots([coreLanguageSnapshot, tierSnapshot()]),
     sources: [source("architecture.ai", sourceText)],
   });
-  assertDiagnosticToken(result.diagnostics, sourceText, "TYPE_MISMATCH", "tier", "tier");
+  assertDiagnosticToken(result.diagnostics, sourceText, "ENUM_VALUE_NOT_DECLARED", "Tier", "tier");
 }
 
 function unknownImportContextPointsToContextIdentifier() {

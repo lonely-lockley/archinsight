@@ -36,7 +36,7 @@ function coreTypesCarryDeclarationMetadata() {
   const wire = coreLanguageSnapshot.types.find((item) => item.name === "Wire");
   assert(wire?.declaration !== undefined, "Missing Wire operator type declaration");
   assert.equal(wire.declaration.sourceName, "core_operator.ai");
-  assert.equal(wire.declaration.line, 1);
+  assert.equal(wire.declaration.line, 7);
   assert.equal(wire.declaration.column, 17);
 }
 

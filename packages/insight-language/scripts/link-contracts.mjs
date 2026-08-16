@@ -67,6 +67,7 @@ const cases = [
   reportsCoreServiceWithoutName,
   notesThatAttributeAnnotationIsDeprecated,
   validatesEnumAttributeValues,
+  validatesScalarEnumAttributeValuesAndConstructorDefaults,
   reportsDuplicateNamedSlots,
   appliesConcreteProjectionRulesFromReferenceAttributes,
   rejectsFixedProjectionTerms,
@@ -1905,6 +1906,46 @@ system app
     diagnostic.code === "ENUM_VALUE_NOT_DECLARED"
     && diagnostic.message.includes("gold")
     && diagnostic.message.includes("Tier")
+  ));
+}
+
+function validatesScalarEnumAttributeValuesAndConstructorDefaults() {
+  const valid = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [source("valid.ai", `
+context shared
+
+system app
+    name = App
+    links:
+        -> target
+
+system target
+    name = Target
+`)],
+  });
+  const invalid = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [source("invalid.ai", `
+context shared
+
+system app
+    name = App
+    links:
+        -> target
+            model = streaming
+
+system target
+    name = Target
+`)],
+  });
+
+  assertNoErrors(valid);
+  assert.equal(valid.edges[0]?.attributes.model?.[0], "sync");
+  assert(invalid.diagnostics.some((diagnostic) =>
+    diagnostic.code === "ENUM_VALUE_NOT_DECLARED"
+    && diagnostic.message.includes("streaming")
+    && diagnostic.message.includes("WireModel")
   ));
 }
 

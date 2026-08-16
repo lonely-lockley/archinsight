@@ -1096,7 +1096,6 @@ system app
         name = API
         links:
             ~> db
-                model = async
 
     container db
         name = DB

@@ -2062,14 +2062,28 @@ function resolveAttributes(
       });
       continue;
     }
-    if (attribute.type !== "Text" && attribute.type !== "text") {
-      diagnostics.push({
-        code: "TYPE_MISMATCH",
-        message: `Attribute '${name}' on type '${ownerType}' expects a slot`,
-        sourceName: owner.sourceName,
-        ...diagnosticPosition(scalarPosition),
-      });
+    if (attribute.type === "Text" || attribute.type === "text") {
+      continue;
     }
+    const enumValues = typeSystem.enumValues(attribute.type);
+    if (enumValues.length > 0) {
+      const value = scalarAttributes[name]!;
+      if (!enumValues.includes(value)) {
+        diagnostics.push({
+          code: "ENUM_VALUE_NOT_DECLARED",
+          message: `Enum value '${value}' is not declared for type '${attribute.type}'`,
+          sourceName: owner.sourceName,
+          ...diagnosticPosition(scalarPosition),
+        });
+      }
+      continue;
+    }
+    diagnostics.push({
+      code: "TYPE_MISMATCH",
+      message: `Attribute '${name}' on type '${ownerType}' expects a slot`,
+      sourceName: owner.sourceName,
+      ...diagnosticPosition(scalarPosition),
+    });
   }
   for (const [name, values] of Object.entries(attributes)) {
     const attribute = typeSystem.attribute(ownerType, name);
