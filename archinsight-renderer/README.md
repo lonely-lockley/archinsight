@@ -176,6 +176,22 @@ Local Docker sandbox run:
 docker compose -f archinsight-renderer/compose.debug.yaml up --build
 ```
 
+The release build creates the versioned renderer image together with the other
+Archinsight artifacts:
+
+```shell
+./gradlew :archinsight-renderer:dockerBuild
+./gradlew :archinsight-renderer:dockerPush
+```
+
+The default name is `lonelylockley/archinsight:renderer-<version>`, where the
+version comes from `settings.gradle`. Set
+`-ParchinsightImageRepository=<repository>` to use another registry or
+repository.
+`dockerPush` publishes a `linux/amd64` image by default. Use
+`-ParchinsightDockerPlatforms=<platforms>` to override the publication target;
+the local `dockerBuild` task continues to use the host architecture.
+
 In Kubernetes, enforce the same model with `securityContext`,
 `resources.limits`, and a `NetworkPolicy` that allows ingress only from the
 backend and denies egress. The Helm values keep this service disabled until an

@@ -72,7 +72,7 @@ For every object, the linker resolves the constructor to its type and computes t
 - whether a scalar attribute is assigned more than once;
 - whether referenced identifiers and imported targets exist.
 
-Operator invocations are resolved from their source type, target type, and the expected type of the containing list. The selected TypeScript implementation materializes the invocation. For ordinary logical relationships, the result is a typed edge with an explicit source and target. Deployment operations may also resolve profiles, environment capabilities, placements, and projected physical relationships.
+Operator invocations are resolved from their source type, target type, and the expected type of the containing list. For ordinary logical relationships and element prefixes, the selected TypeScript implementation handles the normalized invocation. A logical relationship produces a typed edge with an explicit source and target. The linker's deployment phase interprets the built-in deployment operators to resolve profiles, environment capabilities, placements, and projected physical relationships.
 
 After operator execution, projection rules expand the relevant logical elements and edges into deployment-level paths. Projected edges retain their relationship to the originating source, endpoints, annotations, and projection scope. This provenance lets later queries distinguish authored relationships from derived ones.
 

@@ -63,6 +63,7 @@ The generic target writes a runtime-neutral guide:
     references/
         modeling.md
         syntax.md
+        layered-architecture.md
         c1-context.md
         c2-containers.md
         c3-components.md
@@ -76,12 +77,20 @@ The generic target writes a runtime-neutral guide:
     .core/
         *.ai
     examples/
+        layered-architecture.ai
         c1-context.ai
         c2-containers.ai
         c3-components.ai
         c4-deployment-framework.ai
         c4-deployment-infrastructure.ai
         c4-deployment.ai
+        c4-private-gateway/
+            deployment-framework.ai
+            source-infra.ai
+            source-system.ai
+            target-infra.ai
+            target-system.ai
+            external.ai
         c2-containers.aiq
         builtin-views/
             no-filter.aiq

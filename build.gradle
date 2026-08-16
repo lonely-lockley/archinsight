@@ -124,6 +124,7 @@ tasks.register('languageNpmTest', Exec) {
         inputs.file('packages/insight-language/package-lock.json')
     }
     workingDir = file('packages/insight-language')
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     commandLine npmCommand, 'run', 'test:runtime'
 }
 
@@ -147,6 +148,12 @@ tasks.register('releaseCheck') {
     group = 'verification'
     description = 'Runs release checks for publishable artifacts.'
     dependsOn 'check'
+}
+
+tasks.register('dockerPush') {
+    group = 'publishing'
+    description = 'Builds and publishes all multi-platform Archinsight container images.'
+    dependsOn ':archinsight-web:dockerPush', ':archinsight-renderer:dockerPush'
 }
 
 tasks.named('check') {

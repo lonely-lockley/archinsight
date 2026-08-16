@@ -166,6 +166,30 @@ After editing the built-in framework, regenerate the TypeScript snapshot:
 npm --prefix packages/insight-language run sync:core
 ```
 
+Build and verify every release artifact with Gradle:
+
+```shell
+./gradlew clean dist
+```
+
+The release includes the CLI package, VSCode extension, web distribution, and
+versioned `editor-ui-<version>` and `renderer-<version>` container images. Image
+versions come from `settings.gradle`. Override the registry/repository with
+`-ParchinsightImageRepository=<repository>` and the web context root with
+`-ParchinsightContextRoot=<path>` when required.
+
+After authenticating to the container registry, publish the web and optional
+renderer images with a multi-platform manifest:
+
+```shell
+./gradlew dockerPush
+```
+
+The published images target `linux/amd64` by default. Local `dockerBuild` tasks
+still use the host architecture, so an Apple Silicon build remains runnable on
+the development machine. Override the publication target with
+`-ParchinsightDockerPlatforms=<platforms>` when required.
+
 ## License
 
 Copyright 2021-2026 Alexey Zaytsev

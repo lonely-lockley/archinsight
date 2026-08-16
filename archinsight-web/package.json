@@ -5,15 +5,16 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "predev": "npm --prefix ../packages/insight-language run sync:core",
+    "predev": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "dev": "vite --host 0.0.0.0",
-    "prebuild": "npm --prefix ../packages/insight-language run sync:core",
+    "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "sync:svelte-kit": "svelte-kit sync",
-    "precheck": "npm --prefix ../packages/insight-language run sync:core",
+    "precheck": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:security": "vitest run src/lib/svg-sanitizer.test.ts src/lib/graphviz-renderer.test.ts --environment happy-dom",
+    "pretest:server": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts src/lib/actions/*.test.ts"
   },
   "dependencies": {

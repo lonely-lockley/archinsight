@@ -29,6 +29,7 @@ tasks.register('npmBuild', Exec) {
     inputs.dir('../packages/insight-language/src')
     outputs.dir('dist')
     workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     commandLine npmCommand, 'run', 'build'
 }
 
@@ -44,6 +45,7 @@ tasks.register('npmCheck', Exec) {
     inputs.dir('../packages/insight-language/src')
     outputs.dir('dist')
     workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     commandLine npmCommand, 'run', 'check'
 }
 
@@ -62,6 +64,7 @@ tasks.register('npmPackage', Exec) {
     inputs.dir('../packages/insight-language/src')
     outputs.dir('dist')
     workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     commandLine npmCommand, 'run', 'package'
 }
 

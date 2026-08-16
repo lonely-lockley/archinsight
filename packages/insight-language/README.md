@@ -109,12 +109,12 @@ Consumer adapters may translate language results into Monaco markers, VSCode
 diagnostics/completions, Svelte state, CLI stdout/stderr, or HTTP DTOs. Those
 translations must stay outside this package.
 
-## Core Framework Source
+## Core Framework Sources
 
-The canonical built-in framework file is:
+The canonical built-in framework is split by modeling area under:
 
 ```text
-src/main/resources/com/github/lonelylockley/insight/core.ai
+src/main/resources/com/github/lonelylockley/insight/core*.ai
 ```
 
 The generated TypeScript snapshot is:
@@ -123,8 +123,8 @@ The generated TypeScript snapshot is:
 packages/insight-language/src/generated/core-source.ts
 ```
 
-Run `npm run sync:core` after editing `core.ai`. Do not hand-edit the generated
-snapshot.
+Run `npm run sync:core` after editing any built-in framework source. Do not
+hand-edit the generated snapshot.
 
 ## License
 

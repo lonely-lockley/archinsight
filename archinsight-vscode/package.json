@@ -2,7 +2,7 @@
   "name": "archinsight-vscode",
   "displayName": "Archinsight",
   "description": "Native VSCode support for Insight architecture models.",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "license": "Apache-2.0",
   "publisher": "archinsight",
   "icon": "assets/icon.png",
@@ -256,7 +256,7 @@
     }
   },
   "scripts": {
-    "prebuild": "npm --prefix ../packages/insight-language run generate:grammar",
+    "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "prepare:web": "npm --prefix ../archinsight-web run sync:svelte-kit",
     "build:webview": "npm run prepare:web && vite build --config vite.webview.config.mts",
     "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.cjs --external:vscode --external:@viz-js/viz",

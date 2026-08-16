@@ -81,7 +81,7 @@ deployment production
         name = Kubernetes cluster
 ```
 
-The environment is the root scope for concrete deployments and infrastructure. Its identifier provides the namespace used when logical architecture refers to deployments from that environment. A project can define a specialized descendant of the built-in `Environment` type to declare organization-specific infrastructure slots; the linker selects the compatible environment schema from the attributes and constructors available in the project.
+The environment is the root scope for concrete deployments and infrastructure. Its identifier provides the namespace used when logical architecture refers to deployments from that environment. A project can define a specialized descendant of the built-in `Environment` type to declare organization-specific infrastructure slots. When there is one such subtype, the linker uses it for environment roots. When several subtypes exist, the named slots filled by the environment and its deployments identify the compatible schema; if they do not identify one subtype unambiguously, the root keeps the base `Environment` type and incompatible attributes are reported normally.
 
 A source uses one root form. Context sources describe logical ownership and dependencies, while environment sources describe the physical inventory into which that architecture can be deployed. The linker combines both kinds of source into the same project model, allowing deployment profiles and projections to connect logical elements with concrete infrastructure.
 
@@ -459,11 +459,11 @@ define operator HttpCall of Wire
     required Text protocol
 ```
 
-The `implementation` value is a lookup key in the application's operator implementation registry. When the linker encounters `calls catalog`, it resolves `@insight/core.edge` through that registry and invokes the corresponding TypeScript implementation with the typed operator invocation and a read-only view of the linked model. The implementation returns the elements, edges, placements, or diagnostics produced by the call.
+The `implementation` value is a lookup key in the application's operator implementation registry. When the linker encounters `calls catalog`, it resolves `@insight/core.edge` through that registry and invokes the corresponding TypeScript implementation with the normalized operator invocation, its resolved target, attributes, and type information. The current implementation contract can materialize a typed edge or accept a prefix element operation and can return diagnostics for an unsupported invocation.
 
 Every operator needs an effective runtime implementation. Insight supplies defaults for the common cases: an operator assignable to `Edge` uses `@insight/core.edge`, and an operator assignable to `Element` uses `@insight/core.element`. Writing the identifier explicitly makes the dependency visible. Operators in another runtime domain require an explicit implementation identifier.
 
-This mechanism is the language's extension point for behavior that needs arbitrary TypeScript logic. The TypeScript code lives in the application and follows the versioned operator implementation contract; the Insight source invokes it through its registered identifier. This keeps the model declarative while allowing an implementation to perform domain-specific materialization and projection work.
+This mechanism is the language's extension point for behavior backed by arbitrary TypeScript code. The TypeScript code lives in the application and follows the operator implementation contract; the Insight source invokes it through its registered identifier. The result exposed to the linker remains constrained by that contract even though the implementation itself is application code.
 
 Projects cannot currently provide their own TypeScript operator implementations. A project-defined operator can use the generic behavior for `Edge` or `Element`, while custom execution requires adding and registering an implementation in the Archinsight application code.
 

@@ -1721,12 +1721,20 @@ links:
 \`call\` is singular and belongs to synchronous \`->\` links. \`via\` belongs to
 asynchronous \`~>\` links. Do not write \`calls\`.
 
-Use \`from <context-id>\` when linking to an imported element from another
-context:
+Use a named import when the same external declaration is referenced several
+times:
 
 \`\`\`insight
 import payments from context external_systems
 
+links:
+    -> payments
+\`\`\`
+
+For a single reference, an inline \`from <context-id>\` qualifier is the
+anonymous import form and does not require a separate named import:
+
+\`\`\`insight
 links:
     -> payments from external_systems
 \`\`\`
@@ -1955,7 +1963,7 @@ system storefront
         name = Checkout API
         technology = Node.js, PostgreSQL
         links:
-            -> payment_provider from ecommerce
+            -> payment_provider
 \`\`\`
 
 Use \`container\` for applications or deployable units. Use \`service\` for
@@ -2172,7 +2180,7 @@ import stripe from context external_platforms
 system storefront
     name = Storefront
     links:
-        -> stripe from external_platforms
+        -> stripe
             technology = HTTPS
             description = Requests payment authorization
 \`\`\`
@@ -2396,7 +2404,7 @@ extend system storefront
     service checkout_api
         name = Checkout API
         links:
-            -> stripe from external_platforms
+            -> stripe
                 technology = HTTPS
                 call = POST /payments/authorizations
 \`\`\`
@@ -2674,8 +2682,8 @@ at the producer/source whose event contract it consumes.
 
 ## Imported Boundary Pattern
 
-When a component links to an element from another context, import it and use
-\`from <context-id>\` on the link target:
+When a component links repeatedly to an element from another context, import it
+once and use the local binding:
 
 \`\`\`insight
 context commerce
@@ -2688,7 +2696,7 @@ extend service checkout_api
         technology = HTTP client
         responsibility = Requests fraud decisions before payment authorization
         links:
-            -> fraud_api from risk_platform
+            -> fraud_api
                 technology = HTTPS
                 call = POST /risk/decisions
                 description = Requests checkout risk decision
@@ -2853,6 +2861,9 @@ define type PublicGateway of NetworkConnection
 
 define type Egress of NetworkConnection
     constructor egress
+
+define type Monitoring of InfrastructureComponent
+    constructor monitoring
 \`\`\`
 
 Fill those slots inside concrete deployments:
@@ -3209,7 +3220,7 @@ import stripe from context external_platforms
 
 system checkout
     links:
-        -> stripe from external_platforms
+        -> stripe
 \`\`\`
 
 Avoid making a separate file for every external actor or vendor unless the
@@ -3229,10 +3240,11 @@ commerce/
         inventory.ai
 \`\`\`
 
-Those files should repeat the same \`context commerce\`, explicitly import the
-object being extended when it lives in another source file, and use
-\`extend service checkout_api\`, \`extend container web_app\`, or another object
-extension to add focused details.
+Those files should repeat the same \`context commerce\` and use \`extend service
+checkout_api\`, \`extend container web_app\`, or another object extension to
+add focused details. The extension target is resolved in the shared context
+namespace; ordinary references used inside the extension body still follow the
+usual import rules.
 
 ## Same-Context Cross-File Imports
 
@@ -3265,15 +3277,13 @@ This is intentional. If a file is extracted, removed, or not included in the
 project, the linker should fail with an explicit identifier/import diagnostic
 instead of silently binding to whatever remains in the context.
 
-## Inline from Context
+## Inline \`from\` qualifier
 
-When a relationship target is declared outside the current source file, prefer
-an explicit context qualifier on the link target:
+An inline qualifier is an anonymous import for one relationship target. Use it
+instead of a named import when the target is referenced only once:
 
 \`\`\`insight
 context commerce
-
-import payments from context external_systems
 
 system checkout
     name = Checkout
@@ -3283,16 +3293,12 @@ system checkout
             call = POST /payments
 \`\`\`
 
-The \`import <id> from context <context-id>\` line documents the dependency and
-makes the id available for attributes such as profiles and environment slots.
-The inline \`from <context-id>\` on a link target states which context owns the
-linked element. Use the same pattern for same-context cross-file links when the
-source has been split and ambiguity matters:
+The inline \`from <context-id>\` states which context owns the linked element
+without creating a reusable local binding. The same form works for a
+same-context cross-file link:
 
 \`\`\`insight
 context services
-
-import inventory_api from context services
 
 system checkout_api
     links:
@@ -3342,10 +3348,10 @@ the extension target, or the file boundary.
    external element.
 7. Keep concrete deployments in environment files; put deployment profiles in
    the logical context that owns the deployed elements.
-8. Add explicit imports for every cross-file dependency, including same-context
-   dependencies.
-9. Add inline \`from <context-id>\` on relationship targets that live outside
-   the current source file.
+8. Acknowledge every cross-file dependency, including same-context
+   dependencies, with either a named import or an inline \`from\` qualifier.
+9. Prefer a named import for repeated references and an inline qualifier for a
+   one-off relationship or list value.
 10. Validate with \`archinsight link . --format text\`.
 11. Render important C1/C2/C3/C4 views with explicit \`-c\`, \`-s\`, and \`-v\`
    options.
@@ -3388,9 +3394,9 @@ create a separate file for every external actor or vendor unless that external
 dependency has real internal structure to model.
 
 If a system needs further splitting, create a utility subdirectory for focused
-\`extend <object>\` files, such as per-service component files. Import the
-extended object explicitly when it is declared in another source file. Keep the
-main system file as the readable entry point.
+\`extend <object>\` files, such as per-service component files. An extension
+target in the same context does not need an import; references used inside its
+body do. Keep the main system file as the readable entry point.
 
 ## Commands
 
@@ -3430,13 +3436,13 @@ the text tree is too large.
 ## Imports
 
 Before adding an import, find the declaration's context in structure output. A
-cross-context link uses the target id and context id:
+named import creates a reusable source-local binding:
 
 \`\`\`insight
 import payments from context external_systems
 
 links:
-    -> payments from external_systems
+    -> payments
 \`\`\`
 
 Imports are also required when a declaration lives in another source file of the
@@ -3456,7 +3462,7 @@ The explicit import is intentional. If the source file that declared
 \`eu_service\` is removed or excluded, validation should fail with a clear
 missing import/identifier diagnostic instead of depending on hidden file layout.
 
-For links, \`from <context-id>\` on the target is an inline context qualifier:
+For a one-off link, \`from <context-id>\` is the anonymous import form:
 
 \`\`\`insight
 links:
@@ -3772,6 +3778,11 @@ C2, C3, C4, and custom queries often depend on the active file. Pass
 \`--source <file>\` / \`-s <file>\` whenever the query uses \`$tab\`; otherwise
 the CLI may choose the first source and render a valid but wrong view.
 
+The bundled \`examples\` directory contains several independent model projects,
+not one project to link as a whole. Validate \`layered-architecture.ai\`, the C1,
+C2, and C3 files individually. Validate the three \`c4-deployment*.ai\` files
+together, and validate \`c4-private-gateway\` as its own directory.
+
 If the CLI is missing, do not silently install it. Ask the user to install or
 expose \`@archinsight/cli\`.
 `;
@@ -3930,7 +3941,7 @@ For deployment views, grouping by a typed reference attribute is valid:
 \`\`\`cypher
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(target)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(target)
 GROUP BY node.runsOn
 RETURN node, projectedLink, target
 \`\`\`
@@ -4063,32 +4074,38 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.
 - \`node.sourceIdentity = $tab\` selects the semantic fragment rooted in the
   selected source, including contributions added to those roots through
   \`extend\` in other files.
-- \`node IS DeploymentElement\` hides actors and ordinary logical elements.
-- \`{projected}\` means only derived deployment projection edges are selected.
+- The built-in C4 node filter includes deployment elements, container elements,
+  and elements whose resolved \`kind\` is \`external\`. Internal actors and other
+  logical element families remain outside the view unless a custom query adds
+  them.
+- \`{projected}\` means only deployment-projected edges are selected.
 - \`{derived}\` means only rolled-up relationships are selected.
-- \`sourceIdentity: $tab\` on an edge selects relationships and projections that
-  belong to the same semantic source fragment.
+- A relationship property such as \`sourceIdentity: $tab\` is available for a
+  deliberately narrow custom view. The current built-in C4 query does not add
+  that edge filter; the selected node scope and semantic tab closure provide
+  the boundary.
 - The built-in C4 view also returns target-side incoming projection aliases:
   \`incomingProjectedLink\`, \`incomingProjectedSource\`,
   \`incomingProjectedOriginLink\`, and \`incomingProjectedOrigin\`. Keep them when
   the target system owns an ingress gateway.
 
-## Include External Actors In C4
+## Include Internal Actors In C4
 
-The built-in C4 query focuses on deployment/container nodes. If a deployment
-diagram needs the external actor that starts the traffic path, copy
-\`examples/builtin-views/c4.aiq\` and widen the node and projected target filters:
+The built-in C4 query already includes external actors when they enter its
+selected scope, because they satisfy \`node IS External\`. If a deployment
+diagram also needs an internal actor, copy \`examples/builtin-views/c4.aiq\` and
+widen the node and projected target filters:
 
 \`\`\`cypher
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
   AND (node IS DeploymentElement OR node IS ContainerElement OR node IS Actor)
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
 WHERE projectedTarget IS DeploymentElement
    OR projectedTarget IS ContainerElement
    OR projectedTarget IS External
    OR projectedTarget IS Actor
-OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
+OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
 WHERE node IS DeploymentElement
   AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
 OPTIONAL MATCH (incomingProjectedSource:Element)-[incomingProjectedLink {projected}]->(node)
@@ -4139,13 +4156,16 @@ RETURN node, link, target
 This is intentionally closer to C2 than C4. Use it when deployment annotations
 exist in the file but the diagram question is still logical.
 
-## Show Projected Edges Across Split Files
+## Projected Edges Across Split Files
 
-The built-in C4 query restricts projected edges to \`sourceIdentity: $tab\`. That
-is usually correct for a focused deployment-view source file, but it can hide
-projected edges when traffic relationships were split across files.
+The current built-in C4 query matches \`{projected}\` edges without an explicit
+\`sourceIdentity: $tab\` relationship filter. The query engine expands \`$tab\`
+to the roots declared by the selected source and contributions made to those
+roots through \`extend\`, so a normal multi-file split does not require a looser
+edge selector.
 
-Copy \`examples/builtin-views/c4.aiq\` and relax only the projected edge selector:
+If a project has a custom query copied from an older template, remove the edge
+filter while keeping the node scope:
 
 \`\`\`cypher
 MATCH (node:Element)
@@ -4155,16 +4175,16 @@ OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Eleme
 WHERE projectedTarget IS DeploymentElement
    OR projectedTarget IS ContainerElement
    OR projectedTarget IS External
-OPTIONAL MATCH (node)-[directDeploymentLink {sourceIdentity: $tab}]->(directDeploymentTarget:Element)
+OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
 WHERE node IS DeploymentElement
   AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
 GROUP BY node.runsOn
 RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
 \`\`\`
 
-Use this deliberately. Removing the source filter can bring in projections from
-other view files, so validate the result with \`archinsight query\` before
-rendering.
+Validate the result with \`archinsight query\`. If a path is still absent, check
+that its logical relationship contributes to a root selected by the tab before
+changing the model or broadening the node scope.
 
 ## Change Grouping
 
@@ -4175,7 +4195,7 @@ try grouping by parent:
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
   AND (node IS DeploymentElement OR node IS ContainerElement)
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected, sourceIdentity: $tab}]->(projectedTarget:Element)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
 WHERE projectedTarget IS DeploymentElement
    OR projectedTarget IS ContainerElement
    OR projectedTarget IS External
@@ -4686,12 +4706,12 @@ system source_system
         deployment:
             uses source_profile
         links:
-            -> target from services
+            -> target
                 technology = HTTPS
                 call = GET /private
                 deployment:
                     uses privateGateway
-            -> payment from external
+            -> payment
                 technology = HTTPS
                 deployment:
                     uses network

@@ -109,18 +109,29 @@ enforced independently by the backend.
 npm --prefix archinsight-web run check
 npm --prefix archinsight-web run test:server
 npm --prefix archinsight-web run test:security
-npm --prefix archinsight-web run test:postgres
 ```
 
-`test:postgres` runs the real-database concurrency and publication ownership/read-model tests. It uses
-`ARCHINSIGHT_TEST_DATABASE_URL` when set, otherwise `ARCHINSIGHT_DATABASE_URL`.
+Server and security tests mock repository and database adapters. They do not
+require a local Postgres instance or depend on its contents.
 
 Gradle also exposes:
 
 ```shell
 ./gradlew :archinsight-web:npmBuild
 ./gradlew :archinsight-web:npmCheck
+./gradlew :archinsight-web:dockerBuild
+./gradlew :archinsight-web:dockerPush
 ```
+
+`dockerBuild` creates
+`lonelylockley/archinsight:editor-ui-<version>` using the version from
+`settings.gradle`. The image is built for the `/app` context root by default.
+Use `-ParchinsightImageRepository=<repository>` or
+`-ParchinsightContextRoot=<path>` to override those release settings.
+`dockerPush` publishes a `linux/amd64` image by default; it requires registry
+authentication and accepts another target through
+`-ParchinsightDockerPlatforms=<platforms>`. The local `dockerBuild` task keeps
+using the host architecture for development smoke tests.
 
 ## Boundaries
 

@@ -37,6 +37,7 @@ tasks.register('npmBuild', Exec) {
     inputs.dir('../packages/insight-language/src')
     outputs.dir('build')
     workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     environment 'ARCHINSIGHT_CLI_VERSION', project.version.toString()
     commandLine npmCommand, 'run', 'build'
 }

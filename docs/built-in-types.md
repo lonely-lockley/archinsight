@@ -118,7 +118,7 @@ context commerce
     name = Commerce
 ```
 
-A context owns an anonymous list of `BoundaryElement` values. This slot admits the high-level systems, actors, deployment profiles, environments, and infrastructure boundaries that form the visible scope of the model. It also gives every contained element a context-qualified identity.
+A context owns an anonymous list of `BoundaryElement` values. This slot admits high-level systems, actors, deployment profiles, and other compatible boundary-level concepts. Environment inventories use their own `environment` root source form rather than being nested inside a context file. Every element contained by a context receives a context-qualified identity.
 
 `Context` is a structural exception to the ordinary `Element` hierarchy. It forms the root boundary that owns the architectural elements declared in the source.
 

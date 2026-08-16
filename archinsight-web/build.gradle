@@ -3,6 +3,10 @@ plugins {
 }
 
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+def imageRepository = providers.gradleProperty('archinsightImageRepository').getOrElse('lonelylockley/archinsight')
+def releaseImage = "${imageRepository}:editor-ui-${project.version}"
+def releaseContextRoot = providers.gradleProperty('archinsightContextRoot').getOrElse('/app')
+def releasePlatforms = providers.gradleProperty('archinsightDockerPlatforms').getOrElse('linux/amd64')
 
 tasks.register('npmInstall', Exec) {
     group = 'build'
@@ -27,7 +31,10 @@ tasks.register('npmBuild', Exec) {
     group = 'build'
     description = 'Builds the SvelteKit web app.'
     dependsOn 'npmInstall', 'svelteKitSync', rootProject.tasks.named('generateLanguageSources')
+    inputs.property('archinsightContextRoot', releaseContextRoot)
     workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    environment 'ARCHINSIGHT_CONTEXT_ROOT', releaseContextRoot
     commandLine npmCommand, 'run', 'build'
 }
 
@@ -36,6 +43,7 @@ tasks.register('npmCheck', Exec) {
     description = 'Runs web type checks.'
     dependsOn 'npmInstall', 'svelteKitSync', rootProject.tasks.named('generateLanguageSources')
     workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     commandLine npmCommand, 'run', 'check'
 }
 
@@ -52,6 +60,7 @@ tasks.register('npmTestServer', Exec) {
     description = 'Runs web server/API tests.'
     dependsOn 'npmInstall', rootProject.tasks.named('generateLanguageSources')
     workingDir = projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     commandLine npmCommand, 'run', 'test:server'
 }
 
@@ -59,10 +68,36 @@ tasks.named('assemble') {
     dependsOn 'npmBuild'
 }
 
+tasks.register('dockerBuild', Exec) {
+    group = 'build'
+    description = "Builds the Archinsight web container image ${releaseImage}."
+    dependsOn 'npmBuild'
+    workingDir = rootProject.projectDir
+    commandLine 'docker', 'build',
+        '--file', 'archinsight-web/Dockerfile',
+        '--tag', releaseImage,
+        '--build-arg', "ARCHINSIGHT_CONTEXT_ROOT=${releaseContextRoot}",
+        '.'
+}
+
+tasks.register('dockerPush', Exec) {
+    group = 'publishing'
+    description = "Builds and publishes the multi-platform Archinsight web image ${releaseImage}."
+    dependsOn 'npmBuild'
+    workingDir = rootProject.projectDir
+    commandLine 'docker', 'buildx', 'build',
+        '--platform', releasePlatforms,
+        '--file', 'archinsight-web/Dockerfile',
+        '--tag', releaseImage,
+        '--build-arg', "ARCHINSIGHT_CONTEXT_ROOT=${releaseContextRoot}",
+        '--push',
+        '.'
+}
+
 tasks.register('dist') {
     group = 'build'
-    description = 'Builds the web distribution.'
-    dependsOn 'npmBuild'
+    description = 'Builds the web distribution and release container image.'
+    dependsOn 'npmBuild', 'dockerBuild'
 }
 
 tasks.named('check') {

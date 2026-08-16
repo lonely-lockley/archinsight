@@ -3,6 +3,9 @@ plugins {
 }
 
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
+def imageRepository = providers.gradleProperty('archinsightImageRepository').getOrElse('lonelylockley/archinsight')
+def releaseImage = "${imageRepository}:renderer-${project.version}"
+def releasePlatforms = providers.gradleProperty('archinsightDockerPlatforms').getOrElse('linux/amd64')
 
 tasks.register('npmInstall', Exec) {
     dependsOn rootProject.tasks.named('syncPackageVersions')
@@ -21,8 +24,18 @@ tasks.register('test', Exec) {
 
 tasks.register('dockerBuild', Exec) {
     group = 'build'
-    description = 'Builds the hardened Archinsight renderer service container image.'
-    commandLine 'docker', 'build', '-t', 'archinsight-renderer:dev', '.'
+    description = "Builds the hardened Archinsight renderer service container image ${releaseImage}."
+    commandLine 'docker', 'build', '-t', releaseImage, '.'
+}
+
+tasks.register('dockerPush', Exec) {
+    group = 'publishing'
+    description = "Builds and publishes the multi-platform Archinsight renderer image ${releaseImage}."
+    commandLine 'docker', 'buildx', 'build',
+        '--platform', releasePlatforms,
+        '--tag', releaseImage,
+        '--push',
+        '.'
 }
 
 tasks.register('dist') {

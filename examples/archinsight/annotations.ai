@@ -1,15 +1,5 @@
-# This is a code fragment displaying Insight language attribute
-# feature allowing a user to style diagram elements.
-# For detailed documentation please refer to: 
-# https://github.com/lonely-lockley/archinsight/wiki/Insight-language#annotations
-# 
-# This program is free software: you can redistribute it and/or modify 
-# it under the terms of the GNU Affero General Public License as published
-# by the Free Software Foundation, either version 3 of the License, or (at 
-# your option) any later version.
-#
-# You can get the source code, file an issue, or share feedback at project Github:
-# https://github.com/lonely-lockley/archinsight
+# Lifecycle annotations and the legacy Graphviz attribute annotation.
+# New visual conventions should be defined through presentations.
 context annotations
 
 # For Graphviz attributes description please refer to:
@@ -22,7 +12,6 @@ system source
         -> target
             technology = HTTP, REST
             call = method
-            model = EntityDescription
             description = Do something
 
 system target
@@ -32,5 +21,4 @@ system target
         ~> source
             technology = Kafka, JSON
             via = topic
-            model = StateEvent
             description = Notify other systems
