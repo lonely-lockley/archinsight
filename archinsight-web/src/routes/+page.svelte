@@ -47,6 +47,8 @@
   } from '$lib/workspace-completion-snapshot';
   import {
     createFolder,
+    createProject,
+    deleteProject,
     deleteFile,
     deleteFolder,
     fetchFile,
@@ -65,6 +67,7 @@
     routePath,
     saveFile,
     unpublishFromPlayground,
+    updateProject,
     type AppCapability,
     AuthRequiredError,
     type AuthUserResponse,
@@ -81,6 +84,7 @@
   } from '$lib/actions/action-model';
   import {
     clearLocalWorkspaceStorage,
+    clearProjectStorage,
     hasLocalSource,
     readProjectRegistry,
     readLocalSource,
@@ -142,6 +146,14 @@
     error?: string;
   };
 
+  type ProjectDialogState = {
+    mode: 'list' | 'create' | 'rename' | 'delete';
+    name: string;
+    busy: boolean;
+    targetId?: string;
+    error?: string;
+  };
+
   type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query'>;
 
   function readonlyCoreTabId(sourceIdentity: string): string {
@@ -192,6 +204,7 @@
   let repositoryMenu: { node: TreeNode; x: number; y: number } | undefined;
   let fileDialog: FileDialogState | undefined;
   let deleteDialog: DeleteDialogState | undefined;
+  let projectDialog: ProjectDialogState | undefined;
   let currentUser: AuthUserResponse = { authenticated: false };
   let capabilities: AppCapability[] = [];
   let publishedProjectId: string | undefined;
@@ -220,7 +233,9 @@
   $: deleteFileState = actionState('repository.file.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: deleteFolderState = actionState('repository.folder.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: publicationState = controlState('publication.toggle', { surface, capabilities, available: activeProjectId !== undefined, unavailableReason: 'No active project' });
-  $: tabsRightPadding = publicationState.hidden ? 44 : 170;
+  $: tabsRightPadding = surface === 'playground'
+    ? currentUser.authenticated ? 120 : 190
+    : publicationState.hidden ? 44 : 170;
   $: projectPublished = activeProjectId !== undefined && activeProjectId === publishedProjectId;
   $: errorSourceIdentities = diagnosticErrorSources(localDiagnostics, linkerDiagnostics);
   $: workspaceHasErrors = diagnosticsHaveErrors(localDiagnostics) || diagnosticsHaveErrors(linkerDiagnostics);
@@ -257,7 +272,7 @@
         return;
       }
     } else {
-      currentUser = { authenticated: false, roles: [], capabilities: [] };
+      await refreshCurrentUser();
     }
     try {
       await setupMonaco();
@@ -329,15 +344,197 @@
         if (!requireAction('repository.project.create')) {
           return;
         }
-        appendInfoMessage('Project creation UI is not implemented yet');
+        openProjectDialog(true);
         return;
       case 'manage-projects':
         if (!requireAction('repository.project.manage')) {
           return;
         }
-        appendInfoMessage('Project management UI is not implemented yet');
+        openProjectDialog(false);
         return;
     }
+  }
+
+  function openProjectDialog(create = false): void {
+    projectDialog = {
+      mode: create || projectRegistry.projects.length === 0 ? 'create' : 'list',
+      name: '',
+      busy: false
+    };
+  }
+
+  function closeProjectDialog(): void {
+    if (projectDialog?.busy) {
+      return;
+    }
+    projectDialog = undefined;
+  }
+
+  async function confirmCreateProject(): Promise<void> {
+    if (projectDialog === undefined || projectDialog.busy) {
+      return;
+    }
+    const name = projectDialog.name.trim();
+    if (name.length === 0) {
+      projectDialog = { ...projectDialog, error: 'Project name is required' };
+      return;
+    }
+    projectDialog = { ...projectDialog, busy: true, error: undefined };
+    try {
+      const project = await createProject(name);
+      projectRegistry = { projects: [project, ...projectRegistry.projects], activeProjectId: project.id };
+      await switchProject(project.id);
+      projectDialog = undefined;
+    } catch (error) {
+      if (!redirectIfAuthRequired(error)) {
+        if (projectDialog !== undefined) {
+          projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
+        }
+      }
+    }
+  }
+
+  function editProject(projectId: string): void {
+    const project = projectRegistry.projects.find((item) => item.id === projectId);
+    if (projectDialog === undefined || project === undefined) return;
+    projectDialog = { mode: 'rename', name: project.name, targetId: project.id, busy: false };
+  }
+
+  async function confirmRenameProject(): Promise<void> {
+    if (projectDialog === undefined || projectDialog.busy || projectDialog.targetId === undefined) return;
+    const targetId = projectDialog.targetId;
+    const name = projectDialog.name.trim();
+    if (name.length === 0) {
+      projectDialog = { ...projectDialog, error: 'Project name is required' };
+      return;
+    }
+    projectDialog = { ...projectDialog, busy: true, error: undefined };
+    try {
+      const updated = await updateProject(targetId, name);
+      projectRegistry = {
+        ...projectRegistry,
+        projects: projectRegistry.projects.map((item) => item.id === updated.id ? updated : item)
+      };
+      writeProjectRegistry(projectRegistry);
+      if (tree !== undefined && updated.id === activeProjectId) tree = { ...tree, name: updated.name };
+      projectDialog = { mode: 'list', name: '', busy: false };
+    } catch (error) {
+      if (!redirectIfAuthRequired(error) && projectDialog !== undefined) {
+        projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
+      }
+    }
+  }
+
+  function askDeleteProject(projectId: string): void {
+    const project = projectRegistry.projects.find((item) => item.id === projectId);
+    if (projectDialog === undefined || project === undefined) return;
+    projectDialog = { mode: 'delete', name: project.name, targetId: project.id, busy: false };
+  }
+
+  async function confirmDeleteProject(): Promise<void> {
+    if (projectDialog === undefined || projectDialog.busy || projectDialog.targetId === undefined) return;
+    const targetId = projectDialog.targetId;
+    projectDialog = { ...projectDialog, busy: true, error: undefined };
+    try {
+      if (publishedProjectId === targetId) {
+        await unpublishFromPlayground();
+        publishedProjectId = undefined;
+      }
+      await deleteProject(targetId);
+      clearProjectStorage(targetId);
+      const projects = projectRegistry.projects.filter((item) => item.id !== targetId);
+      projectRegistry = { projects, activeProjectId };
+      if (activeProjectId === targetId) {
+        const nextId = projects[0]?.id;
+        if (nextId !== undefined) {
+          await switchProject(nextId);
+        } else {
+          resetWorkspaceState();
+          activeProjectId = undefined;
+          projectRegistry = { projects: [] };
+          writeProjectRegistry(projectRegistry);
+          refreshEditorSymbols();
+        }
+      } else {
+        writeProjectRegistry(projectRegistry);
+      }
+      projectDialog = projects.length === 0
+        ? { mode: 'create', name: '', busy: false }
+        : { mode: 'list', name: '', busy: false };
+    } catch (error) {
+      if (!redirectIfAuthRequired(error) && projectDialog !== undefined) {
+        projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
+      }
+    }
+  }
+
+  async function setProjectPublished(projectId: string, checked: boolean): Promise<void> {
+    if (projectDialog === undefined || projectDialog.busy || !capabilities.includes('publication:manage')) return;
+    projectDialog = { ...projectDialog, busy: true, error: undefined };
+    try {
+      if (checked) {
+        const publication = await publishToPlayground(projectId);
+        publishedProjectId = publication.repositoryId;
+      } else if (publishedProjectId === projectId) {
+        await unpublishFromPlayground();
+        publishedProjectId = undefined;
+      }
+      projectDialog = { ...projectDialog, busy: false };
+    } catch (error) {
+      if (!redirectIfAuthRequired(error) && projectDialog !== undefined) {
+        projectDialog = { ...projectDialog, busy: false, error: errorMessage(error) };
+      }
+    }
+  }
+
+  async function switchProject(nextProjectId: string): Promise<void> {
+    if (nextProjectId === activeProjectId) {
+      projectDialog = undefined;
+      return;
+    }
+    resetWorkspaceState();
+    clearLocalWorkspaceStorage();
+    activeProjectId = nextProjectId;
+    projectRegistry = { ...projectRegistry, activeProjectId: nextProjectId };
+    writeProjectRegistry(projectRegistry);
+    await tick();
+    await loadProject();
+    projectDialog = undefined;
+  }
+
+  function resetWorkspaceState(): void {
+    if (editor !== undefined) {
+      editor.setModel(null);
+    }
+    for (const model of editorModels.values()) {
+      model.dispose();
+    }
+    editorModels.clear();
+    tabs = [];
+    activeTabId = undefined;
+    editorTabId = undefined;
+    tree = undefined;
+    projectSymbols = emptySymbols;
+    projectStructure = undefined;
+    localDiagnostics = {};
+    linkerDiagnostics = {};
+    overlays = {};
+    systemMessages = [];
+  }
+
+  function projectDate(value: string | undefined): string {
+    if (!value) {
+      return '—';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    const locales = typeof navigator === 'undefined' ? undefined : navigator.languages;
+    return new Intl.DateTimeFormat(locales, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    }).format(date);
   }
 
   function controlledEmptyStrategy(actionSurface: WorkspaceSurface, actionCapabilities: readonly AppCapability[]) {
@@ -405,16 +602,18 @@
     appendInfoMessage('Settings UI is not implemented yet');
   }
 
+  function manageProjects(): void {
+    if (requireAction('repository.project.manage')) {
+      openProjectDialog(false);
+    }
+  }
+
   async function logout(): Promise<void> {
     try {
       await logoutCurrentUser();
       clearLocalWorkspaceStorage();
-      if (currentUser.logoutUrl !== undefined && currentUser.logoutUrl !== null && currentUser.logoutUrl.length > 0) {
-        window.location.href = currentUser.logoutUrl;
-        return;
-      }
       currentUser = { authenticated: false };
-      window.location.href = routePath('/login');
+      window.location.href = '/';
     } catch (error) {
       if (redirectIfAuthRequired(error)) {
         return;
@@ -572,7 +771,7 @@
 
   async function loadProjects(): Promise<void> {
     const response = await fetchProjects(surface);
-    const projects = response.projects.map((project) => ({ id: project.id, name: project.name }));
+    const projects = response.projects;
     const stored = readProjectRegistry();
     const preferredActiveProjectId = stored.activeProjectId !== undefined
       && projects.some((project) => project.id === stored.activeProjectId)
@@ -2477,9 +2676,19 @@
         <AuthMenu
           user={currentUser}
           onLogin={login}
+          onManageProjects={manageProjects}
           onSettings={openSettings}
           onLogout={() => void logout()}
         />
+      {:else}
+        <nav class="playground-auth" aria-label="Account">
+          {#if currentUser.authenticated}
+            <a class="go-to-editor" href={routePath('/editor')}>Switch to Editor</a>
+          {:else}
+            <a href={routePath('/login')}>Sign In</a>
+            <a class="sign-up" href={routePath('/login')}>Sign Up</a>
+          {/if}
+        </nav>
       {/if}
     </div>
     <section class="tabs" style={`padding-right: ${tabsRightPadding}px;`}>
@@ -2599,6 +2808,116 @@
         </button>
       {/if}
     {/if}
+  </div>
+{/if}
+
+{#if projectDialog !== undefined}
+  <div class="modal-backdrop" role="presentation" on:click={closeProjectDialog}>
+    <div
+      class="file-dialog project-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Manage Projects"
+      tabindex="-1"
+      on:click|stopPropagation
+      on:keydown={(event) => event.stopPropagation()}
+    >
+      {#if projectDialog.mode === 'list'}
+        <header class="project-dialog-header">
+          <h2>Manage Projects</h2>
+          <button type="button" on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'create', error: undefined }}>New Project</button>
+        </header>
+        <div class="project-list">
+          {#each projectRegistry.projects as project (project.id)}
+            <div class:active={project.id === activeProjectId} class="project-row">
+              <button class="project-select" type="button" disabled={projectDialog.busy} on:click={() => void switchProject(project.id)}>
+                <span class="project-name">{project.name}</span>
+                <span class="project-stat"><strong>Created</strong>{projectDate(project.created)}</span>
+                <span class="project-stat"><strong>Last modified</strong>{projectDate(project.updated)}</span>
+                <span class="project-stat"><strong>Files</strong>{project.fileCount ?? 0}</span>
+                {#if project.id === activeProjectId}<span class="active-project-label">Active</span>{/if}
+              </button>
+              <div class="project-row-actions">
+                {#if capabilities.includes('publication:manage')}
+                  <label title="Make this project publicly available">
+                    <input
+                      type="checkbox"
+                      checked={publishedProjectId === project.id}
+                      disabled={projectDialog.busy}
+                      on:change={(event) => void setProjectPublished(project.id, event.currentTarget.checked)}
+                    />
+                    <span>Public</span>
+                  </label>
+                {/if}
+                <button aria-label={`Rename ${project.name}`} title="Rename project" type="button" disabled={projectDialog.busy} on:click={() => editProject(project.id)}>
+                  <span aria-hidden="true" class="codicon codicon-edit"></span>
+                </button>
+                <button aria-label={`Delete ${project.name}`} title="Delete project" type="button" disabled={projectDialog.busy} on:click={() => askDeleteProject(project.id)}>
+                  <span aria-hidden="true" class="codicon codicon-trash"></span>
+                </button>
+              </div>
+            </div>
+          {/each}
+          {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
+        </div>
+        <footer>
+          <button type="button" on:click={closeProjectDialog}>Close</button>
+        </footer>
+      {:else if projectDialog.mode === 'create'}
+        <form on:submit|preventDefault={() => void confirmCreateProject()}>
+          <header><h2>Create Project</h2></header>
+          <div class="file-dialog-body">
+            <label class="file-name-field">
+              <span>Name</span>
+              <input
+                autocomplete="off"
+                maxlength="100"
+                spellcheck="false"
+                disabled={projectDialog.busy}
+                bind:value={projectDialog.name}
+                on:input={() => projectDialog = projectDialog && { ...projectDialog, error: undefined }}
+              />
+            </label>
+            {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
+          </div>
+          <footer>
+            {#if projectRegistry.projects.length > 0}
+              <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'list', error: undefined }}>Back</button>
+            {:else}
+              <button type="button" disabled={projectDialog.busy} on:click={closeProjectDialog}>Cancel</button>
+            {/if}
+            <button type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Creating…' : 'Create'}</button>
+          </footer>
+        </form>
+      {:else if projectDialog.mode === 'rename'}
+        <form on:submit|preventDefault={() => void confirmRenameProject()}>
+          <header><h2>Rename Project</h2></header>
+          <div class="file-dialog-body">
+            <label class="file-name-field">
+              <span>Name</span>
+              <input autocomplete="off" maxlength="100" spellcheck="false" disabled={projectDialog.busy} bind:value={projectDialog.name} />
+            </label>
+            {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
+          </div>
+          <footer>
+            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', busy: false }}>Back</button>
+            <button type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Saving…' : 'Save'}</button>
+          </footer>
+        </form>
+      {:else}
+        <form on:submit|preventDefault={() => void confirmDeleteProject()}>
+          <header><h2>Delete Project</h2></header>
+          <div class="file-dialog-body confirm-dialog-body">
+            <p>Delete “{projectDialog.name}” and all files inside it? This action cannot be undone.</p>
+            {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
+          </div>
+          <footer>
+            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', busy: false }}>Cancel</button>
+            <button class="danger-button" type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Deleting…' : 'Delete'}</button>
+          </footer>
+        </form>
+      {/if}
+    </div>
   </div>
 {/if}
 
@@ -2754,6 +3073,36 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .playground-auth {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .playground-auth a {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #dddddd;
+    font-size: 12px;
+    text-decoration: none;
+  }
+
+  .playground-auth a:hover,
+  .playground-auth a:focus-visible {
+    background: #343434;
+    color: #ffffff;
+    outline: none;
+  }
+
+  .playground-auth .sign-up,
+  .playground-auth .go-to-editor {
+    border-color: #bdbdbd;
   }
 
   .tabs {
@@ -2913,6 +3262,161 @@
 
   .confirm-dialog {
     width: min(420px, calc(100vw - 32px));
+  }
+
+  .project-dialog {
+    width: min(820px, calc(100vw - 32px));
+  }
+
+  .project-dialog-header {
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .project-dialog-header button,
+  .file-dialog footer button {
+    min-height: 32px;
+    padding: 0 14px;
+    border: 1px solid #505050;
+    border-radius: 4px;
+    background: #333333;
+    color: #eeeeee;
+  }
+
+  .project-list {
+    display: grid;
+    gap: 8px;
+    max-height: min(520px, calc(100vh - 180px));
+    padding: 12px 16px;
+    overflow: auto;
+  }
+
+  .project-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: 68px;
+    border: 1px solid #414141;
+    border-radius: 5px;
+    background: #202020;
+    color: #dddddd;
+    overflow: hidden;
+  }
+
+  .project-row:hover,
+  .project-row:focus-within {
+    border-color: #648744;
+    background: #293025;
+  }
+
+  .project-row.active {
+    border-color: var(--color-primary);
+  }
+
+  .project-select {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(130px, 1fr) 70px;
+    gap: 14px;
+    align-items: center;
+    align-self: stretch;
+    min-width: 0;
+    padding: 10px 14px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+  }
+
+  .project-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+  }
+
+  .project-row-actions label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-right: 4px;
+    color: #cccccc;
+    font-size: 11px;
+  }
+
+  .project-row-actions button {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #c8c8c8;
+  }
+
+  .project-row-actions button:hover {
+    background: #3b3b3b;
+    color: #ffffff;
+  }
+
+  .danger-button {
+    border-color: #8c4848 !important;
+    background: #6d3333 !important;
+  }
+
+  .project-name {
+    overflow: hidden;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .project-stat {
+    display: grid;
+    gap: 4px;
+    color: #bdbdbd;
+    font-size: 12px;
+  }
+
+  .project-stat strong {
+    color: #858585;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .active-project-label {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    color: var(--color-primary);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 680px) {
+    .project-row {
+      grid-template-columns: 1fr;
+    }
+
+    .project-select {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .project-row-actions {
+      justify-content: flex-end;
+      padding: 0 10px 10px;
+    }
+
+    .project-name {
+      grid-column: 1 / -1;
+    }
   }
 
   .file-dialog header {

@@ -5,6 +5,8 @@ import type {
   FileRenameRequest,
   FileSaveRequest,
   FolderCreateRequest,
+  ProjectCreateRequest,
+  ProjectUpdateRequest,
   RepositoryFileSystem
 } from './types';
 import type { EnvSource } from '$lib/server/auth/auth-config';
@@ -57,6 +59,18 @@ class LazyPostgresRepositoryFileSystem implements RepositoryFileSystem {
 
   async projects(ownerId: string) {
     return (await this.fileSystem()).projects(ownerId);
+  }
+
+  async createProject(ownerId: string, request: ProjectCreateRequest | null) {
+    return (await this.fileSystem()).createProject(ownerId, request);
+  }
+
+  async updateProject(ownerId: string, projectId: string, request: ProjectUpdateRequest | null) {
+    return (await this.fileSystem()).updateProject(ownerId, projectId, request);
+  }
+
+  async deleteProject(ownerId: string, projectId: string) {
+    return (await this.fileSystem()).deleteProject(ownerId, projectId);
   }
 
   async tree(ownerId: string, projectId: string) {

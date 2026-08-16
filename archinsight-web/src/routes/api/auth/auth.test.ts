@@ -7,6 +7,8 @@ import { POST as ghostSync } from './ghost/sync/+server';
 import { POST as standaloneToken } from './standalone/token/+server';
 import { GET as oidcLogin } from './oidc/login/[provider]/+server';
 import { GET as oidcCallback } from './oidc/callback/[provider]/+server';
+import { verifyGhostSessionSignature } from '$lib/server/auth/ghost-session';
+import { getAuthConfig } from '$lib/server/auth/auth-config';
 
 const devConfig = {
   ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED: 'true',
@@ -125,6 +127,29 @@ describe('auth API', () => {
       id: '5913933c-2268-41e1-a558-622dc11f675a',
       displayName: 'Development User'
     });
+  });
+
+  it('dev login establishes a signed Ghost session in Ghost mode', async () => {
+    const jar = cookies();
+    const response = await devLogin({
+      cookies: jar,
+      url: new URL('http://localhost/api/auth/dev/login?returnTo=/app/editor'),
+      platform: { env: ghostConfig },
+      fetch: fakeGhostFetch()
+    } as never);
+
+    expect(response.status).toBe(307);
+    expect(jar.setCalls.map((call) => call.name)).toEqual(expect.arrayContaining([
+      'ghost-members-ssr',
+      'ghost-members-ssr.sig',
+      'archinsight-session'
+    ]));
+
+    expect(verifyGhostSessionSignature(
+      jar.get('ghost-members-ssr'),
+      jar.get('ghost-members-ssr.sig'),
+      getAuthConfig(ghostConfig).ghost
+    )).toBe(true);
   });
 
   it('logout clears standalone session cookie', async () => {

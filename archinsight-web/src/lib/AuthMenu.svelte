@@ -4,6 +4,7 @@
 
   export let user: AuthUserResponse = { authenticated: false };
   export let onLogin: () => void;
+  export let onManageProjects: () => void;
   export let onSettings: () => void;
   export let onLogout: () => void;
 
@@ -47,6 +48,11 @@
     onSettings();
   }
 
+  function selectManageProjects(): void {
+    close();
+    onManageProjects();
+  }
+
   function selectLogout(): void {
     close();
     onLogout();
@@ -71,6 +77,10 @@
     {#if open}
       <div class="auth-dropdown" role="menu">
         <div class="auth-user-name" aria-label="Signed in as">{displayUserName()}</div>
+        <button type="button" role="menuitem" on:click={selectManageProjects}>
+          <span aria-hidden="true" class="codicon codicon-folder-library"></span>
+          <span>Manage Projects</span>
+        </button>
         <button type="button" role="menuitem" on:click={selectSettings}>
           <span aria-hidden="true" class="codicon codicon-settings-gear"></span>
           <span>Settings</span>

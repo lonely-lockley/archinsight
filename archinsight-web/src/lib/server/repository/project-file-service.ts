@@ -11,6 +11,8 @@ import type {
   FileRenameRequest,
   FileSaveRequest,
   FolderCreateRequest,
+  ProjectCreateRequest,
+  ProjectUpdateRequest,
   ProjectListResponse
 } from './types';
 
@@ -18,6 +20,21 @@ export async function projects(cookies: Cookies, env: EnvSource | undefined): Pr
   requireRuntimeProfile(env, 'editor');
   const userId = await requireUserId(cookies, env, 'repository:read-own');
   return { projects: await repositoryFileSystem(env).projects(userId) };
+}
+
+export async function createProject(cookies: Cookies, env: EnvSource | undefined, request: ProjectCreateRequest | null) {
+  requireRuntimeProfile(env, 'editor');
+  return repositoryFileSystem(env).createProject(await requireUserId(cookies, env, 'repository:write-own'), request);
+}
+
+export async function updateProject(cookies: Cookies, env: EnvSource | undefined, projectId: string, request: ProjectUpdateRequest | null) {
+  requireRuntimeProfile(env, 'editor');
+  return repositoryFileSystem(env).updateProject(await requireUserId(cookies, env, 'repository:write-own'), projectId, request);
+}
+
+export async function deleteProject(cookies: Cookies, env: EnvSource | undefined, projectId: string): Promise<void> {
+  requireRuntimeProfile(env, 'editor');
+  return repositoryFileSystem(env).deleteProject(await requireUserId(cookies, env, 'repository:write-own'), projectId);
 }
 
 export async function tree(cookies: Cookies, env: EnvSource | undefined, projectId: string) {

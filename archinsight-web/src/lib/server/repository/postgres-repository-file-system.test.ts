@@ -12,7 +12,9 @@ describe('PostgresRepositoryFileSystem', () => {
     const database = new FakeRepositoryDatabase();
     const fs = new PostgresRepositoryFileSystem(database);
 
-    await expect(fs.projects(ownerId)).resolves.toEqual([{ id: repositoryId, name: 'Project 1' }]);
+    await expect(fs.projects(ownerId)).resolves.toEqual([
+      expect.objectContaining({ id: repositoryId, name: 'Project 1', fileCount: 1 })
+    ]);
     expect((await fs.tree(ownerId, repositoryId)).root.children[0]).toMatchObject({
       name: 'archinsight.ai',
       path: 'archinsight.ai',
@@ -49,6 +51,21 @@ describe('PostgresRepositoryFileSystem', () => {
     expect([...database.files.values()].map((file) => file.file_name)).toEqual(['archinsight.ai']);
     await expect(fs.read(ownerId, repositoryId, 'docs/a')).rejects.toThrow('Repository file not found');
   });
+
+  it('renames and deletes a project within its owner scope', async () => {
+    const database = new FakeRepositoryDatabase();
+    const fs = new PostgresRepositoryFileSystem(database);
+
+    await expect(fs.updateProject(ownerId, repositoryId, { name: 'Renamed' })).resolves.toMatchObject({
+      id: repositoryId,
+      name: 'Renamed',
+      fileCount: 1
+    });
+    await expect(fs.deleteProject('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', repositoryId)).rejects.toThrow('Repository not found');
+    await fs.deleteProject(ownerId, repositoryId);
+    expect(database.repositories.size).toBe(0);
+    expect(database.files.size).toBe(0);
+  });
 });
 
 type RepositoryRecord = {
@@ -56,6 +73,8 @@ type RepositoryRecord = {
   owner_id: string;
   name: string;
   structure: RepositoryNode | null;
+  created: string;
+  updated: string;
 };
 
 type FileRecord = {
@@ -79,6 +98,8 @@ class FakeRepositoryDatabase implements TransactionalDatabase {
       id: repositoryId,
       owner_id: ownerId,
       name: 'Project 1',
+      created: '2026-01-01T00:00:00.000Z',
+      updated: '2026-01-02T00:00:00.000Z',
       structure: {
         id: repositoryId,
         parentId: null,
@@ -116,14 +137,23 @@ class FakeRepositoryDatabase implements TransactionalDatabase {
     params: unknown[] = []
   ): Promise<QueryResult<T>> {
     const statement = normalizeSql(sql);
-    if (statement.startsWith('select id, name from public.repository')) {
-      return asResult(rows([...this.repositories.values()].filter((repo) => repo.owner_id === params[0])));
+    if (statement.startsWith('select r.id, r.name, r.created')) {
+      return asResult(rows([...this.repositories.values()]
+        .filter((repo) => repo.owner_id === params[0])
+        .map((repo) => ({ ...repo, file_count: [...this.files.values()].filter((file) => file.repository_id === repo.id).length }))));
     }
-    if (statement.includes('from public.repository') && statement.includes('and id = $2')) {
+    if (statement.startsWith('select id from public.repository') && statement.includes('lower(name)')) {
+      return asResult(rows([...this.repositories.values()].filter((repo) =>
+        repo.owner_id === params[0]
+        && repo.name.toLowerCase() === String(params[1]).toLowerCase()
+        && (params[2] === undefined || repo.id !== params[2])
+      )));
+    }
+    if (statement.startsWith('select') && statement.includes('from public.repository') && statement.includes('and id = $2')) {
       const repo = this.repositories.get(String(params[1]));
       return asResult(rows(repo && repo.owner_id === params[0] ? [repo] : []));
     }
-    if (statement.includes('from public.repository') && statement.includes('and name = $2')) {
+    if (statement.startsWith('select') && statement.includes('from public.repository') && statement.includes('and name = $2')) {
       return asResult(
         rows([...this.repositories.values()].filter((repo) => repo.owner_id === params[0] && repo.name === params[1]))
       );
@@ -154,6 +184,18 @@ class FakeRepositoryDatabase implements TransactionalDatabase {
       });
       return asResult(changed());
     }
+    if (statement.startsWith('update public.repository set name')) {
+      const repo = this.repositories.get(String(params[1]));
+      if (!repo || repo.owner_id !== params[0]) return { rows: [], rowCount: 0 };
+      repo.name = String(params[2]);
+      repo.updated = this.nextRevision();
+      return asResult(rows([repo]));
+    }
+    if (statement.startsWith('select count(*)::integer as file_count')) {
+      return asResult(rows([{ file_count: [...this.files.values()].filter((file) =>
+        file.owner_id === params[0] && file.repository_id === params[1]
+      ).length }]));
+    }
     if (statement.startsWith('update public.file set content')) {
       const file = this.requireFile(String(params[2]));
       file.content = String(params[3] ?? '');
@@ -178,6 +220,13 @@ class FakeRepositoryDatabase implements TransactionalDatabase {
       }
       return { rows: [], rowCount };
     }
+    if (statement.startsWith('delete from public.file') && statement.includes('repository_id = $2')) {
+      let rowCount = 0;
+      for (const [id, file] of this.files) {
+        if (file.owner_id === params[0] && file.repository_id === params[1] && this.files.delete(id)) rowCount += 1;
+      }
+      return { rows: [], rowCount };
+    }
     if (statement.startsWith('delete from public.file')) {
       return { rows: [], rowCount: this.files.delete(String(params[2])) ? 1 : 0 };
     }
@@ -187,6 +236,12 @@ class FakeRepositoryDatabase implements TransactionalDatabase {
         return { rows: [], rowCount: 0 };
       }
       repo.structure = JSON.parse(String(params[2])) as RepositoryNode;
+      return asResult(changed());
+    }
+    if (statement.startsWith('delete from public.repository')) {
+      const repo = this.repositories.get(String(params[1]));
+      if (!repo || repo.owner_id !== params[0]) return { rows: [], rowCount: 0 };
+      this.repositories.delete(repo.id);
       return asResult(changed());
     }
     throw new Error(`Unexpected SQL in fake database: ${statement}`);

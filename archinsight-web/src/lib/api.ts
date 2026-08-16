@@ -63,6 +63,9 @@ export type ProjectSymbols = LanguageSnapshot;
 export type ProjectSummaryResponse = {
   id: string;
   name: string;
+  created: string;
+  updated: string;
+  fileCount: number;
 };
 
 export type ProjectListResponse = {
@@ -144,6 +147,23 @@ export function routePath(path: string): string {
 
 export async function fetchProjects(surface: WorkspaceSurface = 'editor'): Promise<ProjectListResponse> {
   return getJson(surface === 'playground' ? '/api/playground' : '/api/projects');
+}
+
+export async function createProject(name: string): Promise<ProjectSummaryResponse> {
+  return postJson('/api/projects', { name });
+}
+
+export async function updateProject(projectId: string, name: string): Promise<ProjectSummaryResponse> {
+  return requestJson('PATCH', `/api/projects/${encodeURIComponent(projectId)}`, { name });
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/api/projects/${encodeURIComponent(projectId)}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+  if (response.status === 401) throw new AuthRequiredError();
+  if (!response.ok) throw new Error(await responseErrorMessage(response));
 }
 
 export async function fetchTree(projectId: string, surface: WorkspaceSurface = 'editor'): Promise<FileTreeResponse> {
@@ -294,7 +314,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson('POST', path, body);
 }
 
-async function requestJson<T>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {
+async function requestJson<T>(method: 'POST' | 'PUT' | 'PATCH', path: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers: { 'content-type': 'application/json' },

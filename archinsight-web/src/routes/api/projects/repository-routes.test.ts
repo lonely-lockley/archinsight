@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { GET as projects } from './+server';
+import { GET as projects, POST as createProject } from './+server';
+import { DELETE as deleteProject, PATCH as updateProject } from './[projectId]/+server';
 import { GET as tree } from './[projectId]/files/+server';
 import { GET as read, PUT as save } from './[projectId]/files/content/+server';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
@@ -38,9 +39,59 @@ describe('repository API routes', () => {
     const response = await projects(event());
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      projects: [{ id: 'project-1', name: 'Project 1' }]
+    await expect(response.json()).resolves.toMatchObject({
+      projects: [{ id: 'project-1', name: 'Project 1', fileCount: 1 }]
     });
+  });
+
+  it('requires authentication for project creation', async () => {
+    const response = await createProject({
+      cookies: cookies(),
+      request: { json: async () => ({ name: 'Private project' }) },
+      platform: { env }
+    } as never);
+    expect(response.status).toBe(401);
+  });
+
+  it('creates a project only for the authenticated owner', async () => {
+    const response = await createProject(event('/api/projects', 'project-1', { name: 'New project' }));
+    expect(response.status).toBe(200);
+    const created = await response.json();
+    expect(created).toMatchObject({ name: 'New project', fileCount: 0 });
+    await expect((await projects(event())).json()).resolves.toMatchObject({
+      projects: expect.arrayContaining([expect.objectContaining({ id: created.id, name: 'New project' })])
+    });
+  });
+
+  it('does not allow an authenticated user to read another owner project', async () => {
+    const response = await tree(event(
+      '/api/projects/project-1/files',
+      'project-1',
+      undefined,
+      {},
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    ));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Repository not found: project-1' });
+  });
+
+  it('renames and deletes only an owned project', async () => {
+    const renamed = await updateProject(event('/api/projects/project-1', 'project-1', { name: 'Renamed project' }));
+    expect(renamed.status).toBe(200);
+    await expect(renamed.json()).resolves.toMatchObject({ id: 'project-1', name: 'Renamed project' });
+
+    const foreign = await deleteProject(event(
+      '/api/projects/project-1',
+      'project-1',
+      undefined,
+      {},
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    ));
+    expect(foreign.status).toBe(400);
+
+    const deleted = await deleteProject(event('/api/projects/project-1', 'project-1'));
+    expect(deleted.status).toBe(200);
+    await expect((await projects(event())).json()).resolves.toMatchObject({ projects: [] });
   });
 
   it('reads, saves, and returns tree data through route handlers', async () => {
@@ -74,12 +125,12 @@ describe('repository API routes', () => {
   });
 });
 
-function event(url = '/api/projects', projectId = 'project-1', body?: unknown, envOverride: Record<string, string> = {}) {
+function event(url = '/api/projects', projectId = 'project-1', body?: unknown, envOverride: Record<string, string> = {}, authenticatedOwnerId = ownerId) {
   return {
     cookies: cookies({
       'archinsight-session': issueStandaloneToken(
         {
-          id: ownerId,
+          id: authenticatedOwnerId,
           displayName: 'Owner',
           tokenVersion: 1
         },

@@ -29,8 +29,8 @@ describe('playground API', () => {
   it('returns only the selected published project without authentication', async () => {
     await publications.publish('default', ownerId, 'published-project', ownerId);
 
-    await expect((await playground(event('/api/playground'))).json()).resolves.toEqual({
-      projects: [{ id: 'published-project', name: 'Published project' }]
+    await expect((await playground(event('/api/playground'))).json()).resolves.toMatchObject({
+      projects: [{ id: 'published-project', name: 'Published project', fileCount: 1 }]
     });
     await expect((await tree(event('/api/playground/files'))).json()).resolves.toMatchObject({
       root: { children: [{ name: 'main.ai', path: 'main.ai', type: 'file' }] }

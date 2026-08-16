@@ -7,7 +7,9 @@ describe('InMemoryRepositoryFileSystem', () => {
   it('normalizes file names and exposes a repository tree', async () => {
     const fs = repository();
 
-    await expect(fs.projects(ownerId)).resolves.toEqual([{ id: 'project-1', name: 'Project 1' }]);
+    await expect(fs.projects(ownerId)).resolves.toEqual([
+      expect.objectContaining({ id: 'project-1', name: 'Project 1', fileCount: 1 })
+    ]);
     expect((await fs.read(ownerId, 'project-1', 'src/main')).path).toBe('src/main.ai');
     expect((await fs.tree(ownerId, 'project-1')).root.children[0]).toMatchObject({
       name: 'src',

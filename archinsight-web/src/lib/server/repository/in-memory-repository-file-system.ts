@@ -23,6 +23,8 @@ import type {
   FileTreeNode,
   FileTreeResponse,
   FolderCreateRequest,
+  ProjectCreateRequest,
+  ProjectUpdateRequest,
   ProjectSummaryResponse,
   RepositoryFileSystem,
   RepositoryNode,
@@ -41,6 +43,8 @@ type RepositoryProject = {
   name: string;
   root: RepositoryNode;
   files: Map<string, RepositoryFileRecord>;
+  created: string;
+  updated: string;
 };
 
 export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
@@ -60,7 +64,45 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
   }
 
   async projects(ownerId: string): Promise<ProjectSummaryResponse[]> {
-    return this.ownerProjects(ownerId).map((project) => ({ id: project.id, name: project.name }));
+    return this.ownerProjects(ownerId).map(projectSummary);
+  }
+
+  async createProject(ownerId: string, request: ProjectCreateRequest | null): Promise<ProjectSummaryResponse> {
+    const name = request?.name?.trim() ?? '';
+    if (name.length === 0) {
+      throw new Error('Project name is required');
+    }
+    if (name.length > 100) {
+      throw new Error('Project name is longer than 100 characters');
+    }
+    const projects = this.ownerProjects(ownerId);
+    if (projects.some((project) => project.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      throw new Error(`Project already exists: ${name}`);
+    }
+    const now = new Date().toISOString();
+    const project: RepositoryProject = {
+      id: crypto.randomUUID(), ownerId, name, root: rootNode(), files: new Map(), created: now, updated: now
+    };
+    this.projectsByOwner.set(ownerId, [...projects, project]);
+    return projectSummary(project);
+  }
+
+  async updateProject(ownerId: string, projectId: string, request: ProjectUpdateRequest | null): Promise<ProjectSummaryResponse> {
+    const project = this.requireProject(ownerId, projectId);
+    const name = request?.name?.trim() ?? '';
+    if (name.length === 0) throw new Error('Project name is required');
+    if (name.length > 100) throw new Error('Project name is longer than 100 characters');
+    if (this.ownerProjects(ownerId).some((item) => item.id !== project.id && item.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      throw new Error(`Project already exists: ${name}`);
+    }
+    project.name = name;
+    project.updated = new Date().toISOString();
+    return projectSummary(project);
+  }
+
+  async deleteProject(ownerId: string, projectId: string): Promise<void> {
+    const project = this.requireProject(ownerId, projectId);
+    this.projectsByOwner.set(ownerId, this.ownerProjects(ownerId).filter((item) => item.id !== project.id));
   }
 
   async tree(ownerId: string, projectId: string): Promise<FileTreeResponse> {
@@ -215,7 +257,9 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
       ownerId,
       name: seed.name,
       root,
-      files
+      files,
+      created: new Date().toISOString(),
+      updated: new Date().toISOString()
     };
     for (const [path, content] of Object.entries(seed.files ?? {})) {
       const filePath = normalizeFileName(path);
@@ -242,6 +286,16 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
     return project;
   }
 
+}
+
+function projectSummary(project: RepositoryProject): ProjectSummaryResponse {
+  return {
+    id: project.id,
+    name: project.name,
+    created: project.created,
+    updated: project.updated,
+    fileCount: project.files.size
+  };
 }
 
 function revision(fileId: string, value: number): string {

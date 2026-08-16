@@ -3,6 +3,7 @@ import { getAuthConfig, postLoginRedirect } from '$lib/server/auth/auth-config';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { eventEnv } from '$lib/server/auth/svelte-event';
 import { upsertUserdataProfile } from '$lib/server/auth/userdata-store';
+import { synchronizeGhostUser } from '$lib/server/auth/ghost-service';
 
 export const GET = async (event) => {
   const env = eventEnv(event);
@@ -11,15 +12,15 @@ export const GET = async (event) => {
     error(404, { message: 'Dev login is disabled' });
   }
 
-  const user = await upsertUserdataProfile(
-    {
-      id: config.devUserId,
-      email: config.devUserEmail,
-      displayName: config.devUserDisplayName,
-      source: 'local-dev'
-    },
-    env
-  );
+  const profile = {
+    id: config.devUserId,
+    email: config.devUserEmail,
+    displayName: config.devUserDisplayName,
+    source: 'local-dev'
+  };
+  const user = config.ghost.enabled
+    ? (await synchronizeGhostUser(profile, event.cookies, env, event.fetch)).user
+    : await upsertUserdataProfile(profile, env);
   const token = issueStandaloneToken(
     user,
     config.token

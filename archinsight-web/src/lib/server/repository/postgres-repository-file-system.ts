@@ -19,6 +19,7 @@ import {
   rootNode,
   toFileTreeDto
 } from './repository-tree';
+import { randomUUID } from 'node:crypto';
 import type { Queryable, TransactionalDatabase } from '$lib/server/database/types';
 import type {
   FileContentResponse,
@@ -27,6 +28,8 @@ import type {
   FileSaveRequest,
   FileTreeResponse,
   FolderCreateRequest,
+  ProjectCreateRequest,
+  ProjectUpdateRequest,
   ProjectSummaryResponse,
   RepositoryFileSystem,
   RepositoryNode
@@ -37,6 +40,9 @@ type RepositoryRow = {
   owner_id: string;
   name: string | null;
   structure: string | RepositoryNode | null;
+  created?: Date | string | null;
+  updated?: Date | string | null;
+  file_count?: number | string | null;
 };
 
 type RepositoryFileRow = {
@@ -54,16 +60,75 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   constructor(private readonly database: TransactionalDatabase) {}
 
   async projects(ownerId: string): Promise<ProjectSummaryResponse[]> {
-    const result = await this.database.query<Pick<RepositoryRow, 'id' | 'name'>>(
+    const result = await this.database.query<RepositoryRow>(
       `
-        select id, name
-        from public.repository
-        where owner_id = $1
-        order by updated desc, name
+        select r.id, r.name, r.created,
+               greatest(r.updated, coalesce(max(f.updated), r.updated)) as updated,
+               count(f.id)::integer as file_count
+        from public.repository r
+        left join public.file f on f.repository_id = r.id and f.owner_id = r.owner_id
+        where r.owner_id = $1
+        group by r.id
+        order by greatest(r.updated, coalesce(max(f.updated), r.updated)) desc, r.name
       `,
       [ownerId]
     );
-    return result.rows.map((row) => ({ id: row.id, name: projectName(row) }));
+    return result.rows.map(projectSummary);
+  }
+
+  async createProject(ownerId: string, request: ProjectCreateRequest | null): Promise<ProjectSummaryResponse> {
+    const name = projectNameInput(request?.name);
+    return this.database.transaction(async (client) => {
+      const duplicate = await client.query('select id from public.repository where owner_id = $1 and lower(name) = lower($2)', [ownerId, name]);
+      if (duplicate.rows.length > 0) {
+        throw new Error(`Project already exists: ${name}`);
+      }
+      const id = randomUUID();
+      const structure = rootNode();
+      const result = await client.query<RepositoryRow>(
+        `insert into public.repository (id, owner_id, name, structure)
+         values ($1, $2, $3, $4::json)
+         returning id, name, created, updated`,
+        [id, ownerId, name, JSON.stringify(structure)]
+      );
+      return projectSummary({ ...result.rows[0], file_count: 0 });
+    });
+  }
+
+  async updateProject(ownerId: string, projectId: string, request: ProjectUpdateRequest | null): Promise<ProjectSummaryResponse> {
+    const name = projectNameInput(request?.name);
+    return this.database.transaction(async (client) => {
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
+      const duplicate = await client.query(
+        'select id from public.repository where owner_id = $1 and lower(name) = lower($2) and id <> $3',
+        [ownerId, name, repository.id]
+      );
+      if (duplicate.rows.length > 0) {
+        throw new Error(`Project already exists: ${name}`);
+      }
+      const result = await client.query<RepositoryRow>(
+        `update public.repository
+         set name = $3, updated = now()
+         where owner_id = $1 and id = $2
+         returning id, name, created, updated`,
+        [ownerId, repository.id, name]
+      );
+      requireChanged(result.rowCount, `Project was not updated: ${projectId}`);
+      const fileCount = await client.query<{ file_count: number | string }>(
+        'select count(*)::integer as file_count from public.file where owner_id = $1 and repository_id = $2',
+        [ownerId, repository.id]
+      );
+      return projectSummary({ ...result.rows[0], file_count: fileCount.rows[0]?.file_count ?? 0 });
+    });
+  }
+
+  async deleteProject(ownerId: string, projectId: string): Promise<void> {
+    return this.database.transaction(async (client) => {
+      const repository = await this.requireRepository(client, ownerId, projectId, true);
+      await client.query('delete from public.file where owner_id = $1 and repository_id = $2', [ownerId, repository.id]);
+      const deleted = await client.query('delete from public.repository where owner_id = $1 and id = $2', [ownerId, repository.id]);
+      requireChanged(deleted.rowCount, `Project was not deleted: ${projectId}`);
+    });
   }
 
   async tree(ownerId: string, projectId: string): Promise<FileTreeResponse> {
@@ -412,6 +477,31 @@ function readStructure(value: string | RepositoryNode): RepositoryNode {
 
 function projectName(repository: Pick<RepositoryRow, 'id' | 'name'>): string {
   return repository.name?.trim() || repository.id;
+}
+
+function projectSummary(repository: RepositoryRow): ProjectSummaryResponse {
+  return {
+    id: repository.id,
+    name: projectName(repository),
+    created: timestamp(repository.created),
+    updated: timestamp(repository.updated),
+    fileCount: Number(repository.file_count ?? 0)
+  };
+}
+
+function projectNameInput(value: string | null | undefined): string {
+  const name = value?.trim() ?? '';
+  if (name.length === 0) {
+    throw new Error('Project name is required');
+  }
+  if (name.length > 100) {
+    throw new Error('Project name is longer than 100 characters');
+  }
+  return name;
+}
+
+function timestamp(value: Date | string | null | undefined): string {
+  return value instanceof Date ? value.toISOString() : String(value ?? '');
 }
 
 function nullableText(value: string | null | undefined, maxLength: number, fieldName: string): string | null {

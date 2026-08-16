@@ -1,7 +1,13 @@
 export type ProjectSummaryResponse = {
   id: string;
   name: string;
+  created: string;
+  updated: string;
+  fileCount: number;
 };
+
+export type ProjectCreateRequest = { name?: string | null };
+export type ProjectUpdateRequest = { name?: string | null };
 
 export type ProjectListResponse = {
   projects: ProjectSummaryResponse[];
@@ -62,6 +68,9 @@ export type RepositoryProjectSeed = {
 
 export interface RepositoryFileSystem {
   projects(ownerId: string): Promise<ProjectSummaryResponse[]>;
+  createProject(ownerId: string, request: ProjectCreateRequest | null): Promise<ProjectSummaryResponse>;
+  updateProject(ownerId: string, projectId: string, request: ProjectUpdateRequest | null): Promise<ProjectSummaryResponse>;
+  deleteProject(ownerId: string, projectId: string): Promise<void>;
   tree(ownerId: string, projectId: string): Promise<FileTreeResponse>;
   read(ownerId: string, projectId: string, path: string): Promise<FileContentResponse>;
   save(

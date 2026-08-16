@@ -12,6 +12,9 @@ export type ProjectRegistryState = {
 export type ProjectSummary = {
   id: string;
   name: string;
+  created?: string;
+  updated?: string;
+  fileCount?: number;
 };
 
 export type WorkspaceTabState = {
@@ -111,6 +114,13 @@ export function clearLocalWorkspaceStorage(): void {
   for (const key of keys) {
     localStorage.removeItem(key);
   }
+}
+
+export function clearProjectStorage(projectId: string): void {
+  const prefix = `insight:${projectId}:`;
+  const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+    .filter((key): key is string => key !== null && key.startsWith(prefix));
+  for (const key of keys) localStorage.removeItem(key);
 }
 
 export function hasLocalSource(projectId: string, path: string): boolean {
