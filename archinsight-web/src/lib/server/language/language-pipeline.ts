@@ -5,14 +5,15 @@ import {
   type LanguageDiagnostic,
   type LinkedElement,
   type LinkedImport,
-  type LinkProjectResult,
-  type ProjectSource
+  type LinkProjectResult
 } from '@insight/language';
 import type { Cookies } from '@sveltejs/kit';
 import type { EnvSource } from '$lib/server/auth/auth-config';
-import { sourcesForProjectWithOverlays, sourcesWithOverlays } from '$lib/server/repository/project-file-service';
+import { requireUserId, sourcesForProjectWithOverlays } from '$lib/server/repository/project-file-service';
 import { requestLimits, validateOverlays, validateQuery } from '$lib/server/security/request-limits';
-import { normalizeSourceIdentity } from '$lib/server/repository/path';
+import { requireRuntimeProfile } from '$lib/server/config/runtime-profile';
+import { incrementAnalysisMetric, observeAnalysis } from './analysis-observability';
+import { ProjectAnalysisCache, projectAnalysisCache, type ProjectAnalysis } from './project-analysis-cache';
 import type {
   DiagnosticDto,
   LinkRequest,
@@ -25,22 +26,19 @@ import type {
 const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 
 export async function symbols(cookies: Cookies, env: EnvSource | undefined, projectId: string) {
-  const sources = await projectSources(cookies, env, projectId, {});
-  return symbolsFromSources(sources);
+  requireRuntimeProfile(env, 'editor');
+  const ownerId = await requireUserId(cookies, env);
+  return symbolsForProject(env, ownerId, projectId);
 }
 
 export async function symbolsForProject(env: EnvSource | undefined, ownerId: string, projectId: string) {
-  const sources = await referencedProjectSources(env, ownerId, projectId, {});
-  return symbolsFromSources(sources);
+  const analysis = await analyzeStoredProject(env, ownerId, projectId, {});
+  return analysis.snapshotBuild.snapshot;
 }
 
-export function symbolsForSources(sources: ReadonlyMap<string, string>) {
-  return symbolsFromSources(projectSourceList(sources));
-}
-
-function symbolsFromSources(sources: ProjectSource[]) {
-  const projectSnapshot = buildProjectSnapshot(sources).snapshot;
-  return projectSnapshot;
+export async function symbolsForSources(sources: ReadonlyMap<string, string>) {
+  const analysis = await transientAnalysis(sources, {}, undefined);
+  return analysis.snapshotBuild.snapshot;
 }
 
 export async function structure(
@@ -49,9 +47,10 @@ export async function structure(
   projectId: string,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
+  requireRuntimeProfile(env, 'editor');
   validateRequest(request, env);
-  const sources = await projectSources(cookies, env, projectId, request?.overlays ?? {});
-  return structureFromSources(sources);
+  const ownerId = await requireUserId(cookies, env);
+  return structureForProject(env, ownerId, projectId, request);
 }
 
 export async function structureForProject(
@@ -61,25 +60,18 @@ export async function structureForProject(
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
   validateRequest(request, env);
-  return structureFromSources(await referencedProjectSources(env, ownerId, projectId, request?.overlays ?? {}));
+  const analysis = await analyzeStoredProject(env, ownerId, projectId, request?.overlays ?? {});
+  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
 }
 
-export function structureForSources(
+export async function structureForSources(
   env: EnvSource | undefined,
   sources: ReadonlyMap<string, string>,
   request: ProjectStructureRequest | null
-): ProjectStructureResponse {
+): Promise<ProjectStructureResponse> {
   validateRequest(request, env);
-  return structureFromSources(projectSourceList(withOverlays(sources, request?.overlays)));
-}
-
-function structureFromSources(sources: ProjectSource[]): ProjectStructureResponse {
-  const projectSnapshot = buildProjectSnapshot(sources);
-  const result = service.link({
-    sources,
-    snapshot: projectSnapshot.snapshot
-  });
-  return projectStructure(withSnapshotDiagnostics(result, projectSnapshot));
+  const analysis = await transientAnalysis(sources, request?.overlays ?? {}, env);
+  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
 }
 
 export async function link(
@@ -88,9 +80,10 @@ export async function link(
   projectId: string,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
+  requireRuntimeProfile(env, 'editor');
   validateRequest(request, env);
-  const sources = await projectSources(cookies, env, projectId, request?.overlays ?? {});
-  return linkFromSources(sources, request);
+  const ownerId = await requireUserId(cookies, env);
+  return linkForProject(env, ownerId, projectId, request);
 }
 
 export async function linkForProject(
@@ -100,23 +93,53 @@ export async function linkForProject(
   request: LinkRequest | null
 ): Promise<LinkResponse> {
   validateRequest(request, env);
-  return linkFromSources(await referencedProjectSources(env, ownerId, projectId, request?.overlays ?? {}), request);
+  const analysis = await analyzeStoredProject(env, ownerId, projectId, request?.overlays ?? {});
+  return linkFromAnalysis(analysis, request, env);
 }
 
-export function linkForSources(
+export async function linkForSources(
   env: EnvSource | undefined,
   sources: ReadonlyMap<string, string>,
   request: LinkRequest | null
-): LinkResponse {
+): Promise<LinkResponse> {
   validateRequest(request, env);
-  return linkFromSources(projectSourceList(withOverlays(sources, request?.overlays)), request);
+  return linkFromAnalysis(await transientAnalysis(sources, request?.overlays ?? {}, env), request, env);
 }
 
-function linkFromSources(sources: ProjectSource[], request: LinkRequest | null): LinkResponse {
-  const projectSnapshot = buildProjectSnapshot(sources);
-  const result = service.link({ sources, snapshot: projectSnapshot.snapshot });
-  const resultWithSnapshotDiagnostics = withSnapshotDiagnostics(result, projectSnapshot);
+export async function linkForStoredSources(
+  env: EnvSource | undefined,
+  cacheKey: string,
+  sources: ReadonlyMap<string, string>,
+  request: LinkRequest | null
+): Promise<LinkResponse> {
+  validateRequest(request, env);
+  const analysis = await projectAnalysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, env);
+  return linkFromAnalysis(analysis, request, env);
+}
+
+export async function structureForStoredSources(
+  env: EnvSource | undefined,
+  cacheKey: string,
+  sources: ReadonlyMap<string, string>,
+  request: ProjectStructureRequest | null
+): Promise<ProjectStructureResponse> {
+  validateRequest(request, env);
+  const analysis = await projectAnalysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, env);
+  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
+}
+
+export async function symbolsForStoredSources(
+  env: EnvSource | undefined,
+  cacheKey: string,
+  sources: ReadonlyMap<string, string>
+) {
+  return (await projectAnalysisCache.analyze(cacheKey, sources, {}, env)).snapshotBuild.snapshot;
+}
+
+function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null, env: EnvSource | undefined): LinkResponse {
+  const resultWithSnapshotDiagnostics = withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild);
   const diagnostics = resultWithSnapshotDiagnostics.diagnostics.map(diagnostic);
+  const renderStarted = performance.now();
   const renders = renderPaths(request, resultWithSnapshotDiagnostics).flatMap((sourceIdentity) => {
     const context = resultWithSnapshotDiagnostics.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
     try {
@@ -137,19 +160,31 @@ function linkFromSources(sources: ProjectSource[], request: LinkRequest | null):
       return [];
     }
   });
+  incrementAnalysisMetric('queryDotGenerations', renders.length);
+  observeAnalysis(env, 'language.query-render', {
+    analysisMode: analysis.mode,
+    renderCount: renders.length,
+    durationMs: Math.round((performance.now() - renderStarted) * 100) / 100
+  });
 
   return {
+    revision: analysis.revision,
+    analysis: {
+      mode: analysis.mode,
+      relinkedSources: analysis.relinkedSources
+    },
+    symbols: analysis.snapshotBuild.snapshot,
+    linkedModel: {
+      ...resultWithSnapshotDiagnostics,
+      graph: {
+        nodes: resultWithSnapshotDiagnostics.graph.nodes(),
+        relations: resultWithSnapshotDiagnostics.graph.relations()
+      }
+    },
     diagnostics,
     renders,
     structure: projectStructure(resultWithSnapshotDiagnostics)
   };
-}
-
-function buildProjectSnapshot(sources: readonly ProjectSource[]): LanguageBuildResult {
-  return service.buildSnapshot(
-    sources.map((source) => ({ sourceName: source.sourceName, source: source.source })),
-    [coreLanguageSnapshot]
-  );
 }
 
 function withSnapshotDiagnostics(result: LinkProjectResult, projectSnapshot: LanguageBuildResult): LinkProjectResult {
@@ -164,48 +199,28 @@ function validateRequest(request: LinkRequest | ProjectStructureRequest | null, 
   validateOverlays(request?.overlays, requestLimits(env));
 }
 
-async function projectSources(
-  cookies: Cookies,
-  env: EnvSource | undefined,
-  projectId: string,
-  overlays: Record<string, string> | null | undefined
-): Promise<ProjectSource[]> {
-  return [...(await sourcesWithOverlays(cookies, env, projectId, overlays)).entries()].map(([sourceName, source]) => ({
-    sourceName,
-    source
-  }));
-}
-
-async function referencedProjectSources(
+async function analyzeStoredProject(
   env: EnvSource | undefined,
   ownerId: string,
   projectId: string,
-  overlays: Record<string, string> | null | undefined
-): Promise<ProjectSource[]> {
-  return [...(await sourcesForProjectWithOverlays(env, ownerId, projectId, overlays)).entries()].map(([sourceName, source]) => ({
-    sourceName,
-    source
-  }));
+  overlays: Readonly<Record<string, string>>
+): Promise<ProjectAnalysis> {
+  const storedSources = await sourcesForProjectWithOverlays(env, ownerId, projectId, {});
+  return projectAnalysisCache.analyze(`owner:${ownerId}\0project:${projectId}`, storedSources, overlays, env);
 }
 
-function withOverlays(
+async function transientAnalysis(
   sources: ReadonlyMap<string, string>,
-  overlays: Record<string, string> | null | undefined
-): Map<string, string> {
-  const result = new Map(sources);
-  for (const [sourceName, source] of Object.entries(overlays ?? {})) {
-    result.set(normalizeSourceIdentity(sourceName), source);
-  }
-  return result;
-}
-
-function projectSourceList(sources: ReadonlyMap<string, string>): ProjectSource[] {
-  return [...sources.entries()].map(([sourceName, source]) => ({ sourceName, source }));
+  overlays: Readonly<Record<string, string>>,
+  env: EnvSource | undefined
+): Promise<ProjectAnalysis> {
+  const transientCache = new ProjectAnalysisCache();
+  return transientCache.analyze('transient', sources, overlays, env);
 }
 
 function renderPaths(request: LinkRequest | null, result: LinkProjectResult): string[] {
   const requested = request?.openSourceIdentities?.filter((sourceIdentity) => sourceIdentity.trim() !== '') ?? [];
-  if (requested.length > 0) {
+  if (request?.openSourceIdentities != null) {
     return [...new Set(requested)];
   }
   return result.contexts.filter((context) => context.synthetic !== true).map((context) => context.sourceIdentity);

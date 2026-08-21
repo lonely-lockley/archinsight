@@ -37,6 +37,20 @@ const completion = service.complete({
 assert(completion.items.some((item) => item.label === "context" && item.insertText === "context "));
 
 const state = service.createState({ sources: [source] });
+const fork = service.forkState(state);
+service.replaceSource(fork, {
+  sourceName: "architecture.ai",
+  source: `
+context shared
+
+system forked
+    name = Forked
+`,
+});
+assert(fork.result().graph.node("shared/forked"));
+assert(state.result().graph.node("shared/api"));
+assert.equal(state.result().graph.node("shared/forked"), undefined);
+
 const update = service.replaceSource(state, {
   sourceName: "architecture.ai",
   source: `

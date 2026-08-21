@@ -7,6 +7,7 @@
 
   export let symbols: LanguageSnapshot;
   export let structure: ProjectStructure | undefined;
+  export let loading = false;
   export let onOpenDeclaration: (declaration: SourceLocation) => void;
 
   const hiddenStructureTypes = new Set(['List', 'Nothing', 'Text', 'text']);
@@ -152,7 +153,9 @@
   </div>
 
   <div class="structure-content">
-    {#if hasMatches}
+    {#if loading && structure === undefined}
+      <div class="empty">Analyzing project…</div>
+    {:else if hasMatches}
       {#if typeTree.length > 0}
         <div class="section-title">Types</div>
         {#each typeTree as node (node.id)}

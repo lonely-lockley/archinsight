@@ -1,4 +1,4 @@
-import type { LanguageSnapshot } from '@insight/language';
+import type { GraphNode, GraphRelation, LanguageSnapshot, LinkProjectResult } from '@insight/language';
 import { base } from '$app/paths';
 
 export type FileTreeNode = {
@@ -53,9 +53,21 @@ export type DotRender = {
 };
 
 export type LinkResponse = {
+  revision: string;
+  analysis: {
+    mode: 'full' | 'cache-hit' | 'incremental' | 'overlay-incremental' | 'overlay-full';
+    relinkedSources: number;
+  };
+  symbols: ProjectSymbols;
+  linkedModel: Omit<LinkProjectResult, 'graph'> & {
+    graph: {
+      nodes: readonly GraphNode[];
+      relations: readonly GraphRelation[];
+    };
+  };
   diagnostics: Diagnostic[];
   renders: DotRender[];
-  structure?: ProjectStructure;
+  structure: ProjectStructure;
 };
 
 export type ProjectSymbols = LanguageSnapshot;
@@ -249,15 +261,11 @@ export async function linkProject(
 
 export async function renderProjectSvg(
   projectId: string,
-  openSourceIdentities: string[],
-  overlays: Record<string, string>,
-  query: string,
+  renders: DotRender[],
   surface: WorkspaceSurface = 'editor'
 ): Promise<SvgRenderResponse> {
   return postJson(surface === 'playground' ? '/api/playground/render/svg' : `/api/projects/${encodeURIComponent(projectId)}/render/svg`, {
-    openSourceIdentities,
-    overlays,
-    query
+    renders
   });
 }
 

@@ -293,6 +293,17 @@ export class IndexedGraph {
     return [...this.relationsById.values()];
   }
 
+  clone(): IndexedGraph {
+    const graph = new IndexedGraph();
+    for (const node of this.nodes()) {
+      graph.addNode(node);
+    }
+    for (const relation of this.relations()) {
+      graph.addRelation(relation);
+    }
+    return graph;
+  }
+
   private removeNode(
     nodeId: GraphNodeId,
     removedNodes: Set<GraphNodeId>,

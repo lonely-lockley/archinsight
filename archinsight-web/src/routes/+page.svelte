@@ -5,6 +5,8 @@
   import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
   import {
     CompletionEngine,
+    IndexedGraph,
+    InsightLanguageService,
     buildLanguageSnapshotFromSources,
     coreLanguageSnapshot,
     coreSource,
@@ -12,6 +14,7 @@
     createGeneratedInsightSyntaxProvider,
     mergeLanguageSnapshots,
     type LanguageSnapshot,
+    type LinkProjectResult,
     type CompletionKind
   } from '@insight/language';
   import AuthMenu from '$lib/AuthMenu.svelte';
@@ -54,8 +57,6 @@
     fetchFile,
     fetchCurrentUser,
     fetchProjects,
-    fetchProjectStructure,
-    fetchProjectSymbols,
     fetchPlaygroundPublication,
     fetchTree,
     linkProject,
@@ -74,6 +75,7 @@
     type Diagnostic,
     type DotRender,
     type FileTreeNode,
+    type LinkResponse,
     type ProjectStructure
   } from '$lib/api';
   import {
@@ -126,6 +128,7 @@
     operators: [],
     enums: []
   };
+  const clientLanguageService = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 
   type FileDialogMode = 'save' | 'new' | 'rename';
   type FileDialogTarget = 'file' | 'folder';
@@ -159,6 +162,12 @@
 
   type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query'>;
 
+  type ProjectLoadGuard = {
+    projectId: string;
+    storageProjectId: string;
+    generation: number;
+  };
+
   function readonlyCoreTabId(sourceIdentity: string): string {
     return `__readonly__/${sourceIdentity}`;
   }
@@ -168,6 +177,7 @@
   let tree: TreeNode | undefined;
   let projectSymbols: LanguageSnapshot = emptySymbols;
   let projectStructure: ProjectStructure | undefined;
+  let linkedAnalysis: LinkProjectResult | undefined;
   let projectRegistry: ProjectRegistryState = { projects: [] };
   let activeProjectId: string | undefined;
   let workspaceCompletionSnapshot: WorkspaceCompletionSnapshot = emptyWorkspaceCompletionSnapshot;
@@ -187,6 +197,8 @@
   let suppressEditorChange = false;
   let debounceHandle: number | undefined;
   let linkSequence = 0;
+  let projectGeneration = 0;
+  let analysisLoading = false;
   let syntaxSequence = 0;
   let liveSyntaxSequence = 0;
   let refreshDisabled = false;
@@ -296,6 +308,9 @@
   });
 
   onDestroy(() => {
+    if (debounceHandle !== undefined) {
+      window.clearTimeout(debounceHandle);
+    }
     if (refreshCooldownHandle !== undefined) {
       window.clearTimeout(refreshCooldownHandle);
     }
@@ -519,6 +534,12 @@
   }
 
   function resetWorkspaceState(): void {
+    projectGeneration += 1;
+    linkSequence += 1;
+    if (debounceHandle !== undefined) {
+      window.clearTimeout(debounceHandle);
+      debounceHandle = undefined;
+    }
     if (editor !== undefined) {
       editor.setModel(null);
     }
@@ -532,6 +553,8 @@
     tree = undefined;
     projectSymbols = emptySymbols;
     projectStructure = undefined;
+    linkedAnalysis = undefined;
+    analysisLoading = false;
     localDiagnostics = {};
     linkerDiagnostics = {};
     overlays = {};
@@ -799,6 +822,8 @@
       tree = undefined;
       projectSymbols = emptySymbols;
       projectStructure = undefined;
+      linkedAnalysis = undefined;
+      analysisLoading = false;
       tabs = [];
       activeTabId = undefined;
       localDiagnostics = {};
@@ -817,32 +842,44 @@
     if (activeProjectId === undefined) {
       return;
     }
+    const loadingProjectId = projectId;
+    const generation = ++projectGeneration;
+    analysisLoading = true;
     try {
-      const [treeResponse, symbols, structure] = await Promise.all([
-        fetchTree(projectId, surface),
-        fetchProjectSymbols(projectId, surface),
-        fetchProjectStructure(projectId, {}, surface)
-      ]);
+      const treeResponse = await fetchTree(loadingProjectId, surface);
+      if (generation !== projectGeneration || loadingProjectId !== projectId) {
+        return;
+      }
       tree = treeResponse.root;
-      projectSymbols = symbols;
-      acceptProjectStructureSnapshot(structure);
-      refreshEditorSymbols();
       const workspace = readWorkspace(storageProjectId);
+      const loadGuard = { projectId: loadingProjectId, storageProjectId, generation };
       projectUi = normalizeProjectUi(workspace.ui, workspace.tabs);
       for (const tab of workspace.tabs) {
+        if (!currentProjectLoad(loadGuard)) {
+          return;
+        }
         if (tab.filePath !== undefined) {
-          await openFile(tab.filePath, false, false, tab);
+          await openFile(tab.filePath, false, false, tab, undefined, loadGuard);
         } else {
           restoreLocalTab(tab);
         }
       }
-      if (workspace.activeTab !== undefined && tabs.some((tab) => tab.id === workspace.activeTab)) {
-        await activateTab(workspace.activeTab);
-      } else if (tabs[0] !== undefined) {
-        await activateTab(tabs[0].id);
+      if (!currentProjectLoad(loadGuard)) {
+        return;
       }
-      scheduleLink();
+      if (workspace.activeTab !== undefined && tabs.some((tab) => tab.id === workspace.activeTab)) {
+        await activateTab(workspace.activeTab, loadGuard);
+      } else if (tabs[0] !== undefined) {
+        await activateTab(tabs[0].id, loadGuard);
+      }
+      if (!currentProjectLoad(loadGuard)) {
+        return;
+      }
+      scheduleLink(0);
     } catch (error) {
+      if (generation === projectGeneration) {
+        analysisLoading = false;
+      }
       if (redirectIfAuthRequired(error)) {
         return;
       }
@@ -855,8 +892,12 @@
     activate = true,
     render = true,
     restored?: WorkspaceTabState,
-    queryState?: DiagramQueryState
+    queryState?: DiagramQueryState,
+    loadGuard?: ProjectLoadGuard
   ): Promise<void> {
+    if (loadGuard !== undefined && !currentProjectLoad(loadGuard)) {
+      return;
+    }
     const existing = tabs.find((tab) => tab.filePath === path);
     if (existing !== undefined) {
       applyInheritedQuery(existing.id, queryState);
@@ -866,10 +907,12 @@
       return;
     }
 
-    const localContent = readLocalSource(storageProjectId, path);
+    const targetProjectId = loadGuard?.projectId ?? projectId;
+    const targetStorageProjectId = loadGuard?.storageProjectId ?? storageProjectId;
+    const localContent = readLocalSource(targetStorageProjectId, path);
     let content: string;
     try {
-      content = localContent ?? (await fetchFile(projectId, path, surface)).content;
+      content = localContent ?? (await fetchFile(targetProjectId, path, surface)).content;
     } catch (error) {
       if (redirectIfAuthRequired(error)) {
         return;
@@ -877,7 +920,10 @@
       appendErrorMessage(`Server error: ${errorMessage(error)}`);
       return;
     }
-    if (hasLocalSource(storageProjectId, path)) {
+    if (loadGuard !== undefined && !currentProjectLoad(loadGuard)) {
+      return;
+    }
+    if (hasLocalSource(targetStorageProjectId, path)) {
       overlays = { ...overlays, [path]: content };
     }
     ensureEditorModel(path, content);
@@ -902,8 +948,27 @@
     }
     if (render) {
       scheduleLiveSyntaxCheck([{ sourceIdentity: path, content }]);
-      scheduleLink();
+      if (localContent === undefined) {
+        scheduleDiagramUpdate();
+      } else {
+        scheduleLink();
+      }
     }
+  }
+
+  function currentProjectLoad(guard: ProjectLoadGuard): boolean {
+    return guard.generation === projectGeneration && guard.projectId === projectId;
+  }
+
+  function hydrateLinkedModel(model: LinkResponse['linkedModel']): LinkProjectResult {
+    const graph = new IndexedGraph();
+    for (const node of model.graph.nodes) {
+      graph.addNode(node);
+    }
+    for (const relation of model.graph.relations) {
+      graph.addRelation(relation);
+    }
+    return { ...model, graph };
   }
 
   async function goToDeclaration(declaration: SourceLocation): Promise<void> {
@@ -1032,16 +1097,25 @@
     scheduleLiveSyntaxCheck([{ sourceIdentity, content: tab.content ?? '' }]);
   }
 
-  async function activateTab(id: string): Promise<void> {
+  async function activateTab(id: string, loadGuard?: ProjectLoadGuard): Promise<void> {
+    if (loadGuard !== undefined && !currentProjectLoad(loadGuard)) {
+      return;
+    }
     activeTabId = id;
     persistWorkspace();
     await tick();
+    if (loadGuard !== undefined && !currentProjectLoad(loadGuard)) {
+      return;
+    }
     syncEditorToActiveTab();
-    scheduleLink();
+    scheduleDiagramUpdate();
   }
 
   function closeTab(id: string): void {
     const tab = tabs.find((item) => item.id === id);
+    const removesSemanticInput = tab !== undefined
+      && isProjectSourceTab(tab)
+      && (tab.filePath === undefined || Object.hasOwn(overlays, tab.filePath));
     if (tab?.filePath !== undefined) {
       removeLocalSource(storageProjectId, tab.filePath);
       delete overlays[tab.filePath];
@@ -1063,6 +1137,12 @@
     if (activeTabId === id) {
       activeTabId = tabs.at(-1)?.id;
       syncEditorToActiveTab();
+      if (removesSemanticInput) {
+        scheduleLink();
+      } else {
+        scheduleDiagramUpdate();
+      }
+    } else if (removesSemanticInput) {
       scheduleLink();
     }
     persistWorkspace();
@@ -1096,15 +1176,89 @@
     applyMarkersFor(activeTabId);
   }
 
-  function scheduleLink(): void {
+  function scheduleLink(delay = 500): void {
+    linkedAnalysis = undefined;
     const sequence = ++linkSequence;
     if (debounceHandle !== undefined) {
       window.clearTimeout(debounceHandle);
     }
-    debounceHandle = window.setTimeout(() => void runLink(sequence), 500);
+    debounceHandle = window.setTimeout(() => void runLink(sequence), delay);
+  }
+
+  function scheduleDiagramUpdate(): void {
+    const analysis = linkedAnalysis;
+    if (analysis === undefined) {
+      scheduleLink();
+      return;
+    }
+    const sequence = ++linkSequence;
+    if (debounceHandle !== undefined) {
+      window.clearTimeout(debounceHandle);
+    }
+    debounceHandle = window.setTimeout(() => void runCachedDiagram(sequence, projectId, analysis), 0);
+  }
+
+  async function runCachedDiagram(
+    sequence: number,
+    requestedProjectId: string,
+    analysis: LinkProjectResult
+  ): Promise<void> {
+    const linkableTabs = tabs.filter(isProjectSourceTab);
+    const renderSourceIdentities = activeTab === undefined || !isProjectSourceTab(activeTab)
+      ? linkableTabs.map((tab) => tab.sourceIdentity)
+      : [activeTab.sourceIdentity];
+    const renders: DotRender[] = [];
+    try {
+      for (const sourceIdentity of renderSourceIdentities) {
+        const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
+        renders.push({
+          sourceIdentity,
+          diagram: 'query',
+          dot: clientLanguageService.render({
+            result: analysis,
+            scope: { context: context?.id, tab: sourceIdentity },
+            query: activeQuery,
+            theme: 'dark'
+          }).dot
+        });
+      }
+    } catch (error) {
+      if (sequence !== linkSequence || requestedProjectId !== projectId) {
+        return;
+      }
+      clearTabDots(renderSourceIdentities);
+      const message = errorMessage(error);
+      if (isQueryErrorMessage(message)) {
+        appendQueryErrorMessage(message, activeQuery);
+      } else {
+        appendErrorMessage(`Render error: ${message}`);
+      }
+      return;
+    }
+    if (sequence !== linkSequence || requestedProjectId !== projectId) {
+      return;
+    }
+    if (renders.length === 0) {
+      clearTabDots(renderSourceIdentities);
+      return;
+    }
+    const rendered = await renderWithFallback(requestedProjectId, renders);
+    if (sequence !== linkSequence || requestedProjectId !== projectId) {
+      return;
+    }
+    if (rendered.diagnostics.some((diagnostic) => diagnostic.level === 'ERROR')) {
+      appendCycleSummary('Renderer finished', rendered.diagnostics);
+      clearTabDots(renderSourceIdentities);
+      return;
+    }
+    const dotBySource = dotRendersBySource(renders);
+    for (const svg of rendered.svgs) {
+      updateTabBySourceIdentity(svg.sourceIdentity, { svg: svg.svg, dot: dotBySource.get(svg.sourceIdentity) });
+    }
   }
 
   async function runLink(sequence: number): Promise<void> {
+    const requestedProjectId = projectId;
     const linkOverlays = overlaysForLink();
     const overlaySources = Object.entries(linkOverlays).map(([sourceIdentity, content]) => ({ sourceIdentity, content }));
     const syntaxDiagnostics = await checkSyntax(overlaySources);
@@ -1119,12 +1273,16 @@
       : [activeTab.sourceIdentity];
 
     try {
-      const link = await linkProject(projectId, renderSourceIdentities, linkOverlays, activeQuery, surface);
-      if (sequence !== linkSequence) {
+      const link = await linkProject(requestedProjectId, renderSourceIdentities, linkOverlays, activeQuery, surface);
+      if (sequence !== linkSequence || requestedProjectId !== projectId) {
         return;
       }
+      analysisLoading = false;
+      projectSymbols = link.symbols;
+      linkedAnalysis = hydrateLinkedModel(link.linkedModel);
+      refreshEditorSymbols();
       updateLinkerDiagnostics(link.diagnostics, parsedSources);
-      if (!hasErrorDiagnostics(link.diagnostics) && link.structure !== undefined) {
+      if (!hasErrorDiagnostics(link.diagnostics)) {
         acceptProjectStructureSnapshot(link.structure);
       }
       appendCycleSummary('Linker finished', link.diagnostics);
@@ -1136,8 +1294,8 @@
         clearTabDots(renderSourceIdentities);
         return;
       }
-      const rendered = await renderWithFallback(link.renders, renderSourceIdentities, linkOverlays, activeQuery);
-      if (sequence !== linkSequence) {
+      const rendered = await renderWithFallback(requestedProjectId, link.renders);
+      if (sequence !== linkSequence || requestedProjectId !== projectId) {
         return;
       }
       if (rendered.diagnostics.length > 0) {
@@ -1157,6 +1315,9 @@
         updateTabBySourceIdentity(svg.sourceIdentity, { svg: svg.svg, dot: dotBySource.get(svg.sourceIdentity) });
       }
     } catch (error) {
+      if (sequence === linkSequence && requestedProjectId === projectId) {
+        analysisLoading = false;
+      }
       if (redirectIfAuthRequired(error)) {
         return;
       }
@@ -1171,15 +1332,13 @@
   }
 
   async function renderWithFallback(
-    renders: Parameters<typeof renderDotInBrowser>[0],
-    openSourceIdentities: string[],
-    overlays: Record<string, string>,
-    query: string
+    requestedProjectId: string,
+    renders: Parameters<typeof renderDotInBrowser>[0]
   ): Promise<Awaited<ReturnType<typeof renderProjectSvg>>> {
     try {
       return await renderDotInBrowser(renders);
     } catch {
-      return renderProjectSvg(projectId, openSourceIdentities, overlays, query, surface);
+      return renderProjectSvg(requestedProjectId, renders, surface);
     }
   }
 
@@ -1564,14 +1723,14 @@
     patchActiveTabToolbar({ query: value, diagramMode: diagramModeForQuery(value) ?? activeDiagramMode });
     clearActiveTabDot();
     persistWorkspace();
-    scheduleLink();
+    scheduleDiagramUpdate();
   }
 
   function selectDiagramMode(mode: DiagramMode): void {
     patchActiveTabToolbar({ diagramMode: mode, query: queryForDiagramMode(mode) });
     clearActiveTabDot();
     persistWorkspace();
-    scheduleLink();
+    scheduleDiagramUpdate();
   }
 
   async function saveActiveTab(): Promise<void> {
@@ -2128,13 +2287,8 @@
   }
 
   async function refreshProjectMetadata(): Promise<void> {
-    const [treeResponse, symbols] = await Promise.all([
-      fetchTree(projectId, surface),
-      fetchProjectSymbols(projectId, surface)
-    ]);
+    const treeResponse = await fetchTree(projectId, surface);
     tree = treeResponse.root;
-    projectSymbols = symbols;
-    refreshEditorTokenVocabulary();
   }
 
   function validateNodeName(name: string, target: FileDialogTarget): string | undefined {
@@ -2267,7 +2421,7 @@
     }
     refreshDisabled = true;
     clearActiveTabDot();
-    scheduleLink();
+    scheduleDiagramUpdate();
     refreshCooldownHandle = window.setTimeout(() => {
       refreshDisabled = false;
       refreshCooldownHandle = undefined;
@@ -2662,6 +2816,7 @@
     hasActiveProject={activeProjectId !== undefined}
     symbols={editorSymbols}
     structure={projectStructure}
+    structureLoading={analysisLoading}
     activePath={activeFilePath}
     errorPaths={errorSourceIdentities}
     ui={projectUi}

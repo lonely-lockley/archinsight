@@ -9,6 +9,7 @@
   export let hasActiveProject = true;
   export let symbols: LanguageSnapshot;
   export let structure: ProjectStructure | undefined;
+  export let structureLoading = false;
   export let activePath: string | undefined;
   export let errorPaths: Set<string> = new Set();
   export let ui: ProjectUiState;
@@ -57,7 +58,7 @@
           <div class="empty">Loading</div>
         {/if}
       {:else}
-        <StructurePanel {symbols} {structure} {onOpenDeclaration} />
+        <StructurePanel {symbols} {structure} loading={structureLoading} {onOpenDeclaration} />
       {/if}
     </section>
     <div class="sidebar-controls" aria-label="Panel controls">

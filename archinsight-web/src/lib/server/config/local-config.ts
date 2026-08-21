@@ -112,6 +112,11 @@ function flattenedYamlToEnv(flattened: Record<string, string>): EnvSource {
   map(flattened, env, 'archinsight.limits.max-render-count', 'ARCHINSIGHT_LIMITS_MAX_RENDER_COUNT');
   map(flattened, env, 'archinsight.limits.max-dot-bytes', 'ARCHINSIGHT_LIMITS_MAX_DOT_BYTES');
 
+  map(flattened, env, 'archinsight.analysis-cache.max-entries', 'ARCHINSIGHT_ANALYSIS_CACHE_MAX_ENTRIES');
+  map(flattened, env, 'archinsight.analysis-cache.ttl-seconds', 'ARCHINSIGHT_ANALYSIS_CACHE_TTL_SECONDS');
+  map(flattened, env, 'archinsight.analysis-cache.max-entry-source-bytes', 'ARCHINSIGHT_ANALYSIS_CACHE_MAX_ENTRY_SOURCE_BYTES');
+  map(flattened, env, 'archinsight.analysis-cache.max-total-source-bytes', 'ARCHINSIGHT_ANALYSIS_CACHE_MAX_TOTAL_SOURCE_BYTES');
+
   return stripUnset(env);
 }
 

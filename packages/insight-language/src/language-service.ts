@@ -78,6 +78,10 @@ export class InsightLanguageService {
     return new ProjectLinkerState(this.linkRequest(request));
   }
 
+  forkState(state: ProjectLinkerState): ProjectLinkerState {
+    return state.fork();
+  }
+
   replaceSource(state: ProjectLinkerState, replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
     return state.replaceSource(replacement);
   }

@@ -6,6 +6,8 @@ import { POST as renderSvg } from './[projectId]/render/svg/+server';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { InMemoryRepositoryFileSystem } from '$lib/server/repository/in-memory-repository-file-system';
 import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-system';
+import { analysisMetricsSnapshot, resetAnalysisMetrics } from '$lib/server/language/analysis-observability';
+import { resetProjectAnalysisCache } from '$lib/server/language/project-analysis-cache';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const env = {
@@ -18,6 +20,8 @@ const env = {
 
 describe('language API routes', () => {
   beforeEach(() => {
+    resetProjectAnalysisCache();
+    resetAnalysisMetrics();
     const fs = new InMemoryRepositoryFileSystem();
     fs.setProjects(ownerId, [
       {
@@ -83,6 +87,27 @@ system app
     expect(body.renders[0].sourceIdentity).toBe('main.ai');
     expect(body.renders[0].dot).toContain('digraph "demo"');
     expect(body.renders[0].dot).toContain('App');
+    expect(body.symbols.types.some((type: { name: string }) => type.name === 'System')).toBe(true);
+    expect(body.revision).toEqual(expect.any(String));
+    expect(body.linkedModel.graph.nodes.some((node: { id: string }) => node.id === 'demo/app')).toBe(true);
+  });
+
+  it('reuses one linked revision when only the diagram query changes', async () => {
+    const first = await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {},
+      query: 'MATCH (node:System) RETURN node'
+    }));
+    const second = await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {},
+      query: 'MATCH (node:Element) RETURN node'
+    }));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    await expect(second.json()).resolves.toMatchObject({ analysis: { mode: 'cache-hit' } });
+    expect(analysisMetricsSnapshot()).toMatchObject({ fullSnapshotBuilds: 1, fullProjectLinks: 1, cacheHits: 1 });
   });
 
   it('links constructors declared in another project source', async () => {
@@ -119,9 +144,7 @@ cloudEnvironment do
       event(
         '/api/projects/project-1/render/svg',
         {
-          openSourceIdentities: ['main.ai'],
-          overlays: {},
-          query: 'MATCH (node:System) WHERE node.sourceIdentity = $tab RETURN node'
+          renders: [{ sourceIdentity: 'main.ai', diagram: 'query', dot: 'digraph "demo" { app [label="App"] }' }]
         },
         {
           ARCHINSIGHT_RENDERER_ENABLED: 'true',
@@ -152,14 +175,13 @@ cloudEnvironment do
     expect(body.svgs[0].svg).toContain('App');
     expect(rendererRequest).toMatchObject({ authorization: 'Bearer language-route-renderer-token' });
     expect(rendererRequest?.dot).toContain('digraph "demo"');
+    expect(analysisMetricsSnapshot().fullProjectLinks).toBe(0);
   });
 
   it('does not use an external renderer when the optional fallback is disabled', async () => {
     const response = await renderSvg(
       event('/api/projects/project-1/render/svg', {
-        openSourceIdentities: ['main.ai'],
-        overlays: {},
-        query: 'MATCH (node:System) WHERE node.sourceIdentity = $tab RETURN node'
+        renders: [{ sourceIdentity: 'main.ai', diagram: 'query', dot: 'digraph "demo" { app }' }]
       })
     );
 
@@ -214,9 +236,7 @@ cloudEnvironment do
       event(
         '/api/projects/project-1/render/svg',
         {
-          openSourceIdentities: ['main.ai'],
-          overlays: {},
-          query: 'MATCH (node:System) WHERE node.sourceIdentity = $tab RETURN node'
+          renders: [{ sourceIdentity: 'main.ai', diagram: 'query', dot: 'digraph "demo" { app }' }]
         },
         {
           ARCHINSIGHT_LIMITS_MAX_RENDER_COUNT: '0'

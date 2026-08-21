@@ -25,14 +25,26 @@ export class ProjectLinkerState {
   private readonly sourcesByName: Map<string, ProjectSource>;
   private currentResult: LinkProjectResult;
 
-  constructor(request: LinkProjectRequest) {
+  constructor(request: LinkProjectRequest, existingResult?: LinkProjectResult) {
     this.snapshot = request.snapshot;
     this.sourcesByName = new Map(request.sources.map((source) => [source.sourceName, source]));
-    this.currentResult = linkProject(this.request());
+    this.currentResult = existingResult ?? linkProject(this.request());
   }
 
   result(): LinkProjectResult {
     return this.currentResult;
+  }
+
+  /**
+   * Creates an isolated, in-memory branch of this state. The language snapshot
+   * and immutable result records are shared, while the mutable graph is copied.
+   * Updating the fork cannot change the original state.
+   */
+  fork(): ProjectLinkerState {
+    return new ProjectLinkerState(this.request(), {
+      ...this.currentResult,
+      graph: this.currentResult.graph.clone(),
+    });
   }
 
   replaceSource(replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
@@ -95,9 +107,9 @@ export class ProjectLinkerState {
     }
 
     for (const source of affectedSources) {
-      if (this.sourcesByName.has(source)) {
-        result.add(source);
-      }
+      // Removed sources still have to participate in result replacement so
+      // their contexts, elements, diagnostics, and tab roots are discarded.
+      result.add(source);
       const context = contextBySource.get(source);
       if (context !== undefined) {
         for (const siblingSource of sourcesByContext.get(context) ?? []) {
