@@ -118,6 +118,7 @@ Element nodes expose these built-in properties:
 | `baseType` | The nearest base type. |
 | `baseTypes` | The complete ordered list of base types. |
 | `parent` | The containing element or context as a graph node value. |
+| `deployed` | `true` when the element's deployment resolves to at least one `runsOn` or `uses` infrastructure object; otherwise `false`. |
 
 Declared Insight attributes are also available as properties. A scalar attribute evaluates to one value, a list attribute evaluates to a list, and a single typed reference evaluates to the referenced graph node.
 
@@ -292,6 +293,8 @@ RETURN system, dependency, target
 ```
 
 Rollup walks the containment ancestry of the original endpoints and binds the nearest nodes compatible with the requested pattern. The resulting relationship is marked `derived`, while its underlying edge retains the original endpoints.
+
+For a projected physical path, projection-origin metadata can let a clause anchored to a logical endpoint discover all path segments that belong to its wire. Each returned segment still keeps its actual physical source and target. This allows an incoming path such as `customer → CDN → load balancer → service` to be selected from `service` without rewriting the intermediate hops into invented direct connections.
 
 Deployment views select projected relationships explicitly:
 

@@ -22,6 +22,10 @@ const cases = [
   c4QueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements,
   c4QuerySelectsSharedDeploymentReferences,
   c4QuerySeparatesDeploymentsInsideOneEnvironment,
+  c4QueryPreservesEveryPhysicalEndpointInIncomingProjectedPaths,
+  c4QueryKeepsCompleteIncomingProjectedPathsAcrossSources,
+  c4QueryDoesNotReturnRawCrossSourceWiresAlongsideTheirProjection,
+  c4QueryOmitsLogicalElementsAndWiresWithoutDeployment,
   rollsChildReferencesUpToOwningElementForQuery,
   rollsNestedReferencesUpToOwningSystems,
   rollsNestedReferencesUpToOwningContexts,
@@ -453,6 +457,333 @@ system application
   assertNoErrors(result);
   assert.deepEqual(graph.groups.find((group) => group.owner === "eu/productionCompute")?.elements, ["app/productionService"]);
   assert.deepEqual(graph.groups.find((group) => group.owner === "eu/testCompute")?.elements, ["app/testService"]);
+}
+
+function c4QueryPreservesEveryPhysicalEndpointInIncomingProjectedPaths() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("framework.ai", `
+define type PublicGateway of NetworkConnection
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+
+define type AppEnvironment of Environment
+    Compute compute
+    NetworkConnection network
+    PublicGateway publicGateway
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("infra.ai", `
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    network:
+        networkConnection service_network
+            name = Service network
+            projection:
+                source $from originalLink target $to
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public ingress
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+            loadBalancer:
+                infrastructureComponent alb
+                    name = ALB
+            projection:
+                source $from originalLink target cdn
+                target cdn connectTo target loadBalancer
+                target loadBalancer connectTo target $to
+`),
+      source("model.ai", `
+context shop
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+
+external actor shopper
+    name = Shopper
+    links:
+        -> web_app
+            deployment:
+                uses publicGateway
+
+system storefront
+    name = Storefront
+
+    service web_app
+        name = Web app
+        deployment:
+            uses production_service
+        links:
+            -> checkout_api
+                deployment:
+                    uses network
+
+    service checkout_api
+        name = Checkout API
+        deployment:
+            uses production_service
+`),
+    ],
+  });
+
+  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinC4Query);
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert.deepEqual(
+    graph.edges.map((edge) => `${edge.source}->${edge.target}`).sort(),
+    [
+      "eu/alb->shop/web_app",
+      "eu/cloudfront->eu/alb",
+      "shop/shopper->eu/cloudfront",
+      "shop/web_app->shop/checkout_api",
+    ],
+  );
+  assert(graph.edges.every((edge) => edge.source === edge.edge.source && edge.target === edge.edge.target));
+}
+
+function c4QueryKeepsCompleteIncomingProjectedPathsAcrossSources() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("framework.ai", `
+define type PublicGateway of NetworkConnection
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+
+define type AppEnvironment of Environment
+    Compute compute
+    PublicGateway publicGateway
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("infra.ai", `
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public ingress
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+            loadBalancer:
+                infrastructureComponent alb
+                    name = ALB
+            projection:
+                source $from originalLink target cdn
+                target cdn connectTo target loadBalancer
+                target loadBalancer connectTo target $to
+`),
+      source("entry.ai", `
+context shop
+
+import web_app from context shop
+
+external actor shopper
+    name = Shopper
+    links:
+        -> web_app
+            deployment:
+                uses publicGateway
+`),
+      source("model.ai", `
+context shop
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+
+system storefront
+    name = Storefront
+
+    service web_app
+        name = Web app
+        deployment:
+            uses production_service
+`),
+    ],
+  });
+
+  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinC4Query);
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert.deepEqual(
+    graph.edges.map((edge) => `${edge.source}->${edge.target}`).sort(),
+    [
+      "eu/alb->shop/web_app",
+      "eu/cloudfront->eu/alb",
+      "shop/shopper->eu/cloudfront",
+    ],
+  );
+}
+
+function c4QueryDoesNotReturnRawCrossSourceWiresAlongsideTheirProjection() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("framework.ai", `
+define type AppEnvironment of Environment
+    Compute compute
+    NetworkConnection network
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("infra.ai", `
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    network:
+        networkConnection service_network
+            name = Service network
+            projection:
+                source $from originalLink target $to
+`),
+      source("caller.ai", `
+context shop
+
+import receiver from context shop
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+
+system frontend
+    name = Frontend
+
+    service caller
+        name = Caller
+        deployment:
+            uses production_service
+        links:
+            -> receiver
+                technology = HTTPS
+                deployment:
+                    uses network
+`),
+      source("receiver.ai", `
+context shop
+
+import production_service from context shop
+
+system backend
+    name = Backend
+
+    service receiver
+        name = Receiver
+        deployment:
+            uses production_service
+`),
+    ],
+  });
+
+  const graph = selectGraph(result, { context: "shop", tab: "caller.ai" }, builtinC4Query);
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert.equal(graph.edges.length, 1);
+  assert.equal(graph.edges[0]?.source, "shop/caller");
+  assert.equal(graph.edges[0]?.target, "shop/receiver");
+  assert.equal(graph.edges[0]?.edge.projected, true);
+}
+
+function c4QueryOmitsLogicalElementsAndWiresWithoutDeployment() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("framework.ai", `
+define type AppEnvironment of Environment
+    Compute compute
+    NetworkConnection network
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("infra.ai", `
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    network:
+        networkConnection service_network
+            name = Service network
+            projection:
+                source $from originalLink target $to
+`),
+      source("model.ai", `
+context shop
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+
+system storefront
+    name = Storefront
+
+    service deployed
+        name = Deployed
+        deployment:
+            uses production_service
+        links:
+            -> logical_only
+            -> physically_unplaced
+                deployment:
+                    uses network
+
+    service logical_only
+        name = Logical only
+
+    service physically_unplaced
+        name = Physically unplaced
+`),
+    ],
+  });
+
+  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinC4Query);
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert(graph.elements["shop/deployed"]);
+  assert.equal(graph.elements["shop/logical_only"], undefined);
+  assert.equal(graph.elements["shop/physically_unplaced"], undefined);
+  assert.equal(graph.edges.some((edge) => edge.target === "shop/logical_only"), false);
+  assert.equal(graph.edges.some((edge) => edge.target === "shop/physically_unplaced"), false);
 }
 
 function rollsChildReferencesUpToOwningElementForQuery() {

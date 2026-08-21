@@ -178,6 +178,7 @@ export interface LinkedElement {
   readonly parent?: string;
   readonly baseTypes: readonly string[];
   readonly attributes: Readonly<Record<string, readonly string[]>>;
+  readonly deployed?: boolean;
   readonly listAttributes?: readonly string[];
   readonly referenceAttributes?: readonly string[];
   readonly note?: string;

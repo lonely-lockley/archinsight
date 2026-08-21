@@ -87,6 +87,12 @@ const cases = [
   rejectsOverlappingDeploymentProfiles,
   isolatesDisjointDeploymentProfilesInSameEnvironment,
   rejectsLocalAppliesToOverrideInDeploymentBlocks,
+  doesNotWarnAboutWireDeploymentUntilTheProjectUsesIt,
+  warnsAboutMissingAndNonPhysicalWireDeploymentsOnceWireDeploymentIsUsed,
+  doesNotRequireDeploymentOnAlreadyPhysicalWires,
+  doesNotWarnAboutElementDeploymentUntilTheProjectUsesIt,
+  warnsAboutMissingElementDeploymentsWithinTheActiveLogicalLevel,
+  warnsWhenElementDeploymentResolvesToNoPhysicalInfrastructure,
   buildsIndexedGraphFromLinkedProject,
   updatesProjectLinkerStateWithGraphImpact,
 ];
@@ -2205,6 +2211,15 @@ service frontend
     name = Frontend
     deployment:
         uses globalProfile
+
+    component internalCaller
+        name = Internal caller
+        links:
+            -> internalCallee
+
+    component internalCallee
+        name = Internal callee
+
     links:
         -> backend
             deployment:
@@ -2490,6 +2505,191 @@ service backend
     diagnostic.code === "TYPE_MISMATCH"
     && diagnostic.message.includes("Deployment list expects operator")
   ));
+}
+
+function doesNotWarnAboutWireDeploymentUntilTheProjectUsesIt() {
+  const result = linkWithCore([
+    source("app.ai", `
+context app
+
+system application
+    name = Application
+
+    service frontend
+        name = Frontend
+        links:
+            -> backend
+
+    service backend
+        name = Backend
+`),
+  ]);
+
+  assertNoErrors(result);
+  assert.equal(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("WIRE_")), false);
+}
+
+function warnsAboutMissingAndNonPhysicalWireDeploymentsOnceWireDeploymentIsUsed() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+    links:
+        -> backend
+            deployment:
+                uses internalNetwork
+        -> worker
+
+service backend
+    name = Backend
+    deployment:
+        uses globalProfile
+
+service worker
+    name = Worker
+    deployment:
+        uses globalProfile
+`);
+
+  assertNoErrors(result);
+  const unprojected = result.diagnostics.find((diagnostic) => diagnostic.code === "WIRE_DEPLOYMENT_NOT_PROJECTED");
+  const missing = result.diagnostics.find((diagnostic) => diagnostic.code === "WIRE_MISSING_DEPLOYMENT");
+  assert(unprojected?.message.includes("'frontend' to 'backend'"));
+  assert(missing?.message.includes("'frontend' to 'worker'"));
+  assert.equal(result.diagnostics.some((diagnostic) =>
+    diagnostic.code === "WIRE_MISSING_DEPLOYMENT"
+    && diagnostic.message.includes("'internalCaller' to 'internalCallee'")
+  ), false);
+}
+
+function doesNotRequireDeploymentOnAlreadyPhysicalWires() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("framework.ai", `
+extend type InfrastructureComponent
+    List of Wire links
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("eu.ai", `
+environment eu
+    name = EU
+
+infrastructureComponent gateway
+    name = Gateway
+    links:
+        -> compute
+
+infrastructureComponent compute
+    name = Compute
+
+networkConnection route
+    name = Route
+    projection:
+        source $from originalLink target $to
+`),
+      source("app.ai", `
+context app
+
+import route from environment eu
+
+system source
+    name = Source
+    links:
+        -> target
+            deployment:
+                uses route
+
+system target
+    name = Target
+`),
+    ],
+  });
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert.equal(result.diagnostics.some((diagnostic) =>
+    diagnostic.code === "WIRE_MISSING_DEPLOYMENT"
+    && diagnostic.message.includes("'gateway' to 'compute'")
+  ), false);
+}
+
+function doesNotWarnAboutElementDeploymentUntilTheProjectUsesIt() {
+  const result = linkWithCore([
+    source("app.ai", `
+context app
+
+external actor customer
+    name = Customer
+
+system application
+    name = Application
+
+    service frontend
+        name = Frontend
+
+    service backend
+        name = Backend
+`),
+  ]);
+
+  assertNoErrors(result);
+  assert.equal(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("ELEMENT_")), false);
+}
+
+function warnsAboutMissingElementDeploymentsWithinTheActiveLogicalLevel() {
+  const result = linkDeploymentProfileProject(`
+service frontend
+    name = Frontend
+    deployment:
+        uses globalProfile
+
+    component view
+        name = View
+
+service backend
+    name = Backend
+`, `
+external actor customer
+    name = Customer
+`);
+
+  assertNoErrors(result);
+  const frontend = result.elements.find((element) => element.id === "app/frontend");
+  const backendWarning = result.diagnostics.find((diagnostic) =>
+    diagnostic.code === "ELEMENT_MISSING_DEPLOYMENT"
+    && diagnostic.message.includes("'backend'")
+  );
+  assert.equal(frontend?.deployed, true);
+  assert(backendWarning);
+  assert.equal(result.diagnostics.some((diagnostic) =>
+    diagnostic.code.startsWith("ELEMENT_")
+    && (diagnostic.message.includes("'application'")
+      || diagnostic.message.includes("'view'")
+      || diagnostic.message.includes("'customer'"))
+  ), false);
+}
+
+function warnsWhenElementDeploymentResolvesToNoPhysicalInfrastructure() {
+  const result = linkDeploymentProfileProject(`
+service backend
+    name = Backend
+    deployment:
+        uses emptyProfile
+`, `
+deploymentProfile emptyProfile
+    appliesTo:
+        production from eu
+`);
+
+  assertNoErrors(result);
+  const warning = result.diagnostics.find((diagnostic) =>
+    diagnostic.code === "ELEMENT_DEPLOYMENT_NOT_PHYSICAL"
+    && diagnostic.message.includes("'backend'")
+  );
+  assert(warning);
 }
 
 function appliesProjectionRulesFromElementReferenceAttributes() {

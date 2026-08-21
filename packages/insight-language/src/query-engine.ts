@@ -49,6 +49,11 @@ interface Row {
   readonly relationships: Readonly<Record<string, QueryRelationship>>;
 }
 
+interface RollupEndpoint {
+  readonly id: string;
+  readonly binding: QueryNode;
+}
+
 interface EvaluationContext {
   readonly result: LinkProjectResult;
   readonly scope: QueryScope;
@@ -412,7 +417,7 @@ function rollupMatchRows(
       if (sourceEndpoint === undefined) {
         continue;
       }
-      for (const targetEndpoint of rollupTargetCandidates(edge, boundRight, parentByChild)) {
+      for (const targetEndpoint of rollupTargetCandidates(context, edge, boundRight, parentByChild)) {
         const source = queryNodeById(context.result, sourceEndpoint.id);
         const target = queryNodeById(context.result, targetEndpoint.id);
         if (source === undefined || target === undefined) {
@@ -422,7 +427,7 @@ function rollupMatchRows(
           nodes: {
             ...row.nodes,
             [pattern.left.alias]: sourceEndpoint.binding,
-            [right.alias]: target,
+            [right.alias]: targetEndpoint.binding,
           },
           relationships: relationship.alias === undefined
             ? row.relationships
@@ -436,7 +441,7 @@ function rollupMatchRows(
             },
         };
         if (matchesNode(sourceEndpoint.binding, pattern.left, context)
-            && matchesNode(target, right, context)
+            && matchesNode(targetEndpoint.binding, right, context)
             && evaluateExpression(nextRow, where, context)) {
           rows.push(nextRow);
           break;
@@ -453,7 +458,7 @@ function rollupSourceEndpoint(
   pattern: NodePattern,
   bound: QueryNode | undefined,
   parentByChild: ReadonlyMap<string, string>,
-): { readonly id: string; readonly binding: QueryNode } | undefined {
+): RollupEndpoint | undefined {
   if (bound !== undefined) {
     if (lineage(edge.source, parentByChild).includes(bound.id)) {
       return { id: bound.id, binding: bound };
@@ -469,16 +474,26 @@ function rollupSourceEndpoint(
 }
 
 function rollupTargetCandidates(
+  context: EvaluationContext,
   edge: QueryRelationship,
   bound: QueryNode | undefined,
   parentByChild: ReadonlyMap<string, string>,
-): readonly { readonly id: string }[] {
+): readonly RollupEndpoint[] {
   if (bound !== undefined) {
-    return lineage(edge.target, parentByChild).includes(bound.id) || edgeOriginTargetLineage(edge, parentByChild).includes(bound.id)
-      ? [{ id: bound.id }]
-      : [];
+    if (lineage(edge.target, parentByChild).includes(bound.id)) {
+      return [{ id: bound.id, binding: bound }];
+    }
+    if (edgeOriginTargetLineage(edge, parentByChild).includes(bound.id)) {
+      return queryNodeById(context.result, edge.target) === undefined
+        ? []
+        : [{ id: edge.target, binding: bound }];
+    }
+    return [];
   }
-  return lineage(edge.target, parentByChild).map((id) => ({ id }));
+  return lineage(edge.target, parentByChild).flatMap((id) => {
+    const binding = queryNodeById(context.result, id);
+    return binding === undefined ? [] : [{ id, binding }];
+  });
 }
 
 function nearestEndpoint(
@@ -991,6 +1006,9 @@ function propertyValue(node: QueryNode, name: string): string | readonly string[
     return undefined;
   }
   const element = node.element;
+  if (name === "deployed") {
+    return String(element.deployed === true);
+  }
   if (name === "id") {
     return element.localId;
   }
