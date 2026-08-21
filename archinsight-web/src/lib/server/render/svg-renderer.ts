@@ -2,6 +2,7 @@ import type { DiagnosticDto, DotRenderDto, SvgRenderDto, SvgRenderResponse } fro
 import type { EnvSource } from '$lib/server/auth/auth-config';
 import { requestLimits, validateDot, validateRenderCount } from '$lib/server/security/request-limits';
 import { getRendererConfig, rendererSvgUrl, type RendererConfig } from './renderer-config';
+import { incrementAnalysisMetric, observeAnalysis } from '$lib/server/language/analysis-observability';
 
 type RendererResponse = {
   diagnostics?: unknown;
@@ -33,6 +34,8 @@ export async function renderSvg(
     return renderFailure(requested, 'EXTERNAL_RENDERER_DISABLED', 'External renderer fallback is disabled');
   }
 
+  const started = performance.now();
+  incrementAnalysisMetric('graphvizRenders', requested.length);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
@@ -54,15 +57,32 @@ export async function renderSvg(
     if (!(response.headers.get('content-type') ?? '').toLowerCase().includes('application/json')) {
       throw new Error('External renderer returned a non-JSON response');
     }
-    return validateRendererResponse(JSON.parse(body) as RendererResponse, requested, config);
+    const result = validateRendererResponse(JSON.parse(body) as RendererResponse, requested, config);
+    observeAnalysis(env, 'graphviz.render', {
+      mode: 'external',
+      renderCount: requested.length,
+      success: true,
+      durationMs: elapsed(started)
+    });
+    return result;
   } catch (error) {
     const message = error instanceof Error && error.name === 'AbortError'
       ? `External renderer timed out after ${config.timeoutMs} ms`
       : error instanceof Error ? error.message : String(error);
+    observeAnalysis(env, 'graphviz.render', {
+      mode: 'external',
+      renderCount: requested.length,
+      success: false,
+      durationMs: elapsed(started)
+    });
     return renderFailure(requested, 'EXTERNAL_RENDERER_FAILED', message);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function elapsed(started: number): number {
+  return Math.round((performance.now() - started) * 100) / 100;
 }
 
 function validateRendererResponse(

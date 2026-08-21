@@ -1,3 +1,10 @@
+import type {
+  GraphNode,
+  GraphRelation,
+  LanguageSnapshot,
+  LinkProjectResult
+} from '@insight/language';
+
 export type DiagnosticDto = {
   source: string;
   line?: number;
@@ -23,9 +30,25 @@ export type LinkRequest = {
 };
 
 export type LinkResponse = {
+  revision: string;
+  analysis: {
+    mode: 'full' | 'cache-hit' | 'incremental' | 'overlay-incremental' | 'overlay-full';
+    relinkedSources: number;
+  };
+  symbols: LanguageSnapshot;
+  linkedModel: Omit<LinkProjectResult, 'graph'> & {
+    graph: {
+      nodes: readonly GraphNode[];
+      relations: readonly GraphRelation[];
+    };
+  };
   diagnostics: DiagnosticDto[];
   renders: DotRenderDto[];
   structure: ProjectStructureResponse;
+};
+
+export type SvgRenderRequest = {
+  renders?: DotRenderDto[] | null;
 };
 
 export type SvgRenderDto = {
