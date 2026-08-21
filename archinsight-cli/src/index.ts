@@ -835,6 +835,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericModelingReference(),
     },
     {
+      path: "references/importing-models.md",
+      content: genericImportingModelsReference(),
+    },
+    {
       path: "references/syntax.md",
       content: genericSyntaxReference(),
     },
@@ -873,6 +877,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     {
       path: "references/validation.md",
       content: genericValidationReference(),
+    },
+    {
+      path: "references/analysis.md",
+      content: genericAnalysisReference(),
     },
     {
       path: "references/queries.md",
@@ -992,8 +1000,10 @@ queries match the runtime.`;
 function skillReferenceRoutingGuide(): string {
   return `## Reference routing
 
-- Read \`references/modeling.md\` before creating, migrating, or extending a
+- Read \`references/modeling.md\` before creating or extending a
   model.
+- Read \`references/importing-models.md\` when translating an existing
+  architecture description, diagram, inventory, or foreign DSL into Insight.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
   C1/C2/C3/C4-style layers.
@@ -1014,6 +1024,9 @@ function skillReferenceRoutingGuide(): string {
   returns unexpected content, or needs customization.
 - Read \`references/validation.md\` before validating semantic or rendered
   results.
+- Read \`references/analysis.md\` for read-only architecture analysis,
+  dependency questions, impact exploration, and the boundary between Insight
+  queries and analysis of their JSON output.
 - Use \`examples/layered-architecture.ai\` as a compact valid model.`;
 }
 
@@ -1022,9 +1035,10 @@ function skillTaskModesGuide(): string {
 
 Choose one mode before acting:
 
-- **Analyze:** stay read-only. Inspect sources, run \`structure\`, \`link\`, and
-  the relevant query/render, then separate model, linker, query, and layout
-  findings with evidence.
+- **Analyze:** stay read-only and follow \`references/analysis.md\`. Inspect
+  sources, run \`structure\`, \`link\`, and the relevant query, then separate
+  authored facts, derived relationships, deployment projections, and rendered
+  presentation in the findings.
 - **Repair:** reproduce the defect first. For a visual defect, inspect
   \`archinsight query ... --format json\` before treating the image as evidence
   that the model is wrong. Request the current image or rendered output when it
@@ -1035,14 +1049,20 @@ Choose one mode before acting:
 - **Extend an existing model:** inventory existing ids, imports, edges, and view
   scope; preserve stable identities and compare linked/query results before and
   after each focused change.
+- **Import an existing model:** follow \`references/importing-models.md\`.
+  Establish which source artifacts are authoritative, translate facts rather
+  than drawing layout, record uncertain mappings, and validate one
+  architectural layer at a time.
 
-Before any build, rebuild, or migration edit, inspect the supplied context and
-ask one short, non-repetitive discovery message. Ask only for missing facts that
-could materially change the model: existing descriptions, diagrams or documents,
-unclear boundaries and flows, and relevant deployment constraints. Do not use a
-questionnaire or ask about the audience by default. If the request already
-answers everything, only invite the user to share any existing artifacts before
-proceeding. Use supplied material as the source of truth; do not invent missing
+Before any build, rebuild, import, or structural edit, inspect the supplied
+context and every relevant source already available through the repository,
+attachments, configured skills, MCP integrations, or other authorized tools.
+Do not ask the user to repeat information the agent can retrieve reliably on its
+own. If a material fact is still missing after those sources are exhausted, ask
+one short, non-repetitive message containing only the one or two questions that
+could change the model. Do not use a questionnaire or ask about the audience by
+default. If the available evidence is sufficient, proceed without a discovery
+question. Use retrieved material as the source of truth; do not invent missing
 architecture.
 `;
 }
@@ -1050,8 +1070,8 @@ architecture.
 function genericSkillGuide(): string {
   return `# Archinsight Agent Guide
 
-Use this guide when creating, analyzing, repairing, or migrating Insight \`.ai\`
-architecture models.
+Use this guide when creating, analyzing, or repairing Insight \`.ai\` models, or
+when importing an existing architecture description into Insight.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
@@ -1099,13 +1119,13 @@ ${skillReferenceRoutingGuide()}
 function codexSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, migrate, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
+description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
 
-Use this skill when creating, analyzing, repairing, or migrating Insight \`.ai\`
-architecture models.
+Use this skill when creating, analyzing, or repairing Insight \`.ai\` models, or
+when importing an existing architecture description into Insight.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
@@ -1163,13 +1183,13 @@ ${skillReferenceRoutingGuide()}
 function claudeSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, migrate, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
+description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
 
-Use this skill when creating, analyzing, repairing, or migrating Insight \`.ai\`
-architecture models.
+Use this skill when creating, analyzing, or repairing Insight \`.ai\` models, or
+when importing an existing architecture description into Insight.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
@@ -1411,6 +1431,141 @@ element.
 Every element should have a real architectural referent. If a relationship has
 no legitimate endpoint in scope, flag the uncertainty and ask for the missing
 boundary or owner.
+`;
+}
+
+function genericImportingModelsReference(): string {
+  return `# Importing Existing Architecture Models
+
+Use this reference when architecture already exists in another DSL, a diagram,
+an inventory, or prose. Import is a semantic reconstruction: the objective is
+to preserve supported architecture facts in Insight, not to reproduce the
+source file line by line or preserve its drawing coordinates.
+
+## Establish the Source Contract
+
+Before writing Insight, identify which inputs are authoritative and what each
+one represents. A repository-wide model may describe ownership and identity;
+an individual diagram may be only one filtered view. An infrastructure
+inventory can describe deployed resources without explaining logical systems.
+Prose can contain facts that are absent from every diagram.
+
+Create a small mapping ledger while working. For each source object, record its
+source identity, intended Insight id and type, owner or context, evidence, and
+any unresolved ambiguity. Preserve stable source ids when they are meaningful
+and valid Insight identifiers. Never merge objects solely because their display
+names look similar.
+
+## Judge the Evidence, Not Just the Format
+
+Source formats provide different levels of architectural evidence.
+
+PlantUML, Mermaid, and DOT are often used as drawing languages. Their text may
+be deterministic enough to reproduce one picture, while architectural identity,
+ownership, relationship meaning, and consistency across several diagrams remain
+author conventions. Treat a node or arrow found there as an observation from
+that diagram. Do not assume that repeated labels identify one object, that a
+visual boundary is semantic containment, or that an arrow carries the same
+dependency meaning in every file.
+
+LikeC4, Structurizr, and other model-oriented DSLs usually provide more reliable
+identities, containment, and directed relationships. Accept facts that are
+explicitly encoded in their model, but do not treat the model as complete by
+default. A workspace or selected view may omit deployment, lower architectural
+levels, external ownership, relationship technology, operational constraints,
+or the reason a boundary was chosen. Deterministic input can still be partial
+input.
+
+Inventories and generated exports are reliable only for the fields their
+producer owns. A cloud inventory can prove that a resource exists and expose
+its configuration, but it may say nothing about the logical service using it or
+the architectural dependency it realizes.
+
+When required semantics are absent or contradictory, first search the relevant
+repository sources, attached artifacts, configured skills, MCP integrations,
+and other authorized information sources available to the agent. Prefer the
+most authoritative source for the fact and record conflicts instead of silently
+choosing one. Do not ask the user to provide information that can be retrieved
+reliably through those sources.
+
+Only when the missing fact cannot be obtained independently should the agent
+stop that part of the translation and ask the user for context or documentation.
+Send one short message with one or two focused questions. Good questions resolve
+a specific mapping decision, for example:
+
+- Does \`A -> B\` represent a runtime call, data flow, or dependency ownership?
+- Is this system external to the modeled context, or only outside the current
+  diagram's focal system?
+- Is this deployment node a concrete resource, a reusable environment slot, or
+  a visual grouping?
+
+Continue with independent, well-supported facts while the answer is pending.
+Record unresolved mappings instead of selecting the most plausible type,
+boundary, direction, or deployment structure.
+
+## Interpret Common Sources Carefully
+
+| Source concept | Likely Insight concept | Required judgment |
+| --- | --- | --- |
+| C4 person or actor | \`Actor\` or \`ExternalActor\` | Decide externality relative to the selected context. |
+| C4 software system | \`System\` or \`ExternalSystem\` | Confirm ownership and context boundary. |
+| C4 container | \`Container\` or \`Service\` | Choose the name that best communicates its runtime purpose. |
+| C4 component | \`Component\` | Confirm its owning container or service. |
+| Relationship | Insight wire | Preserve direction, kind, technology, and the object that owns the dependency. |
+| Deployment node or resource | Environment, deployment, or infrastructure component | Separate a reusable deployment scheme from a concrete resource instance. |
+| Diagram boundary | Context, owner, group, or query scope | A visual box alone does not prove semantic containment. |
+
+LikeC4, Structurizr, and other C4-oriented DSLs usually provide the closest logical mapping,
+but their deployment instances and views still do not map mechanically to
+Insight profiles and projections. Mermaid, PlantUML, and DOT often provide
+visible nodes and arrows while omitting type, ownership, context, and deployment
+semantics. YAML, JSON, and cloud inventories provide structure but do not make
+field names architectural facts. Apply the evidence rules above and ask for
+missing semantics instead of deriving them from visual placement or
+serialization shape.
+
+## Import Outside In
+
+1. Inventory the source objects, relationships, boundaries, and views without
+   editing them.
+2. Define the Insight context boundary and shared external contexts.
+3. Create project-specific definitions only when the source has a real reusable
+   concept that the built-in type system does not express.
+4. Import C1 actors, systems, and their highest-level relationships. Link the
+   project and resolve identity or ownership errors.
+5. Add C2 containers and services, then move relationships to the lowest known
+   logical endpoints so built-in rollup can produce higher-level views.
+6. Add C3 components only where the source provides component-level evidence.
+7. Build C4 separately from concrete environments and deployments. Use
+   profiles, \`runsOn\`, \`uses\`, and projections to map the logical model to
+   physical infrastructure; do not turn every deployment node into a logical
+   C2 element.
+8. Split definitions, contexts, and environments into valid source roles and
+   make cross-file visibility explicit with imports.
+
+For a normal synchronous wire, the element that owns the dependency declares
+the wire and the arrow points from that owner to its target. Async pub/sub can
+use consumer-owned dependencies as described in \`references/modeling.md\`.
+Preserve source direction unless the target architecture semantics explicitly
+require a different ownership model, and record that decision.
+
+## Reconcile the Result
+
+Validate each imported layer rather than translating the complete source before
+the first link:
+
+\`\`\`shell
+archinsight link . --format text
+archinsight structure . --format json
+archinsight query . -c <context-id> -v no-filter --format json
+\`\`\`
+
+Use C1, C2, C3, and C4 query JSON to compare the intended scope and
+relationships at each level. Counts can reveal omissions, but equal counts do
+not prove semantic equivalence. Compare qualified identities, types, ownership,
+wire direction, externality, and deployment projection. Keep unresolved source
+facts visible in the import report instead of fabricating declarations to make
+the model appear complete.
 `;
 }
 
@@ -3864,6 +4019,147 @@ together, and validate \`c4-private-gateway\` as its own directory.
 
 If the CLI is missing, do not silently install it. Ask the user to install or
 expose \`@archinsight/cli\`.
+`;
+}
+
+function genericAnalysisReference(): string {
+  return `# Analyzing an Insight Project
+
+Use analysis mode to answer architecture questions without modifying the model.
+Start from the linked semantic graph, then use queries to select the relevant
+subgraph. Treat the rendered image as a presentation artifact, not as the
+primary analytical result.
+
+## What the Query Language Is For
+
+Insight queries select nodes and relationships for inspection or rendering.
+The current subset is well suited to:
+
+- inventory by context, source fragment, type, or attribute;
+- direct outgoing and incoming dependencies;
+- logical relationships rolled up to C1, C2, or C3 ownership levels;
+- external-boundary and technology-focused slices;
+- async versus sync relationship slices;
+- logical-to-physical deployment placement and projected wire paths;
+- comparing a broad context graph with a focused built-in or custom view.
+
+It is not a general graph analytics language. It has no aggregation functions,
+computed return columns, variable-length paths, shortest-path operations,
+subqueries, ordering, or pagination. It cannot directly express transitive
+impact, cycle detection, centrality, counts, or the absence of a relationship.
+\`ROLLUP\` climbs containment ownership; it is not transitive dependency
+traversal.
+
+For questions outside that boundary, select a sufficiently broad graph with
+\`--format json\` and analyze that JSON with the agent's ordinary data-processing
+tools. Keep this second step read-only and state clearly which result comes from
+the Insight query and which result was computed from its output.
+
+## Analysis Workflow
+
+1. Run \`archinsight link . --format text\`. Diagnostics are part of the
+   evidence; do not silently analyze a partially linked model as if it were
+   complete.
+2. Run \`archinsight structure . --format json\` to establish contexts, source
+   roles, types, objects, extensions, and qualified identities.
+3. Choose the smallest query that answers the question. Use a built-in view for
+   an architectural level, a focused custom query for one-hop questions, or
+   \`no-filter\` for a broad logical export.
+4. Inspect query JSON before rendering. Distinguish selected outer endpoints,
+   underlying edge endpoints, derived relationships, and projection origins.
+5. If the question needs traversal, aggregation, comparison, or absence checks,
+   compute them over the exported JSON without changing the model or pretending
+   the computation was supported by the query DSL.
+6. Report the scope: context, selected source when \`$tab\` is used, query or
+   built-in view, and whether derived or projected edges were included.
+
+## Inventory a Context
+
+The built-in unfiltered view is the simplest broad logical export:
+
+\`\`\`shell
+archinsight query . -c <context-id> -v no-filter --format json
+\`\`\`
+
+Use the \`elements\` map to inventory qualified identities and types. Use
+\`edges\` for direct relationships selected by the view. Parent-based render
+groups are useful presentation metadata but do not replace element ownership in
+the linked model.
+
+For a typed inventory, narrow the query:
+
+\`\`\`cypher
+MATCH (service:Service)
+WHERE service.context = $context
+RETURN service
+\`\`\`
+
+## Direct Dependency Questions
+
+Outgoing dependencies from one service:
+
+\`\`\`cypher
+MATCH (service:Service {id: 'checkout_api', context: $context})-[dependency:REFERENCES]->(target:Element)
+RETURN service, dependency, target
+\`\`\`
+
+Incoming dependencies use the same left-to-right syntax with the target bound
+on the right:
+
+\`\`\`cypher
+MATCH (caller:Element)-[dependency:REFERENCES]->(service:Service {id: 'checkout_api', context: $context})
+RETURN caller, dependency, service
+\`\`\`
+
+These answer one-hop questions. To find all transitively affected elements,
+export the relevant context graph and traverse its direct \`REFERENCES\` edges
+outside the query language. State whether derived and projected edges were
+excluded or analyzed separately so the same dependency is not counted at
+several architectural levels.
+
+## Analyze a Source Fragment
+
+Use \`$tab\` when the question concerns the semantic fragment rooted in one
+source and its extensions:
+
+\`\`\`cypher
+MATCH (element:Element)
+WHERE element.sourceIdentity = $tab
+OPTIONAL MATCH (element)-[dependency:REFERENCES]->(target:Element)
+RETURN element, dependency, target
+\`\`\`
+
+Run it with \`--source <source.ai>\`. Explain that the result follows semantic
+source identity and can include declarations contributed through \`extend\`;
+it is not a raw inventory of lines physically present in that file.
+
+## Analyze Deployment Realization
+
+Use the built-in C4 query JSON when the question is how logical architecture is
+realized physically:
+
+\`\`\`shell
+archinsight query . -c <context-id> -s <logical-source.ai> -v c4 --format json
+\`\`\`
+
+For each projected edge, compare outer \`source\` and \`target\` with nested
+\`edge.source\` and \`edge.target\`. Use \`edge.originSource\` and
+\`edge.originTarget\` to associate physical segments with their logical wire.
+Analyze logical wires and projected segments as separate layers; otherwise one
+dependency can appear to be several independent architectural relationships.
+
+## Quality and Impact Checks
+
+The query DSL cannot directly ask for nodes with no incoming edge, nodes with no
+outgoing edge, cycles, counts by type, or transitive consumers. Export a broad
+JSON graph, compute those conditions from qualified ids and direct edges, and
+then return to source declarations for confirmation. A selected view can omit
+objects by design, so absence in C1, C2, C3, or C4 is not evidence that the
+object is absent from the linked project.
+
+Analysis findings should distinguish verified model facts, query-dependent
+observations, externally computed results, and unresolved interpretation. Do
+not edit the architecture merely to make an analytical query easier.
 `;
 }
 

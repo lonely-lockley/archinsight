@@ -62,6 +62,7 @@ The generic target writes a runtime-neutral guide:
     archinsight.md
     references/
         modeling.md
+        importing-models.md
         syntax.md
         layered-architecture.md
         c1-context.md
@@ -71,6 +72,7 @@ The generic target writes a runtime-neutral guide:
         scaling.md
         project-structure.md
         core.md
+        analysis.md
         queries.md
         query-recipes.md
         validation.md
@@ -132,6 +134,10 @@ avoid guessing Insight syntax from other architecture DSLs, inspect project
 structure before broad edits or imports, read bundled core language sources for
 built-in types/presentations/projections, describe systems layer by layer, and
 write custom `.aiq` diagram queries with the supported Cypher-style subset.
+Dedicated references cover semantic import from C4-oriented DSLs, diagrams,
+inventories, and prose, plus read-only analysis through structure inspection,
+focused queries, and processing of query JSON when the query subset does not
+provide aggregation or graph traversal.
 For deployment and query changes it requires `query --format json` semantic
 inspection before rendering. The JSON reference distinguishes selected graph
 endpoints, underlying linked edges, and logical projection origins.
