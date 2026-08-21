@@ -30,7 +30,8 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
 - `--target <target>` - skill target for `skill init`: `generic`, `codex`, or `claude`.
-- `--force` - delete and recreate the generated skill directory before writing.
+- `--force` - replace the complete generated skill directory after the new
+  package has been generated successfully.
 - `-V, --version` - print version.
 - `-h, --help` - print help.
 
@@ -61,6 +62,7 @@ The generic target writes a runtime-neutral guide:
 .archinsight/agent/
     archinsight.md
     references/
+        cli.md
         modeling.md
         importing-models.md
         syntax.md

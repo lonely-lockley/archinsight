@@ -29,6 +29,10 @@ try {
     verifySharedFiles(output);
   }
 
+  const genericOutput = generated.get("generic");
+  assert(genericOutput);
+  verifySkillInitReplacementContract(genericOutput);
+
   const codexOutput = generated.get("codex");
   assert(codexOutput);
   verifyExamples(codexOutput);
@@ -60,11 +64,16 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("archinsight query ... --format json"));
   assert(content.includes("references/importing-models.md"));
   assert(content.includes("references/analysis.md"));
+  assert(content.includes("references/cli.md"));
   assert.equal(content.includes("references/versioning.md"), false);
 }
 
 function verifySharedFiles(output) {
   assert.equal(existsSync(path.join(output, "references", "versioning.md")), false);
+  const cli = readFileSync(path.join(output, "references", "cli.md"), "utf8");
+  assert(cli.includes("CLI Installation, Updates, and Skill Regeneration"));
+  assert(cli.includes("Refusing to initialize"));
+  assert(cli.includes("--force"));
   const expectedBuiltin = readFileSync(
     path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "c4.aiq"),
     "utf8",
@@ -93,6 +102,45 @@ function verifySharedFiles(output) {
   assert.match(analysis, /transitive\s+impact/);
   assert(analysis.includes("--format json"));
 
+}
+
+function verifySkillInitReplacementContract(output) {
+  const missingGeneratedFile = path.join(output, "references", "cli.md");
+  rmSync(missingGeneratedFile);
+
+  const refused = spawnSync(process.execPath, [
+    cliEntrypoint,
+    "skill",
+    "init",
+    repositoryRoot,
+    "--target",
+    "generic",
+    "--out",
+    output,
+  ], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  });
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr, /Refusing to initialize skill because output directory .* already exists/);
+  assert.equal(existsSync(missingGeneratedFile), false, "refused init must not modify a partial existing package");
+
+  const staleFile = path.join(output, "stale-user-file.md");
+  writeFileSync(staleFile, "must be removed by complete replacement\n");
+  runCli([
+    "skill",
+    "init",
+    repositoryRoot,
+    "--target",
+    "generic",
+    "--out",
+    output,
+    "--force",
+  ]);
+  assert.equal(existsSync(missingGeneratedFile), true);
+  assert.equal(existsSync(staleFile), false, "--force must replace the complete package");
+  verifyEntrypoint("generic", output);
+  verifySharedFiles(output);
 }
 
 function verifyExamples(output) {

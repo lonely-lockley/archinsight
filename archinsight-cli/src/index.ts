@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
@@ -243,14 +243,59 @@ async function runSkillInit(args: ParsedArgs, skillPackage: SkillPackage): Promi
   const projectRoot = path.resolve(projectPath(args));
   const usesDefaultOutput = args.output === undefined;
   const outputRoot = path.resolve(projectRoot, args.output ?? skillPackage.defaultOutput);
+  const outputExists = await exists(outputRoot);
 
-  if (args.force && await exists(outputRoot)) {
+  if (outputExists && !args.force) {
+    throw new CliError(
+      `Refusing to initialize skill because output directory '${outputRoot}' already exists. `
+      + "Pass --force to replace the complete generated skill package.",
+    );
+  }
+  if (args.force) {
     assertSafeSkillOutputRoot(projectRoot, outputRoot);
-    await rm(outputRoot, { recursive: true, force: true });
   }
 
-  for (const file of skillPackage.files) {
-    await writeGeneratedFile(path.join(outputRoot, file.path), file.content, args.force);
+  const outputParent = path.dirname(outputRoot);
+  await mkdir(outputParent, { recursive: true });
+  const stagingRoot = await mkdtemp(path.join(outputParent, `.${path.basename(outputRoot)}.tmp-`));
+  let previousRoot: string | undefined;
+  let installed = false;
+  try {
+    for (const file of skillPackage.files) {
+      await writeGeneratedFile(path.join(stagingRoot, file.path), file.content);
+    }
+
+    if (!args.force && await exists(outputRoot)) {
+      throw new CliError(
+        `Refusing to initialize skill because output directory '${outputRoot}' was created concurrently. `
+        + "No generated files were installed.",
+      );
+    }
+    if (args.force && await exists(outputRoot)) {
+      previousRoot = `${stagingRoot}.previous`;
+      await rename(outputRoot, previousRoot);
+    }
+    try {
+      await rename(stagingRoot, outputRoot);
+      installed = true;
+    } catch (error) {
+      if (previousRoot !== undefined && !await exists(outputRoot)) {
+        await rename(previousRoot, outputRoot);
+        previousRoot = undefined;
+      }
+      throw error;
+    }
+    if (previousRoot !== undefined) {
+      await rm(previousRoot, { recursive: true, force: true });
+      previousRoot = undefined;
+    }
+  } finally {
+    if (!installed) {
+      await rm(stagingRoot, { recursive: true, force: true });
+    }
+    if (installed && previousRoot !== undefined && await exists(previousRoot)) {
+      await rm(previousRoot, { recursive: true, force: true });
+    }
   }
 
   process.stdout.write(skillPackageSuccess(projectRoot, outputRoot, skillPackage, usesDefaultOutput));
@@ -576,9 +621,9 @@ async function writeOutput(file: string | undefined, content: string): Promise<v
   await writeFile(file, content);
 }
 
-async function writeGeneratedFile(file: string, content: string, force: boolean): Promise<void> {
-  if (!force && await exists(file)) {
-    throw new CliError(`Refusing to overwrite '${file}'. Pass --force to replace generated agent files.`);
+async function writeGeneratedFile(file: string, content: string): Promise<void> {
+  if (await exists(file)) {
+    throw new CliError(`Generated skill package contains duplicate file path '${file}'.`);
   }
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, content);
@@ -767,7 +812,7 @@ Options:
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
   -t, --theme <theme>      Render theme, default: light.
       --target <target>    Skill target: generic, codex, or claude.
-      --force              Delete and recreate the generated skill directory.
+      --force              Replace the complete generated skill directory.
   -V, --version            Print version.
   -h, --help               Show help.
 
@@ -830,6 +875,10 @@ function claudeSkillPackage(): SkillPackage {
 
 function sharedSkillFiles(): readonly GeneratedFile[] {
   return [
+    {
+      path: "references/cli.md",
+      content: genericCliReference(),
+    },
     {
       path: "references/modeling.md",
       content: genericModelingReference(),
@@ -1000,6 +1049,8 @@ queries match the runtime.`;
 function skillReferenceRoutingGuide(): string {
   return `## Reference routing
 
+- Read \`references/cli.md\` when the CLI is missing, its version differs from
+  the generated skill, or the skill package must be regenerated.
 - Read \`references/modeling.md\` before creating or extending a
   model.
 - Read \`references/importing-models.md\` when translating an existing
@@ -1087,8 +1138,8 @@ archinsight --help
 archinsight link . --format text
 \`\`\`
 
-If \`archinsight\` is not available, ask the user to install or expose
-\`@archinsight/cli\` before changing \`.ai\` files.
+If \`archinsight\` is not available, read \`references/cli.md\`. Do not install
+or update packages without the user's authorization.
 
 ${skillTaskModesGuide()}
 
@@ -1147,8 +1198,8 @@ archinsight --help
 archinsight link . --format text
 \`\`\`
 
-If \`archinsight\` is not available, ask the user to install or expose
-\`@archinsight/cli\` before changing \`.ai\` files.
+If \`archinsight\` is not available, read \`references/cli.md\`. Do not install
+or update packages without the user's authorization.
 
 ${skillTaskModesGuide()}
 
@@ -1212,8 +1263,9 @@ archinsight --help
 archinsight link . --format text
 \`\`\`
 
-If \`archinsight\` is not available in Claude's environment, ask the user to
-install or expose \`@archinsight/cli\` before changing \`.ai\` files.
+If \`archinsight\` is not available in Claude's environment, read
+\`references/cli.md\`. Do not install or update packages without the user's
+authorization.
 
 ${skillTaskModesGuide()}
 
@@ -1273,6 +1325,86 @@ function codexOpenAiYaml(): string {
 
 policy:
   allow_implicit_invocation: true
+`;
+}
+
+function genericCliReference(): string {
+  return `# CLI Installation, Updates, and Skill Regeneration
+
+The generated skill uses the Archinsight CLI as its parser, linker, query
+runtime, and validation authority. Check the available command before editing:
+
+\`\`\`shell
+archinsight --version
+archinsight --help
+\`\`\`
+
+Do not silently install or update the CLI. Package installation changes the
+developer environment or the project's dependency manifest and lockfile. Use an
+existing installation when possible; otherwise ask the user to authorize the
+appropriate installation method.
+
+## Project-Local Installation
+
+Prefer a project-local dependency when the repository already manages Node.js
+developer tools this way. Respect its package manager and lockfile. For an npm
+project, the user can install or update the current release with:
+
+\`\`\`shell
+npm install --save-dev @archinsight/cli@latest
+npm exec -- archinsight --version
+\`\`\`
+
+Use the equivalent command for pnpm or Yarn when that package manager owns the
+repository. Do not introduce a second lockfile merely to install Archinsight.
+
+## Global Installation
+
+A user who wants the \`archinsight\` command available across projects can
+install or update it globally:
+
+\`\`\`shell
+npm install -g @archinsight/cli@latest
+archinsight --version
+\`\`\`
+
+Global installation is a user-level machine change. Suggest it as an option;
+run it only when the user explicitly authorizes that installation scope.
+
+## Generate a New Skill Package
+
+Choose the target used by the agent runtime:
+
+\`\`\`shell
+archinsight skill init . --target codex
+archinsight skill init . --target claude
+archinsight skill init . --target generic
+\`\`\`
+
+Without \`--out\`, these commands use the target's standard directory. A normal
+\`skill init\` requires that the complete output directory does not exist. If it
+does exist, the CLI reports \`Refusing to initialize skill because output
+directory ... already exists\` before writing any generated file.
+
+## Regenerate an Existing Skill Package
+
+Use \`--force\` only for deliberate replacement of a generated package:
+
+\`\`\`shell
+archinsight skill init . --target codex --force
+\`\`\`
+
+The CLI generates the complete new package in a temporary sibling directory
+before replacing the target. \`--force\` removes everything under the target
+directory, including files not generated by the current release. Inspect the
+resolved target first and keep project-authored instructions outside that
+generated directory. Use \`--out <dedicated-directory>\` when the standard path
+is not appropriate.
+
+Never update a generated skill by running plain \`skill init\` repeatedly or by
+copying only the files that happen to be missing. Regenerate the entire package
+with the installed CLI, then restart the agent session when its runtime discovers
+skills only at startup.
 `;
 }
 
