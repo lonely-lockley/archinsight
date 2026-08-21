@@ -41,6 +41,7 @@ const cases = [
   linksCoreWirePresentationFields,
   allowsTypedReferenceValuesInSingleSlots,
   resolvesCoreInfrastructureRunsOnReferences,
+  rejectsReferencesToAnonymousInstances,
   allowsTypedReferenceValuesFromExplicitContexts,
   validatesTypedReferenceSlotCardinalityAndType,
   mergesObjectExtensionsAcrossFiles,
@@ -1144,6 +1145,42 @@ deployment production
   assert.equal(compute?.type, "Compute");
   assert.equal(gateway?.type, "InfrastructureComponent");
   assert.deepEqual(gateway?.attributes.runsOn, [compute?.id]);
+}
+
+function rejectsReferencesToAnonymousInstances() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("framework.ai", `
+define type CustomEnvironment of Environment
+    Compute compute
+    InfrastructureComponent gateway
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [
+      source("environment.ai", `
+environment prod
+    name = Production
+
+deployment production
+    compute:
+        compute _
+            name = Kubernetes
+
+    gateway:
+        infrastructureComponent gateway
+            name = Gateway
+            runsOn:
+                _
+`),
+    ],
+  });
+
+  assertNoErrors(snapshot);
+  const diagnostic = result.diagnostics.find((item) => item.code === "ANONYMOUS_INSTANCE_NOT_REFERENCEABLE");
+  assert(diagnostic);
+  assert(diagnostic.message.includes("give the target a named id"));
+  assert.equal(diagnostic.sourceName, "environment.ai");
 }
 
 function allowsTypedReferenceValuesFromExplicitContexts() {

@@ -3918,6 +3918,14 @@ function resolveEdgeTarget(
   importsBySourceAndAlias: ReadonlyMap<string, ResolvedImport>,
   diagnostics: LanguageDiagnostic[],
 ): ParsedElement | undefined {
+  if (edge.targetId === "_") {
+    diagnostics.push(missingElement(
+      edge,
+      "Anonymous instance '_' cannot be referenced; give the target a named id",
+      "ANONYMOUS_INSTANCE_NOT_REFERENCEABLE",
+    ));
+    return undefined;
+  }
   if (edge.targetContext !== undefined) {
     const explicit = elementsByContextAndLocalId.get(`${edge.targetContext}\0${edge.targetId}`)?.[0];
     if (explicit !== undefined) {

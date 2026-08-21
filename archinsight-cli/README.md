@@ -30,7 +30,8 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
 - `--target <target>` - skill target for `skill init`: `generic`, `codex`, or `claude`.
-- `--force` - delete and recreate the generated skill directory before writing.
+- `--force` - replace the complete generated skill directory after the new
+  package has been generated successfully.
 - `-V, --version` - print version.
 - `-h, --help` - print help.
 
@@ -61,7 +62,9 @@ The generic target writes a runtime-neutral guide:
 .archinsight/agent/
     archinsight.md
     references/
+        cli.md
         modeling.md
+        importing-models.md
         syntax.md
         layered-architecture.md
         c1-context.md
@@ -71,6 +74,7 @@ The generic target writes a runtime-neutral guide:
         scaling.md
         project-structure.md
         core.md
+        analysis.md
         queries.md
         query-recipes.md
         validation.md
@@ -98,6 +102,8 @@ The generic target writes a runtime-neutral guide:
             c2.aiq
             c3.aiq
             c4.aiq
+        queries/
+            c4-internal-actors.aiq
 ```
 
 Codex and Claude targets package the same Insight reference directly into the
@@ -125,11 +131,18 @@ After generating a Codex or Claude skill into the default location, restart the
 agent session so the skill is discovered. Pass `--out <dir>` to write the same
 package somewhere else.
 
-The guide tells agents to treat `archinsight` as the validation source of truth,
+The guide records the exact CLI version that generated it and tells agents to regenerate the package when that version differs, treat `archinsight` as the validation source of truth,
 avoid guessing Insight syntax from other architecture DSLs, inspect project
 structure before broad edits or imports, read bundled core language sources for
 built-in types/presentations/projections, describe systems layer by layer, and
 write custom `.aiq` diagram queries with the supported Cypher-style subset.
+Dedicated references cover semantic import from C4-oriented DSLs, diagrams,
+inventories, and prose, plus read-only analysis through structure inspection,
+focused queries, and processing of query JSON when the query subset does not
+provide aggregation or graph traversal.
+For deployment and query changes it requires `query --format json` semantic
+inspection before rendering. The JSON reference distinguishes selected graph
+endpoints, underlying linked edges, and logical projection origins.
 The bundled deployment reference explains context-owned profiles with
 `appliesTo: <deployment> from <environment>`, element placement through those
 profiles, and wire-level `uses` restricted to `NetworkConnection` descendants.

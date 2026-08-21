@@ -151,6 +151,20 @@ The selection produces a render graph containing:
 
 The render graph is a view of the linked model. Selecting or grouping objects does not modify their identities, ownership, attributes, or relationships. Several views can therefore answer different questions from the same project build.
 
+## Validation layers
+
+Project validation has three distinct layers. `archinsight link` checks parsing, types, imports, references, operator execution, and linker diagnostics. A successful link does not establish that a particular query selected the intended architectural view.
+
+`archinsight query --format json` exposes the semantic render graph chosen for one context, source, and view. This is the authoritative check for selected elements, visible edge endpoints, underlying linked edges, projection origins, and groups. Deployment and custom-query changes should be inspected here before an image is produced.
+
+Rendering checks the final presentation. When query JSON already contains an unexpected element or edge, the cause belongs to query matching, rollup, projection, or model semantics. When JSON is correct but SVG differs, the remaining cause belongs to DOT generation, visibility, Graphviz layout, or image handling.
+
+```shell
+archinsight link . --format text
+archinsight query . -c <context> -s <source.ai> -v c4 --format json
+archinsight render . -c <context> -s <source.ai> -v c4 -f svg -o c4.svg
+```
+
 ## Generating Graphviz DOT
 
 DOT generation translates the render graph into a Graphviz directed graph. It is a deterministic formatting stage: graph structure comes from linking and selection, while presentation definitions decide labels, colors, shapes, line styles, and layout hints.

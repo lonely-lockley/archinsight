@@ -20,7 +20,7 @@ environment eu
     region = eu-central
 ```
 
-The environment identifier establishes its namespace. Logical model files can refer to its deployments and infrastructure without moving those objects into a logical context.
+The environment identifier establishes its namespace. Logical model files can refer to its deployments and infrastructure without moving those objects into a logical context. An environment source contains exactly one `environment <id>` header. A second environment belongs in a second source file.
 
 One environment can contain several deployment schemes. Each `deployment` fills the infrastructure slots available in that environment for a particular variant such as production, test, disaster recovery, or an isolated tenant:
 
@@ -36,7 +36,7 @@ deployment test
     name = Test
 ```
 
-The two deployments share the `eu` environment boundary and keep separate infrastructure instances. A logical element can be mapped to either deployment through a profile, and different profiles can select different schemes from the same environment.
+The two deployments share the `eu` environment boundary and keep separate infrastructure instances. They are written as top-level declarations after the environment header, but the linker attaches them to that environment. A logical element can be mapped to either deployment through a profile, and different profiles can select different schemes from the same environment.
 
 Projects usually define an environment subtype with the slots required by their deployment model:
 
@@ -47,6 +47,8 @@ define type CommerceEnvironment of Environment
     Broker events
     NetworkConnection publicGateway
 ```
+
+This form creates a distinct constructorless environment schema. It is useful when a project has several environment families or wants the deployment vocabulary to remain isolated. When the project intentionally uses one slot contract everywhere, the same slots can instead be added with `extend type Environment`. Extending the base type changes every environment in the project; defining `CommerceEnvironment` introduces a separate schema. Environment roots infer a compatible subtype from the slots used by their deployments, so several subtypes must remain unambiguous.
 
 Every deployment of that environment can then provide concrete values for those slots:
 
@@ -125,7 +127,7 @@ compute kubernetes
         cloud_provider
 ```
 
-Within an environment inventory, this can express placement across structural boundaries: a Kubernetes cluster runs on a cloud provider, while an ingress controller runs on the cluster. The target remains a normal infrastructure object in the same physical model.
+Within an environment inventory, this can express placement across structural boundaries: a Kubernetes cluster runs on a cloud provider, while an ingress controller runs on the cluster. The target is the id of a concrete infrastructure object visible to the source. An anonymous `_` instance cannot be referenced through `runsOn`; give it a stable id when another declaration must address it.
 
 Deployment profiles use the operator form to refer to an environment slot:
 
@@ -138,6 +140,8 @@ deploymentProfile application_service
 ```
 
 Here, `compute` names a slot rather than one hard-coded infrastructure instance. Applying the profile to `production from eu` resolves it to the concrete compute value supplied by that deployment.
+
+These are two different forms of placement. `runsOn:` on an infrastructure component stores a reference to one named instance. `runsOn compute` in a profile names an environment slot and resolves a potentially different instance in every deployment selected by `appliesTo`.
 
 ## `uses`
 
@@ -353,3 +357,15 @@ The `runsOn` and `uses` lines in a profile are typed operator invocations. They 
 | `Element` | `uses` | `List of InfrastructureComponent` | No | Resolved supporting infrastructure. |
 | `Wire` | `deployment` | `List of Edge` | No | Deployment actions attached to the logical relationship. |
 | `Wire` | `uses` | `List of NetworkConnection` | No | Network connections carrying the wire through deployment infrastructure. |
+
+## Validating the deployment view
+
+A clean link proves that the project parses and that types, imports, profiles, slots, and references resolve. The selected deployment view still needs its own semantic check:
+
+```shell
+archinsight link . --format text
+archinsight query . -c <context> -s <logical-source.ai> -v c4 --format json
+archinsight render . -c <context> -s <logical-source.ai> -v c4 -f svg -o c4.svg
+```
+
+Inspect the JSON before relying on the image. It records the exact elements and physical edges selected by the C4 query. SVG is the final presentation check for layout, labels, and styling.

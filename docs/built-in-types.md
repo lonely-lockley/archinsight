@@ -184,7 +184,7 @@ service catalog
 
 `Deployment` represents a concrete deployment within an environment. It can contain further deployment elements and fill the infrastructure slots declared by the environment framework.
 
-An environment source uses the environment as its root scope and declares concrete deployments within that scope:
+An environment source uses exactly one environment as its root scope and declares one or more concrete deployments within that scope:
 
 ```insight
 environment eu
@@ -198,7 +198,7 @@ deployment production
         name = Kubernetes cluster
 ```
 
-`InfrastructureComponent` is the base concrete type for physical or managed infrastructure. It can describe its technology, contain other infrastructure components, refer to a runtime parent through `runsOn`, and carry projection rules that translate logical dependencies into physical paths.
+`InfrastructureComponent` is the base concrete type for physical or managed infrastructure. It can describe its technology, contain other infrastructure components, refer to a runtime parent through `runsOn`, and carry projection rules that translate logical dependencies into physical paths. Its `runsOn:` attribute stores a typed reference to a concrete named infrastructure instance, so an anonymous `_` object cannot be its target. The similarly spelled `runsOn compute` invocation in a `DeploymentProfile` names an environment slot and resolves a concrete instance for each selected deployment.
 
 The core library provides several specialized infrastructure types:
 

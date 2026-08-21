@@ -43,6 +43,8 @@ deployment production
     name = Production
 ```
 
+An environment file contains exactly one `environment <id>` header. The top-level `deployment` declarations that follow are owned by that environment, and one environment file may contain several deployments. Put another environment in another source file.
+
 These forms cannot be mixed in one file. A definition file cannot also declare a `context` or `environment`, and a model file cannot introduce `define` or `extend type` declarations. A context and an environment are also distinct root forms, so one architecture file cannot contain both roots.
 
 Keeping the roles separate makes schema changes easy to review and lets model files read as descriptions of concrete architecture. A project that needs custom vocabulary defines it in a framework file and uses its constructors from context and environment sources.

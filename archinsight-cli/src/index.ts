@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
@@ -71,6 +71,41 @@ interface SkillPackage {
 
 const hiddenStructureTypes = new Set(["List", "Nothing", "Text", "text"]);
 const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
+
+function textFileContent(content: string): string {
+  return content.endsWith("\n") ? content : `${content}\n`;
+}
+
+function replaceExactlyOnce(source: string, expected: string, replacement: string, description: string): string {
+  const parts = source.split(expected);
+  if (parts.length !== 2) {
+    throw new Error(`Cannot generate ${description}: expected one matching built-in C4 fragment, found ${parts.length - 1}`);
+  }
+  return `${parts[0]}${replacement}${parts[1]}`;
+}
+
+function c4InternalActorsQuery(): string {
+  let query = viewQueries.c4;
+  query = replaceExactlyOnce(
+    query,
+    "    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))",
+    "    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true)\n    OR node IS Actor)",
+    "C4 internal-actor query",
+  );
+  query = replaceExactlyOnce(
+    query,
+    "   OR projectedTarget IS External",
+    "   OR projectedTarget IS External\n   OR projectedTarget IS Actor",
+    "C4 internal-actor projected target filter",
+  );
+  query = replaceExactlyOnce(
+    query,
+    "   OR incomingProjectedSource IS External)",
+    "   OR incomingProjectedSource IS External\n   OR incomingProjectedSource IS Actor)",
+    "C4 internal-actor incoming source filter",
+  );
+  return query;
+}
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -208,14 +243,59 @@ async function runSkillInit(args: ParsedArgs, skillPackage: SkillPackage): Promi
   const projectRoot = path.resolve(projectPath(args));
   const usesDefaultOutput = args.output === undefined;
   const outputRoot = path.resolve(projectRoot, args.output ?? skillPackage.defaultOutput);
+  const outputExists = await exists(outputRoot);
 
-  if (args.force && await exists(outputRoot)) {
+  if (outputExists && !args.force) {
+    throw new CliError(
+      `Refusing to initialize skill because output directory '${outputRoot}' already exists. `
+      + "Pass --force to replace the complete generated skill package.",
+    );
+  }
+  if (args.force) {
     assertSafeSkillOutputRoot(projectRoot, outputRoot);
-    await rm(outputRoot, { recursive: true, force: true });
   }
 
-  for (const file of skillPackage.files) {
-    await writeGeneratedFile(path.join(outputRoot, file.path), file.content, args.force);
+  const outputParent = path.dirname(outputRoot);
+  await mkdir(outputParent, { recursive: true });
+  const stagingRoot = await mkdtemp(path.join(outputParent, `.${path.basename(outputRoot)}.tmp-`));
+  let previousRoot: string | undefined;
+  let installed = false;
+  try {
+    for (const file of skillPackage.files) {
+      await writeGeneratedFile(path.join(stagingRoot, file.path), file.content);
+    }
+
+    if (!args.force && await exists(outputRoot)) {
+      throw new CliError(
+        `Refusing to initialize skill because output directory '${outputRoot}' was created concurrently. `
+        + "No generated files were installed.",
+      );
+    }
+    if (args.force && await exists(outputRoot)) {
+      previousRoot = `${stagingRoot}.previous`;
+      await rename(outputRoot, previousRoot);
+    }
+    try {
+      await rename(stagingRoot, outputRoot);
+      installed = true;
+    } catch (error) {
+      if (previousRoot !== undefined && !await exists(outputRoot)) {
+        await rename(previousRoot, outputRoot);
+        previousRoot = undefined;
+      }
+      throw error;
+    }
+    if (previousRoot !== undefined) {
+      await rm(previousRoot, { recursive: true, force: true });
+      previousRoot = undefined;
+    }
+  } finally {
+    if (!installed) {
+      await rm(stagingRoot, { recursive: true, force: true });
+    }
+    if (installed && previousRoot !== undefined && await exists(previousRoot)) {
+      await rm(previousRoot, { recursive: true, force: true });
+    }
   }
 
   process.stdout.write(skillPackageSuccess(projectRoot, outputRoot, skillPackage, usesDefaultOutput));
@@ -541,9 +621,9 @@ async function writeOutput(file: string | undefined, content: string): Promise<v
   await writeFile(file, content);
 }
 
-async function writeGeneratedFile(file: string, content: string, force: boolean): Promise<void> {
-  if (!force && await exists(file)) {
-    throw new CliError(`Refusing to overwrite '${file}'. Pass --force to replace generated agent files.`);
+async function writeGeneratedFile(file: string, content: string): Promise<void> {
+  if (await exists(file)) {
+    throw new CliError(`Generated skill package contains duplicate file path '${file}'.`);
   }
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, content);
@@ -732,7 +812,7 @@ Options:
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
   -t, --theme <theme>      Render theme, default: light.
       --target <target>    Skill target: generic, codex, or claude.
-      --force              Delete and recreate the generated skill directory.
+      --force              Replace the complete generated skill directory.
   -V, --version            Print version.
   -h, --help               Show help.
 
@@ -796,8 +876,16 @@ function claudeSkillPackage(): SkillPackage {
 function sharedSkillFiles(): readonly GeneratedFile[] {
   return [
     {
+      path: "references/cli.md",
+      content: genericCliReference(),
+    },
+    {
       path: "references/modeling.md",
       content: genericModelingReference(),
+    },
+    {
+      path: "references/importing-models.md",
+      content: genericImportingModelsReference(),
     },
     {
       path: "references/syntax.md",
@@ -838,6 +926,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     {
       path: "references/validation.md",
       content: genericValidationReference(),
+    },
+    {
+      path: "references/analysis.md",
+      content: genericAnalysisReference(),
     },
     {
       path: "references/queries.md",
@@ -882,23 +974,27 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     },
     {
       path: "examples/builtin-views/no-filter.aiq",
-      content: viewQueries["no-filter"],
+      content: textFileContent(viewQueries["no-filter"]),
     },
     {
       path: "examples/builtin-views/c1.aiq",
-      content: viewQueries.c1,
+      content: textFileContent(viewQueries.c1),
     },
     {
       path: "examples/builtin-views/c2.aiq",
-      content: viewQueries.c2,
+      content: textFileContent(viewQueries.c2),
     },
     {
       path: "examples/builtin-views/c3.aiq",
-      content: viewQueries.c3,
+      content: textFileContent(viewQueries.c3),
     },
     {
       path: "examples/builtin-views/c4.aiq",
-      content: viewQueries.c4,
+      content: textFileContent(viewQueries.c4),
+    },
+    {
+      path: "examples/queries/c4-internal-actors.aiq",
+      content: textFileContent(c4InternalActorsQuery()),
     },
     ...coreSkillFiles(),
   ];
@@ -943,30 +1039,81 @@ function skillPackageSuccess(
   return lines.join("\n");
 }
 
+function skillCompatibilityNotice(): string {
+  return `This package was generated by Archinsight CLI ${version}. Run
+\`archinsight --version\` before editing. If the installed version differs,
+regenerate the skill so its references, core sources, examples, and built-in
+queries match the runtime.`;
+}
+
+function skillReferenceRoutingGuide(): string {
+  return `## Reference routing
+
+- Read \`references/cli.md\` when the CLI is missing, its version differs from
+  the generated skill, or the skill package must be regenerated.
+- Read \`references/modeling.md\` before creating or extending a
+  model.
+- Read \`references/importing-models.md\` when translating an existing
+  architecture description, diagram, inventory, or foreign DSL into Insight.
+- Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
+- Read \`references/layered-architecture.md\` when decomposing a system across
+  C1/C2/C3/C4-style layers.
+- Read \`references/c1-context.md\` when working with system context models.
+- Read \`references/c2-containers.md\` when working with containers or services.
+- Read \`references/c3-components.md\` when working with component internals.
+- Read \`references/c4-deployment.md\` when working with environments,
+  deployments, infrastructure, placement, or projections.
+- Read \`references/scaling.md\` when splitting a repository into reusable
+  framework, environment, profile, system, or view files.
+- Read \`references/project-structure.md\` before declaration lookup, imports,
+  or broad file changes.
+- Read \`references/core.md\` and \`.core/*.ai\` before assuming built-in types,
+  constructors, attributes, presentations, or projections.
+- Read \`references/queries.md\` before writing queries or interpreting query
+  JSON.
+- Read \`references/query-recipes.md\` when a view hides expected content,
+  returns unexpected content, or needs customization.
+- Read \`references/validation.md\` before validating semantic or rendered
+  results.
+- Read \`references/analysis.md\` for read-only architecture analysis,
+  dependency questions, impact exploration, and the boundary between Insight
+  queries and analysis of their JSON output.
+- Use \`examples/layered-architecture.ai\` as a compact valid model.`;
+}
+
 function skillTaskModesGuide(): string {
   return `## Task modes
 
 Choose one mode before acting:
 
-- **Analyze:** stay read-only. Inspect sources, run \`structure\`, \`link\`, and
-  the relevant query/render, then separate model, linker, query, and layout
-  findings with evidence.
-- **Repair:** reproduce the defect first. For a visual defect, request the
-  current image or rendered output when it is not available. Make the smallest
-  model or query change and validate the same path again.
+- **Analyze:** stay read-only and follow \`references/analysis.md\`. Inspect
+  sources, run \`structure\`, \`link\`, and the relevant query, then separate
+  authored facts, derived relationships, deployment projections, and rendered
+  presentation in the findings.
+- **Repair:** reproduce the defect first. For a visual defect, inspect
+  \`archinsight query ... --format json\` before treating the image as evidence
+  that the model is wrong. Request the current image or rendered output when it
+  is not available, make the smallest model or query change, and validate the
+  same semantic path again before rendering.
 - **Build or rebuild:** perform discovery before editing, then model from the
   outside inward and validate after each architectural layer.
-- **Extend or migrate:** inventory existing ids, imports, edges, and view scope;
-  preserve stable identities and compare the linked/rendered result before and
+- **Extend an existing model:** inventory existing ids, imports, edges, and view
+  scope; preserve stable identities and compare linked/query results before and
   after each focused change.
+- **Import an existing model:** follow \`references/importing-models.md\`.
+  Establish which source artifacts are authoritative, translate facts rather
+  than drawing layout, record uncertain mappings, and validate one
+  architectural layer at a time.
 
-Before any build, rebuild, or migration edit, inspect the supplied context and
-ask one short, non-repetitive discovery message. Ask only for missing facts that
-could materially change the model: existing descriptions, diagrams or documents,
-unclear boundaries and flows, and relevant deployment constraints. Do not use a
-questionnaire or ask about the audience by default. If the request already
-answers everything, only invite the user to share any existing artifacts before
-proceeding. Use supplied material as the source of truth; do not invent missing
+Before any build, rebuild, import, or structural edit, inspect the supplied
+context and every relevant source already available through the repository,
+attachments, configured skills, MCP integrations, or other authorized tools.
+Do not ask the user to repeat information the agent can retrieve reliably on its
+own. If a material fact is still missing after those sources are exhausted, ask
+one short, non-repetitive message containing only the one or two questions that
+could change the model. Do not use a questionnaire or ask about the audience by
+default. If the available evidence is sufficient, proceed without a discovery
+question. Use retrieved material as the source of truth; do not invent missing
 architecture.
 `;
 }
@@ -974,11 +1121,13 @@ architecture.
 function genericSkillGuide(): string {
   return `# Archinsight Agent Guide
 
-Use this guide when creating, analyzing, repairing, or migrating Insight \`.ai\`
-architecture models.
+Use this guide when creating, analyzing, or repairing Insight \`.ai\` models, or
+when importing an existing architecture description into Insight.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
+
+${skillCompatibilityNotice()}
 
 ## Required Tool
 
@@ -989,8 +1138,8 @@ archinsight --help
 archinsight link . --format text
 \`\`\`
 
-If \`archinsight\` is not available, ask the user to install or expose
-\`@archinsight/cli\` before changing \`.ai\` files.
+If \`archinsight\` is not available, read \`references/cli.md\`. Do not install
+or update packages without the user's authorization.
 
 ${skillTaskModesGuide()}
 
@@ -1011,88 +1160,34 @@ ${skillTaskModesGuide()}
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
 8. Keep definition, context, and environment sources in separate files.
 9. Validate every Insight change with \`archinsight link . --format text\`.
+10. For C2-C4, deployment, or query changes, inspect the selected graph with
+    \`archinsight query ... --format json\` before rendering.
 
-## References
-
-- Read \`references/modeling.md\` before creating, migrating, or extending a
-  model.
-- Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
-- Read \`references/layered-architecture.md\` when decomposing a system across
-  C1/C2/C3/C4-style layers.
-- Read \`references/c1-context.md\` when adding or repairing system context
-  models: actors, owned systems, external systems, and boundary choices.
-- Read \`references/c2-containers.md\` when adding or repairing
-  container/service-level C2 models for a selected system.
-- Read \`references/c3-components.md\` when adding or repairing component-level
-  C3 models for a selected container or service.
-- Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
-  models, infrastructure inventories, environment-scoped infrastructure, or
-  projection rules.
-- Read \`references/scaling.md\` when splitting a repository into reusable
-  framework, environment, profile, system, or deployment-view files.
-- Read \`references/project-structure.md\` before searching for declarations,
-  planning imports, or making broad edits.
-- Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
-  attributes, presentations, or projections.
-- Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
-  files.
-- Read \`references/query-recipes.md\` when a built-in view hides an expected
-  element/edge or needs customization.
-- Read \`references/validation.md\` before running checks, structure inspection,
-  or rendering.
-- Use \`examples/layered-architecture.ai\` as a compact valid model.
+${skillReferenceRoutingGuide()}
 `;
 }
 
 function codexSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, migrate, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
+description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
 
-Use this skill when creating, analyzing, repairing, or migrating Insight \`.ai\`
-architecture models.
+Use this skill when creating, analyzing, or repairing Insight \`.ai\` models, or
+when importing an existing architecture description into Insight.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
 
 ## Codex Usage Notes
 
-Treat this \`SKILL.md\` as the entrypoint. Load reference files only when needed:
+Treat this \`SKILL.md\` as the entrypoint and load routed reference files only
+when the task needs them. Use shell access to run validation. Do not silently
+install global npm packages or change machine configuration.
 
-- Read \`references/modeling.md\` before creating, migrating, or extending a
-  model.
-- Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
-- Read \`references/layered-architecture.md\` before decomposing a system across
-  C1/C2/C3/C4-style layers.
-- Read \`references/c1-context.md\` before adding or repairing system context
-  models: actors, owned systems, external systems, and boundary choices.
-- Read \`references/c2-containers.md\` before adding or repairing
-  container/service-level C2 models for a selected system.
-- Read \`references/c3-components.md\` before adding or repairing component-level
-  C3 models for a selected container or service.
-- Read \`references/c4-deployment.md\` before adding or repairing deployment/C4
-  models, infrastructure inventories, environment-scoped infrastructure, or
-  projection rules.
-- Read \`references/scaling.md\` before splitting a repository into reusable
-  framework, environment, profile, system, or deployment-view files.
-- Read \`references/project-structure.md\` before searching for declarations,
-  planning imports, or making broad edits.
-- Read \`references/core.md\` and \`.core/*.ai\` before assuming available
-  constructors, attributes, presentations, or projections.
-- Read \`references/queries.md\` before writing custom diagram queries or \`.aiq\`
-  files.
-- Read \`references/query-recipes.md\` before customizing a built-in view or
-  explaining why an expected element/edge is hidden.
-- Read \`references/validation.md\` before running checks, structure inspection,
-  or rendering commands.
-
-Use Codex shell access to validate changes when available. Do not silently
-install global npm packages or change machine configuration. If \`archinsight\`
-is missing, ask the user whether they want to install or expose
-\`@archinsight/cli\`.
+${skillCompatibilityNotice()}
 
 ## Required Tool
 
@@ -1103,8 +1198,8 @@ archinsight --help
 archinsight link . --format text
 \`\`\`
 
-If \`archinsight\` is not available, ask the user to install or expose
-\`@archinsight/cli\` before changing \`.ai\` files.
+If \`archinsight\` is not available, read \`references/cli.md\`. Do not install
+or update packages without the user's authorization.
 
 ${skillTaskModesGuide()}
 
@@ -1127,91 +1222,37 @@ ${skillTaskModesGuide()}
 9. Use \`archinsight structure . --format text\` before broad edits when the
    project shape is unclear.
 10. Validate every Insight change with \`archinsight link . --format text\`.
-11. If validation fails, fix the first real syntax/type/linking error before
-   adding more model content.
+11. For C2-C4, deployment, or query changes, inspect the selected graph with
+    \`archinsight query ... --format json\` before rendering.
+12. If validation fails, fix the first real syntax/type/linking error before
+    adding more model content.
 
-## References
-
-- Read \`references/modeling.md\` before creating, migrating, or extending a
-  model.
-- Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
-- Read \`references/layered-architecture.md\` when decomposing a system across
-  C1/C2/C3/C4-style layers.
-- Read \`references/c1-context.md\` when adding or repairing system context
-  models: actors, owned systems, external systems, and boundary choices.
-- Read \`references/c2-containers.md\` when adding or repairing
-  container/service-level C2 models for a selected system.
-- Read \`references/c3-components.md\` when adding or repairing component-level
-  C3 models for a selected container or service.
-- Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
-  models, infrastructure inventories, environment-scoped infrastructure, or
-  projection rules.
-- Read \`references/scaling.md\` when splitting a repository into reusable
-  framework, environment, profile, system, or deployment-view files.
-- Read \`references/project-structure.md\` before searching for declarations,
-  planning imports, or making broad edits.
-- Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
-  attributes, presentations, or projections.
-- Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
-  files.
-- Read \`references/query-recipes.md\` when a built-in view hides an expected
-  element/edge or needs customization.
-- Read \`references/validation.md\` before running checks, structure inspection,
-  or rendering.
-- Use \`examples/layered-architecture.ai\` as a compact valid model.
+${skillReferenceRoutingGuide()}
 `;
 }
 
 function claudeSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, migrate, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
+description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
 
-Use this skill when creating, analyzing, repairing, or migrating Insight \`.ai\`
-architecture models.
+Use this skill when creating, analyzing, or repairing Insight \`.ai\` models, or
+when importing an existing architecture description into Insight.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
 
 ## Claude Usage Notes
 
-Treat this \`SKILL.md\` as the entrypoint. Load the reference files only when
-they are needed:
+Treat this \`SKILL.md\` as the entrypoint and load routed references only when
+the task needs them. With shell access, run validation directly. Without it, ask
+the user to run the exact command and paste the output. Do not silently install
+npm packages or change machine configuration.
 
-- Read \`references/modeling.md\` before creating, migrating, or extending a
-  model.
-- Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
-- Read \`references/layered-architecture.md\` before decomposing a system across
-  C1/C2/C3/C4-style layers.
-- Read \`references/c1-context.md\` before adding or repairing system context
-  models: actors, owned systems, external systems, and boundary choices.
-- Read \`references/c2-containers.md\` before adding or repairing
-  container/service-level C2 models for a selected system.
-- Read \`references/c3-components.md\` before adding or repairing component-level
-  C3 models for a selected container or service.
-- Read \`references/c4-deployment.md\` before adding or repairing deployment/C4
-  models, infrastructure inventories, environment-scoped infrastructure, or
-  projection rules.
-- Read \`references/scaling.md\` before splitting a repository into reusable
-  framework, environment, profile, system, or deployment-view files.
-- Read \`references/project-structure.md\` before searching for declarations,
-  planning imports, or making broad edits.
-- Read \`references/core.md\` and \`.core/*.ai\` before assuming available
-  constructors, attributes, presentations, or projections.
-- Read \`references/queries.md\` before writing custom diagram queries or \`.aiq\`
-  files.
-- Read \`references/query-recipes.md\` before customizing a built-in view or
-  explaining why an expected element/edge is hidden.
-- Read \`references/validation.md\` before asking the user to run validation,
-  structure inspection, or rendering commands.
-
-When Claude has direct shell access, run validation yourself. When Claude is
-embedded in an editor without shell access, ask the user to run the exact command
-and paste the output. Do not silently install npm packages or change machine
-configuration.
+${skillCompatibilityNotice()}
 
 ## Required Tool
 
@@ -1222,8 +1263,9 @@ archinsight --help
 archinsight link . --format text
 \`\`\`
 
-If \`archinsight\` is not available in Claude's environment, ask the user to
-install or expose \`@archinsight/cli\` before changing \`.ai\` files.
+If \`archinsight\` is not available in Claude's environment, read
+\`references/cli.md\`. Do not install or update packages without the user's
+authorization.
 
 ${skillTaskModesGuide()}
 
@@ -1247,7 +1289,9 @@ ${skillTaskModesGuide()}
    before broad edits when the CLI is available.
 10. Validate every Insight change with \`archinsight link . --format text\` when
    shell access is available; otherwise ask the user to run validation.
-11. If validation fails, fix the first real syntax/type/linking error before
+11. For C2-C4, deployment, or query changes, inspect the selected graph with
+   \`archinsight query ... --format json\` before rendering.
+12. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
 
 ## Communication
@@ -1269,35 +1313,7 @@ archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
 Report diagnostics by source, line, column, and message. Avoid rewriting large
 sections of Insight unless the existing layering is already understood.
 
-## References
-
-- Read \`references/modeling.md\` before creating, migrating, or extending a
-  model.
-- Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
-- Read \`references/layered-architecture.md\` when decomposing a system across
-  C1/C2/C3/C4-style layers.
-- Read \`references/c1-context.md\` when adding or repairing system context
-  models: actors, owned systems, external systems, and boundary choices.
-- Read \`references/c2-containers.md\` when adding or repairing
-  container/service-level C2 models for a selected system.
-- Read \`references/c3-components.md\` when adding or repairing component-level
-  C3 models for a selected container or service.
-- Read \`references/c4-deployment.md\` when adding or repairing deployment/C4
-  models, infrastructure inventories, environment-scoped infrastructure, or
-  projection rules.
-- Read \`references/scaling.md\` when splitting a repository into reusable
-  framework, environment, profile, system, or deployment-view files.
-- Read \`references/project-structure.md\` before searching for declarations,
-  planning imports, or making broad edits.
-- Read \`references/core.md\` and \`.core/*.ai\` when checking built-in types,
-  attributes, presentations, or projections.
-- Read \`references/queries.md\` when writing custom diagram queries or \`.aiq\`
-  files.
-- Read \`references/query-recipes.md\` when a built-in view hides an expected
-  element/edge or needs customization.
-- Read \`references/validation.md\` before running checks, structure inspection,
-  or rendering.
-- Use \`examples/layered-architecture.ai\` as a compact valid model.
+${skillReferenceRoutingGuide()}
 `;
 }
 
@@ -1309,6 +1325,86 @@ function codexOpenAiYaml(): string {
 
 policy:
   allow_implicit_invocation: true
+`;
+}
+
+function genericCliReference(): string {
+  return `# CLI Installation, Updates, and Skill Regeneration
+
+The generated skill uses the Archinsight CLI as its parser, linker, query
+runtime, and validation authority. Check the available command before editing:
+
+\`\`\`shell
+archinsight --version
+archinsight --help
+\`\`\`
+
+Do not silently install or update the CLI. Package installation changes the
+developer environment or the project's dependency manifest and lockfile. Use an
+existing installation when possible; otherwise ask the user to authorize the
+appropriate installation method.
+
+## Project-Local Installation
+
+Prefer a project-local dependency when the repository already manages Node.js
+developer tools this way. Respect its package manager and lockfile. For an npm
+project, the user can install or update the current release with:
+
+\`\`\`shell
+npm install --save-dev @archinsight/cli@latest
+npm exec -- archinsight --version
+\`\`\`
+
+Use the equivalent command for pnpm or Yarn when that package manager owns the
+repository. Do not introduce a second lockfile merely to install Archinsight.
+
+## Global Installation
+
+A user who wants the \`archinsight\` command available across projects can
+install or update it globally:
+
+\`\`\`shell
+npm install -g @archinsight/cli@latest
+archinsight --version
+\`\`\`
+
+Global installation is a user-level machine change. Suggest it as an option;
+run it only when the user explicitly authorizes that installation scope.
+
+## Generate a New Skill Package
+
+Choose the target used by the agent runtime:
+
+\`\`\`shell
+archinsight skill init . --target codex
+archinsight skill init . --target claude
+archinsight skill init . --target generic
+\`\`\`
+
+Without \`--out\`, these commands use the target's standard directory. A normal
+\`skill init\` requires that the complete output directory does not exist. If it
+does exist, the CLI reports \`Refusing to initialize skill because output
+directory ... already exists\` before writing any generated file.
+
+## Regenerate an Existing Skill Package
+
+Use \`--force\` only for deliberate replacement of a generated package:
+
+\`\`\`shell
+archinsight skill init . --target codex --force
+\`\`\`
+
+The CLI generates the complete new package in a temporary sibling directory
+before replacing the target. \`--force\` removes everything under the target
+directory, including files not generated by the current release. Inspect the
+resolved target first and keep project-authored instructions outside that
+generated directory. Use \`--out <dedicated-directory>\` when the standard path
+is not appropriate.
+
+Never update a generated skill by running plain \`skill init\` repeatedly or by
+copying only the files that happen to be missing. Regenerate the entire package
+with the installed CLI, then restart the agent session when its runtime discovers
+skills only at startup.
 `;
 }
 
@@ -1326,8 +1422,8 @@ Keep language/framework definitions separate from graph model files.
   \`define enum of\`, \`define presentation\`, \`extend type\`,
   \`extend enum of\`, and \`extend presentation\`.
 - Context files begin with \`context <id>\` and describe logical architecture.
-- Environment files begin with \`environment <id>\` and describe concrete
-  deployments and infrastructure inventory.
+- Environment files begin with exactly one \`environment <id>\`, followed by
+  one or more concrete deployments and their infrastructure inventory.
 
 Each source has one role. Do not mix definitions, a context, and an environment
 in one file. Put shared vocabulary in framework files, logical objects and
@@ -1470,6 +1566,141 @@ boundary or owner.
 `;
 }
 
+function genericImportingModelsReference(): string {
+  return `# Importing Existing Architecture Models
+
+Use this reference when architecture already exists in another DSL, a diagram,
+an inventory, or prose. Import is a semantic reconstruction: the objective is
+to preserve supported architecture facts in Insight, not to reproduce the
+source file line by line or preserve its drawing coordinates.
+
+## Establish the Source Contract
+
+Before writing Insight, identify which inputs are authoritative and what each
+one represents. A repository-wide model may describe ownership and identity;
+an individual diagram may be only one filtered view. An infrastructure
+inventory can describe deployed resources without explaining logical systems.
+Prose can contain facts that are absent from every diagram.
+
+Create a small mapping ledger while working. For each source object, record its
+source identity, intended Insight id and type, owner or context, evidence, and
+any unresolved ambiguity. Preserve stable source ids when they are meaningful
+and valid Insight identifiers. Never merge objects solely because their display
+names look similar.
+
+## Judge the Evidence, Not Just the Format
+
+Source formats provide different levels of architectural evidence.
+
+PlantUML, Mermaid, and DOT are often used as drawing languages. Their text may
+be deterministic enough to reproduce one picture, while architectural identity,
+ownership, relationship meaning, and consistency across several diagrams remain
+author conventions. Treat a node or arrow found there as an observation from
+that diagram. Do not assume that repeated labels identify one object, that a
+visual boundary is semantic containment, or that an arrow carries the same
+dependency meaning in every file.
+
+LikeC4, Structurizr, and other model-oriented DSLs usually provide more reliable
+identities, containment, and directed relationships. Accept facts that are
+explicitly encoded in their model, but do not treat the model as complete by
+default. A workspace or selected view may omit deployment, lower architectural
+levels, external ownership, relationship technology, operational constraints,
+or the reason a boundary was chosen. Deterministic input can still be partial
+input.
+
+Inventories and generated exports are reliable only for the fields their
+producer owns. A cloud inventory can prove that a resource exists and expose
+its configuration, but it may say nothing about the logical service using it or
+the architectural dependency it realizes.
+
+When required semantics are absent or contradictory, first search the relevant
+repository sources, attached artifacts, configured skills, MCP integrations,
+and other authorized information sources available to the agent. Prefer the
+most authoritative source for the fact and record conflicts instead of silently
+choosing one. Do not ask the user to provide information that can be retrieved
+reliably through those sources.
+
+Only when the missing fact cannot be obtained independently should the agent
+stop that part of the translation and ask the user for context or documentation.
+Send one short message with one or two focused questions. Good questions resolve
+a specific mapping decision, for example:
+
+- Does \`A -> B\` represent a runtime call, data flow, or dependency ownership?
+- Is this system external to the modeled context, or only outside the current
+  diagram's focal system?
+- Is this deployment node a concrete resource, a reusable environment slot, or
+  a visual grouping?
+
+Continue with independent, well-supported facts while the answer is pending.
+Record unresolved mappings instead of selecting the most plausible type,
+boundary, direction, or deployment structure.
+
+## Interpret Common Sources Carefully
+
+| Source concept | Likely Insight concept | Required judgment |
+| --- | --- | --- |
+| C4 person or actor | \`Actor\` or \`ExternalActor\` | Decide externality relative to the selected context. |
+| C4 software system | \`System\` or \`ExternalSystem\` | Confirm ownership and context boundary. |
+| C4 container | \`Container\` or \`Service\` | Choose the name that best communicates its runtime purpose. |
+| C4 component | \`Component\` | Confirm its owning container or service. |
+| Relationship | Insight wire | Preserve direction, kind, technology, and the object that owns the dependency. |
+| Deployment node or resource | Environment, deployment, or infrastructure component | Separate a reusable deployment scheme from a concrete resource instance. |
+| Diagram boundary | Context, owner, group, or query scope | A visual box alone does not prove semantic containment. |
+
+LikeC4, Structurizr, and other C4-oriented DSLs usually provide the closest logical mapping,
+but their deployment instances and views still do not map mechanically to
+Insight profiles and projections. Mermaid, PlantUML, and DOT often provide
+visible nodes and arrows while omitting type, ownership, context, and deployment
+semantics. YAML, JSON, and cloud inventories provide structure but do not make
+field names architectural facts. Apply the evidence rules above and ask for
+missing semantics instead of deriving them from visual placement or
+serialization shape.
+
+## Import Outside In
+
+1. Inventory the source objects, relationships, boundaries, and views without
+   editing them.
+2. Define the Insight context boundary and shared external contexts.
+3. Create project-specific definitions only when the source has a real reusable
+   concept that the built-in type system does not express.
+4. Import C1 actors, systems, and their highest-level relationships. Link the
+   project and resolve identity or ownership errors.
+5. Add C2 containers and services, then move relationships to the lowest known
+   logical endpoints so built-in rollup can produce higher-level views.
+6. Add C3 components only where the source provides component-level evidence.
+7. Build C4 separately from concrete environments and deployments. Use
+   profiles, \`runsOn\`, \`uses\`, and projections to map the logical model to
+   physical infrastructure; do not turn every deployment node into a logical
+   C2 element.
+8. Split definitions, contexts, and environments into valid source roles and
+   make cross-file visibility explicit with imports.
+
+For a normal synchronous wire, the element that owns the dependency declares
+the wire and the arrow points from that owner to its target. Async pub/sub can
+use consumer-owned dependencies as described in \`references/modeling.md\`.
+Preserve source direction unless the target architecture semantics explicitly
+require a different ownership model, and record that decision.
+
+## Reconcile the Result
+
+Validate each imported layer rather than translating the complete source before
+the first link:
+
+\`\`\`shell
+archinsight link . --format text
+archinsight structure . --format json
+archinsight query . -c <context-id> -v no-filter --format json
+\`\`\`
+
+Use C1, C2, C3, and C4 query JSON to compare the intended scope and
+relationships at each level. Counts can reveal omissions, but equal counts do
+not prove semantic equivalence. Compare qualified identities, types, ownership,
+wire direction, externality, and deployment projection. Keep unresolved source
+facts visible in the import report instead of fabricating declarations to make
+the model appear complete.
+`;
+}
+
 function genericSyntaxReference(): string {
   return `# Insight Syntax Reference
 
@@ -1496,6 +1727,11 @@ environment eu
 
 Definitions, contexts, and environments are separate source roles. Never put
 more than one of these roles in the same file.
+
+An environment source has exactly one \`environment <id>\` header. Any
+\`deployment\` declarations that follow are top-level declarations in the file,
+but the linker attaches them to that environment. Put a second environment in a
+second source file. One environment source may contain several deployments.
 
 Use indentation to define ownership. Children belong to the nearest less-indented
 parent.
@@ -1603,6 +1839,18 @@ but reports a warning because a scattered effective schema is difficult to
 inspect and review. An agent should consolidate them rather than create another
 extension elsewhere.
 
+There are two valid ways to define environment slots, with different scope:
+
+- \`extend type Environment\` adds one project-wide slot schema to every
+  environment.
+- \`define type ApplicationEnvironment of Environment\` creates a distinct,
+  constructorless environment schema. Environment declarations infer that
+  subtype from its slot names when the match is unambiguous.
+
+Use the base-type extension when every environment shares one contract. Use a
+named subtype when the project needs isolated environment families. Do not
+describe these forms as interchangeable.
+
 After changing a type definition, run \`archinsight structure . --format text\`
 to see the updated type tree and available constructors.
 
@@ -1685,6 +1933,12 @@ List of Component _
 It must be the last attribute in the type body. Compatible child declarations
 can then appear directly under the parent. The \`_\` symbol can also replace an
 object id when no source-level reference to that instance is needed.
+
+An anonymous instance cannot later be the target of \`runsOn\`, a typed
+reference attribute, an import, or a relationship. Give the object a stable id
+whenever another declaration must reference it. The linker reports
+\`ANONYMOUS_INSTANCE_NOT_REFERENCEABLE\` when \`_\` is used as a reference
+target.
 
 ## Enumerations
 
@@ -2828,8 +3082,9 @@ does not plan to describe deployment in detail.
 
 There are four distinct concepts:
 
-1. \`Environment\` owns one or more named \`Deployment\` objects, such as
-   \`test\` and \`production\`.
+1. One environment source starts with exactly one \`environment <id>\` and may
+   own one or more named \`Deployment\` objects, such as \`test\` and
+   \`production\`.
 2. A concrete \`Deployment\` fills infrastructure slots defined by the
    environment type.
 3. A context-owned \`DeploymentProfile\` maps logical elements to concrete
@@ -2843,9 +3098,12 @@ Do not put application deployment profiles in environment inventory files.
 Environment files own concrete infrastructure. The application context owns
 the profiles that decide where its systems, containers, and services run.
 
-One environment can contain several deployment schemes. Profiles may select
-different schemes such as \`production from eu\` and \`test from eu\` without a
-conflict because these are different concrete deployments.
+Deployments are written as top-level siblings after the environment header, not
+indented inside it, but they remain owned by that environment. A second
+environment requires a second source file. One environment can contain several
+deployment schemes, and profiles may select \`production from eu\` and
+\`test from eu\` without a conflict because they are different concrete
+deployments.
 
 ## Framework and inventory
 
@@ -2870,6 +3128,13 @@ define type Egress of NetworkConnection
 define type Monitoring of InfrastructureComponent
     constructor monitoring
 \`\`\`
+
+A project with one shared environment contract may instead use
+\`extend type Environment\` with the same slots. That extension changes the base
+type for every environment. A named subtype such as \`ApplicationEnvironment\`
+keeps the contract isolated and is preferable when the project has several
+environment families. Environment declarations infer a constructorless subtype
+from the slots used by their deployments; the match must be unambiguous.
 
 Fill those slots inside concrete deployments:
 
@@ -2907,6 +3172,29 @@ deployment production
 
 An explicit object id may differ from the slot name: \`public_edge\` still fills
 the \`publicGateway\` slot of \`eu/production\`.
+
+## Concrete infrastructure placement
+
+The \`runsOn:\` attribute on an infrastructure component is a typed reference to
+one concrete, named infrastructure instance:
+
+\`\`\`insight
+compute kubernetes
+    name = Kubernetes
+
+infrastructureComponent ingress
+    name = Ingress
+    runsOn:
+        kubernetes
+\`\`\`
+
+The target \`kubernetes\` is an object id. It must be visible in the source and
+cannot be the anonymous id \`_\`. Anonymous objects are suitable only when no
+other declaration needs to address them.
+
+This reference form is different from \`runsOn compute\` inside a deployment
+profile. The profile form names an environment slot and resolves its concrete
+instance separately in every deployment selected by \`appliesTo\`.
 
 ## Context-owned deployment profiles
 
@@ -3100,8 +3388,14 @@ Run:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight render . -c <context> -s <source.ai> -v c4 -f svg -o c4.svg
+archinsight query . -c <context> -s <logical-source.ai> -v c4 --format json
+archinsight render . -c <context> -s <logical-source.ai> -v c4 -f svg -o c4.svg
 \`\`\`
+
+A clean link proves that syntax, types, imports, and deployment references are
+valid. It does not prove that a view selected the intended semantic graph.
+Inspect query JSON before relying on SVG: query output is the authoritative list
+of elements and edges selected for rendering.
 
 Treat missing slots, overlapping profile deployments, non-network wire uses,
 and ambiguous references as model errors. Treat \`WIRE_MISSING_DEPLOYMENT\`,
@@ -3127,8 +3421,8 @@ Prefer one shared framework per repository:
   types, and presentation tweaks;
 - source files grouped by context directories when the repository is large;
 - model files that usually focus on one primary owned system being detailed;
-- one or more inventory files for concrete \`environment <id>\` instances and
-  their env-local infrastructure;
+- one or more inventory files, each with exactly one concrete
+  \`environment <id>\` header and one or more deployments owned by it;
 - shared external contexts for external actors and systems reused by many
   systems;
 - context-owned deployment profile files that map logical elements to concrete
@@ -3138,6 +3432,12 @@ Prefer one shared framework per repository:
 Do not copy the same environment or infrastructure type definitions into every
 system file. Keep concrete inventory in environment files and keep each
 application's deployment profiles in its logical context.
+
+Use \`extend type Environment\` when the repository intentionally has one slot
+contract shared by every environment. If several environment families need
+different contracts, define constructorless subtypes such as
+\`ApplicationEnvironment\` and \`DataEnvironment\` instead. Keep either form in
+the shared framework area rather than repeating it in inventory files.
 
 ## Framework Once, Use Everywhere
 
@@ -3345,6 +3645,7 @@ C4 output after changing which root a traffic relationship extends:
 
 \`\`\`shell
 archinsight link . --format text
+archinsight query . -c deployment_shop -s c4-deployment.ai -v c4 --format json
 archinsight render . -c deployment_shop -s c4-deployment.ai -v c4 -f svg -o deployment-c4.svg
 \`\`\`
 
@@ -3390,8 +3691,8 @@ Keep source files in one role:
   \`extend enum of\`, and \`extend presentation\`;
 - context files: \`context <id>\`, imports, logical graph objects,
   relationships, object extensions, and deployment profiles;
-- environment files: \`environment <id>\`, concrete deployments, and
-  infrastructure inventory.
+- environment files: exactly one \`environment <id>\` header followed by its
+  concrete deployments and infrastructure inventory.
 
 Do not mix these three roles in one file. When a model needs custom vocabulary,
 add or edit a framework file first, then use the resulting constructors and
@@ -3564,8 +3865,19 @@ and project framework files before assuming only core constructors exist.
   \`$to\` or expand the relationship through relevant gateways and other
   first-order infrastructure.
 
-Extend \`Environment\` with slots for these types, then fill each concrete
-\`environment <id>\` with env-local instances.
+Add slots either by extending the shared \`Environment\` type or by defining a
+constructorless subtype. The extension gives every environment the same
+contract. A subtype keeps a contract isolated and is inferred from the slot
+names used by an environment's deployments.
+
+Each environment source has one \`environment <id>\` header. Top-level
+\`deployment\` declarations following that header are owned by the environment,
+and each deployment fills the chosen slot contract with concrete instances.
+
+The \`runsOn\` attribute on \`InfrastructureComponent\` points to one named
+infrastructure instance. The target cannot be anonymous. By contrast,
+\`runsOn compute\` inside a \`DeploymentProfile\` names the \`compute\` slot and
+resolves a concrete target separately for every selected deployment.
 
 ## Reading Type Extensions
 
@@ -3587,6 +3899,18 @@ Interpretation:
   extension;
 - \`archinsight structure . --format text\` is the quickest way to inspect the
   effective type tree after extensions are applied.
+
+Use a dedicated subtype instead when different environment families need
+different slots:
+
+\`\`\`insight
+define type ApplicationEnvironment of Environment
+    Compute compute
+    NetworkConnection network
+\`\`\`
+
+The two forms are both valid but are not interchangeable: extending the base
+type is global, while defining a subtype introduces an isolated schema.
 
 Use \`extend service checkout_api\` or another constructor form only when you
 intend to extend one graph object instance in a \`context\`. Use \`extend type\`
@@ -3759,6 +4083,10 @@ level<TAB>code<TAB>source<TAB>line<TAB>column<TAB>message
 Treat \`ERROR\` as blocking. \`WARNING\` and \`NOTE\` can still be useful design
 feedback.
 
+A successful link proves that sources parse, types and imports resolve, and
+linker constraints hold. It does not prove that a built-in or custom view
+selects the intended semantic graph.
+
 Inspect project structure:
 
 \`\`\`shell
@@ -3766,7 +4094,16 @@ archinsight structure . --format text
 archinsight structure . --format json
 \`\`\`
 
-Render a diagram when a context id is known:
+Inspect the selected graph before rendering whenever a change affects C2-C4,
+deployment, projections, or query text:
+
+\`\`\`shell
+archinsight query . -c <context-id> -s <source.ai> -v c2 --format json
+archinsight query . -c <context-id> -s <source.ai> -v c3 --format json
+archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
+\`\`\`
+
+Then render the same context, source, and view:
 
 \`\`\`shell
 archinsight render . -c <context-id> -v c1 -f svg -o diagram.svg
@@ -3779,8 +4116,21 @@ Run a custom query from a file:
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
+archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f json
 archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
+
+Use three validation layers:
+
+1. \`link\` for syntax, types, imports, and project diagnostics.
+2. \`query --format json\` for the exact semantic elements, edges, endpoints,
+   origins, and groups selected by the view.
+3. \`render\` for presentation, Graphviz layout, labels, and styling.
+
+When JSON already contains an unexpected edge, investigate query matching,
+\`ROLLUP\`, selectors, and projection origin before editing the model. When JSON
+is correct but SVG is not, investigate rendering or layout. Do not use a clean
+link or a plausible image as a substitute for semantic query inspection.
 
 Useful built-in views:
 
@@ -3804,6 +4154,147 @@ expose \`@archinsight/cli\`.
 `;
 }
 
+function genericAnalysisReference(): string {
+  return `# Analyzing an Insight Project
+
+Use analysis mode to answer architecture questions without modifying the model.
+Start from the linked semantic graph, then use queries to select the relevant
+subgraph. Treat the rendered image as a presentation artifact, not as the
+primary analytical result.
+
+## What the Query Language Is For
+
+Insight queries select nodes and relationships for inspection or rendering.
+The current subset is well suited to:
+
+- inventory by context, source fragment, type, or attribute;
+- direct outgoing and incoming dependencies;
+- logical relationships rolled up to C1, C2, or C3 ownership levels;
+- external-boundary and technology-focused slices;
+- async versus sync relationship slices;
+- logical-to-physical deployment placement and projected wire paths;
+- comparing a broad context graph with a focused built-in or custom view.
+
+It is not a general graph analytics language. It has no aggregation functions,
+computed return columns, variable-length paths, shortest-path operations,
+subqueries, ordering, or pagination. It cannot directly express transitive
+impact, cycle detection, centrality, counts, or the absence of a relationship.
+\`ROLLUP\` climbs containment ownership; it is not transitive dependency
+traversal.
+
+For questions outside that boundary, select a sufficiently broad graph with
+\`--format json\` and analyze that JSON with the agent's ordinary data-processing
+tools. Keep this second step read-only and state clearly which result comes from
+the Insight query and which result was computed from its output.
+
+## Analysis Workflow
+
+1. Run \`archinsight link . --format text\`. Diagnostics are part of the
+   evidence; do not silently analyze a partially linked model as if it were
+   complete.
+2. Run \`archinsight structure . --format json\` to establish contexts, source
+   roles, types, objects, extensions, and qualified identities.
+3. Choose the smallest query that answers the question. Use a built-in view for
+   an architectural level, a focused custom query for one-hop questions, or
+   \`no-filter\` for a broad logical export.
+4. Inspect query JSON before rendering. Distinguish selected outer endpoints,
+   underlying edge endpoints, derived relationships, and projection origins.
+5. If the question needs traversal, aggregation, comparison, or absence checks,
+   compute them over the exported JSON without changing the model or pretending
+   the computation was supported by the query DSL.
+6. Report the scope: context, selected source when \`$tab\` is used, query or
+   built-in view, and whether derived or projected edges were included.
+
+## Inventory a Context
+
+The built-in unfiltered view is the simplest broad logical export:
+
+\`\`\`shell
+archinsight query . -c <context-id> -v no-filter --format json
+\`\`\`
+
+Use the \`elements\` map to inventory qualified identities and types. Use
+\`edges\` for direct relationships selected by the view. Parent-based render
+groups are useful presentation metadata but do not replace element ownership in
+the linked model.
+
+For a typed inventory, narrow the query:
+
+\`\`\`cypher
+MATCH (service:Service)
+WHERE service.context = $context
+RETURN service
+\`\`\`
+
+## Direct Dependency Questions
+
+Outgoing dependencies from one service:
+
+\`\`\`cypher
+MATCH (service:Service {id: 'checkout_api', context: $context})-[dependency:REFERENCES]->(target:Element)
+RETURN service, dependency, target
+\`\`\`
+
+Incoming dependencies use the same left-to-right syntax with the target bound
+on the right:
+
+\`\`\`cypher
+MATCH (caller:Element)-[dependency:REFERENCES]->(service:Service {id: 'checkout_api', context: $context})
+RETURN caller, dependency, service
+\`\`\`
+
+These answer one-hop questions. To find all transitively affected elements,
+export the relevant context graph and traverse its direct \`REFERENCES\` edges
+outside the query language. State whether derived and projected edges were
+excluded or analyzed separately so the same dependency is not counted at
+several architectural levels.
+
+## Analyze a Source Fragment
+
+Use \`$tab\` when the question concerns the semantic fragment rooted in one
+source and its extensions:
+
+\`\`\`cypher
+MATCH (element:Element)
+WHERE element.sourceIdentity = $tab
+OPTIONAL MATCH (element)-[dependency:REFERENCES]->(target:Element)
+RETURN element, dependency, target
+\`\`\`
+
+Run it with \`--source <source.ai>\`. Explain that the result follows semantic
+source identity and can include declarations contributed through \`extend\`;
+it is not a raw inventory of lines physically present in that file.
+
+## Analyze Deployment Realization
+
+Use the built-in C4 query JSON when the question is how logical architecture is
+realized physically:
+
+\`\`\`shell
+archinsight query . -c <context-id> -s <logical-source.ai> -v c4 --format json
+\`\`\`
+
+For each projected edge, compare outer \`source\` and \`target\` with nested
+\`edge.source\` and \`edge.target\`. Use \`edge.originSource\` and
+\`edge.originTarget\` to associate physical segments with their logical wire.
+Analyze logical wires and projected segments as separate layers; otherwise one
+dependency can appear to be several independent architectural relationships.
+
+## Quality and Impact Checks
+
+The query DSL cannot directly ask for nodes with no incoming edge, nodes with no
+outgoing edge, cycles, counts by type, or transitive consumers. Export a broad
+JSON graph, compute those conditions from qualified ids and direct edges, and
+then return to source declarations for confirmation. A selected view can omit
+objects by design, so absence in C1, C2, C3, or C4 is not evidence that the
+object is absent from the linked project.
+
+Analysis findings should distinguish verified model facts, query-dependent
+observations, externally computed results, and unresolved interpretation. Do
+not edit the architecture merely to make an analytical query easier.
+`;
+}
+
 function genericQueriesReference(): string {
   return `# Insight Query Reference
 
@@ -3815,6 +4306,7 @@ diagram.
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
+archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
 archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
 
@@ -3942,8 +4434,78 @@ OPTIONAL MATCH (node)-[projectedLink {projected}]->(target)
 OPTIONAL MATCH ROLLUP (node)-[rollupLink {derived}]->(target)
 \`\`\`
 
-Use \`{derived}\` for rolled-up edges from child relationships. Use
-\`{projected}\` for deployment/projected edges.
+Use \`{derived}\` for relationships derived from a lower-level authored edge.
+Use \`{projected}\` for relationships created by deployment projection.
+
+\`ROLLUP\` is an operation on the match, not another selector. It walks
+containment ancestry and binds the nearest endpoint compatible with the node
+pattern. A component relationship can therefore be viewed between its
+containers or systems without adding another wire to the model. The
+relationship alias retains the underlying linked edge while its outer query
+\`source\` and \`target\` describe the endpoints selected for this view.
+
+For a projected physical path, \`ROLLUP\` can also use \`originSource\` and
+\`originTarget\` to discover path segments belonging to a logical wire. The
+built-in C4 query uses this to include an incoming path such as
+\`customer -> CDN -> load balancer -> service\` while keeping every segment's
+real physical endpoints.
+
+Do not infer the model solely from a rolled-up arrow. Inspect query JSON to
+distinguish selected/rendered endpoints from the underlying edge and its
+logical projection origin.
+
+## Query JSON
+
+\`archinsight query --format json\` returns the semantic render graph selected
+by the query. Use it as the machine-readable check before interpreting an SVG.
+The top-level shape is:
+
+- \`context\`: selected context id;
+- \`elements\`: a map keyed by query-visible, context-qualified element id;
+- \`edges\`: selected relationships;
+- \`groups\`: render groups created by \`GROUP BY\`;
+- \`externalElements\`: selected ids drawn outside the internal boundary.
+
+Each edge contains two endpoint pairs:
+
+- outer \`source\` and \`target\` are the endpoints that the selected graph will
+  draw after rollup and grouping;
+- nested \`edge.source\` and \`edge.target\` are the endpoints of the underlying
+  linked or projected edge;
+- nested \`edge.originSource\` and \`edge.originTarget\`, when present, identify
+  the logical wire that produced a projected physical segment.
+
+An abridged response remains ordinary JSON:
+
+\`\`\`json
+{
+  "context": "shop",
+  "elements": {
+    "shop/customer": { "id": "shop/customer", "type": "ExternalActor" },
+    "eu/cloudfront": { "id": "eu/cloudfront", "type": "InfrastructureComponent" }
+  },
+  "edges": [
+    {
+      "source": "shop/customer",
+      "target": "eu/cloudfront",
+      "edge": {
+        "source": "shop/customer",
+        "target": "eu/cloudfront",
+        "originSource": "shop/customer",
+        "originTarget": "shop/web_app",
+        "projected": true
+      }
+    }
+  ],
+  "groups": [],
+  "externalElements": ["shop/customer"]
+}
+\`\`\`
+
+For an unrolled physical C4 segment, the outer and nested endpoints should
+normally agree. A deliberate ownership rollup may make them differ. An edge is
+unexpected only after its outer endpoints, underlying edge, projection origin,
+and query clause have all been checked.
 
 ## Grouping
 
@@ -4014,8 +4576,8 @@ function genericQueryRecipesReference(): string {
   return `# Query Recipes and Built-In View Customization
 
 Use this reference when a built-in C1/C2/C3/C4 view is close but not quite right:
-an expected element is hidden, a relationship is missing, infrastructure is too
-noisy, or the diagram needs a different scope.
+an expected element is hidden, a relationship is missing, an unexpected edge
+appears, infrastructure is too noisy, or the diagram needs a different scope.
 
 ## Start From Built-In Queries
 
@@ -4034,6 +4596,7 @@ to the project, and make the smallest change.
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f text
+archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f json
 archinsight render . -c <context-id> -s <source.ai> -q queries/custom.aiq -f svg -o custom.svg
 \`\`\`
 
@@ -4044,7 +4607,9 @@ customization patterns.
 
 Write or adjust a \`.aiq\` query when:
 
-- the built-in view hides a node or edge that exists in \`archinsight link\`;
+- the built-in view hides a node or edge visible in the linked graph through a
+  broader query;
+- the built-in query returns a node or edge outside the intended view scope;
 - the source/tab scope is right but the view intentionally filters out a type;
 - C4 should include actors, vendors, or a special deployment path;
 - the diagram should show only one layer, one flow, or one relationship class;
@@ -4071,7 +4636,7 @@ When the graph is right but the picture is noisy:
 Do not duplicate infrastructure or invert dependencies only to make one render
 look cleaner.
 
-## Diagnose A Missing Element
+## Diagnose Missing Content
 
 1. Validate the model:
 
@@ -4085,10 +4650,10 @@ archinsight link . --format text
 archinsight structure . --format text
 \`\`\`
 
-3. Run the built-in query text explicitly:
+3. Run the built-in query explicitly and inspect its JSON:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.aiq -f text
+archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.aiq -f json
 \`\`\`
 
 4. Check the query filters:
@@ -4111,35 +4676,47 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.
   projection origin metadata to find every ingress segment while preserving
   the real physical endpoints of each segment.
 
+## Diagnose Unexpected Content
+
+Do not start by deleting model declarations when a view contains an unexpected
+node or edge.
+
+1. Run \`archinsight link . --format text\` to separate linker errors from view
+   behavior.
+2. Run the exact built-in or custom query with \`--format json\`.
+3. Find the edge in \`edges\` and compare:
+   - outer \`source\` / \`target\`, which are drawn by the selected graph;
+   - nested \`edge.source\` / \`edge.target\`, which belong to the underlying
+     linked or projected edge;
+   - \`edge.originSource\` / \`edge.originTarget\`, which identify the logical
+     wire behind a projection;
+   - \`edge.projected\` and the clause that returned its alias.
+4. Run the nearest built-in query unchanged. If only the custom query returns
+   the edge, fix the custom query. If the built-in query returns it too, reduce
+   the query to the responsible \`MATCH\` clause and report a query/runtime bug.
+5. Render only after the JSON result is understood. If JSON is correct and SVG
+   is not, investigate the renderer or layout instead of changing the model.
+
+\`ROLLUP\` can intentionally select ancestor endpoints for an ownership-level
+view. That is not a new model wire. A C4 physical segment, however, must retain
+its actual physical endpoints; projection origin metadata is for discovery and
+traceability, not for inventing a direct physical connection.
+
 ## Include Internal Actors In C4
 
 The built-in C4 query includes external actors reached by a projected physical
-path. If a deployment diagram also needs an internal actor, copy
-\`examples/builtin-views/c4.aiq\` and widen the node and projected target filters:
+path. If a deployment diagram also needs internal actors, use the bundled,
+tested customization:
 
-\`\`\`cypher
-MATCH (node:Element)
-WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement
-    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true)
-    OR node IS Actor)
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
-WHERE projectedTarget IS DeploymentElement
-   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
-   OR projectedTarget IS External
-   OR projectedTarget IS Actor
-OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
-WHERE node IS DeploymentElement
-  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-OPTIONAL MATCH ROLLUP (incomingProjectedSource:Element)-[incomingProjectedLink {projected}]->(node)
-WHERE (incomingProjectedSource IS DeploymentElement
-   OR (incomingProjectedSource IS ContainerElement AND incomingProjectedSource.deployed = true)
-   OR incomingProjectedSource IS External
-   OR incomingProjectedSource IS Actor)
-  AND incomingProjectedSource.id <> node.id
-GROUP BY node.runsOn
-RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource
+\`\`\`shell
+archinsight query . -c <context-id> -s <source.ai> -q examples/queries/c4-internal-actors.aiq -f json
 \`\`\`
+
+This query is generated from the exact built-in C4 source and changes only the
+node, projected-target, and incoming-source predicates to admit \`Actor\`.
+Because the rest comes from the current built-in query, deployment targets,
+incoming paths, and infrastructure-to-infrastructure projected path segments
+stay synchronized with C4 behavior.
 
 If the actor is declared in another source file, either render from that source
 or relax the \`node.sourceIdentity = $tab\` condition intentionally.
@@ -4184,42 +4761,26 @@ roots through \`extend\`, so a normal multi-file split does not require a looser
 edge selector.
 
 If a project has a custom query copied from an older template, remove the edge
-filter while keeping the node scope:
+filter while keeping the node scope. Start again from the bundled current query
+instead of preserving the rest of the older copy:
 
-\`\`\`cypher
-MATCH (node:Element)
-WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement OR (node IS ContainerElement AND node.deployed = true))
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
-WHERE projectedTarget IS DeploymentElement
-   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
-   OR projectedTarget IS External
-OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
-WHERE node IS DeploymentElement
-  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-GROUP BY node.runsOn
-RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget
+\`\`\`text
+copy examples/builtin-views/c4.aiq to the project's query directory
+remove sourceIdentity: $tab only from the relationship selector if an old copy has it
+keep node.sourceIdentity = $tab
 \`\`\`
 
-Validate the result with \`archinsight query\`. If a path is still absent, check
-that its logical relationship contributes to a root selected by the tab before
-changing the model or broadening the node scope.
+Validate the result with \`archinsight query ... --format json\`. If a path is
+still absent, check that its logical relationship contributes to a root selected
+by the tab before changing the model or broadening the node scope.
 
 ## Change Grouping
 
 Grouping controls visual clusters. If C4 grouping by \`runsOn\` is not helpful,
-try grouping by parent:
+copy the complete current \`examples/builtin-views/c4.aiq\` and change only:
 
 \`\`\`cypher
-MATCH (node:Element)
-WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement OR (node IS ContainerElement AND node.deployed = true))
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
-WHERE projectedTarget IS DeploymentElement
-   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
-   OR projectedTarget IS External
 GROUP BY node.parent
-RETURN node, projectedLink, projectedTarget
 \`\`\`
 
 Use \`GROUP BY node.runsOn\` for deployment placement; use \`GROUP BY node.parent\`
