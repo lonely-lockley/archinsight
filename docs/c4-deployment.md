@@ -8,6 +8,8 @@ The C4 deployment level is the home of infrastructure. Compute platforms, databa
 
 The default deployment view starts from the model fragment associated with the selected tab. It follows the deployment profiles, placements, infrastructure uses, and projected wires reachable from that logical fragment. The result stays centered on the system or service being examined while drawing the relevant objects from their environment namespaces.
 
+A logical element enters the default view only after its deployment resolves to physical infrastructure through `runsOn` or `uses`. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent from C4 even when both logical endpoints are deployed. Direct relationships declared between deployment elements remain visible because they already describe the physical model.
+
 ## Environment and deployment boundaries
 
 An `environment` is the root of a physical infrastructure inventory. It commonly represents a region, account, cluster estate, data center, or another operational boundary:
@@ -256,6 +258,8 @@ The profile contributes its concrete deployment set, `runsOn` placement, and `us
 
 The same form is available to every `Element`, including systems and components. Containers and services are the usual placement boundary because they normally represent deployable runtime units. A component can select its own profile when it has deployment behavior that genuinely differs from its parent container.
 
+The linker begins checking deployment coverage for a modeling level after at least one comparable element at that level has a `deployment` block. It then warns when another element at that level has no deployment, or when a deployment block resolves to no `runsOn` or `uses` infrastructure. This keeps projects that have not started deployment modeling quiet while exposing gaps once a physical model is being maintained. External actors and systems can enter the view through projected wires and do not need artificial placement merely to appear as an endpoint.
+
 ## Placing wires onto physical paths
 
 A logical wire selects network infrastructure in its own `deployment` block:
@@ -276,6 +280,8 @@ The actor owns this wire, so the logical arrow begins at `customer` and points t
 A wire deployment accepts `NetworkConnection` infrastructure through `uses`. It does not select a `DeploymentProfile` and does not use `runsOn`: profiles place elements, while a wire describes the physical route between their deployed endpoints.
 
 Element placement and wire placement work together. The element profiles identify the concrete deployments and runtime infrastructure. The wire then selects the connection available in those deployments, and its projection explains the visible physical path while preserving the wire's source, target, and logical attributes.
+
+Wire coverage is checked only after the project contains at least one C4-relevant wire with a `deployment` block. From that point, a logical wire between different C4 endpoints produces `WIRE_MISSING_DEPLOYMENT` when it has no deployment, while a configured wire that produces no physical projection produces `WIRE_DEPLOYMENT_NOT_PROJECTED`. A component relationship whose endpoints belong to the same container does not require a physical projection because it collapses to a self-relationship at C4. Both diagnostics are warnings: the linked logical graph remains valid, while the incomplete wire stays out of the default deployment view.
 
 ## Deployment entities
 

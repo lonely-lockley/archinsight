@@ -2808,6 +2808,11 @@ logical elements run, which infrastructure they use, and how their wires pass
 through the physical world. Keep C1-C3 logical; deployment inventory and
 projections supply the physical view.
 
+The built-in C4 view includes a logical element only when its deployment
+resolves at least one \`runsOn\` or \`uses\` infrastructure object. A logical wire
+appears only through physical edges created by its deployment projection. A
+plain logical wire is intentionally omitted from C4.
+
 Model the infrastructure immediately relevant to those logical elements and
 connections. Do not expand C4 into a complete provider, transit, replication,
 or network topology. Keep replication modes and deeper operational detail in
@@ -2999,6 +3004,15 @@ Components inherit effective deployments from their nearest deployed logical
 ancestor, normally a container or service. Put profiles on independently
 deployable C2 elements unless a C3 component truly has distinct placement.
 
+Deployment completeness checks become active only after the project starts
+using the corresponding feature. Once a C4-relevant wire has a \`deployment\`
+block, the linker warns about other wires between different C4 endpoints with
+no deployment and about configured wires that produce no physical projection.
+A component relationship inside one container collapses to a self-relationship
+at C4 and does not require a physical projection. Element checks activate
+separately by logical modeling family, so starting container placement does not
+demand artificial placement for every system, component, or external actor.
+
 ## Projection execution semantics
 
 Projection rules belong to concrete infrastructure instances because paths can
@@ -3090,9 +3104,11 @@ archinsight render . -c <context> -s <source.ai> -v c4 -f svg -o c4.svg
 \`\`\`
 
 Treat missing slots, overlapping profile deployments, non-network wire uses,
-and ambiguous references as model errors. If a physical arrow is absent, check
-the endpoint profiles, their \`appliesTo\` deployments, the requested network
-slot, and the concrete instance projection in that order.
+and ambiguous references as model errors. Treat \`WIRE_MISSING_DEPLOYMENT\`,
+\`WIRE_DEPLOYMENT_NOT_PROJECTED\`, \`ELEMENT_MISSING_DEPLOYMENT\`, and
+\`ELEMENT_DEPLOYMENT_NOT_PHYSICAL\` as incomplete C4 coverage. If a physical
+arrow is absent, check the endpoint profiles, their \`appliesTo\` deployments,
+the requested network slot, and the concrete instance projection in that order.
 `;
 }
 
@@ -3897,6 +3913,7 @@ Supported filters include:
 \`\`\`cypher
 WHERE node.context = $context
 WHERE node.sourceIdentity = $tab
+WHERE node.deployed = true
 WHERE node IS External
 WHERE NOT node IS DeploymentElement
 WHERE edge.projected = 'true'
@@ -3910,6 +3927,10 @@ Use single quotes for string literals.
 
 \`CONTAINS\` is case-sensitive. For scalar text it performs substring matching;
 for a list property it tests membership. Match the stored spelling exactly.
+
+\`node.deployed\` is true when an element's deployment resolves to at least one
+\`runsOn\` or \`uses\` infrastructure object. The built-in C4 view uses it to keep
+undeployed logical elements out of the physical diagram.
 
 ## Relationship Selectors
 
@@ -3970,8 +3991,9 @@ relationships, and includes external systems through optional/rollup matches.
 C3 usually starts from \`(container:ContainerElement)-[:CONTAINS]->(component)\`
 and returns component relationships.
 
-C4 usually selects deployment and container nodes from \`$tab\`, uses
-\`OPTIONAL MATCH ROLLUP\`, and returns projected relationships.
+C4 selects deployment nodes and physically deployed logical nodes from \`$tab\`,
+uses \`OPTIONAL MATCH ROLLUP\`, and returns projected relationships rather than
+their raw logical wires.
 
 When a built-in view is close but hides the wrong thing, read
 \`references/query-recipes.md\`, copy the nearest built-in \`.aiq\`, and change
@@ -4074,52 +4096,49 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.
 - \`node.sourceIdentity = $tab\` selects the semantic fragment rooted in the
   selected source, including contributions added to those roots through
   \`extend\` in other files.
-- The built-in C4 node filter includes deployment elements, container elements,
-  and elements whose resolved \`kind\` is \`external\`. Internal actors and other
-  logical element families remain outside the view unless a custom query adds
-  them.
+- The built-in C4 node filter includes deployment elements and logical
+  container or external elements whose deployment resolves to physical
+  infrastructure. External endpoints without their own placement still enter
+  through projected paths attached to a deployed logical node.
 - \`{projected}\` means only deployment-projected edges are selected.
 - \`{derived}\` means only rolled-up relationships are selected.
 - A relationship property such as \`sourceIdentity: $tab\` is available for a
   deliberately narrow custom view. The current built-in C4 query does not add
   that edge filter; the selected node scope and semantic tab closure provide
   the boundary.
-- The built-in C4 view also returns target-side incoming projection aliases:
-  \`incomingProjectedLink\`, \`incomingProjectedSource\`,
-  \`incomingProjectedOriginLink\`, and \`incomingProjectedOrigin\`. Keep them when
-  the target system owns an ingress gateway.
+- The built-in C4 view also returns the target-side incoming projection aliases
+  \`incomingProjectedLink\` and \`incomingProjectedSource\`. The rollup match uses
+  projection origin metadata to find every ingress segment while preserving
+  the real physical endpoints of each segment.
 
 ## Include Internal Actors In C4
 
-The built-in C4 query already includes external actors when they enter its
-selected scope, because they satisfy \`node IS External\`. If a deployment
-diagram also needs an internal actor, copy \`examples/builtin-views/c4.aiq\` and
-widen the node and projected target filters:
+The built-in C4 query includes external actors reached by a projected physical
+path. If a deployment diagram also needs an internal actor, copy
+\`examples/builtin-views/c4.aiq\` and widen the node and projected target filters:
 
 \`\`\`cypher
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement OR node IS ContainerElement OR node IS Actor)
+  AND (node IS DeploymentElement
+    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true)
+    OR node IS Actor)
 OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
 WHERE projectedTarget IS DeploymentElement
-   OR projectedTarget IS ContainerElement
+   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
    OR projectedTarget IS External
    OR projectedTarget IS Actor
 OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
 WHERE node IS DeploymentElement
   AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-OPTIONAL MATCH (incomingProjectedSource:Element)-[incomingProjectedLink {projected}]->(node)
+OPTIONAL MATCH ROLLUP (incomingProjectedSource:Element)-[incomingProjectedLink {projected}]->(node)
 WHERE (incomingProjectedSource IS DeploymentElement
-   OR incomingProjectedSource IS ContainerElement
-   OR incomingProjectedSource IS External)
+   OR (incomingProjectedSource IS ContainerElement AND incomingProjectedSource.deployed = true)
+   OR incomingProjectedSource IS External
+   OR incomingProjectedSource IS Actor)
   AND incomingProjectedSource.id <> node.id
-OPTIONAL MATCH ROLLUP (incomingProjectedOrigin:Element)-[incomingProjectedOriginLink {projected}]->(incomingProjectedSource)
-WHERE (incomingProjectedOrigin IS DeploymentElement
-   OR incomingProjectedOrigin IS ContainerElement
-   OR incomingProjectedOrigin IS External)
-  AND incomingProjectedOrigin.id <> incomingProjectedSource.id
 GROUP BY node.runsOn
-RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource, incomingProjectedOriginLink, incomingProjectedOrigin
+RETURN node, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource
 \`\`\`
 
 If the actor is declared in another source file, either render from that source
@@ -4170,10 +4189,10 @@ filter while keeping the node scope:
 \`\`\`cypher
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement OR node IS ContainerElement)
+  AND (node IS DeploymentElement OR (node IS ContainerElement AND node.deployed = true))
 OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
 WHERE projectedTarget IS DeploymentElement
-   OR projectedTarget IS ContainerElement
+   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
    OR projectedTarget IS External
 OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
 WHERE node IS DeploymentElement
@@ -4194,10 +4213,10 @@ try grouping by parent:
 \`\`\`cypher
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement OR node IS ContainerElement)
+  AND (node IS DeploymentElement OR (node IS ContainerElement AND node.deployed = true))
 OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
 WHERE projectedTarget IS DeploymentElement
-   OR projectedTarget IS ContainerElement
+   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
    OR projectedTarget IS External
 GROUP BY node.parent
 RETURN node, projectedLink, projectedTarget

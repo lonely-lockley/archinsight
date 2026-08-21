@@ -31,6 +31,12 @@ import { IndexedGraph, type GraphNode, type GraphRelation, type RelationKind } f
 import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
 
 const ELEMENT_TYPE = "Element";
+const WIRE_TYPE = "Wire";
+const DEPLOYMENT_ELEMENT_TYPE = "DeploymentElement";
+const COMPONENT_ELEMENT_TYPE = "ComponentElement";
+const CONTAINER_ELEMENT_TYPE = "ContainerElement";
+const SYSTEM_TYPE = "System";
+const ACTOR_TYPE = "Actor";
 const ORIGINAL_LINK_OPERATOR = "originalLink";
 const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
 const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
@@ -245,6 +251,14 @@ interface PendingProjection {
   readonly projectedAttributes?: Readonly<Record<string, readonly string[]>>;
   readonly projectedOperator?: string;
   readonly annotations?: readonly LinkedAnnotation[];
+  readonly coverage?: WireDeploymentCoverage;
+}
+
+interface WireDeploymentCoverage {
+  readonly parsed: ParsedEdge;
+  readonly linked: LinkedEdge;
+  readonly deploymentDefined: boolean;
+  projected: boolean;
 }
 
 interface DeploymentExpansionContext {
@@ -337,6 +351,8 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
   const linkedEdges: LinkedEdge[] = [];
   const ownerIndependentProjectionKeys = new Set<string>();
   const pendingProjections: PendingProjection[] = [];
+  const wireDeploymentCoverage: WireDeploymentCoverage[] = [];
+  const deployedElementIds = new Set<string>();
   const linkedElementsById = new Map<string, ParsedElement>();
   for (const element of elements) {
     linkedElementsById.set(element.id, element);
@@ -371,6 +387,9 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
     const application = element.deploymentActions.length === 0
       ? { deployments: [], runsOn: [], uses: [] }
       : resolveDeploymentApplication(element, element.deploymentActions, false, deploymentContext);
+    if (application.runsOn.length > 0 || application.uses.length > 0) {
+      deployedElementIds.add(element.id);
+    }
     const inheritedDeployments = element.parent === undefined
       ? []
       : deploymentContext.effectiveDeploymentsByElementId.get(element.parent) ?? [];
@@ -429,6 +448,23 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       diagnostics.push(...(materialized.diagnostics ?? []));
       if (materialized.edge !== undefined) {
         linkedEdges.push(materialized.edge);
+        const deploymentSource = deploymentViewLogicalEndpoint(edge.source, linkedElementsById, typeSystem);
+        const deploymentTarget = deploymentViewLogicalEndpoint(target.id, linkedElementsById, typeSystem);
+        const coverage = typeSystem.isAssignable(edgeType, WIRE_TYPE)
+          && !typeSystem.isAssignable(edge.sourceType, DEPLOYMENT_ELEMENT_TYPE)
+          && deploymentSource !== undefined
+          && deploymentTarget !== undefined
+          && deploymentSource !== deploymentTarget
+          ? {
+            parsed: edge,
+            linked: materialized.edge,
+            deploymentDefined: edge.deploymentActions.length > 0,
+            projected: false,
+          }
+          : undefined;
+        if (coverage !== undefined) {
+          wireDeploymentCoverage.push(coverage);
+        }
         pendingProjections.push({
           sourceIdentity: edge.sourceName,
           fromId: edge.source,
@@ -437,12 +473,13 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
           projectedAttributes: materialized.edge.attributes,
           projectedOperator: materialized.edge.operator,
           ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
+          ...(coverage === undefined ? {} : { coverage }),
         });
       }
     }
   }
   for (const projection of pendingProjections) {
-    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator);
+    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage);
   }
   const slotDomainTypes = typeSystem.slotDomainTypes();
   for (const element of elements) {
@@ -455,7 +492,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
   const presentations = buildPresentationIndex(request.snapshot.presentations ?? [], typeSystem, diagnostics);
   const graph = buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem);
   const graphElements = elements.filter(isGraphElement);
-  inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, diagnostics);
+  inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, typeSystem, deployedElementIds, wireDeploymentCoverage, diagnostics);
   const tabRoots = tabRootsBySource(documents, elementsByContextAndLocalId);
   for (const document of documents) {
     resolveAttributes(
@@ -499,6 +536,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       ...(element.parent === undefined ? {} : { parent: element.parent }),
       baseTypes: typeSystem.baseTypes(element.type),
       attributes: flattenAttributes(element.scalarAttributes, resolvedElementAttributes.get(element.id) ?? {}),
+      ...(deployedElementIds.has(element.id) ? { deployed: true } : {}),
       ...listAttributesProperty(typeSystem, element.type),
       ...referenceAttributesProperty(resolvedElementAttributes.get(element.id) ?? {}),
       ...(element.note === undefined ? {} : { note: element.note }),
@@ -2670,6 +2708,7 @@ function addProjectedEdges(
   projectedAttributes?: Readonly<Record<string, readonly string[]>>,
   projectedOperator?: string,
   visitedProjectionElements = new Set<string>(),
+  coverage?: WireDeploymentCoverage,
 ): void {
   for (const [attributeName, values] of Object.entries(attributes)) {
     if (attributeName === "_") {
@@ -2709,7 +2748,7 @@ function addProjectedEdges(
         continue;
       }
       for (const rule of rules) {
-        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, projectionScope, annotations, projectedAttributes, projectedOperator);
+        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, projectionScope, annotations, projectedAttributes, projectedOperator, coverage);
       }
       addProjectedEdges(
         linkedEdges,
@@ -2727,6 +2766,7 @@ function addProjectedEdges(
         undefined,
         projectedOperator,
         visitedProjectionElements,
+        coverage,
       );
     }
   }
@@ -2789,6 +2829,7 @@ function addProjectedRuleEdge(
   annotations: readonly LinkedAnnotation[] = [],
   projectedAttributes?: Readonly<Record<string, readonly string[]>>,
   projectedOperator?: string,
+  coverage?: WireDeploymentCoverage,
 ): void {
   if (!validateConcreteProjectionRule(rule, typeSystem, diagnostics)) {
     return;
@@ -2807,6 +2848,9 @@ function addProjectedRuleEdge(
   );
   for (const source of sources) {
     for (const target of targets) {
+      if (coverage !== undefined) {
+        coverage.projected = true;
+      }
       if (!projectionRuleUsesOwner(rule)) {
         const key = `${projectionElement.id}\0${source}\0${effectiveOperator}\0${target}`;
         if (ownerIndependentProjectionKeys.has(key)) {
@@ -3623,6 +3667,9 @@ function inspectGraph(
   elements: readonly ParsedElement[],
   edges: readonly LinkedEdge[],
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
+  deployedElementIds: ReadonlySet<string>,
+  wireDeploymentCoverage: readonly WireDeploymentCoverage[],
   diagnostics: LanguageDiagnostic[],
 ): void {
   if (diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
@@ -3630,6 +3677,110 @@ function inspectGraph(
   }
   reportIsolatedElements(graph, elements, edges, resolvedElementAttributes, diagnostics);
   reportShadowedLowerLevelEdges(graph, edges, diagnostics);
+  reportIncompleteWireDeployments(wireDeploymentCoverage, diagnostics);
+  reportIncompleteElementDeployments(elements, typeSystem, deployedElementIds, diagnostics);
+}
+
+function reportIncompleteWireDeployments(
+  coverage: readonly WireDeploymentCoverage[],
+  diagnostics: LanguageDiagnostic[],
+): void {
+  if (!coverage.some((item) => item.deploymentDefined)) {
+    return;
+  }
+  for (const item of coverage) {
+    if (item.deploymentDefined && item.projected) {
+      continue;
+    }
+    const source = localName(item.linked.source);
+    const target = localName(item.linked.target);
+    const declaration = item.linked.declaration;
+    diagnostics.push({
+      level: "WARNING",
+      code: item.deploymentDefined ? "WIRE_DEPLOYMENT_NOT_PROJECTED" : "WIRE_MISSING_DEPLOYMENT",
+      message: item.deploymentDefined
+        ? `Wire from '${source}' to '${target}' has deployment configuration but produces no physical projection`
+        : `Wire from '${source}' to '${target}' has no deployment configuration and is omitted from deployment views`,
+      sourceName: item.parsed.sourceName,
+      line: declaration?.line ?? item.parsed.line,
+      column: declaration?.column ?? item.parsed.column,
+      ...(declaration?.endLine === undefined ? {} : { endLine: declaration.endLine }),
+      ...(declaration?.endColumn === undefined ? {} : { endColumn: declaration.endColumn }),
+    });
+  }
+}
+
+function reportIncompleteElementDeployments(
+  elements: readonly ParsedElement[],
+  typeSystem: TypeSystem,
+  deployedElementIds: ReadonlySet<string>,
+  diagnostics: LanguageDiagnostic[],
+): void {
+  const candidates = elements.flatMap((element) => {
+    const family = elementDeploymentFamily(element, typeSystem);
+    return family === undefined ? [] : [{ element, family }];
+  });
+  const activeFamilies = new Set(candidates
+    .filter(({ element }) => element.deploymentActions.length > 0)
+    .map(({ family }) => family));
+  for (const { element, family } of candidates) {
+    if (!activeFamilies.has(family) || deployedElementIds.has(element.id)) {
+      continue;
+    }
+    diagnostics.push({
+      level: "WARNING",
+      code: element.deploymentActions.length > 0 ? "ELEMENT_DEPLOYMENT_NOT_PHYSICAL" : "ELEMENT_MISSING_DEPLOYMENT",
+      message: element.deploymentActions.length > 0
+        ? `Element '${element.localId}' has deployment configuration but resolves to no physical infrastructure`
+        : `Element '${element.localId}' has no deployment configuration and is omitted from deployment views`,
+      sourceName: element.sourceName,
+      ...diagnosticPosition({
+        line: element.idLine,
+        column: element.idColumn,
+        ...(element.idEndLine === undefined ? {} : { endLine: element.idEndLine }),
+        ...(element.idEndColumn === undefined ? {} : { endColumn: element.idEndColumn }),
+      }),
+    });
+  }
+}
+
+function deploymentViewLogicalEndpoint(
+  elementId: string,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  typeSystem: TypeSystem,
+): string | undefined {
+  let element = elementsById.get(elementId);
+  while (element !== undefined) {
+    if (typeSystem.isAssignable(element.type, CONTAINER_ELEMENT_TYPE)
+        || element.scalarAttributes.kind === "external") {
+      return element.id;
+    }
+    element = element.parent === undefined ? undefined : elementsById.get(element.parent);
+  }
+  return undefined;
+}
+
+function elementDeploymentFamily(element: ParsedElement, typeSystem: TypeSystem): string | undefined {
+  if (typeSystem.isAssignable(element.type, DEPLOYMENT_ELEMENT_TYPE)
+      || typeSystem.isAssignable(element.type, DEPLOYMENT_PROFILE_TYPE)) {
+    return undefined;
+  }
+  if (element.scalarAttributes.kind === "external" && element.deploymentActions.length === 0) {
+    return undefined;
+  }
+  if (typeSystem.isAssignable(element.type, COMPONENT_ELEMENT_TYPE)) {
+    return COMPONENT_ELEMENT_TYPE;
+  }
+  if (typeSystem.isAssignable(element.type, CONTAINER_ELEMENT_TYPE)) {
+    return CONTAINER_ELEMENT_TYPE;
+  }
+  if (typeSystem.isAssignable(element.type, ACTOR_TYPE)) {
+    return ACTOR_TYPE;
+  }
+  if (typeSystem.isAssignable(element.type, SYSTEM_TYPE)) {
+    return SYSTEM_TYPE;
+  }
+  return typeSystem.isAssignable(element.type, ELEMENT_TYPE) ? element.type : undefined;
 }
 
 function reportIsolatedElements(
