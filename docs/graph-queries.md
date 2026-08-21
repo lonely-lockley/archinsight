@@ -323,6 +323,31 @@ Grouping by `parent` places containers under their owning systems. A scalar prop
 
 Grouping affects only the render graph. It does not change containment or ownership in the linked architecture model.
 
+## Inspecting query JSON
+
+The CLI can return the selected render graph directly:
+
+```shell
+archinsight query . -c <context> -s <source.ai> -v c4 --format json
+archinsight query . -c <context> -s <source.ai> -q query.aiq --format json
+```
+
+The response contains `context`, an `elements` map keyed by query-visible qualified id, an `edges` array, render `groups`, and `externalElements`. Each selected edge has two endpoint pairs:
+
+- outer `source` and `target` are the endpoints that the selected graph will draw after query rollup and grouping;
+- nested `edge.source` and `edge.target` are the endpoints of the underlying linked or projected edge;
+- nested `edge.originSource` and `edge.originTarget`, when present, identify the logical wire that produced a projected segment.
+
+For a normal physical C4 segment, the outer and nested endpoints should agree. An ownership-level rollup can intentionally bind an ancestor and make them differ. Projection origin metadata lets a query discover all segments belonging to one logical wire; it does not turn those segments into direct connections between the logical endpoints.
+
+Query JSON is the semantic artifact to inspect before rendering. If an unexpected edge already appears there, investigate the query, its `ROLLUP` clauses, selectors, and projection origin. If the JSON is correct but the image is not, the remaining problem belongs to rendering or layout.
+
+### Diagnosing missing or unexpected content
+
+For missing content, confirm the selected context and source, inspect the declaration through `archinsight structure`, and then compare the narrow view with the nearest broader query. Check `$tab`, type predicates, `deployed`, and relationship selectors before changing the model.
+
+For unexpected content, find the returned edge in JSON and compare its outer endpoints, nested linked endpoints, projection origin, and `projected` flag. Run the built-in query unchanged when a custom query is involved. If the built-in query also returns an invalid edge, reduce it to the responsible match clause and treat the result as a query/runtime problem. Deleting or duplicating model declarations is not a valid way to compensate for an incorrect view.
+
 ## Reading a complete query
 
 A practical view usually begins with required nodes, adds optional relationships, groups the selected elements, and returns every alias that should become visible:

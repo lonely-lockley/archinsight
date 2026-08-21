@@ -78,6 +78,12 @@ tasks.register('npmCheck') {
     group = 'verification'
     description = 'Runs CLI checks.'
     dependsOn 'npmBuild'
+    doLast {
+        providers.exec {
+            workingDir projectDir
+            commandLine npmCommand, 'run', 'test:skill'
+        }.result.get()
+    }
 }
 
 tasks.named('assemble') {

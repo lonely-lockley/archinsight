@@ -350,6 +350,7 @@ identifierDeclaration
 
 identifierReference
     : identifier
+    | ANONYMOUS_ATTRIBUTE
     ;
 
 attributeName

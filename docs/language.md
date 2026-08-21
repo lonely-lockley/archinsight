@@ -81,7 +81,9 @@ deployment production
         name = Kubernetes cluster
 ```
 
-The environment is the root scope for concrete deployments and infrastructure. Its identifier provides the namespace used when logical architecture refers to deployments from that environment. A project can define a specialized descendant of the built-in `Environment` type to declare organization-specific infrastructure slots. When there is one such subtype, the linker uses it for environment roots. When several subtypes exist, the named slots filled by the environment and its deployments identify the compatible schema; if they do not identify one subtype unambiguously, the root keeps the base `Environment` type and incompatible attributes are reported normally.
+The environment is the root scope for concrete deployments and infrastructure. Its identifier provides the namespace used when logical architecture refers to deployments from that environment. An environment source has exactly one `environment <id>` header. Top-level `deployment` declarations that follow are attached to that environment, and one source may contain several of them. A second environment requires another source file.
+
+A project can define a specialized descendant of the built-in `Environment` type to declare organization-specific infrastructure slots. When there is one such subtype, the linker uses it for environment roots. When several subtypes exist, the named slots filled by the environment and its deployments identify the compatible schema; if they do not identify one subtype unambiguously, the root keeps the base `Environment` type and incompatible attributes are reported normally. A project-wide `extend type Environment` applies one slot contract to every environment, while `define type ApplicationEnvironment of Environment` creates an isolated schema. Both forms are valid, but they have different scope.
 
 A source uses one root form. Context sources describe logical ownership and dependencies, while environment sources describe the physical inventory into which that architecture can be deployed. The linker combines both kinds of source into the same project model, allowing deployment profiles and projections to connect logical elements with concrete infrastructure.
 
@@ -341,7 +343,7 @@ system commerce
         name = Internal maintenance service
 ```
 
-This creates an anonymous `Service` instance in the system's anonymous container list. The linker assigns an internal identity so the object remains part of the project graph. The source model does not expose a stable identifier by which other declarations could address it in links, imports, or extensions, which makes this form suitable for nested objects that are meaningful only through their owner.
+This creates an anonymous `Service` instance in the system's anonymous container list. The linker assigns an internal identity so the object remains part of the project graph. The source model does not expose a stable identifier by which other declarations could address it in links, imports, extensions, `runsOn`, or typed reference attributes, which makes this form suitable for nested objects that are meaningful only through their owner. A reference written as `_` produces `ANONYMOUS_INSTANCE_NOT_REFERENCEABLE`; give the target a named id instead.
 
 The same instance syntax can fill a named object attribute:
 

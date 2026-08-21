@@ -98,6 +98,8 @@ The generic target writes a runtime-neutral guide:
             c2.aiq
             c3.aiq
             c4.aiq
+        queries/
+            c4-internal-actors.aiq
 ```
 
 Codex and Claude targets package the same Insight reference directly into the
@@ -125,11 +127,14 @@ After generating a Codex or Claude skill into the default location, restart the
 agent session so the skill is discovered. Pass `--out <dir>` to write the same
 package somewhere else.
 
-The guide tells agents to treat `archinsight` as the validation source of truth,
+The guide records the exact CLI version that generated it and tells agents to regenerate the package when that version differs, treat `archinsight` as the validation source of truth,
 avoid guessing Insight syntax from other architecture DSLs, inspect project
 structure before broad edits or imports, read bundled core language sources for
 built-in types/presentations/projections, describe systems layer by layer, and
 write custom `.aiq` diagram queries with the supported Cypher-style subset.
+For deployment and query changes it requires `query --format json` semantic
+inspection before rendering. The JSON reference distinguishes selected graph
+endpoints, underlying linked edges, and logical projection origins.
 The bundled deployment reference explains context-owned profiles with
 `appliesTo: <deployment> from <environment>`, element placement through those
 profiles, and wire-level `uses` restricted to `NetworkConnection` descendants.
