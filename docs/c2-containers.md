@@ -1,6 +1,6 @@
 # C2: Containers and Services
 
-A C2 diagram opens one or more systems and shows their main logical runtime units: applications, services, and processes that collaborate to provide the system's behavior. A model that does not describe deployment in detail may also represent supporting resources such as a database or broker as C2 containers. When a detailed deployment model is planned, those infrastructure elements are better placed at C4, while C2 remains focused on the logical parts of the system that use them.
+A C2 diagram opens one or more systems and shows their main logical runtime units: applications, services, and processes that collaborate to provide the system's behavior. A model that does not describe deployment in detail may also represent supporting resources such as a database or broker as C2 containers. When a detailed deployment model is planned, those infrastructure elements are better placed in the Deployment view, while C2 remains focused on the logical parts of the system that use them.
 
 ## Containers and services
 

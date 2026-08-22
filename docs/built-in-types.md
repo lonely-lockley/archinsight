@@ -2,7 +2,7 @@
 
 An Insight project describes architecture as a typed graph. Architectural objects become graph nodes, relationships become directed graph edges, and containment records how detailed objects belong to broader architectural boundaries. Types provide the schema that determines which objects and relationships can enter that graph.
 
-Archinsight starts with a small set of basic types and builds its C4 vocabulary on top of them. The basic types describe graph nodes, relationships, text, collections, and supporting values. The core library then defines systems, containers, components, deployment objects, and the operators that connect them.
+Archinsight starts with a small set of basic types and builds its C4 vocabulary on top of them. The basic types describe graph nodes, relationships, text, collections, and supporting values. The core library then defines systems, containers, components, a code-model extension point, deployment objects, and the operators that connect them.
 
 ## Runtime types
 
@@ -99,15 +99,16 @@ Element
 ├── ContainerElement
 │   └── Container
 │       └── Service
-└── ComponentElement
-    └── Component
+├── ComponentElement
+│   └── Component
+└── CodeElement
 ```
 
-The structural base types `BoundaryElement`, `SystemElement`, `ContainerElement`, `ComponentElement`, and `DeploymentElement` are abstract. They organize assignability and shared rules while their concrete descendants provide constructors.
+The structural base types `BoundaryElement`, `SystemElement`, `ContainerElement`, `ComponentElement`, `CodeElement`, and `DeploymentElement` are abstract. They organize assignability and shared rules while their concrete descendants provide constructors.
 
-The inheritance tree combines classification with placement constraints. `BoundaryElement` is the marker type for elements that may appear directly inside a `Context`. `SystemElement` and `DeploymentElement` derive from it, so their concrete descendants are valid context members. `ContainerElement` and `ComponentElement` remain separate branches under `Element`, which prevents containers and components from being placed at context level.
+The inheritance tree combines classification with placement constraints. `BoundaryElement` is the marker type for elements that may appear directly inside a `Context`. `SystemElement` and `DeploymentElement` derive from it, so their concrete descendants are valid context members. `ContainerElement`, `ComponentElement`, and `CodeElement` remain separate branches under `Element`, which prevents their descendants from being placed at context level.
 
-The rest of the C4 containment path is expressed by typed attributes on each owner. `System` accepts `Container`, and `Container` accepts `Component`. This division lets inheritance answer whether a value belongs to a broad architectural family while owner attributes decide where that value may be nested.
+The rest of the C4 containment path is expressed by typed attributes on each owner. `System` accepts `Container`, and `Container` accepts `Component`. Code containment is left to project definitions because different code models require different structures. This division lets inheritance answer whether a value belongs to a broad architectural family while owner attributes decide where that value may be nested.
 
 ### Context and boundaries
 
@@ -176,7 +177,13 @@ service catalog
         responsibility = Maintains the searchable product projection
 ```
 
-### C4: deployment
+### C4: code
+
+`CodeElement` is the abstract base for project-defined code concepts. It has no constructor or required attributes. Projects derive types such as modules, packages, classes, functions, or schemas from it, then extend their component vocabulary with the containment slots those types require.
+
+Keeping `CodeElement` separate from `ComponentElement` prevents code objects from entering C3 automatically. The built-in C4 query selects `CodeElement` descendants from the current semantic tab and follows relationships between them without assuming a particular code ontology. The complete modeling workflow is described in [C4: Code](c4-code.md).
+
+### Deployment
 
 `DeploymentElement` is the abstract boundary-level base for deployment concepts. The deployment library also extends every `Element` with attributes for deployment references, runtime placement, and infrastructure usage. Logical systems, containers, services, and components can therefore be connected to their physical realization without changing their logical type.
 
@@ -211,7 +218,7 @@ The core library provides several specialized infrastructure types:
 
 `ProjectionTerm`, `SourceProjectionTerm`, and `TargetProjectionTerm` describe the steps used to turn a logical dependency into a physical path. They can refer to the logical endpoints, the current infrastructure component, its attributes, or a slot supplied by the environment. These terms guide projection and are not rendered as architecture elements.
 
-Together, these types keep logical architecture and deployment inventory in one linked model. C1, C2, and C3 views can follow the logical hierarchy, while C4 queries include the concrete infrastructure and projected physical relationships relevant to the selected deployment scope.
+Together, these types keep logical architecture and deployment inventory in one linked model. C1, C2, and C3 views can follow the logical hierarchy, while Deployment queries include the concrete infrastructure and projected physical relationships relevant to the selected deployment scope.
 
 ## Built-in edge types
 
@@ -282,4 +289,4 @@ Both `->` and `~>` preserve the same source-to-target orientation. The asynchron
 
 The source-to-target orientation also applies to named physical operators. An invocation such as `replicateFrom primary` is owned by the current element and creates an outgoing typed relationship toward `primary`; the operator name explains the domain meaning of that direction. Projection rules can assemble several such directed edges into a path, and every resulting edge keeps explicit source and target identities.
 
-This ownership model gives every relationship one authoritative declaration. Queries can follow outgoing and incoming dependencies independently, and higher-level C4 views can roll a child relationship up to the appropriate owners without losing its original direction.
+This ownership model gives every relationship one authoritative declaration. Queries can follow outgoing and incoming dependencies independently, and broader logical views can roll a child relationship up to the appropriate owners without losing its original direction.

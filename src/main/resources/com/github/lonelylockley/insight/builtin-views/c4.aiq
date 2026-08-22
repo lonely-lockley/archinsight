@@ -1,21 +1,5 @@
-MATCH (node:Element)
-WHERE node.sourceIdentity = $tab
-  AND (node IS DeploymentElement
-    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))
-OPTIONAL MATCH (deploymentTarget:InfrastructureComponent)
-WHERE deploymentTarget IN node.uses OR deploymentTarget = node.runsOn
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
-WHERE projectedTarget IS DeploymentElement
-   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
-   OR projectedTarget IS External
-OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
-WHERE node IS DeploymentElement
-  AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-OPTIONAL MATCH ROLLUP (incomingProjectedSource:Element)-[incomingProjectedLink {projected}]->(node)
-WHERE (incomingProjectedSource IS DeploymentElement
-   OR (incomingProjectedSource IS ContainerElement AND incomingProjectedSource.deployed = true)
-   OR incomingProjectedSource IS External)
-  AND incomingProjectedSource.id <> node.id
-OPTIONAL MATCH (projectedPathSource:DeploymentElement)-[projectedPathLink {projected}]->(projectedPathTarget:DeploymentElement)
-GROUP BY node.runsOn
-RETURN node, deploymentTarget, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource, projectedPathSource, projectedPathLink, projectedPathTarget
+MATCH (code:CodeElement)
+WHERE code.sourceIdentity = $tab
+OPTIONAL MATCH (code)-[link]->(targetCode:CodeElement)
+GROUP BY code.parent
+RETURN code, link, targetCode

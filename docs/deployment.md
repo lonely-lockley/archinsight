@@ -1,14 +1,14 @@
-# C4: Deployment
+# Deployment
 
 A deployment model projects the logical architecture onto physical infrastructure. Systems, containers, components, and wires retain their logical meaning, while the deployment layer shows where the selected elements run, which infrastructure they use, and how their relationships pass through the physical world.
 
 The goal is a readable physical explanation of the logical model. A deployment diagram focuses on a deployable element and the infrastructure immediately relevant to it. Transit networks, replication meshes, provider internals, and every possible deployment variation would quickly turn the model into a complete infrastructure topology. Details of that depth are usually better recorded in `description`, `technology`, `via`, notes, or project-specific attributes on the relevant element or relationship.
 
-The C4 deployment level is the home of infrastructure. Compute platforms, databases, object storage, message brokers, gateways, load balancers, ingress controllers, network connections, and observability services belong here when the project models deployment explicitly. Logical C2 elements refer to these resources without turning a database or broker into an application container.
+The deployment model is the home of infrastructure. Compute platforms, databases, object storage, message brokers, gateways, load balancers, ingress controllers, network connections, and observability services belong here when the project models deployment explicitly. Logical C2 elements refer to these resources without turning a database or broker into an application container.
 
 The default deployment view starts from the model fragment associated with the selected tab. It follows the deployment profiles, placements, infrastructure uses, and projected wires reachable from that logical fragment. The result stays centered on the system or service being examined while drawing the relevant objects from their environment namespaces.
 
-A logical element enters the default view only after its deployment resolves to physical infrastructure through `runsOn` or `uses`. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent from C4 even when both logical endpoints are deployed. Direct relationships declared between deployment elements remain visible because they already describe the physical model.
+A logical element enters the default view only after its deployment resolves to physical infrastructure through `runsOn` or `uses`. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent from the Deployment view even when both logical endpoints are deployed. Direct relationships declared between deployment elements remain visible because they already describe the physical model.
 
 ## Environment and deployment boundaries
 
@@ -204,7 +204,7 @@ networkConnection public_gateway
 $from → CDN → load balancer → ingress → $to
 ```
 
-The first segment uses `originalLink`, preserving the logical wire and its attributes. The following `connectTo` segments describe direct physical connections between infrastructure components. These intermediate objects exist only at C4; C1, C2, and C3 remain focused on the logical endpoints.
+The first segment uses `originalLink`, preserving the logical wire and its attributes. The following `connectTo` segments describe direct physical connections between infrastructure components. These intermediate objects exist only in the deployment model; C1, C2, and C3 remain focused on the logical endpoints.
 
 The `source` and `target` words before projection terms assign each endpoint of the generated segment to the corresponding side of the deployment relationship. References such as `cdn`, `load_balancer`, and `ingress` identify infrastructure held by the projection owner. This allows an ingress path to stay with the target deployment and an egress path to stay with the source deployment.
 
@@ -285,7 +285,7 @@ A wire deployment accepts `NetworkConnection` infrastructure through `uses`. It 
 
 Element placement and wire placement work together. The element profiles identify the concrete deployments and runtime infrastructure. The wire then selects the connection available in those deployments, and its projection explains the visible physical path while preserving the wire's source, target, and logical attributes.
 
-Wire coverage is checked only after the project contains at least one C4-relevant wire with a `deployment` block. From that point, a logical wire between different C4 endpoints produces `WIRE_MISSING_DEPLOYMENT` when it has no deployment, while a configured wire that produces no physical projection produces `WIRE_DEPLOYMENT_NOT_PROJECTED`. A component relationship whose endpoints belong to the same container does not require a physical projection because it collapses to a self-relationship at C4. Both diagnostics are warnings: the linked logical graph remains valid, while the incomplete wire stays out of the default deployment view.
+Wire coverage is checked only after the project contains at least one deployment-relevant wire with a `deployment` block. From that point, a logical wire between different deployment endpoints produces `WIRE_MISSING_DEPLOYMENT` when it has no deployment, while a configured wire that produces no physical projection produces `WIRE_DEPLOYMENT_NOT_PROJECTED`. A component relationship whose endpoints belong to the same container does not require a physical projection because it collapses to a self-relationship in the Deployment view. Both diagnostics are warnings: the linked logical graph remains valid, while the incomplete wire stays out of the default deployment view.
 
 ## Deployment entities
 
@@ -364,8 +364,8 @@ A clean link proves that the project parses and that types, imports, profiles, s
 
 ```shell
 archinsight link . --format text
-archinsight query . -c <context> -s <logical-source.ai> -v c4 --format json
-archinsight render . -c <context> -s <logical-source.ai> -v c4 -f svg -o c4.svg
+archinsight query . -c <context> -s <logical-source.ai> -v deployment --format json
+archinsight render . -c <context> -s <logical-source.ai> -v deployment -f svg -o deployment.svg
 ```
 
-Inspect the JSON before relying on the image. It records the exact elements and physical edges selected by the C4 query. SVG is the final presentation check for layout, labels, and styling.
+Inspect the JSON before relying on the image. It records the exact elements and physical edges selected by the Deployment query. SVG is the final presentation check for layout, labels, and styling.

@@ -11,8 +11,8 @@ It embeds `@insight/language` directly and does not call the web app.
 ```shell
 archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
-archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f text|json] [-o file]
-archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
+archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f text|json] [-o file]
+archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
 archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 ```
 
@@ -23,7 +23,7 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-c, --context <id>` - context id for query/render.
 - `-s, --source <file>` - selected source file for queries using `$tab`.
 - `--tab <source>` - compatibility alias for `--source`.
-- `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `no-filter`.
+- `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment`, `no-filter`.
 - `-q, --query <file>` - custom query file; overrides `--view`; relative paths
   are resolved from `project-dir`.
 - `-f, --format <format>` - command output format.
@@ -70,7 +70,8 @@ The generic target writes a runtime-neutral guide:
         c1-context.md
         c2-containers.md
         c3-components.md
-        c4-deployment.md
+        c4-code.md
+        deployment.md
         scaling.md
         project-structure.md
         core.md
@@ -85,10 +86,13 @@ The generic target writes a runtime-neutral guide:
         c1-context.ai
         c2-containers.ai
         c3-components.ai
-        c4-deployment-framework.ai
-        c4-deployment-infrastructure.ai
-        c4-deployment.ai
-        c4-private-gateway/
+        c4-code/
+            definitions.ai
+            model.ai
+        deployment-framework.ai
+        deployment-infrastructure.ai
+        deployment.ai
+        deployment-private-gateway/
             deployment-framework.ai
             source-infra.ai
             source-system.ai
@@ -102,8 +106,9 @@ The generic target writes a runtime-neutral guide:
             c2.aiq
             c3.aiq
             c4.aiq
+            deployment.aiq
         queries/
-            c4-internal-actors.aiq
+            deployment-internal-actors.aiq
 ```
 
 Codex and Claude targets package the same Insight reference directly into the
@@ -143,6 +148,10 @@ provide aggregation or graph traversal.
 For deployment and query changes it requires `query --format json` semantic
 inspection before rendering. The JSON reference distinguishes selected graph
 endpoints, underlying linked edges, and logical projection origins.
+The bundled C4 reference explains the constructorless `CodeElement` extension
+point, project-defined code vocabularies, component containment, and the
+minimal built-in query that selects code elements from the current semantic
+tab.
 The bundled deployment reference explains context-owned profiles with
 `appliesTo: <deployment> from <environment>`, element placement through those
 profiles, and wire-level `uses` restricted to `NetworkConnection` descendants.

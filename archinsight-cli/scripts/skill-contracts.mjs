@@ -36,7 +36,8 @@ try {
   const codexOutput = generated.get("codex");
   assert(codexOutput);
   verifyExamples(codexOutput);
-  verifyC4RecipeAndJsonContract(codexOutput);
+  verifyC4CodeContract(codexOutput);
+  verifyDeploymentRecipeAndJsonContract(codexOutput);
   console.log("agent skill contract fixtures passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
@@ -65,6 +66,9 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("references/importing-models.md"));
   assert(content.includes("references/analysis.md"));
   assert(content.includes("references/cli.md"));
+  assert(content.includes("references/c4-code.md"));
+  assert(content.includes("Infer and reuse an existing C4 Code vocabulary from the repository"));
+  assert.match(content, /Ask the\s+user about entity kinds only when creating the Code layer or extending that\s+vocabulary/);
   assert.equal(content.includes("references/versioning.md"), false);
 }
 
@@ -75,13 +79,19 @@ function verifySharedFiles(output) {
   assert(cli.includes("Refusing to initialize"));
   assert(cli.includes("--force"));
   const expectedBuiltin = readFileSync(
+    path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "deployment.aiq"),
+    "utf8",
+  );
+  const bundledBuiltin = readFileSync(path.join(output, "examples", "builtin-views", "deployment.aiq"), "utf8");
+  assert.equal(bundledBuiltin, expectedBuiltin);
+  const expectedC4Builtin = readFileSync(
     path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "c4.aiq"),
     "utf8",
   );
-  const bundledBuiltin = readFileSync(path.join(output, "examples", "builtin-views", "c4.aiq"), "utf8");
-  assert.equal(bundledBuiltin, expectedBuiltin);
+  const bundledC4Builtin = readFileSync(path.join(output, "examples", "builtin-views", "c4.aiq"), "utf8");
+  assert.equal(bundledC4Builtin, expectedC4Builtin);
 
-  const recipe = readFileSync(path.join(output, "examples", "queries", "c4-internal-actors.aiq"), "utf8");
+  const recipe = readFileSync(path.join(output, "examples", "queries", "deployment-internal-actors.aiq"), "utf8");
   assert(recipe.includes("OR node IS Actor"));
   assert(recipe.includes("deploymentTarget:InfrastructureComponent"));
   assert(recipe.includes("projectedPathSource:DeploymentElement"));
@@ -96,11 +106,40 @@ function verifySharedFiles(output) {
   assert(importing.includes("one or two focused questions"));
   assert(importing.includes("configured skills, MCP integrations"));
   assert(importing.includes("cannot be obtained independently"));
+  assert(importing.includes("Project-defined `CodeElement` descendant"));
+  const c3ImportStep = importing.indexOf("6. Add C3 components");
+  const c4ImportStep = importing.indexOf("7. If C4 is in scope");
+  const deploymentImportStep = importing.indexOf("8. Build deployment models");
+  assert(c3ImportStep >= 0 && c4ImportStep > c3ImportStep && deploymentImportStep > c4ImportStep);
+  const c4ImportGuidance = importing.slice(c4ImportStep, deploymentImportStep);
+  assert(c4ImportGuidance.includes("Reuse that vocabulary without asking"));
+  assert.match(c4ImportGuidance, /Ask\s+the user which entity kinds to model only when the project has no Code layer\s+or the import requires extending its vocabulary/);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
   assert(analysis.includes("It is not a general graph analytics language"));
   assert.match(analysis, /transitive\s+impact/);
   assert(analysis.includes("--format json"));
+
+  const c4Code = readFileSync(path.join(output, "references", "c4-code.md"), "utf8");
+  assert(c4Code.includes("CodeElement"));
+  assert(c4Code.includes("--view deployment"));
+  assert(c4Code.includes("never use C4 as an alias for Deployment"));
+  assert(c4Code.includes("uses `Storage` in the Deployment model"));
+  assert.match(c4Code, /infer the intended entity kinds from that vocabulary and\s+reuse it without asking/);
+  assert.match(c4Code, /Ask the user which code entity kinds they want only when creating a new C4 Code\s+layer or when the requested work requires new entity kinds or containment rules/);
+
+  const validation = readFileSync(path.join(output, "references", "validation.md"), "utf8");
+  assert.match(validation, /archinsight query .* -v c4 --format json/);
+  assert.match(validation, /archinsight render .* -v c4 -f svg/);
+  assert(validation.includes("Validate `c4-code` as its own directory"));
+
+  const syntax = readFileSync(path.join(output, "references", "syntax.md"), "utf8");
+  assert.equal(syntax.includes("Use built-in constructors for C4-style architecture"), false);
+  assert(syntax.includes("Use built-in constructors for the C1-C3 parts of a C4 architecture"));
+  assert(syntax.includes("constructorless `CodeElement` base"));
+
+  const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
+  assert.match(queries, /Labels are case-sensitive[\s\S]*`CodeElement`/);
 
 }
 
@@ -149,26 +188,64 @@ function verifyExamples(output) {
     runCli(["link", path.join(examples, name), "--format", "text"]);
   }
 
-  const c4Project = copyC4Project(examples, "c4-project");
-  runCli(["link", c4Project, "--format", "text"]);
-  runCli(["link", path.join(examples, "c4-private-gateway"), "--format", "text"]);
+  const deploymentProject = copyDeploymentProject(examples, "deployment-project");
+  runCli(["link", deploymentProject, "--format", "text"]);
+  runCli(["link", path.join(examples, "deployment-private-gateway"), "--format", "text"]);
+  runCli(["link", path.join(examples, "c4-code"), "--format", "text"]);
 }
 
-function verifyC4RecipeAndJsonContract(output) {
+function verifyC4CodeContract(output) {
+  const project = path.join(output, "examples", "c4-code");
+  const graph = JSON.parse(runCli([
+    "query",
+    project,
+    "--context",
+    "code_sample",
+    "--source",
+    "model.ai",
+    "--view",
+    "c4",
+    "--format",
+    "json",
+  ]));
+
+  assert(graph.elements["code_sample/controller"]);
+  assert(graph.elements["code_sample/domain"]);
+  assert(graph.elements["code_sample/validation"]);
+  assert.equal(graph.elements["code_sample/order_processing"], undefined);
+  assert(graph.edges.some((item) => item.source === "code_sample/controller" && item.target === "code_sample/domain"));
+}
+
+function verifyDeploymentRecipeAndJsonContract(output) {
   const examples = path.join(output, "examples");
-  const project = copyC4Project(examples, "c4-internal-actor-project");
-  const modelPath = path.join(project, "c4-deployment.ai");
+  const project = copyDeploymentProject(examples, "deployment-internal-actor-project");
+  const modelPath = path.join(project, "deployment.ai");
   const model = readFileSync(modelPath, "utf8").replace("external actor shopper", "actor shopper");
   writeFileSync(modelPath, model);
 
-  const query = path.join(examples, "queries", "c4-internal-actors.aiq");
+  const builtinGraph = JSON.parse(runCli([
+    "query",
+    project,
+    "--context",
+    "deployment_shop",
+    "--source",
+    "deployment.ai",
+    "--view",
+    "deployment",
+    "--format",
+    "json",
+  ]));
+  assert.equal(builtinGraph.context, "deployment_shop");
+  assert.equal(Array.isArray(builtinGraph.edges), true);
+
+  const query = path.join(examples, "queries", "deployment-internal-actors.aiq");
   const stdout = runCli([
     "query",
     project,
     "--context",
     "deployment_shop",
     "--source",
-    "c4-deployment.ai",
+    "deployment.ai",
     "--query",
     query,
     "--format",
@@ -189,10 +266,10 @@ function verifyC4RecipeAndJsonContract(output) {
   assert(projected.every((item) => item.source === item.edge.source && item.target === item.edge.target));
 }
 
-function copyC4Project(examples, directoryName) {
+function copyDeploymentProject(examples, directoryName) {
   const target = path.join(temporaryRoot, directoryName);
   mkdirSync(target, { recursive: true });
-  for (const name of ["c4-deployment-framework.ai", "c4-deployment-infrastructure.ai", "c4-deployment.ai"]) {
+  for (const name of ["deployment-framework.ai", "deployment-infrastructure.ai", "deployment.ai"]) {
     copyFileSync(path.join(examples, name), path.join(target, name));
   }
   return target;

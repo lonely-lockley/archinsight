@@ -52,7 +52,7 @@ The built-in Graphviz renderer highlights deprecated declarations in red. The op
 
 When both lifecycle annotations are attached to one declaration, `@planned` has visual priority in the current renderer. A declaration should normally have one lifecycle state so its meaning remains clear to readers.
 
-Annotations on a logical wire are carried into physical relationships created from that wire by deployment projection. A planned logical integration therefore remains visibly planned when a C4 view expands it through infrastructure.
+Annotations on a logical wire are carried into physical relationships created from that wire by deployment projection. A planned logical integration therefore remains visibly planned when a Deployment view expands it through infrastructure.
 
 ## Legacy `@attribute`
 

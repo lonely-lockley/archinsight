@@ -19,6 +19,7 @@ const cases = [
   capturesOperatorImplementations,
   reportsNotDeclaredTypesInDefinitionsAndPresentations,
   reportsMissingConstructorsForInstantiableTypes,
+  allowsConstructorlessCodeElementExtensionPoint,
   allowsDataTypesWithoutConstructors,
   allowsEnumValuesWithoutAttributes,
   rejectsEnumExtensionsWithoutDefinition,
@@ -285,6 +286,19 @@ define operator Wire of Edge
 
   assert.equal(countDiagnostics(result, "TYPE_CONSTRUCTOR_MISSING", "System"), 1);
   assert.equal(countDiagnostics(result, "TYPE_CONSTRUCTOR_MISSING", "Wire"), 1);
+}
+
+function allowsConstructorlessCodeElementExtensionPoint() {
+  const result = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "core_code.ai",
+      source: `
+define type CodeElement of Element
+`,
+    },
+  ]);
+
+  assert.equal(countDiagnostics(result, "TYPE_CONSTRUCTOR_MISSING", "CodeElement"), 0);
 }
 
 function allowsDataTypesWithoutConstructors() {

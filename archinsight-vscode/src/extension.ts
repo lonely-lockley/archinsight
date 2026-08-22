@@ -163,6 +163,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("archinsight.preview.c2", async () => previewView(project, "c2")),
     vscode.commands.registerCommand("archinsight.preview.c3", async () => previewView(project, "c3")),
     vscode.commands.registerCommand("archinsight.preview.c4", async () => previewView(project, "c4")),
+    vscode.commands.registerCommand("archinsight.preview.deployment", async () => previewView(project, "deployment")),
     vscode.commands.registerCommand("archinsight.preview.editQuery", async () => controls.focus(activeWorkbenchEditor?.currentView(), activeWorkbenchEditor?.currentQuery())),
     vscode.commands.registerCommand("archinsight.preview.downloadSource", async () => {
       if (activeWorkbenchEditor !== undefined) {

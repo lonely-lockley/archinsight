@@ -10,7 +10,7 @@ The project includes a CLI, a VSCode extension, a generated skill for AI agents,
 
 - **Capture the vocabulary of an organization.** Teams can define their own types, constructors, operators, infrastructure capabilities, enums, and visual conventions. Reviewed framework definitions become reusable architectural building blocks instead of loose tags or naming conventions.
 
-- **Keep architecture facts separate from their representations.** The linked semantic graph is the authoritative model. C1, C2, C3, C4, source-focused, and custom views are derived from that graph rather than maintained as independent diagrams.
+- **Keep architecture facts separate from their representations.** The linked semantic graph is the authoritative model. C1, C2, C3, C4, Deployment, source-focused, and custom views are derived from that graph rather than maintained as independent diagrams.
 
 - **Trace logical dependencies through deployment.** Profiles map logical elements to concrete deployments, while projections expand logical dependencies into the network and infrastructure paths that implement them. Different environments can realize the same logical relationship in different ways without duplicating the logical model.
 
@@ -18,7 +18,7 @@ The project includes a CLI, a VSCode extension, a generated skill for AI agents,
 
 - **Scale the model independently from the repository layout.** Semantic identities come from contexts, environments, and model objects rather than file paths. Models can be reorganized, split, and extended without renaming the architecture they describe.
 
-- **Derive views for the question at hand.** Graph queries can select architectural levels, source scopes, relationships, inherited types, derived dependencies, deployment projections, and visual groups. Built-in C1, C2, C3, C4, and unfiltered views are ordinary queries over the same linked model.
+- **Derive views for the question at hand.** Graph queries can select architectural levels, source scopes, relationships, inherited types, derived dependencies, deployment projections, and visual groups. Built-in C1, C2, C3, C4, Deployment, and unfiltered views are ordinary queries over the same linked model.
 
 ## Insight language and project model
 
@@ -37,7 +37,8 @@ The modeling guides follow the architecture from its logical context to its phys
 - [C1: System Context](docs/c1-system.md)
 - [C2: Containers and Services](docs/c2-containers.md)
 - [C3: Components](docs/c3-components.md)
-- [C4: Deployment](docs/c4-deployment.md)
+- [C4: Code](docs/c4-code.md)
+- [Deployment](docs/deployment.md)
 
 A small project can begin with a single `storefront.ai` file:
 

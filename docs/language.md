@@ -128,7 +128,7 @@ define type InternalApi of Api
 
 Abstract types keep a framework hierarchy expressive without introducing generic instances into the model. They are useful for grouping related elements, defining shared child slots, collecting attributes used by queries, and attaching a presentation inherited by every concrete descendant. The built-in framework uses this pattern for types such as `SystemElement`, `ContainerElement`, and `BoundaryElement`.
 
-For graph types derived from `Element` or `Edge`, a type with descendants may omit its constructor and act as their abstract base. A leaf graph type represents a construct that can appear directly in a model and must declare at least one constructor. Schema and value types outside the graph hierarchy may also exist without constructors when they are used only as type-level contracts.
+For graph types derived from `Element` or `Edge`, a type with descendants may omit its constructor and act as their abstract base. A leaf graph type represents a construct that can appear directly in a model and must declare at least one constructor. The built-in `CodeElement` is a constructorless extension point whose concrete descendants are supplied by project definitions. Schema and value types outside the graph hierarchy may also exist without constructors when they are used only as type-level contracts.
 
 ## Constructors
 
