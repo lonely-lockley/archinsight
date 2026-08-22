@@ -196,6 +196,13 @@ function verifyExamples(output) {
 
 function verifyC4CodeContract(output) {
   const project = path.join(output, "examples", "c4-code");
+  const definitions = readFileSync(path.join(project, "definitions.ai"), "utf8");
+  const model = readFileSync(path.join(project, "model.ai"), "utf8");
+  assert.match(definitions, /extend type Component\s+List of CodeElement _/);
+  assert.equal(definitions.includes("List of CodeElement code"), false);
+  assert.doesNotMatch(model, /^\s+code:/m);
+  assert.match(model, /component order_processing[\s\S]*?module controller/);
+
   const graph = JSON.parse(runCli([
     "query",
     project,

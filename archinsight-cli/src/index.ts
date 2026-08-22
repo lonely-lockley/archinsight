@@ -3129,7 +3129,7 @@ relationships, presentations, and containment rules. Do not instantiate
 not defined.
 
 Keep code types and extensions in a definitions source. A minimal framework can
-derive a module type and attach a named code slot to components:
+derive a module type and make code elements anonymous children of components:
 
 \`\`\`insight
 define type Module of CodeElement
@@ -3141,8 +3141,13 @@ define type Module of CodeElement
     List of CodeElement children
 
 extend type Component
-    List of CodeElement code
+    List of CodeElement _
 \`\`\`
+
+The anonymous list allows code declarations to appear directly below a
+component without a \`code:\` wrapper. It must be the component type's only
+anonymous list and the final attribute in this extension. Use a named slot only
+when that wrapper conveys useful structure in the project's chosen vocabulary.
 
 \`CodeElement\` is separate from \`ComponentElement\`. This keeps code objects out
 of C3 unless a custom query intentionally combines both levels.
@@ -5228,7 +5233,7 @@ function genericC4CodeExampleFiles(): readonly GeneratedFile[] {
     List of CodeElement children
 
 extend type Component
-    List of CodeElement code
+    List of CodeElement _
 `,
     },
     {
@@ -5244,20 +5249,19 @@ system application
         component order_processing
             name = Order processing
             responsibility = Coordinates checkout
-            code:
-                module controller
-                    name = Checkout controller
-                    responsibility = Accepts checkout commands
-                    links:
-                        -> domain
+            module controller
+                name = Checkout controller
+                responsibility = Accepts checkout commands
+                links:
+                    -> domain
 
-                module domain
-                    name = Checkout domain
-                    responsibility = Applies checkout rules
-                    children:
-                        module validation
-                            name = Order validation
-                            responsibility = Validates checkout input
+            module domain
+                name = Checkout domain
+                responsibility = Applies checkout rules
+                children:
+                    module validation
+                        name = Order validation
+                        responsibility = Validates checkout input
 `,
     },
   ];

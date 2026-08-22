@@ -284,7 +284,7 @@ define type Module of CodeElement
     List of CodeElement children
 
 extend type Component
-    List of CodeElement code
+    List of CodeElement _
 `),
   ], [coreLanguageSnapshot]);
   const result = linkProject({
@@ -300,17 +300,16 @@ system application
 
         component checkout
             name = Checkout
-            code:
-                module controller
-                    name = Controller
-                    links:
-                        -> domain
+            module controller
+                name = Controller
+                links:
+                    -> domain
 
-                module domain
-                    name = Domain
-                    children:
-                        module validation
-                            name = Validation
+            module domain
+                name = Domain
+                children:
+                    module validation
+                        name = Validation
 `)],
   });
 
