@@ -137,10 +137,25 @@ export function activate(context: vscode.ExtensionContext): void {
   const structure = new ArchinsightStructureProvider(project);
   const controls = new ArchinsightControlsProvider(project, context.extensionUri);
   const workbenchEditor = new ArchinsightWorkbenchEditorProvider(project, context.extensionUri, controls);
+  const sourceWatcher = vscode.workspace.createFileSystemWatcher("**/*.ai");
+  const refreshChangedSource = (uri: vscode.Uri): void => {
+    const root = workspaceRoot();
+    if (root === undefined || !isInside(root, uri)) {
+      return;
+    }
+    const sourceName = sourceNameForUri(root, uri);
+    if (!isIgnoredSource(sourceName)) {
+      project.scheduleRefresh();
+    }
+  };
 
   context.subscriptions.push(
     output,
     diagnostics,
+    sourceWatcher,
+    sourceWatcher.onDidCreate(refreshChangedSource),
+    sourceWatcher.onDidChange(refreshChangedSource),
+    sourceWatcher.onDidDelete(refreshChangedSource),
     vscode.window.registerCustomEditorProvider(archinsightEditorViewType, workbenchEditor, {
       webviewOptions: { retainContextWhenHidden: true },
       supportsMultipleEditorsPerDocument: false,
@@ -1863,7 +1878,11 @@ function isIgnoredSource(sourceName: string): boolean {
 }
 
 function isInside(root: vscode.Uri, uri: vscode.Uri): boolean {
-  return uri.scheme === "file" && uri.fsPath.startsWith(root.fsPath);
+  if (uri.scheme !== "file") {
+    return false;
+  }
+  const relative = path.relative(root.fsPath, uri.fsPath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function isInsightDocument(document: vscode.TextDocument): boolean {
