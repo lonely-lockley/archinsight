@@ -44,6 +44,9 @@
     "onCommand:archinsight.generateAgentSkill",
     "onCommand:archinsight.structure.filter",
     "onCommand:archinsight.structure.clearFilter",
+    "onCommand:archinsight.structure.toggleLanguageTypes",
+    "onCommand:archinsight.structure.toggleOperators",
+    "onCommand:archinsight.structure.toggleIdentifiers",
     "onCommand:archinsight.preview.noFilter",
     "onCommand:archinsight.preview.c1",
     "onCommand:archinsight.preview.c2",
@@ -129,6 +132,21 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "archinsight.structure.toggleLanguageTypes",
+        "title": "Show Language Types",
+        "icon": "$(symbol-class)"
+      },
+      {
+        "command": "archinsight.structure.toggleOperators",
+        "title": "Show Operators",
+        "icon": "$(symbol-operator)"
+      },
+      {
+        "command": "archinsight.structure.toggleIdentifiers",
+        "title": "Show Declared Identifiers",
+        "icon": "$(symbol-variable)"
+      },
+      {
         "command": "archinsight.preview.noFilter",
         "title": "No filter",
         "icon": "$(filter)"
@@ -187,14 +205,32 @@
     "menus": {
       "view/title": [
         {
+          "command": "archinsight.structure.toggleLanguageTypes",
+          "when": "view == archinsightStructure",
+          "group": "navigation@1",
+          "toggled": "archinsight.structure.showLanguageTypes"
+        },
+        {
+          "command": "archinsight.structure.toggleOperators",
+          "when": "view == archinsightStructure",
+          "group": "navigation@2",
+          "toggled": "archinsight.structure.showOperators"
+        },
+        {
+          "command": "archinsight.structure.toggleIdentifiers",
+          "when": "view == archinsightStructure",
+          "group": "navigation@3",
+          "toggled": "archinsight.structure.showIdentifiers"
+        },
+        {
           "command": "archinsight.structure.filter",
           "when": "view == archinsightStructure",
-          "group": "navigation@1"
+          "group": "navigation@4"
         },
         {
           "command": "archinsight.structure.clearFilter",
           "when": "view == archinsightStructure",
-          "group": "navigation@2"
+          "group": "navigation@5"
         }
       ]
     },

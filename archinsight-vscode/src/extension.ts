@@ -128,7 +128,7 @@ const coreSourceName = coreSources.some((source) => source.sourceName === "core.
 const coreSourceByName = new Map(coreSources.map((source) => [source.sourceName, source.source]));
 const coreSourceUri = vscode.Uri.from({ scheme: coreSourceScheme, path: `/${coreSourceName}` });
 
-const hiddenStructureTypes = new Set(["List", "Nothing", "Text", "text"]);
+const languageTypeNames = new Set(coreLanguageSnapshot.types.map((type) => type.name));
 const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -220,6 +220,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand("archinsight.structure.clearFilter", () => {
       structure.setFilter("");
+    }),
+    vscode.commands.registerCommand("archinsight.structure.toggleLanguageTypes", () => {
+      structure.toggleLanguageTypes();
+    }),
+    vscode.commands.registerCommand("archinsight.structure.toggleOperators", () => {
+      structure.toggleOperators();
+    }),
+    vscode.commands.registerCommand("archinsight.structure.toggleIdentifiers", () => {
+      structure.toggleIdentifiers();
     }),
     vscode.commands.registerCommand("archinsight.openStructureLocation", async (location: vscode.Location) => {
       await workbenchEditor.openLocation(location);
@@ -626,9 +635,13 @@ class InsightSemanticTokensProvider implements vscode.DocumentSemanticTokensProv
 class ArchinsightStructureProvider implements vscode.TreeDataProvider<StructureNode> {
   private readonly changeEmitter = new vscode.EventEmitter<StructureNode | undefined>();
   private filterQuery = "";
+  private showLanguageTypes = false;
+  private showOperators = false;
+  private showIdentifiers = true;
   readonly onDidChangeTreeData = this.changeEmitter.event;
 
   constructor(private readonly project: ProjectModel) {
+    this.syncFilterContexts();
   }
 
   get filterText(): string {
@@ -637,6 +650,24 @@ class ArchinsightStructureProvider implements vscode.TreeDataProvider<StructureN
 
   setFilter(value: string): void {
     this.filterQuery = value.trim();
+    this.refresh();
+  }
+
+  toggleLanguageTypes(): void {
+    this.showLanguageTypes = !this.showLanguageTypes;
+    this.syncFilterContexts();
+    this.refresh();
+  }
+
+  toggleOperators(): void {
+    this.showOperators = !this.showOperators;
+    this.syncFilterContexts();
+    this.refresh();
+  }
+
+  toggleIdentifiers(): void {
+    this.showIdentifiers = !this.showIdentifiers;
+    this.syncFilterContexts();
     this.refresh();
   }
 
@@ -670,10 +701,21 @@ class ArchinsightStructureProvider implements vscode.TreeDataProvider<StructureN
     if (current === undefined) {
       return [];
     }
-    return filterStructureNodes([
-      { label: "Types", icon: "symbol-class", iconColor: "symbolIcon.classForeground", kind: "root", children: typeTree(current) },
-      { label: "Declarations", icon: "symbol-variable", iconColor: "symbolIcon.variableForeground", kind: "root", children: declarationTree(current) },
-    ], this.filterQuery);
+    const types = typeTree(current, this.showLanguageTypes, this.showOperators);
+    const roots: StructureNode[] = [];
+    if (types.length > 0) {
+      roots.push({ label: "Types", icon: "symbol-class", iconColor: "symbolIcon.classForeground", kind: "root", children: types });
+    }
+    if (this.showIdentifiers) {
+      roots.push({ label: "Declarations", icon: "symbol-variable", iconColor: "symbolIcon.variableForeground", kind: "root", children: declarationTree(current) });
+    }
+    return filterStructureNodes(roots, this.filterQuery);
+  }
+
+  private syncFilterContexts(): void {
+    void vscode.commands.executeCommand("setContext", "archinsight.structure.showLanguageTypes", this.showLanguageTypes);
+    void vscode.commands.executeCommand("setContext", "archinsight.structure.showOperators", this.showOperators);
+    void vscode.commands.executeCommand("setContext", "archinsight.structure.showIdentifiers", this.showIdentifiers);
   }
 }
 
@@ -2043,13 +2085,25 @@ function elementSymbol(element: LinkedElement, childrenByParent: ReadonlyMap<str
   return symbol;
 }
 
-function typeTree(project: LinkedProject): StructureNode[] {
+function typeTree(
+  project: LinkedProject,
+  includeLanguageTypes: boolean,
+  includeOperators: boolean,
+): StructureNode[] {
   const snapshot = project.snapshot;
-  const types = snapshot.types
-    .filter((type) => !hiddenStructureTypes.has(type.name))
-    .sort((left, right) => left.name.localeCompare(right.name));
-  const typeByName = new Map(types.map((type) => [type.name, type]));
+  const allTypes = [...snapshot.types];
+  const allTypesByName = new Map(allTypes.map((type) => [type.name, type]));
   const operatorTypes = new Set(snapshot.operators.map((operator) => operator.ownerType));
+  const types = allTypes
+    .filter((type) => {
+      if (!languageTypeNames.has(type.name)) {
+        return true;
+      }
+      return isOperatorType(type, allTypesByName, operatorTypes)
+        ? includeOperators
+        : includeLanguageTypes;
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
   const knownTypes = new Set(types.map((type) => type.name));
   const childrenByBase = new Map<string, TypeDefinition[]>();
   for (const type of types) {
@@ -2062,17 +2116,17 @@ function typeTree(project: LinkedProject): StructureNode[] {
   }
   return types
     .filter((type) => type.baseType === undefined || !knownTypes.has(type.baseType))
-    .map((type) => typeNode(project, type, childrenByBase, typeByName, operatorTypes));
+    .map((type) => typeNode(project, type, childrenByBase, allTypesByName, operatorTypes));
 }
 
 function typeNode(
   project: LinkedProject,
   type: TypeDefinition,
   childrenByBase: ReadonlyMap<string, readonly TypeDefinition[]>,
-  typeByName: ReadonlyMap<string, TypeDefinition>,
+  allTypesByName: ReadonlyMap<string, TypeDefinition>,
   operatorTypes: ReadonlySet<string>,
 ): StructureNode {
-  const operator = isOperatorType(type, typeByName, operatorTypes);
+  const operator = isOperatorType(type, allTypesByName, operatorTypes);
   return {
     label: type.name,
     description: type.baseType === undefined ? undefined : `extends ${type.baseType}`,
@@ -2080,7 +2134,7 @@ function typeNode(
     iconColor: operator ? "symbolIcon.operatorForeground" : "symbolIcon.classForeground",
     kind: "type",
     location: location(project, type.declaration),
-    children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(project, child, childrenByBase, typeByName, operatorTypes)),
+    children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(project, child, childrenByBase, allTypesByName, operatorTypes)),
   };
 }
 
