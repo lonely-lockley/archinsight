@@ -58,8 +58,6 @@ system storefront
                         name = Order validation
 ```
 
-The `_` slot lets compatible code elements appear directly inside a component without a `code:` wrapper. It must be the component type's only anonymous list and the last attribute declared by this extension. Another project can choose a named `packages` or `classes` slot when the wrapper communicates useful structure. Containment rules remain part of the project framework, and type extensions should stay centralized in its definitions so the ownership model does not become scattered across source files.
-
 ## The built-in C4 view
 
 The built-in C4 query selects every `CodeElement` associated with the current semantic tab. The scope includes objects contributed to roots from that tab through `extend`, even when the contributing declaration is stored in another file.

@@ -181,8 +181,6 @@ service catalog
 
 `CodeElement` is the abstract base for project-defined code concepts. It has no constructor or required attributes. Projects derive types such as modules, packages, classes, functions, or schemas from it, then extend their component vocabulary with the containment slots those types require.
 
-Keeping `CodeElement` separate from `ComponentElement` prevents code objects from entering C3 automatically. The built-in C4 query selects `CodeElement` descendants from the current semantic tab and follows relationships between them without assuming a particular code ontology. The complete modeling workflow is described in [C4: Code](c4-code.md).
-
 ### Deployment
 
 `DeploymentElement` is the abstract boundary-level base for deployment concepts. The deployment library also extends every `Element` with attributes for deployment references, runtime placement, and infrastructure usage. Logical systems, containers, services, and components can therefore be connected to their physical realization without changing their logical type.
