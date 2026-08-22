@@ -7,40 +7,47 @@
 
   let expanded = true;
 
-  function toggleOrOpen(): void {
-    if (node.children.length > 0) {
-      expanded = !expanded;
-      return;
-    }
-    openSourceOrToggle();
+  function toggle(): void {
+    expanded = !expanded;
   }
 
-  function openSourceOrToggle(): void {
+  function openSource(): void {
     if (node.declaration !== undefined) {
       onOpenDeclaration(node.declaration);
-      return;
-    }
-    if (node.children.length > 0) {
-      expanded = !expanded;
     }
   }
 </script>
 
-<button
-  type="button"
+<div
   class:clickable={node.declaration !== undefined || node.children.length > 0}
   class="structure-row"
   style={`--depth: ${depth}`}
-  on:click={toggleOrOpen}
-  on:dblclick|stopPropagation={openSourceOrToggle}
 >
-  <span class="chevron">{node.children.length > 0 ? (expanded ? '⌄' : '›') : ''}</span>
-  <span aria-hidden="true" class={`codicon codicon-${node.icon} icon`}></span>
-  <span class="label">{node.label}</span>
-  {#if node.meta !== undefined}
-    <span class="meta">{node.meta}</span>
+  {#if node.children.length > 0}
+    <button
+      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${node.label}`}
+      class="chevron"
+      type="button"
+      on:click={toggle}
+    >
+      {expanded ? '⌄' : '›'}
+    </button>
+  {:else}
+    <span class="chevron-spacer"></span>
   {/if}
-</button>
+  <button
+    class="node-content"
+    disabled={node.declaration === undefined}
+    type="button"
+    on:click={openSource}
+  >
+    <span aria-hidden="true" class={`codicon codicon-${node.icon} icon`}></span>
+    <span class="label">{node.label}</span>
+    {#if node.meta !== undefined}
+      <span class="meta">{node.meta}</span>
+    {/if}
+  </button>
+</div>
 
 {#if expanded && node.children.length > 0}
   {#each node.children as child (child.id)}
@@ -51,16 +58,13 @@
 <style>
   .structure-row {
     display: grid;
-    grid-template-columns: 18px 18px minmax(0, auto) minmax(0, 1fr);
+    grid-template-columns: 18px minmax(0, 1fr);
     align-items: center;
     width: 100%;
     min-height: 28px;
     padding: 0 10px 0 calc(10px + var(--depth) * 18px);
-    border: 0;
     background: transparent;
     color: #d2d2d2;
-    font: inherit;
-    text-align: left;
     user-select: none;
   }
 
@@ -72,8 +76,41 @@
     background: #2f2f2f;
   }
 
+  .chevron,
+  .chevron-spacer {
+    width: 18px;
+    height: 28px;
+  }
+
   .chevron {
+    padding: 0;
+    border: 0;
+    background: transparent;
     color: #9a9a9a;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .node-content {
+    display: grid;
+    grid-template-columns: 18px minmax(0, auto) minmax(0, 1fr);
+    align-items: center;
+    min-width: 0;
+    min-height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+
+  .node-content:disabled {
+    opacity: 1;
+  }
+
+  .node-content:not(:disabled) {
+    cursor: pointer;
   }
 
   .icon {
