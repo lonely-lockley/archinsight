@@ -1,6 +1,6 @@
 <script lang="ts">
   import 'monaco-editor/editor/contrib/symbolIcons/browser/symbolIcons.js';
-  import type { LanguageSnapshot, TypeDefinition } from '@insight/language';
+  import { coreLanguageSnapshot, type LanguageSnapshot, type TypeDefinition } from '@insight/language';
   import type { ProjectStructure, StructureDeclaration } from './api';
   import StructureTreeNode from './StructureTreeNode.svelte';
   import type { SourceLocation, StructureTreeNodeModel } from './workspace-types';
@@ -10,21 +10,36 @@
   export let loading = false;
   export let onOpenDeclaration: (declaration: SourceLocation) => void;
 
-  const hiddenStructureTypes = new Set(['List', 'Nothing', 'Text', 'text']);
+  const languageTypeNames = new Set(coreLanguageSnapshot.types.map((type) => type.name));
 
   let search = '';
+  let showLanguageTypes = false;
+  let showOperators = false;
+  let showIdentifiers = true;
 
   $: query = search.trim().toLowerCase();
-  $: typeTree = filterNodes(buildTypeTree(symbols), query);
-  $: declarationTree = filterNodes(buildDeclarationTree(structure), query);
+  $: typeTree = filterNodes(buildTypeTree(symbols, showLanguageTypes, showOperators), query);
+  $: declarationTree = showIdentifiers ? filterNodes(buildDeclarationTree(structure), query) : [];
   $: hasMatches = typeTree.length > 0 || declarationTree.length > 0;
 
-  function buildTypeTree(snapshot: LanguageSnapshot): StructureTreeNodeModel[] {
-    const types = snapshot.types
-      .filter((type) => !hiddenStructureTypes.has(type.name))
-      .sort((left, right) => left.name.localeCompare(right.name));
-    const typeByName = new Map(types.map((type) => [type.name, type]));
+  function buildTypeTree(
+    snapshot: LanguageSnapshot,
+    includeLanguageTypes: boolean,
+    includeOperators: boolean
+  ): StructureTreeNodeModel[] {
+    const allTypes = [...snapshot.types];
+    const allTypesByName = new Map(allTypes.map((type) => [type.name, type]));
     const operatorTypes = new Set(snapshot.operators.map((operator) => operator.ownerType));
+    const types = allTypes
+      .filter((type) => {
+        if (!languageTypeNames.has(type.name)) {
+          return true;
+        }
+        return isOperatorType(type, allTypesByName, operatorTypes)
+          ? includeOperators
+          : includeLanguageTypes;
+      })
+      .sort((left, right) => left.name.localeCompare(right.name));
     const childrenByBase = new Map<string, TypeDefinition[]>();
     const knownTypes = new Set(types.map((type) => type.name));
 
@@ -38,17 +53,17 @@
     }
 
     const roots = types.filter((type) => type.baseType === undefined || !knownTypes.has(type.baseType));
-    return roots.map((type) => typeNode(type, childrenByBase, typeByName, operatorTypes, true));
+    return roots.map((type) => typeNode(type, childrenByBase, allTypesByName, operatorTypes, true));
   }
 
   function typeNode(
     type: TypeDefinition,
     childrenByBase: Map<string, TypeDefinition[]>,
-    typeByName: Map<string, TypeDefinition>,
+    allTypesByName: Map<string, TypeDefinition>,
     operatorTypes: Set<string>,
     root: boolean
   ): StructureTreeNodeModel {
-    const operator = isOperatorType(type, typeByName, operatorTypes);
+    const operator = isOperatorType(type, allTypesByName, operatorTypes);
     return {
       id: `type:${type.name}`,
       label: type.name,
@@ -62,7 +77,7 @@
           column: type.declaration.column
         }
       }),
-      children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(child, childrenByBase, typeByName, operatorTypes, false))
+      children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(child, childrenByBase, allTypesByName, operatorTypes, false))
     };
   }
 
@@ -152,6 +167,42 @@
     {/if}
   </div>
 
+  <div class="structure-filters" aria-label="Structure filters">
+    <button
+      aria-label="Show language types"
+      aria-pressed={showLanguageTypes}
+      class:active={showLanguageTypes}
+      class="structure-filter"
+      title="Show language types"
+      type="button"
+      on:click={() => showLanguageTypes = !showLanguageTypes}
+    >
+      <span aria-hidden="true" class="codicon codicon-symbol-class"></span>
+    </button>
+    <button
+      aria-label="Show operators"
+      aria-pressed={showOperators}
+      class:active={showOperators}
+      class="structure-filter"
+      title="Show operators"
+      type="button"
+      on:click={() => showOperators = !showOperators}
+    >
+      <span aria-hidden="true" class="codicon codicon-symbol-operator"></span>
+    </button>
+    <button
+      aria-label="Show declared identifiers"
+      aria-pressed={showIdentifiers}
+      class:active={showIdentifiers}
+      class="structure-filter"
+      title="Show declared identifiers"
+      type="button"
+      on:click={() => showIdentifiers = !showIdentifiers}
+    >
+      <span aria-hidden="true" class="codicon codicon-symbol-variable"></span>
+    </button>
+  </div>
+
   <div class="structure-content">
     {#if loading && structure === undefined}
       <div class="empty">Analyzing project…</div>
@@ -191,7 +242,7 @@
     --vscode-symbolIcon-operatorForeground: #d2d2d2;
     --vscode-symbolIcon-referenceForeground: #d2d2d2;
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
     height: 100%;
     min-height: 0;
     min-width: 0;
@@ -257,6 +308,39 @@
     background: #343434;
     color: #eeeeee;
     outline: none;
+  }
+
+  .structure-filters {
+    display: flex;
+    gap: 5px;
+    padding: 0 10px 8px;
+  }
+
+  .structure-filter {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid #3a3a3a;
+    border-radius: 3px;
+    background: #252525;
+    color: #8d8d8d;
+    font-size: 15px;
+  }
+
+  .structure-filter:hover,
+  .structure-filter:focus-visible {
+    border-color: #5a5a5a;
+    background: #343434;
+    color: #eeeeee;
+    outline: none;
+  }
+
+  .structure-filter.active {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 20%, #252525);
+    color: #eeeeee;
   }
 
   .structure-content {
