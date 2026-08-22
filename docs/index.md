@@ -14,4 +14,5 @@ Archinsight is a toolkit for describing software architecture as code. Models wr
 - [C1: System Context](c1-system.md) explains context boundaries, system-level relationships, actors, and the built-in C1 entities and attributes.
 - [C2: Containers and Services](c2-containers.md) describes container-level modeling, relationship rollup, deployment connections, and the built-in C2 attributes.
 - [C3: Components](c3-components.md) covers component responsibilities, relationship ownership, rollup to C2 and C1, and the built-in C3 attributes.
+- [C4: Code](c4-code.md) introduces the abstract code-element foundation and shows how project definitions create a code vocabulary and its containment rules.
 - [Deployment](deployment.md) explains environments, deployment schemes, infrastructure placement, projections, profiles, and physical paths for logical elements and wires.

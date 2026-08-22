@@ -1,0 +1,5 @@
+MATCH (code:CodeElement)
+WHERE code.sourceIdentity = $tab
+OPTIONAL MATCH (code)-[link]->(targetCode:CodeElement)
+GROUP BY code.parent
+RETURN code, link, targetCode

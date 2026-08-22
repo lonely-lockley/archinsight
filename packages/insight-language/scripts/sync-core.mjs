@@ -22,7 +22,7 @@ writeFileSync(
 );
 
 const builtinViewDirectory = resolve(sourceDirectory, "builtin-views");
-const builtinViewOrder = ["no-filter", "c1", "c2", "c3", "deployment"];
+const builtinViewOrder = ["no-filter", "c1", "c2", "c3", "c4", "deployment"];
 const builtinViews = Object.fromEntries(builtinViewOrder.map((name) => [
   name,
   readFileSync(resolve(builtinViewDirectory, `${name}.aiq`), "utf8").trimEnd(),

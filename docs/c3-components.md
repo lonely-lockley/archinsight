@@ -63,6 +63,12 @@ Equivalent wires should usually be removed from C2 and C1 after the dependency h
 
 Dependencies between components of the same container stay internal to that container. They are useful at C3 and do not need to become a self-referencing container or system relationship in broader views.
 
+## Components and code
+
+C4 can open a component further when the project needs to describe its code structure. Archinsight provides the abstract `CodeElement` base type for this purpose and leaves the concrete vocabulary to project definitions. A project can introduce modules, packages, layers, entry points, or other concepts that match the way its code is organized, then attach their instances to components through project-defined attributes.
+
+Code modeling is optional. Components remain complete C3 elements when no `CodeElement` descendants are defined. See [C4: Code](c4-code.md) for the base type, the built-in view, and a complete example.
+
 ## Components and deployment
 
 Components inherit the deployment attributes available to every `Element`. This allows a component to refer to infrastructure when its deployment behavior genuinely differs from the rest of its container.

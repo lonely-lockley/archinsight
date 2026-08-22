@@ -2,7 +2,7 @@
 
 An Insight project describes architecture as a typed graph. Architectural objects become graph nodes, relationships become directed graph edges, and containment records how detailed objects belong to broader architectural boundaries. Types provide the schema that determines which objects and relationships can enter that graph.
 
-Archinsight starts with a small set of basic types and builds its C4 vocabulary on top of them. The basic types describe graph nodes, relationships, text, collections, and supporting values. The core library then defines systems, containers, components, deployment objects, and the operators that connect them.
+Archinsight starts with a small set of basic types and builds its C4 vocabulary on top of them. The basic types describe graph nodes, relationships, text, collections, and supporting values. The core library then defines systems, containers, components, a code-model extension point, deployment objects, and the operators that connect them.
 
 ## Runtime types
 
@@ -99,15 +99,16 @@ Element
 ├── ContainerElement
 │   └── Container
 │       └── Service
-└── ComponentElement
-    └── Component
+├── ComponentElement
+│   └── Component
+└── CodeElement
 ```
 
-The structural base types `BoundaryElement`, `SystemElement`, `ContainerElement`, `ComponentElement`, and `DeploymentElement` are abstract. They organize assignability and shared rules while their concrete descendants provide constructors.
+The structural base types `BoundaryElement`, `SystemElement`, `ContainerElement`, `ComponentElement`, `CodeElement`, and `DeploymentElement` are abstract. They organize assignability and shared rules while their concrete descendants provide constructors.
 
-The inheritance tree combines classification with placement constraints. `BoundaryElement` is the marker type for elements that may appear directly inside a `Context`. `SystemElement` and `DeploymentElement` derive from it, so their concrete descendants are valid context members. `ContainerElement` and `ComponentElement` remain separate branches under `Element`, which prevents containers and components from being placed at context level.
+The inheritance tree combines classification with placement constraints. `BoundaryElement` is the marker type for elements that may appear directly inside a `Context`. `SystemElement` and `DeploymentElement` derive from it, so their concrete descendants are valid context members. `ContainerElement`, `ComponentElement`, and `CodeElement` remain separate branches under `Element`, which prevents their descendants from being placed at context level.
 
-The rest of the C4 containment path is expressed by typed attributes on each owner. `System` accepts `Container`, and `Container` accepts `Component`. This division lets inheritance answer whether a value belongs to a broad architectural family while owner attributes decide where that value may be nested.
+The rest of the C4 containment path is expressed by typed attributes on each owner. `System` accepts `Container`, and `Container` accepts `Component`. Code containment is left to project definitions because different code models require different structures. This division lets inheritance answer whether a value belongs to a broad architectural family while owner attributes decide where that value may be nested.
 
 ### Context and boundaries
 
@@ -175,6 +176,12 @@ service catalog
         name = Search index adapter
         responsibility = Maintains the searchable product projection
 ```
+
+### C4: code
+
+`CodeElement` is the abstract base for project-defined code concepts. It has no constructor or required attributes. Projects derive types such as modules, packages, classes, functions, or schemas from it, then extend their component vocabulary with the containment slots those types require.
+
+Keeping `CodeElement` separate from `ComponentElement` prevents code objects from entering C3 automatically. The built-in C4 query selects `CodeElement` descendants from the current semantic tab and follows relationships between them without assuming a particular code ontology. The complete modeling workflow is described in [C4: Code](c4-code.md).
 
 ### Deployment
 

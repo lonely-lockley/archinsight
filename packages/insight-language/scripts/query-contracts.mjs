@@ -13,12 +13,17 @@ const builtinDeploymentQuery = readFileSync(
   new URL("../../../src/main/resources/com/github/lonelylockley/insight/builtin-views/deployment.aiq", import.meta.url),
   "utf8",
 );
+const builtinC4Query = readFileSync(
+  new URL("../../../src/main/resources/com/github/lonelylockley/insight/builtin-views/c4.aiq", import.meta.url),
+  "utf8",
+);
 
 const cases = [
   selectsElementsWithCypherLabelsAndProperties,
   labelsAreCaseSensitive,
   selectsReferencesReturnedByCypher,
   keepsParallelReferencesBetweenSameElements,
+  c4QuerySelectsProjectDefinedCodeElements,
   deploymentQueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements,
   deploymentQuerySelectsSharedDeploymentReferences,
   deploymentQuerySeparatesDeploymentsInsideOneEnvironment,
@@ -266,6 +271,60 @@ system worker
   assert.equal(graph.edges.filter((edge) => edge.edge.projected !== true).length, 1);
   assert(graph.elements["shared/db"], "Expected projected target to be selected");
   assert(graph.elements["shared/worker"], "Expected real target to be selected");
+}
+
+function c4QuerySelectsProjectDefinedCodeElements() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("code-definitions.ai", `
+define type Module of CodeElement
+    constructor module
+
+    required Text name
+    List of Wire links
+    List of CodeElement children
+
+extend type Component
+    List of CodeElement code
+`),
+  ], [coreLanguageSnapshot]);
+  const result = linkProject({
+    snapshot: snapshot.snapshot,
+    sources: [source("application.ai", `
+context app
+
+system application
+    name = Application
+
+    service api
+        name = API
+
+        component checkout
+            name = Checkout
+            code:
+                module controller
+                    name = Controller
+                    links:
+                        -> domain
+
+                module domain
+                    name = Domain
+                    children:
+                        module validation
+                            name = Validation
+`)],
+  });
+
+  const graph = selectGraph(result, { context: "app", tab: "application.ai" }, builtinC4Query);
+
+  assertNoErrors(snapshot);
+  assertNoErrors(result);
+  assert(graph.elements["app/controller"]);
+  assert(graph.elements["app/domain"]);
+  assert(graph.elements["app/validation"]);
+  assert.equal(graph.elements["app/checkout"], undefined);
+  assert.equal(graph.edges.length, 1);
+  assert.equal(graph.edges[0]?.source, "app/controller");
+  assert.equal(graph.edges[0]?.target, "app/domain");
 }
 
 function deploymentQueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements() {

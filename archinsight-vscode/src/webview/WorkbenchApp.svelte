@@ -20,7 +20,7 @@
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '../../../archinsight-web/src/lib/workspace-types';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
 
-  type DiagramView = 'c1' | 'c2' | 'c3' | 'deployment' | 'no-filter';
+  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'no-filter';
 
   type CompletionItem = {
     label: string;

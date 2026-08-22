@@ -784,7 +784,12 @@ function validateRequiredConstructors(snapshot: LanguageSnapshot, diagnostics: L
   }
 }
 
+const CONSTRUCTORLESS_EXTENSION_POINT_TYPES = new Set(["CodeElement"]);
+
 function requiresConstructor(snapshot: LanguageSnapshot, type: string): boolean {
+  if (CONSTRUCTORLESS_EXTENSION_POINT_TYPES.has(type)) {
+    return false;
+  }
   if (type !== "Environment" && isAssignable(snapshot, type, "Environment")) {
     return false;
   }

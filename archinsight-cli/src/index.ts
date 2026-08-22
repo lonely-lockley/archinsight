@@ -753,7 +753,7 @@ function viewOption(value: unknown): DiagramView | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (value === "c1" || value === "c2" || value === "c3" || value === "deployment" || value === "no-filter") {
+  if (value === "c1" || value === "c2" || value === "c3" || value === "c4" || value === "deployment" || value === "no-filter") {
     return value;
   }
   throw new CliError(`Unknown view '${String(value)}'`);
@@ -796,8 +796,8 @@ function helpText(): string {
 
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
-  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|deployment|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
-  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|deployment|no-filter] [-q query.aiq] [-f text|json] [-o file]
+  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
+  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f text|json] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 
@@ -806,7 +806,7 @@ Options:
   -c, --context <id>       Context id for query/render.
   -s, --source <file>      Selected project file for queries using $tab.
       --tab <source>       Backward-compatible alias for --source.
-  -v, --view <name>        Built-in view: c1, c2, c3, deployment, no-filter.
+  -v, --view <name>        Built-in view: c1, c2, c3, c4, deployment, no-filter.
   -q, --query <file>       Query file; overrides --view.
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
@@ -908,6 +908,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericC3ComponentsReference(),
     },
     {
+      path: "references/c4-code.md",
+      content: genericC4CodeReference(),
+    },
+    {
       path: "references/deployment.md",
       content: genericDeploymentReference(),
     },
@@ -955,6 +959,7 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       path: "examples/c3-components.ai",
       content: genericC3ComponentsExample(),
     },
+    ...genericC4CodeExampleFiles(),
     {
       path: "examples/deployment-framework.ai",
       content: genericDeploymentFrameworkExample(),
@@ -987,6 +992,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     {
       path: "examples/builtin-views/c3.aiq",
       content: textFileContent(viewQueries.c3),
+    },
+    {
+      path: "examples/builtin-views/c4.aiq",
+      content: textFileContent(viewQueries.c4),
     },
     {
       path: "examples/builtin-views/deployment.aiq",
@@ -1057,10 +1066,15 @@ function skillReferenceRoutingGuide(): string {
   architecture description, diagram, inventory, or foreign DSL into Insight.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
-  C1, C2, C3, and Deployment views.
+  C1, C2, C3, C4, and Deployment views.
 - Read \`references/c1-context.md\` when working with system context models.
 - Read \`references/c2-containers.md\` when working with containers or services.
 - Read \`references/c3-components.md\` when working with component internals.
+- Infer and reuse an existing C4 Code vocabulary from the repository. Ask the
+  user about entity kinds only when creating the Code layer or extending that
+  vocabulary, unless the current request already makes the choice.
+- Read \`references/c4-code.md\` when defining or querying modules, packages,
+  classes, functions, schemas, or other project-specific code concepts.
 - Read \`references/deployment.md\` when working with environments,
   deployments, infrastructure, placement, or projections.
 - Read \`references/scaling.md\` when splitting a repository into reusable
@@ -1148,7 +1162,8 @@ ${skillTaskModesGuide()}
 1. Read the existing \`.ai\` files before editing.
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
-   systems, containers/services, components, and deployment details.
+   systems, containers/services, components, project-defined code when needed,
+   and deployment details.
 4. Do not ask about deployment depth until the task touches infrastructure,
    runtime placement, regions, brokers, gateways, storage, or deployment.
 5. At that point, decide per system whether pragmatic mixed C2 or explicit
@@ -1160,7 +1175,7 @@ ${skillTaskModesGuide()}
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
 8. Keep definition, context, and environment sources in separate files.
 9. Validate every Insight change with \`archinsight link . --format text\`.
-10. For C2, C3, Deployment, or query changes, inspect the selected graph with
+10. For C2, C3, C4, Deployment, or query changes, inspect the selected graph with
     \`archinsight query ... --format json\` before rendering.
 
 ${skillReferenceRoutingGuide()}
@@ -1170,7 +1185,7 @@ ${skillReferenceRoutingGuide()}
 function codexSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
+description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component/code diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
@@ -1208,7 +1223,8 @@ ${skillTaskModesGuide()}
 1. Read the existing \`.ai\` files before editing.
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
-   systems, containers/services, components, and deployment details.
+   systems, containers/services, components, project-defined code when needed,
+   and deployment details.
 4. Do not ask about deployment depth until the task touches infrastructure,
    runtime placement, regions, brokers, gateways, storage, or deployment.
 5. At that point, decide per system whether pragmatic mixed C2 or explicit
@@ -1222,7 +1238,7 @@ ${skillTaskModesGuide()}
 9. Use \`archinsight structure . --format text\` before broad edits when the
    project shape is unclear.
 10. Validate every Insight change with \`archinsight link . --format text\`.
-11. For C2, C3, Deployment, or query changes, inspect the selected graph with
+11. For C2, C3, C4, Deployment, or query changes, inspect the selected graph with
     \`archinsight query ... --format json\` before rendering.
 12. If validation fails, fix the first real syntax/type/linking error before
     adding more model content.
@@ -1234,7 +1250,7 @@ ${skillReferenceRoutingGuide()}
 function claudeSkillGuide(): string {
   return `---
 name: archinsight
-description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
+description: Create, edit, import, analyze, repair, validate, inspect, and render Archinsight Insight architecture-as-code models. Use when working with .ai Insight files, migrating architecture from another DSL or diagram, C4-style architecture models, system/container/component/code diagrams, deployment projections, or when the user asks to model or diagnose software architecture with Archinsight.
 ---
 
 # Archinsight
@@ -1274,7 +1290,8 @@ ${skillTaskModesGuide()}
 1. Read the existing \`.ai\` files before editing.
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
-   systems, containers/services, components, and deployment details.
+   systems, containers/services, components, project-defined code when needed,
+   and deployment details.
 4. Do not ask about deployment depth until the task touches infrastructure,
    runtime placement, regions, brokers, gateways, storage, or deployment.
 5. At that point, decide per system whether pragmatic mixed C2 or explicit
@@ -1289,7 +1306,7 @@ ${skillTaskModesGuide()}
    before broad edits when the CLI is available.
 10. Validate every Insight change with \`archinsight link . --format text\` when
    shell access is available; otherwise ask the user to run validation.
-11. For C2, C3, Deployment, or query changes, inspect the selected graph with
+11. For C2, C3, C4, Deployment, or query changes, inspect the selected graph with
    \`archinsight query ... --format json\` before rendering.
 12. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
@@ -1434,8 +1451,8 @@ source-level syntax failures.
 ## Model Source Granularity
 
 Default to one primary owned system per model source file: the system you are
-about to detail with containers, services, components, and deployment
-relationships. This keeps the selected source file useful as a C2, C3, or
+about to detail with containers, services, components, code, and deployment
+relationships. This keeps the selected source file useful as a C2, C3, C4, or
 Deployment view scope and avoids accidental mega-files.
 
 Do not create one file per external actor or external system. Shared external
@@ -1451,19 +1468,19 @@ context.
 
 ## Projections Are Bottom-Up
 
-Built-in C1, C2, C3, and Deployment views are selected from the linked model.
+Built-in C1, C2, C3, C4, and Deployment views are selected from the linked model.
 They are not separate diagrams to author by hand.
 
 - C1 is context-oriented and can aggregate lower-level relationships upward.
-- C2, C3, and Deployment are usually scoped by the selected source file through
+- C2, C3, C4, and Deployment are usually scoped by the selected source file through
   \`--source\` / \`$tab\`.
 - A file often has one focal system, container, or deployment slice for the view
   it is meant to render, but the exact scope is determined by the query used for
   visualization.
 - Do not try to reconstruct a deeper view from a broader one. C1 carries too
-  little information to recreate C2/C3 details.
+  little information to recreate C2, C3, or C4 details.
 
-If an element is missing from a C2, C3, or Deployment render, first check the query, selected
+If an element is missing from a C2, C3, C4, or Deployment render, first check the query, selected
 source file, and relationship level before assuming the model is wrong.
 
 ## Keep Relationship Levels Deliberate
@@ -1506,6 +1523,8 @@ type hierarchy:
 - Built-in containers/services live under systems because \`System\` declares
   \`List of Container _\`.
 - Components live where the relevant container/service type allows them.
+- Project-defined code types derive from \`CodeElement\` and live where the
+  project framework exposes compatible component or code-element slots.
 - Custom project types can change the available constructors and allowed child
   slots; inspect them before writing.
 
@@ -1553,7 +1572,8 @@ For pub/sub, make the dependency consumer-owned:
 
 Do not invent a broker node just to make the diagram look familiar. If the
 chosen style is explicit deployment modeling and the broker is deployment
-infrastructure, model it in deployment. If the chosen style is pragmatic mixed C2, a broker-like node
+infrastructure, model it in the deployment inventory. If the chosen style is
+pragmatic mixed C2, a broker-like node
 can be acceptable, but document that the view mixes levels. If the producer or
 consumer is not known, leave a gap and report it instead of fabricating an
 element.
@@ -1643,6 +1663,7 @@ boundary, direction, or deployment structure.
 | C4 software system | \`System\` or \`ExternalSystem\` | Confirm ownership and context boundary. |
 | C4 container | \`Container\` or \`Service\` | Choose the name that best communicates its runtime purpose. |
 | C4 component | \`Component\` | Confirm its owning container or service. |
+| C4 code element | Project-defined \`CodeElement\` descendant | Preserve the source vocabulary and introduce a concrete code type only when the source identifies its meaning and containment. |
 | Relationship | Insight wire | Preserve direction, kind, technology, and the object that owns the dependency. |
 | Deployment node or resource | Environment, deployment, or infrastructure component | Separate a reusable deployment scheme from a concrete resource instance. |
 | Diagram boundary | Context, owner, group, or query scope | A visual box alone does not prove semantic containment. |
@@ -1668,11 +1689,17 @@ serialization shape.
 5. Add C2 containers and services, then move relationships to the lowest known
    logical endpoints so built-in rollup can produce higher-level views.
 6. Add C3 components only where the source provides component-level evidence.
-7. Build deployment models separately from concrete environments and deployments. Use
+7. If C4 is in scope, first inspect the repository for existing \`CodeElement\`
+   descendants and containment slots. Reuse that vocabulary without asking. Ask
+   the user which entity kinds to model only when the project has no Code layer
+   or the import requires extending its vocabulary, unless the request already
+   makes that choice. Add code elements only where the source identifies their
+   containment and dependencies.
+8. Build deployment models separately from concrete environments and deployments. Use
    profiles, \`runsOn\`, \`uses\`, and projections to map the logical model to
    physical infrastructure; do not turn every deployment node into a logical
    C2 element.
-8. Split definitions, contexts, and environments into valid source roles and
+9. Split definitions, contexts, and environments into valid source roles and
    make cross-file visibility explicit with imports.
 
 For a normal synchronous wire, the element that owns the dependency declares
@@ -1692,7 +1719,7 @@ archinsight structure . --format json
 archinsight query . -c <context-id> -v no-filter --format json
 \`\`\`
 
-Use C1, C2, C3, and Deployment query JSON to compare the intended scope and
+Use C1, C2, C3, C4, and Deployment query JSON to compare the intended scope and
 relationships at each level. Counts can reveal omissions, but equal counts do
 not prove semantic equivalence. Compare qualified identities, types, ownership,
 wire direction, externality, and deployment projection. Keep unresolved source
@@ -1748,7 +1775,7 @@ extensions, links, queries, and generated navigation refer to those identities.
 
 ## Common Elements
 
-Use built-in constructors for C4-style architecture:
+Use built-in constructors for the C1-C3 parts of a C4 architecture:
 
 \`\`\`insight
 external actor customer
@@ -1776,6 +1803,11 @@ Useful built-ins include:
 - \`container\` for deployable or executable units.
 - \`service\` for backend/container services.
 - \`component\` for internals of a selected container or service.
+
+Core has no concrete constructor for the C4 Code level. It provides the
+constructorless \`CodeElement\` base, while project definitions supply concrete
+code types and their constructors. Read \`references/c4-code.md\` before adding
+or instantiating code-level concepts.
 
 Built-in nesting follows the core type tree, not the English noun. For example,
 actors and systems are context-level because their base type is a boundary
@@ -2251,6 +2283,18 @@ extend service checkout_api
 Components should describe responsibilities, not every class or function.
 As with C2, a C3 file often focuses one container or service, but custom queries
 can intentionally choose a different scope.
+
+## C4: Code
+
+Use project-defined \`CodeElement\` descendants when a component needs a code
+view. Read \`references/c4-code.md\` before introducing modules, packages,
+classes, functions, schemas, or another code vocabulary. Keep those type and
+containment definitions separate from the context source, and use
+\`examples/c4-code\` as the minimal working pattern.
+
+The built-in C4 query selects the project's code elements without prescribing
+what they mean. Model only implementation structures that explain stable
+responsibilities, interfaces, or dependencies.
 
 ## Deployment
 
@@ -3055,12 +3099,108 @@ unclear.
 `;
 }
 
+function genericC4CodeReference(): string {
+  return `# C4 Code
+
+Use C4 when the task needs to explain the implementation structure inside one
+or more components. Archinsight intentionally does not prescribe whether that
+structure consists of modules, packages, namespaces, classes, functions,
+schemas, or another project vocabulary.
+
+## Determine the Modeling Vocabulary
+
+Inspect project definitions and existing C4 sources before asking questions. If
+the repository already defines \`CodeElement\` descendants and containment slots
+that cover the task, infer the intended entity kinds from that vocabulary and
+reuse it without asking the user to choose again.
+
+Ask the user which code entity kinds they want only when creating a new C4 Code
+layer or when the requested work requires new entity kinds or containment rules
+beyond the existing vocabulary. Do not ask when the current request already
+makes that choice. This decision cannot be inferred from implementation source
+alone because a new or expanded Code vocabulary is user-defined by design.
+
+## Core Contract
+
+\`CodeElement\` is a constructorless subtype of \`Element\`. Project definitions
+derive concrete code types from it and supply their constructors, attributes,
+relationships, presentations, and containment rules. Do not instantiate
+\`CodeElement\` directly and do not assume a code ontology that the project has
+not defined.
+
+Keep code types and extensions in a definitions source. A minimal framework can
+derive a module type and attach a named code slot to components:
+
+\`\`\`insight
+define type Module of CodeElement
+    constructor module
+
+    required Text name
+    Text responsibility
+    List of Wire links
+    List of CodeElement children
+
+extend type Component
+    List of CodeElement code
+\`\`\`
+
+\`CodeElement\` is separate from \`ComponentElement\`. This keeps code objects out
+of C3 unless a custom query intentionally combines both levels.
+
+A code type named for a schema represents a logical or source-controlled code
+artifact. A deployed database, volume, or bucket is physical infrastructure and
+uses \`Storage\` in the Deployment model. Do not use a code-level schema as a
+substitute for its physical storage instance, or model the storage instance as
+code.
+
+## Built-In View
+
+The built-in \`c4\` query selects every \`CodeElement\` whose
+\`sourceIdentity\` belongs to \`$tab\`, including code contributed to roots from
+that tab through \`extend\`. It returns direct relationships between code
+elements and groups them by immediate parent. A relationship can bring its
+target code element into the result from outside the selected tab.
+
+The query does not infer classes, packages, or nesting from source paths. Read
+the project's definitions and actual containment slots before editing a C4
+model. Copy \`examples/builtin-views/c4.aiq\` only when the project needs a
+different type filter or grouping rule.
+
+## Workflow
+
+1. Inspect existing definitions for \`CodeElement\` descendants and component
+   containment slots.
+2. Reuse the existing vocabulary when it covers the requested model.
+3. If the project has no Code layer or the task requires extending its
+   vocabulary, ask the user which new entity kinds and containment rules they
+   want unless the request already specifies them.
+4. Define only the confirmed additions, keeping the definition source separate
+   from context sources.
+5. Place code instances under the component slots provided by that framework.
+6. Preserve relationship ownership: the code object containing a wire is its
+   source, and the referenced object is its target.
+7. Prefer responsibilities, stable interfaces, and important dependencies over
+   an inventory of every declaration.
+8. Validate the full project, then inspect the exact C4 graph:
+
+\`\`\`shell
+archinsight link . --format text
+archinsight query . -c <context-id> -s <code-source.ai> -v c4 --format json
+archinsight render . -c <context-id> -s <code-source.ai> -v c4 -f svg -o code.svg
+\`\`\`
+
+Use the self-contained \`examples/c4-code\` project when the syntax for a code
+framework or model is unclear. Deployment is a separate view selected with
+\`--view deployment\`; never use C4 as an alias for Deployment.
+`;
+}
+
 function genericDeploymentReference(): string {
   return `# Deployment
 
 Use Deployment modeling to project the logical architecture onto physical infrastructure: where
 logical elements run, which infrastructure they use, and how their wires pass
-through the physical world. Keep C1-C3 logical; deployment inventory and
+through the physical world. Keep C1-C4 logical; deployment inventory and
 projections supply the physical view.
 
 The built-in Deployment view includes a logical element only when its deployment
@@ -3671,7 +3811,7 @@ the extension target, or the file boundary.
 9. Prefer a named import for repeated references and an inline qualifier for a
    one-off relationship or list value.
 10. Validate with \`archinsight link . --format text\`.
-11. Render important C1, C2, C3, and Deployment views with explicit \`-c\`, \`-s\`, and \`-v\`
+11. Render important C1, C2, C3, C4, and Deployment views with explicit \`-c\`, \`-s\`, and \`-v\`
    options.
 `;
 }
@@ -3847,6 +3987,15 @@ Interpretation:
 
 Users can define more types in project files. Always inspect project structure
 and project framework files before assuming only core constructors exist.
+
+## Built-in Code Extension Point
+
+\`core_code.ai\` declares the constructorless \`CodeElement\` base type. It is
+the only code-level ontology supplied by core. Project definitions derive
+concrete types from it and provide their constructors, attributes,
+presentations, relationships, and containment slots. Read
+\`references/c4-code.md\` before adding those definitions or using the built-in
+C4 query.
 
 ## Built-in Deployment Infrastructure
 
@@ -4095,12 +4244,13 @@ archinsight structure . --format text
 archinsight structure . --format json
 \`\`\`
 
-Inspect the selected graph before rendering whenever a change affects C2, C3, or Deployment,
-deployment, projections, or query text:
+Inspect the selected graph before rendering whenever a change affects C2, C3,
+C4, Deployment, projections, or query text:
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -v c2 --format json
 archinsight query . -c <context-id> -s <source.ai> -v c3 --format json
+archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
 archinsight query . -c <context-id> -s <source.ai> -v deployment --format json
 \`\`\`
 
@@ -4110,6 +4260,7 @@ Then render the same context, source, and view:
 archinsight render . -c <context-id> -v c1 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v c3 -f svg -o diagram.svg
+archinsight render . -c <context-id> -s <source.ai> -v c4 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v deployment -f svg -o diagram.svg
 \`\`\`
 
@@ -4138,17 +4289,19 @@ Useful built-in views:
 - \`c1\` for system context.
 - \`c2\` for containers/services in the selected source.
 - \`c3\` for components in the selected source.
+- \`c4\` for project-defined code elements in the selected source.
 - \`deployment\` for deployment-oriented views.
 - \`no-filter\` for the full context.
 
-C2, C3, Deployment, and custom queries often depend on the active file. Pass
+C2, C3, C4, Deployment, and custom queries often depend on the active file. Pass
 \`--source <file>\` / \`-s <file>\` whenever the query uses \`$tab\`; otherwise
 the CLI may choose the first source and render a valid but wrong view.
 
 The bundled \`examples\` directory contains several independent model projects,
 not one project to link as a whole. Validate \`layered-architecture.ai\`, the C1,
-C2, and C3 files individually. Validate the three \`deployment*.ai\` files
-together, and validate \`deployment-private-gateway\` as its own directory.
+C2, and C3 files individually. Validate \`c4-code\` as its own directory. Validate
+the three \`deployment*.ai\` files together, and validate
+\`deployment-private-gateway\` as its own directory.
 
 If the CLI is missing, do not silently install it. Ask the user to install or
 expose \`@archinsight/cli\`.
@@ -4287,7 +4440,7 @@ The query DSL cannot directly ask for nodes with no incoming edge, nodes with no
 outgoing edge, cycles, counts by type, or transitive consumers. Export a broad
 JSON graph, compute those conditions from qualified ids and direct edges, and
 then return to source declarations for confirmation. A selected view can omit
-objects by design, so absence in C1, C2, C3, or Deployment is not evidence that the
+objects by design, so absence in C1, C2, C3, C4, or Deployment is not evidence that the
 object is absent from the linked project.
 
 Analysis findings should distinguish verified model facts, query-dependent
@@ -4367,8 +4520,8 @@ RETURN service
 \`\`\`
 
 Labels are case-sensitive and match Insight types such as \`System\`,
-\`Container\`, \`Service\`, \`Component\`, \`ExternalSystem\`, and
-\`DeploymentElement\`.
+\`Container\`, \`Service\`, \`Component\`, \`CodeElement\`, \`ExternalSystem\`,
+and \`DeploymentElement\`.
 
 Use properties in patterns for exact matches:
 
@@ -4576,7 +4729,7 @@ the filter or grouping deliberately.
 function genericQueryRecipesReference(): string {
   return `# Query Recipes and Built-In View Customization
 
-Use this reference when a built-in C1, C2, C3, or Deployment view is close but not quite right:
+Use this reference when a built-in C1, C2, C3, C4, or Deployment view is close but not quite right:
 an expected element is hidden, a relationship is missing, an unexpected edge
 appears, infrastructure is too noisy, or the diagram needs a different scope.
 
@@ -5060,6 +5213,54 @@ system storefront
                     via = checkout.completed
                     description = Consumes checkout completion events
 `;
+}
+
+function genericC4CodeExampleFiles(): readonly GeneratedFile[] {
+  return [
+    {
+      path: "examples/c4-code/definitions.ai",
+      content: `define type Module of CodeElement
+    constructor module
+
+    required Text name
+    Text responsibility
+    List of Wire links
+    List of CodeElement children
+
+extend type Component
+    List of CodeElement code
+`,
+    },
+    {
+      path: "examples/c4-code/model.ai",
+      content: `context code_sample
+
+system application
+    name = Application
+
+    service checkout
+        name = Checkout
+
+        component order_processing
+            name = Order processing
+            responsibility = Coordinates checkout
+            code:
+                module controller
+                    name = Checkout controller
+                    responsibility = Accepts checkout commands
+                    links:
+                        -> domain
+
+                module domain
+                    name = Checkout domain
+                    responsibility = Applies checkout rules
+                    children:
+                        module validation
+                            name = Order validation
+                            responsibility = Validates checkout input
+`,
+    },
+  ];
 }
 
 function genericDeploymentFrameworkExample(): string {

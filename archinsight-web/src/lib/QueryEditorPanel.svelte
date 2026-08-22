@@ -11,6 +11,7 @@
     c1: BUILTIN_VIEW_QUERIES.c1,
     c2: BUILTIN_VIEW_QUERIES.c2,
     c3: BUILTIN_VIEW_QUERIES.c3,
+    c4: BUILTIN_VIEW_QUERIES.c4,
     deployment: BUILTIN_VIEW_QUERIES.deployment
   };
 
@@ -29,7 +30,7 @@
   }
 
   export function normalizeDiagramMode(value: string | undefined): DiagramMode | undefined {
-    return value === 'default' || value === 'c1' || value === 'c2' || value === 'c3' || value === 'deployment'
+    return value === 'default' || value === 'c1' || value === 'c2' || value === 'c3' || value === 'c4' || value === 'deployment'
       ? value
       : undefined;
   }
@@ -213,6 +214,9 @@
       </button>
       <button aria-label="C3 component view" class:active-mode={diagramMode === 'c3'} class="has-tooltip" data-tooltip="C3 component view" type="button" on:click={() => onSelectDiagramMode('c3')}>
         <span aria-hidden="true">C3</span>
+      </button>
+      <button aria-label="C4 code view" class:active-mode={diagramMode === 'c4'} class="has-tooltip" data-tooltip="C4 code view" type="button" on:click={() => onSelectDiagramMode('c4')}>
+        <span aria-hidden="true">C4</span>
       </button>
       <button aria-label="Deployment view" class:active-mode={diagramMode === 'deployment'} class="has-tooltip" data-tooltip="Deployment view" type="button" on:click={() => onSelectDiagramMode('deployment')}>
         <span aria-hidden="true">D</span>
