@@ -24,11 +24,11 @@ Definitions can introduce several code-element types, give each one a distinct p
 
 ## Attaching code to components
 
-The project decides how components contain code. A framework can add a named slot to the built-in `Component` type:
+The project decides how components contain code. When code elements are the natural children of a component, a framework can add an anonymous list to the built-in `Component` type:
 
 ```insight
 extend type Component
-    List of CodeElement code
+    List of CodeElement _
 ```
 
 The model can then fill that slot with any compatible project-defined types:
@@ -44,22 +44,21 @@ system storefront
 
         component order_processing
             name = Order processing
-            code:
-                module controller
-                    name = Checkout controller
-                    responsibility = Accepts checkout commands
-                    links:
-                        -> domain
+            module controller
+                name = Checkout controller
+                responsibility = Accepts checkout commands
+                links:
+                    -> domain
 
-                module domain
-                    name = Checkout domain
-                    responsibility = Applies checkout rules
-                    children:
-                        module validation
-                            name = Order validation
+            module domain
+                name = Checkout domain
+                responsibility = Applies checkout rules
+                children:
+                    module validation
+                        name = Order validation
 ```
 
-The slot name and nesting rules are part of the project framework. Another project can use `packages`, `classes`, or several typed attributes instead of `code` and `children`. Type extensions should remain centralized in the project's definitions so the ownership model does not become scattered across source files.
+The `_` slot lets compatible code elements appear directly inside a component without a `code:` wrapper. It must be the component type's only anonymous list and the last attribute declared by this extension. Another project can choose a named `packages` or `classes` slot when the wrapper communicates useful structure. Containment rules remain part of the project framework, and type extensions should stay centralized in its definitions so the ownership model does not become scattered across source files.
 
 ## The built-in C4 view
 
