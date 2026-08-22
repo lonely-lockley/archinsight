@@ -14,6 +14,7 @@
     "precheck": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:security": "vitest run src/lib/svg-sanitizer.test.ts src/lib/graphviz-renderer.test.ts --environment happy-dom",
+    "test:ui": "vitest run --config vitest.ui.config.ts",
     "pretest:server": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts src/lib/actions/*.test.ts"
   },
