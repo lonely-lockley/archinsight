@@ -36,7 +36,7 @@ system application
 - Smart completion from parser context, types, visible declarations, and imports.
 - Workspace diagnostics for parser, linker, and type-system errors.
 - A custom split editor with Insight source and live diagram preview side by side.
-- Built-in view buttons for no-filter, C1, C2, C3, and C4-style queries.
+- Built-in view buttons for no-filter, C1, C2, C3, and Deployment queries.
 - Editable query panel for custom graph queries.
 - `Project Structure` tree for contexts, types, and declarations.
 - Click-to-source navigation from structure and rendered diagram items.
@@ -55,7 +55,7 @@ structure, generate skills, and render diagrams.
 2. Open a workspace containing one or more `.ai` files, or create the
    `storefront.ai` example shown above.
 3. Open the file. Archinsight uses its source-and-diagram editor by default.
-4. Use the top toolbar to switch between no-filter, C1, C2, C3, and C4 views.
+4. Use the top toolbar to switch between no-filter, C1, C2, C3, and Deployment views.
 5. Open the `Archinsight Query` panel to inspect or edit the active graph query.
 6. Open `Project Structure` in Explorer to navigate declarations.
 
@@ -67,7 +67,7 @@ Useful commands are available from the Command Palette:
 - `Archinsight: Check CLI`
 - `Archinsight: Install CLI`
 - `Archinsight: Generate Agent Skill`
-- `Archinsight: Preview Diagram` view commands for no-filter, C1, C2, C3, and C4
+- `Archinsight: Preview Diagram` view commands for no-filter, C1, C2, C3, and Deployment
 
 ## CLI and Agent Skills
 
@@ -126,7 +126,7 @@ views:
 - [C1: System Context](https://github.com/lonely-lockley/archinsight/blob/master/docs/c1-system.md)
 - [C2: Containers and Services](https://github.com/lonely-lockley/archinsight/blob/master/docs/c2-containers.md)
 - [C3: Components](https://github.com/lonely-lockley/archinsight/blob/master/docs/c3-components.md)
-- [C4: Deployment](https://github.com/lonely-lockley/archinsight/blob/master/docs/c4-deployment.md)
+- [Deployment](https://github.com/lonely-lockley/archinsight/blob/master/docs/deployment.md)
 
 CLI commands and agent skill generation are covered by the
 [CLI reference](https://github.com/lonely-lockley/archinsight/blob/master/archinsight-cli/README.md).

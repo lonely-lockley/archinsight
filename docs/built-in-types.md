@@ -176,7 +176,7 @@ service catalog
         responsibility = Maintains the searchable product projection
 ```
 
-### C4: deployment
+### Deployment
 
 `DeploymentElement` is the abstract boundary-level base for deployment concepts. The deployment library also extends every `Element` with attributes for deployment references, runtime placement, and infrastructure usage. Logical systems, containers, services, and components can therefore be connected to their physical realization without changing their logical type.
 
@@ -211,7 +211,7 @@ The core library provides several specialized infrastructure types:
 
 `ProjectionTerm`, `SourceProjectionTerm`, and `TargetProjectionTerm` describe the steps used to turn a logical dependency into a physical path. They can refer to the logical endpoints, the current infrastructure component, its attributes, or a slot supplied by the environment. These terms guide projection and are not rendered as architecture elements.
 
-Together, these types keep logical architecture and deployment inventory in one linked model. C1, C2, and C3 views can follow the logical hierarchy, while C4 queries include the concrete infrastructure and projected physical relationships relevant to the selected deployment scope.
+Together, these types keep logical architecture and deployment inventory in one linked model. C1, C2, and C3 views can follow the logical hierarchy, while Deployment queries include the concrete infrastructure and projected physical relationships relevant to the selected deployment scope.
 
 ## Built-in edge types
 
@@ -282,4 +282,4 @@ Both `->` and `~>` preserve the same source-to-target orientation. The asynchron
 
 The source-to-target orientation also applies to named physical operators. An invocation such as `replicateFrom primary` is owned by the current element and creates an outgoing typed relationship toward `primary`; the operator name explains the domain meaning of that direction. Projection rules can assemble several such directed edges into a path, and every resulting edge keeps explicit source and target identities.
 
-This ownership model gives every relationship one authoritative declaration. Queries can follow outgoing and incoming dependencies independently, and higher-level C4 views can roll a child relationship up to the appropriate owners without losing its original direction.
+This ownership model gives every relationship one authoritative declaration. Queries can follow outgoing and incoming dependencies independently, and broader logical views can roll a child relationship up to the appropriate owners without losing its original direction.

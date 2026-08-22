@@ -48,7 +48,7 @@
     "onCommand:archinsight.preview.c1",
     "onCommand:archinsight.preview.c2",
     "onCommand:archinsight.preview.c3",
-    "onCommand:archinsight.preview.c4",
+    "onCommand:archinsight.preview.deployment",
     "onCommand:archinsight.preview.editQuery",
     "onCommand:archinsight.preview.downloadSource",
     "onCommand:archinsight.preview.downloadSvg",
@@ -148,8 +148,8 @@
         "icon": "$(symbol-method)"
       },
       {
-        "command": "archinsight.preview.c4",
-        "title": "C4",
+        "command": "archinsight.preview.deployment",
+        "title": "D",
         "icon": "$(server-process)"
       },
       {

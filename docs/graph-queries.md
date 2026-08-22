@@ -328,7 +328,7 @@ Grouping affects only the render graph. It does not change containment or owners
 The CLI can return the selected render graph directly:
 
 ```shell
-archinsight query . -c <context> -s <source.ai> -v c4 --format json
+archinsight query . -c <context> -s <source.ai> -v deployment --format json
 archinsight query . -c <context> -s <source.ai> -q query.aiq --format json
 ```
 
@@ -338,7 +338,7 @@ The response contains `context`, an `elements` map keyed by query-visible qualif
 - nested `edge.source` and `edge.target` are the endpoints of the underlying linked or projected edge;
 - nested `edge.originSource` and `edge.originTarget`, when present, identify the logical wire that produced a projected segment.
 
-For a normal physical C4 segment, the outer and nested endpoints should agree. An ownership-level rollup can intentionally bind an ancestor and make them differ. Projection origin metadata lets a query discover all segments belonging to one logical wire; it does not turn those segments into direct connections between the logical endpoints.
+For a normal physical deployment segment, the outer and nested endpoints should agree. An ownership-level rollup can intentionally bind an ancestor and make them differ. Projection origin metadata lets a query discover all segments belonging to one logical wire; it does not turn those segments into direct connections between the logical endpoints.
 
 Query JSON is the semantic artifact to inspect before rendering. If an unexpected edge already appears there, investigate the query, its `ROLLUP` clauses, selectors, and projection origin. If the JSON is correct but the image is not, the remaining problem belongs to rendering or layout.
 

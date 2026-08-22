@@ -38,7 +38,7 @@ export type WorkspaceTab = {
   queryPanelHeight: number;
 };
 
-export type DiagramMode = 'default' | 'c1' | 'c2' | 'c3' | 'c4';
+export type DiagramMode = 'default' | 'c1' | 'c2' | 'c3' | 'deployment';
 
 export type EditorViewMode = 'split' | 'code' | 'diagram';
 

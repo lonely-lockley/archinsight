@@ -36,7 +36,7 @@ try {
   const codexOutput = generated.get("codex");
   assert(codexOutput);
   verifyExamples(codexOutput);
-  verifyC4RecipeAndJsonContract(codexOutput);
+  verifyDeploymentRecipeAndJsonContract(codexOutput);
   console.log("agent skill contract fixtures passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
@@ -75,13 +75,13 @@ function verifySharedFiles(output) {
   assert(cli.includes("Refusing to initialize"));
   assert(cli.includes("--force"));
   const expectedBuiltin = readFileSync(
-    path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "c4.aiq"),
+    path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "deployment.aiq"),
     "utf8",
   );
-  const bundledBuiltin = readFileSync(path.join(output, "examples", "builtin-views", "c4.aiq"), "utf8");
+  const bundledBuiltin = readFileSync(path.join(output, "examples", "builtin-views", "deployment.aiq"), "utf8");
   assert.equal(bundledBuiltin, expectedBuiltin);
 
-  const recipe = readFileSync(path.join(output, "examples", "queries", "c4-internal-actors.aiq"), "utf8");
+  const recipe = readFileSync(path.join(output, "examples", "queries", "deployment-internal-actors.aiq"), "utf8");
   assert(recipe.includes("OR node IS Actor"));
   assert(recipe.includes("deploymentTarget:InfrastructureComponent"));
   assert(recipe.includes("projectedPathSource:DeploymentElement"));
@@ -149,26 +149,41 @@ function verifyExamples(output) {
     runCli(["link", path.join(examples, name), "--format", "text"]);
   }
 
-  const c4Project = copyC4Project(examples, "c4-project");
-  runCli(["link", c4Project, "--format", "text"]);
-  runCli(["link", path.join(examples, "c4-private-gateway"), "--format", "text"]);
+  const deploymentProject = copyDeploymentProject(examples, "deployment-project");
+  runCli(["link", deploymentProject, "--format", "text"]);
+  runCli(["link", path.join(examples, "deployment-private-gateway"), "--format", "text"]);
 }
 
-function verifyC4RecipeAndJsonContract(output) {
+function verifyDeploymentRecipeAndJsonContract(output) {
   const examples = path.join(output, "examples");
-  const project = copyC4Project(examples, "c4-internal-actor-project");
-  const modelPath = path.join(project, "c4-deployment.ai");
+  const project = copyDeploymentProject(examples, "deployment-internal-actor-project");
+  const modelPath = path.join(project, "deployment.ai");
   const model = readFileSync(modelPath, "utf8").replace("external actor shopper", "actor shopper");
   writeFileSync(modelPath, model);
 
-  const query = path.join(examples, "queries", "c4-internal-actors.aiq");
+  const builtinGraph = JSON.parse(runCli([
+    "query",
+    project,
+    "--context",
+    "deployment_shop",
+    "--source",
+    "deployment.ai",
+    "--view",
+    "deployment",
+    "--format",
+    "json",
+  ]));
+  assert.equal(builtinGraph.context, "deployment_shop");
+  assert.equal(Array.isArray(builtinGraph.edges), true);
+
+  const query = path.join(examples, "queries", "deployment-internal-actors.aiq");
   const stdout = runCli([
     "query",
     project,
     "--context",
     "deployment_shop",
     "--source",
-    "c4-deployment.ai",
+    "deployment.ai",
     "--query",
     query,
     "--format",
@@ -189,10 +204,10 @@ function verifyC4RecipeAndJsonContract(output) {
   assert(projected.every((item) => item.source === item.edge.source && item.target === item.edge.target));
 }
 
-function copyC4Project(examples, directoryName) {
+function copyDeploymentProject(examples, directoryName) {
   const target = path.join(temporaryRoot, directoryName);
   mkdirSync(target, { recursive: true });
-  for (const name of ["c4-deployment-framework.ai", "c4-deployment-infrastructure.ai", "c4-deployment.ai"]) {
+  for (const name of ["deployment-framework.ai", "deployment-infrastructure.ai", "deployment.ai"]) {
     copyFileSync(path.join(examples, name), path.join(target, name));
   }
   return target;

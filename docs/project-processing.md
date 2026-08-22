@@ -134,7 +134,7 @@ The graph supports project structure views, declaration lookup, type-tree inspec
 
 Introspection reads this semantic graph and the linked domain objects. It does not infer project structure again from filenames or text searches. As a result, aliases resolve to their real targets, extensions appear under the object they modify, inherited types participate in type queries, and projected relationships can be distinguished from authored wires.
 
-Introspection also reports incomplete deployment coverage once a project begins modeling that coverage. Wire checks remain disabled until at least one C4-relevant wire has a `deployment` block. After that point, an undeployed wire between different C4 endpoints receives `WIRE_MISSING_DEPLOYMENT`, while a configured wire that produces no physical edge receives `WIRE_DEPLOYMENT_NOT_PROJECTED`. Relationships inside one logical container are excluded because they collapse to a self-relationship at C4. Element checks are activated separately for each logical modeling family; missing placement receives `ELEMENT_MISSING_DEPLOYMENT`, and a deployment block that resolves to neither `runsOn` nor `uses` receives `ELEMENT_DEPLOYMENT_NOT_PHYSICAL`. These diagnostics are warnings, so they identify objects omitted from deployment views without invalidating the logical model.
+Introspection also reports incomplete deployment coverage once a project begins modeling that coverage. Wire checks remain disabled until at least one deployment-relevant wire has a `deployment` block. After that point, an undeployed wire between different deployment endpoints receives `WIRE_MISSING_DEPLOYMENT`, while a configured wire that produces no physical edge receives `WIRE_DEPLOYMENT_NOT_PROJECTED`. Relationships inside one logical container are excluded because they collapse to a self-relationship in the Deployment view. Element checks are activated separately for each logical modeling family; missing placement receives `ELEMENT_MISSING_DEPLOYMENT`, and a deployment block that resolves to neither `runsOn` nor `uses` receives `ELEMENT_DEPLOYMENT_NOT_PHYSICAL`. These diagnostics are warnings, so they identify objects omitted from deployment views without invalidating the logical model.
 
 ## Selecting a render graph
 
@@ -161,8 +161,8 @@ Rendering checks the final presentation. When query JSON already contains an une
 
 ```shell
 archinsight link . --format text
-archinsight query . -c <context> -s <source.ai> -v c4 --format json
-archinsight render . -c <context> -s <source.ai> -v c4 -f svg -o c4.svg
+archinsight query . -c <context> -s <source.ai> -v deployment --format json
+archinsight render . -c <context> -s <source.ai> -v deployment -f svg -o deployment.svg
 ```
 
 ## Generating Graphviz DOT

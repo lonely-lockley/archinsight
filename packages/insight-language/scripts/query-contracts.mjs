@@ -9,8 +9,8 @@ import {
   selectGraphs,
 } from "../build/runtime/index.js";
 
-const builtinC4Query = readFileSync(
-  new URL("../../../src/main/resources/com/github/lonelylockley/insight/builtin-views/c4.aiq", import.meta.url),
+const builtinDeploymentQuery = readFileSync(
+  new URL("../../../src/main/resources/com/github/lonelylockley/insight/builtin-views/deployment.aiq", import.meta.url),
   "utf8",
 );
 
@@ -19,13 +19,13 @@ const cases = [
   labelsAreCaseSensitive,
   selectsReferencesReturnedByCypher,
   keepsParallelReferencesBetweenSameElements,
-  c4QueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements,
-  c4QuerySelectsSharedDeploymentReferences,
-  c4QuerySeparatesDeploymentsInsideOneEnvironment,
-  c4QueryPreservesEveryPhysicalEndpointInIncomingProjectedPaths,
-  c4QueryKeepsCompleteIncomingProjectedPathsAcrossSources,
-  c4QueryDoesNotReturnRawCrossSourceWiresAlongsideTheirProjection,
-  c4QueryOmitsLogicalElementsAndWiresWithoutDeployment,
+  deploymentQueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements,
+  deploymentQuerySelectsSharedDeploymentReferences,
+  deploymentQuerySeparatesDeploymentsInsideOneEnvironment,
+  deploymentQueryPreservesEveryPhysicalEndpointInIncomingProjectedPaths,
+  deploymentQueryKeepsCompleteIncomingProjectedPathsAcrossSources,
+  deploymentQueryDoesNotReturnRawCrossSourceWiresAlongsideTheirProjection,
+  deploymentQueryOmitsLogicalElementsAndWiresWithoutDeployment,
   rollsChildReferencesUpToOwningElementForQuery,
   rollsNestedReferencesUpToOwningSystems,
   rollsNestedReferencesUpToOwningContexts,
@@ -225,7 +225,7 @@ system app
   assert.equal(projectedGraph.edges[0]?.target, "shared/db");
 }
 
-function c4StyleQueryReturnsRealAndProjectedEdges() {
+function deploymentStyleQueryReturnsRealAndProjectedEdges() {
   const result = linkProject({
     snapshot: projectionSnapshot(),
     sources: [
@@ -268,7 +268,7 @@ system worker
   assert(graph.elements["shared/worker"], "Expected real target to be selected");
 }
 
-function c4QueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements() {
+function deploymentQueryReturnsDirectDeploymentEdgesOnlyFromDeploymentElements() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("deployment_links.ai", `
 extend type Environment
@@ -337,7 +337,7 @@ system app
   assert(!graph.edges.some((edge) => edge.source === "shared/frontend" && edge.target === "shared/backend"));
 }
 
-function c4QuerySelectsSharedDeploymentReferences() {
+function deploymentQuerySelectsSharedDeploymentReferences() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("deployment_slots.ai", `
 extend type Environment
@@ -382,7 +382,7 @@ system application
     ],
   });
 
-  const graph = selectGraph(result, { context: "app", tab: "app.ai" }, builtinC4Query);
+  const graph = selectGraph(result, { context: "app", tab: "app.ai" }, builtinDeploymentQuery);
 
   assertNoErrors(snapshot);
   assertNoErrors(result);
@@ -396,7 +396,7 @@ system application
     && edge.edge.projected === true));
 }
 
-function c4QuerySeparatesDeploymentsInsideOneEnvironment() {
+function deploymentQuerySeparatesDeploymentsInsideOneEnvironment() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("deployment_slots.ai", `
 extend type Environment
@@ -451,7 +451,7 @@ system application
     ],
   });
 
-  const graph = selectGraph(result, { context: "app", tab: "app.ai" }, builtinC4Query);
+  const graph = selectGraph(result, { context: "app", tab: "app.ai" }, builtinDeploymentQuery);
 
   assertNoErrors(snapshot);
   assertNoErrors(result);
@@ -459,7 +459,7 @@ system application
   assert.deepEqual(graph.groups.find((group) => group.owner === "eu/testCompute")?.elements, ["app/testService"]);
 }
 
-function c4QueryPreservesEveryPhysicalEndpointInIncomingProjectedPaths() {
+function deploymentQueryPreservesEveryPhysicalEndpointInIncomingProjectedPaths() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("framework.ai", `
 define type PublicGateway of NetworkConnection
@@ -541,7 +541,7 @@ system storefront
     ],
   });
 
-  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinC4Query);
+  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinDeploymentQuery);
 
   assertNoErrors(snapshot);
   assertNoErrors(result);
@@ -557,7 +557,7 @@ system storefront
   assert(graph.edges.every((edge) => edge.source === edge.edge.source && edge.target === edge.edge.target));
 }
 
-function c4QueryKeepsCompleteIncomingProjectedPathsAcrossSources() {
+function deploymentQueryKeepsCompleteIncomingProjectedPathsAcrossSources() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("framework.ai", `
 define type PublicGateway of NetworkConnection
@@ -628,7 +628,7 @@ system storefront
     ],
   });
 
-  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinC4Query);
+  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinDeploymentQuery);
 
   assertNoErrors(snapshot);
   assertNoErrors(result);
@@ -642,7 +642,7 @@ system storefront
   );
 }
 
-function c4QueryDoesNotReturnRawCrossSourceWiresAlongsideTheirProjection() {
+function deploymentQueryDoesNotReturnRawCrossSourceWiresAlongsideTheirProjection() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("framework.ai", `
 define type AppEnvironment of Environment
@@ -708,7 +708,7 @@ system backend
     ],
   });
 
-  const graph = selectGraph(result, { context: "shop", tab: "caller.ai" }, builtinC4Query);
+  const graph = selectGraph(result, { context: "shop", tab: "caller.ai" }, builtinDeploymentQuery);
 
   assertNoErrors(snapshot);
   assertNoErrors(result);
@@ -718,7 +718,7 @@ system backend
   assert.equal(graph.edges[0]?.edge.projected, true);
 }
 
-function c4QueryOmitsLogicalElementsAndWiresWithoutDeployment() {
+function deploymentQueryOmitsLogicalElementsAndWiresWithoutDeployment() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("framework.ai", `
 define type AppEnvironment of Environment
@@ -775,7 +775,7 @@ system storefront
     ],
   });
 
-  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinC4Query);
+  const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinDeploymentQuery);
 
   assertNoErrors(snapshot);
   assertNoErrors(result);

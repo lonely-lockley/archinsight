@@ -79,30 +79,30 @@ function textFileContent(content: string): string {
 function replaceExactlyOnce(source: string, expected: string, replacement: string, description: string): string {
   const parts = source.split(expected);
   if (parts.length !== 2) {
-    throw new Error(`Cannot generate ${description}: expected one matching built-in C4 fragment, found ${parts.length - 1}`);
+    throw new Error(`Cannot generate ${description}: expected one matching built-in Deployment fragment, found ${parts.length - 1}`);
   }
   return `${parts[0]}${replacement}${parts[1]}`;
 }
 
-function c4InternalActorsQuery(): string {
-  let query = viewQueries.c4;
+function deploymentInternalActorsQuery(): string {
+  let query = viewQueries.deployment;
   query = replaceExactlyOnce(
     query,
     "    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))",
     "    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true)\n    OR node IS Actor)",
-    "C4 internal-actor query",
+    "Deployment internal-actor query",
   );
   query = replaceExactlyOnce(
     query,
     "   OR projectedTarget IS External",
     "   OR projectedTarget IS External\n   OR projectedTarget IS Actor",
-    "C4 internal-actor projected target filter",
+    "Deployment internal-actor projected target filter",
   );
   query = replaceExactlyOnce(
     query,
     "   OR incomingProjectedSource IS External)",
     "   OR incomingProjectedSource IS External\n   OR incomingProjectedSource IS Actor)",
-    "C4 internal-actor incoming source filter",
+    "Deployment internal-actor incoming source filter",
   );
   return query;
 }
@@ -753,7 +753,7 @@ function viewOption(value: unknown): DiagramView | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (value === "c1" || value === "c2" || value === "c3" || value === "c4" || value === "no-filter") {
+  if (value === "c1" || value === "c2" || value === "c3" || value === "deployment" || value === "no-filter") {
     return value;
   }
   throw new CliError(`Unknown view '${String(value)}'`);
@@ -796,8 +796,8 @@ function helpText(): string {
 
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
-  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
-  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|no-filter] [-q query.aiq] [-f text|json] [-o file]
+  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|deployment|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
+  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|deployment|no-filter] [-q query.aiq] [-f text|json] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 
@@ -806,7 +806,7 @@ Options:
   -c, --context <id>       Context id for query/render.
   -s, --source <file>      Selected project file for queries using $tab.
       --tab <source>       Backward-compatible alias for --source.
-  -v, --view <name>        Built-in view: c1, c2, c3, c4, no-filter.
+  -v, --view <name>        Built-in view: c1, c2, c3, deployment, no-filter.
   -q, --query <file>       Query file; overrides --view.
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
@@ -908,8 +908,8 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericC3ComponentsReference(),
     },
     {
-      path: "references/c4-deployment.md",
-      content: genericC4DeploymentReference(),
+      path: "references/deployment.md",
+      content: genericDeploymentReference(),
     },
     {
       path: "references/scaling.md",
@@ -956,18 +956,18 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericC3ComponentsExample(),
     },
     {
-      path: "examples/c4-deployment-framework.ai",
-      content: genericC4DeploymentFrameworkExample(),
+      path: "examples/deployment-framework.ai",
+      content: genericDeploymentFrameworkExample(),
     },
     {
-      path: "examples/c4-deployment-infrastructure.ai",
-      content: genericC4DeploymentInfrastructureExample(),
+      path: "examples/deployment-infrastructure.ai",
+      content: genericDeploymentInfrastructureExample(),
     },
     {
-      path: "examples/c4-deployment.ai",
-      content: genericC4DeploymentExample(),
+      path: "examples/deployment.ai",
+      content: genericDeploymentExample(),
     },
-    ...genericC4PrivateGatewayExampleFiles(),
+    ...genericDeploymentPrivateGatewayExampleFiles(),
     {
       path: "examples/c2-containers.aiq",
       content: genericC2QueryExample(),
@@ -989,12 +989,12 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: textFileContent(viewQueries.c3),
     },
     {
-      path: "examples/builtin-views/c4.aiq",
-      content: textFileContent(viewQueries.c4),
+      path: "examples/builtin-views/deployment.aiq",
+      content: textFileContent(viewQueries.deployment),
     },
     {
-      path: "examples/queries/c4-internal-actors.aiq",
-      content: textFileContent(c4InternalActorsQuery()),
+      path: "examples/queries/deployment-internal-actors.aiq",
+      content: textFileContent(deploymentInternalActorsQuery()),
     },
     ...coreSkillFiles(),
   ];
@@ -1057,11 +1057,11 @@ function skillReferenceRoutingGuide(): string {
   architecture description, diagram, inventory, or foreign DSL into Insight.
 - Read \`references/syntax.md\` before writing unfamiliar Insight syntax.
 - Read \`references/layered-architecture.md\` when decomposing a system across
-  C1/C2/C3/C4-style layers.
+  C1, C2, C3, and Deployment views.
 - Read \`references/c1-context.md\` when working with system context models.
 - Read \`references/c2-containers.md\` when working with containers or services.
 - Read \`references/c3-components.md\` when working with component internals.
-- Read \`references/c4-deployment.md\` when working with environments,
+- Read \`references/deployment.md\` when working with environments,
   deployments, infrastructure, placement, or projections.
 - Read \`references/scaling.md\` when splitting a repository into reusable
   framework, environment, profile, system, or view files.
@@ -1151,16 +1151,16 @@ ${skillTaskModesGuide()}
    systems, containers/services, components, and deployment details.
 4. Do not ask about deployment depth until the task touches infrastructure,
    runtime placement, regions, brokers, gateways, storage, or deployment.
-5. At that point, decide per system whether pragmatic mixed C2 or clean
-   C4/deployment is appropriate. If modeling clean C4: attach placement/storage
-   to elements, attach path infrastructure that needs \`$to\` to wires, and make
-   pub/sub dependencies consumer-owned.
+5. At that point, decide per system whether pragmatic mixed C2 or explicit
+   deployment modeling is appropriate. For explicit deployment, attach
+   placement/storage to elements, attach path infrastructure that needs \`$to\`
+   to wires, and make pub/sub dependencies consumer-owned.
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
 8. Keep definition, context, and environment sources in separate files.
 9. Validate every Insight change with \`archinsight link . --format text\`.
-10. For C2-C4, deployment, or query changes, inspect the selected graph with
+10. For C2, C3, Deployment, or query changes, inspect the selected graph with
     \`archinsight query ... --format json\` before rendering.
 
 ${skillReferenceRoutingGuide()}
@@ -1211,10 +1211,10 @@ ${skillTaskModesGuide()}
    systems, containers/services, components, and deployment details.
 4. Do not ask about deployment depth until the task touches infrastructure,
    runtime placement, regions, brokers, gateways, storage, or deployment.
-5. At that point, decide per system whether pragmatic mixed C2 or clean
-   C4/deployment is appropriate. If modeling clean C4: attach placement/storage
-   to elements, attach path infrastructure that needs \`$to\` to wires, and make
-   pub/sub dependencies consumer-owned.
+5. At that point, decide per system whether pragmatic mixed C2 or explicit
+   deployment modeling is appropriate. For explicit deployment, attach
+   placement/storage to elements, attach path infrastructure that needs \`$to\`
+   to wires, and make pub/sub dependencies consumer-owned.
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
@@ -1222,7 +1222,7 @@ ${skillTaskModesGuide()}
 9. Use \`archinsight structure . --format text\` before broad edits when the
    project shape is unclear.
 10. Validate every Insight change with \`archinsight link . --format text\`.
-11. For C2-C4, deployment, or query changes, inspect the selected graph with
+11. For C2, C3, Deployment, or query changes, inspect the selected graph with
     \`archinsight query ... --format json\` before rendering.
 12. If validation fails, fix the first real syntax/type/linking error before
     adding more model content.
@@ -1277,10 +1277,10 @@ ${skillTaskModesGuide()}
    systems, containers/services, components, and deployment details.
 4. Do not ask about deployment depth until the task touches infrastructure,
    runtime placement, regions, brokers, gateways, storage, or deployment.
-5. At that point, decide per system whether pragmatic mixed C2 or clean
-   C4/deployment is appropriate. If modeling clean C4: attach placement/storage
-   to elements, attach path infrastructure that needs \`$to\` to wires, and make
-   pub/sub dependencies consumer-owned.
+5. At that point, decide per system whether pragmatic mixed C2 or explicit
+   deployment modeling is appropriate. For explicit deployment, attach
+   placement/storage to elements, attach path infrastructure that needs \`$to\`
+   to wires, and make pub/sub dependencies consumer-owned.
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
 7. Prefer small, focused files connected by \`context\`, \`import\`, and \`extend\`.
@@ -1289,7 +1289,7 @@ ${skillTaskModesGuide()}
    before broad edits when the CLI is available.
 10. Validate every Insight change with \`archinsight link . --format text\` when
    shell access is available; otherwise ask the user to run validation.
-11. For C2-C4, deployment, or query changes, inspect the selected graph with
+11. For C2, C3, Deployment, or query changes, inspect the selected graph with
    \`archinsight query ... --format json\` before rendering.
 12. If validation fails, fix the first real syntax/type/linking error before
    adding more model content.
@@ -1435,8 +1435,8 @@ source-level syntax failures.
 
 Default to one primary owned system per model source file: the system you are
 about to detail with containers, services, components, and deployment
-relationships. This keeps the selected source file useful as a C2/C3/C4 view
-scope and avoids accidental mega-files.
+relationships. This keeps the selected source file useful as a C2, C3, or
+Deployment view scope and avoids accidental mega-files.
 
 Do not create one file per external actor or external system. Shared external
 dependencies are usually better modeled once in a reusable external context, or
@@ -1451,11 +1451,11 @@ context.
 
 ## Projections Are Bottom-Up
 
-Built-in C1/C2/C3/C4 views are selected from the linked model. They are not
-separate diagrams to author by hand.
+Built-in C1, C2, C3, and Deployment views are selected from the linked model.
+They are not separate diagrams to author by hand.
 
 - C1 is context-oriented and can aggregate lower-level relationships upward.
-- C2, C3, and C4 are usually scoped by the selected source file through
+- C2, C3, and Deployment are usually scoped by the selected source file through
   \`--source\` / \`$tab\`.
 - A file often has one focal system, container, or deployment slice for the view
   it is meant to render, but the exact scope is determined by the query used for
@@ -1463,7 +1463,7 @@ separate diagrams to author by hand.
 - Do not try to reconstruct a deeper view from a broader one. C1 carries too
   little information to recreate C2/C3 details.
 
-If an element is missing from a C2/C3/C4 render, first check the query, selected
+If an element is missing from a C2, C3, or Deployment render, first check the query, selected
 source file, and relationship level before assuming the model is wrong.
 
 ## Keep Relationship Levels Deliberate
@@ -1514,28 +1514,28 @@ than forcing a link or inventing a wrapper element.
 
 ## Choose Infrastructure Depth Per System
 
-Do not force every project into C4/deployment on the first pass. Most modeling
+Do not force every project into deployment on the first pass. Most modeling
 work can proceed through C1-C3 without asking about deployment depth. When the
 task first touches infrastructure, runtime placement, regions, compute, brokers,
 gateways, storage, or deployment, ask the user or infer from the repository
 whether the affected system needs a pragmatic mixed C2 view or a clean
-C4/deployment model.
+deployment model.
 
 Pragmatic mixed C2 is fast: model databases, brokers, gateways, or secret stores
 next to services when the user wants a quick single-environment diagram. The
-cost is that C2 now mixes logical containers with infrastructure, and C4 is
-effectively absent for that system.
+cost is that C2 now mixes logical containers with infrastructure, and a
+separate Deployment view is effectively absent for that system.
 
-Clean C4 keeps C2 logical and moves physical realization into concrete
-deployments, context-owned deployment profiles, inventory slots, and projection
-rules. This is more work up front, but it supports many-to-many deployment: one
-logical service can target several concrete deployments whose infrastructure
-differs by stage, region, provider, or organizational boundary.
+Explicit deployment modeling keeps C2 logical and moves physical realization
+into concrete deployments, context-owned deployment profiles, inventory slots,
+and projection rules. This is more work up front, but it supports many-to-many
+deployment: one logical service can target several concrete deployments whose
+infrastructure differs by stage, region, provider, or organizational boundary.
 
-This choice is per-system, not global. A critical system can use clean C4 while
-peripheral systems stay pragmatic in C2. Starting cheap is acceptable, but know
-that upgrading mixed C2 infrastructure into clean C4 is a migration, not just an
-extra attribute.
+This choice is per-system, not global. A critical system can use explicit
+deployment modeling while peripheral systems stay pragmatic in C2. Starting
+cheap is acceptable, but upgrading mixed C2 infrastructure into explicit
+deployment modeling is a migration, not just an extra attribute.
 
 ## Eventing
 
@@ -1552,8 +1552,8 @@ For pub/sub, make the dependency consumer-owned:
   dependencies instead of editing a subscriber list on the producer.
 
 Do not invent a broker node just to make the diagram look familiar. If the
-chosen style is clean C4 and the broker is deployment infrastructure, model it
-in deployment/C4. If the chosen style is pragmatic mixed C2, a broker-like node
+chosen style is explicit deployment modeling and the broker is deployment
+infrastructure, model it in deployment. If the chosen style is pragmatic mixed C2, a broker-like node
 can be acceptable, but document that the view mixes levels. If the producer or
 consumer is not known, leave a gap and report it instead of fabricating an
 element.
@@ -1668,7 +1668,7 @@ serialization shape.
 5. Add C2 containers and services, then move relationships to the lowest known
    logical endpoints so built-in rollup can produce higher-level views.
 6. Add C3 components only where the source provides component-level evidence.
-7. Build C4 separately from concrete environments and deployments. Use
+7. Build deployment models separately from concrete environments and deployments. Use
    profiles, \`runsOn\`, \`uses\`, and projections to map the logical model to
    physical infrastructure; do not turn every deployment node into a logical
    C2 element.
@@ -1692,7 +1692,7 @@ archinsight structure . --format json
 archinsight query . -c <context-id> -v no-filter --format json
 \`\`\`
 
-Use C1, C2, C3, and C4 query JSON to compare the intended scope and
+Use C1, C2, C3, and Deployment query JSON to compare the intended scope and
 relationships at each level. Counts can reveal omissions, but equal counts do
 not prove semantic equivalence. Compare qualified identities, types, ownership,
 wire direction, externality, and deployment projection. Keep unresolved source
@@ -2037,7 +2037,7 @@ agents without changing the model:
 context checkout
 
 system checkout_platform
-    # Keep logical services here; deployment inventory belongs in C4 files.
+    # Keep logical services here; deployment inventory belongs in deployment files.
     name = Checkout Platform
 \`\`\`
 
@@ -2100,7 +2100,7 @@ Available annotations:
   useful. The default Graphviz renderer highlights it in red.
 
 Annotations can be stacked and are preserved on projected relationships, so a
-C4 projection can still show that the original logical relationship was planned
+Deployment projection can still show that the original logical relationship was planned
 or deprecated. Annotations cannot decorate assignments; use a comment above the
 assignment when you only need a local authoring hint.
 
@@ -2252,10 +2252,10 @@ Components should describe responsibilities, not every class or function.
 As with C2, a C3 file often focuses one container or service, but custom queries
 can intentionally choose a different scope.
 
-## C4: Deployment
+## Deployment
 
 Use deployment profiles and infrastructure types when physical realization is
-important. Read \`references/c4-deployment.md\` before writing a real C4 model.
+important. Read \`references/deployment.md\` before writing a real deployment model.
 
 \`\`\`insight
 environment eu
@@ -2278,7 +2278,7 @@ only when they clarify real runtime paths. Prefer attaching deployment to C2
 containers/services when possible because C2 is usually the most representative
 logical runtime boundary.
 
-C4/deployment files often focus one deployment slice. The rendered scope is
+deployment files often focus one deployment slice. The rendered scope is
 defined by the query, projection selectors, and selected source file.
 
 ## Layering Rules
@@ -2488,7 +2488,8 @@ external system analytics_platform
 - Treating a peer owned in the same context as \`external system\`.
 - Duplicating imported external systems instead of importing the shared
   declaration.
-- Adding implementation details that belong to C2/C3/C4.
+- Adding implementation details that belong to C2, C3, or a project-defined
+  code model.
 - Drawing a relationship without naming what capability or dependency it means.
 - Choosing constructors before deciding the context boundary.
 
@@ -2530,14 +2531,14 @@ containers/services.
 
 The clean C2 answer is logical: deployable containers/services and how they
 collaborate. In that mode, databases, brokers, gateways, vaults, compute, and
-regions belong to C4/deployment.
+regions belong to deployment.
 
 Archinsight does not force that choice. For a quick or single-environment model,
 it is acceptable to put simple infrastructure-like runtime nodes into C2 when
 the user wants speed over strict layer separation. Be explicit about the
-tradeoff: the C2 view becomes mixed, C4 is not really modeled for that system,
+tradeoff: the C2 view becomes mixed, deployment is not modeled for that system,
 and many-to-many deployment across different environments will not be available
-until the model is migrated to clean C4.
+until the model is migrated to explicit deployment modeling.
 
 Choose this per system. Do not make the whole repository clean or mixed just
 because one system needs that style.
@@ -2691,7 +2692,7 @@ Do not list consumers under the producer just to answer "who listens to this
 topic?" That answer belongs in a query over incoming async dependencies.
 
 Do not add a broker node just to make an event diagram look familiar. In clean
-C2, a broker is usually deployment/C4 infrastructure unless the project defines
+C2, a broker is usually deployment infrastructure unless the project defines
 it as a runtime system or service in the selected view. In pragmatic mixed C2,
 adding a broker can be acceptable for a quick view, but it means the diagram is
 no longer strictly logical C2.
@@ -3020,7 +3021,7 @@ links:
 
 Do not add a broker as a component unless the broker is actually part of the
 focal container/service. Shared brokers, queues, gateways, and runtime placement
-usually belong to deployment/C4 or infrastructure modeling.
+usually belong to deployment or infrastructure modeling.
 
 The built-in views roll a component dependency up to its owning containers at
 C2 and, when it crosses system boundaries, to its owning systems at C1. Remove
@@ -3054,27 +3055,27 @@ unclear.
 `;
 }
 
-function genericC4DeploymentReference(): string {
-  return `# C4 Deployment
+function genericDeploymentReference(): string {
+  return `# Deployment
 
-Use C4 to project the logical architecture onto physical infrastructure: where
+Use Deployment modeling to project the logical architecture onto physical infrastructure: where
 logical elements run, which infrastructure they use, and how their wires pass
 through the physical world. Keep C1-C3 logical; deployment inventory and
 projections supply the physical view.
 
-The built-in C4 view includes a logical element only when its deployment
+The built-in Deployment view includes a logical element only when its deployment
 resolves at least one \`runsOn\` or \`uses\` infrastructure object. A logical wire
 appears only through physical edges created by its deployment projection. A
-plain logical wire is intentionally omitted from C4.
+plain logical wire is intentionally omitted from Deployment.
 
 Model the infrastructure immediately relevant to those logical elements and
-connections. Do not expand C4 into a complete provider, transit, replication,
+connections. Do not expand a Deployment view into a complete provider, transit, replication,
 or network topology. Keep replication modes and deeper operational detail in
 \`description\`, \`technology\`, \`via\`, notes, or project-specific attributes
 unless an intermediate component is itself important to the architecture.
 
 When a project models deployment explicitly, databases, storage, brokers,
-gateways, network connections, compute, and observability belong at C4. Leave
+gateways, network connections, compute, and observability belong in the Deployment view. Leave
 them at C2 only when the project deliberately chooses a compact mixed model and
 does not plan to describe deployment in detail.
 
@@ -3293,11 +3294,11 @@ ancestor, normally a container or service. Put profiles on independently
 deployable C2 elements unless a C3 component truly has distinct placement.
 
 Deployment completeness checks become active only after the project starts
-using the corresponding feature. Once a C4-relevant wire has a \`deployment\`
-block, the linker warns about other wires between different C4 endpoints with
+using the corresponding feature. Once a deployment-relevant wire has a \`deployment\`
+block, the linker warns about other wires between different deployment endpoints with
 no deployment and about configured wires that produce no physical projection.
 A component relationship inside one container collapses to a self-relationship
-at C4 and does not require a physical projection. Element checks activate
+in the Deployment view and does not require a physical projection. Element checks activate
 separately by logical modeling family, so starting container placement does not
 demand artificial placement for every system, component, or external actor.
 
@@ -3388,8 +3389,8 @@ Run:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c <context> -s <logical-source.ai> -v c4 --format json
-archinsight render . -c <context> -s <logical-source.ai> -v c4 -f svg -o c4.svg
+archinsight query . -c <context> -s <logical-source.ai> -v deployment --format json
+archinsight render . -c <context> -s <logical-source.ai> -v deployment -f svg -o deployment.svg
 \`\`\`
 
 A clean link proves that syntax, types, imports, and deployment references are
@@ -3400,7 +3401,7 @@ of elements and edges selected for rendering.
 Treat missing slots, overlapping profile deployments, non-network wire uses,
 and ambiguous references as model errors. Treat \`WIRE_MISSING_DEPLOYMENT\`,
 \`WIRE_DEPLOYMENT_NOT_PROJECTED\`, \`ELEMENT_MISSING_DEPLOYMENT\`, and
-\`ELEMENT_DEPLOYMENT_NOT_PHYSICAL\` as incomplete C4 coverage. If a physical
+\`ELEMENT_DEPLOYMENT_NOT_PHYSICAL\` as incomplete deployment coverage. If a physical
 arrow is absent, check the endpoint profiles, their \`appliesTo\` deployments,
 the requested network slot, and the concrete instance projection in that order.
 `;
@@ -3627,9 +3628,9 @@ This explicitness is useful during refactors: if the source file holding
 \`inventory_api\` disappears, validation points at the missing declaration
 instead of creating a hidden dependency on file layout.
 
-## C4 Multi-File Pattern
+## Deployment Multi-File Pattern
 
-For C4, keep these responsibilities separate:
+For Deployment modeling, keep these responsibilities separate:
 
 - framework file: environment schemas, infrastructure constructors, and
   presentation definitions;
@@ -3637,16 +3638,16 @@ For C4, keep these responsibilities separate:
 - logical context files: deployment profiles with \`appliesTo\` references and
   the relationships whose network paths should render.
 
-When rendering C4 with \`-s <source.ai>\`, remember that source/tab scoping is
+When rendering Deployment with \`-s <source.ai>\`, remember that source/tab scoping is
 part of the view. The selected tab includes the full model fragment rooted in
 that source, including relationships contributed to those roots by \`extend\`
 files. Keep imported framework and inventory reusable, and validate the rendered
-C4 output after changing which root a traffic relationship extends:
+Deployment output after changing which root a traffic relationship extends:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c deployment_shop -s c4-deployment.ai -v c4 --format json
-archinsight render . -c deployment_shop -s c4-deployment.ai -v c4 -f svg -o deployment-c4.svg
+archinsight query . -c deployment_shop -s deployment.ai -v deployment --format json
+archinsight render . -c deployment_shop -s deployment.ai -v deployment -f svg -o deployment.svg
 \`\`\`
 
 If projected infrastructure edges disappear after a split, first check whether
@@ -3670,7 +3671,7 @@ the extension target, or the file boundary.
 9. Prefer a named import for repeated references and an inline qualifier for a
    one-off relationship or list value.
 10. Validate with \`archinsight link . --format text\`.
-11. Render important C1/C2/C3/C4 views with explicit \`-c\`, \`-s\`, and \`-v\`
+11. Render important C1, C2, C3, and Deployment views with explicit \`-c\`, \`-s\`, and \`-v\`
    options.
 `;
 }
@@ -4044,7 +4045,7 @@ and links.
 ## Reading Projections
 
 Projection definitions describe how deployment/runtime information is projected
-into renderable graph relationships. Use them when C4/deployment diagrams are
+into renderable graph relationships. Use them when deployment diagrams are
 involved or when a query uses projected relationships.
 
 Rules of thumb:
@@ -4094,13 +4095,13 @@ archinsight structure . --format text
 archinsight structure . --format json
 \`\`\`
 
-Inspect the selected graph before rendering whenever a change affects C2-C4,
+Inspect the selected graph before rendering whenever a change affects C2, C3, or Deployment,
 deployment, projections, or query text:
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -v c2 --format json
 archinsight query . -c <context-id> -s <source.ai> -v c3 --format json
-archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
+archinsight query . -c <context-id> -s <source.ai> -v deployment --format json
 \`\`\`
 
 Then render the same context, source, and view:
@@ -4109,7 +4110,7 @@ Then render the same context, source, and view:
 archinsight render . -c <context-id> -v c1 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v c3 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v c4 -f svg -o diagram.svg
+archinsight render . -c <context-id> -s <source.ai> -v deployment -f svg -o diagram.svg
 \`\`\`
 
 Run a custom query from a file:
@@ -4137,17 +4138,17 @@ Useful built-in views:
 - \`c1\` for system context.
 - \`c2\` for containers/services in the selected source.
 - \`c3\` for components in the selected source.
-- \`c4\` for deployment-oriented views.
+- \`deployment\` for deployment-oriented views.
 - \`no-filter\` for the full context.
 
-C2, C3, C4, and custom queries often depend on the active file. Pass
+C2, C3, Deployment, and custom queries often depend on the active file. Pass
 \`--source <file>\` / \`-s <file>\` whenever the query uses \`$tab\`; otherwise
 the CLI may choose the first source and render a valid but wrong view.
 
 The bundled \`examples\` directory contains several independent model projects,
 not one project to link as a whole. Validate \`layered-architecture.ai\`, the C1,
-C2, and C3 files individually. Validate the three \`c4-deployment*.ai\` files
-together, and validate \`c4-private-gateway\` as its own directory.
+C2, and C3 files individually. Validate the three \`deployment*.ai\` files
+together, and validate \`deployment-private-gateway\` as its own directory.
 
 If the CLI is missing, do not silently install it. Ask the user to install or
 expose \`@archinsight/cli\`.
@@ -4267,11 +4268,11 @@ it is not a raw inventory of lines physically present in that file.
 
 ## Analyze Deployment Realization
 
-Use the built-in C4 query JSON when the question is how logical architecture is
+Use the built-in Deployment query JSON when the question is how logical architecture is
 realized physically:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <logical-source.ai> -v c4 --format json
+archinsight query . -c <context-id> -s <logical-source.ai> -v deployment --format json
 \`\`\`
 
 For each projected edge, compare outer \`source\` and \`target\` with nested
@@ -4286,7 +4287,7 @@ The query DSL cannot directly ask for nodes with no incoming edge, nodes with no
 outgoing edge, cycles, counts by type, or transitive consumers. Export a broad
 JSON graph, compute those conditions from qualified ids and direct edges, and
 then return to source declarations for confirmation. A selected view can omit
-objects by design, so absence in C1, C2, C3, or C4 is not evidence that the
+objects by design, so absence in C1, C2, C3, or Deployment is not evidence that the
 object is absent from the linked project.
 
 Analysis findings should distinguish verified model facts, query-dependent
@@ -4306,7 +4307,7 @@ diagram.
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
+archinsight query . -c <context-id> -s <source.ai> -v deployment --format json
 archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
 
@@ -4421,7 +4422,7 @@ Use single quotes for string literals.
 for a list property it tests membership. Match the stored spelling exactly.
 
 \`node.deployed\` is true when an element's deployment resolves to at least one
-\`runsOn\` or \`uses\` infrastructure object. The built-in C4 view uses it to keep
+\`runsOn\` or \`uses\` infrastructure object. The built-in Deployment view uses it to keep
 undeployed logical elements out of the physical diagram.
 
 ## Relationship Selectors
@@ -4446,7 +4447,7 @@ relationship alias retains the underlying linked edge while its outer query
 
 For a projected physical path, \`ROLLUP\` can also use \`originSource\` and
 \`originTarget\` to discover path segments belonging to a logical wire. The
-built-in C4 query uses this to include an incoming path such as
+built-in Deployment query uses this to include an incoming path such as
 \`customer -> CDN -> load balancer -> service\` while keeping every segment's
 real physical endpoints.
 
@@ -4502,7 +4503,7 @@ An abridged response remains ordinary JSON:
 }
 \`\`\`
 
-For an unrolled physical C4 segment, the outer and nested endpoints should
+For an unrolled physical deployment segment, the outer and nested endpoints should
 normally agree. A deliberate ownership rollup may make them differ. An edge is
 unexpected only after its outer endpoints, underlying edge, projection origin,
 and query clause have all been checked.
@@ -4541,7 +4542,7 @@ examples/builtin-views/no-filter.aiq
 examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
-examples/builtin-views/c4.aiq
+examples/builtin-views/deployment.aiq
 \`\`\`
 
 C1 usually selects systems in the selected context and rolls lower-level links
@@ -4553,7 +4554,7 @@ relationships, and includes external systems through optional/rollup matches.
 C3 usually starts from \`(container:ContainerElement)-[:CONTAINS]->(component)\`
 and returns component relationships.
 
-C4 selects deployment nodes and physically deployed logical nodes from \`$tab\`,
+Deployment selects deployment nodes and physically deployed logical nodes from \`$tab\`,
 uses \`OPTIONAL MATCH ROLLUP\`, and returns projected relationships rather than
 their raw logical wires.
 
@@ -4575,7 +4576,7 @@ the filter or grouping deliberately.
 function genericQueryRecipesReference(): string {
   return `# Query Recipes and Built-In View Customization
 
-Use this reference when a built-in C1/C2/C3/C4 view is close but not quite right:
+Use this reference when a built-in C1, C2, C3, or Deployment view is close but not quite right:
 an expected element is hidden, a relationship is missing, an unexpected edge
 appears, infrastructure is too noisy, or the diagram needs a different scope.
 
@@ -4588,7 +4589,7 @@ examples/builtin-views/no-filter.aiq
 examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
-examples/builtin-views/c4.aiq
+examples/builtin-views/deployment.aiq
 \`\`\`
 
 Before inventing a query from scratch, open the nearest built-in query, copy it
@@ -4611,7 +4612,7 @@ Write or adjust a \`.aiq\` query when:
   broader query;
 - the built-in query returns a node or edge outside the intended view scope;
 - the source/tab scope is right but the view intentionally filters out a type;
-- C4 should include actors, vendors, or a special deployment path;
+- Deployment should include actors, vendors, or a special deployment path;
 - the diagram should show only one layer, one flow, or one relationship class;
 - grouping needs to change, such as grouping by parent instead of \`runsOn\`.
 
@@ -4653,7 +4654,7 @@ archinsight structure . --format text
 3. Run the built-in query explicitly and inspect its JSON:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.aiq -f json
+archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/deployment.aiq -f json
 \`\`\`
 
 4. Check the query filters:
@@ -4661,17 +4662,17 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/c4.
 - \`node.sourceIdentity = $tab\` selects the semantic fragment rooted in the
   selected source, including contributions added to those roots through
   \`extend\` in other files.
-- The built-in C4 node filter includes deployment elements and logical
+- The built-in Deployment node filter includes deployment elements and logical
   container or external elements whose deployment resolves to physical
   infrastructure. External endpoints without their own placement still enter
   through projected paths attached to a deployed logical node.
 - \`{projected}\` means only deployment-projected edges are selected.
 - \`{derived}\` means only rolled-up relationships are selected.
 - A relationship property such as \`sourceIdentity: $tab\` is available for a
-  deliberately narrow custom view. The current built-in C4 query does not add
+  deliberately narrow custom view. The current built-in Deployment query does not add
   that edge filter; the selected node scope and semantic tab closure provide
   the boundary.
-- The built-in C4 view also returns the target-side incoming projection aliases
+- The built-in Deployment view also returns the target-side incoming projection aliases
   \`incomingProjectedLink\` and \`incomingProjectedSource\`. The rollup match uses
   projection origin metadata to find every ingress segment while preserving
   the real physical endpoints of each segment.
@@ -4698,25 +4699,25 @@ node or edge.
    is not, investigate the renderer or layout instead of changing the model.
 
 \`ROLLUP\` can intentionally select ancestor endpoints for an ownership-level
-view. That is not a new model wire. A C4 physical segment, however, must retain
+view. That is not a new model wire. A physical deployment segment, however, must retain
 its actual physical endpoints; projection origin metadata is for discovery and
 traceability, not for inventing a direct physical connection.
 
-## Include Internal Actors In C4
+## Include Internal Actors In Deployment
 
-The built-in C4 query includes external actors reached by a projected physical
+The built-in Deployment query includes external actors reached by a projected physical
 path. If a deployment diagram also needs internal actors, use the bundled,
 tested customization:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q examples/queries/c4-internal-actors.aiq -f json
+archinsight query . -c <context-id> -s <source.ai> -q examples/queries/deployment-internal-actors.aiq -f json
 \`\`\`
 
-This query is generated from the exact built-in C4 source and changes only the
+This query is generated from the exact built-in Deployment source and changes only the
 node, projected-target, and incoming-source predicates to admit \`Actor\`.
 Because the rest comes from the current built-in query, deployment targets,
 incoming paths, and infrastructure-to-infrastructure projected path segments
-stay synchronized with C4 behavior.
+stay synchronized with Deployment behavior.
 
 If the actor is declared in another source file, either render from that source
 or relax the \`node.sourceIdentity = $tab\` condition intentionally.
@@ -4738,7 +4739,7 @@ This is useful for event-stream, broker, queue, or notification diagrams. Add
 
 ## Hide Deployment Infrastructure
 
-When a C4-oriented source file is too noisy and you only need logical containers
+When a deployment-oriented source file is too noisy and you only need logical containers
 or services, select logical container elements and direct logical relationships:
 
 \`\`\`cypher
@@ -4749,12 +4750,12 @@ GROUP BY node.parent
 RETURN node, link, target
 \`\`\`
 
-This is intentionally closer to C2 than C4. Use it when deployment annotations
+This is intentionally closer to C2 than the Deployment view. Use it when deployment annotations
 exist in the file but the diagram question is still logical.
 
 ## Projected Edges Across Split Files
 
-The current built-in C4 query matches \`{projected}\` edges without an explicit
+The current built-in Deployment query matches \`{projected}\` edges without an explicit
 \`sourceIdentity: $tab\` relationship filter. The query engine expands \`$tab\`
 to the roots declared by the selected source and contributions made to those
 roots through \`extend\`, so a normal multi-file split does not require a looser
@@ -4765,7 +4766,7 @@ filter while keeping the node scope. Start again from the bundled current query
 instead of preserving the rest of the older copy:
 
 \`\`\`text
-copy examples/builtin-views/c4.aiq to the project's query directory
+copy examples/builtin-views/deployment.aiq to the project's query directory
 remove sourceIdentity: $tab only from the relationship selector if an old copy has it
 keep node.sourceIdentity = $tab
 \`\`\`
@@ -4776,8 +4777,8 @@ by the tab before changing the model or broadening the node scope.
 
 ## Change Grouping
 
-Grouping controls visual clusters. If C4 grouping by \`runsOn\` is not helpful,
-copy the complete current \`examples/builtin-views/c4.aiq\` and change only:
+Grouping controls visual clusters. If Deployment grouping by \`runsOn\` is not helpful,
+copy the complete current \`examples/builtin-views/deployment.aiq\` and change only:
 
 \`\`\`cypher
 GROUP BY node.parent
@@ -4785,7 +4786,7 @@ GROUP BY node.parent
 
 Use \`GROUP BY node.runsOn\` for deployment placement; use \`GROUP BY node.parent\`
 for logical ownership. If you still need target-owned ingress paths, start from
-\`examples/builtin-views/c4.aiq\` and change only the \`GROUP BY\` expression so
+\`examples/builtin-views/deployment.aiq\` and change only the \`GROUP BY\` expression so
 the incoming projection aliases stay in the \`RETURN\`.
 
 ## Working Rule
@@ -5061,7 +5062,7 @@ system storefront
 `;
 }
 
-function genericC4DeploymentFrameworkExample(): string {
+function genericDeploymentFrameworkExample(): string {
   return `define type ApplicationEnvironment of Environment
     ServiceProvider cloud
     Compute compute
@@ -5088,7 +5089,7 @@ define type Monitoring of InfrastructureComponent
 `;
 }
 
-function genericC4DeploymentInfrastructureExample(): string {
+function genericDeploymentInfrastructureExample(): string {
   return `environment eu
     name = Europe
 
@@ -5161,7 +5162,7 @@ deployment production
 `;
 }
 
-function genericC4DeploymentExample(): string {
+function genericDeploymentExample(): string {
   return `context deployment_shop
     name = Deployment Shop
 
@@ -5217,10 +5218,10 @@ system storefront
 `;
 }
 
-function genericC4PrivateGatewayExampleFiles(): readonly GeneratedFile[] {
+function genericDeploymentPrivateGatewayExampleFiles(): readonly GeneratedFile[] {
   return [
     {
-      path: "examples/c4-private-gateway/deployment-framework.ai",
+      path: "examples/deployment-private-gateway/deployment-framework.ai",
       content: `define type PrivateGateway of NetworkConnection
     constructor privateGateway
 
@@ -5234,7 +5235,7 @@ define type PrivateGatewayEnvironment of Environment
 `,
     },
     {
-      path: "examples/c4-private-gateway/source-infra.ai",
+      path: "examples/deployment-private-gateway/source-infra.ai",
       content: `environment source_env
     name = Source Environment
 
@@ -5249,7 +5250,7 @@ deployment production
 `,
     },
     {
-      path: "examples/c4-private-gateway/target-infra.ai",
+      path: "examples/deployment-private-gateway/target-infra.ai",
       content: `environment target_env
     name = Target Environment
 
@@ -5266,7 +5267,7 @@ deployment production
 `,
     },
     {
-      path: "examples/c4-private-gateway/source-system.ai",
+      path: "examples/deployment-private-gateway/source-system.ai",
       content: `context services
 
 import target from context services
@@ -5298,7 +5299,7 @@ system source_system
 `,
     },
     {
-      path: "examples/c4-private-gateway/target-system.ai",
+      path: "examples/deployment-private-gateway/target-system.ai",
       content: `context services
 
 deploymentProfile target_profile
@@ -5317,7 +5318,7 @@ system target_system
 `,
     },
     {
-      path: "examples/c4-private-gateway/external.ai",
+      path: "examples/deployment-private-gateway/external.ai",
       content: `context external
 
 external system payment
