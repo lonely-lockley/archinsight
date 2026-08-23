@@ -199,5 +199,5 @@ function indexEnumValues(enums: readonly EnumDefinition[]): ReadonlyMap<string, 
 }
 
 function isScalarType(type: string): boolean {
-  return type === "Text" || type === "text";
+  return type === "Text";
 }

@@ -2105,7 +2105,7 @@ function resolveAttributes(
       });
       continue;
     }
-    if (attribute.type === "Text" || attribute.type === "text") {
+    if (attribute.type === "Text") {
       continue;
     }
     const enumValues = typeSystem.enumValues(attribute.type);
@@ -2150,7 +2150,7 @@ function resolveAttributes(
       });
       continue;
     }
-    if (expectedType === undefined || expectedType === "Text" || expectedType === "text") {
+    if (expectedType === undefined || expectedType === "Text") {
       continue;
     }
     const enumValues = typeSystem.enumValues(expectedType);

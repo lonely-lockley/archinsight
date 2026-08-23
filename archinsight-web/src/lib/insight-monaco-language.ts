@@ -32,7 +32,7 @@ const keywordTokens = new Set([
 ]);
 
 const declarationKeywordTokens = new Set(['CONSTRUCTOR', 'REQUIRED']);
-const typeTokens = new Set(['LIST_TYPE', 'TEXT_TYPE', 'TYPE_IDENTIFIER']);
+const typeTokens = new Set(['LIST_TYPE', 'TYPE_IDENTIFIER']);
 const neutralSymbolTokens = new Set(['ANONYMOUS_ATTRIBUTE', 'COLON', 'EQ', 'LPAREN', 'RPAREN']);
 const annotationTokens = new Set([
   'ATTRIBUTE_ANNOTATION',

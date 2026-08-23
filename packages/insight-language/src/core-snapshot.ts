@@ -46,7 +46,7 @@ interface MutableTypeDefinition {
   declaration?: SourceLocation;
 }
 
-const BUILTIN_TYPES = ["Element", "Edge", "Nothing", "List", "Text", "text", "TypeSlotReference"] as const;
+const BUILTIN_TYPES = ["Element", "Edge", "Nothing", "List", "Text", "TypeSlotReference"] as const;
 const BUILTIN_LANGUAGE_SNAPSHOT: LanguageSnapshot = {
   schemaVersion: "<builtins>",
   types: BUILTIN_TYPES.map((name) => name === "TypeSlotReference"
@@ -616,9 +616,6 @@ function attributeType(reference: TypeReferenceContext): Omit<AttributeDefinitio
 }
 
 function typeReference(reference: TypeReferenceContext): { readonly type: string; readonly argument?: string } {
-  if (reference.scalarType() !== null) {
-    return { type: "text" };
-  }
   if (reference.LIST_TYPE() !== null) {
     const argument = reference.typeReference();
     return { type: "List", ...(argument === null ? {} : { argument: typeReference(argument).type }) };

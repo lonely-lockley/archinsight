@@ -163,7 +163,6 @@ function definitionItems(
     return [
       type("List of "),
       type("Text "),
-      type("text "),
       ...[...visibleTypes].map((name) => type(`${name} `)),
     ];
   }
@@ -413,7 +412,6 @@ function expectsPresentationBodyItem(line: LineContext, syntax: SyntaxContext): 
     && (rule(syntax, "presentationBodyItem")
       || rule(syntax, "definePresentationDeclaration")
       || rule(syntax, "extendPresentationDeclaration")
-      || token(syntax, "TEXT_TYPE")
       || token(syntax, "TYPE")
       || token(syntax, "OPERATOR")
       || token(syntax, "ENUM")
@@ -672,7 +670,6 @@ function expectsTypeReference(syntax: SyntaxContext): boolean {
   return rule(syntax, "typeReference")
     || rule(syntax, "typeUnion")
     || rule(syntax, "typeIdentifier")
-    || rule(syntax, "scalarType")
     || ["OF", "ON", "OR", "REQUIRED"].includes(syntax.previousToken?.type ?? "");
 }
 
@@ -877,7 +874,6 @@ function slotAttributeItemsForType(
       const valueType = referenceAttributeValueType(attribute);
       return valueType !== undefined
         && valueType !== "Text"
-        && valueType !== "text"
         && typeSystem.enumValues(valueType).length === 0;
     })
     .map((attribute) => attributeItem(attribute.name));

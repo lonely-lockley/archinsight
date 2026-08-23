@@ -69,7 +69,7 @@ const keywordTokens = new Set([
 ]);
 
 const declarationKeywordTokens = new Set(["CONSTRUCTOR", "REQUIRED"]);
-const typeTokens = new Set(["LIST_TYPE", "TEXT_TYPE", "TYPE_IDENTIFIER"]);
+const typeTokens = new Set(["LIST_TYPE", "TYPE_IDENTIFIER"]);
 const annotationTokens = new Set([
   "ATTRIBUTE_ANNOTATION",
   "PLANNED_ANNOTATION",

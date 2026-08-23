@@ -3279,7 +3279,6 @@ function minimalArchitectureSnapshot() {
       { name: "Wire", baseType: "Edge" },
       { name: "Edge" },
       { name: "Text" },
-      { name: "text" },
     ],
     constructors: [
       { spelling: "context", ownerType: "Context" },

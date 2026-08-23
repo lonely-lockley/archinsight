@@ -69,7 +69,7 @@ interface SkillPackage {
   readonly files: readonly GeneratedFile[];
 }
 
-const hiddenStructureTypes = new Set(["List", "Nothing", "Text", "text"]);
+const hiddenStructureTypes = new Set(["List", "Nothing", "Text"]);
 const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
 
 function textFileContent(content: string): string {
@@ -1763,6 +1763,10 @@ Type names begin with an uppercase ASCII letter. Object ids, attributes, enum
 values, and word-based constructors and operators begin with a lowercase ASCII
 letter. Later characters may be ASCII letters, digits, or underscores. Names
 cannot begin with a digit or contain spaces.
+
+\`Text\` is the built-in scalar type and follows the same uppercase type-name
+rule. Lowercase \`text\` remains a valid attribute or presentation property name,
+but it is not a type name.
 
 Use every name with its declared case. Keep object ids stable because imports,
 extensions, links, queries, and generated navigation refer to those identities.

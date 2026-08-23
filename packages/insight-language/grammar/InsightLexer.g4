@@ -42,7 +42,6 @@ EXTEND      : 'extend';
 PRESENTATION: 'presentation';
 TYPE        : 'type';
 OPERATOR    : 'operator';
-TEXT_TYPE   : 'text';
 ENUM        : 'enum';
 OF          : 'of';
 OR          : 'or';

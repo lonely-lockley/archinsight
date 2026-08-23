@@ -179,7 +179,6 @@ presentationAssignment
 presentationPropertyIdentifier
     : TYPE_IDENTIFIER
     | IDENTIFIER
-    | TEXT_TYPE
     | TYPE
     | OPERATOR
     | ENUM
@@ -299,13 +298,8 @@ typeUnion
     ;
 
 typeReference
-    : scalarType
-    | LIST_TYPE (OF typeReference)?
+    : LIST_TYPE (OF typeReference)?
     | typeIdentifier (OF typeReference)?
-    ;
-
-scalarType
-    : TEXT_TYPE
     ;
 
 typeIdentifier

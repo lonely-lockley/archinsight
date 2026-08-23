@@ -53,6 +53,8 @@ Language keywords have fixed meanings and are not available as ordinary names wh
 
 Case is part of every name. `PublicApi` is a type name, `publicApi` can be its constructor, and `public_api` is a separate identifier. References, imports, extensions, and queries must use the declared spelling.
 
+`Text` is the built-in scalar type and follows the same uppercase type-name rule. Lowercase `text` remains available as an attribute or presentation property name, but it is not valid in a type position.
+
 ### Context and environment sources
 
 Every architecture file has one root scope. A logical architecture source begins with `context`:
