@@ -39,12 +39,12 @@ MATCH (source:Service)-[dependency:REFERENCES]->(target:Element)
 RETURN source, dependency, target
 ```
 
-Parentheses describe nodes, square brackets describe a relationship, names before `:` bind aliases, and names after `:` select labels or relationship kinds. The closing `->` or `-` determines how the relationship is matched.
+Parentheses describe nodes, square brackets describe a relationship, names before `:` bind aliases, and names after `:` select labels or relationship kinds. The surrounding `->`, `<-`, or `-` syntax determines how the relationship is matched.
 
 Archinsight queries are not fully compatible with Cypher. The current language supports:
 
 - `MATCH` and `OPTIONAL MATCH` clauses;
-- directed outgoing patterns written with `->` and undirected matching patterns written with `-`;
+- directed outgoing patterns written with `->`, directed incoming patterns written with `<-`, and undirected matching patterns written with `-`;
 - node labels and relationship kinds;
 - node and relationship property predicates;
 - one `WHERE` expression attached to each match clause;
@@ -56,7 +56,7 @@ Archinsight queries are not fully compatible with Cypher. The current language s
 - one `GROUP BY` expression;
 - `RETURN` of bound aliases.
 
-The current grammar has no mutation clauses, aggregation functions, variable-length paths, reverse-arrow syntax, subqueries, ordering, pagination, or general Cypher expression language. `RETURN` selects previously bound aliases rather than computing arbitrary projections.
+The current grammar has no mutation clauses, aggregation functions, variable-length paths, subqueries, ordering, pagination, or general Cypher expression language. `RETURN` selects previously bound aliases rather than computing arbitrary projections.
 
 ## Built-in scope variables
 
@@ -155,6 +155,13 @@ MATCH (caller:Service)-[dependency:REFERENCES]->(callee:Service)
 RETURN caller, dependency, callee
 ```
 
+The reverse form places the target first and selects incoming relationships:
+
+```cypher
+MATCH (service:Service {id: 'checkout_api'})<-[dependency:REFERENCES]-(caller:Element)
+RETURN service, dependency, caller
+```
+
 An undirected pattern finds relationships touching either side:
 
 ```cypher
@@ -163,7 +170,7 @@ OPTIONAL MATCH (service)-[dependency:REFERENCES]-(related:Element)
 RETURN service, dependency, related
 ```
 
-For an authored relationship `caller -> callee`, binding `caller` on the left finds `callee`, while binding `callee` on the left finds `caller`. In both cases query JSON and rendering keep the relationship as `caller -> callee`. The syntax changes matching direction; it does not create an undirected architecture relationship. Self-references are returned once, and parallel authored relationships remain separate.
+For an authored relationship `caller -> callee`, `(caller)-[dependency]->(callee)` and `(callee)<-[dependency]-(caller)` select the same edge. The undirected form can begin with either endpoint. All three forms keep the relationship as `caller -> callee` in query JSON and rendering. Pattern syntax controls matching and never rewrites the architecture relationship. Self-references are returned once, and parallel authored relationships remain separate.
 
 Ordinary relationship patterns select direct, non-derived, non-projected relationships. Exact and inclusive edge selectors are written inside the relationship property block:
 

@@ -4539,6 +4539,13 @@ WHERE source.context = $context
 RETURN source, link, target
 \`\`\`
 
+Use a reverse pattern for incoming-only relationships:
+
+\`\`\`cypher
+MATCH (service:Service {id: 'checkout_api'})<-[link:REFERENCES]-(caller:Element)
+RETURN service, link, caller
+\`\`\`
+
 Use an undirected pattern to inspect the complete neighborhood of a bound
 element:
 
@@ -4548,13 +4555,12 @@ OPTIONAL MATCH (service)-[link:REFERENCES]-(related:Element)
 RETURN service, link, related
 \`\`\`
 
-The pattern matches a stored edge from either endpoint. It never reverses the
-edge: outer query endpoints, nested linked endpoints, and rendering retain the
-authored or projected source-to-target direction. A self-reference appears
-once, while parallel authored relationships remain distinct.
-
-Reverse-arrow \`<-\` patterns are not supported. Use the undirected form for a
-complete neighborhood and keep \`->\` for outgoing-only questions.
+Use \`->\` for outgoing-only questions, \`<-\` for incoming-only questions, and
+\`-\` for a complete neighborhood. These patterns change matching orientation
+without reversing the stored edge: outer query endpoints, nested linked
+endpoints, and rendering retain the authored or projected source-to-target
+direction. A self-reference appears once, while parallel authored
+relationships remain distinct.
 
 Use \`OPTIONAL MATCH\` when nodes should still appear even if a relationship is
 missing:
@@ -4630,8 +4636,8 @@ pattern. A component relationship can therefore be viewed between its
 containers or systems without adding another wire to the model. The
 relationship alias retains the underlying linked edge while its outer query
 \`source\` and \`target\` describe the endpoints selected for this view.
-An undirected \`MATCH ROLLUP\` may bind from either endpoint and still preserves
-the stored source-to-target direction.
+Reverse and undirected \`MATCH ROLLUP\` patterns change which endpoint is bound
+first while preserving the stored source-to-target direction.
 
 For a projected physical path, \`ROLLUP\` can also use \`originSource\` and
 \`originTarget\` to discover path segments belonging to a logical wire. The

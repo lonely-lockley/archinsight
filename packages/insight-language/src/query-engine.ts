@@ -29,7 +29,7 @@ interface QueryPattern {
   readonly left: NodePattern;
   readonly relationship?: RelationshipPattern;
   readonly right?: NodePattern;
-  readonly direction?: "outgoing" | "undirected";
+  readonly direction?: "outgoing" | "incoming" | "undirected";
 }
 
 interface MatchClause {
@@ -486,19 +486,20 @@ function rollupOrientations(
     targetBound: boundRight,
     reversed: false,
   };
+  const incoming: RollupOrientation = {
+    sourcePattern: right,
+    sourceBound: boundRight,
+    targetPattern: pattern.left,
+    targetBound: boundLeft,
+    reversed: true,
+  };
+  if (pattern.direction === "incoming") {
+    return [incoming];
+  }
   if (pattern.direction !== "undirected") {
     return [outgoing];
   }
-  return [
-    outgoing,
-    {
-      sourcePattern: right,
-      sourceBound: boundRight,
-      targetPattern: pattern.left,
-      targetBound: boundLeft,
-      reversed: true,
-    },
-  ];
+  return [outgoing, incoming];
 }
 
 function relationshipOrientations(
@@ -506,6 +507,9 @@ function relationshipOrientations(
   target: QueryNode,
   direction: QueryPattern["direction"],
 ): readonly { readonly left: QueryNode; readonly right: QueryNode }[] {
+  if (direction === "incoming") {
+    return [{ left: target, right: source }];
+  }
   if (direction !== "undirected" || source.id === target.id) {
     return [{ left: source, right: target }];
   }
@@ -1398,7 +1402,7 @@ function tokenizeQuery(source: string): readonly QueryToken[] {
       continue;
     }
     const two = source.slice(index, index + 2);
-    if (two === "->" || two === "<>") {
+    if (two === "->" || two === "<-" || two === "<>") {
       tokens.push({ kind: "symbol", text: two });
       index += 2;
       continue;
@@ -1460,17 +1464,21 @@ class QueryParser {
 
   private parsePattern(): QueryPattern {
     const left = this.parseNodePattern();
-    if (!this.consumeSymbol("-")) {
+    const incoming = this.consumeSymbol("<-");
+    if (!incoming && !this.consumeSymbol("-")) {
       return { left };
     }
     const relationship = this.parseRelationshipPattern();
-    const direction = this.consumeSymbol("->")
-      ? "outgoing"
-      : this.consumeSymbol("-")
-        ? "undirected"
-        : undefined;
+    const direction = incoming
+      ? this.consumeSymbol("-") ? "incoming" : undefined
+      : this.consumeSymbol("->")
+        ? "outgoing"
+        : this.consumeSymbol("-")
+          ? "undirected"
+          : undefined;
     if (direction === undefined) {
-      throw new Error(`Expected '->' or '-' after relationship pattern, found '${this.current().text}'`);
+      const expected = incoming ? "'-'" : "'->' or '-'";
+      throw new Error(`Expected ${expected} after relationship pattern, found '${this.current().text}'`);
     }
     return {
       left,

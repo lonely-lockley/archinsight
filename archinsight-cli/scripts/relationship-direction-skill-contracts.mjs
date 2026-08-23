@@ -9,7 +9,7 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(scriptDirectory, "..");
 const repositoryRoot = path.resolve(cliRoot, "..");
 const cliEntrypoint = path.join(cliRoot, "build", "index.js");
-const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "archinsight-undirected-skill-contracts-"));
+const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "archinsight-relationship-direction-skill-contracts-"));
 
 try {
   const output = path.join(temporaryRoot, "skill");
@@ -30,7 +30,10 @@ try {
 
   const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
   assert(queries.includes("(service)-[link:REFERENCES]-(related:Element)"));
-  assert.match(queries, /never reverses the\s+edge/);
+  assert(queries.includes("(service:Service {id: 'checkout_api'})<-[link:REFERENCES]-(caller:Element)"));
+  assert(queries.includes("`->` for outgoing-only questions"));
+  assert(queries.includes("`<-` for incoming-only questions"));
+  assert.match(queries, /without reversing the stored\s+edge/);
   assert(queries.includes("`{withDerived}`"));
   assert(queries.includes("`{withProjected}`"));
   assert(queries.includes("outer `derived` and `projected`"));
@@ -59,7 +62,7 @@ try {
   const noFilter = readFileSync(path.join(output, "examples", "builtin-views", "no-filter.aiq"), "utf8");
   assert(noFilter.includes("[link:REFERENCES]-(relatedElement)"));
 
-  console.log("undirected query skill contracts passed");
+  console.log("relationship direction skill contracts passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
