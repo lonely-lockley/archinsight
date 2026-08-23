@@ -96,6 +96,7 @@ interface ParsedElement {
   readonly constructor: string;
   readonly sourceName: string;
   readonly anonymous: boolean;
+  readonly synthetic?: boolean;
   graphElement?: boolean;
   projectionRoot?: boolean;
   readonly projectionRules: ProjectionRuleDefinition[];
@@ -533,6 +534,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       sourceIdentity: element.sourceName,
       declaration: sourceLocation(element.sourceName, element),
       ...(element.anonymous ? { anonymous: true } : {}),
+      ...(element.synthetic ? { synthetic: true } : {}),
       ...(element.parent === undefined ? {} : { parent: element.parent }),
       baseTypes: typeSystem.baseTypes(element.type),
       attributes: flattenAttributes(element.scalarAttributes, resolvedElementAttributes.get(element.id) ?? {}),
@@ -2529,6 +2531,7 @@ function cloneInfrastructureElement(
     localId,
     sourceName: owner.sourceName,
     anonymous: true,
+    synthetic: true,
     ...(parentId === undefined ? { parent: owner.id } : { parent: parentId }),
     scalarAttributes: {
       ...source.scalarAttributes,

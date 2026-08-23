@@ -731,7 +731,8 @@ function tabClosure(result: LinkProjectResult, tab: string | undefined): Readonl
     element.parent === undefined ? [] : [[element.id, element.parent]]
   ));
   return new Set(result.elements
-    .filter((element) => roots.has(element.id) || ancestors(element.id, parentByChild).some((ancestor) => roots.has(ancestor)))
+    .filter((element) => element.synthetic !== true
+      && (roots.has(element.id) || ancestors(element.id, parentByChild).some((ancestor) => roots.has(ancestor))))
     .map((element) => element.id));
 }
 
