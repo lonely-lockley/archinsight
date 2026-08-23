@@ -16,6 +16,5 @@ WHERE (incomingProjectedSource IS DeploymentElement
    OR (incomingProjectedSource IS ContainerElement AND incomingProjectedSource.deployed = true)
    OR incomingProjectedSource IS External)
   AND incomingProjectedSource.id <> node.id
-OPTIONAL MATCH (projectedPathSource:DeploymentElement)-[projectedPathLink {projected}]->(projectedPathTarget:DeploymentElement)
 GROUP BY node.runsOn
-RETURN node, deploymentTarget, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource, projectedPathSource, projectedPathLink, projectedPathTarget
+RETURN node, deploymentTarget, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource
