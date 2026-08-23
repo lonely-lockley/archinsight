@@ -27,7 +27,7 @@
     "generate:version": "node scripts/generate-version.mjs",
     "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs && npm run generate:version",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=build/index.js --external:@viz-js/viz",
-    "test:skill": "node scripts/skill-contracts.mjs && node scripts/relationship-direction-skill-contracts.mjs",
+    "test:skill": "node scripts/skill-contracts.mjs && node scripts/relationship-direction-skill-contracts.mjs && node scripts/text-type-skill-contracts.mjs",
     "check": "npm run build && npm run test:skill",
     "pack:dry": "npm pack --dry-run",
     "publish:npm": "npm publish --access public --tag next"

@@ -57,7 +57,7 @@ required Text name
 Text description
 ```
 
-The runtime recognizes both `Text` and the lowercase `text` spelling. Framework definitions use `Text` as the conventional public spelling. Text values remain attributes of their owner and do not become graph nodes.
+Type names are case-sensitive, so `Text` is the only valid spelling of this built-in type. Text values remain attributes of their owner and do not become graph nodes.
 
 ### `TypeSlotReference`
 

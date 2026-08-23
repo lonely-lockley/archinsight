@@ -1417,5 +1417,4 @@ const DEFINITION_RULES = new Set([
   "typeUnion",
   "typeReference",
   "typeIdentifier",
-  "scalarType",
 ]);
