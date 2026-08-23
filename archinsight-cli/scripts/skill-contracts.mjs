@@ -94,7 +94,7 @@ function verifySharedFiles(output) {
   const recipe = readFileSync(path.join(output, "examples", "queries", "deployment-internal-actors.aiq"), "utf8");
   assert(recipe.includes("OR node IS Actor"));
   assert(recipe.includes("deploymentTarget:InfrastructureComponent"));
-  assert(recipe.includes("projectedPathSource:DeploymentElement"));
+  assert.equal(recipe.includes("projectedPathSource:DeploymentElement"), false);
   assert(recipe.includes("incomingProjectedLink {projected}"));
 
   const importing = readFileSync(path.join(output, "references", "importing-models.md"), "utf8");
