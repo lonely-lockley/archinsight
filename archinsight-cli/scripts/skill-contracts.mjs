@@ -95,7 +95,8 @@ function verifySharedFiles(output) {
   assert(recipe.includes("OR node IS Actor"));
   assert(recipe.includes("deploymentTarget:InfrastructureComponent"));
   assert.equal(recipe.includes("projectedPathSource:DeploymentElement"), false);
-  assert(recipe.includes("incomingProjectedLink {projected}"));
+  assert(recipe.includes("projectedPeer IS Actor"));
+  assert(recipe.includes("[projectedLink:REFERENCES {projected}]-(projectedPeer:Element)"));
 
   const importing = readFileSync(path.join(output, "references", "importing-models.md"), "utf8");
   assert(importing.includes("Importing Existing Architecture Models"));

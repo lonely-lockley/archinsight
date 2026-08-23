@@ -94,15 +94,9 @@ function deploymentInternalActorsQuery(): string {
   );
   query = replaceExactlyOnce(
     query,
-    "   OR projectedTarget IS External",
-    "   OR projectedTarget IS External\n   OR projectedTarget IS Actor",
-    "Deployment internal-actor projected target filter",
-  );
-  query = replaceExactlyOnce(
-    query,
-    "   OR incomingProjectedSource IS External)",
-    "   OR incomingProjectedSource IS External\n   OR incomingProjectedSource IS Actor)",
-    "Deployment internal-actor incoming source filter",
+    "   OR projectedPeer IS External)",
+    "   OR projectedPeer IS External\n   OR projectedPeer IS Actor)",
+    "Deployment internal-actor projected peer filter",
   );
   return query;
 }
@@ -4545,6 +4539,23 @@ WHERE source.context = $context
 RETURN source, link, target
 \`\`\`
 
+Use an undirected pattern to inspect the complete neighborhood of a bound
+element:
+
+\`\`\`cypher
+MATCH (service:Service {id: 'checkout_api'})
+OPTIONAL MATCH (service)-[link:REFERENCES]-(related:Element)
+RETURN service, link, related
+\`\`\`
+
+The pattern matches a stored edge from either endpoint. It never reverses the
+edge: outer query endpoints, nested linked endpoints, and rendering retain the
+authored or projected source-to-target direction. A self-reference appears
+once, while parallel authored relationships remain distinct.
+
+Reverse-arrow \`<-\` patterns are not supported. Use the undirected form for a
+complete neighborhood and keep \`->\` for outgoing-only questions.
+
 Use \`OPTIONAL MATCH\` when nodes should still appear even if a relationship is
 missing:
 
@@ -4590,11 +4601,28 @@ Relationship selectors are boolean flags inside relationship braces:
 \`\`\`cypher
 OPTIONAL MATCH (node)-[derivedLink {derived}]->(target)
 OPTIONAL MATCH (node)-[projectedLink {projected}]->(target)
+OPTIONAL MATCH (node)-[neighborhood {withDerived}]-(target)
 OPTIONAL MATCH ROLLUP (node)-[rollupLink {derived}]->(target)
 \`\`\`
 
-Use \`{derived}\` for relationships derived from a lower-level authored edge.
-Use \`{projected}\` for relationships created by deployment projection.
+Exact selectors keep one relationship category:
+
+- no selector: direct, non-projected relationships;
+- \`{derived}\`: derived, non-projected relationships;
+- \`{projected}\`: direct projected relationships;
+- \`{derived, projected}\`: derived projected relationships.
+
+Inclusive selectors broaden one independent dimension:
+
+- \`{withDerived}\` includes direct and derived relationships while retaining
+  the default exclusion of projected relationships;
+- \`{withProjected}\` includes direct authored and direct projected relationships while
+  retaining the default exclusion of derived relationships;
+- \`{withDerived, withProjected}\` includes all four categories.
+
+Use an inclusive selector when the categories have the same meaning in the
+view. Keep separate Deployment clauses when logical wires, placements, and
+physical path segments need different predicates.
 
 \`ROLLUP\` is an operation on the match, not another selector. It walks
 containment ancestry and binds the nearest endpoint compatible with the node
@@ -4602,6 +4630,8 @@ pattern. A component relationship can therefore be viewed between its
 containers or systems without adding another wire to the model. The
 relationship alias retains the underlying linked edge while its outer query
 \`source\` and \`target\` describe the endpoints selected for this view.
+An undirected \`MATCH ROLLUP\` may bind from either endpoint and still preserves
+the stored source-to-target direction.
 
 For a projected physical path, \`ROLLUP\` can also use \`originSource\` and
 \`originTarget\` to discover path segments belonging to a logical wire. The
@@ -4625,10 +4655,11 @@ The top-level shape is:
 - \`groups\`: render groups created by \`GROUP BY\`;
 - \`externalElements\`: selected ids drawn outside the internal boundary.
 
-Each edge contains two endpoint pairs:
+Each edge contains its selected category and two endpoint pairs:
 
 - outer \`source\` and \`target\` are the endpoints that the selected graph will
   draw after rollup and grouping;
+- outer \`derived\` and \`projected\` preserve the category matched by the query;
 - nested \`edge.source\` and \`edge.target\` are the endpoints of the underlying
   linked or projected edge;
 - nested \`edge.originSource\` and \`edge.originTarget\`, when present, identify
@@ -4647,6 +4678,8 @@ An abridged response remains ordinary JSON:
     {
       "source": "shop/customer",
       "target": "eu/cloudfront",
+      "derived": false,
+      "projected": true,
       "edge": {
         "source": "shop/customer",
         "target": "eu/cloudfront",
@@ -4673,9 +4706,9 @@ and query clause have all been checked.
 \`\`\`cypher
 MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[link]->(target)
+OPTIONAL MATCH (container)-[link:REFERENCES {withDerived}]-(related)
 GROUP BY container.parent
-RETURN container, link, target
+RETURN container, link, related
 \`\`\`
 
 For deployment views, grouping by a typed reference attribute is valid:
@@ -4683,9 +4716,9 @@ For deployment views, grouping by a typed reference attribute is valid:
 \`\`\`cypher
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(target)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink:REFERENCES {projected}]-(related)
 GROUP BY node.runsOn
-RETURN node, projectedLink, target
+RETURN node, projectedLink, related
 \`\`\`
 
 Do not rely on implicit Graphviz clustering. Put grouping in the query when the
@@ -4700,21 +4733,25 @@ examples/builtin-views/no-filter.aiq
 examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
+examples/builtin-views/c4.aiq
 examples/builtin-views/deployment.aiq
 \`\`\`
 
-C1 usually selects systems in the selected context and rolls lower-level links
-up to system-level relationships.
+C1 selects systems in the selected context and uses one undirected inclusive
+neighborhood for direct and derived system-level relationships.
 
-C2 usually selects \`ContainerElement\` nodes in \`$tab\`, returns direct internal
-relationships, and includes external systems through optional/rollup matches.
+C2 selects \`ContainerElement\` nodes in \`$tab\` and uses undirected inclusive
+neighborhoods for container peers and explicitly external systems.
 
-C3 usually starts from \`(container:ContainerElement)-[:CONTAINS]->(component)\`
-and returns component relationships.
+C3 starts from \`(container:ContainerElement)-[:CONTAINS]->(component)\` and uses
+the same neighborhood shape for component and external-system relationships.
+
+C4 selects direct Code-element neighborhoods in either direction. Concrete code
+types and containment remain project-defined.
 
 Deployment selects deployment nodes and physically deployed logical nodes from \`$tab\`,
-uses \`OPTIONAL MATCH ROLLUP\`, and returns projected relationships rather than
-their raw logical wires.
+uses one undirected \`OPTIONAL MATCH ROLLUP\` for projected paths, and keeps
+placement lookup separate from relationship matching.
 
 When a built-in view is close but hides the wrong thing, read
 \`references/query-recipes.md\`, copy the nearest built-in \`.aiq\`, and change
@@ -4747,6 +4784,7 @@ examples/builtin-views/no-filter.aiq
 examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
+examples/builtin-views/c4.aiq
 examples/builtin-views/deployment.aiq
 \`\`\`
 
@@ -4830,10 +4868,10 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/dep
   deliberately narrow custom view. The current built-in Deployment query does not add
   that edge filter; the selected node scope and semantic tab closure provide
   the boundary.
-- The built-in Deployment view also returns the target-side incoming projection aliases
-  \`incomingProjectedLink\` and \`incomingProjectedSource\`. The rollup match uses
-  projection origin metadata to find every ingress segment while preserving
-  the real physical endpoints of each segment.
+- The built-in Deployment view uses one undirected \`MATCH ROLLUP\` for the
+  projected neighborhood. Projection origin metadata lets that clause find
+  ingress and egress segments while every segment preserves its real physical
+  source and target.
 
 ## Diagnose Unexpected Content
 
@@ -5536,13 +5574,11 @@ external system payment
 function genericC2QueryExample(): string {
   return `MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[internalLink]->(targetContainer:ContainerElement)
-OPTIONAL MATCH (container)-[outboundLink]->(externalSystem:SystemElement)
+OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(relatedContainer:ContainerElement)
+OPTIONAL MATCH (container)-[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)
 WHERE externalSystem IS External
-OPTIONAL MATCH (sourceSystem:SystemElement)-[inboundLink]->(container)
-WHERE sourceSystem IS External
 GROUP BY container.parent
-RETURN container, internalLink, targetContainer, outboundLink, externalSystem, inboundLink, sourceSystem
+RETURN container, containerLink, relatedContainer, externalLink, externalSystem
 `;
 }
 

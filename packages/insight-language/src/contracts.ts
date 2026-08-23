@@ -334,6 +334,8 @@ export interface RenderGraphEdge {
   readonly edge: LinkedEdge;
   readonly source: string;
   readonly target: string;
+  readonly derived: boolean;
+  readonly projected: boolean;
 }
 
 export interface RenderGraphGroup {

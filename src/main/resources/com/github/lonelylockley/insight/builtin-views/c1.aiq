@@ -1,8 +1,5 @@
 MATCH (system:SystemElement)
 WHERE system.context = $context
-OPTIONAL MATCH (system)-[realOutboundLink]->(externalSystem:SystemElement)
-OPTIONAL MATCH (sourceSystem:SystemElement)-[realInboundLink]->(system)
-OPTIONAL MATCH (system)-[rollupOutboundLink {derived}]->(rollupSystem:SystemElement)
-OPTIONAL MATCH (rollupSourceSystem:SystemElement)-[rollupInboundLink {derived}]->(system)
+OPTIONAL MATCH (system)-[link:REFERENCES {withDerived}]-(related:SystemElement)
 GROUP BY system.parent
-RETURN system, realOutboundLink, externalSystem, realInboundLink, sourceSystem, rollupOutboundLink, rollupSystem, rollupInboundLink, rollupSourceSystem
+RETURN system, link, related
