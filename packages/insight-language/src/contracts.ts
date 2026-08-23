@@ -175,6 +175,7 @@ export interface LinkedElement {
   readonly sourceIdentity: string;
   readonly declaration?: SourceLocation;
   readonly anonymous?: boolean;
+  readonly synthetic?: boolean;
   readonly parent?: string;
   readonly baseTypes: readonly string[];
   readonly attributes: Readonly<Record<string, readonly string[]>>;
