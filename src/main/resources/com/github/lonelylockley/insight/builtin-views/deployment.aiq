@@ -4,17 +4,13 @@ WHERE node.sourceIdentity = $tab
     OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))
 OPTIONAL MATCH (deploymentTarget:InfrastructureComponent)
 WHERE deploymentTarget IN node.uses OR deploymentTarget = node.runsOn
-OPTIONAL MATCH ROLLUP (node)-[projectedLink {projected}]->(projectedTarget:Element)
-WHERE projectedTarget IS DeploymentElement
-   OR (projectedTarget IS ContainerElement AND projectedTarget.deployed = true)
-   OR projectedTarget IS External
-OPTIONAL MATCH (node)-[directDeploymentLink]->(directDeploymentTarget:Element)
+OPTIONAL MATCH ROLLUP (node)-[projectedLink:REFERENCES {projected}]-(projectedPeer:Element)
+WHERE (projectedPeer IS DeploymentElement
+   OR (projectedPeer IS ContainerElement AND projectedPeer.deployed = true)
+   OR projectedPeer IS External)
+  AND projectedPeer.id <> node.id
+OPTIONAL MATCH (node)-[directDeploymentLink:REFERENCES]-(directDeploymentTarget:Element)
 WHERE node IS DeploymentElement
   AND (directDeploymentTarget IS DeploymentElement OR directDeploymentTarget IS External)
-OPTIONAL MATCH ROLLUP (incomingProjectedSource:Element)-[incomingProjectedLink {projected}]->(node)
-WHERE (incomingProjectedSource IS DeploymentElement
-   OR (incomingProjectedSource IS ContainerElement AND incomingProjectedSource.deployed = true)
-   OR incomingProjectedSource IS External)
-  AND incomingProjectedSource.id <> node.id
 GROUP BY node.runsOn
-RETURN node, deploymentTarget, projectedLink, projectedTarget, directDeploymentLink, directDeploymentTarget, incomingProjectedLink, incomingProjectedSource
+RETURN node, deploymentTarget, projectedLink, projectedPeer, directDeploymentLink, directDeploymentTarget

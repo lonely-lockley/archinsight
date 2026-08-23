@@ -39,12 +39,12 @@ MATCH (source:Service)-[dependency:REFERENCES]->(target:Element)
 RETURN source, dependency, target
 ```
 
-Parentheses describe nodes, square brackets describe a directed relationship, names before `:` bind aliases, and names after `:` select labels or relationship kinds.
+Parentheses describe nodes, square brackets describe a relationship, names before `:` bind aliases, and names after `:` select labels or relationship kinds. The surrounding `->`, `<-`, or `-` syntax determines how the relationship is matched.
 
 Archinsight queries are not fully compatible with Cypher. The current language supports:
 
 - `MATCH` and `OPTIONAL MATCH` clauses;
-- directed outgoing patterns written with `->`;
+- directed outgoing patterns written with `->`, directed incoming patterns written with `<-`, and undirected matching patterns written with `-`;
 - node labels and relationship kinds;
 - node and relationship property predicates;
 - one `WHERE` expression attached to each match clause;
@@ -52,11 +52,11 @@ Archinsight queries are not fully compatible with Cypher. The current language s
 - `=`, `<>`, `CONTAINS`, `IN`, `IS`, and `IS NOT` predicates;
 - list literals in expressions;
 - architecture-specific `ROLLUP` matching;
-- architecture-specific `derived` and `projected` relationship selectors;
+- architecture-specific exact and inclusive relationship selectors;
 - one `GROUP BY` expression;
 - `RETURN` of bound aliases.
 
-The current grammar has no mutation clauses, aggregation functions, variable-length paths, undirected relationships, reverse-arrow syntax, subqueries, ordering, pagination, or general Cypher expression language. `RETURN` selects previously bound aliases rather than computing arbitrary projections.
+The current grammar has no mutation clauses, aggregation functions, variable-length paths, subqueries, ordering, pagination, or general Cypher expression language. `RETURN` selects previously bound aliases rather than computing arbitrary projections.
 
 ## Built-in scope variables
 
@@ -148,14 +148,49 @@ A relationship alias exposes these built-in properties:
 
 Attributes declared on an Insight edge type are available in the same way as element attributes.
 
-Ordinary relationship patterns select direct, non-derived, non-projected relationships. Derived and projected edges are opt-in selectors written inside the relationship property block:
+The arrow controls how a relationship is matched. A directed pattern matches its stored source on the left and its stored target on the right:
+
+```cypher
+MATCH (caller:Service)-[dependency:REFERENCES]->(callee:Service)
+RETURN caller, dependency, callee
+```
+
+The reverse form places the target first and selects incoming relationships:
+
+```cypher
+MATCH (service:Service {id: 'checkout_api'})<-[dependency:REFERENCES]-(caller:Element)
+RETURN service, dependency, caller
+```
+
+An undirected pattern finds relationships touching either side:
+
+```cypher
+MATCH (service:Service {id: 'checkout_api'})
+OPTIONAL MATCH (service)-[dependency:REFERENCES]-(related:Element)
+RETURN service, dependency, related
+```
+
+For an authored relationship `caller -> callee`, `(caller)-[dependency]->(callee)` and `(callee)<-[dependency]-(caller)` select the same edge. The undirected form can begin with either endpoint. All three forms keep the relationship as `caller -> callee` in query JSON and rendering. Pattern syntax controls matching and never rewrites the architecture relationship. Self-references are returned once, and parallel authored relationships remain separate.
+
+Ordinary relationship patterns select direct, non-derived, non-projected relationships. Exact and inclusive edge selectors are written inside the relationship property block:
 
 ```cypher
 OPTIONAL MATCH (system)-[dependency:REFERENCES {derived}]->(target:SystemElement)
 OPTIONAL MATCH (service)-[path:REFERENCES {projected}]->(infrastructure:DeploymentElement)
+OPTIONAL MATCH (system)-[neighborhood:REFERENCES {withDerived}]-(related:SystemElement)
 ```
 
-The selector form `{derived}` is distinct from a property comparison such as `{context: $context}`. Selectors ask for one category of generated relationship and exclude the ordinary category.
+| Selector | Relationships matched |
+| --- | --- |
+| no selector | Direct, non-projected relationships |
+| `{derived}` | Derived, non-projected relationships only |
+| `{projected}` | Direct projected relationships only |
+| `{derived, projected}` | Derived projected relationships only |
+| `{withDerived}` | Direct and derived relationships, excluding projected relationships |
+| `{withProjected}` | Direct authored and direct projected relationships, excluding derived relationships |
+| `{withDerived, withProjected}` | Every derivation and projection category |
+
+Derivation and projection are independent dimensions. `withDerived` broadens only derivation, while `withProjected` broadens only projection. Exact selectors remain useful when a clause must return one category. Selector names without `:` are distinct from property comparisons such as `{context: $context}`.
 
 ## Writing queries step by step
 
@@ -288,11 +323,11 @@ Lower-level relationships can be viewed at a broader ownership level with `ROLLU
 ```cypher
 MATCH (system:SystemElement)
 WHERE system.context = $context
-OPTIONAL MATCH ROLLUP (system)-[dependency:REFERENCES {derived}]->(target:SystemElement)
-RETURN system, dependency, target
+OPTIONAL MATCH ROLLUP (system)-[dependency:REFERENCES]-(related:SystemElement)
+RETURN system, dependency, related
 ```
 
-Rollup walks the containment ancestry of the original endpoints and binds the nearest nodes compatible with the requested pattern. The resulting relationship is marked `derived`, while its underlying edge retains the original endpoints.
+Rollup walks the containment ancestry of the original endpoints and binds the nearest nodes compatible with the requested pattern. With an undirected pattern it can begin from either endpoint, but the rolled relationship keeps the stored source-to-target direction. The outer endpoints show the nodes chosen for this view, while the nested edge retains the original endpoints and category.
 
 For a projected physical path, projection-origin metadata can let a clause anchored to a logical endpoint discover all path segments that belong to its wire. Each returned segment still keeps its actual physical source and target. This allows an incoming path such as `customer → CDN → load balancer → service` to be selected from `service` without rewriting the intermediate hops into invented direct connections.
 
@@ -305,7 +340,7 @@ OPTIONAL MATCH (node)-[path:REFERENCES {projected}]->(target:DeploymentElement)
 RETURN node, path, target
 ```
 
-Derived and projected selectors can be combined in separate clauses when a view needs both ownership rollup and physical paths.
+Inclusive selectors can combine categories in one clause when they have the same view semantics. Deployment queries may still use separate clauses because logical wires, placement relationships, and physical path segments play different roles.
 
 ### 9. Group the result
 
@@ -332,9 +367,10 @@ archinsight query . -c <context> -s <source.ai> -v deployment --format json
 archinsight query . -c <context> -s <source.ai> -q query.aiq --format json
 ```
 
-The response contains `context`, an `elements` map keyed by query-visible qualified id, an `edges` array, render `groups`, and `externalElements`. Each selected edge has two endpoint pairs:
+The response contains `context`, an `elements` map keyed by query-visible qualified id, an `edges` array, render `groups`, and `externalElements`. Each selected edge keeps its query category and two endpoint pairs:
 
 - outer `source` and `target` are the endpoints that the selected graph will draw after query rollup and grouping;
+- outer `derived` and `projected` identify the relationship category matched by the query;
 - nested `edge.source` and `edge.target` are the endpoints of the underlying linked or projected edge;
 - nested `edge.originSource` and `edge.originTarget`, when present, identify the logical wire that produced a projected segment.
 
@@ -355,11 +391,11 @@ A practical view usually begins with required nodes, adds optional relationships
 ```cypher
 MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[internal:REFERENCES]->(target:ContainerElement)
-OPTIONAL MATCH (container)-[external:REFERENCES]->(externalSystem:SystemElement)
+OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(relatedContainer:ContainerElement)
+OPTIONAL MATCH (container)-[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)
 WHERE externalSystem IS External
 GROUP BY container.parent
-RETURN container, internal, target, external, externalSystem
+RETURN container, containerLink, relatedContainer, externalLink, externalSystem
 ```
 
 The first clause defines the stable center of the view. Each optional clause enriches those rows without removing containers that lack a particular relationship. `GROUP BY` describes the visual boundary, and `RETURN` determines which bound nodes and edges enter the render graph.

@@ -29,6 +29,7 @@ interface QueryPattern {
   readonly left: NodePattern;
   readonly relationship?: RelationshipPattern;
   readonly right?: NodePattern;
+  readonly direction?: "outgoing" | "incoming" | "undirected";
 }
 
 interface MatchClause {
@@ -127,7 +128,13 @@ export function selectGraph(
           selectedElements.set(edge.target, target);
         }
         if (edge.edge !== undefined) {
-          addSelectedEdge(selectedEdges, { edge: edge.edge, source: edge.source, target: edge.target });
+          addSelectedEdge(selectedEdges, {
+            edge: edge.edge,
+            source: edge.source,
+            target: edge.target,
+            derived: edge.derived,
+            projected: edge.projected,
+          });
         }
       }
     }
@@ -150,7 +157,7 @@ export function selectGraph(
     ? selectedEdges
     : result.edges
       .filter((edge) => edge.projected !== true && selectedElements.has(edge.source) && selectedElements.has(edge.target))
-      .map((edge) => ({ edge, source: edge.source, target: edge.target }));
+      .map((edge) => ({ edge, source: edge.source, target: edge.target, derived: false, projected: false }));
   const internalElementIds = new Set([...internalElements(result, rows, parsed)]
     .filter((id) => selectedElements.has(id)));
   const externalElements = [...selectedElements.keys()]
@@ -363,24 +370,26 @@ function matchRows(
       if (source === undefined || target === undefined) {
         continue;
       }
-      if (boundLeft !== undefined && boundLeft.id !== source.id) {
-        continue;
-      }
-      if (boundRight !== undefined && boundRight.id !== target.id) {
-        continue;
-      }
-      const nextRow: Row = {
-        nodes: {
-          ...row.nodes,
-          [pattern.left.alias]: source,
-          [right.alias]: target,
-        },
-        relationships: relationship.alias === undefined
-          ? row.relationships
-          : { ...row.relationships, [relationship.alias]: edge },
-      };
-      if (matchesNode(source, pattern.left, context) && matchesNode(target, right, context)) {
-        rows.push(nextRow);
+      for (const orientation of relationshipOrientations(source, target, pattern.direction)) {
+        if (boundLeft !== undefined && boundLeft.id !== orientation.left.id) {
+          continue;
+        }
+        if (boundRight !== undefined && boundRight.id !== orientation.right.id) {
+          continue;
+        }
+        const nextRow: Row = {
+          nodes: {
+            ...row.nodes,
+            [pattern.left.alias]: orientation.left,
+            [right.alias]: orientation.right,
+          },
+          relationships: relationship.alias === undefined
+            ? row.relationships
+            : { ...row.relationships, [relationship.alias]: edge },
+        };
+        if (matchesNode(orientation.left, pattern.left, context) && matchesNode(orientation.right, right, context)) {
+          rows.push(nextRow);
+        }
       }
     }
   }
@@ -413,43 +422,101 @@ function rollupMatchRows(
       if (!matchesRelationship(edge, relationship, context)) {
         continue;
       }
-      const sourceEndpoint = rollupSourceEndpoint(context, edge, pattern.left, boundLeft, parentByChild);
-      if (sourceEndpoint === undefined) {
-        continue;
-      }
-      for (const targetEndpoint of rollupTargetCandidates(context, edge, boundRight, parentByChild)) {
-        const source = queryNodeById(context.result, sourceEndpoint.id);
-        const target = queryNodeById(context.result, targetEndpoint.id);
-        if (source === undefined || target === undefined) {
+      for (const orientation of rollupOrientations(pattern, right, boundLeft, boundRight)) {
+        const sourceEndpoint = rollupSourceEndpoint(context, edge, orientation.sourcePattern, orientation.sourceBound, parentByChild);
+        if (sourceEndpoint === undefined) {
           continue;
         }
-        const nextRow: Row = {
-          nodes: {
-            ...row.nodes,
-            [pattern.left.alias]: sourceEndpoint.binding,
-            [right.alias]: targetEndpoint.binding,
-          },
-          relationships: relationship.alias === undefined
-            ? row.relationships
-            : {
-              ...row.relationships,
-              [relationship.alias]: {
-                ...edge,
-                source: source.id,
-                target: target.id,
-              },
+        for (const targetEndpoint of rollupTargetCandidates(context, edge, orientation.targetBound, parentByChild)) {
+          const source = queryNodeById(context.result, sourceEndpoint.id);
+          const target = queryNodeById(context.result, targetEndpoint.id);
+          if (source === undefined || target === undefined) {
+            continue;
+          }
+          const leftEndpoint = orientation.reversed ? targetEndpoint : sourceEndpoint;
+          const rightEndpoint = orientation.reversed ? sourceEndpoint : targetEndpoint;
+          const nextRow: Row = {
+            nodes: {
+              ...row.nodes,
+              [pattern.left.alias]: leftEndpoint.binding,
+              [right.alias]: rightEndpoint.binding,
             },
-        };
-        if (matchesNode(sourceEndpoint.binding, pattern.left, context)
-            && matchesNode(targetEndpoint.binding, right, context)
-            && evaluateExpression(nextRow, where, context)) {
-          rows.push(nextRow);
-          break;
+            relationships: relationship.alias === undefined
+              ? row.relationships
+              : {
+                ...row.relationships,
+                [relationship.alias]: {
+                  ...edge,
+                  source: source.id,
+                  target: target.id,
+                },
+              },
+          };
+          if (matchesNode(sourceEndpoint.binding, orientation.sourcePattern, context)
+              && matchesNode(targetEndpoint.binding, orientation.targetPattern, context)
+              && evaluateExpression(nextRow, where, context)) {
+            rows.push(nextRow);
+            break;
+          }
         }
       }
     }
   }
   return rows;
+}
+
+interface RollupOrientation {
+  readonly sourcePattern: NodePattern;
+  readonly sourceBound: QueryNode | undefined;
+  readonly targetPattern: NodePattern;
+  readonly targetBound: QueryNode | undefined;
+  readonly reversed: boolean;
+}
+
+function rollupOrientations(
+  pattern: QueryPattern,
+  right: NodePattern,
+  boundLeft: QueryNode | undefined,
+  boundRight: QueryNode | undefined,
+): readonly RollupOrientation[] {
+  const outgoing: RollupOrientation = {
+    sourcePattern: pattern.left,
+    sourceBound: boundLeft,
+    targetPattern: right,
+    targetBound: boundRight,
+    reversed: false,
+  };
+  const incoming: RollupOrientation = {
+    sourcePattern: right,
+    sourceBound: boundRight,
+    targetPattern: pattern.left,
+    targetBound: boundLeft,
+    reversed: true,
+  };
+  if (pattern.direction === "incoming") {
+    return [incoming];
+  }
+  if (pattern.direction !== "undirected") {
+    return [outgoing];
+  }
+  return [outgoing, incoming];
+}
+
+function relationshipOrientations(
+  source: QueryNode,
+  target: QueryNode,
+  direction: QueryPattern["direction"],
+): readonly { readonly left: QueryNode; readonly right: QueryNode }[] {
+  if (direction === "incoming") {
+    return [{ left: target, right: source }];
+  }
+  if (direction !== "undirected" || source.id === target.id) {
+    return [{ left: source, right: target }];
+  }
+  return [
+    { left: source, right: target },
+    { left: target, right: source },
+  ];
 }
 
 function rollupSourceEndpoint(
@@ -809,19 +876,25 @@ function matchesRelationship(edge: QueryRelationship, pattern: RelationshipPatte
   if (!Object.entries(pattern.properties).every(([name, value]) => matchesRelationshipProperty(edge, name, value, context))) {
     return false;
   }
-  if (!pattern.selectors.has("derived") && edge.derived) {
+  if (!matchesSelectorDimension(edge.derived, pattern.selectors, "derived", "withDerived")) {
     return false;
   }
-  if (pattern.selectors.has("derived") && !edge.derived) {
-    return false;
-  }
-  if (!pattern.selectors.has("projected") && edge.projected) {
-    return false;
-  }
-  if (pattern.selectors.has("projected") && !edge.projected) {
+  if (!matchesSelectorDimension(edge.projected, pattern.selectors, "projected", "withProjected")) {
     return false;
   }
   return true;
+}
+
+function matchesSelectorDimension(
+  value: boolean,
+  selectors: ReadonlySet<string>,
+  exact: string,
+  inclusive: string,
+): boolean {
+  if (selectors.has(exact)) {
+    return value;
+  }
+  return selectors.has(inclusive) || !value;
 }
 
 function matchesRelationshipProperty(edge: QueryRelationship, name: string, value: QueryValue, context: EvaluationContext): boolean {
@@ -1329,7 +1402,7 @@ function tokenizeQuery(source: string): readonly QueryToken[] {
       continue;
     }
     const two = source.slice(index, index + 2);
-    if (two === "->" || two === "<>") {
+    if (two === "->" || two === "<-" || two === "<>") {
       tokens.push({ kind: "symbol", text: two });
       index += 2;
       continue;
@@ -1391,15 +1464,27 @@ class QueryParser {
 
   private parsePattern(): QueryPattern {
     const left = this.parseNodePattern();
-    if (!this.consumeSymbol("-")) {
+    const incoming = this.consumeSymbol("<-");
+    if (!incoming && !this.consumeSymbol("-")) {
       return { left };
     }
     const relationship = this.parseRelationshipPattern();
-    this.expectSymbol("->");
+    const direction = incoming
+      ? this.consumeSymbol("-") ? "incoming" : undefined
+      : this.consumeSymbol("->")
+        ? "outgoing"
+        : this.consumeSymbol("-")
+          ? "undirected"
+          : undefined;
+    if (direction === undefined) {
+      const expected = incoming ? "'-'" : "'->' or '-'";
+      throw new Error(`Expected ${expected} after relationship pattern, found '${this.current().text}'`);
+    }
     return {
       left,
       relationship,
       right: this.parseNodePattern(),
+      direction,
     };
   }
 
