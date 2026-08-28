@@ -38,6 +38,7 @@ try {
   verifyExamples(codexOutput);
   verifyC4CodeContract(codexOutput);
   verifyDeploymentRecipeAndJsonContract(codexOutput);
+  verifyDeploymentProjectionContracts(codexOutput);
   console.log("agent skill contract fixtures passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
@@ -67,6 +68,7 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("references/analysis.md"));
   assert(content.includes("references/cli.md"));
   assert(content.includes("references/c4-code.md"));
+  assert.equal(occurrences(content, "references/deployment-projections.md"), 1);
   assert(content.includes("Infer and reuse an existing C4 Code vocabulary from the repository"));
   assert.match(content, /Ask the\s+user about entity kinds only when creating the Code layer or extending that\s+vocabulary/);
   assert.equal(content.includes("references/versioning.md"), false);
@@ -115,6 +117,36 @@ function verifySharedFiles(output) {
   const c4ImportGuidance = importing.slice(c4ImportStep, deploymentImportStep);
   assert(c4ImportGuidance.includes("Reuse that vocabulary without asking"));
   assert.match(c4ImportGuidance, /Ask\s+the user which entity kinds to model only when the project has no Code layer\s+or the import requires extending its vocabulary/);
+  assert.match(importing, /non-semantic Markdown working\s+artifact/);
+  assert(importing.includes("notes/<scope>-import.md"));
+  assert.match(importing, /does not participate in Insight parsing, linking, queries, or\s+rendering/);
+  assert.match(importing, /Finding a defect in an\s+authoritative source does not authorize silently correcting/);
+  assert.match(importing, /Repair the architecture only when the task explicitly includes repair/);
+
+  const modeling = readFileSync(path.join(output, "references", "modeling.md"), "utf8");
+  assert.match(modeling, /inventory alone does not place an async logical wire/);
+  assert(modeling.includes("built-in `Broker`"));
+  assert(modeling.includes("[Broker](deployment-projections.md#broker)"));
+
+  const deployment = readFileSync(path.join(output, "references", "deployment.md"), "utf8");
+  assert(deployment.includes("references/deployment-projections.md"));
+  assert.equal(deployment.includes("## Projection execution semantics"), false);
+
+  const projections = readFileSync(path.join(output, "references", "deployment-projections.md"), "utf8");
+  for (const heading of ["Gateway", "Storage", "Broker", "Egress", "Monitoring"]) {
+    assert(projections.includes(`## ${heading}`));
+  }
+  assert(projections.includes("A path made entirely from `connectTo`"));
+  assert(projections.includes("copy-on-write"));
+  assert(projections.includes("edge.projectionOrigins"));
+  assert(projections.includes("eu/telemetry branches independently"));
+  assert(projections.includes("[Eventing](modeling.md#eventing)"));
+  assert(projections.includes("[Scaling](scaling.md#framework-once-use-everywhere)"));
+
+  const scaling = readFileSync(path.join(output, "references", "scaling.md"), "utf8");
+  assert(scaling.includes("[Broker](deployment-projections.md#broker)"));
+  assert(scaling.includes("EventChannel events"));
+  verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md"]);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
   assert(analysis.includes("It is not a general graph analytics language"));
@@ -193,6 +225,9 @@ function verifyExamples(output) {
   runCli(["link", deploymentProject, "--format", "text"]);
   runCli(["link", path.join(examples, "deployment-private-gateway"), "--format", "text"]);
   runCli(["link", path.join(examples, "c4-code"), "--format", "text"]);
+  for (const slug of ["gateway", "storage", "broker", "egress", "monitoring"]) {
+    runCli(["link", path.join(examples, "deployment-projections", slug), "--format", "text"]);
+  }
 }
 
 function verifyC4CodeContract(output) {
@@ -272,6 +307,148 @@ function verifyDeploymentRecipeAndJsonContract(output) {
   assert(projected.length > 0);
   assert(projected.some((item) => item.edge.originSource && item.edge.originTarget));
   assert(projected.every((item) => item.source === item.edge.source && item.target === item.edge.target));
+}
+
+function verifyDeploymentProjectionContracts(output) {
+  const examples = path.join(output, "examples", "deployment-projections");
+  const gateway = projectionGraph(examples, "gateway", "gateway_example");
+  assertElements(gateway, ["gateway_example/customer", "gateway_example/api", "eu/edge_gateway", "eu/load_balancer"]);
+  assertProjectedEdge(gateway, "gateway_example/customer", "eu/edge_gateway", {
+    operator: "->",
+    originSource: "gateway_example/customer",
+    originTarget: "gateway_example/api",
+  });
+  const gatewayConnect = assertProjectedEdge(gateway, "eu/edge_gateway", "eu/load_balancer", {
+    operator: "connectTo",
+    originSource: "gateway_example/customer",
+    originTarget: "gateway_example/api",
+  });
+  assert.deepEqual(gatewayConnect.edge.attributes, { technology: ["HTTPS"] });
+
+  const storage = projectionGraph(examples, "storage", "storage_example");
+  assertElements(storage, ["storage_example/orders", "eu/postgres"]);
+  assertProjectedEdge(storage, "storage_example/orders", "eu/postgres", {
+    operator: "->",
+    originSource: "storage_example/orders",
+    originTarget: "storage_example/orders",
+  });
+
+  const broker = projectionGraph(examples, "broker", "broker_example");
+  const brokerDefinitions = readFileSync(path.join(examples, "broker", "definitions.ai"), "utf8");
+  const brokerModel = readFileSync(path.join(examples, "broker", "model.ai"), "utf8");
+  assert(brokerDefinitions.includes("EventChannel of NetworkConnection"));
+  assert(brokerDefinitions.includes("required Broker transport"));
+  assert(brokerModel.includes("uses events"));
+  assert.equal(brokerModel.includes("uses kafka"), false);
+  assertElements(broker, ["broker_example/publisher", "broker_example/consumer", "eu/kafka"]);
+  const producerHop = assertProjectedEdge(broker, "broker_example/publisher", "eu/kafka", {
+    operator: "connectTo",
+    originSource: "broker_example/consumer",
+    originTarget: "broker_example/publisher",
+  });
+  assert.deepEqual(producerHop.edge.attributes, { technology: ["Kafka"] });
+  const originalAsyncHop = assertProjectedEdge(broker, "eu/kafka", "broker_example/consumer", {
+    operator: "~>",
+    originSource: "broker_example/consumer",
+    originTarget: "broker_example/publisher",
+  });
+  assert.deepEqual(originalAsyncHop.edge.attributes.model, ["async"]);
+  assert.deepEqual(originalAsyncHop.edge.attributes.via, ["orders.created"]);
+  assert.deepEqual(originalAsyncHop.edge.attributes.technology, ["Kafka"]);
+  assert.deepEqual(originalAsyncHop.edge.attributes.description, ["Consumes order-created events"]);
+
+  const egress = projectionGraph(examples, "egress", "egress_example");
+  assertElements(egress, ["egress_example/client", "eu/nat_gateway", "providers/payment_api"]);
+  assertProjectedEdge(egress, "egress_example/client", "eu/nat_gateway", {
+    operator: "->",
+    originSource: "egress_example/client",
+    originTarget: "providers/payment_api",
+    sourceIdentity: "model.ai",
+  });
+  assertProjectedEdge(egress, "eu/nat_gateway", "providers/payment_api", {
+    operator: "connectTo",
+    originSource: "egress_example/client",
+    originTarget: "providers/payment_api",
+    sourceIdentity: "model.ai",
+  });
+
+  const monitoring = projectionGraph(examples, "monitoring", "monitoring_example");
+  assertElements(monitoring, ["monitoring_example/api", "eu/telemetry", "eu/prometheus", "eu/otel_collector"]);
+  assertProjectedEdge(monitoring, "eu/telemetry", "monitoring_example/api", {
+    operator: "connectTo",
+    originSource: "monitoring_example/api",
+    originTarget: "monitoring_example/api",
+  });
+  assertProjectedEdge(monitoring, "eu/telemetry", "eu/prometheus", {
+    operator: "connectTo",
+    originSource: "monitoring_example/api",
+    originTarget: "monitoring_example/api",
+  });
+  assertProjectedEdge(monitoring, "eu/telemetry", "eu/otel_collector", {
+    operator: "connectTo",
+    originSource: "monitoring_example/api",
+    originTarget: "monitoring_example/api",
+  });
+  assert.equal(edgeCount(monitoring, "eu/telemetry", "eu/prometheus"), 1);
+  assert.equal(edgeCount(monitoring, "eu/telemetry", "eu/otel_collector"), 1);
+}
+
+function projectionGraph(examples, slug, context) {
+  return JSON.parse(runCli([
+    "query",
+    path.join(examples, slug),
+    "--context",
+    context,
+    "--source",
+    "model.ai",
+    "--view",
+    "deployment",
+    "--format",
+    "json",
+  ]));
+}
+
+function assertProjectedEdge(graph, source, target, expected) {
+  const candidates = graph.edges.filter((item) => item.source === source && item.target === target);
+  assert.equal(candidates.length, 1, `expected one projected edge ${source} -> ${target}`);
+  const edge = candidates[0];
+  assert.equal(edge.projected, true);
+  assert.equal(edge.edge.projected, true);
+  for (const [key, value] of Object.entries(expected)) {
+    assert.equal(key.startsWith("origin") ? edge.edge[key] : edge.edge[key], value);
+  }
+  return edge;
+}
+
+function edgeCount(graph, source, target) {
+  return graph.edges.filter((item) => item.source === source && item.target === target).length;
+}
+
+function assertElements(graph, ids) {
+  for (const id of ids) {
+    assert(graph.elements[id], `expected projected graph element ${id}`);
+  }
+}
+
+function verifyReferenceLinks(output, referenceNames) {
+  const references = path.join(output, "references");
+  for (const name of referenceNames) {
+    const content = readFileSync(path.join(references, name), "utf8");
+    for (const match of content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+      const [relativePath, anchor] = match[1].split("#", 2);
+      const target = path.resolve(references, relativePath || name);
+      assert(existsSync(target), `${name} links to missing ${match[1]}`);
+      if (anchor !== undefined) {
+        const targetContent = readFileSync(target, "utf8");
+        const anchors = [...targetContent.matchAll(/^#{1,6}\s+(.+)$/gm)].map((heading) => markdownAnchor(heading[1]));
+        assert(anchors.includes(anchor), `${name} links to missing heading ${match[1]}`);
+      }
+    }
+  }
+}
+
+function markdownAnchor(heading) {
+  return heading.trim().toLowerCase().replace(/[`*_]/g, "").replace(/[^a-z0-9 -]/g, "").replace(/\s+/g, "-");
 }
 
 function copyDeploymentProject(examples, directoryName) {
