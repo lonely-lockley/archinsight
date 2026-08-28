@@ -240,7 +240,15 @@ WHERE node IS ContainerElement
 RETURN node
 ```
 
-`External` is a built-in semantic predicate based on the element's resolved external kind.
+`External` is a built-in semantic predicate based on the element's resolved model kind. It matches declarations created with `external actor` or `external system`. Relative externality in a built-in C1-C4 view is carried separately by the resulting render graph and does not change this predicate in custom queries.
+
+A custom CLI query can request the same boundary handling by combining its query file with a view:
+
+```shell
+archinsight query . -c commerce -s storefront.ai -v c2 -q dependencies.aiq --format json
+```
+
+The query still evaluates `IS External` against the explicit model marker. After selection, C2 boundary handling folds relationships leaving the opened systems and records those endpoints in `externalElements`. Omitting `-v` leaves the custom query independent of a built-in view.
 
 ### 4. Follow outgoing relationships
 
@@ -367,7 +375,7 @@ archinsight query . -c <context> -s <source.ai> -v deployment --format json
 archinsight query . -c <context> -s <source.ai> -q query.aiq --format json
 ```
 
-The response contains `context`, an `elements` map keyed by query-visible qualified id, an `edges` array, render `groups`, and `externalElements`. Each selected edge keeps its query category and two endpoint pairs:
+The response contains `context`, an `elements` map keyed by query-visible qualified id, an `edges` array, render `groups`, and `externalElements`. In built-in C1-C4 views, `externalElements` includes both explicitly external declarations and endpoints outside the boundaries opened by that view. A closed endpoint is folded to the system at C2, the container or service at C3, and the component at C4. Each selected edge keeps its query category and two endpoint pairs:
 
 - outer `source` and `target` are the endpoints that the selected graph will draw after query rollup and grouping;
 - outer `derived` and `projected` identify the relationship category matched by the query;
@@ -391,11 +399,10 @@ A practical view usually begins with required nodes, adds optional relationships
 ```cypher
 MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(relatedContainer:ContainerElement)
-OPTIONAL MATCH (container)-[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)
-WHERE externalSystem IS External
+OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(related:Element)
+WHERE related IS ContainerElement OR related IS SystemElement
 GROUP BY container.parent
-RETURN container, containerLink, relatedContainer, externalLink, externalSystem
+RETURN container, containerLink, related
 ```
 
 The first clause defines the stable center of the view. Each optional clause enriches those rows without removing containers that lack a particular relationship. `GROUP BY` describes the visual boundary, and `RETURN` determines which bound nodes and edges enter the render graph.

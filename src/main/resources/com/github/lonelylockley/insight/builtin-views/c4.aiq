@@ -1,5 +1,6 @@
 MATCH (code:CodeElement)
 WHERE code.sourceIdentity = $tab
-OPTIONAL MATCH (code)-[link:REFERENCES]-(relatedCode:CodeElement)
+OPTIONAL MATCH (code)-[link:REFERENCES]-(related:Element)
+WHERE related IS CodeElement OR related IS ComponentElement OR related IS ContainerElement OR related IS SystemElement
 GROUP BY code.parent
-RETURN code, link, relatedCode
+RETURN code, link, related

@@ -328,9 +328,10 @@ async function loadProject(input: string): Promise<LoadedProject> {
 async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph> {
   const context = args.context ?? firstContext(project);
   const tab = selectedSource(project, args.tab);
-  const scope: QueryScope = { context, tab };
+  const view = args.view ?? (args.queryFile === undefined ? "c1" : undefined);
+  const scope: QueryScope = { context, tab, ...(view === undefined ? {} : { view }) };
   const query = args.queryFile === undefined
-    ? viewQueries[args.view ?? "c1"]
+    ? viewQueries[view ?? "c1"]
     : await readQueryFile(project.root, args.queryFile);
   return selectGraph(project.result, scope, query);
 }
@@ -2350,6 +2351,9 @@ outside systems does it depend on?"
 The built-in C1 query selects the complete context boundary. It shows all C1
 systems and actors in the selected context even when their declarations are
 split across several files; C1 is scoped by context rather than by one tab.
+Participating elements owned by another context are external to the C1 view,
+while an explicit \`external actor\` or \`external system\` remains external in
+every view.
 
 Do not include containers, services, components, databases, queues, or runtime
 nodes unless the project deliberately treats them as context-level systems. C1
@@ -2568,6 +2572,11 @@ Prefer one focal system per C2 source file. The built-in C2 view is scoped by
 the selected source file, so a C2 file should usually contain the selected
 \`system <id>\` declaration or an \`extend system <id>\` block with its
 containers/services.
+
+All systems rooted in the selected source are opened together. Their containers
+and services are internal to the complete diagram. A dependency leaving that
+set is folded to its owning closed system, which is shown as external to this
+C2 view without exposing its containers.
 
 ## C2 Purity vs Pragmatic Infrastructure
 
@@ -2810,6 +2819,11 @@ collaborate to deliver its behavior?"
 Prefer one focal container or service per C3 source file. The built-in C3 view
 is scoped by the selected source file, so the C3 file should usually contain an
 \`extend container <id>\` or \`extend service <id>\` block for the focal element.
+
+If the selected source opens several containers or services, components inside
+all of them are internal to one diagram. A dependency leaving that set is
+folded to the nearest closed container or service and shown as external to the
+C3 view.
 
 Do not model every class, function, method, or package. A component should be a
 stable architectural responsibility that is useful in a diagram and review.
@@ -3163,6 +3177,10 @@ The built-in \`c4\` query selects every \`CodeElement\` whose
 that tab through \`extend\`. It returns direct relationships between code
 elements and groups them by immediate parent. A relationship can bring its
 target code element into the result from outside the selected tab.
+
+All components opened by the tab form one focus. Code inside any of them is
+internal. A relationship leaving that focus is folded to the nearest closed
+component, which is shown as external without exposing its code elements.
 
 The query does not infer classes, packages, or nesting from source paths. Read
 the project's definitions and actual containment slots before editing a C4
@@ -4665,6 +4683,16 @@ The top-level shape is:
 - \`groups\`: render groups created by \`GROUP BY\`;
 - \`externalElements\`: selected ids drawn outside the internal boundary.
 
+For built-in C1-C4 execution, this list combines explicit model externality
+with externality relative to the opened diagram boundaries. C2 folds a closed
+endpoint to its system, C3 to its container or service, and C4 to its component.
+\`IS External\` in a custom query continues to match only the explicit model
+marker.
+
+To apply one of these boundary contracts to a custom CLI query, pass both
+\`-q <query.aiq>\` and \`-v c1|c2|c3|c4\`. Without \`-v\`, custom query
+execution does not apply a built-in view boundary.
+
 Each edge contains its selected category and two endpoint pairs:
 
 - outer \`source\` and \`target\` are the endpoints that the selected graph will
@@ -4750,14 +4778,15 @@ examples/builtin-views/deployment.aiq
 C1 selects systems in the selected context and uses one undirected inclusive
 neighborhood for direct and derived system-level relationships.
 
-C2 selects \`ContainerElement\` nodes in \`$tab\` and uses undirected inclusive
-neighborhoods for container peers and explicitly external systems.
+C2 opens every system rooted in \`$tab\`, selects its \`ContainerElement\` nodes,
+and folds relationships leaving that set to closed systems.
 
-C3 starts from \`(container:ContainerElement)-[:CONTAINS]->(component)\` and uses
-the same neighborhood shape for component and external-system relationships.
+C3 opens every container rooted in \`$tab\`, selects its components, and folds
+relationships leaving that set to closed containers or services.
 
-C4 selects direct Code-element neighborhoods in either direction. Concrete code
-types and containment remain project-defined.
+C4 opens every component rooted in \`$tab\`, selects direct Code-element
+neighborhoods in either direction, and folds outside code to closed components.
+Concrete code types and containment remain project-defined.
 
 Deployment selects deployment nodes and physically deployed logical nodes from \`$tab\`,
 uses one undirected \`OPTIONAL MATCH ROLLUP\` for projected paths, and keeps
@@ -5584,11 +5613,10 @@ external system payment
 function genericC2QueryExample(): string {
   return `MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(relatedContainer:ContainerElement)
-OPTIONAL MATCH (container)-[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)
-WHERE externalSystem IS External
+OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(related:Element)
+WHERE related IS ContainerElement OR related IS SystemElement
 GROUP BY container.parent
-RETURN container, containerLink, relatedContainer, externalLink, externalSystem
+RETURN container, containerLink, related
 `;
 }
 

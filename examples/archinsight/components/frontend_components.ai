@@ -34,6 +34,8 @@ extend container frontend
             -> api_resources from archinsight
                 technology = REST
                 description = Sends live syntax checks and link requests
+                deployment:
+                    uses privateGateway
     component diagram_preview
         name = Diagram preview
         technology = SVG, browser Graphviz WASM

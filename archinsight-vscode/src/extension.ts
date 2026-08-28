@@ -1606,7 +1606,7 @@ async function previewState(
 ): Promise<PreviewState> {
   const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
   try {
-    const graph = selectGraph(current.result, { context: context?.id, tab: sourceName }, query);
+    const graph = selectGraph(current.result, { context: context?.id, tab: sourceName, view }, query);
     const dot = renderGraphviz(current.result, graph, vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark ? "dark" : "light");
     const svg = await renderSvg(dot);
     output.appendLine("Render finished: diagram rendered successfully");

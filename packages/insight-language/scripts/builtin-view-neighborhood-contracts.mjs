@@ -31,7 +31,8 @@ if (failures > 0) {
 }
 
 function c2MatchesExpandedDirectionalNeighborhood() {
-  const expanded = selectGraph(result, scope, `
+  const viewScope = { ...scope, view: "c2" };
+  const expanded = selectGraph(result, viewScope, `
     MATCH (container:ContainerElement)
     WHERE container.sourceIdentity = $tab
     OPTIONAL MATCH (container)-[directOut:REFERENCES]->(directOutContainer:ContainerElement)
@@ -53,11 +54,12 @@ function c2MatchesExpandedDirectionalNeighborhood() {
       externalDerivedOut, externalDerivedOutSystem, externalDerivedIn, externalDerivedInSystem
   `);
 
-  assertEquivalentView("c2", expanded);
+  assertEquivalentView("c2", expanded, viewScope);
 }
 
 function c3MatchesExpandedDirectionalNeighborhood() {
-  const expanded = selectGraph(result, scope, `
+  const viewScope = { ...scope, view: "c3" };
+  const expanded = selectGraph(result, viewScope, `
     MATCH (container:ContainerElement)-[contains:CONTAINS]->(component:ComponentElement)
     WHERE container.sourceIdentity = $tab
     OPTIONAL MATCH (component)-[directOut:REFERENCES]->(directOutComponent:ComponentElement)
@@ -79,11 +81,12 @@ function c3MatchesExpandedDirectionalNeighborhood() {
       externalDerivedOut, externalDerivedOutSystem, externalDerivedIn, externalDerivedInSystem
   `);
 
-  assertEquivalentView("c3", expanded);
+  assertEquivalentView("c3", expanded, viewScope);
 }
 
 function c4MatchesExpandedDirectionalNeighborhood() {
-  const expanded = selectGraph(result, scope, `
+  const viewScope = { ...scope, view: "c4" };
+  const expanded = selectGraph(result, viewScope, `
     MATCH (code:CodeElement)
     WHERE code.sourceIdentity = $tab
     OPTIONAL MATCH (code)-[outbound:REFERENCES]->(outboundCode:CodeElement)
@@ -92,7 +95,7 @@ function c4MatchesExpandedDirectionalNeighborhood() {
     RETURN code, outbound, outboundCode, inbound, inboundCode
   `);
 
-  assertEquivalentView("c4", expanded);
+  assertEquivalentView("c4", expanded, viewScope);
 }
 
 function deploymentMatchesExpandedDirectionalNeighborhood() {

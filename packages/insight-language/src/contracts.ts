@@ -325,9 +325,12 @@ export interface LinkProjectResult {
   readonly presentations: Readonly<Record<string, ResolvedPresentation>>;
 }
 
+export type BuiltinDiagramView = "no-filter" | "c1" | "c2" | "c3" | "c4" | "deployment";
+
 export interface QueryScope {
   readonly context?: string;
   readonly tab?: string;
+  readonly view?: BuiltinDiagramView;
 }
 
 export interface RenderGraphEdge {

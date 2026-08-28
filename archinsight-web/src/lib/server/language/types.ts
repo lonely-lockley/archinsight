@@ -1,4 +1,5 @@
 import type {
+  BuiltinDiagramView,
   GraphNode,
   GraphRelation,
   LanguageSnapshot,
@@ -27,6 +28,7 @@ export type LinkRequest = {
   openSourceIdentities?: string[] | null;
   overlays?: Record<string, string> | null;
   query?: string | null;
+  view?: BuiltinDiagramView | null;
 };
 
 export type LinkResponse = {

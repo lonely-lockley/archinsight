@@ -254,9 +254,10 @@ export async function linkProject(
   openSourceIdentities: string[],
   overlays: Record<string, string>,
   query: string,
+  view: 'no-filter' | 'c1' | 'c2' | 'c3' | 'c4' | 'deployment',
   surface: WorkspaceSurface = 'editor'
 ): Promise<LinkResponse> {
-  return postJson(surface === 'playground' ? '/api/playground/link' : `/api/projects/${encodeURIComponent(projectId)}/link`, { openSourceIdentities, overlays, query });
+  return postJson(surface === 'playground' ? '/api/playground/link' : `/api/projects/${encodeURIComponent(projectId)}/link`, { openSourceIdentities, overlays, query, view });
 }
 
 export async function renderProjectSvg(

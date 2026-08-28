@@ -15,7 +15,8 @@
     mergeLanguageSnapshots,
     type LanguageSnapshot,
     type LinkProjectResult,
-    type CompletionKind
+    type CompletionKind,
+    type BuiltinDiagramView
   } from '@insight/language';
   import AuthMenu from '$lib/AuthMenu.svelte';
   import ProjectNavigationPanel from '$lib/ProjectNavigationPanel.svelte';
@@ -1216,7 +1217,7 @@
           diagram: 'query',
           dot: clientLanguageService.render({
             result: analysis,
-            scope: { context: context?.id, tab: sourceIdentity },
+            scope: { context: context?.id, tab: sourceIdentity, view: builtinView(activeDiagramMode) },
             query: activeQuery,
             theme: 'dark'
           }).dot
@@ -1273,20 +1274,28 @@
       : [activeTab.sourceIdentity];
 
     try {
-      const link = await linkProject(requestedProjectId, renderSourceIdentities, linkOverlays, activeQuery, surface);
+      const link = await linkProject(
+        requestedProjectId,
+        renderSourceIdentities,
+        linkOverlays,
+        activeQuery,
+        builtinView(activeDiagramMode),
+        surface
+      );
       if (sequence !== linkSequence || requestedProjectId !== projectId) {
         return;
       }
       analysisLoading = false;
       projectSymbols = link.symbols;
-      linkedAnalysis = hydrateLinkedModel(link.linkedModel);
+      const linkHasErrors = hasErrorDiagnostics(link.diagnostics);
+      linkedAnalysis = linkHasErrors ? undefined : hydrateLinkedModel(link.linkedModel);
       refreshEditorSymbols();
       updateLinkerDiagnostics(link.diagnostics, parsedSources);
-      if (!hasErrorDiagnostics(link.diagnostics)) {
+      if (!linkHasErrors) {
         acceptProjectStructureSnapshot(link.structure);
       }
       appendCycleSummary('Linker finished', link.diagnostics);
-      if (link.diagnostics.some((diagnostic) => diagnostic.level === 'ERROR')) {
+      if (linkHasErrors) {
         clearTabDots(renderSourceIdentities);
         return;
       }
@@ -2795,6 +2804,10 @@
 
   function isProjectSourceTab(tab: WorkspaceTab): boolean {
     return tab.projectSource !== false;
+  }
+
+  function builtinView(mode: DiagramMode): BuiltinDiagramView {
+    return mode === 'default' ? 'no-filter' : mode;
   }
 
   function tabTitle(tab: WorkspaceTab): string {

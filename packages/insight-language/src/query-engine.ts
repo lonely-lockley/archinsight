@@ -162,7 +162,7 @@ export function selectGraph(
     .filter((id) => selectedElements.has(id)));
   const externalElements = [...selectedElements.keys()]
     .filter((id) => !internalElementIds.has(id) && !groupedSelectedElements.has(id));
-  return materializeGroupedView({
+  const selectedGraph: RenderGraph = {
     context: scope.context ?? "",
     elements: Object.fromEntries(selectedElements),
     edges: completedEdges,
@@ -171,7 +171,8 @@ export function selectGraph(
       elements: group.elements.filter((id) => selectedElements.has(id)),
     })).filter((group) => group.elements.length > 0),
     externalElements,
-  });
+  };
+  return materializeGroupedView(applyViewBoundary(result, selectedGraph, scope));
 }
 
 export function selectGraphs(
@@ -295,6 +296,198 @@ function internalElements(result: LinkProjectResult, rows: readonly Row[], query
 
 function patternNodeAliases(pattern: QueryPattern): readonly string[] {
   return pattern.right === undefined ? [pattern.left.alias] : [pattern.left.alias, pattern.right.alias];
+}
+
+function applyViewBoundary(result: LinkProjectResult, graph: RenderGraph, scope: QueryScope): RenderGraph {
+  const view = scope.view;
+  if (view !== "c1" && view !== "c2" && view !== "c3" && view !== "c4") {
+    return graph;
+  }
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const parentByChild = new Map(result.elements.flatMap((element) =>
+    element.parent === undefined ? [] : [[element.id, element.parent]]
+  ));
+  const openedBoundaries = openedViewBoundaries(result, scope);
+  const inside = (id: string): boolean => elementInsideView(elementsById.get(id), scope, openedBoundaries, parentByChild);
+  const visibleType = visibleElementType(view);
+  const foldedIds = new Map<string, string>();
+  const fold = (id: string): string => {
+    const existing = foldedIds.get(id);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const folded = inside(id)
+      ? id
+      : closedViewBoundaryEndpoint(id, view, elementsById, parentByChild) ?? id;
+    foldedIds.set(id, folded);
+    return folded;
+  };
+
+  const elements = new Map<string, LinkedElement>();
+  const externalElements = new Set<string>();
+  for (const element of Object.values(graph.elements)) {
+    if ((inside(element.id) && elementHasType(element, visibleType)) || explicitlyExternal(element)) {
+      const foldedId = fold(element.id);
+      const folded = elementsById.get(foldedId) ?? element;
+      elements.set(foldedId, folded);
+      if (explicitlyExternal(element) || explicitlyExternal(folded)) {
+        externalElements.add(foldedId);
+      }
+    }
+  }
+
+  const edges: RenderGraphEdge[] = [];
+  for (const edge of graph.edges) {
+    const originSource = edge.edge.originSource ?? edge.edge.source;
+    const originTarget = edge.edge.originTarget ?? edge.edge.target;
+    const sourceOutside = !inside(originSource);
+    const targetOutside = !inside(originTarget);
+    const foldedSource = sourceOutside
+      ? closedViewBoundaryEndpoint(originSource, view, elementsById, parentByChild) ?? fold(edge.source)
+      : openViewEndpoint(originSource, view, elementsById, parentByChild) ?? fold(edge.source);
+    const foldedTarget = targetOutside
+      ? closedViewBoundaryEndpoint(originTarget, view, elementsById, parentByChild) ?? fold(edge.target)
+      : openViewEndpoint(originTarget, view, elementsById, parentByChild) ?? fold(edge.target);
+    if (foldedSource === foldedTarget && originSource !== originTarget) {
+      continue;
+    }
+    const source = elementsById.get(foldedSource);
+    const target = elementsById.get(foldedTarget);
+    if (source !== undefined) {
+      elements.set(source.id, source);
+      if (sourceOutside || explicitlyExternal(source)) {
+        externalElements.add(source.id);
+      }
+    }
+    if (target !== undefined) {
+      elements.set(target.id, target);
+      if (targetOutside || explicitlyExternal(target)) {
+        externalElements.add(target.id);
+      }
+    }
+    addFoldedViewEdge(edges, { ...edge, source: foldedSource, target: foldedTarget });
+  }
+
+  const groups = graph.groups.map((group) => ({
+    ...group,
+    elements: [...new Set(group.elements
+      .filter((id) => inside(id) && elementHasType(elementsById.get(id), visibleType))
+      .map(fold))],
+  })).filter((group) => group.elements.length > 0);
+
+  return {
+    ...graph,
+    elements: Object.fromEntries(elements),
+    edges,
+    groups,
+    externalElements: [...externalElements],
+  };
+}
+
+function addFoldedViewEdge(edges: RenderGraphEdge[], next: RenderGraphEdge): void {
+  const duplicateIndex = edges.findIndex((edge) => sameViewRelationship(edge, next));
+  if (duplicateIndex < 0) {
+    edges.push(next);
+    return;
+  }
+  if (edges[duplicateIndex]!.derived && !next.derived) {
+    edges[duplicateIndex] = next;
+  }
+}
+
+function sameViewRelationship(left: RenderGraphEdge, right: RenderGraphEdge): boolean {
+  return left.source === right.source
+    && left.target === right.target
+    && left.projected === right.projected
+    && (left.edge.originSource ?? left.edge.source) === (right.edge.originSource ?? right.edge.source)
+    && (left.edge.originTarget ?? left.edge.target) === (right.edge.originTarget ?? right.edge.target)
+    && left.edge.operator === right.edge.operator
+    && left.edge.sourceIdentity === right.edge.sourceIdentity
+    && left.edge.declaration?.sourceName === right.edge.declaration?.sourceName
+    && left.edge.declaration?.line === right.edge.declaration?.line
+    && left.edge.declaration?.column === right.edge.declaration?.column;
+}
+
+function openedViewBoundaries(
+  result: LinkProjectResult,
+  scope: QueryScope,
+): ReadonlySet<string> {
+  if (scope.view === "c1") {
+    return new Set(scope.context === undefined ? [] : [scope.context]);
+  }
+  const boundaryType = scope.view === "c2"
+    ? "SystemElement"
+    : scope.view === "c3"
+      ? "ContainerElement"
+      : "ComponentElement";
+  const closure = tabClosure(result, scope.tab);
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const parentByChild = new Map(result.elements.flatMap((element) =>
+    element.parent === undefined ? [] : [[element.id, element.parent]]
+  ));
+  return new Set([...closure]
+    .flatMap((id) => lineage(id, parentByChild))
+    .filter((id) => elementHasType(elementsById.get(id), boundaryType))
+    .sort());
+}
+
+function elementInsideView(
+  element: LinkedElement | undefined,
+  scope: QueryScope,
+  openedBoundaries: ReadonlySet<string>,
+  parentByChild: ReadonlyMap<string, string>,
+): boolean {
+  if (element === undefined) {
+    return false;
+  }
+  if (scope.view === "c1") {
+    return scope.context !== undefined && element.context === scope.context;
+  }
+  return lineage(element.id, parentByChild).some((id) => openedBoundaries.has(id));
+}
+
+function closedViewBoundaryEndpoint(
+  id: string,
+  view: "c1" | "c2" | "c3" | "c4",
+  elementsById: ReadonlyMap<string, LinkedElement>,
+  parentByChild: ReadonlyMap<string, string>,
+): string | undefined {
+  const boundaryType = view === "c1" || view === "c2"
+    ? "SystemElement"
+    : view === "c3"
+      ? "ContainerElement"
+      : "ComponentElement";
+  return lineage(id, parentByChild)
+    .find((candidate) => elementHasType(elementsById.get(candidate), boundaryType));
+}
+
+function openViewEndpoint(
+  id: string,
+  view: "c1" | "c2" | "c3" | "c4",
+  elementsById: ReadonlyMap<string, LinkedElement>,
+  parentByChild: ReadonlyMap<string, string>,
+): string | undefined {
+  const elementType = visibleElementType(view);
+  return lineage(id, parentByChild)
+    .find((candidate) => elementHasType(elementsById.get(candidate), elementType));
+}
+
+function visibleElementType(view: "c1" | "c2" | "c3" | "c4"): string {
+  return view === "c1"
+    ? "SystemElement"
+    : view === "c2"
+      ? "ContainerElement"
+      : view === "c3"
+        ? "ComponentElement"
+        : "CodeElement";
+}
+
+function elementHasType(element: LinkedElement | undefined, type: string): boolean {
+  return element !== undefined && (element.type === type || element.baseTypes.includes(type));
+}
+
+function explicitlyExternal(element: LinkedElement): boolean {
+  return element.attributes.kind?.includes("external") === true;
 }
 
 function evaluate(result: LinkProjectResult, scope: QueryScope, query: ParsedQuery): readonly Row[] {

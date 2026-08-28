@@ -744,7 +744,9 @@ function processExtension(
     return;
   }
   const target = firstChildByRule(extension, "extensionTargetReference", ruleNames);
-  const targetType = target === undefined ? undefined : state.visibleIdentifiers.get(textOf(target))?.type;
+  const constructor = firstChildByRule(extension, "extensionConstructor", ruleNames);
+  const targetType = (target === undefined ? undefined : state.visibleIdentifiers.get(textOf(target))?.type)
+    ?? (constructor === undefined ? undefined : typeSystem.findConstructor(textOf(constructor))?.ownerType);
   if (!contains(extension, cursorOffset, cursor) || targetType === undefined) {
     return;
   }

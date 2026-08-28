@@ -23,6 +23,8 @@ The default C1 view selects the complete context boundary. Opening the diagram f
 
 Imported systems and actors appear when they participate in the selected relationships. This keeps the boundary readable while preserving the surrounding systems and people needed to understand it.
 
+Every system and actor inside the selected context is internal to the C1 view. A participating element owned by another context is shown as external to this diagram, even when its model declaration uses the ordinary `system` or `actor` constructor. An element declared with `external system` or `external actor` keeps its external presentation in every view.
+
 ## Relationships at C1
 
 C1 relationships describe high-level interactions. They answer questions such as which system depends on another system, which actor uses a system, or which external platform participates in a business flow. Protocol details can be recorded when they help the reader, but the relationship should remain meaningful without knowledge of individual containers, endpoints, topics, or components.

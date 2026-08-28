@@ -1491,7 +1491,7 @@ function collectOperatorInvocation(
     deploymentActions,
     annotations,
     ...noteProperty(invocation, document.sourceName),
-    ...position(invocation, document.sourceName),
+    ...operatorInvocationHeaderPosition(invocation, document.sourceName),
   });
 }
 
@@ -4145,6 +4145,24 @@ function position(node: unknown, _sourceName: string): SourcePosition {
     };
   }
   return { line: 1, column: 1 };
+}
+
+function operatorInvocationHeaderPosition(invocation: RuleNode, sourceName: string): SourcePosition {
+  const start = position(firstChild(invocation, "operatorIdentifier") ?? invocation, sourceName);
+  const end = position(
+    firstChild(invocation, "note")
+      ?? firstChild(invocation, "anonymousImportDeclaration")
+      ?? firstChild(invocation, "identifierReference")
+      ?? firstChild(invocation, "operatorIdentifier")
+      ?? invocation,
+    sourceName,
+  );
+  return {
+    line: start.line,
+    column: start.column,
+    endLine: end.endLine ?? end.line,
+    endColumn: end.endColumn ?? end.column + 1,
+  };
 }
 
 interface TokenLike {

@@ -64,6 +64,7 @@ export type {
 } from "./language-service.js";
 export type {
   AttributeDefinition,
+  BuiltinDiagramView,
   CompletionItem,
   CompletionKind,
   CompletionRequest,

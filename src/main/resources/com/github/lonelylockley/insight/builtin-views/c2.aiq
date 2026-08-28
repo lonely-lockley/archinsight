@@ -1,7 +1,6 @@
 MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(relatedContainer:ContainerElement)
-OPTIONAL MATCH (container)-[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)
-WHERE externalSystem IS External
+OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(related:Element)
+WHERE related IS ContainerElement OR related IS SystemElement
 GROUP BY container.parent
-RETURN container, containerLink, relatedContainer, externalLink, externalSystem
+RETURN container, containerLink, related
