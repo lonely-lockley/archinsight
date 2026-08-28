@@ -63,6 +63,8 @@ interface EvaluationContext {
 
 interface QueryRelationship {
   readonly edge?: LinkedEdge;
+  readonly originSource?: string;
+  readonly originTarget?: string;
   readonly source: string;
   readonly target: string;
   readonly kind: string;
@@ -105,6 +107,7 @@ export function selectGraph(
   const rows = evaluate(result, scope, parsed);
   const selectedElements = new Map<string, LinkedElement>();
   const selectedEdges: RenderGraphEdge[] = [];
+  const selectedEdgeIdentities = new Map<LinkedEdge, Set<string>>();
   const groups = new Map<string, RenderGraphGroup>();
   const nodeById = queryNodeIndex(result);
 
@@ -129,12 +132,12 @@ export function selectGraph(
         }
         if (edge.edge !== undefined) {
           addSelectedEdge(selectedEdges, {
-            edge: edge.edge,
+            edge: contextualLinkedEdge(edge),
             source: edge.source,
             target: edge.target,
             derived: edge.derived,
             projected: edge.projected,
-          });
+          }, edge.edge, selectedEdgeIdentities);
         }
       }
     }
@@ -183,11 +186,34 @@ export function selectGraphs(
   return new Map(scopes.map((scope) => [scope, selectGraph(result, scope, query)]));
 }
 
-function addSelectedEdge(edges: RenderGraphEdge[], next: RenderGraphEdge): void {
-  if (edges.some((edge) => edge.edge === next.edge && edge.source === next.source && edge.target === next.target)) {
+function addSelectedEdge(
+  edges: RenderGraphEdge[],
+  next: RenderGraphEdge,
+  identity: LinkedEdge,
+  identities: Map<LinkedEdge, Set<string>>,
+): void {
+  const endpointKey = `${next.source}\0${next.target}`;
+  const selectedEndpoints = identities.get(identity) ?? new Set<string>();
+  if (selectedEndpoints.has(endpointKey)) {
     return;
   }
+  selectedEndpoints.add(endpointKey);
+  identities.set(identity, selectedEndpoints);
   edges.push(next);
+}
+
+function contextualLinkedEdge(relationship: QueryRelationship): LinkedEdge {
+  const edge = relationship.edge!;
+  const originSource = relationship.originSource ?? edge.originSource;
+  const originTarget = relationship.originTarget ?? edge.originTarget;
+  if (originSource === edge.originSource && originTarget === edge.originTarget) {
+    return edge;
+  }
+  return {
+    ...edge,
+    ...(originSource === undefined ? {} : { originSource }),
+    ...(originTarget === undefined ? {} : { originTarget }),
+  };
 }
 
 function materializeGroupedView(graph: RenderGraph): RenderGraph {
@@ -777,11 +803,13 @@ function nearestEndpoint(
 }
 
 function edgeOriginSourceLineage(edge: QueryRelationship, parentByChild: ReadonlyMap<string, string>): readonly string[] {
-  return edge.edge?.originSource === undefined ? [] : lineage(edge.edge.originSource, parentByChild);
+  const origin = edge.originSource ?? edge.edge?.originSource;
+  return origin === undefined ? [] : lineage(origin, parentByChild);
 }
 
 function edgeOriginTargetLineage(edge: QueryRelationship, parentByChild: ReadonlyMap<string, string>): readonly string[] {
-  return edge.edge?.originTarget === undefined ? [] : lineage(edge.edge.originTarget, parentByChild);
+  const origin = edge.originTarget ?? edge.edge?.originTarget;
+  return origin === undefined ? [] : lineage(origin, parentByChild);
 }
 
 function matchesNode(node: QueryNode, pattern: NodePattern, context: EvaluationContext): boolean {
@@ -812,8 +840,8 @@ function elementNode(element: LinkedElement): QueryNode {
 function queryRelationships(result: LinkProjectResult): readonly QueryRelationship[] {
   const edgeByRelationId = linkedEdgesByGraphRelationId(result);
   const contextBySourceIdentity = new Map(result.contexts.map((context) => [context.sourceIdentity, context.id]));
-  const relationships: QueryRelationship[] = result.graph.relations().map((relation) =>
-    queryRelationshipFromGraphRelation(relation, edgeByRelationId.get(relation.id), contextBySourceIdentity)
+  const relationships: QueryRelationship[] = result.graph.relations().flatMap((relation) =>
+    queryRelationshipVariants(relation, edgeByRelationId.get(relation.id), contextBySourceIdentity)
   );
   const parentByChild = parentByChildFromGraph(result);
   for (const relationship of [...relationships]) {
@@ -835,6 +863,8 @@ function queryRelationships(result: LinkProjectResult): readonly QueryRelationsh
           kind: relationship.kind,
           ...(relationship.type === undefined ? {} : { type: relationship.type }),
           ...(relationship.context === undefined ? {} : { context: relationship.context }),
+          ...(relationship.originSource === undefined ? {} : { originSource: relationship.originSource }),
+          ...(relationship.originTarget === undefined ? {} : { originTarget: relationship.originTarget }),
           derived: true,
           projected: relationship.projected,
         });
@@ -842,6 +872,25 @@ function queryRelationships(result: LinkProjectResult): readonly QueryRelationsh
     }
   }
   return relationships;
+}
+
+function queryRelationshipVariants(
+  relation: GraphRelation,
+  edge: LinkedEdge | undefined,
+  contextBySourceIdentity: ReadonlyMap<string, string>,
+): readonly QueryRelationship[] {
+  const base = queryRelationshipFromGraphRelation(relation, edge, contextBySourceIdentity);
+  if (edge === undefined) {
+    return [base];
+  }
+  const origins = edge.projectionOrigins ?? [];
+  return origins.length === 0
+    ? [base]
+    : origins.map((origin) => ({
+      ...base,
+      originSource: origin.source,
+      originTarget: origin.target,
+    }));
 }
 
 function queryNodeFromGraphNode(
@@ -1005,11 +1054,11 @@ function relationshipInTab(relationship: QueryRelationship, context: EvaluationC
     if (edge.sourceIdentity === context.scope.tab || sourceRootsInTabClosure(context.result, edge.sourceIdentity, context.tabClosure)) {
       return true;
     }
-    return context.tabClosure.has(edge.originSource ?? edge.source)
-      && endpointIsExternal(context.result, edge.originTarget ?? edge.target);
+    return context.tabClosure.has(relationship.originSource ?? edge.originSource ?? edge.source)
+      && endpointIsExternal(context.result, relationship.originTarget ?? edge.originTarget ?? edge.target);
   }
-  return context.tabClosure.has(edge.originSource ?? edge.source)
-    || context.tabClosure.has(edge.originTarget ?? edge.target);
+  return context.tabClosure.has(relationship.originSource ?? edge.originSource ?? edge.source)
+    || context.tabClosure.has(relationship.originTarget ?? edge.originTarget ?? edge.target);
 }
 
 function sourceRootsInTabClosure(result: LinkProjectResult, sourceName: string, tabClosure: ReadonlySet<string>): boolean {

@@ -208,6 +208,8 @@ The first segment uses `originalLink`, preserving the logical wire and its attri
 
 The `source` and `target` words before projection terms assign each endpoint of the generated segment to the corresponding side of the deployment relationship. References such as `cdn`, `load_balancer`, and `ingress` identify infrastructure held by the projection owner. This allows an ingress path to stay with the target deployment and an egress path to stay with the source deployment.
 
+When several deployed elements or wires use the same infrastructure, the component's own projected segments belong to every one of those consumers. Each relevant source view can therefore expand the complete infrastructure path. If several consumers are shown together, a shared physical segment appears only once.
+
 Projections should stop at the level needed to explain the architecture. Provider transit hops, broker replication, database replication, and similar operational detail can remain in the relationship description unless the team deliberately treats an intermediate resource as an architectural element.
 
 ## Deployment profiles

@@ -25,7 +25,7 @@ This distinction helps the source describe intent without introducing another di
 
 ## The C2 view
 
-The default C2 view is centered on the selected tab. It includes the containers and services whose root declaration belongs to that tab, together with content added to those roots through `extend`. Elements are grouped under their owning systems so that the diagram preserves the system boundaries around them.
+The default C2 view is centered on the selected tab. It includes the containers and services declared or extended by that tab, together with their relationship neighborhood. Related containers from the same system are placed inside the same system boundary even when their declarations are kept in other files. Unrelated containers remain outside the selected diagram.
 
 All systems opened by the selected tab form one C2 focus. Their containers and services are internal to the complete diagram, including content contributed to those systems through `extend`. When a relationship leaves that focus, the closed system at the other end is shown as an external endpoint. Its containers and components remain hidden, so the diagram does not expose the internals of a system it has not opened.
 

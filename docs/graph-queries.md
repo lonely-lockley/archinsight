@@ -358,11 +358,13 @@ Inclusive selectors can combine categories in one clause when they have the same
 MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
 OPTIONAL MATCH (container)-[dependency:REFERENCES]->(target:Element)
-GROUP BY container.parent
-RETURN container, dependency, target
+MATCH (boundaryContainer:ContainerElement)
+WHERE boundaryContainer = container OR boundaryContainer = target
+GROUP BY boundaryContainer.parent
+RETURN boundaryContainer, dependency, target
 ```
 
-Grouping by `parent` places containers under their owning systems. A scalar property creates a labeled group, while a typed reference property groups elements under the referenced element. List-valued grouping is supported for typed reference attributes and can place an element into each referenced group.
+The final match identifies the selected container and any related container as boundary members. Grouping by `parent` places same-system members inside their owning system without adding unrelated siblings to the diagram. A scalar property creates a labeled group, while a typed reference property groups elements under the referenced element. List-valued grouping is supported for typed reference attributes and can place an element into each referenced group.
 
 Grouping affects only the render graph. It does not change containment or ownership in the linked architecture model.
 
@@ -380,9 +382,11 @@ The response contains `context`, an `elements` map keyed by query-visible qualif
 - outer `source` and `target` are the endpoints that the selected graph will draw after query rollup and grouping;
 - outer `derived` and `projected` identify the relationship category matched by the query;
 - nested `edge.source` and `edge.target` are the endpoints of the underlying linked or projected edge;
-- nested `edge.originSource` and `edge.originTarget`, when present, identify the logical wire that produced a projected segment.
+- nested `edge.originSource` and `edge.originTarget`, when present, identify the logical origin selected for this occurrence of a projected segment;
+- nested `edge.projectionOrigins`, when present, lists every logical source and target that shares the physical segment;
+- nested `edge.projectionRoot` identifies the infrastructure element whose projection produced the segment.
 
-For a normal physical deployment segment, the outer and nested endpoints should agree. An ownership-level rollup can intentionally bind an ancestor and make them differ. Projection origin metadata lets a query discover all segments belonging to one logical wire; it does not turn those segments into direct connections between the logical endpoints.
+For a normal physical deployment segment, the outer and nested endpoints should agree. An ownership-level rollup can intentionally bind an ancestor and make them differ. Projection origin metadata lets a query discover all segments belonging to a logical wire. A segment shared by several logical consumers remains one physical relationship; the metadata does not turn it into direct connections between the logical endpoints.
 
 Query JSON is the semantic artifact to inspect before rendering. If an unexpected edge already appears there, investigate the query, its `ROLLUP` clauses, selectors, and projection origin. If the JSON is correct but the image is not, the remaining problem belongs to rendering or layout.
 
@@ -401,10 +405,12 @@ MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
 OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(related:Element)
 WHERE related IS ContainerElement OR related IS SystemElement
-GROUP BY container.parent
-RETURN container, containerLink, related
+MATCH (boundaryContainer:ContainerElement)
+WHERE boundaryContainer = container OR boundaryContainer = related
+GROUP BY boundaryContainer.parent
+RETURN boundaryContainer, containerLink, related
 ```
 
-The first clause defines the stable center of the view. Each optional clause enriches those rows without removing containers that lack a particular relationship. `GROUP BY` describes the visual boundary, and `RETURN` determines which bound nodes and edges enter the render graph.
+The first clause defines the center of the view. The optional clause adds its relationship neighborhood, while the final match identifies which returned containers belong inside system boundaries. `GROUP BY` describes those visual boundaries, and `RETURN` determines which bound nodes and edges enter the render graph.
 
 When a query becomes difficult to understand, preserve this progression. Establish the base scope first, add one relationship family at a time, and return aliases only after their role in the view is clear. The resulting text remains an architectural explanation rather than a collection of incidental graph filters.

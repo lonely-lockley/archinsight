@@ -3534,6 +3534,11 @@ service's deployments. For each deployment, the named network slot is resolved
 and its concrete instance projection is applied; a deployment without that slot
 is skipped.
 
+When several logical elements or wires select the same infrastructure instance,
+the instance's own projected segments belong to every one of those consumers.
+Each relevant source view must therefore include the complete path. A view that
+contains several consumers still renders a shared physical segment only once.
+
 ## Diagram scope and scale
 
 Each concrete deployment is an independent physical scope. Profiles from many
@@ -4451,7 +4456,9 @@ archinsight query . -c <context-id> -s <logical-source.ai> -v deployment --forma
 
 For each projected edge, compare outer \`source\` and \`target\` with nested
 \`edge.source\` and \`edge.target\`. Use \`edge.originSource\` and
-\`edge.originTarget\` to associate physical segments with their logical wire.
+\`edge.originTarget\` for the logical origin selected by the query. When
+\`edge.projectionOrigins\` is present, inspect the complete list before deciding
+that a shared physical segment belongs to only one logical consumer.
 Analyze logical wires and projected segments as separate layers; otherwise one
 dependency can appear to be several independent architectural relationships.
 
@@ -4665,7 +4672,8 @@ For a projected physical path, \`ROLLUP\` can also use \`originSource\` and
 \`originTarget\` to discover path segments belonging to a logical wire. The
 built-in Deployment query uses this to include an incoming path such as
 \`customer -> CDN -> load balancer -> service\` while keeping every segment's
-real physical endpoints.
+real physical endpoints. A shared physical segment may carry several logical
+origins and remains selectable from each of their source views.
 
 Do not infer the model solely from a rolled-up arrow. Inspect query JSON to
 distinguish selected/rendered endpoints from the underlying edge and its
@@ -4701,7 +4709,11 @@ Each edge contains its selected category and two endpoint pairs:
 - nested \`edge.source\` and \`edge.target\` are the endpoints of the underlying
   linked or projected edge;
 - nested \`edge.originSource\` and \`edge.originTarget\`, when present, identify
-  the logical wire that produced a projected physical segment.
+  the logical origin selected for this occurrence of a projected segment;
+- nested \`edge.projectionOrigins\`, when present, lists every logical source and
+  target that shares the physical segment;
+- nested \`edge.projectionRoot\` identifies the infrastructure element whose
+  projection produced the segment.
 
 An abridged response remains ordinary JSON:
 
@@ -4739,14 +4751,17 @@ and query clause have all been checked.
 
 ## Grouping
 
-\`GROUP BY\` controls diagram clusters. Group by parent for C2/C3 style views:
+\`GROUP BY\` controls diagram clusters. A C2 view groups the selected container
+and related containers by parent without adding unrelated siblings:
 
 \`\`\`cypher
 MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
 OPTIONAL MATCH (container)-[link:REFERENCES {withDerived}]-(related)
-GROUP BY container.parent
-RETURN container, link, related
+MATCH (boundaryContainer:ContainerElement)
+WHERE boundaryContainer = container OR boundaryContainer = related
+GROUP BY boundaryContainer.parent
+RETURN boundaryContainer, link, related
 \`\`\`
 
 For deployment views, grouping by a typed reference attribute is valid:
@@ -4925,7 +4940,9 @@ node or edge.
    - nested \`edge.source\` / \`edge.target\`, which belong to the underlying
      linked or projected edge;
    - \`edge.originSource\` / \`edge.originTarget\`, which identify the logical
-     wire behind a projection;
+     origin selected for this occurrence;
+   - \`edge.projectionOrigins\`, which reveals other logical consumers of a
+     shared physical segment;
    - \`edge.projected\` and the clause that returned its alias.
 4. Run the nearest built-in query unchanged. If only the custom query returns
    the edge, fix the custom query. If the built-in query returns it too, reduce
@@ -5615,8 +5632,10 @@ function genericC2QueryExample(): string {
 WHERE container.sourceIdentity = $tab
 OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(related:Element)
 WHERE related IS ContainerElement OR related IS SystemElement
-GROUP BY container.parent
-RETURN container, containerLink, related
+MATCH (boundaryContainer:ContainerElement)
+WHERE boundaryContainer = container OR boundaryContainer = related
+GROUP BY boundaryContainer.parent
+RETURN boundaryContainer, containerLink, related
 `;
 }
 

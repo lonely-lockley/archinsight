@@ -2,5 +2,7 @@ MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
 OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(related:Element)
 WHERE related IS ContainerElement OR related IS SystemElement
-GROUP BY container.parent
-RETURN container, containerLink, related
+MATCH (boundaryContainer:ContainerElement)
+WHERE boundaryContainer = container OR boundaryContainer = related
+GROUP BY boundaryContainer.parent
+RETURN boundaryContainer, containerLink, related

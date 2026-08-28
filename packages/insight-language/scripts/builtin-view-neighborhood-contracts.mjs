@@ -47,8 +47,14 @@ function c2MatchesExpandedDirectionalNeighborhood() {
     WHERE externalDerivedOutSystem IS External
     OPTIONAL MATCH (externalDerivedInSystem:SystemElement)-[externalDerivedIn:REFERENCES {derived}]->(container)
     WHERE externalDerivedInSystem IS External
-    GROUP BY container.parent
-    RETURN container, directOut, directOutContainer, directIn, directInContainer,
+    MATCH (boundaryContainer:ContainerElement)
+    WHERE boundaryContainer = container
+      OR boundaryContainer = directOutContainer
+      OR boundaryContainer = directInContainer
+      OR boundaryContainer = derivedOutContainer
+      OR boundaryContainer = derivedInContainer
+    GROUP BY boundaryContainer.parent
+    RETURN boundaryContainer, directOut, directOutContainer, directIn, directInContainer,
       derivedOut, derivedOutContainer, derivedIn, derivedInContainer,
       externalDirectOut, externalDirectOutSystem, externalDirectIn, externalDirectInSystem,
       externalDerivedOut, externalDerivedOutSystem, externalDerivedIn, externalDerivedInSystem
