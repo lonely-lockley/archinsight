@@ -387,9 +387,10 @@ The response contains `context`, an `elements` map keyed by query-visible qualif
 - nested `edge.source` and `edge.target` are the endpoints of the underlying linked or projected edge;
 - nested `edge.originSource` and `edge.originTarget`, when present, identify the logical origin selected for this occurrence of a projected segment;
 - nested `edge.projectionOrigins`, when present, lists every logical source and target that shares the physical segment;
-- nested `edge.projectionRoot` identifies the infrastructure element whose projection produced the segment.
+- nested `edge.projectionRoot` identifies the infrastructure element whose projection produced the segment;
+- nested `edge.sourcePlacement` and `edge.targetPlacement`, when present, identify the concrete placement of each logical endpoint independently.
 
-For a normal physical deployment segment, the outer and nested endpoints should agree. An ownership-level rollup can intentionally bind an ancestor and make them differ. Projection origin metadata lets a query discover all segments belonging to a logical wire. A segment shared by several logical consumers remains one physical relationship; the metadata does not turn it into direct connections between the logical endpoints.
+For a normal physical deployment segment, the outer and nested endpoints agree until query rollup or multi-placement grouping selects a view-specific endpoint. A grouped occurrence has an id such as `shop/backend@@eu/kubernetes`, while its nested linked edge retains the logical id and records the corresponding placement. Projection origin metadata lets a query discover all segments belonging to a logical wire. A segment shared by several logical consumers remains one physical relationship; the metadata does not turn it into direct connections between the logical endpoints.
 
 Query JSON is the semantic artifact to inspect before rendering. If an unexpected edge already appears there, investigate the query, its `ROLLUP` clauses, selectors, and projection origin. If the JSON is correct but the image is not, the remaining problem belongs to rendering or layout.
 

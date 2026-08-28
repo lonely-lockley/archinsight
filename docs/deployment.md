@@ -264,6 +264,8 @@ service backend
 
 The profile contributes its concrete deployment set, `runsOn` placement, and `uses` infrastructure to `backend`. The deployment view can then group the service under its compute resource and include the storage, broker, observability, or other infrastructure it uses.
 
+When a selected Deployment graph contains an element placed on several concrete compute resources, query output represents grouped logical endpoints with ids such as `shop/backend@@eu/kubernetes`. Their `projectedFrom` attribute points to the logical element. Projected paths connect the occurrence in each placement, while the linked logical model continues to use `shop/backend`. A graph whose logical elements all have one placement keeps their ordinary ids.
+
 The same form is available to every `Element`, including systems and components. Containers and services are the usual placement boundary because they normally represent deployable runtime units. A component can select its own profile when it has deployment behavior that genuinely differs from its parent container.
 
 The linker begins checking deployment coverage for a modeling level after at least one comparable element at that level has a `deployment` block. It then warns when another element at that level has no deployment, or when a deployment block resolves to no `runsOn` or `uses` infrastructure. This keeps projects that have not started deployment modeling quiet while exposing gaps once a physical model is being maintained. External actors and systems can enter the view through projected wires and do not need artificial placement merely to appear as an endpoint.

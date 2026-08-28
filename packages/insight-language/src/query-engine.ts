@@ -151,7 +151,7 @@ export function selectGraph(
   }
   let groupedSelectedElements: ReadonlySet<string> = new Set<string>();
   if (parsed.groupBy !== undefined) {
-    groupedSelectedElements = collectSelectedReferenceGroups(selectedElements, groups, parsed.groupBy);
+    groupedSelectedElements = collectSelectedReferenceGroups(selectedElements, selectedEdges, groups, parsed.groupBy);
     for (const owner of completeReferenceGroupClosure(result, groups, parsed.groupBy)) {
       const element = linkedElementForNode(nodeById.get(owner));
       if (element !== undefined) {
@@ -249,9 +249,22 @@ function materializeGroupedView(graph: RenderGraph): RenderGraph {
       groupsByElement.set(element, [...(groupsByElement.get(element) ?? []), group]);
     }
   }
+  const placementMaterializationRequired = [...groupsByElement].some(([elementId]) => {
+    const element = graph.elements[elementId];
+    return element?.deployed === true && (element.attributes.runsOn?.length ?? 0) > 1;
+  });
+  const clonedElementIds = new Set([...groupsByElement].flatMap(([elementId, memberships]) => {
+    const element = graph.elements[elementId];
+    return memberships.length > 1 || (placementMaterializationRequired && element?.deployed === true)
+      ? [elementId]
+      : [];
+  }));
+  if (clonedElementIds.size === 0) {
+    return graph;
+  }
   const cloneIdsByElementAndGroup = new Map<string, string>();
   for (const [elementId, memberships] of groupsByElement) {
-    if (memberships.length < 2) {
+    if (!clonedElementIds.has(elementId)) {
       continue;
     }
     for (const group of memberships) {
@@ -264,11 +277,8 @@ function materializeGroupedView(graph: RenderGraph): RenderGraph {
 
   const elements: Record<string, LinkedElement> = { ...graph.elements };
   for (const [elementId, memberships] of groupsByElement) {
-    if (memberships.length < 2) {
-      continue;
-    }
     const element = graph.elements[elementId];
-    if (element === undefined) {
+    if (element === undefined || !clonedElementIds.has(elementId)) {
       continue;
     }
     for (const group of memberships) {
@@ -290,15 +300,15 @@ function materializeGroupedView(graph: RenderGraph): RenderGraph {
   }));
   const edges = graph.edges.map((edge) => ({
     ...edge,
-    source: cloneEndpoint(edge.source, edge.edge.projectionScope, cloneIdsByElementAndGroup),
-    target: cloneEndpoint(edge.target, edge.edge.projectionScope, cloneIdsByElementAndGroup),
+    source: cloneEndpoint(edge.source, edge.edge.sourcePlacement, cloneIdsByElementAndGroup),
+    target: cloneEndpoint(edge.target, edge.edge.targetPlacement, cloneIdsByElementAndGroup),
   }));
   const referenced = new Set<string>([
     ...groups.flatMap((group) => group.elements),
     ...edges.flatMap((edge) => [edge.source, edge.target]),
   ]);
-  for (const [elementId, memberships] of groupsByElement) {
-    if (memberships.length >= 2 && !referenced.has(elementId)) {
+  for (const elementId of clonedElementIds) {
+    if (!referenced.has(elementId)) {
       delete elements[elementId];
     }
   }
@@ -309,9 +319,11 @@ function materializeGroupedView(graph: RenderGraph): RenderGraph {
     groups,
     externalElements: graph.externalElements.flatMap((element) => {
       const memberships = groupsByElement.get(element) ?? [];
-      return memberships.length < 2
-        ? [element]
-        : memberships.map((group) => groupedCloneId(element, group.owner));
+      const clones = memberships.flatMap((group) => {
+        const clone = cloneIdsByElementAndGroup.get(groupedCloneKey(element, group.owner));
+        return clone === undefined ? [] : [clone];
+      });
+      return elements[element] === undefined ? clones : [element, ...clones];
     }),
   };
 }
@@ -1511,12 +1523,18 @@ function collectGroupValue(
 
 function collectSelectedReferenceGroups(
   selectedElements: ReadonlyMap<string, LinkedElement>,
+  selectedEdges: readonly RenderGraphEdge[],
   groups: Map<string, RenderGraphGroup>,
   expression: ValueExpression,
 ): ReadonlySet<string> {
   const grouped = new Set<string>();
   if (expression.kind !== "property") {
     return grouped;
+  }
+  for (const group of groups.values()) {
+    for (const element of group.elements) {
+      grouped.add(element);
+    }
   }
   for (const element of selectedElements.values()) {
     if (element.referenceAttributes?.includes(expression.property) !== true) {
@@ -1529,12 +1547,37 @@ function collectSelectedReferenceGroups(
       : isQueryNode(value)
         ? [value.id]
         : [];
-    for (const owner of owners) {
+    const selectedOwners = expression.property === "runsOn" && owners.length > 1 ? [] : owners;
+    for (const owner of selectedOwners) {
       collectGroupValue(groups, node, owner, undefined);
       grouped.add(element.id);
     }
   }
+  for (const edge of selectedEdges) {
+    collectSelectedEdgePlacementGroup(selectedElements, groups, grouped, expression.property, edge.source, edge.edge.sourcePlacement);
+    collectSelectedEdgePlacementGroup(selectedElements, groups, grouped, expression.property, edge.target, edge.edge.targetPlacement);
+  }
   return grouped;
+}
+
+function collectSelectedEdgePlacementGroup(
+  selectedElements: ReadonlyMap<string, LinkedElement>,
+  groups: Map<string, RenderGraphGroup>,
+  grouped: Set<string>,
+  propertyName: string,
+  elementId: string,
+  placement: string | undefined,
+): void {
+  if (placement === undefined) {
+    return;
+  }
+  const element = selectedElements.get(elementId);
+  if (element?.referenceAttributes?.includes(propertyName) !== true
+      || element.attributes[propertyName]?.includes(placement) !== true) {
+    return;
+  }
+  collectGroupValue(groups, { kind: "element", id: element.id, element }, placement, undefined);
+  grouped.add(element.id);
 }
 
 function completeReferenceGroupClosure(

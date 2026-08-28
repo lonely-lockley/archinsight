@@ -215,6 +215,8 @@ export interface LinkedEdge {
   readonly annotations?: readonly LinkedAnnotation[];
   readonly projected?: boolean;
   readonly projectionScope?: string;
+  readonly sourcePlacement?: string;
+  readonly targetPlacement?: string;
 }
 
 export interface ProjectionOrigin {
