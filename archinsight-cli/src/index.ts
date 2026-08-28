@@ -3267,6 +3267,10 @@ deployment schemes, and profiles may select \`production from eu\` and
 \`test from eu\` without a conflict because they are different concrete
 deployments.
 
+The built-in Deployment view renders concrete \`InfrastructureComponent\`
+instances. A \`Deployment\` object organizes the inventory and is not itself a
+physical node, so projected relationships do not roll up to that owner.
+
 ## Framework and inventory
 
 Define the available slots on an environment type:

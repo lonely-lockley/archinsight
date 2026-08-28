@@ -8,7 +8,7 @@ The deployment model is the home of infrastructure. Compute platforms, databases
 
 The default deployment view starts from the model fragment associated with the selected tab. It follows the deployment profiles, placements, infrastructure uses, and projected wires reachable from that logical fragment. The result stays centered on the system or service being examined while drawing the relevant objects from their environment namespaces.
 
-A logical element enters the default view only after its deployment resolves to physical infrastructure through `runsOn` or `uses`. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent from the Deployment view even when both logical endpoints are deployed. Direct relationships declared between deployment elements remain visible because they already describe the physical model.
+A logical element enters the default view only after its deployment resolves to physical infrastructure through `runsOn` or `uses`. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent from the Deployment view even when both logical endpoints are deployed. Direct relationships declared between infrastructure components remain visible because they already describe the physical model.
 
 ## Environment and deployment boundaries
 
@@ -37,6 +37,8 @@ deployment test
 ```
 
 The two deployments share the `eu` environment boundary and keep separate infrastructure instances. They are written as top-level declarations after the environment header, but the linker attaches them to that environment. A logical element can be mapped to either deployment through a profile, and different profiles can select different schemes from the same environment.
+
+The Deployment view renders the concrete `InfrastructureComponent` instances held by a scheme. The `Deployment` object organizes that inventory and remains outside the rendered graph, so projected relationships connect physical components instead of rolling up to the scheme itself.
 
 Projects usually define an environment subtype with the slots required by their deployment model:
 

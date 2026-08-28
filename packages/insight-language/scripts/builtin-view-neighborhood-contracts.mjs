@@ -108,26 +108,26 @@ function deploymentMatchesExpandedDirectionalNeighborhood() {
   const expanded = selectGraph(result, scope, `
     MATCH (node:Element)
     WHERE node.sourceIdentity = $tab
-      AND (node IS DeploymentElement
+      AND (node IS InfrastructureComponent
         OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))
     OPTIONAL MATCH (deploymentTarget:InfrastructureComponent)
     WHERE deploymentTarget IN node.uses OR deploymentTarget = node.runsOn
     OPTIONAL MATCH ROLLUP (node)-[projectedOut:REFERENCES {projected}]->(projectedOutPeer:Element)
-    WHERE (projectedOutPeer IS DeploymentElement
+    WHERE (projectedOutPeer IS InfrastructureComponent
        OR (projectedOutPeer IS ContainerElement AND projectedOutPeer.deployed = true)
        OR projectedOutPeer IS External)
       AND projectedOutPeer.id <> node.id
     OPTIONAL MATCH ROLLUP (projectedInPeer:Element)-[projectedIn:REFERENCES {projected}]->(node)
-    WHERE (projectedInPeer IS DeploymentElement
+    WHERE (projectedInPeer IS InfrastructureComponent
        OR (projectedInPeer IS ContainerElement AND projectedInPeer.deployed = true)
        OR projectedInPeer IS External)
       AND projectedInPeer.id <> node.id
     OPTIONAL MATCH (node)-[directOut:REFERENCES]->(directOutPeer:Element)
-    WHERE node IS DeploymentElement
-      AND (directOutPeer IS DeploymentElement OR directOutPeer IS External)
+    WHERE node IS InfrastructureComponent
+      AND (directOutPeer IS InfrastructureComponent OR directOutPeer IS External)
     OPTIONAL MATCH (directInPeer:Element)-[directIn:REFERENCES]->(node)
-    WHERE node IS DeploymentElement
-      AND (directInPeer IS DeploymentElement OR directInPeer IS External)
+    WHERE node IS InfrastructureComponent
+      AND (directInPeer IS InfrastructureComponent OR directInPeer IS External)
     GROUP BY node.runsOn
     RETURN node, deploymentTarget, projectedOut, projectedOutPeer, projectedIn, projectedInPeer,
       directOut, directOutPeer, directIn, directInPeer
