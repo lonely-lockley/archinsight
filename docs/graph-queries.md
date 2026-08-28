@@ -145,6 +145,7 @@ A relationship alias exposes these built-in properties:
 | `context` | The context associated with the authored edge. |
 | `derived` | Whether the relation was rolled up from lower-level endpoints. |
 | `projected` | Whether deployment projection produced the edge. |
+| `projectionRoot` | The infrastructure element whose projection produced a projected edge. |
 
 Attributes declared on an Insight edge type are available in the same way as element attributes.
 
@@ -204,7 +205,7 @@ WHERE element.context = $context
 RETURN element
 ```
 
-This returns the element nodes and no architecture edges. It is useful for checking scope before adding relationship patterns.
+This establishes the element scope. A node-only query also includes direct authored relationships whose endpoints are both selected. It is useful for checking scope before adding relationship patterns that select or filter edges explicitly.
 
 ### 2. Select one architectural level
 
@@ -287,6 +288,8 @@ This is the common shape for a diagram that must include isolated services as we
 
 A `WHERE` following an optional clause filters that optional pattern. It does not remove the already selected base node when the optional relationship is absent.
 
+Returning a relationship alias makes that match authoritative for the edge set. If its predicate matches no relationships, the result contains no edges; the engine does not replace the empty selection with authored relationships between the remaining nodes.
+
 ### 6. Select a semantic source slice
 
 Source-scoped views use the `sourceIdentity` property and `$tab` variable:
@@ -302,24 +305,24 @@ This pattern is useful when one source is the readable entry point for a system 
 
 ### 7. Match referenced attributes
 
-`IN` tests whether a node occurs in a list-valued reference attribute:
+`IN` tests whether a node occurs in a list-valued reference attribute. Both `uses` and the resolved `runsOn` value can contain several infrastructure objects:
 
 ```cypher
 MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
 OPTIONAL MATCH (infrastructure:InfrastructureComponent)
-WHERE infrastructure IN node.uses
+WHERE infrastructure IN node.uses OR infrastructure IN node.runsOn
 RETURN node, infrastructure
 ```
 
 Equality works for a single typed reference:
 
 ```cypher
-MATCH (node:Element)
-WHERE node.sourceIdentity = $tab
-OPTIONAL MATCH (runtime:InfrastructureComponent)
-WHERE runtime = node.runsOn
-RETURN node, runtime
+MATCH (component:ComponentElement)
+WHERE component.sourceIdentity = $tab
+OPTIONAL MATCH (container:ContainerElement)
+WHERE container = component.parent
+RETURN component, container
 ```
 
 These patterns select nodes connected through typed model attributes even when the attribute itself is not represented as an authored `REFERENCES` edge.
