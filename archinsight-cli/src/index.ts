@@ -1005,6 +1005,14 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       path: "examples/queries/deployment-internal-actors.aiq",
       content: textFileContent(deploymentInternalActorsQuery()),
     },
+    {
+      path: "examples/queries/direct-service-dependencies.aiq",
+      content: genericDirectServiceDependenciesQuery(),
+    },
+    {
+      path: "examples/queries/kafka-service-dependencies.aiq",
+      content: genericKafkaServiceDependenciesQuery(),
+    },
     ...coreSkillFiles(),
   ];
 }
@@ -4409,6 +4417,95 @@ outside the query language. State whether derived and projected edges were
 excluded or analyzed separately so the same dependency is not counted at
 several architectural levels.
 
+## Build a Direct Service Dependency Map
+
+The bundled \`examples/queries/direct-service-dependencies.aiq\` selects the
+one-hop dependency graph at container/service ownership level:
+
+\`\`\`cypher
+MATCH (source:ContainerElement)-[dependency:REFERENCES {withDerived}]->(target:ContainerElement)
+WHERE source.context = $context
+RETURN source, dependency, target
+\`\`\`
+
+\`withDerived\` includes relationships lifted from components to their owning
+containers or services. This is appropriate for a service dependency map, but
+it is not an inventory of authored wires. Remove \`{withDerived}\` when the
+question is specifically about relationships declared directly between those
+elements.
+
+Run the query once for the context instead of querying every service
+individually:
+
+\`\`\`shell
+archinsight query . -c <context-id> \\
+  -q <skill-path>/examples/queries/direct-service-dependencies.aiq \\
+  --format json
+\`\`\`
+
+In direct, non-projected results, nested \`edge.source\` and \`edge.target\`
+preserve dependency ownership. The source depends on the target. Use qualified
+ids from those fields when building an adjacency map; do not infer direction
+from diagram placement.
+
+## Analyze Kafka Topics
+
+The bundled \`examples/queries/kafka-service-dependencies.aiq\` selects authored
+Kafka dependencies without derived or projected copies:
+
+\`\`\`cypher
+MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
+WHERE consumer.context = $context
+  AND event.type = 'AsyncWire'
+  AND event.technology CONTAINS 'Kafka'
+RETURN consumer, event, producer
+\`\`\`
+
+Insight eventing is consumer-owned: the consumer declares \`~> producer\`, and
+\`via\` names the topic or channel. Therefore an outgoing async edge lists what
+a service consumes, while incoming async edges list the modeled consumers of a
+producer's topic contract.
+
+For one consumer, constrain its local id in the first node pattern:
+
+\`\`\`cypher
+MATCH (consumer:ContainerElement {id: 'order_processor', context: $context})
+    -[event:REFERENCES]->(producer:ContainerElement)
+WHERE event.type = 'AsyncWire'
+  AND event.technology CONTAINS 'Kafka'
+RETURN consumer, event, producer
+\`\`\`
+
+For one producer, use the reverse pattern:
+
+\`\`\`cypher
+MATCH (producer:ContainerElement {id: 'order_processor', context: $context})
+    <-[event:REFERENCES]-(consumer:ContainerElement)
+WHERE event.type = 'AsyncWire'
+  AND event.technology CONTAINS 'Kafka'
+RETURN producer, event, consumer
+\`\`\`
+
+The query result is a render graph rather than a row set. When \`jq\` is
+available, extract a compact dependency table without loading the complete JSON
+into the agent's context:
+
+\`\`\`shell
+archinsight query . -c <context-id> \\
+  -q <skill-path>/examples/queries/kafka-service-dependencies.aiq \\
+  --format json |
+jq -r '.edges[] | [
+  .edge.source,
+  .edge.target,
+  (.edge.attributes.via // [] | join(", ")),
+  (.edge.attributes.technology // [] | join(", "))
+] | @tsv'
+\`\`\`
+
+This reports topic contracts used by at least one modeled consumer. Do not
+claim it is a complete producer catalog: a topic with no modeled wire is not
+discoverable unless the project represents that contract separately.
+
 ## Analyze a Source Fragment
 
 Use \`$tab\` when the question concerns the semantic fragment rooted in one
@@ -6015,6 +6112,22 @@ MATCH (boundaryContainer:ContainerElement)
 WHERE boundaryContainer = container OR boundaryContainer = related
 GROUP BY boundaryContainer.parent
 RETURN boundaryContainer, containerLink, related
+`;
+}
+
+function genericDirectServiceDependenciesQuery(): string {
+  return `MATCH (source:ContainerElement)-[dependency:REFERENCES {withDerived}]->(target:ContainerElement)
+WHERE source.context = $context
+RETURN source, dependency, target
+`;
+}
+
+function genericKafkaServiceDependenciesQuery(): string {
+  return `MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
+WHERE consumer.context = $context
+  AND event.type = 'AsyncWire'
+  AND event.technology CONTAINS 'Kafka'
+RETURN consumer, event, producer
 `;
 }
 
