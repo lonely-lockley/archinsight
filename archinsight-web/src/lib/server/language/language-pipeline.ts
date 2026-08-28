@@ -140,26 +140,32 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
   const resultWithSnapshotDiagnostics = withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild);
   const diagnostics = resultWithSnapshotDiagnostics.diagnostics.map(diagnostic);
   const renderStarted = performance.now();
-  const renders = renderPaths(request, resultWithSnapshotDiagnostics).flatMap((sourceIdentity) => {
-    const context = resultWithSnapshotDiagnostics.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
-    try {
-      return [
-        {
-          sourceIdentity,
-          diagram: 'query',
-          dot: service.render({
-            result: resultWithSnapshotDiagnostics,
-            scope: { context: context?.id, tab: sourceIdentity },
-            query: request?.query ?? undefined,
-            theme: 'dark'
-          }).dot
-        }
-      ];
-    } catch (error) {
-      diagnostics.push(systemDiagnostic(error));
-      return [];
-    }
-  });
+  const renders = diagnostics.some((item) => item.level === 'ERROR')
+    ? []
+    : renderPaths(request, resultWithSnapshotDiagnostics).flatMap((sourceIdentity) => {
+      const context = resultWithSnapshotDiagnostics.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
+      try {
+        return [
+          {
+            sourceIdentity,
+            diagram: 'query',
+            dot: service.render({
+              result: resultWithSnapshotDiagnostics,
+              scope: {
+                context: context?.id,
+                tab: sourceIdentity,
+                ...(request?.view == null ? {} : { view: request.view })
+              },
+              query: request?.query ?? undefined,
+              theme: 'dark'
+            }).dot
+          }
+        ];
+      } catch (error) {
+        diagnostics.push(systemDiagnostic(error));
+        return [];
+      }
+    });
   incrementAnalysisMetric('queryDotGenerations', renders.length);
   observeAnalysis(env, 'language.query-render', {
     analysisMode: analysis.mode,
@@ -197,6 +203,14 @@ function withSnapshotDiagnostics(result: LinkProjectResult, projectSnapshot: Lan
 function validateRequest(request: LinkRequest | ProjectStructureRequest | null, env: EnvSource | undefined): void {
   validateQuery('query' in (request ?? {}) ? (request as LinkRequest).query : null, requestLimits(env));
   validateOverlays(request?.overlays, requestLimits(env));
+  if ('view' in (request ?? {}) && !isBuiltinDiagramView((request as LinkRequest).view)) {
+    throw new Error('Invalid built-in diagram view');
+  }
+}
+
+function isBuiltinDiagramView(value: LinkRequest['view']): boolean {
+  return value == null || value === 'no-filter' || value === 'c1' || value === 'c2'
+    || value === 'c3' || value === 'c4' || value === 'deployment';
 }
 
 async function analyzeStoredProject(

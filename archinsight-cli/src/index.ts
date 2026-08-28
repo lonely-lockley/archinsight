@@ -328,9 +328,10 @@ async function loadProject(input: string): Promise<LoadedProject> {
 async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph> {
   const context = args.context ?? firstContext(project);
   const tab = selectedSource(project, args.tab);
-  const scope: QueryScope = { context, tab };
+  const view = args.view ?? (args.queryFile === undefined ? "c1" : undefined);
+  const scope: QueryScope = { context, tab, ...(view === undefined ? {} : { view }) };
   const query = args.queryFile === undefined
-    ? viewQueries[args.view ?? "c1"]
+    ? viewQueries[view ?? "c1"]
     : await readQueryFile(project.root, args.queryFile);
   return selectGraph(project.result, scope, query);
 }
@@ -2350,6 +2351,9 @@ outside systems does it depend on?"
 The built-in C1 query selects the complete context boundary. It shows all C1
 systems and actors in the selected context even when their declarations are
 split across several files; C1 is scoped by context rather than by one tab.
+Participating elements owned by another context are external to the C1 view,
+while an explicit \`external actor\` or \`external system\` remains external in
+every view.
 
 Do not include containers, services, components, databases, queues, or runtime
 nodes unless the project deliberately treats them as context-level systems. C1
@@ -2568,6 +2572,11 @@ Prefer one focal system per C2 source file. The built-in C2 view is scoped by
 the selected source file, so a C2 file should usually contain the selected
 \`system <id>\` declaration or an \`extend system <id>\` block with its
 containers/services.
+
+All systems rooted in the selected source are opened together. Their containers
+and services are internal to the complete diagram. A dependency leaving that
+set is folded to its owning closed system, which is shown as external to this
+C2 view without exposing its containers.
 
 ## C2 Purity vs Pragmatic Infrastructure
 
@@ -2810,6 +2819,11 @@ collaborate to deliver its behavior?"
 Prefer one focal container or service per C3 source file. The built-in C3 view
 is scoped by the selected source file, so the C3 file should usually contain an
 \`extend container <id>\` or \`extend service <id>\` block for the focal element.
+
+If the selected source opens several containers or services, components inside
+all of them are internal to one diagram. A dependency leaving that set is
+folded to the nearest closed container or service and shown as external to the
+C3 view.
 
 Do not model every class, function, method, or package. A component should be a
 stable architectural responsibility that is useful in a diagram and review.
@@ -3164,6 +3178,10 @@ that tab through \`extend\`. It returns direct relationships between code
 elements and groups them by immediate parent. A relationship can bring its
 target code element into the result from outside the selected tab.
 
+All components opened by the tab form one focus. Code inside any of them is
+internal. A relationship leaving that focus is folded to the nearest closed
+component, which is shown as external without exposing its code elements.
+
 The query does not infer classes, packages, or nesting from source paths. Read
 the project's definitions and actual containment slots before editing a C4
 model. Copy \`examples/builtin-views/c4.aiq\` only when the project needs a
@@ -3248,6 +3266,10 @@ environment requires a second source file. One environment can contain several
 deployment schemes, and profiles may select \`production from eu\` and
 \`test from eu\` without a conflict because they are different concrete
 deployments.
+
+The built-in Deployment view renders concrete \`InfrastructureComponent\`
+instances. A \`Deployment\` object organizes the inventory and is not itself a
+physical node, so projected relationships do not roll up to that owner.
 
 ## Framework and inventory
 
@@ -3515,6 +3537,11 @@ endpoints. An undeployed external actor therefore still uses the target
 service's deployments. For each deployment, the named network slot is resolved
 and its concrete instance projection is applied; a deployment without that slot
 is skipped.
+
+When several logical elements or wires select the same infrastructure instance,
+the instance's own projected segments belong to every one of those consumers.
+Each relevant source view must therefore include the complete path. A view that
+contains several consumers still renders a shared physical segment only once.
 
 ## Diagram scope and scale
 
@@ -4433,7 +4460,9 @@ archinsight query . -c <context-id> -s <logical-source.ai> -v deployment --forma
 
 For each projected edge, compare outer \`source\` and \`target\` with nested
 \`edge.source\` and \`edge.target\`. Use \`edge.originSource\` and
-\`edge.originTarget\` to associate physical segments with their logical wire.
+\`edge.originTarget\` for the logical origin selected by the query. When
+\`edge.projectionOrigins\` is present, inspect the complete list before deciding
+that a shared physical segment belongs to only one logical consumer.
 Analyze logical wires and projected segments as separate layers; otherwise one
 dependency can appear to be several independent architectural relationships.
 
@@ -4647,7 +4676,8 @@ For a projected physical path, \`ROLLUP\` can also use \`originSource\` and
 \`originTarget\` to discover path segments belonging to a logical wire. The
 built-in Deployment query uses this to include an incoming path such as
 \`customer -> CDN -> load balancer -> service\` while keeping every segment's
-real physical endpoints.
+real physical endpoints. A shared physical segment may carry several logical
+origins and remains selectable from each of their source views.
 
 Do not infer the model solely from a rolled-up arrow. Inspect query JSON to
 distinguish selected/rendered endpoints from the underlying edge and its
@@ -4665,6 +4695,16 @@ The top-level shape is:
 - \`groups\`: render groups created by \`GROUP BY\`;
 - \`externalElements\`: selected ids drawn outside the internal boundary.
 
+For built-in C1-C4 execution, this list combines explicit model externality
+with externality relative to the opened diagram boundaries. C2 folds a closed
+endpoint to its system, C3 to its container or service, and C4 to its component.
+\`IS External\` in a custom query continues to match only the explicit model
+marker.
+
+To apply one of these boundary contracts to a custom CLI query, pass both
+\`-q <query.aiq>\` and \`-v c1|c2|c3|c4\`. Without \`-v\`, custom query
+execution does not apply a built-in view boundary.
+
 Each edge contains its selected category and two endpoint pairs:
 
 - outer \`source\` and \`target\` are the endpoints that the selected graph will
@@ -4673,7 +4713,11 @@ Each edge contains its selected category and two endpoint pairs:
 - nested \`edge.source\` and \`edge.target\` are the endpoints of the underlying
   linked or projected edge;
 - nested \`edge.originSource\` and \`edge.originTarget\`, when present, identify
-  the logical wire that produced a projected physical segment.
+  the logical origin selected for this occurrence of a projected segment;
+- nested \`edge.projectionOrigins\`, when present, lists every logical source and
+  target that shares the physical segment;
+- nested \`edge.projectionRoot\` identifies the infrastructure element whose
+  projection produced the segment.
 
 An abridged response remains ordinary JSON:
 
@@ -4711,14 +4755,17 @@ and query clause have all been checked.
 
 ## Grouping
 
-\`GROUP BY\` controls diagram clusters. Group by parent for C2/C3 style views:
+\`GROUP BY\` controls diagram clusters. A C2 view groups the selected container
+and related containers by parent without adding unrelated siblings:
 
 \`\`\`cypher
 MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
 OPTIONAL MATCH (container)-[link:REFERENCES {withDerived}]-(related)
-GROUP BY container.parent
-RETURN container, link, related
+MATCH (boundaryContainer:ContainerElement)
+WHERE boundaryContainer = container OR boundaryContainer = related
+GROUP BY boundaryContainer.parent
+RETURN boundaryContainer, link, related
 \`\`\`
 
 For deployment views, grouping by a typed reference attribute is valid:
@@ -4750,14 +4797,15 @@ examples/builtin-views/deployment.aiq
 C1 selects systems in the selected context and uses one undirected inclusive
 neighborhood for direct and derived system-level relationships.
 
-C2 selects \`ContainerElement\` nodes in \`$tab\` and uses undirected inclusive
-neighborhoods for container peers and explicitly external systems.
+C2 opens every system rooted in \`$tab\`, selects its \`ContainerElement\` nodes,
+and folds relationships leaving that set to closed systems.
 
-C3 starts from \`(container:ContainerElement)-[:CONTAINS]->(component)\` and uses
-the same neighborhood shape for component and external-system relationships.
+C3 opens every container rooted in \`$tab\`, selects its components, and folds
+relationships leaving that set to closed containers or services.
 
-C4 selects direct Code-element neighborhoods in either direction. Concrete code
-types and containment remain project-defined.
+C4 opens every component rooted in \`$tab\`, selects direct Code-element
+neighborhoods in either direction, and folds outside code to closed components.
+Concrete code types and containment remain project-defined.
 
 Deployment selects deployment nodes and physically deployed logical nodes from \`$tab\`,
 uses one undirected \`OPTIONAL MATCH ROLLUP\` for projected paths, and keeps
@@ -4896,7 +4944,9 @@ node or edge.
    - nested \`edge.source\` / \`edge.target\`, which belong to the underlying
      linked or projected edge;
    - \`edge.originSource\` / \`edge.originTarget\`, which identify the logical
-     wire behind a projection;
+     origin selected for this occurrence;
+   - \`edge.projectionOrigins\`, which reveals other logical consumers of a
+     shared physical segment;
    - \`edge.projected\` and the clause that returned its alias.
 4. Run the nearest built-in query unchanged. If only the custom query returns
    the edge, fix the custom query. If the built-in query returns it too, reduce
@@ -5584,11 +5634,12 @@ external system payment
 function genericC2QueryExample(): string {
   return `MATCH (container:ContainerElement)
 WHERE container.sourceIdentity = $tab
-OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(relatedContainer:ContainerElement)
-OPTIONAL MATCH (container)-[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)
-WHERE externalSystem IS External
-GROUP BY container.parent
-RETURN container, containerLink, relatedContainer, externalLink, externalSystem
+OPTIONAL MATCH (container)-[containerLink:REFERENCES {withDerived}]-(related:Element)
+WHERE related IS ContainerElement OR related IS SystemElement
+MATCH (boundaryContainer:ContainerElement)
+WHERE boundaryContainer = container OR boundaryContainer = related
+GROUP BY boundaryContainer.parent
+RETURN boundaryContainer, containerLink, related
 `;
 }
 

@@ -49,6 +49,7 @@ export class ProjectLinkerState {
 
   replaceSource(replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
     const previous = this.currentResult;
+    const replacedReferences = previous.graph.sourceContribution(replacement.sourceName)?.referencedNodes ?? new Set<string>();
     const impact = previous.graph.removeSourceContribution(replacement.sourceName);
     if (replacement.source === undefined) {
       this.sourcesByName.delete(replacement.sourceName);
@@ -59,7 +60,9 @@ export class ProjectLinkerState {
       });
     }
     const affectedSources = new Set([replacement.sourceName, ...impact.dependentSources]);
-    const relinkedSources = this.relinkSupportSources(previous, affectedSources);
+    const relinkedSources = this.relinkSupportSources(previous, affectedSources, new Map([
+      [replacement.sourceName, replacedReferences],
+    ]));
     for (const source of relinkedSources) {
       if (source !== replacement.sourceName) {
         previous.graph.removeSourceContribution(source);
@@ -96,8 +99,11 @@ export class ProjectLinkerState {
   private relinkSupportSources(
     previous: LinkProjectResult,
     affectedSources: ReadonlySet<string>,
+    preservedReferencesBySource: ReadonlyMap<string, ReadonlySet<string>>,
   ): ReadonlySet<string> {
     const result = new Set<string>();
+    const visited = new Set<string>();
+    const pending = [...affectedSources];
     const contextBySource = new Map(previous.contexts.map((context) => [context.sourceIdentity, context.id]));
     const sourcesByContext = new Map<string, Set<string>>();
     for (const context of previous.contexts) {
@@ -106,7 +112,12 @@ export class ProjectLinkerState {
       sourcesByContext.set(context.id, sources);
     }
 
-    for (const source of affectedSources) {
+    while (pending.length > 0) {
+      const source = pending.shift()!;
+      if (visited.has(source)) {
+        continue;
+      }
+      visited.add(source);
       // Removed sources still have to participate in result replacement so
       // their contexts, elements, diagnostics, and tab roots are discarded.
       result.add(source);
@@ -114,21 +125,43 @@ export class ProjectLinkerState {
       if (context !== undefined) {
         for (const siblingSource of sourcesByContext.get(context) ?? []) {
           if (this.sourcesByName.has(siblingSource)) {
-            result.add(siblingSource);
+            pending.push(siblingSource);
           }
         }
       }
       for (const imported of previous.imports.filter((item) => item.sourceIdentity === source)) {
         for (const providerSource of sourcesByContext.get(imported.sourceContext) ?? []) {
           if (this.sourcesByName.has(providerSource)) {
-            result.add(providerSource);
+            pending.push(providerSource);
           }
+        }
+      }
+      const referencedNodes = preservedReferencesBySource.get(source)
+        ?? previous.graph.sourceContribution(source)?.referencedNodes
+        ?? [];
+      for (const referencedNode of referencedNodes) {
+        const providerSource = graphNodeSource(previous.graph.node(referencedNode));
+        if (providerSource !== undefined && this.sourcesByName.has(providerSource)) {
+          pending.push(providerSource);
         }
       }
     }
 
     return result;
   }
+}
+
+function graphNodeSource(node: ReturnType<IndexedGraph["node"]>): string | undefined {
+  if (node?.kind === "source") {
+    return node.id;
+  }
+  if (node?.kind === "element") {
+    return node.declarationSource;
+  }
+  if (node?.kind === "type") {
+    return node.ownerSource;
+  }
+  return undefined;
 }
 
 function mergeResults(

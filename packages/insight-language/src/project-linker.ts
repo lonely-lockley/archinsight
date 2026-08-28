@@ -21,6 +21,7 @@ import type {
   DuplicateLinkedEdgeGroup,
   PresentationDefinition,
   ProjectionRuleDefinition,
+  ProjectionOrigin,
   ProjectionTermDefinition,
   ResolvedPresentation,
   SourceLocation,
@@ -1491,7 +1492,7 @@ function collectOperatorInvocation(
     deploymentActions,
     annotations,
     ...noteProperty(invocation, document.sourceName),
-    ...position(invocation, document.sourceName),
+    ...operatorInvocationHeaderPosition(invocation, document.sourceName),
   });
 }
 
@@ -2849,6 +2850,7 @@ function addProjectedRuleEdge(
     rule.operator === ORIGINAL_LINK_OPERATOR ? projectedAttributes : undefined,
     rule.attributes ?? {},
   );
+  const projectionOrigin: ProjectionOrigin = { source: fromId, target: toId };
   for (const source of sources) {
     for (const target of targets) {
       if (coverage !== undefined) {
@@ -2857,7 +2859,16 @@ function addProjectedRuleEdge(
       if (!projectionRuleUsesOwner(rule)) {
         const key = `${projectionElement.id}\0${source}\0${effectiveOperator}\0${target}`;
         if (ownerIndependentProjectionKeys.has(key)) {
-          mergeProjectedEdge(linkedEdges, source, effectiveOperator, target, annotations, carriedAttributes);
+          mergeProjectedEdge(
+            linkedEdges,
+            source,
+            effectiveOperator,
+            target,
+            projectionElement.id,
+            projectionOrigin,
+            annotations,
+            carriedAttributes,
+          );
           continue;
         }
         ownerIndependentProjectionKeys.add(key);
@@ -2872,6 +2883,7 @@ function addProjectedRuleEdge(
         && edge.source === source
         && edge.operator === effectiveOperator
         && edge.target === target
+        && edge.projectionRoot === projectionElement.id
         && edge.projectionScope === edgeProjectionScope);
       if (existingIndex >= 0) {
         const edge = linkedEdges[existingIndex];
@@ -2880,6 +2892,7 @@ function addProjectedRuleEdge(
             ...edge,
             attributes: mergeAttributeValues(carriedAttributes, edge.attributes),
             annotations: uniqueAnnotations([...(edge.annotations ?? []), ...annotations]),
+            projectionOrigins: uniqueProjectionOrigins([...(edge.projectionOrigins ?? []), projectionOrigin]),
           };
         }
         continue;
@@ -2889,6 +2902,8 @@ function addProjectedRuleEdge(
         target,
         originSource: fromId,
         originTarget: toId,
+        projectionOrigins: [projectionOrigin],
+        projectionRoot: projectionElement.id,
         operator: effectiveOperator,
         type,
         sourceIdentity: edgeSourceIdentity,
@@ -2935,16 +2950,16 @@ function mergeProjectedEdge(
   source: string,
   operator: string,
   target: string,
+  projectionRoot: string,
+  projectionOrigin: ProjectionOrigin,
   annotations: readonly LinkedAnnotation[],
   attributes?: Readonly<Record<string, readonly string[]>>,
 ): void {
-  if (annotations.length === 0 && (attributes === undefined || Object.keys(attributes).length === 0)) {
-    return;
-  }
   const index = linkedEdges.findIndex((edge) => edge.projected === true
     && edge.source === source
     && edge.operator === operator
-    && edge.target === target);
+    && edge.target === target
+    && edge.projectionRoot === projectionRoot);
   if (index < 0) {
     return;
   }
@@ -2956,7 +2971,22 @@ function mergeProjectedEdge(
     ...edge,
     attributes: mergeAttributeValues(attributes, edge.attributes),
     annotations: uniqueAnnotations([...(edge.annotations ?? []), ...annotations]),
+    projectionOrigins: uniqueProjectionOrigins([...(edge.projectionOrigins ?? []), projectionOrigin]),
   };
+}
+
+function uniqueProjectionOrigins(origins: readonly ProjectionOrigin[]): readonly ProjectionOrigin[] {
+  const seen = new Set<string>();
+  const result: ProjectionOrigin[] = [];
+  for (const origin of origins) {
+    const key = `${origin.source}\0${origin.target}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(origin);
+  }
+  return result;
 }
 
 function mergeAttributeValues(
@@ -4145,6 +4175,24 @@ function position(node: unknown, _sourceName: string): SourcePosition {
     };
   }
   return { line: 1, column: 1 };
+}
+
+function operatorInvocationHeaderPosition(invocation: RuleNode, sourceName: string): SourcePosition {
+  const start = position(firstChild(invocation, "operatorIdentifier") ?? invocation, sourceName);
+  const end = position(
+    firstChild(invocation, "note")
+      ?? firstChild(invocation, "anonymousImportDeclaration")
+      ?? firstChild(invocation, "identifierReference")
+      ?? firstChild(invocation, "operatorIdentifier")
+      ?? invocation,
+    sourceName,
+  );
+  return {
+    line: start.line,
+    column: start.column,
+    endLine: end.endLine ?? end.line,
+    endColumn: end.endColumn ?? end.column + 1,
+  };
 }
 
 interface TokenLike {

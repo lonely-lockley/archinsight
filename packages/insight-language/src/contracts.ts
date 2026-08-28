@@ -201,6 +201,8 @@ export interface LinkedEdge {
   readonly target: string;
   readonly originSource?: string;
   readonly originTarget?: string;
+  readonly projectionOrigins?: readonly ProjectionOrigin[];
+  readonly projectionRoot?: string;
   readonly operator: string;
   readonly type: string;
   readonly sourceIdentity: string;
@@ -213,6 +215,11 @@ export interface LinkedEdge {
   readonly annotations?: readonly LinkedAnnotation[];
   readonly projected?: boolean;
   readonly projectionScope?: string;
+}
+
+export interface ProjectionOrigin {
+  readonly source: string;
+  readonly target: string;
 }
 
 export interface LinkedAnnotation {
@@ -325,9 +332,12 @@ export interface LinkProjectResult {
   readonly presentations: Readonly<Record<string, ResolvedPresentation>>;
 }
 
+export type BuiltinDiagramView = "no-filter" | "c1" | "c2" | "c3" | "c4" | "deployment";
+
 export interface QueryScope {
   readonly context?: string;
   readonly tab?: string;
+  readonly view?: BuiltinDiagramView;
 }
 
 export interface RenderGraphEdge {

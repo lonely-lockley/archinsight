@@ -27,6 +27,8 @@ The default C3 view is centered on the selected tab. It finds the containers and
 
 Several containers may appear when the selected source describes more than one of them. The container boundaries let the reader see which dependencies stay inside one runtime unit and which cross into another.
 
+Every container or service opened by the selected tab belongs to the same C3 focus. Components inside any of those boundaries are internal to the diagram. A relationship that leaves the focus ends at the nearest closed container or service and marks that endpoint as external to the view. This keeps the closed container's components opaque while preserving the direction and meaning of the original wire.
+
 ## Relationship ownership and direction
 
 A component owns the wires declared in its `links` attribute. The owner becomes the source of the relationship, and the identifier after the operator becomes its target:
@@ -43,7 +45,7 @@ This declaration draws `order_handler → payment_adapter`. Moving the wire unde
 
 At C3, a wire should explain collaboration between responsibilities. `description` records why the source needs the target, while `technology`, `call`, or `via` can identify the concrete interface when that detail helps the reader.
 
-The default view shows component-to-component relationships and connections between components and external C1 elements. An external system remains opaque: the diagram shows the component that interacts with it without opening the external system's internal structure.
+The default view also keeps explicitly external C1 elements opaque. The diagram shows the component that interacts with such an element without opening structure behind that endpoint.
 
 ## Relationships pushed to C2 and C1
 

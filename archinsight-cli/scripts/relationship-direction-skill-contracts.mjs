@@ -44,15 +44,13 @@ try {
   assert.equal(c1.includes("rollupOutboundLink"), false);
 
   const c2 = readFileSync(path.join(output, "examples", "builtin-views", "c2.aiq"), "utf8");
-  assert(c2.includes("[containerLink:REFERENCES {withDerived}]-(relatedContainer:ContainerElement)"));
-  assert(c2.includes("[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)"));
+  assert(c2.includes("[containerLink:REFERENCES {withDerived}]-(related:Element)"));
 
   const c3 = readFileSync(path.join(output, "examples", "builtin-views", "c3.aiq"), "utf8");
-  assert(c3.includes("[componentLink:REFERENCES {withDerived}]-(relatedComponent:ComponentElement)"));
-  assert(c3.includes("[externalLink:REFERENCES {withDerived}]-(externalSystem:SystemElement)"));
+  assert(c3.includes("[componentLink:REFERENCES {withDerived}]-(related:Element)"));
 
   const c4 = readFileSync(path.join(output, "examples", "builtin-views", "c4.aiq"), "utf8");
-  assert(c4.includes("[link:REFERENCES]-(relatedCode:CodeElement)"));
+  assert(c4.includes("[link:REFERENCES]-(related:Element)"));
 
   const deployment = readFileSync(path.join(output, "examples", "builtin-views", "deployment.aiq"), "utf8");
   assert(deployment.includes("[projectedLink:REFERENCES {projected}]-(projectedPeer:Element)"));

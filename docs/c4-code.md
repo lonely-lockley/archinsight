@@ -66,6 +66,8 @@ Relationships whose source and target are both `CodeElement` values are included
 
 Code elements are grouped by their immediate parent. This keeps modules under their component and nested code elements under the project-defined owner that contains them. A relationship can bring a target code element from outside the selected tab into the view when the source code element depends on it.
 
+All components opened by the selected tab form one C4 focus. Their code elements are internal to the diagram. When a code relationship crosses out of that focus, the target is folded to its nearest closed component and shown as external to the view. Opening several components keeps the code inside every one of them internal.
+
 The default query deliberately relies only on the `CodeElement` marker, source scope, relationships, and ownership. It does not assume that a module contains classes, that classes contain methods, or that any particular code type is more important than another. A project can copy the built-in query and specialize it when its code vocabulary requires additional filtering or grouping.
 
 ## Choosing the useful depth

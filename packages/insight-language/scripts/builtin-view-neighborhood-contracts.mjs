@@ -31,7 +31,8 @@ if (failures > 0) {
 }
 
 function c2MatchesExpandedDirectionalNeighborhood() {
-  const expanded = selectGraph(result, scope, `
+  const viewScope = { ...scope, view: "c2" };
+  const expanded = selectGraph(result, viewScope, `
     MATCH (container:ContainerElement)
     WHERE container.sourceIdentity = $tab
     OPTIONAL MATCH (container)-[directOut:REFERENCES]->(directOutContainer:ContainerElement)
@@ -46,18 +47,25 @@ function c2MatchesExpandedDirectionalNeighborhood() {
     WHERE externalDerivedOutSystem IS External
     OPTIONAL MATCH (externalDerivedInSystem:SystemElement)-[externalDerivedIn:REFERENCES {derived}]->(container)
     WHERE externalDerivedInSystem IS External
-    GROUP BY container.parent
-    RETURN container, directOut, directOutContainer, directIn, directInContainer,
+    MATCH (boundaryContainer:ContainerElement)
+    WHERE boundaryContainer = container
+      OR boundaryContainer = directOutContainer
+      OR boundaryContainer = directInContainer
+      OR boundaryContainer = derivedOutContainer
+      OR boundaryContainer = derivedInContainer
+    GROUP BY boundaryContainer.parent
+    RETURN boundaryContainer, directOut, directOutContainer, directIn, directInContainer,
       derivedOut, derivedOutContainer, derivedIn, derivedInContainer,
       externalDirectOut, externalDirectOutSystem, externalDirectIn, externalDirectInSystem,
       externalDerivedOut, externalDerivedOutSystem, externalDerivedIn, externalDerivedInSystem
   `);
 
-  assertEquivalentView("c2", expanded);
+  assertEquivalentView("c2", expanded, viewScope);
 }
 
 function c3MatchesExpandedDirectionalNeighborhood() {
-  const expanded = selectGraph(result, scope, `
+  const viewScope = { ...scope, view: "c3" };
+  const expanded = selectGraph(result, viewScope, `
     MATCH (container:ContainerElement)-[contains:CONTAINS]->(component:ComponentElement)
     WHERE container.sourceIdentity = $tab
     OPTIONAL MATCH (component)-[directOut:REFERENCES]->(directOutComponent:ComponentElement)
@@ -79,11 +87,12 @@ function c3MatchesExpandedDirectionalNeighborhood() {
       externalDerivedOut, externalDerivedOutSystem, externalDerivedIn, externalDerivedInSystem
   `);
 
-  assertEquivalentView("c3", expanded);
+  assertEquivalentView("c3", expanded, viewScope);
 }
 
 function c4MatchesExpandedDirectionalNeighborhood() {
-  const expanded = selectGraph(result, scope, `
+  const viewScope = { ...scope, view: "c4" };
+  const expanded = selectGraph(result, viewScope, `
     MATCH (code:CodeElement)
     WHERE code.sourceIdentity = $tab
     OPTIONAL MATCH (code)-[outbound:REFERENCES]->(outboundCode:CodeElement)
@@ -92,33 +101,33 @@ function c4MatchesExpandedDirectionalNeighborhood() {
     RETURN code, outbound, outboundCode, inbound, inboundCode
   `);
 
-  assertEquivalentView("c4", expanded);
+  assertEquivalentView("c4", expanded, viewScope);
 }
 
 function deploymentMatchesExpandedDirectionalNeighborhood() {
   const expanded = selectGraph(result, scope, `
     MATCH (node:Element)
     WHERE node.sourceIdentity = $tab
-      AND (node IS DeploymentElement
+      AND (node IS InfrastructureComponent
         OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))
     OPTIONAL MATCH (deploymentTarget:InfrastructureComponent)
     WHERE deploymentTarget IN node.uses OR deploymentTarget = node.runsOn
     OPTIONAL MATCH ROLLUP (node)-[projectedOut:REFERENCES {projected}]->(projectedOutPeer:Element)
-    WHERE (projectedOutPeer IS DeploymentElement
+    WHERE (projectedOutPeer IS InfrastructureComponent
        OR (projectedOutPeer IS ContainerElement AND projectedOutPeer.deployed = true)
        OR projectedOutPeer IS External)
       AND projectedOutPeer.id <> node.id
     OPTIONAL MATCH ROLLUP (projectedInPeer:Element)-[projectedIn:REFERENCES {projected}]->(node)
-    WHERE (projectedInPeer IS DeploymentElement
+    WHERE (projectedInPeer IS InfrastructureComponent
        OR (projectedInPeer IS ContainerElement AND projectedInPeer.deployed = true)
        OR projectedInPeer IS External)
       AND projectedInPeer.id <> node.id
     OPTIONAL MATCH (node)-[directOut:REFERENCES]->(directOutPeer:Element)
-    WHERE node IS DeploymentElement
-      AND (directOutPeer IS DeploymentElement OR directOutPeer IS External)
+    WHERE node IS InfrastructureComponent
+      AND (directOutPeer IS InfrastructureComponent OR directOutPeer IS External)
     OPTIONAL MATCH (directInPeer:Element)-[directIn:REFERENCES]->(node)
-    WHERE node IS DeploymentElement
-      AND (directInPeer IS DeploymentElement OR directInPeer IS External)
+    WHERE node IS InfrastructureComponent
+      AND (directInPeer IS InfrastructureComponent OR directInPeer IS External)
     GROUP BY node.runsOn
     RETURN node, deploymentTarget, projectedOut, projectedOutPeer, projectedIn, projectedInPeer,
       directOut, directOutPeer, directIn, directInPeer
