@@ -230,6 +230,7 @@ interface ResolvedImport {
 interface ResolvedReferenceValue {
   readonly id: string;
   readonly element?: ParsedElement;
+  readonly deploymentId?: string;
   readonly line?: number;
   readonly column?: number;
   readonly endLine?: number;
@@ -237,12 +238,8 @@ interface ResolvedReferenceValue {
 }
 
 interface ProjectionScope {
-  readonly sourceIdentity: string;
-  readonly fromId: string;
-  readonly toId: string;
-  readonly projectedAttributes?: Readonly<Record<string, readonly string[]>>;
-  readonly projectedOperator?: string;
-  readonly annotations?: readonly LinkedAnnotation[];
+  readonly sourcePlacement?: string;
+  readonly targetPlacement?: string;
 }
 
 interface PendingProjection {
@@ -406,8 +403,8 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       element.id,
       mergeResolvedReferenceAttributes(resolvedElementAttributes.get(element.id) ?? {}, {
         [APPLIES_TO_ATTRIBUTE]: effectiveDeployments.map((deployment) => resolvedValueForElement(deployment, deployment)),
-        [RUNS_ON_ATTRIBUTE]: application.runsOn.map((item) => resolvedValueForElement(item.element, item.action)),
-        [USES_ATTRIBUTE]: application.uses.map((item) => resolvedValueForElement(item.element, item.action)),
+        [RUNS_ON_ATTRIBUTE]: application.runsOn.map(resolvedValueForDeploymentUse),
+        [USES_ATTRIBUTE]: application.uses.map(resolvedValueForDeploymentUse),
       }),
     );
   }
@@ -2257,7 +2254,7 @@ function deploymentAttributesForWire(
   );
   const application = resolveDeploymentApplication(source, edge.deploymentActions, true, context, deployments);
   return {
-    [USES_ATTRIBUTE]: application.uses.map((item) => resolvedValueForElement(item.element, item.action)),
+    [USES_ATTRIBUTE]: application.uses.map(resolvedValueForDeploymentUse),
   };
 }
 
@@ -2642,6 +2639,13 @@ function resolvedValueForElement(element: ParsedElement, source: SourcePosition)
   };
 }
 
+function resolvedValueForDeploymentUse(use: DeploymentUse): ResolvedReferenceValue {
+  return {
+    ...resolvedValueForElement(use.element, use.action),
+    ...(use.deploymentId === undefined ? {} : { deploymentId: use.deploymentId }),
+  };
+}
+
 function mergeResolvedReferenceAttributes(
   base: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
   override: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
@@ -2725,7 +2729,7 @@ function addProjectedEdges(
       if (!isGraphElement(value.element)) {
         continue;
       }
-      const visitKey = `${fromId}\0${toId}\0${value.element.id}`;
+      const visitKey = `${fromId}\0${toId}\0${value.element.id}\0${value.deploymentId ?? ""}`;
       if (visitedProjectionElements.has(visitKey)) {
         continue;
       }
@@ -2733,6 +2737,13 @@ function addProjectedEdges(
       if (isDirectSlotReferenceSelfProjection(value.element, fromId, toId)) {
         continue;
       }
+      const effectiveProjectionScope = projectionScope ?? projectionScopeFor(
+        fromId,
+        toId,
+        value,
+        elementsById,
+        resolvedElementAttributes,
+      );
       const rules = value.element.projectionRules;
       if (fromId === toId && rules.some(projectionRuleUsesTo)) {
         const position = value.line === undefined || value.column === undefined
@@ -2752,7 +2763,7 @@ function addProjectedEdges(
         continue;
       }
       for (const rule of rules) {
-        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, projectionScope, annotations, projectedAttributes, projectedOperator, coverage);
+        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, effectiveProjectionScope, annotations, projectedAttributes, projectedOperator, coverage);
       }
       addProjectedEdges(
         linkedEdges,
@@ -2765,7 +2776,7 @@ function addProjectedEdges(
         ownerIndependentProjectionKeys,
         typeSystem,
         diagnostics,
-        projectionScope,
+        effectiveProjectionScope,
         annotations,
         undefined,
         projectedOperator,
@@ -2845,6 +2856,8 @@ function addProjectedRuleEdge(
     : rule.operator;
   const edgeOwnerPlacement = projectionRuleOwnerPlacement(rule);
   const edgeProjectionScope = projectionPlacementScope(edgeOwnerPlacement, projectionScope);
+  const sourcePlacement = projectionPlacementScope(rule.source.placement, projectionScope);
+  const targetPlacement = projectionPlacementScope(rule.target.placement, projectionScope);
   const edgeSourceIdentity = projectionPlacementSourceIdentity(edgeOwnerPlacement, fromId, toId, elementsById) ?? sourceIdentity;
   const carriedAttributes = mergeAttributeValues(
     rule.operator === ORIGINAL_LINK_OPERATOR ? projectedAttributes : undefined,
@@ -2884,7 +2897,9 @@ function addProjectedRuleEdge(
         && edge.operator === effectiveOperator
         && edge.target === target
         && edge.projectionRoot === projectionElement.id
-        && edge.projectionScope === edgeProjectionScope);
+        && edge.projectionScope === edgeProjectionScope
+        && edge.sourcePlacement === sourcePlacement
+        && edge.targetPlacement === targetPlacement);
       if (existingIndex >= 0) {
         const edge = linkedEdges[existingIndex];
         if (edge !== undefined) {
@@ -2911,6 +2926,8 @@ function addProjectedRuleEdge(
         ...listAttributesProperty(typeSystem, type),
         projected: true,
         ...(edgeProjectionScope === undefined ? {} : { projectionScope: edgeProjectionScope }),
+        ...(sourcePlacement === undefined ? {} : { sourcePlacement }),
+        ...(targetPlacement === undefined ? {} : { targetPlacement }),
         ...(annotations.length === 0 ? {} : { annotations }),
       });
     }
@@ -3111,11 +3128,88 @@ function projectionRuleOwnerPlacement(rule: ProjectionRuleDefinition): "source" 
     : rule.source.placement;
 }
 
-function projectionPlacementScope(
-  _placement: "source" | "target",
-  _projectionScope?: ProjectionScope,
+function projectionScopeFor(
+  fromId: string,
+  toId: string,
+  projectionValue: ResolvedReferenceValue,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+): ProjectionScope | undefined {
+  const sourcePlacement = endpointPlacement(
+    fromId,
+    projectionValue.deploymentId,
+    projectionValue.element?.context,
+    elementsById,
+    resolvedElementAttributes,
+  );
+  const targetPlacement = endpointPlacement(
+    toId,
+    projectionValue.deploymentId,
+    projectionValue.element?.context,
+    elementsById,
+    resolvedElementAttributes,
+  );
+  return sourcePlacement === undefined && targetPlacement === undefined
+    ? undefined
+    : {
+      ...(sourcePlacement === undefined ? {} : { sourcePlacement }),
+      ...(targetPlacement === undefined ? {} : { targetPlacement }),
+    };
+}
+
+function endpointPlacement(
+  endpointId: string,
+  deploymentId: string | undefined,
+  projectionContext: string | undefined,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
 ): string | undefined {
-  return undefined;
+  const placements = endpointPlacementValues(endpointId, elementsById, resolvedElementAttributes);
+  if (deploymentId !== undefined) {
+    const inDeployment = uniqueIds(placements
+      .filter((placement) => placement.deploymentId === deploymentId)
+      .map((placement) => placement.id));
+    if (inDeployment.length === 1) {
+      return inDeployment[0];
+    }
+  }
+  if (projectionContext !== undefined) {
+    const inContext = uniqueIds(placements
+      .filter((placement) => placement.element?.context === projectionContext)
+      .map((placement) => placement.id));
+    if (inContext.length === 1) {
+      return inContext[0];
+    }
+  }
+  const uniquePlacements = uniqueIds(placements.map((placement) => placement.id));
+  return uniquePlacements.length === 1 ? uniquePlacements[0] : undefined;
+}
+
+function endpointPlacementValues(
+  endpointId: string,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+): readonly ResolvedReferenceValue[] {
+  const visited = new Set<string>();
+  let current = elementsById.get(endpointId);
+  while (current !== undefined && !visited.has(current.id)) {
+    visited.add(current.id);
+    const placements = resolvedElementAttributes.get(current.id)?.[RUNS_ON_ATTRIBUTE] ?? [];
+    if (placements.length > 0) {
+      return placements;
+    }
+    current = current.parent === undefined ? undefined : elementsById.get(current.parent);
+  }
+  return [];
+}
+
+function projectionPlacementScope(
+  placement: "source" | "target",
+  projectionScope?: ProjectionScope,
+): string | undefined {
+  return placement === "source"
+    ? projectionScope?.sourcePlacement
+    : projectionScope?.targetPlacement;
 }
 
 function projectionPlacementSourceIdentity(

@@ -3325,6 +3325,13 @@ The built-in Deployment view renders concrete \`InfrastructureComponent\`
 instances. A \`Deployment\` object organizes the inventory and is not itself a
 physical node, so projected relationships do not roll up to that owner.
 
+When one logical element resolves to several concrete compute placements,
+Deployment query output creates one visible occurrence per selected placement.
+Occurrence ids use \`<logical-id>@@<compute-id>\`, and their \`projectedFrom\`
+attribute retains the logical id. Projected edges connect the matching source
+and target occurrences. A graph whose logical elements all have one placement
+keeps their ordinary ids.
+
 ## Framework and inventory
 
 Define the available slots on an environment type:
@@ -4801,7 +4808,9 @@ Each edge contains its selected category and two endpoint pairs:
 - nested \`edge.projectionOrigins\`, when present, lists every logical source and
   target that shares the physical segment;
 - nested \`edge.projectionRoot\` identifies the infrastructure element whose
-  projection produced the segment.
+  projection produced the segment;
+- nested \`edge.sourcePlacement\` and \`edge.targetPlacement\`, when present,
+  identify the concrete placement of each logical endpoint independently.
 
 An abridged response remains ordinary JSON:
 
