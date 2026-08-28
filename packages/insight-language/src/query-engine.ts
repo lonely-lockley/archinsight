@@ -108,6 +108,8 @@ export function selectGraph(
   const selectedElements = new Map<string, LinkedElement>();
   const selectedEdges: RenderGraphEdge[] = [];
   const selectedEdgeIdentities = new Map<LinkedEdge, Set<string>>();
+  const returnedRelationshipPatterns = relationshipPatternsReturnedBy(parsed);
+  const selectedStructuralRelationships = new Set<string>();
   const groups = new Map<string, RenderGraphGroup>();
   const nodeById = queryNodeIndex(result);
 
@@ -138,6 +140,8 @@ export function selectGraph(
             derived: edge.derived,
             projected: edge.projected,
           }, edge.edge, selectedEdgeIdentities);
+        } else if (returnedRelationshipPatterns.has(alias)) {
+          selectedStructuralRelationships.add(alias);
         }
       }
     }
@@ -158,9 +162,11 @@ export function selectGraph(
 
   const completedEdges = selectedEdges.length > 0
     ? selectedEdges
-    : result.edges
-      .filter((edge) => edge.projected !== true && selectedElements.has(edge.source) && selectedElements.has(edge.target))
-      .map((edge) => ({ edge, source: edge.source, target: edge.target, derived: false, projected: false }));
+    : hasAuthoritativeEdgeSelection(returnedRelationshipPatterns, selectedStructuralRelationships)
+      ? []
+      : result.edges
+        .filter((edge) => edge.projected !== true && selectedElements.has(edge.source) && selectedElements.has(edge.target))
+        .map((edge) => ({ edge, source: edge.source, target: edge.target, derived: false, projected: false }));
   const internalElementIds = new Set([...internalElements(result, rows, parsed)]
     .filter((id) => selectedElements.has(id)));
   const externalElements = [...selectedElements.keys()]
@@ -176,6 +182,26 @@ export function selectGraph(
     externalElements,
   };
   return materializeGroupedView(applyViewBoundary(result, selectedGraph, scope));
+}
+
+function relationshipPatternsReturnedBy(query: ParsedQuery): ReadonlyMap<string, RelationshipPattern> {
+  const returned = new Set(query.returns);
+  return new Map(query.matches.flatMap((match) => {
+    const relationship = match.pattern.relationship;
+    return relationship?.alias !== undefined && returned.has(relationship.alias)
+      ? [[relationship.alias, relationship] as const]
+      : [];
+  }));
+}
+
+function hasAuthoritativeEdgeSelection(
+  returned: ReadonlyMap<string, RelationshipPattern>,
+  selectedStructuralRelationships: ReadonlySet<string>,
+): boolean {
+  return [...returned].some(([alias, pattern]) =>
+    pattern.type === "REFERENCES"
+      || (pattern.type === undefined && !selectedStructuralRelationships.has(alias))
+  );
 }
 
 export function selectGraphs(
@@ -1425,6 +1451,9 @@ function edgePropertyValue(relationship: QueryRelationship, name: string): strin
   }
   if (name === "context") {
     return relationship.context;
+  }
+  if (name === "projectionRoot") {
+    return edge?.projectionRoot;
   }
   const values = edge?.attributes[name];
   if (edge?.listAttributes?.includes(name) === true) {

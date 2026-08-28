@@ -4678,7 +4678,10 @@ OPTIONAL MATCH (container)-[link]->(target)
 RETURN container, link, target
 \`\`\`
 
-Relationship aliases must be returned for edges to render.
+Return relationship aliases when the query must select or filter exact edges. A
+node-only query completes direct authored relationships between selected nodes.
+Once a returned relationship alias is present, its result is authoritative: if
+the relationship predicate matches nothing, no fallback edges are added.
 
 ## Filtering
 
@@ -4691,6 +4694,7 @@ WHERE node.deployed = true
 WHERE node IS External
 WHERE NOT node IS DeploymentElement
 WHERE edge.projected = 'true'
+WHERE edge.projectionRoot = 'eu/service_network'
 WHERE node.id IN ['api', 'web_app']
 WHERE node.technology CONTAINS 'PostgreSQL'
 WHERE node.type <> 'Context'
@@ -4705,6 +4709,13 @@ for a list property it tests membership. Match the stored spelling exactly.
 \`node.deployed\` is true when an element's deployment resolves to at least one
 \`runsOn\` or \`uses\` infrastructure object. The built-in Deployment view uses it to keep
 undeployed logical elements out of the physical diagram.
+
+\`edge.projectionRoot\` is available on projected relationships and identifies
+the infrastructure element whose projection produced the selected segment.
+It can be used in relationship predicates and has the same value shown in
+\`query --format json\` output. Resolved \`node.runsOn\` can contain several
+concrete infrastructure objects, so use \`candidate IN node.runsOn\` when
+matching placement targets.
 
 ## Relationship Selectors
 

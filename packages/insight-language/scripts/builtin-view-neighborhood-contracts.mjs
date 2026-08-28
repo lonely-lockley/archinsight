@@ -111,7 +111,7 @@ function deploymentMatchesExpandedDirectionalNeighborhood() {
       AND (node IS InfrastructureComponent
         OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))
     OPTIONAL MATCH (deploymentTarget:InfrastructureComponent)
-    WHERE deploymentTarget IN node.uses OR deploymentTarget = node.runsOn
+    WHERE deploymentTarget IN node.uses OR deploymentTarget IN node.runsOn
     OPTIONAL MATCH ROLLUP (node)-[projectedOut:REFERENCES {projected}]->(projectedOutPeer:Element)
     WHERE (projectedOutPeer IS InfrastructureComponent
        OR (projectedOutPeer IS ContainerElement AND projectedOutPeer.deployed = true)
