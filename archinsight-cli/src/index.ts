@@ -911,6 +911,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericDeploymentReference(),
     },
     {
+      path: "references/deployment-projections.md",
+      content: genericDeploymentProjectionsReference(),
+    },
+    {
       path: "references/scaling.md",
       content: genericScalingReference(),
     },
@@ -968,6 +972,7 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericDeploymentExample(),
     },
     ...genericDeploymentPrivateGatewayExampleFiles(),
+    ...genericDeploymentProjectionExampleFiles(),
     {
       path: "examples/c2-containers.aiq",
       content: genericC2QueryExample(),
@@ -1071,7 +1076,9 @@ function skillReferenceRoutingGuide(): string {
 - Read \`references/c4-code.md\` when defining or querying modules, packages,
   classes, functions, schemas, or other project-specific code concepts.
 - Read \`references/deployment.md\` when working with environments,
-  deployments, infrastructure, placement, or projections.
+  deployments, infrastructure inventory, profiles, or placement.
+- Read \`references/deployment-projections.md\` when working with physical
+  paths, projection rules, or a missing or unexpected Deployment edge.
 - Read \`references/scaling.md\` when splitting a repository into reusable
   framework, environment, profile, system, or view files.
 - Read \`references/project-structure.md\` before declaration lookup, imports,
@@ -1566,12 +1573,22 @@ For pub/sub, make the dependency consumer-owned:
   dependencies instead of editing a subscriber list on the producer.
 
 Do not invent a broker node just to make the diagram look familiar. If the
-chosen style is explicit deployment modeling and the broker is deployment
-infrastructure, model it in the deployment inventory. If the chosen style is
-pragmatic mixed C2, a broker-like node
-can be acceptable, but document that the view mixes levels. If the producer or
-consumer is not known, leave a gap and report it instead of fabricating an
-element.
+chosen style is explicit deployment modeling, inventory records that a concrete
+broker exists, but inventory alone does not place an async logical wire in the
+Deployment view. The wire must select an environment slot whose concrete value
+has a projection.
+
+A wire can use only a \`NetworkConnection\` descendant. The built-in \`Broker\`
+is an \`InfrastructureComponent\`, so it remains useful as inventory but cannot
+be selected directly by wire \`uses\`. When the broker belongs on the physical
+path, define a project-specific \`NetworkConnection\` such as an event channel,
+place the \`Broker\` behind one of its attributes, and project through it. Read
+the complete [Broker](deployment-projections.md#broker) example before modeling
+that path.
+
+If the chosen style is pragmatic mixed C2, a broker-like node can be acceptable,
+but document that the view mixes levels. If the producer or consumer is not
+known, leave a gap and report it instead of fabricating an element.
 
 ## No Fabricated Elements
 
@@ -1597,11 +1614,32 @@ an individual diagram may be only one filtered view. An infrastructure
 inventory can describe deployed resources without explaining logical systems.
 Prose can contain facts that are absent from every diagram.
 
-Create a small mapping ledger while working. For each source object, record its
-source identity, intended Insight id and type, owner or context, evidence, and
-any unresolved ambiguity. Preserve stable source ids when they are meaningful
-and valid Insight identifiers. Never merge objects solely because their display
-names look similar.
+Keep this mapping in an optional import report: a non-semantic Markdown working
+artifact that does not participate in Insight parsing, linking, queries, or
+rendering. Follow an existing repository convention when one exists; otherwise
+use \`notes/<scope>-import.md\`. The report records:
+
+- source artifact and source identity;
+- selected Insight id and type;
+- ownership or context mapping;
+- evidence supporting the mapping;
+- unresolved or contradictory facts;
+- defects observed in the source;
+- resolution status and any user decision.
+
+Preserve stable source ids when they are meaningful and valid Insight
+identifiers. Never merge objects solely because their display names look
+similar.
+
+## Separate Import From Repair
+
+Import supported architectural facts faithfully. Finding a defect in an
+authoritative source does not authorize silently correcting or redesigning it.
+Record contradictions and continue with independent supported facts. If a
+source defect cannot be represented in a valid Insight model, keep the
+observation in the import report instead of fabricating a valid replacement.
+Repair the architecture only when the task explicitly includes repair or the
+user chooses a resolution.
 
 ## Judge the Evidence, Not Just the Format
 
@@ -2457,6 +2495,14 @@ system compliance
 Here \`fintech\` can be outside the compliance team boundary, but it is not
 outside the company platform context. Use the context boundary, not team
 ownership alone, to decide \`system\` vs \`external system\`.
+
+C1 opens the complete context, so both declarations remain internal \`System\`
+members there. When a compliance source opens only that system at C2, the
+sibling fintech system is included through the relationship and presented as
+external relative to the opened system boundary. Do not rewrite it as
+\`ExternalSystem\` to obtain that presentation. Deployment is narrower still:
+it includes only logical endpoints and physical infrastructure reached through
+the selected effective deployments and valid projections.
 
 ## Reusable External Context Pattern
 
@@ -3316,8 +3362,6 @@ deployment production
     storage:
         storage postgres
             name = PostgreSQL
-            projection:
-                source $from originalLink target $this
 
     publicGateway:
         publicGateway public_edge
@@ -3325,19 +3369,15 @@ deployment production
             loadBalancer:
                 infrastructureComponent load_balancer
                     name = Load balancer
-            projection:
-                source $from originalLink target loadBalancer
-                target loadBalancer connectTo target $to
 
     network:
         networkConnection service_network
             name = Service network
-            projection:
-                source $from originalLink target $to
 \`\`\`
 
 An explicit object id may differ from the slot name: \`public_edge\` still fills
-the \`publicGateway\` slot of \`eu/production\`.
+the \`publicGateway\` slot of \`eu/production\`. Add concrete physical paths
+only after reading \`references/deployment-projections.md\`.
 
 ## Concrete infrastructure placement
 
@@ -3407,16 +3447,6 @@ Profile slot actions resolve independently in every concrete deployment from
 \`appliesTo\`. A missing \`runsOn compute\` or element-level \`uses storage\` slot
 is an error because the selected deployment cannot realize the profile.
 
-Infrastructure is copy-on-write. A plain \`uses storage\` reuses the concrete
-deployment instance. Nested overrides create a local clone:
-
-\`\`\`insight
-deployment:
-    uses production_service
-    uses storage
-        description = jdbc:postgresql://orders/app
-\`\`\`
-
 ## Wire deployment
 
 A wire deployment accepts \`uses\` of \`NetworkConnection\` descendants only:
@@ -3440,7 +3470,8 @@ service frontend
 Do not attach \`DeploymentProfile\`, \`runsOn\`, \`Storage\`, \`Compute\`, or another
 non-network infrastructure type to a wire. In particular, ingress, egress,
 service-mesh, VPN, and broker paths used by wires must inherit
-\`NetworkConnection\`.
+\`NetworkConnection\`. Read \`references/deployment-projections.md\` before
+defining the concrete path or placing a built-in broker on that path.
 
 For each relevant concrete deployment, the linker checks the requested slot:
 
@@ -3467,81 +3498,17 @@ in the Deployment view and does not require a physical projection. Element check
 separately by logical modeling family, so starting container placement does not
 demand artificial placement for every system, component, or external actor.
 
-## Projection execution semantics
+## Projection overview
 
-Projection rules belong to concrete infrastructure instances because paths can
-differ between deployments and operator overrides can clone instances. Do not
-declare them on infrastructure types.
+A projection on a concrete infrastructure instance turns an element placement
+or logical wire into directed physical edges. Element projections receive one
+logical endpoint; wire projections receive both. The selected deployment,
+endpoint placement, \`originalLink\`, \`connectTo\`, copy-on-write overrides,
+and shared physical segments all affect the observable result.
 
-A projection is activated in one of two contexts:
-
-- element deployment: \`uses\` or \`runsOn\` projects a single logical element;
-  \`$from\` is that element and \`$to\` is not available;
-- wire deployment: \`uses <network-slot>\` projects one logical relationship;
-  \`$from\` and \`$to\` are its logical source and target.
-
-Using \`$to\` in a projection reached from an element is an error. Use an
-element projection for dependencies such as service-to-storage:
-
-\`\`\`insight
-storage postgres
-    projection:
-        source $from originalLink target $this
-\`\`\`
-
-Use these terms inside a projection:
-
-- \`$from\` and \`$to\`: logical relationship endpoints;
-- \`$this\`: the concrete infrastructure instance owning the projection;
-- an attribute name such as \`cdn\` or \`loadBalancer\`: the value of that slot
-  on \`$this\`. Use the slot name even when the nested object's id is different.
-
-\`originalLink\` and \`connectTo\` have different jobs:
-
-- \`originalLink\` substitutes one physical hop for the original logical
-  relationship. On a wire it preserves the logical operator, relationship
-  attributes, and annotations; attributes written on the projection rule
-  override carried values for that hop.
-- \`connectTo\` creates a new physical \`connectTo\` edge. It uses only the
-  attributes written on that projection rule; relationship annotations are
-  still retained for traceability.
-
-The leading \`source\` or \`target\` on a projection term is its placement on the
-logical source or target side. It controls ownership/source scoping; it does not
-reverse the edge. The left term is always the physical edge source and the right
-term is its target. For example, this line points from the gateway to the
-logical caller even though their placements are target and source:
-
-\`\`\`insight
-target $this connectTo source $from
-\`\`\`
-
-Projection lines are declarative independent edges, not imperative steps. Form
-a path by repeating the same term at adjacent ends; branch by using one term in
-several rules:
-
-\`\`\`insight
-projection:
-    source $from originalLink target cdn
-    target cdn connectTo target loadBalancer
-        technology = HTTPS
-    target loadBalancer connectTo target $to
-        technology = HTTPS
-\`\`\`
-
-This projects an incoming logical wire as \`$from -> cdn -> loadBalancer -> $to\`.
-Only the first hop keeps the original logical operator and its attributes.
-
-For a wire, the linker evaluates the union of effective deployments of both
-endpoints. An undeployed external actor therefore still uses the target
-service's deployments. For each deployment, the named network slot is resolved
-and its concrete instance projection is applied; a deployment without that slot
-is skipped.
-
-When several logical elements or wires select the same infrastructure instance,
-the instance's own projected segments belong to every one of those consumers.
-Each relevant source view must therefore include the complete path. A view that
-contains several consumers still renders a shared physical segment only once.
+Read \`references/deployment-projections.md\` before writing or repairing a
+projection. It contains the execution contract and complete gateway, storage,
+broker, egress, and monitoring projects with expected query JSON.
 
 ## Diagram scope and scale
 
@@ -3623,10 +3590,14 @@ define type PublicGateway of NetworkConnection
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
 
+define type EventChannel of NetworkConnection
+    constructor eventChannel
+    required Broker transport
+
 extend type Environment
     Compute compute
     Storage storage
-    Broker broker
+    EventChannel events
     PublicGateway publicGateway
     NetworkConnection network
 \`\`\`
@@ -3642,14 +3613,17 @@ deployment production
         compute ecs
             name = ECS
             technology = AWS ECS
-    broker:
-        broker kafka
-            name = Kafka
-            technology = MSK
-            address = kafka.prod.eu.internal
+    events:
+        eventChannel event_bus
+            name = Event bus
+            transport:
+                broker kafka
+                    name = Kafka
+                    technology = MSK
+                    address = kafka.prod.eu.internal
             projection:
-                source $from originalLink source $this
-                target $to connectTo target $this
+                target $to connectTo target transport
+                target transport originalLink source $from
 \`\`\`
 
 \`\`\`insight
@@ -3664,7 +3638,9 @@ deploymentProfile regional_service
 
 System files in the same logical context should import the context-owned profile
 when it is declared in a different source identity. Wires name compatible
-\`NetworkConnection\` slots directly.
+\`NetworkConnection\` slots directly. Read the
+[Broker](deployment-projections.md#broker) example before adding an event path;
+a built-in \`Broker\` inventory value cannot itself fill a wire-facing slot.
 
 ## System Files and External Contexts
 
@@ -5389,6 +5365,405 @@ define type Egress of NetworkConnection
 define type Monitoring of InfrastructureComponent
     constructor monitoring
     required InfrastructureComponent display
+`;
+}
+
+interface DeploymentProjectionExample {
+  readonly slug: string;
+  readonly title: string;
+  readonly purpose: string;
+  readonly context: string;
+  readonly expected: readonly string[];
+  readonly files: readonly GeneratedFile[];
+}
+
+function deploymentProjectionExamples(): readonly DeploymentProjectionExample[] {
+  return [
+    {
+      slug: "gateway",
+      title: "Gateway",
+      purpose: "Expand an incoming relationship through a gateway and load balancer.",
+      context: "gateway_example",
+      expected: [
+        "customer -> eu/edge_gateway keeps the authored logical operator and attributes.",
+        "eu/edge_gateway -> eu/load_balancer and eu/load_balancer -> gateway_example/api are connectTo hops.",
+      ],
+      files: [
+        projectionFile("definitions.ai", `define type GatewayEnvironment of Environment
+    Compute compute
+    PublicGateway publicGateway
+
+define type PublicGateway of NetworkConnection
+    constructor publicGateway
+    required InfrastructureComponent gateway
+    required InfrastructureComponent loadBalancer
+`),
+        projectionFile("infrastructure.ai", `environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public edge
+            gateway:
+                infrastructureComponent edge_gateway
+                    name = Edge gateway
+            loadBalancer:
+                infrastructureComponent load_balancer
+                    name = Load balancer
+            projection:
+                source $from originalLink target gateway
+                target gateway connectTo target loadBalancer
+                    technology = HTTPS
+                target loadBalancer connectTo target $to
+                    technology = HTTP
+`),
+        projectionFile("model.ai", `context gateway_example
+
+deploymentProfile service_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+
+external actor customer
+    name = Customer
+    links:
+        -> api
+            technology = HTTPS
+            description = Calls the public API
+            deployment:
+                uses publicGateway
+
+system platform
+    name = Platform
+
+    service api
+        name = API
+        deployment:
+            uses service_profile
+`),
+      ],
+    },
+    {
+      slug: "storage",
+      title: "Storage",
+      purpose: "Project a deployed element onto storage without using the unavailable `$to` term.",
+      context: "storage_example",
+      expected: [
+        "storage_example/orders -> eu/postgres is one projected element relationship.",
+        "Its originSource and originTarget both identify storage_example/orders.",
+      ],
+      files: [
+        projectionFile("definitions.ai", `define type StorageEnvironment of Environment
+    Compute compute
+    Storage database
+`),
+        projectionFile("infrastructure.ai", `environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    database:
+        storage postgres
+            name = PostgreSQL
+            projection:
+                source $from originalLink target $this
+`),
+        projectionFile("model.ai", `context storage_example
+
+deploymentProfile stateful_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+    uses database
+
+system commerce
+    name = Commerce
+
+    service orders
+        name = Orders
+        deployment:
+            uses stateful_profile
+`),
+      ],
+    },
+    {
+      slug: "broker",
+      title: "Broker",
+      purpose: "Route a consumer-owned async dependency through broker infrastructure in the physical event-flow direction.",
+      context: "broker_example",
+      expected: [
+        "broker_example/publisher -> eu/kafka is a new connectTo hop.",
+        "eu/kafka -> broker_example/consumer is the original async link and retains model, via, technology, and description.",
+      ],
+      files: [
+        projectionFile("definitions.ai", `define type BrokerEnvironment of Environment
+    Compute compute
+    EventChannel events
+
+define type EventChannel of NetworkConnection
+    constructor eventChannel
+    required Broker transport
+`),
+        projectionFile("infrastructure.ai", `environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    events:
+        eventChannel order_events
+            name = Order events
+            transport:
+                broker kafka
+                    name = Kafka
+                    technology = Managed Kafka
+            projection:
+                target $to connectTo target transport
+                    technology = Kafka
+                target transport originalLink source $from
+`),
+        projectionFile("model.ai", `context broker_example
+
+deploymentProfile service_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+
+system commerce
+    name = Commerce
+
+    service publisher
+        name = Order publisher
+        deployment:
+            uses service_profile
+
+    service consumer
+        name = Fulfillment consumer
+        deployment:
+            uses service_profile
+        links:
+            ~> publisher
+                via = orders.created
+                technology = Kafka
+                description = Consumes order-created events
+                deployment:
+                    uses events
+`),
+      ],
+    },
+    {
+      slug: "egress",
+      title: "Egress",
+      purpose: "Expand an outbound relationship through an egress gateway while retaining source-side ownership.",
+      context: "egress_example",
+      expected: [
+        "egress_example/client -> eu/nat_gateway keeps the authored relationship through originalLink.",
+        "eu/nat_gateway -> providers/payment_api is a connectTo hop in the same physical direction.",
+        "Both hops use source-side placement and keep model.ai as edge.sourceIdentity for source-scoped discovery.",
+      ],
+      files: [
+        projectionFile("definitions.ai", `define type EgressEnvironment of Environment
+    Compute compute
+    Egress egress
+
+define type Egress of NetworkConnection
+    constructor egress
+    required InfrastructureComponent gateway
+`),
+        projectionFile("infrastructure.ai", `environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    egress:
+        egress outbound
+            name = Outbound path
+            gateway:
+                infrastructureComponent nat_gateway
+                    name = NAT gateway
+            projection:
+                source $from originalLink source gateway
+                source gateway connectTo target $to
+                    technology = HTTPS
+`),
+        projectionFile("external.ai", `context providers
+
+external system payment_api
+    name = Payment API
+`),
+        projectionFile("model.ai", `context egress_example
+
+import payment_api from context providers
+
+deploymentProfile service_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+
+system commerce
+    name = Commerce
+
+    service client
+        name = Payment client
+        deployment:
+            uses service_profile
+        links:
+            -> payment_api
+                technology = HTTPS
+                description = Authorizes payments
+                deployment:
+                    uses egress
+`),
+      ],
+    },
+    {
+      slug: "monitoring",
+      title: "Monitoring",
+      purpose: "Demonstrate a reverse-direction infrastructure edge and independent fan-out to two destinations.",
+      context: "monitoring_example",
+      expected: [
+        "eu/telemetry -> monitoring_example/api is the reverse-direction edge.",
+        "eu/telemetry branches independently to eu/prometheus and eu/otel_collector, each exactly once.",
+      ],
+      files: [
+        projectionFile("definitions.ai", `define type MonitoringEnvironment of Environment
+    Compute compute
+    Monitoring observability
+
+define type Monitoring of InfrastructureComponent
+    constructor monitoring
+    required InfrastructureComponent prometheus
+    required InfrastructureComponent collector
+`),
+        projectionFile("infrastructure.ai", `environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    observability:
+        monitoring telemetry
+            name = Telemetry agent
+            prometheus:
+                infrastructureComponent prometheus
+                    name = Prometheus
+            collector:
+                infrastructureComponent otel_collector
+                    name = OpenTelemetry Collector
+            projection:
+                target $this connectTo source $from
+                target $this connectTo target prometheus
+                target $this connectTo target collector
+`),
+        projectionFile("model.ai", `context monitoring_example
+
+deploymentProfile observed_service
+    appliesTo:
+        production from eu
+    runsOn compute
+    uses observability
+
+system platform
+    name = Platform
+
+    service api
+        name = API
+        deployment:
+            uses observed_service
+`),
+      ],
+    },
+  ];
+}
+
+function projectionFile(path: string, content: string): GeneratedFile {
+  return { path, content };
+}
+
+function genericDeploymentProjectionExampleFiles(): readonly GeneratedFile[] {
+  return deploymentProjectionExamples().flatMap((example) => example.files.map((file) => ({
+    path: `examples/deployment-projections/${example.slug}/${file.path}`,
+    content: file.content,
+  })));
+}
+
+function genericDeploymentProjectionsReference(): string {
+  const examples = deploymentProjectionExamples().map((example) => {
+    const files = example.files.map((file) => `### ${file.path}\n\n\`\`\`insight\n${file.content.trimEnd()}\n\`\`\``).join("\n\n");
+    const expected = example.expected.map((item) => `- ${item}`).join("\n");
+    return `## ${example.title}\n\n${example.purpose}\n\n${files}\n\nRun:\n\n\`\`\`shell\narchinsight link examples/deployment-projections/${example.slug} --format text\narchinsight query examples/deployment-projections/${example.slug} -c ${example.context} -s model.ai -v deployment --format json\n\`\`\`\n\nExpected physical result:\n\n${expected}`;
+  }).join("\n\n");
+
+  return `# Deployment Projections
+
+Read this reference when a task involves a physical path, an infrastructure
+projection, or a missing or unexpected edge in Deployment. Read
+\`references/deployment.md\` first for environments, inventory, profiles, and
+placement.
+
+## Execution model
+
+Projection rules live on concrete infrastructure instances. An element
+projection receives \`$from\` for the deployed logical element and has no
+\`$to\`. A wire projection receives both logical endpoints. \`$this\` is the
+concrete projection owner, while a plain identifier resolves one of its typed
+attributes.
+
+Every rule describes one independent directed physical edge. The term on the
+left is always the physical source and the term on the right is always the
+physical target. Repeating an endpoint joins rules into a path; reusing one
+endpoint in several rules creates fan-out.
+
+The leading \`source\` and \`target\` placement words assign a term to the
+logical source or target side for ownership and source scoping. Placement does
+not reverse the physical left-to-right direction.
+
+Use \`originalLink\` on the hop that must retain the authored logical operator,
+\`model\`, \`via\`, \`technology\`, \`description\`, annotations, and other
+relationship attributes. A \`connectTo\` rule creates a new physical edge and
+receives only attributes written on that rule, while projection origin metadata
+still provides traceability. A path made entirely from \`connectTo\` therefore
+does not carry the logical operator or authored relationship attributes.
+
+Wire \`uses\` accepts only a \`NetworkConnection\` descendant. A built-in
+\`Broker\` is an \`InfrastructureComponent\`: it can exist in inventory, but a
+wire cannot select it directly. Put the broker behind a project-defined
+\`NetworkConnection\` vocabulary when it must participate in a physical wire
+path. See [Broker](#broker), the consumer-owned relationship rules in
+[Eventing](modeling.md#eventing), and the shared-definition layout in
+[Scaling](scaling.md#framework-once-use-everywhere).
+
+Projection resolution is repeated for every concrete deployment selected by
+the effective endpoint profiles. Nested deployment overrides are copy-on-write:
+they clone the selected infrastructure for that logical owner without changing
+the shared inventory or routing unrelated projected hops through the clone.
+
+Inspect query JSON before rendering. Outer \`source\` and \`target\` are drawn;
+nested \`edge.source\` and \`edge.target\` are the physical linked edge;
+\`edge.originSource\` and \`edge.originTarget\` identify the selected logical
+origin; and \`edge.projectionOrigins\` lists every logical consumer of a shared
+physical segment.
+
+Keep replication meshes and deeper provider topology in \`description\`,
+\`technology\`, \`via\`, or notes unless an intermediate resource is a
+first-order architectural component.
+
+${examples}
 `;
 }
 
