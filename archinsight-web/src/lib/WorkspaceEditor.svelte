@@ -13,6 +13,9 @@
   export let query: string;
   export let queryVisible = false;
   export let queryPanelHeight = 118;
+  export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
+  export let deploymentEnvironment: string | undefined = undefined;
+  export let deploymentPickerOpen = false;
   export let viewMode: EditorViewMode = 'split';
   export let diagramScale = 1;
   export let diagramFit = false;
@@ -27,6 +30,8 @@
   export let emptyStrategy: EmptyWorkspaceStrategy | undefined = undefined;
 
   export let onSelectDiagramMode: (mode: DiagramMode) => void;
+  export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
+  export let onCloseDeploymentPicker: () => void = () => {};
   export let onToggleQuery: () => void;
   export let onQueryChange: (query: string) => void;
   export let onQueryPanelHeightChange: (height: number) => void;
@@ -50,7 +55,12 @@
       {query}
       {queryVisible}
       {queryPanelHeight}
+      {deploymentEnvironments}
+      {deploymentEnvironment}
+      {deploymentPickerOpen}
       {onSelectDiagramMode}
+      {onSelectDeploymentEnvironment}
+      {onCloseDeploymentPicker}
       {onToggleQuery}
       {onQueryChange}
       {onQueryPanelHeightChange}

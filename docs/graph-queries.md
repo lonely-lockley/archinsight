@@ -353,6 +353,8 @@ RETURN node, path, target
 
 Inclusive selectors can combine categories in one clause when they have the same view semantics. Deployment queries may still use separate clauses because logical wires, placement relationships, and physical path segments play different roles.
 
+The built-in D1 and D2 views apply deployment detail after this source-scoped selection. `deployment-system` folds logical endpoints to their owning systems. `deployment-container` accepts an environment through query scope and retains only that environment's placement and infrastructure, plus closed logical endpoints needed by cross-environment relationships. The CLI supplies this scope with `--environment <id>`; it is separate from predicates written into the query text.
+
 ### 9. Group the result
 
 `GROUP BY` turns a property into render-graph ownership:

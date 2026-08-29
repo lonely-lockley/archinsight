@@ -6,6 +6,7 @@ import {
   coreLanguageSnapshot,
   coreSource,
   coreSources,
+  discoverDeploymentEnvironments,
   insightSemanticTokenModifiers,
   insightSemanticTokenTypes,
   InsightLanguageService,
@@ -30,6 +31,7 @@ type AgentSkillTarget = "generic" | "codex" | "claude";
 interface PreviewState {
   readonly view: DiagramView;
   readonly query: string;
+  readonly environment?: string;
   readonly contextId: string;
   readonly sourceName: string;
   readonly fileName: string;
@@ -42,6 +44,7 @@ interface PreviewState {
 interface DiagramQueryState {
   readonly view: DiagramView;
   readonly query: string;
+  readonly environment?: string;
 }
 
 type PreviewMessage =
@@ -58,6 +61,7 @@ type WorkbenchEditorMessage =
   | { readonly command: "ready" }
   | { readonly command: "sourceChanged"; readonly source: string }
   | { readonly command: "render"; readonly view: DiagramView; readonly query: string }
+  | { readonly command: "selectDeploymentEnvironment" }
   | { readonly command: "refresh" }
   | { readonly command: "download"; readonly kind: "source" | "svg" | "png" | "dot" }
   | { readonly command: "editQuery"; readonly view: DiagramView; readonly query: string }
@@ -178,6 +182,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("archinsight.preview.c2", async () => previewView(project, "c2")),
     vscode.commands.registerCommand("archinsight.preview.c3", async () => previewView(project, "c3")),
     vscode.commands.registerCommand("archinsight.preview.c4", async () => previewView(project, "c4")),
+    vscode.commands.registerCommand("archinsight.preview.deploymentSystem", async () => previewView(project, "deployment-system")),
+    vscode.commands.registerCommand("archinsight.preview.deploymentContainer", async () => previewView(project, "deployment-container", undefined, true)),
     vscode.commands.registerCommand("archinsight.preview.deployment", async () => previewView(project, "deployment")),
     vscode.commands.registerCommand("archinsight.preview.editQuery", async () => controls.focus(activeWorkbenchEditor?.currentView(), activeWorkbenchEditor?.currentQuery())),
     vscode.commands.registerCommand("archinsight.preview.downloadSource", async () => {
@@ -909,7 +915,7 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       activeWorkbenchEditor = existing;
       existing.activate();
       if (state !== undefined) {
-        await existing.render(state.view, state.query);
+        await existing.render(state.view, state.query, false, state.environment);
       }
       await existing.reveal(location.range.start);
       return;
@@ -926,8 +932,9 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       return;
     }
     activeWorkbenchEditor = session;
-    if (state !== undefined && (session.currentView() !== state.view || session.currentQuery() !== state.query)) {
-      await session.render(state.view, state.query);
+    if (state !== undefined && (session.currentView() !== state.view || session.currentQuery() !== state.query
+        || session.currentEnvironment() !== state.environment)) {
+      await session.render(state.view, state.query, false, state.environment);
     }
     await session.reveal(location.range.start);
   }
@@ -970,7 +977,7 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       activeWorkbenchEditor = existing;
       existing.activate();
       if (state !== undefined) {
-        await existing.render(state.view, state.query);
+        await existing.render(state.view, state.query, false, state.environment);
       }
       await existing.reveal(selection.start);
       return;
@@ -997,6 +1004,7 @@ class ArchinsightWorkbenchEditorSession {
   private state: PreviewState | undefined;
   private view: DiagramView;
   private query: string;
+  private environment: string | undefined;
   private disposed = false;
   private applyingEdit = false;
   private renderGeneration = 0;
@@ -1018,6 +1026,7 @@ class ArchinsightWorkbenchEditorSession {
   ) {
     this.view = initialState?.view ?? "c1";
     this.query = initialState?.query ?? viewQueries.c1;
+    this.environment = initialState?.environment;
   }
 
   currentView(): DiagramView {
@@ -1026,6 +1035,10 @@ class ArchinsightWorkbenchEditorSession {
 
   currentQuery(): string {
     return this.query;
+  }
+
+  currentEnvironment(): string | undefined {
+    return this.environment;
   }
 
   isActive(): boolean {
@@ -1070,11 +1083,16 @@ class ArchinsightWorkbenchEditorSession {
     if (current === undefined) {
       return;
     }
+    if (this.view === "deployment-container") {
+      const selection = await chooseDeploymentEnvironment(current, sourceName, this.environment, false);
+      this.environment = selection.cancelled ? undefined : selection.environment;
+    }
     const hasErrors = current.diagnostics.some((diagnostic) => (diagnostic.level ?? "ERROR") === "ERROR");
     if (hasErrors) {
       this.state = {
         view: this.view,
         query: this.query,
+        ...(this.environment === undefined ? {} : { environment: this.environment }),
         contextId: "-",
         sourceName,
         fileName: this.fileName(),
@@ -1086,7 +1104,7 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     const generation = ++this.renderGeneration;
-    const state = await previewState(current, sourceName, source, this.fileName(), this.view, this.query);
+    const state = await previewState(current, sourceName, source, this.fileName(), this.view, this.query, this.environment);
     if (generation !== this.renderGeneration || this.disposed) {
       return;
     }
@@ -1095,12 +1113,30 @@ class ArchinsightWorkbenchEditorSession {
     await this.postPreview(state);
   }
 
-  async render(view: DiagramView, query = viewQueries[view]): Promise<void> {
+  async render(
+    view: DiagramView,
+    query = viewQueries[view],
+    forceEnvironmentPicker = false,
+    requestedEnvironment: string | undefined = this.environment,
+  ): Promise<void> {
+    if (view === "deployment-container" && this.project.current !== undefined) {
+      const selection = await chooseDeploymentEnvironment(
+        this.project.current,
+        this.sourceName(this.project.current),
+        requestedEnvironment,
+        forceEnvironmentPicker,
+      );
+      if (selection.cancelled) {
+        await this.panel.webview.postMessage({ command: "query", view: this.view, query: this.query, environment: this.environment });
+        return;
+      }
+      this.environment = selection.environment;
+    }
     this.view = view;
     this.query = query;
     await this.controls.sync(this.view, this.query);
     await this.refreshFromProject(this.project.current);
-    await this.panel.webview.postMessage({ command: "query", view: this.view, query: this.query });
+    await this.panel.webview.postMessage({ command: "query", view: this.view, query: this.query, environment: this.environment });
   }
 
   private async handleMessage(message: WorkbenchEditorMessage): Promise<void> {
@@ -1119,10 +1155,11 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     if (message.command === "render") {
-      this.view = message.view;
-      this.query = message.query;
-      await this.controls.sync(this.view, this.query);
-      await this.refreshFromProject(this.project.current);
+      await this.render(message.view, message.query);
+      return;
+    }
+    if (message.command === "selectDeploymentEnvironment") {
+      await this.render("deployment-container", viewQueries["deployment-container"], true);
       return;
     }
     if (message.command === "refresh") {
@@ -1170,6 +1207,7 @@ class ArchinsightWorkbenchEditorSession {
       fileName: this.fileName(),
       view: this.view,
       query: this.query,
+      environment: this.environment,
       queries: viewQueries,
       diagnostics: this.project.current?.diagnostics ?? [],
       symbols: this.project.current?.snapshot ?? coreLanguageSnapshot,
@@ -1228,7 +1266,7 @@ class ArchinsightWorkbenchEditorSession {
     if (current === undefined) {
       return;
     }
-    const queryState = { view: this.view, query: this.query };
+    const queryState = { view: this.view, query: this.query, environment: this.environment };
     if (coreSourceByName.has(declaration.source)) {
       await this.openLocation(new vscode.Location(coreSourceUriFor(declaration.source), locationRange({ line: declaration.line, column: declaration.column })), queryState);
       return;
@@ -1367,13 +1405,60 @@ class ArchinsightWorkbenchEditorSession {
   }
 }
 
-async function previewView(project: ProjectModel, view: DiagramView, query = viewQueries[view]): Promise<void> {
+interface DeploymentEnvironmentSelection {
+  readonly environment?: string;
+  readonly cancelled: boolean;
+}
+
+async function chooseDeploymentEnvironment(
+  current: LinkedProject,
+  sourceName: string,
+  selected: string | undefined,
+  forcePicker: boolean,
+): Promise<DeploymentEnvironmentSelection> {
+  const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
+  const environments = discoverDeploymentEnvironments(current.result, { context: context?.id, tab: sourceName });
+  if (environments.length === 0) {
+    if (forcePicker) {
+      void vscode.window.showInformationMessage("No deployment environments are relevant to this source.");
+    }
+    return { cancelled: false };
+  }
+  if (environments.length === 1) {
+    return { environment: environments[0]!.id, cancelled: false };
+  }
+  if (!forcePicker && selected !== undefined && environments.some((environment) => environment.id === selected)) {
+    return { environment: selected, cancelled: false };
+  }
+  const picked = await vscode.window.showQuickPick(
+    environments.map((environment) => ({
+      label: environment.id,
+      description: environment.name === undefined || environment.name === environment.id ? undefined : environment.name,
+      environment,
+    })),
+    {
+      title: "D2 Deployment Environment",
+      placeHolder: "Select the environment to open at container level",
+      matchOnDescription: true,
+    },
+  );
+  return picked === undefined
+    ? { cancelled: true }
+    : { environment: picked.environment.id, cancelled: false };
+}
+
+async function previewView(
+  project: ProjectModel,
+  view: DiagramView,
+  query = viewQueries[view],
+  forceEnvironmentPicker = false,
+): Promise<void> {
   if (activeWorkbenchEditor !== undefined) {
-    await activeWorkbenchEditor.render(view, query);
+    await activeWorkbenchEditor.render(view, query, forceEnvironmentPicker);
     return;
   }
   if (activePreview !== undefined) {
-    await activePreview.render(view, query);
+    await activePreview.render(view, query, forceEnvironmentPicker);
     return;
   }
   await project.refresh(`preview:${view}`);
@@ -1420,6 +1505,7 @@ class PreviewSession {
   private pngResolve: ((value: Uint8Array) => void) | undefined;
   private pngReject: ((reason?: unknown) => void) | undefined;
   private renderGeneration = 0;
+  private environment: string | undefined;
 
   constructor(
     private current: LinkedProject,
@@ -1429,6 +1515,13 @@ class PreviewSession {
   }
 
   async show(initialView: DiagramView, initialQuery: string): Promise<void> {
+    if (initialView === "deployment-container") {
+      const selection = await chooseDeploymentEnvironment(this.current, this.sourceName, this.environment, false);
+      if (selection.cancelled) {
+        return;
+      }
+      this.environment = selection.environment;
+    }
     this.state = await previewState(
       this.current,
       this.sourceName,
@@ -1436,6 +1529,7 @@ class PreviewSession {
       path.basename(this.active.uri.fsPath),
       initialView,
       initialQuery,
+      this.environment,
     );
     this.panel = vscode.window.createWebviewPanel(
       "archinsightPreview",
@@ -1467,9 +1561,16 @@ class PreviewSession {
     this.panel.webview.html = previewHtml(this.panel.webview);
   }
 
-  async render(view: DiagramView, query = viewQueries[view]): Promise<void> {
+  async render(view: DiagramView, query = viewQueries[view], forceEnvironmentPicker = false): Promise<void> {
     if (this.panel === undefined) {
       return;
+    }
+    if (view === "deployment-container") {
+      const selection = await chooseDeploymentEnvironment(this.current, this.sourceName, this.environment, forceEnvironmentPicker);
+      if (selection.cancelled) {
+        return;
+      }
+      this.environment = selection.environment;
     }
     const generation = ++this.renderGeneration;
     const state = await previewState(
@@ -1479,6 +1580,7 @@ class PreviewSession {
       path.basename(this.active.uri.fsPath),
       view,
       query,
+      this.environment,
     );
     if (generation !== this.renderGeneration) {
       return;
@@ -1603,16 +1705,29 @@ async function previewState(
   fileName: string,
   view: DiagramView,
   query: string,
+  environment?: string,
 ): Promise<PreviewState> {
   const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
   try {
-    const graph = selectGraph(current.result, { context: context?.id, tab: sourceName, view }, query);
+    if (view === "deployment-container" && environment === undefined) {
+      const available = discoverDeploymentEnvironments(current.result, { context: context?.id, tab: sourceName });
+      throw new Error(available.length === 0
+        ? "No deployment environments are relevant to this source."
+        : "Select an environment for the D2 view.");
+    }
+    const graph = selectGraph(current.result, {
+      context: context?.id,
+      tab: sourceName,
+      view,
+      ...(environment === undefined ? {} : { environment }),
+    }, query);
     const dot = renderGraphviz(current.result, graph, vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark ? "dark" : "light");
     const svg = await renderSvg(dot);
     output.appendLine("Render finished: diagram rendered successfully");
     return {
       view,
       query,
+      ...(environment === undefined ? {} : { environment }),
       contextId: context?.id ?? "-",
       sourceName,
       fileName,
@@ -1626,6 +1741,7 @@ async function previewState(
     return {
       view,
       query,
+      ...(environment === undefined ? {} : { environment }),
       contextId: context?.id ?? "-",
       sourceName,
       fileName,

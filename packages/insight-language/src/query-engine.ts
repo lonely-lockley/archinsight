@@ -1,4 +1,5 @@
 import type {
+  DeploymentEnvironment,
   LinkedContext,
   LinkedEdge,
   LinkedElement,
@@ -181,7 +182,63 @@ export function selectGraph(
     })).filter((group) => group.elements.length > 0),
     externalElements,
   };
-  return materializeGroupedView(applyViewBoundary(result, selectedGraph, scope));
+  const materialized = materializeGroupedView(applyViewBoundary(result, selectedGraph, scope));
+  if (scope.view === "deployment-container") {
+    return applyDeploymentEnvironmentScope(result, materialized, scope);
+  }
+  if (scope.view === "deployment-system") {
+    return rollUpDeploymentSystems(result, materialized, scope);
+  }
+  return materialized;
+}
+
+export function discoverDeploymentEnvironments(
+  result: LinkProjectResult,
+  scope: Pick<QueryScope, "context" | "tab">,
+): readonly DeploymentEnvironment[] {
+  const closure = tabClosure(result, scope.tab);
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const environmentIds = new Set<string>();
+
+  for (const element of result.elements) {
+    if (!closure.has(element.id) || element.deployed !== true) {
+      continue;
+    }
+    for (const targetId of [...(element.attributes.runsOn ?? []), ...(element.attributes.uses ?? [])]) {
+      const target = elementsById.get(targetId);
+      if (target !== undefined && target.context !== element.context) {
+        environmentIds.add(target.context);
+      }
+    }
+  }
+
+  for (const context of result.contexts) {
+    const ownsConcreteDeployment = result.elements.some((element) =>
+      element.context === context.id && elementHasType(element, "Deployment")
+    );
+    if (context.synthetic !== true && context.sourceIdentity === scope.tab
+        && (context.type === "Environment" || ownsConcreteDeployment)) {
+      environmentIds.add(context.id);
+    }
+  }
+
+  const contextsById = new Map(result.contexts.map((context) => [context.id, context]));
+  const environmentNamesByContext = new Map<string, string>();
+  for (const element of result.elements) {
+    if (element.synthetic === true || element.parent !== undefined || !elementHasType(element, "Environment")) {
+      continue;
+    }
+    const name = element.attributes.name?.[0];
+    if (name !== undefined) {
+      environmentNamesByContext.set(element.context, name);
+    }
+  }
+  return [...environmentIds]
+    .map((id) => {
+      const name = environmentNamesByContext.get(id) ?? contextsById.get(id)?.attributes.name?.[0];
+      return { id, ...(name === undefined ? {} : { name }) };
+    })
+    .sort((left, right) => (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id));
 }
 
 function relationshipPatternsReturnedBy(query: ParsedQuery): ReadonlyMap<string, RelationshipPattern> {
@@ -344,6 +401,187 @@ function groupedCloneKey(elementId: string, groupOwner: string): string {
 
 function groupedCloneId(elementId: string, groupOwner: string): string {
   return `${elementId}@@${groupOwner}`;
+}
+
+function applyDeploymentEnvironmentScope(
+  result: LinkProjectResult,
+  graph: RenderGraph,
+  scope: QueryScope,
+): RenderGraph {
+  const environments = discoverDeploymentEnvironments(result, scope);
+  const environment = scope.environment ?? (environments.length === 1 ? environments[0]?.id : undefined);
+  if (environment === undefined) {
+    return emptyScopedGraph(graph);
+  }
+  if (!environments.some((candidate) => candidate.id === environment)) {
+    return emptyScopedGraph(graph);
+  }
+
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const groups = graph.groups.filter((group) => elementEnvironment(group.owner, elementsById) === environment);
+  const selectedIds = new Set(groups.flatMap((group) => [group.owner, ...group.elements]));
+  const candidateEdges = graph.edges.filter((edge) => deploymentEdgeInEnvironment(edge, environment, elementsById));
+  const edges = candidateEdges.filter((edge) => {
+    const sourceAllowed = deploymentEndpointAllowed(edge.source, environment, elementsById);
+    const targetAllowed = deploymentEndpointAllowed(edge.target, environment, elementsById);
+    return sourceAllowed && targetAllowed;
+  });
+  for (const edge of edges) {
+    selectedIds.add(edge.source);
+    selectedIds.add(edge.target);
+  }
+
+  const elements = Object.fromEntries(Object.entries(graph.elements).filter(([id]) => selectedIds.has(id)));
+  const externalElements = new Set(graph.externalElements.filter((id) => selectedIds.has(id)));
+  for (const id of selectedIds) {
+    const occurrenceEnvironment = deploymentOccurrenceEnvironment(id, elementsById);
+    if (occurrenceEnvironment !== undefined && occurrenceEnvironment !== environment
+        && isLogicalDeploymentEndpoint(id, elementsById)) {
+      externalElements.add(id);
+    }
+  }
+  return {
+    ...graph,
+    elements,
+    edges,
+    groups: groups.map((group) => ({ ...group, elements: group.elements.filter((id) => selectedIds.has(id)) })),
+    externalElements: [...externalElements],
+  };
+}
+
+function emptyScopedGraph(graph: RenderGraph): RenderGraph {
+  return { ...graph, elements: {}, edges: [], groups: [], externalElements: [] };
+}
+
+function deploymentEdgeInEnvironment(
+  edge: RenderGraphEdge,
+  environment: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): boolean {
+  const scopes = [edge.edge.projectionRoot, edge.edge.sourcePlacement, edge.edge.targetPlacement]
+    .filter((id): id is string => id !== undefined);
+  if (scopes.some((id) => elementEnvironment(id, elementsById) === environment)) {
+    return true;
+  }
+  return [edge.source, edge.target]
+    .some((id) => elementEnvironment(id, elementsById) === environment);
+}
+
+function deploymentEndpointAllowed(
+  id: string,
+  environment: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): boolean {
+  return isLogicalDeploymentEndpoint(id, elementsById)
+    || elementEnvironment(id, elementsById) === environment;
+}
+
+function isLogicalDeploymentEndpoint(id: string, elementsById: ReadonlyMap<string, LinkedElement>): boolean {
+  const element = elementsById.get(baseOccurrenceId(id));
+  return element !== undefined && !elementHasType(element, "InfrastructureComponent");
+}
+
+function deploymentOccurrenceEnvironment(
+  id: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): string | undefined {
+  const separator = id.indexOf("@@");
+  if (separator >= 0) {
+    return elementEnvironment(id.slice(separator + 2), elementsById);
+  }
+  const runsOn = elementsById.get(id)?.attributes.runsOn ?? [];
+  return runsOn.length === 1 ? elementEnvironment(runsOn[0]!, elementsById) : undefined;
+}
+
+function elementEnvironment(
+  id: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): string | undefined {
+  return elementsById.get(baseOccurrenceId(id))?.context;
+}
+
+function baseOccurrenceId(id: string): string {
+  const separator = id.indexOf("@@");
+  return separator < 0 ? id : id.slice(0, separator);
+}
+
+function rollUpDeploymentSystems(result: LinkProjectResult, graph: RenderGraph, scope: QueryScope): RenderGraph {
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const parentByChild = new Map(result.elements.flatMap((element) =>
+    element.parent === undefined ? [] : [[element.id, element.parent]]
+  ));
+  const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
+    .find((candidate) => elementHasType(elementsById.get(candidate), "SystemElement"));
+  const fold = (id: string): string => {
+    const system = systemFor(id);
+    if (system === undefined) {
+      return id;
+    }
+    const separator = id.indexOf("@@");
+    return separator < 0 ? system : `${system}${id.slice(separator)}`;
+  };
+  const foldedElement = (id: string): LinkedElement | undefined => {
+    const folded = fold(id);
+    const base = elementsById.get(baseOccurrenceId(folded));
+    if (base === undefined) {
+      return graph.elements[id];
+    }
+    return folded === base.id
+      ? base
+      : { ...base, id: folded, attributes: { ...base.attributes, projectedFrom: [base.id] } };
+  };
+
+  const groups = graph.groups.map((group) => ({
+    ...group,
+    elements: [...new Set(group.elements.map(fold))],
+  })).filter((group) => group.elements.length > 0);
+  const edges: RenderGraphEdge[] = [];
+  for (const edge of graph.edges) {
+    const originSource = edge.edge.originSource ?? edge.edge.source;
+    const originTarget = edge.edge.originTarget ?? edge.edge.target;
+    const originSourceSystem = systemFor(originSource);
+    const originTargetSystem = systemFor(originTarget);
+    if (originSource !== originTarget
+        && originSourceSystem !== undefined
+        && originSourceSystem === originTargetSystem) {
+      continue;
+    }
+    const next = { ...edge, source: fold(edge.source), target: fold(edge.target) };
+    if (next.source !== next.target) {
+      addFoldedViewEdge(edges, next);
+    }
+  }
+
+  const referenced = new Set([
+    ...groups.flatMap((group) => [group.owner, ...group.elements]),
+    ...edges.flatMap((edge) => [edge.source, edge.target]),
+  ]);
+  const elements: Record<string, LinkedElement> = {};
+  for (const id of referenced) {
+    const direct = graph.elements[id];
+    const element = direct ?? [...Object.keys(graph.elements)]
+      .filter((candidate) => fold(candidate) === id)
+      .map(foldedElement)
+      .find((candidate) => candidate !== undefined);
+    if (element !== undefined) {
+      elements[id] = element.id === id ? element : { ...element, id };
+    }
+  }
+  const sourceElements = tabClosure(result, scope.tab);
+  const externalElements = new Set(graph.externalElements.map(fold).filter((id) => referenced.has(id)));
+  for (const id of referenced) {
+    const system = systemFor(id);
+    if (system !== undefined && !sourceElements.has(system)) {
+      externalElements.add(id);
+    }
+  }
+  return {
+    ...graph,
+    elements,
+    edges,
+    groups,
+    externalElements: [...externalElements],
+  };
 }
 
 function internalElements(result: LinkProjectResult, rows: readonly Row[], query: ParsedQuery): ReadonlySet<string> {

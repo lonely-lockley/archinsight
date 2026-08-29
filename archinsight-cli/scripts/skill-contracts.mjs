@@ -86,6 +86,13 @@ function verifySharedFiles(output) {
   );
   const bundledBuiltin = readFileSync(path.join(output, "examples", "builtin-views", "deployment.aiq"), "utf8");
   assert.equal(bundledBuiltin, expectedBuiltin);
+  for (const name of ["deployment-system", "deployment-container"]) {
+    const expected = readFileSync(
+      path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", `${name}.aiq`),
+      "utf8",
+    );
+    assert.equal(readFileSync(path.join(output, "examples", "builtin-views", `${name}.aiq`), "utf8"), expected);
+  }
   const expectedC4Builtin = readFileSync(
     path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "c4.aiq"),
     "utf8",
@@ -160,6 +167,11 @@ function verifySharedFiles(output) {
   assert(c4Code.includes("uses `Storage` in the Deployment model"));
   assert.match(c4Code, /infer the intended entity kinds from that vocabulary and\s+reuse it without asking/);
   assert.match(c4Code, /Ask the user which code entity kinds they want only when creating a new C4 Code\s+layer or when the requested work requires new entity kinds or containment rules/);
+
+  assert(deployment.includes("deployment-system"));
+  assert(deployment.includes("deployment-container"));
+  assert(deployment.includes("--environment <environment>"));
+  assert(deployment.includes("backward compatibility"));
 
   const validation = readFileSync(path.join(output, "references", "validation.md"), "utf8");
   assert.match(validation, /archinsight query .* -v c4 --format json/);

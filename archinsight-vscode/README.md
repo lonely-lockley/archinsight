@@ -55,7 +55,7 @@ structure, generate skills, and render diagrams.
 2. Open a workspace containing one or more `.ai` files, or create the
    `storefront.ai` example shown above.
 3. Open the file. Archinsight uses its source-and-diagram editor by default.
-4. Use the top toolbar to switch between no-filter, C1, C2, C3, C4, and Deployment views.
+4. Use the top toolbar to switch between no-filter, C1, C2, C3, C4, D1 system deployment, and D2 container deployment views. D2 automatically selects a single relevant environment or opens a native picker when several are available.
 5. Open the `Archinsight Query` panel to inspect or edit the active graph query.
 6. Open `Project Structure` in Explorer to navigate declarations.
 
@@ -67,7 +67,7 @@ Useful commands are available from the Command Palette:
 - `Archinsight: Check CLI`
 - `Archinsight: Install CLI`
 - `Archinsight: Generate Agent Skill`
-- `Archinsight: Preview Diagram` view commands for no-filter, C1, C2, C3, C4, and Deployment
+- `Archinsight: Preview Diagram` view commands for no-filter, C1, C2, C3, C4, D1 system deployment, and D2 container deployment
 
 ## CLI and Agent Skills
 

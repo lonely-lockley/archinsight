@@ -26,6 +26,7 @@ export type WorkspaceTabState = {
   ui?: WorkspaceTabUiState;
   query?: string;
   diagramMode?: string;
+  deploymentEnvironment?: string;
   queryVisible?: boolean;
   queryPanelHeight?: number;
   diagramScale?: number;

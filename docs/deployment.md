@@ -6,9 +6,26 @@ The goal is a readable physical explanation of the logical model. A deployment d
 
 The deployment model is the home of infrastructure. Compute platforms, databases, object storage, message brokers, gateways, load balancers, ingress controllers, network connections, and observability services belong here when the project models deployment explicitly. Logical C2 elements refer to these resources without turning a database or broker into an application container.
 
-The default deployment view starts from the model fragment associated with the selected tab. It follows the deployment profiles, placements, infrastructure uses, and projected wires reachable from that logical fragment. The result stays centered on the system or service being examined while drawing the relevant objects from their environment namespaces.
+Deployment views start from the model fragment associated with the selected tab. They follow the deployment profiles, placements, infrastructure uses, and projected wires reachable from that logical fragment. The result stays centered on the system or service being examined while drawing the relevant objects from their environment namespaces.
 
-A logical element enters the default view only after its deployment resolves to physical infrastructure through `runsOn` or `uses`. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent from the Deployment view even when both logical endpoints are deployed. Direct relationships declared between infrastructure components remain visible because they already describe the physical model.
+A logical element enters these views only after its deployment resolves to physical infrastructure through `runsOn` or `uses`. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent even when both logical endpoints are deployed. Direct relationships declared between infrastructure components remain visible because they already describe the physical model.
+
+## D1 and D2 deployment detail
+
+The editor provides two deployment detail levels. D1 gives a system-level overview across every environment used by the selected source. Containers and services are folded into their owning systems, while the physical infrastructure needed to explain placement and dependencies remains visible. Connections whose logical endpoints belong to the same system are omitted at this level.
+
+D2 opens the containers and services in one concrete environment. When the selected source reaches several environments, the editor asks which one to show. Infrastructure and placement clones from the other environments remain closed; a remote logical endpoint required by a cross-environment connection stays visible as an external participant.
+
+The web editor remembers the D2 environment for each tab. VS Code uses a native environment picker. A single relevant environment is selected automatically, and switching environments reuses the linked model.
+
+The same views are available from the CLI:
+
+```shell
+archinsight query . -c shop -s storefront.ai -v deployment-system --format json
+archinsight query . -c shop -s storefront.ai -v deployment-container --environment eu_west --format json
+```
+
+`deployment-system` and `deployment-container` are stable built-in view names. The older `deployment` view remains available for commands and integrations that need the complete container-level graph across all relevant environments.
 
 ## Environment and deployment boundaries
 
@@ -291,7 +308,7 @@ A wire deployment accepts `NetworkConnection` infrastructure through `uses`. It 
 
 Element placement and wire placement work together. The element profiles identify the concrete deployments and runtime infrastructure. The wire then selects the connection available in those deployments, and its projection explains the visible physical path while preserving the wire's source, target, and logical attributes.
 
-Wire coverage is checked only after the project contains at least one deployment-relevant wire with a `deployment` block. From that point, a logical wire between different deployment endpoints produces `WIRE_MISSING_DEPLOYMENT` when it has no deployment, while a configured wire that produces no physical projection produces `WIRE_DEPLOYMENT_NOT_PROJECTED`. A component relationship whose endpoints belong to the same container does not require a physical projection because it collapses to a self-relationship in the Deployment view. Both diagnostics are warnings: the linked logical graph remains valid, while the incomplete wire stays out of the default deployment view.
+Wire coverage is checked only after the project contains at least one deployment-relevant wire with a `deployment` block. From that point, a logical wire between different deployment endpoints produces `WIRE_MISSING_DEPLOYMENT` when it has no deployment, while a configured wire that produces no physical projection produces `WIRE_DEPLOYMENT_NOT_PROJECTED`. A component relationship whose endpoints belong to the same container does not require a physical projection because it collapses to a self-relationship in the Deployment views. Both diagnostics are warnings: the linked logical graph remains valid, while the incomplete wire stays out of the built-in Deployment views.
 
 ## Deployment entities
 
@@ -370,8 +387,9 @@ A clean link proves that the project parses and that types, imports, profiles, s
 
 ```shell
 archinsight link . --format text
-archinsight query . -c <context> -s <logical-source.ai> -v deployment --format json
-archinsight render . -c <context> -s <logical-source.ai> -v deployment -f svg -o deployment.svg
+archinsight query . -c <context> -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
 ```
 
 Inspect the JSON before relying on the image. It records the exact elements and physical edges selected by the Deployment query. SVG is the final presentation check for layout, labels, and styling.

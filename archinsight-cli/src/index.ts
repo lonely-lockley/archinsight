@@ -8,6 +8,7 @@ import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
   coreSources,
+  discoverDeploymentEnvironments,
   linkProject,
   renderGraphviz,
   selectGraph,
@@ -38,6 +39,7 @@ interface ParsedArgs {
   readonly context?: string;
   readonly tab?: string;
   readonly view?: DiagramView;
+  readonly environment?: string;
   readonly queryFile?: string;
   readonly output?: string;
   readonly format?: string;
@@ -329,11 +331,51 @@ async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<
   const context = args.context ?? firstContext(project);
   const tab = selectedSource(project, args.tab);
   const view = args.view ?? (args.queryFile === undefined ? "c1" : undefined);
-  const scope: QueryScope = { context, tab, ...(view === undefined ? {} : { view }) };
+  const environment = deploymentEnvironmentOption(project, args, context, tab, view);
+  const scope: QueryScope = {
+    context,
+    tab,
+    ...(view === undefined ? {} : { view }),
+    ...(environment === undefined ? {} : { environment }),
+  };
   const query = args.queryFile === undefined
     ? viewQueries[view ?? "c1"]
     : await readQueryFile(project.root, args.queryFile);
   return selectGraph(project.result, scope, query);
+}
+
+function deploymentEnvironmentOption(
+  project: LoadedProject,
+  args: ParsedArgs,
+  context: string,
+  tab: string,
+  view: DiagramView | undefined,
+): string | undefined {
+  if (view !== "deployment-container") {
+    return args.environment;
+  }
+  const environments = discoverDeploymentEnvironments(project.result, { context, tab });
+  if (args.environment !== undefined) {
+    if (!environments.some((candidate) => candidate.id === args.environment)) {
+      throw new CliError(`Environment '${args.environment}' is not relevant to '${tab}'. Available environments: ${environmentList(environments)}`);
+    }
+    return args.environment;
+  }
+  if (environments.length === 1) {
+    return environments[0]!.id;
+  }
+  if (environments.length === 0) {
+    throw new CliError(`No deployment environments are relevant to '${tab}'`);
+  }
+  throw new CliError(`View 'deployment-container' requires --environment. Available environments: ${environmentList(environments)}`);
+}
+
+function environmentList(environments: readonly { readonly id: string; readonly name?: string }[]): string {
+  return environments.map((environment) =>
+    environment.name === undefined || environment.name === environment.id
+      ? environment.id
+      : `${environment.id} (${environment.name})`
+  ).join(", ") || "none";
 }
 
 async function readQueryFile(projectRoot: string, queryFile: string): Promise<string> {
@@ -675,6 +717,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     context: stringOption(options.context),
     tab: stringOption(options.tab),
     view: viewOption(options.view),
+    environment: stringOption(options.environment),
     queryFile: stringOption(options.query),
     output: stringOption(options.output),
     format: stringOption(options.format),
@@ -695,6 +738,8 @@ function optionKey(arg: string): string | undefined {
     "-s": "tab",
     "--view": "view",
     "-v": "view",
+    "--environment": "environment",
+    "-e": "environment",
     "--query": "query",
     "-q": "query",
     "--out": "output",
@@ -748,7 +793,9 @@ function viewOption(value: unknown): DiagramView | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (value === "c1" || value === "c2" || value === "c3" || value === "c4" || value === "deployment" || value === "no-filter") {
+  if (value === "c1" || value === "c2" || value === "c3" || value === "c4"
+      || value === "deployment" || value === "deployment-system" || value === "deployment-container"
+      || value === "no-filter") {
     return value;
   }
   throw new CliError(`Unknown view '${String(value)}'`);
@@ -791,8 +838,8 @@ function helpText(): string {
 
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
-  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
-  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f text|json] [-o file]
+  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 
@@ -801,7 +848,8 @@ Options:
   -c, --context <id>       Context id for query/render.
   -s, --source <file>      Selected project file for queries using $tab.
       --tab <source>       Backward-compatible alias for --source.
-  -v, --view <name>        Built-in view: c1, c2, c3, c4, deployment, no-filter.
+  -v, --view <name>        Built-in view: c1, c2, c3, c4, deployment-system, deployment-container, deployment, no-filter.
+  -e, --environment <id>   Environment scope for deployment-container.
   -q, --query <file>       Query file; overrides --view.
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
@@ -996,6 +1044,14 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     {
       path: "examples/builtin-views/c4.aiq",
       content: textFileContent(viewQueries.c4),
+    },
+    {
+      path: "examples/builtin-views/deployment-system.aiq",
+      content: textFileContent(viewQueries["deployment-system"]),
+    },
+    {
+      path: "examples/builtin-views/deployment-container.aiq",
+      content: textFileContent(viewQueries["deployment-container"]),
     },
     {
       path: "examples/builtin-views/deployment.aiq",
@@ -3265,8 +3321,8 @@ archinsight render . -c <context-id> -s <code-source.ai> -v c4 -f svg -o code.sv
 \`\`\`
 
 Use the self-contained \`examples/c4-code\` project when the syntax for a code
-framework or model is unclear. Deployment is a separate view selected with
-\`--view deployment\`; never use C4 as an alias for Deployment.
+framework or model is unclear. Deployment is a separate view family selected
+with \`--view deployment-system\` or \`--view deployment-container\`; never use C4 as an alias for Deployment.
 `;
 }
 
@@ -3278,10 +3334,18 @@ logical elements run, which infrastructure they use, and how their wires pass
 through the physical world. Keep C1-C4 logical; deployment inventory and
 projections supply the physical view.
 
-The built-in Deployment view includes a logical element only when its deployment
+The built-in Deployment views include a logical element only when its deployment
 resolves at least one \`runsOn\` or \`uses\` infrastructure object. A logical wire
 appears only through physical edges created by its deployment projection. A
 plain logical wire is intentionally omitted from Deployment.
+
+Use \`deployment-system\` (D1) for a system-level overview across the environments
+relevant to the selected source. It folds deployed containers and services into
+their owning systems. Use \`deployment-container\` (D2) to inspect containers and
+services in one environment. Pass \`--environment <id>\` when several environments
+are relevant; the CLI selects the environment automatically when there is only
+one. The older \`deployment\` view keeps the complete all-environment container
+graph for backward compatibility.
 
 Model the infrastructure immediately relevant to those logical elements and
 connections. Do not expand a Deployment view into a complete provider, transit, replication,
@@ -3541,8 +3605,9 @@ Run:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c <context> -s <logical-source.ai> -v deployment --format json
-archinsight render . -c <context> -s <logical-source.ai> -v deployment -f svg -o deployment.svg
+archinsight query . -c <context> -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
 \`\`\`
 
 A clean link proves that syntax, types, imports, and deployment references are
@@ -4884,6 +4949,8 @@ examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
 examples/builtin-views/c4.aiq
+examples/builtin-views/deployment-system.aiq
+examples/builtin-views/deployment-container.aiq
 examples/builtin-views/deployment.aiq
 \`\`\`
 
@@ -4900,9 +4967,11 @@ C4 opens every component rooted in \`$tab\`, selects direct Code-element
 neighborhoods in either direction, and folds outside code to closed components.
 Concrete code types and containment remain project-defined.
 
-Deployment selects deployment nodes and physically deployed logical nodes from \`$tab\`,
-uses one undirected \`OPTIONAL MATCH ROLLUP\` for projected paths, and keeps
-placement lookup separate from relationship matching.
+D1 and D2 select physically deployed logical nodes from \`$tab\`, use one
+undirected \`OPTIONAL MATCH ROLLUP\` for projected paths, and keep placement
+lookup separate from relationship matching. D1 folds logical nodes to systems.
+D2 applies the structured environment scope after discovery. The legacy
+Deployment query retains all relevant environments.
 
 When a built-in view is close but hides the wrong thing, read
 \`references/query-recipes.md\`, copy the nearest built-in \`.aiq\`, and change
@@ -4936,6 +5005,8 @@ examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
 examples/builtin-views/c4.aiq
+examples/builtin-views/deployment-system.aiq
+examples/builtin-views/deployment-container.aiq
 examples/builtin-views/deployment.aiq
 \`\`\`
 

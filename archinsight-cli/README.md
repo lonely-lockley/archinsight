@@ -11,8 +11,8 @@ It embeds `@insight/language` directly and does not call the web app.
 ```shell
 archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
-archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f text|json] [-o file]
-archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
+archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
+archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
 archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 ```
 
@@ -23,7 +23,8 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-c, --context <id>` - context id for query/render.
 - `-s, --source <file>` - selected source file for queries using `$tab`.
 - `--tab <source>` - compatibility alias for `--source`.
-- `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment`, `no-filter`.
+- `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment-system`, `deployment-container`, `deployment`, `no-filter`.
+- `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
 - `-q, --query <file>` - custom query file; overrides `--view`; relative paths
   are resolved from `project-dir`.
 - `-f, --format <format>` - command output format.
@@ -48,6 +49,12 @@ Render DOT for a context using the C2 built-in query:
 
 ```shell
 node archinsight-cli/build/index.js render examples -c demo -s main.ai -v c2 -f dot
+```
+
+Inspect one environment at container deployment detail:
+
+```shell
+archinsight query . -c shop -s storefront.ai -v deployment-container --environment eu_west --format json
 ```
 
 Generate a portable AI-agent guide for an Insight project:
@@ -106,6 +113,8 @@ The generic target writes a runtime-neutral guide:
             c2.aiq
             c3.aiq
             c4.aiq
+            deployment-system.aiq
+            deployment-container.aiq
             deployment.aiq
         queries/
             deployment-internal-actors.aiq

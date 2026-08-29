@@ -12,11 +12,13 @@
     coreSource,
     coreSources,
     createGeneratedInsightSyntaxProvider,
+    discoverDeploymentEnvironments,
     mergeLanguageSnapshots,
     type LanguageSnapshot,
     type LinkProjectResult,
     type CompletionKind,
-    type BuiltinDiagramView
+    type BuiltinDiagramView,
+    type DeploymentEnvironment
   } from '@insight/language';
   import AuthMenu from '$lib/AuthMenu.svelte';
   import ProjectNavigationPanel from '$lib/ProjectNavigationPanel.svelte';
@@ -200,6 +202,7 @@
   let linkSequence = 0;
   let projectGeneration = 0;
   let analysisLoading = false;
+  let deploymentPickerRequested = false;
   let syntaxSequence = 0;
   let liveSyntaxSequence = 0;
   let refreshDisabled = false;
@@ -224,6 +227,7 @@
   let currentUser: AuthUserResponse = { authenticated: false };
   let capabilities: AppCapability[] = [];
   let publishedProjectId: string | undefined;
+  let deploymentPickerOpen = false;
 
   $: activeTab = tabs.find((tab) => tab.id === activeTabId);
   $: projectId = activeProjectId ?? '';
@@ -232,6 +236,8 @@
   $: activeFilePath = activeTab?.filePath;
   $: activeDiagramMode = activeTab?.diagramMode ?? defaultDiagramMode;
   $: activeQuery = activeTab?.query ?? defaultQuery;
+  $: activeDeploymentEnvironment = activeTab?.deploymentEnvironment;
+  $: activeDeploymentEnvironments = deploymentEnvironmentsForTab(linkedAnalysis, activeTab);
   $: activeQueryVisible = activeTab?.queryVisible ?? false;
   $: activeQueryPanelHeight = activeTab?.queryPanelHeight ?? defaultQueryPanelHeight;
   $: activeDiagramScale = activeTab?.diagramScale ?? defaultDiagramScale;
@@ -1103,6 +1109,7 @@
       return;
     }
     activeTabId = id;
+    deploymentPickerOpen = false;
     persistWorkspace();
     await tick();
     if (loadGuard !== undefined && !currentProjectLoad(loadGuard)) {
@@ -1178,6 +1185,7 @@
   }
 
   function scheduleLink(delay = 500): void {
+    deploymentPickerOpen = false;
     linkedAnalysis = undefined;
     const sequence = ++linkSequence;
     if (debounceHandle !== undefined) {
@@ -1217,7 +1225,12 @@
           diagram: 'query',
           dot: clientLanguageService.render({
             result: analysis,
-            scope: { context: context?.id, tab: sourceIdentity, view: builtinView(activeDiagramMode) },
+            scope: {
+              context: context?.id,
+              tab: sourceIdentity,
+              view: builtinView(activeDiagramMode),
+              ...(activeDeploymentEnvironment === undefined ? {} : { environment: activeDeploymentEnvironment })
+            },
             query: activeQuery,
             theme: 'dark'
           }).dot
@@ -1280,6 +1293,7 @@
         linkOverlays,
         activeQuery,
         builtinView(activeDiagramMode),
+        activeDeploymentEnvironment,
         surface
       );
       if (sequence !== linkSequence || requestedProjectId !== projectId) {
@@ -1289,6 +1303,9 @@
       projectSymbols = link.symbols;
       const linkHasErrors = hasErrorDiagnostics(link.diagnostics);
       linkedAnalysis = linkHasErrors ? undefined : hydrateLinkedModel(link.linkedModel);
+      const deploymentEnvironmentChanged = linkedAnalysis === undefined
+        ? false
+        : reconcileActiveDeploymentEnvironment(linkedAnalysis);
       refreshEditorSymbols();
       updateLinkerDiagnostics(link.diagnostics, parsedSources);
       if (!linkHasErrors) {
@@ -1322,6 +1339,9 @@
       const dotBySource = dotRendersBySource(link.renders);
       for (const svg of rendered.svgs) {
         updateTabBySourceIdentity(svg.sourceIdentity, { svg: svg.svg, dot: dotBySource.get(svg.sourceIdentity) });
+      }
+      if (deploymentEnvironmentChanged) {
+        scheduleDiagramUpdate();
       }
     } catch (error) {
       if (sequence === linkSequence && requestedProjectId === projectId) {
@@ -1736,10 +1756,89 @@
   }
 
   function selectDiagramMode(mode: DiagramMode): void {
+    if (mode === 'deployment-container') {
+      if (linkedAnalysis === undefined) {
+        deploymentPickerRequested = true;
+        deploymentPickerOpen = false;
+        patchActiveTabToolbar({
+          diagramMode: 'deployment-container',
+          query: queryForDiagramMode('deployment-container')
+        });
+        clearActiveTabDot();
+        persistWorkspace();
+        scheduleLink(0);
+        return;
+      }
+      const environments = deploymentEnvironmentsForTab(linkedAnalysis, activeTab);
+      if (environments.length > 1) {
+        deploymentPickerOpen = true;
+        return;
+      }
+      selectDeploymentEnvironment(environments[0]?.id);
+      return;
+    }
+    deploymentPickerRequested = false;
+    deploymentPickerOpen = false;
     patchActiveTabToolbar({ diagramMode: mode, query: queryForDiagramMode(mode) });
     clearActiveTabDot();
     persistWorkspace();
     scheduleDiagramUpdate();
+  }
+
+  function selectDeploymentEnvironment(environment: string | undefined): void {
+    deploymentPickerRequested = false;
+    deploymentPickerOpen = false;
+    patchActiveTabToolbar({
+      diagramMode: 'deployment-container',
+      query: queryForDiagramMode('deployment-container'),
+      deploymentEnvironment: environment
+    });
+    clearActiveTabDot();
+    persistWorkspace();
+    if (environment === undefined && activeTabId !== undefined) {
+      updateTab(activeTabId, { svg: emptySvg('No deployment environments are relevant to this source') });
+      return;
+    }
+    scheduleDiagramUpdate();
+  }
+
+  function deploymentEnvironmentsForTab(
+    analysis: LinkProjectResult | undefined,
+    tab: WorkspaceTab | undefined
+  ): readonly DeploymentEnvironment[] {
+    if (analysis === undefined || tab === undefined || !isProjectSourceTab(tab)) {
+      return [];
+    }
+    const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === tab.sourceIdentity);
+    return discoverDeploymentEnvironments(analysis, {
+      context: context?.id,
+      tab: tab.sourceIdentity
+    });
+  }
+
+  function reconcileActiveDeploymentEnvironment(analysis: LinkProjectResult): boolean {
+    if (activeTab === undefined || activeDiagramMode !== 'deployment-container') {
+      deploymentPickerRequested = false;
+      return false;
+    }
+    const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === activeTab.sourceIdentity);
+    const environments = discoverDeploymentEnvironments(analysis, { context: context?.id, tab: activeTab.sourceIdentity });
+    const pickerRequested = deploymentPickerRequested;
+    deploymentPickerRequested = false;
+    if (activeDeploymentEnvironment !== undefined
+        && environments.some((environment) => environment.id === activeDeploymentEnvironment)) {
+      deploymentPickerOpen = pickerRequested && environments.length > 1;
+      return false;
+    }
+    const environment = environments.length === 1 ? environments[0]!.id : undefined;
+    patchActiveTabToolbar({ deploymentEnvironment: environment });
+    deploymentPickerOpen = environments.length > 1;
+    persistWorkspace();
+    if (environments.length === 0 && activeTabId !== undefined) {
+      updateTab(activeTabId, { svg: emptySvg('No deployment environments are relevant to this source') });
+      return false;
+    }
+    return true;
   }
 
   async function saveActiveTab(): Promise<void> {
@@ -2490,7 +2589,7 @@
   }
 
   function patchActiveTabToolbar(
-    patch: Partial<Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'>>
+    patch: Partial<Pick<WorkspaceTab, 'diagramMode' | 'query' | 'deploymentEnvironment' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'>>
   ): void {
     if (activeTabId === undefined) {
       return;
@@ -2529,6 +2628,7 @@
         title: tab.title,
         diagramMode: tab.diagramMode,
         query: tab.query,
+        deploymentEnvironment: tab.deploymentEnvironment,
         queryVisible: tab.queryVisible,
         queryPanelHeight: tab.queryPanelHeight,
         diagramScale: tab.diagramScale,
@@ -2544,6 +2644,7 @@
       content: tab.content,
       diagramMode: tab.diagramMode,
       query: tab.query,
+      deploymentEnvironment: tab.deploymentEnvironment,
       queryVisible: tab.queryVisible,
       queryPanelHeight: tab.queryPanelHeight,
       diagramScale: tab.diagramScale,
@@ -2555,12 +2656,13 @@
 
   function tabToolbarState(
     tab?: Partial<WorkspaceTabState>
-  ): Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'> {
+  ): Pick<WorkspaceTab, 'diagramMode' | 'query' | 'deploymentEnvironment' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'> {
     const query = tab?.query ?? defaultQuery;
     const diagramMode = normalizeDiagramMode(tab?.diagramMode) ?? diagramModeForQuery(query) ?? defaultDiagramMode;
     return {
       diagramMode,
       query,
+      deploymentEnvironment: tab?.deploymentEnvironment,
       queryVisible: tab?.queryVisible ?? false,
       queryPanelHeight: normalizeQueryPanelHeight(tab?.queryPanelHeight),
       diagramScale: normalizeDiagramScale(tab?.diagramScale),
@@ -2882,6 +2984,9 @@
       svg={activeTab?.svg}
       diagramMode={activeDiagramMode}
       query={activeQuery}
+      deploymentEnvironments={activeDeploymentEnvironments}
+      deploymentEnvironment={activeDeploymentEnvironment}
+      {deploymentPickerOpen}
       queryVisible={activeQueryVisible}
       queryPanelHeight={activeQueryPanelHeight}
       viewMode={activeViewMode}
@@ -2897,6 +3002,8 @@
       {emptyStrategy}
       onEmptyAction={handleEmptyWorkspaceAction}
       onSelectDiagramMode={selectDiagramMode}
+      onSelectDeploymentEnvironment={(environment) => selectDeploymentEnvironment(environment)}
+      onCloseDeploymentPicker={() => { deploymentPickerOpen = false; }}
       onToggleQuery={toggleActiveQuery}
       onQueryChange={updateQuery}
       onQueryPanelHeightChange={updateQueryPanelHeight}

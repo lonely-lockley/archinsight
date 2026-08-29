@@ -154,7 +154,8 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
               scope: {
                 context: context?.id,
                 tab: sourceIdentity,
-                ...(request?.view == null ? {} : { view: request.view })
+                ...(request?.view == null ? {} : { view: request.view }),
+                ...(request?.environment == null ? {} : { environment: request.environment })
               },
               query: request?.query ?? undefined,
               theme: 'dark'
@@ -206,11 +207,18 @@ function validateRequest(request: LinkRequest | ProjectStructureRequest | null, 
   if ('view' in (request ?? {}) && !isBuiltinDiagramView((request as LinkRequest).view)) {
     throw new Error('Invalid built-in diagram view');
   }
+  if ('environment' in (request ?? {})) {
+    const environment = (request as LinkRequest).environment;
+    if (environment != null && (typeof environment !== 'string' || environment.length > 256)) {
+      throw new Error('Invalid deployment environment');
+    }
+  }
 }
 
 function isBuiltinDiagramView(value: LinkRequest['view']): boolean {
   return value == null || value === 'no-filter' || value === 'c1' || value === 'c2'
-    || value === 'c3' || value === 'c4' || value === 'deployment';
+    || value === 'c3' || value === 'c4' || value === 'deployment'
+    || value === 'deployment-system' || value === 'deployment-container';
 }
 
 async function analyzeStoredProject(

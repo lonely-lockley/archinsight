@@ -30,6 +30,7 @@ export type WorkspaceTab = {
   projectSource?: boolean;
   diagramMode: DiagramMode;
   query: string;
+  deploymentEnvironment?: string;
   queryVisible: boolean;
   diagramScale: number;
   diagramFit: boolean;
@@ -38,7 +39,7 @@ export type WorkspaceTab = {
   queryPanelHeight: number;
 };
 
-export type DiagramMode = 'default' | 'c1' | 'c2' | 'c3' | 'c4' | 'deployment';
+export type DiagramMode = 'default' | 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container';
 
 export type EditorViewMode = 'split' | 'code' | 'diagram';
 

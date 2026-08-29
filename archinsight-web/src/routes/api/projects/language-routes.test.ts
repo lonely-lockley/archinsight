@@ -110,6 +110,26 @@ system app
     expect(analysisMetricsSnapshot()).toMatchObject({ fullSnapshotBuilds: 1, fullProjectLinks: 1, cacheHits: 1 });
   });
 
+  it('reuses one linked revision when only the deployment environment changes', async () => {
+    const first = await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {},
+      view: 'deployment-container',
+      environment: 'eu_central'
+    }));
+    const second = await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {},
+      view: 'deployment-container',
+      environment: 'eu_west'
+    }));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    await expect(second.json()).resolves.toMatchObject({ analysis: { mode: 'cache-hit' } });
+    expect(analysisMetricsSnapshot()).toMatchObject({ fullSnapshotBuilds: 1, fullProjectLinks: 1, cacheHits: 1 });
+  });
+
   it('links constructors declared in another project source', async () => {
     const response = await link(
       event('/api/projects/project-1/link', {

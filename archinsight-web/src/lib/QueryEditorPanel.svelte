@@ -12,6 +12,8 @@
     c2: BUILTIN_VIEW_QUERIES.c2,
     c3: BUILTIN_VIEW_QUERIES.c3,
     c4: BUILTIN_VIEW_QUERIES.c4,
+    'deployment-system': BUILTIN_VIEW_QUERIES['deployment-system'],
+    'deployment-container': BUILTIN_VIEW_QUERIES['deployment-container'],
     deployment: BUILTIN_VIEW_QUERIES.deployment
   };
 
@@ -30,7 +32,8 @@
   }
 
   export function normalizeDiagramMode(value: string | undefined): DiagramMode | undefined {
-    return value === 'default' || value === 'c1' || value === 'c2' || value === 'c3' || value === 'c4' || value === 'deployment'
+    return value === 'default' || value === 'c1' || value === 'c2' || value === 'c3' || value === 'c4'
+      || value === 'deployment' || value === 'deployment-system' || value === 'deployment-container'
       ? value
       : undefined;
   }
@@ -88,13 +91,18 @@
 </script>
 
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
 
   export let diagramMode: DiagramMode;
   export let query: string;
   export let queryVisible = false;
   export let queryPanelHeight = 118;
   export let onSelectDiagramMode: (mode: DiagramMode) => void;
+  export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
+  export let deploymentEnvironment: string | undefined = undefined;
+  export let deploymentPickerOpen = false;
+  export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
+  export let onCloseDeploymentPicker: () => void = () => {};
   export let onToggleQuery: () => void;
   export let onQueryChange: (query: string) => void;
   export let onQueryPanelHeightChange: (height: number) => void;
@@ -108,6 +116,10 @@
   let queryModel: Monaco.editor.ITextModel | undefined;
   let suppressQueryChange = false;
   let resizeStart: { pointerId: number; startY: number; height: number } | undefined;
+  let environmentFilter = '';
+  let deploymentPickerHost: HTMLDivElement;
+  let deploymentEnvironmentSet = '';
+  let deploymentPickerWasOpen = false;
 
   $: normalizedQueryPanelHeight = clampQueryPanelHeight(queryPanelHeight);
   $: queryEditorStyle = queryVisible
@@ -126,11 +138,48 @@
   $: if (queryEditor !== undefined) {
     void tick().then(() => queryEditor?.layout());
   }
+  $: filteredDeploymentEnvironments = deploymentEnvironments.filter((environment) => {
+    const value = environmentFilter.trim().toLocaleLowerCase();
+    return value.length === 0
+      || environment.id.toLocaleLowerCase().includes(value)
+      || environment.name?.toLocaleLowerCase().includes(value) === true;
+  });
+  $: {
+    const nextEnvironmentSet = deploymentEnvironments.map((environment) => environment.id).join('\0');
+    const opened = deploymentPickerOpen && !deploymentPickerWasOpen;
+    if (!deploymentPickerOpen || opened || nextEnvironmentSet !== deploymentEnvironmentSet) {
+      environmentFilter = '';
+    }
+    deploymentEnvironmentSet = nextEnvironmentSet;
+    deploymentPickerWasOpen = deploymentPickerOpen;
+  }
+
+  onMount(() => {
+    window.addEventListener('pointerdown', handleWindowPointerDown);
+    window.addEventListener('keydown', handleWindowKeydown);
+  });
 
   onDestroy(() => {
     stopQueryResize();
     disposeQueryEditor();
+    window.removeEventListener('pointerdown', handleWindowPointerDown);
+    window.removeEventListener('keydown', handleWindowKeydown);
   });
+
+  function handleWindowPointerDown(event: PointerEvent): void {
+    if (deploymentPickerOpen
+      && event.target instanceof Node
+      && !deploymentPickerHost?.contains(event.target)) {
+      onCloseDeploymentPicker();
+    }
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent): void {
+    if (deploymentPickerOpen && event.key === 'Escape') {
+      event.preventDefault();
+      onCloseDeploymentPicker();
+    }
+  }
 
   async function ensureQueryEditor(): Promise<void> {
     await tick();
@@ -218,9 +267,43 @@
       <button aria-label="C4 code view" class:active-mode={diagramMode === 'c4'} class="has-tooltip" data-tooltip="C4 code view" type="button" on:click={() => onSelectDiagramMode('c4')}>
         <span aria-hidden="true">C4</span>
       </button>
-      <button aria-label="Deployment view" class:active-mode={diagramMode === 'deployment'} class="has-tooltip" data-tooltip="Deployment view" type="button" on:click={() => onSelectDiagramMode('deployment')}>
-        <span aria-hidden="true">D</span>
+      <button aria-label="D1 system deployment view" class:active-mode={diagramMode === 'deployment-system'} class="has-tooltip" data-tooltip="D1 system deployment overview" type="button" on:click={() => onSelectDiagramMode('deployment-system')}>
+        <span aria-hidden="true">D1</span>
       </button>
+      <div class="deployment-picker-host" bind:this={deploymentPickerHost}>
+        <button aria-expanded={deploymentPickerOpen} aria-haspopup="listbox" aria-label="D2 container deployment view" class:active-mode={diagramMode === 'deployment-container'} class="has-tooltip" data-tooltip="D2 container deployment by environment" type="button" on:click={() => onSelectDiagramMode('deployment-container')}>
+          <span aria-hidden="true">D2</span>
+        </button>
+        {#if deploymentPickerOpen}
+          <div class="environment-picker" role="dialog" aria-label="Select deployment environment">
+            {#if deploymentEnvironments.length > 1}
+              <input bind:value={environmentFilter} aria-label="Filter environments" placeholder="Filter environments" type="search" />
+            {/if}
+            <div class="environment-options" role="listbox">
+              {#each filteredDeploymentEnvironments as environment (environment.id)}
+                <button
+                  aria-selected={environment.id === deploymentEnvironment}
+                  class:selected={environment.id === deploymentEnvironment}
+                  role="option"
+                  type="button"
+                  on:click={() => onSelectDeploymentEnvironment(environment.id)}
+                >
+                  <span>{environment.id}</span>
+                  {#if environment.name !== undefined && environment.name !== environment.id}<small>{environment.name}</small>{/if}
+                </button>
+              {/each}
+              {#if filteredDeploymentEnvironments.length === 0}
+                <div class="environment-empty">
+                  {deploymentEnvironments.length === 0
+                    ? 'No deployment environments are relevant to this source'
+                    : 'No matching environments'}
+                </div>
+              {/if}
+            </div>
+            <button class="environment-close" type="button" on:click={onCloseDeploymentPicker}>Cancel</button>
+          </div>
+        {/if}
+      </div>
     </div>
 
     <div class="query-actions tool-group" aria-label="Query actions">
@@ -386,6 +469,80 @@
   .diagram-modes button.active-mode:hover {
     background: var(--archinsight-control-active-bg, #354436);
     color: var(--archinsight-control-active-fg, #ffffff);
+  }
+
+  .deployment-picker-host {
+    position: relative;
+    align-self: stretch;
+    border-left: 1px solid var(--archinsight-border, #3a3a3a);
+  }
+
+  .deployment-picker-host > button {
+    height: 26px;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .environment-picker {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 80;
+    width: 280px;
+    padding: 8px;
+    border: 1px solid var(--archinsight-border, #454545);
+    border-radius: 6px;
+    background: var(--archinsight-toolbar-bg, #242424);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
+  }
+
+  .environment-picker input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 30px;
+    margin-bottom: 6px;
+    padding: 0 8px;
+    border: 1px solid var(--archinsight-border, #454545);
+    border-radius: 4px;
+    background: var(--archinsight-input-bg, #1f1f1f);
+    color: var(--archinsight-foreground, #eeeeee);
+  }
+
+  .environment-options {
+    max-height: 260px;
+    overflow-y: auto;
+  }
+
+  .environment-picker .environment-options button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    height: auto;
+    min-height: 38px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 4px;
+    text-align: left;
+  }
+
+  .environment-picker .environment-options button.selected {
+    background: var(--archinsight-control-active-bg, #354436);
+  }
+
+  .environment-picker small {
+    color: var(--archinsight-muted, #a8a8a8);
+  }
+
+  .environment-empty {
+    padding: 10px 8px;
+    color: var(--archinsight-muted, #a8a8a8);
+    font-size: 12px;
+  }
+
+  .environment-picker .environment-close {
+    width: 100%;
+    margin-top: 6px;
+    border-radius: 4px;
   }
 
   .query-icon {
