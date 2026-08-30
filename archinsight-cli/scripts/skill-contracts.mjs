@@ -210,6 +210,19 @@ function verifySharedFiles(output) {
 
   const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
   assert.match(queries, /Labels are case-sensitive[\s\S]*`CodeElement`/);
+  assert(queries.includes("overrides `--view`"));
+  assert.equal(queries.includes("pass both\n`-q <query.aiq>` and `-v"), false);
+  assert(queries.includes("`listAttributes` and\n`referenceAttributes`"));
+  assert(queries.includes("source.runsOn <> target.runsOn"));
+
+  for (const queryName of [
+    "direct-service-dependencies.aiq",
+    "direct-authored-dependencies.aiq",
+    "async-topic-dependencies.aiq",
+    "kafka-service-dependencies.aiq",
+  ]) {
+    assert(existsSync(path.join(output, "examples", "queries", queryName)), `${queryName} must be bundled`);
+  }
 
 }
 

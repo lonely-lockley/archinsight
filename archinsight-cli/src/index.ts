@@ -1202,6 +1202,14 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: genericDirectServiceDependenciesQuery(),
     },
     {
+      path: "examples/queries/direct-authored-dependencies.aiq",
+      content: genericDirectAuthoredDependenciesQuery(),
+    },
+    {
+      path: "examples/queries/async-topic-dependencies.aiq",
+      content: genericAsyncTopicDependenciesQuery(),
+    },
+    {
       path: "examples/queries/kafka-service-dependencies.aiq",
       content: genericKafkaServiceDependenciesQuery(),
     },
@@ -4706,9 +4714,10 @@ the Insight query and which result was computed from its output.
    \`no-filter\` for a broad logical export.
 4. Inspect query JSON before rendering. Distinguish selected outer endpoints,
    underlying edge endpoints, derived relationships, and projection origins.
-5. If the question needs traversal, aggregation, comparison, or absence checks,
-   compute them over the exported JSON without changing the model or pretending
-   the computation was supported by the query DSL.
+5. If the question needs traversal, aggregation, set intersection, or absence
+   checks, compute them over the exported JSON without changing the model or
+   pretending the computation was supported by the query DSL. Ordinary
+   property equality and inequality can stay in the Insight query.
 6. Report the scope: context, selected source when \`$tab\` is used, query or
    built-in view, and whether derived or projected edges were included.
 
@@ -4760,7 +4769,7 @@ outside the query language. State whether derived and projected edges were
 excluded or analyzed separately so the same dependency is not counted at
 several architectural levels.
 
-## Build a Direct Service Dependency Map
+## Choose the Dependency Scope
 
 The bundled \`examples/queries/direct-service-dependencies.aiq\` selects the
 one-hop dependency graph at container/service ownership level:
@@ -4773,9 +4782,9 @@ RETURN source, dependency, target
 
 \`withDerived\` includes relationships lifted from components to their owning
 containers or services. This is appropriate for a service dependency map, but
-it is not an inventory of authored wires. Remove \`{withDerived}\` when the
-question is specifically about relationships declared directly between those
-elements.
+it is not an inventory of authored wires. Because both endpoints must be
+\`ContainerElement\`, it intentionally omits a direct service-to-system or
+system-to-system relationship.
 
 Run the query once for the context instead of querying every service
 individually:
@@ -4791,41 +4800,70 @@ preserve dependency ownership. The source depends on the target. Use qualified
 ids from those fields when building an adjacency map; do not infer direction
 from diagram placement.
 
-## Analyze Kafka Topics
-
-The bundled \`examples/queries/kafka-service-dependencies.aiq\` selects authored
-Kafka dependencies without derived or projected copies:
+For every authored one-hop dependency regardless of architectural level, use
+\`examples/queries/direct-authored-dependencies.aiq\`:
 
 \`\`\`cypher
-MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
+MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
+WHERE source.context = $context
+RETURN source, dependency, target
+\`\`\`
+
+\`\`\`shell
+archinsight query . -c <context-id> \\
+  -q <skill-path>/examples/queries/direct-authored-dependencies.aiq \\
+  --format json
+\`\`\`
+
+This query excludes derived and projected copies. It is the correct starting
+point for questions such as "what does this service or system directly depend
+on?" when the target may live at another architectural level.
+
+## Analyze Async Topics and Channels
+
+The bundled \`examples/queries/async-topic-dependencies.aiq\` selects every
+authored async dependency without requiring a particular transport or endpoint
+level:
+
+\`\`\`cypher
+MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
 WHERE consumer.context = $context
   AND event.type = 'AsyncWire'
-  AND event.technology CONTAINS 'Kafka'
 RETURN consumer, event, producer
 \`\`\`
 
 Insight eventing is consumer-owned: the consumer declares \`~> producer\`, and
 \`via\` names the topic or channel. Therefore an outgoing async edge lists what
-a service consumes, while incoming async edges list the modeled consumers of a
-producer's topic contract.
+an element consumes, while incoming async edges list the modeled consumers of a
+producer's topic contract. The endpoints may be systems, services, components,
+or project-defined element types.
+
+Run the generic query for the whole context:
+
+\`\`\`shell
+archinsight query . -c <context-id> \\
+  -q <skill-path>/examples/queries/async-topic-dependencies.aiq \\
+  --format json
+\`\`\`
+
+To select a topic family, copy the query and add a case-sensitive membership or
+substring predicate such as \`AND event.via CONTAINS 'orders.'\`.
 
 For one consumer, constrain its local id in the first node pattern:
 
 \`\`\`cypher
-MATCH (consumer:ContainerElement {id: 'order_processor', context: $context})
-    -[event:REFERENCES]->(producer:ContainerElement)
+MATCH (consumer:Element {id: 'order_processor', context: $context})
+    -[event:REFERENCES]->(producer:Element)
 WHERE event.type = 'AsyncWire'
-  AND event.technology CONTAINS 'Kafka'
 RETURN consumer, event, producer
 \`\`\`
 
 For one producer, use the reverse pattern:
 
 \`\`\`cypher
-MATCH (producer:ContainerElement {id: 'order_processor', context: $context})
-    <-[event:REFERENCES]-(consumer:ContainerElement)
+MATCH (producer:Element {id: 'order_processor', context: $context})
+    <-[event:REFERENCES]-(consumer:Element)
 WHERE event.type = 'AsyncWire'
-  AND event.technology CONTAINS 'Kafka'
 RETURN producer, event, consumer
 \`\`\`
 
@@ -4835,7 +4873,7 @@ into the agent's context:
 
 \`\`\`shell
 archinsight query . -c <context-id> \\
-  -q <skill-path>/examples/queries/kafka-service-dependencies.aiq \\
+  -q <skill-path>/examples/queries/async-topic-dependencies.aiq \\
   --format json |
 jq -r '.edges[] | [
   .edge.source,
@@ -4848,6 +4886,62 @@ jq -r '.edges[] | [
 This reports topic contracts used by at least one modeled consumer. Do not
 claim it is a complete producer catalog: a topic with no modeled wire is not
 discoverable unless the project represents that contract separately.
+
+The bundled \`examples/queries/kafka-service-dependencies.aiq\` is a narrower
+specialization for projects that consistently record \`technology = Kafka\`
+and want only authored container-to-container dependencies without derived or
+projected copies:
+
+\`\`\`cypher
+MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
+WHERE consumer.context = $context
+  AND event.type = 'AsyncWire'
+  AND event.technology CONTAINS 'Kafka'
+RETURN consumer, event, producer
+\`\`\`
+
+Do not use this specialization when \`technology\` is absent or inconsistent;
+the generic async query still finds those modeled relationships.
+
+## Compare Endpoint Attributes
+
+Equality and inequality can compare properties on two bound endpoints:
+
+\`\`\`cypher
+MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
+WHERE source.runsOn <> target.runsOn
+RETURN source, dependency, target
+\`\`\`
+
+Scalar references compare by qualified element id. List properties compare as
+complete ordered lists. If either property is absent, both \`=\` and \`<>\`
+evaluate to false for that row. The query language does not calculate list
+intersection or set difference; export JSON and post-process it when the
+question is whether two multi-valued placements overlap.
+
+## Report Annotations
+
+Annotations are present in query JSON, but the current query language has no
+annotation predicate. Select a sufficiently broad graph and filter the JSON:
+
+\`\`\`shell
+archinsight query . -c <context-id> -v no-filter --format json |
+jq '{
+  elements: [
+    .elements[] |
+    select((.annotations // []) | length > 0) |
+    {id, annotations}
+  ],
+  edges: [
+    .edges[] |
+    select((.edge.annotations // []) | length > 0) |
+    {source, target, annotations: .edge.annotations}
+  ]
+}'
+\`\`\`
+
+Each annotation retains its name, optional value, and source position. This is
+a read-only reporting workaround, not an Insight query predicate.
 
 ## Analyze a Source Fragment
 
@@ -5058,6 +5152,35 @@ Use single quotes for string literals.
 \`CONTAINS\` is case-sensitive. For scalar text it performs substring matching;
 for a list property it tests membership. Match the stored spelling exactly.
 
+Attribute cardinality comes from the Insight type system, not from the JSON
+representation. Use \`CONTAINS\` for list-valued attributes such as \`uses\`.
+\`runsOn\` is declared as a scalar typed reference. When it has one resolved
+target, it resolves to one graph node: compare it with another bound node, or
+test its qualified id with \`node.runsOn IN ['eu/cluster']\`.
+\`node.runsOn CONTAINS 'eu/cluster'\` does not match a scalar reference because
+that value is neither scalar text nor a list.
+
+A logical element materialized through several deployments can have several
+resolved \`runsOn\` targets. In that case bind a candidate infrastructure node
+and use \`candidate IN node.runsOn\`.
+
+Query JSON serializes attribute values as arrays for a stable transport shape.
+The linked element or edge also exposes \`listAttributes\` and
+\`referenceAttributes\`; use that metadata when an automated analysis needs to
+recover the language-level cardinality and reference kind.
+
+Properties of two bound aliases can be compared directly:
+
+\`\`\`cypher
+WHERE source.runsOn = target.runsOn
+WHERE source.runsOn <> target.runsOn
+\`\`\`
+
+Scalar references compare by qualified id and lists compare as complete ordered
+lists. If either property is absent, both comparisons evaluate to false. Set
+intersection and overlap tests are not supported; post-process query JSON for
+those operations.
+
 \`node.deployed\` is true when an element's deployment resolves to at least one
 \`runsOn\` or \`uses\` infrastructure object. The built-in Deployment view uses it to keep
 undeployed logical elements out of the physical diagram.
@@ -5131,15 +5254,21 @@ The top-level shape is:
 - \`groups\`: render groups created by \`GROUP BY\`;
 - \`externalElements\`: selected ids drawn outside the internal boundary.
 
+Elements expose their linked \`attributes\`, optional \`listAttributes\` and
+\`referenceAttributes\` metadata, and any \`annotations\`. Relationship data is
+nested under each result item's \`edge\` field and carries the same attribute
+metadata plus edge annotations. Annotations can be inspected in JSON but cannot
+currently be referenced by a \`WHERE\` predicate.
+
 For built-in C1-C4 execution, this list combines explicit model externality
 with externality relative to the opened diagram boundaries. C2 folds a closed
 endpoint to its system, C3 to its container or service, and C4 to its component.
 \`IS External\` in a custom query continues to match only the explicit model
 marker.
 
-To apply one of these boundary contracts to a custom CLI query, pass both
-\`-q <query.aiq>\` and \`-v c1|c2|c3|c4\`. Without \`-v\`, custom query
-execution does not apply a built-in view boundary.
+A custom query file supplies its own selection and grouping contract and
+overrides \`--view\`. To customize C1-C4 boundary behavior, copy the nearest
+bundled built-in \`.aiq\` file and modify its predicates or grouping explicitly.
 
 Each edge contains its selected category and two endpoint pairs:
 
@@ -6497,6 +6626,21 @@ function genericDirectServiceDependenciesQuery(): string {
   return `MATCH (source:ContainerElement)-[dependency:REFERENCES {withDerived}]->(target:ContainerElement)
 WHERE source.context = $context
 RETURN source, dependency, target
+`;
+}
+
+function genericDirectAuthoredDependenciesQuery(): string {
+  return `MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
+WHERE source.context = $context
+RETURN source, dependency, target
+`;
+}
+
+function genericAsyncTopicDependenciesQuery(): string {
+  return `MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+WHERE consumer.context = $context
+  AND event.type = 'AsyncWire'
+RETURN consumer, event, producer
 `;
 }
 

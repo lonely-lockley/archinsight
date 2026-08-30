@@ -236,6 +236,16 @@ RETURN service
 
 String literals use single quotes. `CONTAINS` performs substring matching for scalar text and exact membership matching for list values. Both forms are case-sensitive, so `'Kotlin'` and `'kotlin'` are different values.
 
+Properties on two bound aliases can be compared directly:
+
+```cypher
+MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
+WHERE source.runsOn <> target.runsOn
+RETURN source, dependency, target
+```
+
+Scalar references compare by qualified element id. List-valued properties compare as complete ordered lists. When either property is absent, both `=` and `<>` evaluate to false for that row. The language does not currently calculate list intersection or set difference; those operations require post-processing the JSON result.
+
 Type predicates use the effective inheritance tree:
 
 ```cypher
@@ -337,6 +347,15 @@ RETURN component, container
 ```
 
 These patterns select nodes connected through typed model attributes even when the attribute itself is not represented as an authored `REFERENCES` edge.
+
+Attribute cardinality comes from the Insight type system. Use `CONTAINS` for a list-valued attribute such as `uses`. `runsOn` is declared as a scalar typed reference. When it has one resolved target, it resolves to one graph node and can be compared with another bound node or tested against a qualified id:
+
+```cypher
+WHERE node.uses CONTAINS 'eu/vault'
+WHERE node.runsOn IN ['eu/cluster']
+```
+
+`node.runsOn CONTAINS 'eu/cluster'` does not match a scalar reference because that value is neither scalar text nor a list. A logical element materialized through several deployments can have several resolved `runsOn` targets; bind an infrastructure node and use `candidate IN node.runsOn` for that case. Query JSON represents attribute values as arrays for a stable transport shape, but this does not change their language-level cardinality. Automated consumers can inspect `listAttributes` and `referenceAttributes` on linked elements and edges.
 
 ### 8. Include derived and projected paths
 
