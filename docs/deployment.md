@@ -185,11 +185,11 @@ define type KafkaBroker of Broker
     constructor kafka
 ```
 
-An environment slot declared as `Broker events` can contain a `KafkaBroker`, and a logical wire can select it with `uses events`. The logical element containing the wire remains its owner and source, so deployment expansion preserves the original arrow direction.
+An environment slot declared as `Broker events` can contain a `KafkaBroker`, and a logical wire can select it with `uses events`. The logical element containing the wire remains its owner and source in the logical graph. The selected broker's projection then defines the source and target of every physical segment explicitly. This allows a consumer-owned asynchronous dependency to expand into a physical producer-to-broker-to-consumer flow without changing the ownership of the logical wire.
 
-## Optional infrastructure projections
+## Infrastructure projections
 
-An infrastructure component may define a `projection` when selecting that component should expand a logical wire into a more explicit physical path. Projections are optional. A resource without one still appears as infrastructure used by the deployed element or relationship.
+An infrastructure component may define a `projection` when selecting that component should expand a logical wire into a more explicit physical path. A projection is optional for infrastructure selected by an element: the resource can still appear as infrastructure used by the deployed workload. A `NetworkConnection` selected by a wire must produce a projection for that wire to appear in Deployment views. When it does not, the linker reports `WIRE_DEPLOYMENT_NOT_PROJECTED` and leaves the incomplete physical relationship out of the view.
 
 A simple storage projection connects the logical source directly to the selected storage instance:
 

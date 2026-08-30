@@ -1002,10 +1002,12 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       path: "examples/c2-containers.ai",
       content: genericC2ContainersExample(),
     },
+    ...genericC2FileSplitExampleFiles(),
     {
       path: "examples/c3-components.ai",
       content: genericC3ComponentsExample(),
     },
+    ...genericC3FileSplitExampleFiles(),
     ...genericC4CodeExampleFiles(),
     {
       path: "examples/deployment-framework.ai",
@@ -2100,7 +2102,7 @@ links:
         technology = HTTPS, JSON
         call = POST /checkout
         description = Places an order
-    ~> order_events
+    ~> order_service
         technology = Kafka
         via = orders.created
         description = Consumes order events
@@ -2663,6 +2665,54 @@ unclear.
 `;
 }
 
+function genericC2FileSplitExampleFiles(): readonly GeneratedFile[] {
+  return [
+    {
+      path: "examples/c2-file-split/context.ai",
+      content: `context commerce
+    name = Commerce Platform
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+    technology = Commerce system
+    description = Lets shoppers browse products and place orders
+`,
+    },
+    {
+      path: "examples/c2-file-split/storefront.ai",
+      content: `context commerce
+
+import payment_provider from context commerce
+
+extend system storefront
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Renders product pages and checkout screens
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                call = POST /checkout
+                description = Starts checkout and shows order status
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Prices carts, creates orders, and coordinates payment
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
+                description = Requests payment authorization
+`,
+    },
+  ];
+}
+
 function genericC2ContainersReference(): string {
   return `# C2 Containers and Services
 
@@ -2710,7 +2760,8 @@ because one system needs that style.
 1. Run \`archinsight structure . --format text\` to find the exact system id,
    existing containers/services, and external declarations.
 2. Create or edit a C2 file in the same \`context <id>\`.
-3. Import external systems from other contexts when needed.
+3. Import every referenced declaration owned by another source, including a
+   declaration in another file of the same context.
 4. Add \`container\` or \`service\` declarations for the system's logical runtime
    units, choosing the word that best communicates each unit's role.
 5. Add runtime links between containers/services and real external systems.
@@ -2722,45 +2773,18 @@ because one system needs that style.
 Keep C1 focused on the system boundary:
 
 \`\`\`insight
-context commerce
-    name = Commerce Platform
-
-external system payment_provider
-    name = Payment Provider
-    technology = HTTPS API
-
-system storefront
-    name = Storefront
-    technology = Commerce system
-    description = Lets shoppers browse products and place orders
+${genericC2FileSplitExampleFiles()[0].content.trimEnd()}
 \`\`\`
 
 Put C2 details in a system file:
 
 \`\`\`insight
-context commerce
-
-extend system storefront
-    container web_app
-        name = Web app
-        technology = SvelteKit, TypeScript
-        description = Renders product pages and checkout screens
-        links:
-            -> checkout_api
-                technology = HTTPS, JSON
-                call = POST /checkout
-                description = Starts checkout and shows order status
-
-    service checkout_api
-        name = Checkout API
-        technology = Kotlin, PostgreSQL
-        description = Prices carts, creates orders, and coordinates payment
-        links:
-            -> payment_provider
-                technology = HTTPS
-                call = POST /payments/authorizations
-                description = Requests payment authorization
+${genericC2FileSplitExampleFiles()[1].content.trimEnd()}
 \`\`\`
+
+The extension target is resolved in the shared context and does not need an
+import. The ordinary reference to \`payment_provider\` crosses a source boundary,
+so the C2 file imports it even though both files use \`context commerce\`.
 
 ## Frontend and Backend Pattern
 
@@ -2916,48 +2940,11 @@ unclear.
 `;
 }
 
-function genericC3ComponentsReference(): string {
-  return `# C3 Components
-
-Use this reference only for C3 work: decomposing one selected container or
-service into internal components and their collaborations.
-
-## What C3 Answers
-
-A C3 view answers: "Inside this container/service, what named responsibilities
-collaborate to deliver its behavior?"
-
-Prefer one focal container or service per C3 source file. The built-in C3 view
-is scoped by the selected source file, so the C3 file should usually contain an
-\`extend container <id>\` or \`extend service <id>\` block for the focal element.
-
-If the selected source opens several containers or services, components inside
-all of them are internal to one diagram. A dependency leaving that set is
-folded to the nearest closed container or service and shown as external to the
-C3 view.
-
-Do not model every class, function, method, or package. A component should be a
-stable architectural responsibility that is useful in a diagram and review.
-
-## C3 Workflow
-
-1. Run \`archinsight structure . --format text\` to find the exact container or
-   service id, available constructors, and existing imports.
-2. Create or edit a C3 file in the same \`context <id>\`.
-3. Import elements from other contexts only when the component links to them.
-4. Use \`extend container <id>\` or \`extend service <id>\`.
-5. Add \`component\` declarations with \`name\`, \`technology\`, and
-   \`responsibility\`.
-6. Add links between components and to real external endpoints.
-7. Validate with \`archinsight link . --format text\`.
-8. Render with \`archinsight render . -c <context-id> -s <c3-file.ai> -v c3 -f svg -o c3.svg\`.
-
-## File Split Pattern
-
-Keep the C2 declaration small:
-
-\`\`\`insight
-context commerce
+function genericC3FileSplitExampleFiles(): readonly GeneratedFile[] {
+  return [
+    {
+      path: "examples/c3-file-split/system.ai",
+      content: `context commerce
     name = Commerce Platform
 
 external system payment_provider
@@ -2967,16 +2954,21 @@ external system payment_provider
 system storefront
     name = Storefront
 
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+
     service checkout_api
         name = Checkout API
         technology = Kotlin, PostgreSQL
         description = Handles cart pricing, order placement, and payment orchestration
-\`\`\`
+`,
+    },
+    {
+      path: "examples/c3-file-split/checkout-components.ai",
+      content: `context commerce
 
-Put component details in a C3 file:
-
-\`\`\`insight
-context commerce
+import payment_provider from context commerce
 
 extend service checkout_api
     component checkout_controller
@@ -3008,15 +3000,13 @@ extend service checkout_api
         name = Order repository
         technology = SQL
         responsibility = Persists order state and checkout audit records
-\`\`\`
+`,
+    },
+    {
+      path: "examples/c3-file-split/web-components.ai",
+      content: `context commerce
 
-## Frontend Container Pattern
-
-Use C3 for UI responsibilities when the frontend container has distinct
-architectural parts:
-
-\`\`\`insight
-context commerce
+import checkout_api from context commerce
 
 extend container web_app
     component route_shell
@@ -3047,7 +3037,77 @@ extend container web_app
             -> checkout_api
                 technology = HTTPS, JSON
                 call = POST /checkout
+`,
+    },
+  ];
+}
+
+function genericC3ComponentsReference(): string {
+  return `# C3 Components
+
+Use this reference only for C3 work: decomposing one selected container or
+service into internal components and their collaborations.
+
+## What C3 Answers
+
+A C3 view answers: "Inside this container/service, what named responsibilities
+collaborate to deliver its behavior?"
+
+Prefer one focal container or service per C3 source file. The built-in C3 view
+is scoped by the selected source file, so the C3 file should usually contain an
+\`extend container <id>\` or \`extend service <id>\` block for the focal element.
+
+If the selected source opens several containers or services, components inside
+all of them are internal to one diagram. A dependency leaving that set is
+folded to the nearest closed container or service and shown as external to the
+C3 view.
+
+Do not model every class, function, method, or package. A component should be a
+stable architectural responsibility that is useful in a diagram and review.
+
+## C3 Workflow
+
+1. Run \`archinsight structure . --format text\` to find the exact container or
+   service id, available constructors, and existing imports.
+2. Create or edit a C3 file in the same \`context <id>\`.
+3. Import every referenced declaration owned by another source, including a
+   declaration in another file of the same context.
+4. Use \`extend container <id>\` or \`extend service <id>\`.
+5. Add \`component\` declarations with \`name\`, \`technology\`, and
+   \`responsibility\`.
+6. Add links between components and to real external endpoints.
+7. Validate with \`archinsight link . --format text\`.
+8. Render with \`archinsight render . -c <context-id> -s <c3-file.ai> -v c3 -f svg -o c3.svg\`.
+
+## File Split Pattern
+
+Keep the C2 declaration small:
+
+\`\`\`insight
+${genericC3FileSplitExampleFiles()[0].content.trimEnd()}
 \`\`\`
+
+Put component details in a C3 file:
+
+\`\`\`insight
+${genericC3FileSplitExampleFiles()[1].content.trimEnd()}
+\`\`\`
+
+The extension target is resolved in the shared context without an import.
+\`payment_provider\` is an ordinary cross-source reference and therefore has an
+explicit same-context import.
+
+## Frontend Container Pattern
+
+Use C3 for UI responsibilities when the frontend container has distinct
+architectural parts:
+
+\`\`\`insight
+${genericC3FileSplitExampleFiles()[2].content.trimEnd()}
+\`\`\`
+
+Here \`checkout_api\` is declared in the system file, so the frontend component
+file imports it before creating the cross-container link.
 
 This is useful when frontend structure affects architecture. If the frontend is
 only a thin page with no meaningful internal decisions, leave it at C2.
@@ -3876,8 +3936,9 @@ Deployment output after changing which root a traffic relationship extends:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c deployment_shop -s deployment.ai -v deployment --format json
-archinsight render . -c deployment_shop -s deployment.ai -v deployment -f svg -o deployment.svg
+archinsight query . -c deployment_shop -s deployment.ai -v deployment-system --format json
+archinsight query . -c deployment_shop -s deployment.ai -v deployment-container --environment eu --format json
+archinsight render . -c deployment_shop -s deployment.ai -v deployment-container --environment eu -f svg -o deployment.svg
 \`\`\`
 
 If projected infrastructure edges disappear after a split, first check whether
@@ -4058,9 +4119,12 @@ sed -n '1,160p' .core/core_system.ai
 \`\`\`insight
 define type System of SystemElement
     constructor system
+        kind = internal
 
     required Text name
+    required Text kind
     Text technology
+    Text description
     List of Wire links
     List of Container _
 \`\`\`
@@ -4070,6 +4134,8 @@ Interpretation:
 - \`define type System of SystemElement\` means \`System\` inherits from
   \`SystemElement\`.
 - \`constructor system\` means \`system <id>\` is valid syntax for that type.
+- The constructor assigns \`kind = internal\`, so model authors do not repeat the
+  built-in default on every system.
 - \`required Text name\` means \`name = ...\` is required.
 - \`Text technology\` means \`technology = ...\` is optional.
 - \`List of Wire links\` enables a \`links:\` block whose children are wires.
@@ -4342,7 +4408,8 @@ C4, Deployment, projections, or query text:
 archinsight query . -c <context-id> -s <source.ai> -v c2 --format json
 archinsight query . -c <context-id> -s <source.ai> -v c3 --format json
 archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
-archinsight query . -c <context-id> -s <source.ai> -v deployment --format json
+archinsight query . -c <context-id> -s <source.ai> -v deployment-system --format json
+archinsight query . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> --format json
 \`\`\`
 
 Then render the same context, source, and view:
@@ -4352,7 +4419,8 @@ archinsight render . -c <context-id> -v c1 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v c3 -f svg -o diagram.svg
 archinsight render . -c <context-id> -s <source.ai> -v c4 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v deployment -f svg -o diagram.svg
+archinsight render . -c <context-id> -s <source.ai> -v deployment-system -f svg -o deployment-system.svg
+archinsight render . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> -f svg -o deployment-container.svg
 \`\`\`
 
 Run a custom query from a file:
@@ -4381,7 +4449,12 @@ Useful built-in views:
 - \`c2\` for containers/services in the selected source.
 - \`c3\` for components in the selected source.
 - \`c4\` for project-defined code elements in the selected source.
-- \`deployment\` for deployment-oriented views.
+- \`deployment-system\` for the D1 system deployment overview across relevant
+  environments.
+- \`deployment-container --environment <id>\` for D2 physical detail in one
+  environment.
+- \`deployment\` only when an all-environment container graph is intentionally
+  required for backward compatibility or analysis.
 - \`no-filter\` for the full context.
 
 C2, C3, C4, Deployment, and custom queries often depend on the active file. Pass
@@ -4480,13 +4553,17 @@ MATCH (service:Service {id: 'checkout_api', context: $context})-[dependency:REFE
 RETURN service, dependency, target
 \`\`\`
 
-Incoming dependencies use the same left-to-right syntax with the target bound
-on the right:
+Incoming dependencies can keep the inspected service at the start of the
+pattern by using the reverse arrow:
 
 \`\`\`cypher
-MATCH (caller:Element)-[dependency:REFERENCES]->(service:Service {id: 'checkout_api', context: $context})
-RETURN caller, dependency, service
+MATCH (service:Service {id: 'checkout_api', context: $context})<-[dependency:REFERENCES]-(caller:Element)
+RETURN service, dependency, caller
 \`\`\`
+
+This selects the same stored edge as placing \`caller\` on the left with \`->\`.
+Pattern orientation changes matching readability, not the relationship stored
+in the architecture model.
 
 These answer one-hop questions. To find all transitively affected elements,
 export the relevant context graph and traverse its direct \`REFERENCES\` edges
@@ -4601,12 +4678,18 @@ it is not a raw inventory of lines physically present in that file.
 
 ## Analyze Deployment Realization
 
-Use the built-in Deployment query JSON when the question is how logical architecture is
-realized physically:
+Use built-in Deployment query JSON when the question is how logical architecture
+is realized physically. D1 answers which systems and external integrations are
+present across relevant environments. D2 shows container and infrastructure
+detail inside one selected environment:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <logical-source.ai> -v deployment --format json
+archinsight query . -c <context-id> -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -c <context-id> -s <logical-source.ai> -v deployment-container --environment <environment> --format json
 \`\`\`
+
+Use the legacy \`deployment\` view only when the question intentionally requires
+one container-level graph across every relevant environment.
 
 For each projected edge, compare outer \`source\` and \`target\` with nested
 \`edge.source\` and \`edge.target\`. Use \`edge.originSource\` and
@@ -4642,7 +4725,8 @@ diagram.
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -v deployment --format json
+archinsight query . -c <context-id> -s <source.ai> -v deployment-system --format json
+archinsight query . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> --format json
 archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
 
@@ -5022,6 +5106,11 @@ examples/builtin-views/deployment.aiq
 Before inventing a query from scratch, open the nearest built-in query, copy it
 to the project, and make the smallest change.
 
+Choose \`deployment-system.aiq\` for a D1 overview and
+\`deployment-container.aiq\` for D2 detail in one environment. Start from the
+legacy \`deployment.aiq\` only when the intended result is one container-level
+graph across every relevant environment.
+
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f text
 archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f json
@@ -5078,10 +5167,12 @@ archinsight link . --format text
 archinsight structure . --format text
 \`\`\`
 
-3. Run the built-in query explicitly and inspect its JSON:
+3. Run the built-in query explicitly and inspect its JSON. Choose the command
+   that matches the diagram being investigated:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/deployment.aiq -f json
+archinsight query . -c <context-id> -s <source.ai> -v deployment-system -f json
+archinsight query . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> -f json
 \`\`\`
 
 4. Check the query filters:
@@ -5089,17 +5180,17 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/dep
 - \`node.sourceIdentity = $tab\` selects the semantic fragment rooted in the
   selected source, including contributions added to those roots through
   \`extend\` in other files.
-- The built-in Deployment node filter includes deployment elements and logical
+- The built-in D1 and D2 node filters include deployment elements and logical
   container or external elements whose deployment resolves to physical
   infrastructure. External endpoints without their own placement still enter
   through projected paths attached to a deployed logical node.
 - \`{projected}\` means only deployment-projected edges are selected.
 - \`{derived}\` means only rolled-up relationships are selected.
 - A relationship property such as \`sourceIdentity: $tab\` is available for a
-  deliberately narrow custom view. The current built-in Deployment query does not add
-  that edge filter; the selected node scope and semantic tab closure provide
-  the boundary.
-- The built-in Deployment view uses one undirected \`MATCH ROLLUP\` for the
+  deliberately narrow custom view. The built-in D1 and D2 queries rely on the
+  selected node scope and semantic tab closure instead of applying that filter
+  to projected relationships.
+- The built-in D1 and D2 views use one undirected \`MATCH ROLLUP\` for the
   projected neighborhood. Projection origin metadata lets that clause find
   ingress and egress segments while every segment preserves its real physical
   source and target.
@@ -5134,19 +5225,20 @@ traceability, not for inventing a direct physical connection.
 
 ## Include Internal Actors In Deployment
 
-The built-in Deployment query includes external actors reached by a projected physical
-path. If a deployment diagram also needs internal actors, use the bundled,
-tested customization:
+The built-in Deployment views include external actors reached by a projected
+physical path. If an all-environment deployment diagram also needs internal
+actors, use the bundled, tested legacy-view customization:
 
 \`\`\`shell
 archinsight query . -c <context-id> -s <source.ai> -q examples/queries/deployment-internal-actors.aiq -f json
 \`\`\`
 
-This query is generated from the exact built-in Deployment source and changes only the
-node, projected-target, and incoming-source predicates to admit \`Actor\`.
-Because the rest comes from the current built-in query, deployment targets,
-incoming paths, and infrastructure-to-infrastructure projected path segments
-stay synchronized with Deployment behavior.
+This query is generated from the exact legacy \`deployment.aiq\` source and
+changes only the node, projected-target, and incoming-source predicates to admit
+\`Actor\`. For a D1 or D2 customization, copy the corresponding
+\`deployment-system.aiq\` or \`deployment-container.aiq\` source and apply the
+same actor predicates there so its current scope and environment behavior remain
+intact.
 
 If the actor is declared in another source file, either render from that source
 or relax the \`node.sourceIdentity = $tab\` condition intentionally.
@@ -5184,8 +5276,8 @@ exist in the file but the diagram question is still logical.
 
 ## Projected Edges Across Split Files
 
-The current built-in Deployment query matches \`{projected}\` edges without an explicit
-\`sourceIdentity: $tab\` relationship filter. The query engine expands \`$tab\`
+The current built-in D1 and D2 queries match \`{projected}\` edges without an
+explicit \`sourceIdentity: $tab\` relationship filter. The query engine expands \`$tab\`
 to the roots declared by the selected source and contributions made to those
 roots through \`extend\`, so a normal multi-file split does not require a looser
 edge selector.
@@ -5195,7 +5287,8 @@ filter while keeping the node scope. Start again from the bundled current query
 instead of preserving the rest of the older copy:
 
 \`\`\`text
-copy examples/builtin-views/deployment.aiq to the project's query directory
+copy examples/builtin-views/deployment-system.aiq for D1
+or copy examples/builtin-views/deployment-container.aiq for D2
 remove sourceIdentity: $tab only from the relationship selector if an old copy has it
 keep node.sourceIdentity = $tab
 \`\`\`
@@ -5206,17 +5299,16 @@ by the tab before changing the model or broadening the node scope.
 
 ## Change Grouping
 
-Grouping controls visual clusters. If Deployment grouping by \`runsOn\` is not helpful,
-copy the complete current \`examples/builtin-views/deployment.aiq\` and change only:
+Grouping controls visual clusters. If D1 or D2 grouping is not helpful, copy the
+complete corresponding built-in query and change only its \`GROUP BY\` expression:
 
 \`\`\`cypher
 GROUP BY node.parent
 \`\`\`
 
 Use \`GROUP BY node.runsOn\` for deployment placement; use \`GROUP BY node.parent\`
-for logical ownership. If you still need target-owned ingress paths, start from
-\`examples/builtin-views/deployment.aiq\` and change only the \`GROUP BY\` expression so
-the incoming projection aliases stay in the \`RETURN\`.
+for logical ownership. Preserve the rest of the selected D1 or D2 query so its
+projected-neighborhood aliases and environment behavior remain unchanged.
 
 ## Working Rule
 
@@ -5899,7 +5991,7 @@ function genericDeploymentProjectionsReference(): string {
   const examples = deploymentProjectionExamples().map((example) => {
     const files = example.files.map((file) => `### ${file.path}\n\n\`\`\`insight\n${file.content.trimEnd()}\n\`\`\``).join("\n\n");
     const expected = example.expected.map((item) => `- ${item}`).join("\n");
-    return `## ${example.title}\n\n${example.purpose}\n\n${files}\n\nRun:\n\n\`\`\`shell\narchinsight link examples/deployment-projections/${example.slug} --format text\narchinsight query examples/deployment-projections/${example.slug} -c ${example.context} -s model.ai -v deployment --format json\n\`\`\`\n\nExpected physical result:\n\n${expected}`;
+    return `## ${example.title}\n\n${example.purpose}\n\n${files}\n\nRun:\n\n\`\`\`shell\narchinsight link examples/deployment-projections/${example.slug} --format text\narchinsight query examples/deployment-projections/${example.slug} -c ${example.context} -s model.ai -v deployment-container --environment eu --format json\n\`\`\`\n\nExpected physical result:\n\n${expected}`;
   }).join("\n\n");
 
   return `# Deployment Projections

@@ -62,9 +62,9 @@ Here the note helps an editor find the source of ownership, while `description` 
 Standalone comments can be placed around declarations and assignments without changing indentation ownership. An inline note stays on the declaration line after the identifier or relationship target:
 
 ```insight
-service checkout # Runtime owner: commerce
+service order_fulfillment # Runtime owner: commerce
     links:
-        ~> order_events # Published after an order is accepted
+        ~> checkout # Reacts after an order is accepted
             technology = Kafka
             via = orders.created
 ```

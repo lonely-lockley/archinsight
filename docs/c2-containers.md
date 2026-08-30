@@ -45,17 +45,22 @@ service checkout
 
 Here, `checkout` owns the dependency and the diagram draws `checkout → catalog`. Placing the same declaration under `catalog` would draw `catalog → checkout`. The operator describes the interaction style, while the declaration position establishes its direction.
 
-The same rule applies to asynchronous wires:
+The same rule applies to asynchronous dependencies. In a publish-and-subscribe
+flow, the consumer owns the dependency on the producer's event stream:
 
 ```insight
-service checkout
+service order_fulfillment
     links:
-        ~> order_events
-            description = Publishes completed orders
+        ~> checkout
+            description = Consumes completed order events
             via = orders.completed
 ```
 
-The arrow starts at `checkout` because `checkout` owns the wire. `~>` changes the relationship to asynchronous and gives it the corresponding presentation; it does not reverse the source and target.
+The arrow starts at `order_fulfillment` because that service must react to the
+event and therefore owns the dependency. `checkout` is the producer, while
+`via` names the topic or channel that carries the interaction. The `~>` operator
+changes the relationship to asynchronous and gives it the corresponding
+presentation; it does not reverse the source and target.
 
 ## Relationships pushed to C1
 

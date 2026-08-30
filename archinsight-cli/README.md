@@ -79,6 +79,7 @@ The generic target writes a runtime-neutral guide:
         c3-components.md
         c4-code.md
         deployment.md
+        deployment-projections.md
         scaling.md
         project-structure.md
         core.md
@@ -92,13 +93,26 @@ The generic target writes a runtime-neutral guide:
         layered-architecture.ai
         c1-context.ai
         c2-containers.ai
+        c2-file-split/
+            context.ai
+            storefront.ai
         c3-components.ai
+        c3-file-split/
+            system.ai
+            checkout-components.ai
+            web-components.ai
         c4-code/
             definitions.ai
             model.ai
         deployment-framework.ai
         deployment-infrastructure.ai
         deployment.ai
+        deployment-projections/
+            gateway/
+            storage/
+            broker/
+            egress/
+            monitoring/
         deployment-private-gateway/
             deployment-framework.ai
             source-infra.ai
@@ -118,6 +132,8 @@ The generic target writes a runtime-neutral guide:
             deployment.aiq
         queries/
             deployment-internal-actors.aiq
+            direct-service-dependencies.aiq
+            kafka-service-dependencies.aiq
 ```
 
 Codex and Claude targets package the same Insight reference directly into the

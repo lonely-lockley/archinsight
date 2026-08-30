@@ -260,7 +260,9 @@ service checkout
             technology = HTTPS
             call = POST /payments
 
-        ~> order_events
+service order_fulfillment
+    links:
+        ~> checkout
             technology = Kafka
             via = orders.created
 ```

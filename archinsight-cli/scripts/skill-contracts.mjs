@@ -148,6 +148,7 @@ function verifySharedFiles(output) {
   assert(projections.includes("copy-on-write"));
   assert(projections.includes("edge.projectionOrigins"));
   assert(projections.includes("eu/telemetry branches independently"));
+  assert(projections.includes("-v deployment-container --environment eu"));
   assert(projections.includes("[Eventing](modeling.md#eventing)"));
   assert(projections.includes("[Scaling](scaling.md#framework-once-use-everywhere)"));
 
@@ -161,6 +162,9 @@ function verifySharedFiles(output) {
   assert(analysis.includes("It is not a general graph analytics language"));
   assert.match(analysis, /transitive\s+impact/);
   assert(analysis.includes("--format json"));
+  assert(analysis.includes("<-[dependency:REFERENCES]-"));
+  assert(analysis.includes("-v deployment-system"));
+  assert(analysis.includes("-v deployment-container --environment <environment>"));
 
   const c4Code = readFileSync(path.join(output, "references", "c4-code.md"), "utf8");
   assert(c4Code.includes("CodeElement"));
@@ -178,6 +182,8 @@ function verifySharedFiles(output) {
   const validation = readFileSync(path.join(output, "references", "validation.md"), "utf8");
   assert.match(validation, /archinsight query .* -v c4 --format json/);
   assert.match(validation, /archinsight render .* -v c4 -f svg/);
+  assert(validation.includes("-v deployment-system"));
+  assert(validation.includes("-v deployment-container --environment <environment>"));
   assert(validation.includes("Validate `c4-code` as its own directory"));
 
   const syntax = readFileSync(path.join(output, "references", "syntax.md"), "utf8");
@@ -234,6 +240,8 @@ function verifyExamples(output) {
   for (const name of ["layered-architecture.ai", "c1-context.ai", "c2-containers.ai", "c3-components.ai"]) {
     runCli(["link", path.join(examples, name), "--format", "text"]);
   }
+  runCli(["link", path.join(examples, "c2-file-split"), "--format", "text"]);
+  runCli(["link", path.join(examples, "c3-file-split"), "--format", "text"]);
 
   const deploymentProject = copyDeploymentProject(examples, "deployment-project");
   runCli(["link", deploymentProject, "--format", "text"]);
@@ -288,7 +296,9 @@ function verifyDeploymentRecipeAndJsonContract(output) {
     "--source",
     "deployment.ai",
     "--view",
-    "deployment",
+    "deployment-container",
+    "--environment",
+    "eu",
     "--format",
     "json",
   ]));
@@ -416,7 +426,9 @@ function projectionGraph(examples, slug, context) {
     "--source",
     "model.ai",
     "--view",
-    "deployment",
+    "deployment-container",
+    "--environment",
+    "eu",
     "--format",
     "json",
   ]));

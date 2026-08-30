@@ -161,8 +161,9 @@ Rendering checks the final presentation. When query JSON already contains an une
 
 ```shell
 archinsight link . --format text
-archinsight query . -c <context> -s <source.ai> -v deployment --format json
-archinsight render . -c <context> -s <source.ai> -v deployment -f svg -o deployment.svg
+archinsight query . -c <context> -s <source.ai> -v deployment-system --format json
+archinsight query . -c <context> -s <source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -c <context> -s <source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
 ```
 
 ## Generating Graphviz DOT

@@ -263,15 +263,17 @@ RETURN service, dependency, target
 
 The arrow follows the direction established by the Insight operator. Returning the relationship also returns its endpoints to the render graph.
 
-Incoming relationships are expressed by placing the potential source on the left:
+Incoming relationships can be expressed directly with a reverse arrow:
 
 ```cypher
-MATCH (caller:Element)-[dependency:REFERENCES]->(service:Service)
+MATCH (service:Service)<-[dependency:REFERENCES]-(caller:Element)
 WHERE service.context = $context
-RETURN caller, dependency, service
+RETURN service, dependency, caller
 ```
 
-The current syntax always uses a left-to-right arrow, so reversing the aliases expresses the incoming question.
+This selects the same stored edge as
+`(caller)-[dependency:REFERENCES]->(service)`. Choose the orientation that keeps
+the element being investigated at the natural starting point of the pattern.
 
 ### 5. Preserve nodes without relationships
 
@@ -378,9 +380,13 @@ Grouping affects only the render graph. It does not change containment or owners
 The CLI can return the selected render graph directly:
 
 ```shell
-archinsight query . -c <context> -s <source.ai> -v deployment --format json
+archinsight query . -c <context> -s <source.ai> -v deployment-system --format json
+archinsight query . -c <context> -s <source.ai> -v deployment-container --environment <environment> --format json
 archinsight query . -c <context> -s <source.ai> -q query.aiq --format json
 ```
+
+Use the legacy `deployment` view only when the analysis intentionally needs the
+complete container-level graph across all relevant environments.
 
 The response contains `context`, an `elements` map keyed by query-visible qualified id, an `edges` array, render `groups`, and `externalElements`. In built-in C1-C4 views, `externalElements` includes both explicitly external declarations and endpoints outside the boundaries opened by that view. A closed endpoint is folded to the system at C2, the container or service at C3, and the component at C4. Each selected edge keeps its query category and two endpoint pairs:
 

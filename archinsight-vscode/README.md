@@ -36,7 +36,8 @@ system application
 - Smart completion from parser context, types, visible declarations, and imports.
 - Workspace diagnostics for parser, linker, and type-system errors.
 - A custom split editor with Insight source and live diagram preview side by side.
-- Built-in view buttons for no-filter, C1, C2, C3, C4, and Deployment queries.
+- Built-in view buttons for no-filter, C1, C2, C3, C4, D1 system deployment,
+  and D2 container deployment queries.
 - Editable query panel for custom graph queries.
 - `Project Structure` tree for contexts, types, and declarations.
 - Click-to-source navigation from structure and rendered diagram items.
