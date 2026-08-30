@@ -11,8 +11,9 @@ It embeds `@insight/language` directly and does not call the web app.
 ```shell
 archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
-archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
-archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
+archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
 archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 ```
 
@@ -20,8 +21,11 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 
 ## Common Options
 
-- `-c, --context <id>` - context id for query/render.
-- `-s, --source <file>` - selected source file for queries using `$tab`.
+- `-s, --source <file>` - selected model file. It supplies `$tab` and determines
+  the context for the diagram.
+- `-c, --context <id>` - explicit context for context-wide execution without a
+  source. When both options are present, the context must match the selected
+  file.
 - `--tab <source>` - compatibility alias for `--source`.
 - `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment-system`, `deployment-container`, `deployment`, `no-filter`.
 - `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
@@ -36,25 +40,83 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-V, --version` - print version.
 - `-h, --help` - print help.
 
+## Diagram Scope
+
+The selected source is the normal entry point for a diagram. C2, C3, C4, D1,
+D2, and the legacy Deployment view are source-centric and require `--source`
+when the project contains several `.ai` files. If `project-dir` points directly
+to one `.ai` file, that file is selected automatically.
+
+C1 uses the context declared by the selected source and opens that context
+boundary completely. It can also run without a source when `--context <id>` is
+provided. `no-filter` follows the same context-wide rule.
+
+The CLI validates explicit scope. An unknown context is an error, and a context
+that differs from the one declared by `--source` is a conflict rather than an
+override. A custom query that uses `$tab` requires a source. A custom query that
+uses `$context` receives it from the selected source or from an explicit
+`--context`.
+
+D1 selects every environment relevant to the source and does not accept
+`--environment`. D2 selects one environment. The CLI chooses it automatically
+when exactly one is relevant and otherwise lists the available environments and
+requires `--environment <id>`.
+
+## Environment Discovery
+
+List every declared environment without parsing model sources:
+
+```shell
+archinsight environments . --format json
+```
+
+Add a source to return only the environments relevant to that source's D2
+diagram:
+
+```shell
+archinsight environments . --source storefront.ai --format json
+```
+
+The JSON response has a versioned, automation-friendly shape:
+
+```json
+{
+  "schemaVersion": "deployment-environments.v1",
+  "source": "storefront.ai",
+  "environments": [
+    {
+      "id": "eu_west",
+      "name": "Europe West",
+      "source": "infrastructure/eu-west.ai"
+    }
+  ]
+}
+```
+
+The top-level `source` is `null` for the complete project inventory. Each
+environment entry contains the model source that declares its infrastructure.
+Text output contains one tab-separated `id`, `name`, and source path per line.
+
 ## Examples
 
 Link a project and print diagnostics:
 
 ```shell
 npm --prefix archinsight-cli run build
-node archinsight-cli/build/index.js link examples --format text
+node archinsight-cli/build/index.js link examples/layered-architecture.ai --format text
 ```
 
-Render DOT for a context using the C2 built-in query:
+Render DOT from a model file using the C2 built-in query:
 
 ```shell
-node archinsight-cli/build/index.js render examples -c demo -s main.ai -v c2 -f dot
+node archinsight-cli/build/index.js render examples/layered-architecture.ai -v c2 -f dot
 ```
 
 Inspect one environment at container deployment detail:
 
 ```shell
-archinsight query . -c shop -s storefront.ai -v deployment-container --environment eu_west --format json
+archinsight environments . -s storefront.ai --format json
+archinsight query . -s storefront.ai -v deployment-container --environment eu_west --format json
 ```
 
 Generate a portable AI-agent guide for an Insight project:

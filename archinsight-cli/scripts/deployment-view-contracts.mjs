@@ -33,24 +33,34 @@ system storefront
             uses regional
 `);
 
-  const ambiguous = run("query", root, "-c", "shop", "-s", "model.ai", "-v", "deployment-container", "--format", "json");
+  const ambiguous = run("query", root, "-s", "model.ai", "-v", "deployment-container", "--format", "json");
   assert.equal(ambiguous.status, 1);
   assert.match(ambiguous.stderr, /requires --environment/);
   assert.match(ambiguous.stderr, /eu_central/);
   assert.match(ambiguous.stderr, /eu_west/);
 
   const selected = run(
-    "query", root, "-c", "shop", "-s", "model.ai", "-v", "deployment-container",
+    "query", root, "-s", "model.ai", "-v", "deployment-container",
     "--environment", "eu_west", "--format", "json",
   );
   assert.equal(selected.status, 0, selected.stderr);
   const graph = JSON.parse(selected.stdout);
+  assert.equal(graph.context, "shop");
   assert(Object.keys(graph.elements).some((id) => id.includes("eu_west")));
   assert.equal(Object.keys(graph.elements).some((id) => id.includes("eu_central")), false);
 
-  const d1 = run("query", root, "-c", "shop", "-s", "model.ai", "-v", "deployment-system", "--format", "json");
+  const d1 = run("query", root, "-s", "model.ai", "-v", "deployment-system", "--format", "json");
   assert.equal(d1.status, 0, d1.stderr);
-  assert(Object.values(JSON.parse(d1.stdout).elements).some((element) => element.type === "System"));
+  const d1Graph = JSON.parse(d1.stdout);
+  assert.equal(d1Graph.context, "shop");
+  assert(Object.values(d1Graph.elements).some((element) => element.type === "System"));
+
+  const d1Environment = run(
+    "query", root, "-s", "model.ai", "-v", "deployment-system",
+    "--environment", "eu_west", "--format", "json",
+  );
+  assert.equal(d1Environment.status, 1);
+  assert.match(d1Environment.stderr, /--environment.*only.*deployment-container/);
 
   console.log("CLI deployment view contracts passed");
 } finally {

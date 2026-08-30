@@ -21,9 +21,19 @@ The web editor remembers the D2 environment for each tab. VS Code uses a native 
 The same views are available from the CLI:
 
 ```shell
-archinsight query . -c shop -s storefront.ai -v deployment-system --format json
-archinsight query . -c shop -s storefront.ai -v deployment-container --environment eu_west --format json
+archinsight query . -s storefront.ai -v deployment-system --format json
+archinsight environments . -s storefront.ai --format json
+archinsight query . -s storefront.ai -v deployment-container --environment eu_west --format json
 ```
+
+The selected logical source is the entry point for both views. The CLI obtains
+the context from that file, so a separate `--context` option is unnecessary.
+D1 uses every environment relevant to the source. D2 selects its only relevant
+environment automatically, or requires `--environment` when several are
+available. `archinsight environments` exposes that D2 choice as structured JSON,
+so scripts and agents do not need to inspect the Insight source or parse an
+entire linked graph. Without `--source`, the command lists every environment
+declared in the project.
 
 `deployment-system` and `deployment-container` are stable built-in view names. The older `deployment` view remains available for commands and integrations that need the complete container-level graph across all relevant environments.
 
@@ -394,9 +404,9 @@ A clean link proves that the project parses and that types, imports, profiles, s
 
 ```shell
 archinsight link . --format text
-archinsight query . -c <context> -s <logical-source.ai> -v deployment-system --format json
-archinsight query . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> --format json
-archinsight render . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
+archinsight query . -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -s <logical-source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
 ```
 
 Inspect the JSON before relying on the image. It records the exact elements and physical edges selected by the Deployment query. SVG is the final presentation check for layout, labels, and styling.

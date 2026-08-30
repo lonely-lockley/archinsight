@@ -82,8 +82,10 @@ Definitions, containment slots, constructors, and references are validated by th
 
 ```shell
 archinsight link . --format text
-archinsight query . -c <context> -s <code-source.ai> -v c4 --format json
-archinsight render . -c <context> -s <code-source.ai> -v c4 -f svg -o code.svg
+archinsight query . -s <code-source.ai> -v c4 --format json
+archinsight render . -s <code-source.ai> -v c4 -f svg -o code.svg
 ```
+
+The CLI infers the diagram context from the selected source.
 
 Inspect the JSON before relying on the rendered image. It makes the selected code identities, parent groups, and relationship direction explicit.

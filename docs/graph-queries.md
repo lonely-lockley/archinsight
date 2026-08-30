@@ -64,7 +64,10 @@ Query text is reusable because the caller supplies a scope separately. Built-in 
 
 ### `$context`
 
-`$context` contains the selected context or environment identifier. It is commonly compared with the `context` property of an element:
+`$context` contains the context or environment identifier declared by the
+selected source. A context-wide CLI query without a source can set the same
+variable explicitly with `--context`. It is commonly compared with the
+`context` property of an element:
 
 ```cypher
 MATCH (element:Element)
@@ -72,7 +75,8 @@ WHERE element.context = $context
 RETURN element
 ```
 
-The same query can be evaluated for several contexts without rewriting the query text.
+The same query can be evaluated for several sources or explicit contexts
+without rewriting the query text.
 
 ### `$tab`
 
@@ -243,13 +247,18 @@ RETURN node
 
 `External` is a built-in semantic predicate based on the element's resolved model kind. It matches declarations created with `external actor` or `external system`. Relative externality in a built-in C1-C4 view is carried separately by the resulting render graph and does not change this predicate in custom queries.
 
-A custom CLI query can request the same boundary handling by combining its query file with a view:
+A custom CLI query uses its own selection and grouping rules. The query file
+overrides `--view`, so built-in boundary handling is not applied after the
+custom query:
 
 ```shell
-archinsight query . -c commerce -s storefront.ai -v c2 -q dependencies.aiq --format json
+archinsight query . -s storefront.ai -q dependencies.aiq --format json
 ```
 
-The query still evaluates `IS External` against the explicit model marker. After selection, C2 boundary handling folds relationships leaving the opened systems and records those endpoints in `externalElements`. Omitting `-v` leaves the custom query independent of a built-in view.
+The CLI obtains `$context` from `storefront.ai` and supplies `$tab` from the same
+source. The query still evaluates `IS External` against the explicit model
+marker. To reproduce C2 folding or externality in a custom view, start from the
+built-in C2 query and keep the required selection and grouping clauses.
 
 ### 4. Follow outgoing relationships
 
@@ -380,10 +389,15 @@ Grouping affects only the render graph. It does not change containment or owners
 The CLI can return the selected render graph directly:
 
 ```shell
-archinsight query . -c <context> -s <source.ai> -v deployment-system --format json
-archinsight query . -c <context> -s <source.ai> -v deployment-container --environment <environment> --format json
-archinsight query . -c <context> -s <source.ai> -q query.aiq --format json
+archinsight query . -s <source.ai> -v deployment-system --format json
+archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
+archinsight query . -s <source.ai> -q query.aiq --format json
 ```
+
+For source-scoped commands, the selected file supplies both `$tab` and its
+declared `$context`. A context-wide C1 or `no-filter` query may instead use
+`--context <id>` without a source. If both options are supplied, they must
+identify the same context.
 
 Use the legacy `deployment` view only when the analysis intentionally needs the
 complete container-level graph across all relevant environments.

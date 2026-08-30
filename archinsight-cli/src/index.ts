@@ -25,7 +25,7 @@ import {
 import { BUILTIN_VIEW_QUERIES, type BuiltinDiagramView } from "./generated/builtin-view-queries.js";
 import { version } from "./version.js";
 
-type Command = "link" | "render" | "query" | "structure" | "skill";
+type Command = "link" | "render" | "query" | "structure" | "environments" | "skill";
 type SkillAction = "init";
 type SkillTarget = "generic" | "codex" | "claude";
 type OutputFormat = "text" | "json";
@@ -127,6 +127,9 @@ async function main(): Promise<void> {
     case "structure":
       await runStructure(args);
       return;
+    case "environments":
+      await runEnvironments(args);
+      return;
     case "skill":
       await runSkill(args);
       return;
@@ -215,6 +218,43 @@ async function runStructure(args: ParsedArgs): Promise<void> {
     return;
   }
   await writeOutput(args.output, formatStructure(structure));
+}
+
+async function runEnvironments(args: ParsedArgs): Promise<void> {
+  const project = await loadProject(projectPath(args));
+  if (hasErrors(project.diagnostics)) {
+    process.stderr.write(formatDiagnostics(project.diagnostics));
+    process.exitCode = 1;
+    return;
+  }
+  const source = args.tab === undefined
+    ? undefined
+    : selectedSource(project, args.tab, false, undefined);
+  const declared = declaredDeploymentEnvironments(project.result);
+  const declaredById = new Map(declared.map((environment) => [environment.id, environment]));
+  const environments = source === undefined
+    ? declared
+    : discoverDeploymentEnvironments(project.result, { tab: source }).map((environment) => {
+      const declaration = declaredById.get(environment.id);
+      if (declaration === undefined) {
+        throw new CliError(`Environment '${environment.id}' is relevant to '${source}' but has no environment declaration`);
+      }
+      const name = environment.name ?? declaration.name;
+      return {
+        id: environment.id,
+        ...(name === undefined ? {} : { name }),
+        source: declaration.source,
+      };
+    });
+  const result: DeploymentEnvironmentList = {
+    schemaVersion: "deployment-environments.v1",
+    source: source ?? null,
+    environments,
+  };
+  const format = outputFormat(args.format, "text");
+  await writeOutput(args.output, format === "json"
+    ? JSON.stringify(result, null, 2)
+    : formatDeploymentEnvironments(result.environments));
 }
 
 async function runSkill(args: ParsedArgs): Promise<void> {
@@ -328,33 +368,41 @@ async function loadProject(input: string): Promise<LoadedProject> {
 }
 
 async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph> {
-  const context = args.context ?? firstContext(project);
-  const tab = selectedSource(project, args.tab);
-  const view = args.view ?? (args.queryFile === undefined ? "c1" : undefined);
-  const environment = deploymentEnvironmentOption(project, args, context, tab, view);
-  const scope: QueryScope = {
-    context,
-    tab,
-    ...(view === undefined ? {} : { view }),
-    ...(environment === undefined ? {} : { environment }),
-  };
+  const view = args.queryFile === undefined ? args.view ?? "c1" : undefined;
   const query = args.queryFile === undefined
     ? viewQueries[view ?? "c1"]
     : await readQueryFile(project.root, args.queryFile);
+  const queryNeedsTab = queryUsesVariable(query, "tab");
+  const queryNeedsContext = queryUsesVariable(query, "context");
+  const sourceRequired = (view !== undefined && view !== "c1" && view !== "no-filter") || queryNeedsTab;
+  const tab = selectedSource(project, args.tab, sourceRequired, view);
+  const context = selectedContext(project, args.context, tab, view !== undefined || queryNeedsContext, view);
+  const environment = deploymentEnvironmentOption(project, args, tab, view);
+  const scope: QueryScope = {
+    ...(context === undefined ? {} : { context }),
+    ...(tab === undefined ? {} : { tab }),
+    ...(view === undefined ? {} : { view }),
+    ...(environment === undefined ? {} : { environment }),
+  };
   return selectGraph(project.result, scope, query);
 }
 
 function deploymentEnvironmentOption(
   project: LoadedProject,
   args: ParsedArgs,
-  context: string,
-  tab: string,
+  tab: string | undefined,
   view: DiagramView | undefined,
 ): string | undefined {
   if (view !== "deployment-container") {
-    return args.environment;
+    if (args.environment !== undefined) {
+      throw new CliError("Option '--environment' is supported only by the 'deployment-container' view");
+    }
+    return undefined;
   }
-  const environments = discoverDeploymentEnvironments(project.result, { context, tab });
+  if (tab === undefined) {
+    throw new CliError("View 'deployment-container' requires --source");
+  }
+  const environments = discoverDeploymentEnvironments(project.result, { tab });
   if (args.environment !== undefined) {
     if (!environments.some((candidate) => candidate.id === args.environment)) {
       throw new CliError(`Environment '${args.environment}' is not relevant to '${tab}'. Available environments: ${environmentList(environments)}`);
@@ -378,6 +426,30 @@ function environmentList(environments: readonly { readonly id: string; readonly 
   ).join(", ") || "none";
 }
 
+function declaredDeploymentEnvironments(result: LinkProjectResult): readonly DeploymentEnvironmentEntry[] {
+  return result.elements
+    .filter((element) => element.synthetic !== true
+      && element.parent === undefined
+      && (element.type === "Environment" || element.baseTypes.includes("Environment")))
+    .map((element) => ({
+      id: element.context,
+      ...(element.attributes.name?.[0] === undefined ? {} : { name: element.attributes.name[0] }),
+      source: element.sourceIdentity,
+    }))
+    .sort((left, right) =>
+      (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id)
+    );
+}
+
+function formatDeploymentEnvironments(environments: readonly DeploymentEnvironmentEntry[]): string {
+  if (environments.length === 0) {
+    return "";
+  }
+  return `${environments.map((environment) =>
+    `${environment.id}\t${environment.name ?? ""}\t${environment.source}`
+  ).join("\n")}\n`;
+}
+
 async function readQueryFile(projectRoot: string, queryFile: string): Promise<string> {
   const file = path.isAbsolute(queryFile) ? queryFile : path.resolve(projectRoot, queryFile);
   return readFile(file, "utf8");
@@ -387,27 +459,77 @@ function projectPath(args: ParsedArgs): string {
   return args.input ?? ".";
 }
 
-function firstContext(project: LoadedProject): string {
-  const context = project.result.contexts[0]?.id;
-  if (context === undefined) {
-    throw new CliError("No context found; pass --context explicitly after fixing diagnostics");
+function selectedSource(
+  project: LoadedProject,
+  source: string | undefined,
+  required: boolean,
+  view: DiagramView | undefined,
+): string | undefined {
+  if (source === undefined && project.sources.length === 1) {
+    return project.sources[0]!.sourceName;
   }
-  return context;
-}
-
-function firstTab(project: LoadedProject): string {
-  return project.sources[0]?.sourceName ?? "";
-}
-
-function selectedSource(project: LoadedProject, source: string | undefined): string {
   if (source === undefined) {
-    return firstTab(project);
+    if (required) {
+      const subject = view === undefined ? "This query" : `View '${view}'`;
+      throw new CliError(`${subject} requires --source because it is scoped to a model file`);
+    }
+    return undefined;
   }
   const normalized = normalizeSourceName(project.root, source);
   if (project.sources.some((item) => item.sourceName === normalized)) {
     return normalized;
   }
   throw new CliError(`Source '${source}' is not part of project '${project.root}'`);
+}
+
+function selectedContext(
+  project: LoadedProject,
+  explicitContext: string | undefined,
+  source: string | undefined,
+  required: boolean,
+  view: DiagramView | undefined,
+): string | undefined {
+  const sourceContext = source === undefined
+    ? undefined
+    : project.result.contexts.find((context) => context.sourceIdentity === source);
+  if (sourceContext?.synthetic === true && required) {
+    throw new CliError(`Source '${source}' contains definitions and does not declare a renderable context or environment`);
+  }
+  if (view === "c1" && sourceContext !== undefined && sourceContext.type !== "Context") {
+    throw new CliError(`Source '${source}' does not declare a logical context for the C1 view`);
+  }
+
+  const available = availableContextIds(project, view);
+  if (explicitContext !== undefined && !available.includes(explicitContext)) {
+    throw new CliError(`Context '${explicitContext}' is not declared. Available contexts: ${available.join(", ") || "none"}`);
+  }
+  if (explicitContext !== undefined && sourceContext?.synthetic !== true
+      && sourceContext !== undefined && sourceContext.id !== explicitContext) {
+    throw new CliError(`Context '${explicitContext}' conflicts with source '${source}', which declares context '${sourceContext.id}'`);
+  }
+  if (explicitContext !== undefined) {
+    return explicitContext;
+  }
+  if (sourceContext?.synthetic !== true && sourceContext !== undefined) {
+    return sourceContext.id;
+  }
+  if (!required) {
+    return undefined;
+  }
+  if (available.length === 1) {
+    return available[0];
+  }
+  throw new CliError(`Cannot infer context. Pass --source or --context. Available contexts: ${available.join(", ") || "none"}`);
+}
+
+function availableContextIds(project: LoadedProject, view: DiagramView | undefined): string[] {
+  return [...new Set(project.result.contexts
+    .filter((context) => context.synthetic !== true && (view !== "c1" || context.type === "Context"))
+    .map((context) => context.id))].sort();
+}
+
+function queryUsesVariable(query: string, variable: "context" | "tab"): boolean {
+  return new RegExp(`\\$${variable}\\b`).test(query);
 }
 
 function normalizeSourceName(root: string, source: string): string {
@@ -753,7 +875,8 @@ function optionKey(arg: string): string | undefined {
 }
 
 function command(value: string | undefined): Command | undefined {
-  if (value === "link" || value === "render" || value === "query" || value === "structure" || value === "skill") {
+  if (value === "link" || value === "render" || value === "query" || value === "structure"
+      || value === "environments" || value === "skill") {
     return value;
   }
   if (value === undefined) {
@@ -838,18 +961,19 @@ function helpText(): string {
 
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
-  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
-  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
+  archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+  archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
+  archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 
 Options:
   project-dir             Project directory to scan recursively, default: current directory.
-  -c, --context <id>       Context id for query/render.
-  -s, --source <file>      Selected project file for queries using $tab.
+  -s, --source <file>      Selected model file. Supplies $tab and infers its context.
+  -c, --context <id>       Context for context-wide execution without --source; must match it when both are passed.
       --tab <source>       Backward-compatible alias for --source.
   -v, --view <name>        Built-in view: c1, c2, c3, c4, deployment-system, deployment-container, deployment, no-filter.
-  -e, --environment <id>   Environment scope for deployment-container.
+  -e, --environment <id>   Environment scope for deployment-container; optional when exactly one is relevant.
   -q, --query <file>       Query file; overrides --view.
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
@@ -858,6 +982,16 @@ Options:
       --force              Replace the complete generated skill directory.
   -V, --version            Print version.
   -h, --help               Show help.
+
+Scope:
+  C1 and no-filter accept either --source or --context. C2-C4 and Deployment
+  views require --source unless project-dir is one .ai file. Source-scoped
+  commands infer context from that file. D2 additionally requires --environment
+  when more than one environment is relevant.
+
+Environment discovery:
+  environments lists every declared environment. With --source, it returns only
+  the environments relevant to that source for the D2 view.
 
 Diagnostics text format is TSV:
   level<TAB>code<TAB>source<TAB>line<TAB>column<TAB>message
@@ -1388,11 +1522,11 @@ archinsight link . --format text
 archinsight structure . --format text
 \`\`\`
 
-If rendering is needed, ask for the context id and source file when they are not
-obvious:
+If rendering is needed, ask for the source file when it is not obvious. The CLI
+infers the context declared by that source:
 
 \`\`\`shell
-archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
 \`\`\`
 
 Report diagnostics by source, line, column, and message. Avoid rewriting large
@@ -1490,6 +1624,50 @@ Never update a generated skill by running plain \`skill init\` repeatedly or by
 copying only the files that happen to be missing. Regenerate the entire package
 with the installed CLI, then restart the agent session when its runtime discovers
 skills only at startup.
+
+## Query and Render Scope
+
+Use the model source as the normal diagram entry point:
+
+\`\`\`shell
+archinsight query . -s <source.ai> -v c2 --format json
+archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
+\`\`\`
+
+The selected source supplies \`$tab\` and determines \`$context\`. C2, C3, C4,
+D1 (\`deployment-system\`), D2 (\`deployment-container\`), and the legacy
+Deployment view require a source when a project contains several model files.
+When the command input is one \`.ai\` file, the CLI selects it automatically.
+
+C1 opens the complete context boundary declared by the selected source. For a
+context-wide C1 or \`no-filter\` query without a source, pass
+\`--context <context-id>\` instead. If both \`--source\` and \`--context\` are
+present, they must resolve to the same context; the context does not override
+the source.
+
+A custom query file overrides \`--view\`. Pass \`--source\` when it uses
+\`$tab\`; the same source also supplies \`$context\`. A query that uses only
+\`$context\` may use an explicit \`--context\` without a source.
+
+D1 spans every environment relevant to the selected source and rejects
+\`--environment\`. D2 selects the only relevant environment automatically. If
+several are relevant, pass one of the ids reported by the CLI with
+\`--environment <id>\`.
+
+Discover environments through the linked model instead of parsing Insight
+sources:
+
+\`\`\`shell
+archinsight environments . --format json
+archinsight environments . -s <source.ai> --format json
+\`\`\`
+
+The first command returns every declared environment. The source-scoped command
+returns exactly the environments relevant to that source's D2 view. Its JSON
+uses schema \`deployment-environments.v1\` and contains the selected \`source\`
+plus \`environments\` entries with \`id\`, optional \`name\`, and the source file
+that declares the environment. Use this command before choosing D2
+\`--environment\`; do not scan source text to reconstruct the list.
 `;
 }
 
@@ -2472,7 +2650,7 @@ is about boundaries and responsibilities, not implementation structure.
 4. Add \`external system\` declarations for dependencies outside the boundary.
 5. Add high-level links that explain business or capability flow.
 6. Validate with \`archinsight link . --format text\`.
-7. Render with \`archinsight render . -c <context-id> -v c1 -f svg -o c1.svg\`.
+7. Render with \`archinsight render . -s <c1-source.ai> -v c1 -f svg -o c1.svg\`.
 
 ## Boundary Choices
 
@@ -2657,7 +2835,7 @@ external system analytics_platform
 \`\`\`shell
 archinsight structure . --format text
 archinsight link . --format text
-archinsight render . -c commerce -v c1 -f svg -o commerce-c1.svg
+archinsight render . -s c1-context.ai -v c1 -f svg -o commerce-c1.svg
 \`\`\`
 
 Use \`examples/c1-context.ai\` as a compact valid C1 model when syntax is
@@ -2766,7 +2944,7 @@ because one system needs that style.
    units, choosing the word that best communicates each unit's role.
 5. Add runtime links between containers/services and real external systems.
 6. Validate with \`archinsight link . --format text\`.
-7. Render with \`archinsight render . -c <context-id> -s <c2-file.ai> -v c2 -f svg -o c2.svg\`.
+7. Render with \`archinsight render . -s <c2-file.ai> -v c2 -f svg -o c2.svg\`.
 
 ## File Split Pattern
 
@@ -2932,7 +3110,7 @@ not compete with a broad duplicate.
 \`\`\`shell
 archinsight structure . --format text
 archinsight link . --format text
-archinsight render . -c commerce -s storefront-containers.ai -v c2 -f svg -o storefront-c2.svg
+archinsight render . -s storefront-containers.ai -v c2 -f svg -o storefront-c2.svg
 \`\`\`
 
 Use \`examples/c2-containers.ai\` as a compact valid C2 model when syntax is
@@ -3077,7 +3255,7 @@ stable architectural responsibility that is useful in a diagram and review.
    \`responsibility\`.
 6. Add links between components and to real external endpoints.
 7. Validate with \`archinsight link . --format text\`.
-8. Render with \`archinsight render . -c <context-id> -s <c3-file.ai> -v c3 -f svg -o c3.svg\`.
+8. Render with \`archinsight render . -s <c3-file.ai> -v c3 -f svg -o c3.svg\`.
 
 ## File Split Pattern
 
@@ -3274,7 +3452,7 @@ declaration. Keep a broader wire only when it describes a different interaction.
 \`\`\`shell
 archinsight structure . --format text
 archinsight link . --format text
-archinsight render . -c commerce -s checkout_components.ai -v c3 -f svg -o checkout-c3.svg
+archinsight render . -s checkout_components.ai -v c3 -f svg -o checkout-c3.svg
 \`\`\`
 
 Use \`examples/c3-components.ai\` as a compact valid C3 model when syntax is
@@ -3377,8 +3555,8 @@ different type filter or grouping rule.
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c <context-id> -s <code-source.ai> -v c4 --format json
-archinsight render . -c <context-id> -s <code-source.ai> -v c4 -f svg -o code.svg
+archinsight query . -s <code-source.ai> -v c4 --format json
+archinsight render . -s <code-source.ai> -v c4 -f svg -o code.svg
 \`\`\`
 
 Use the self-contained \`examples/c4-code\` project when the syntax for a code
@@ -3412,6 +3590,17 @@ environment. Pass \`--environment <id>\` when several environments are relevant;
 the CLI selects the environment automatically when there is only one. The older
 \`deployment\` view keeps the complete all-environment container graph for
 backward compatibility.
+
+Obtain the available D2 choices from the linked model:
+
+\`\`\`shell
+archinsight environments . -s <logical-source.ai> --format json
+\`\`\`
+
+Read the ids from \`environments\` and pass the selected id to
+\`deployment-container --environment <id>\`. Run the command without
+\`--source\` only when the task needs the complete environment inventory rather
+than the choices relevant to one logical source.
 
 Model the infrastructure immediately relevant to those logical elements and
 connections. Do not expand a Deployment view into a complete provider, transit, replication,
@@ -3672,9 +3861,9 @@ Run:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c <context> -s <logical-source.ai> -v deployment-system --format json
-archinsight query . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> --format json
-archinsight render . -c <context> -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
+archinsight query . -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -s <logical-source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
 \`\`\`
 
 A clean link proves that syntax, types, imports, and deployment references are
@@ -3936,9 +4125,9 @@ Deployment output after changing which root a traffic relationship extends:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c deployment_shop -s deployment.ai -v deployment-system --format json
-archinsight query . -c deployment_shop -s deployment.ai -v deployment-container --environment eu --format json
-archinsight render . -c deployment_shop -s deployment.ai -v deployment-container --environment eu -f svg -o deployment.svg
+archinsight query . -s deployment.ai -v deployment-system --format json
+archinsight query . -s deployment.ai -v deployment-container --environment eu --format json
+archinsight render . -s deployment.ai -v deployment-container --environment eu -f svg -o deployment.svg
 \`\`\`
 
 If projected infrastructure edges disappear after a split, first check whether
@@ -4405,30 +4594,30 @@ Inspect the selected graph before rendering whenever a change affects C2, C3,
 C4, Deployment, projections, or query text:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -v c2 --format json
-archinsight query . -c <context-id> -s <source.ai> -v c3 --format json
-archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
-archinsight query . -c <context-id> -s <source.ai> -v deployment-system --format json
-archinsight query . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> --format json
+archinsight query . -s <source.ai> -v c2 --format json
+archinsight query . -s <source.ai> -v c3 --format json
+archinsight query . -s <source.ai> -v c4 --format json
+archinsight query . -s <source.ai> -v deployment-system --format json
+archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
 \`\`\`
 
-Then render the same context, source, and view:
+Then render the same source and view; the source carries the same context:
 
 \`\`\`shell
-archinsight render . -c <context-id> -v c1 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v c3 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v c4 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v deployment-system -f svg -o deployment-system.svg
-archinsight render . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> -f svg -o deployment-container.svg
+archinsight render . -s <source.ai> -v c1 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c3 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c4 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v deployment-system -f svg -o deployment-system.svg
+archinsight render . -s <source.ai> -v deployment-container --environment <environment> -f svg -o deployment-container.svg
 \`\`\`
 
 Run a custom query from a file:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f json
-archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
+archinsight query . -s <source.ai> -q query.aiq -f text
+archinsight query . -s <source.ai> -q query.aiq -f json
+archinsight render . -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
 
 Use three validation layers:
@@ -4457,9 +4646,9 @@ Useful built-in views:
   required for backward compatibility or analysis.
 - \`no-filter\` for the full context.
 
-C2, C3, C4, Deployment, and custom queries often depend on the active file. Pass
-\`--source <file>\` / \`-s <file>\` whenever the query uses \`$tab\`; otherwise
-the CLI may choose the first source and render a valid but wrong view.
+C2, C3, C4, Deployment, and custom queries that use \`$tab\` depend on the
+active file. Pass \`--source <file>\` / \`-s <file>\`; the CLI will not guess
+between several project files. That source also supplies \`$context\`.
 
 The bundled \`examples\` directory contains several independent model projects,
 not one project to link as a whole. Validate \`layered-architecture.ai\`, the C1,
@@ -4684,8 +4873,8 @@ present across relevant environments. D2 shows container and infrastructure
 detail inside one selected environment:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <logical-source.ai> -v deployment-system --format json
-archinsight query . -c <context-id> -s <logical-source.ai> -v deployment-container --environment <environment> --format json
+archinsight query . -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -s <logical-source.ai> -v deployment-container --environment <environment> --format json
 \`\`\`
 
 Use the legacy \`deployment\` view only when the question intentionally requires
@@ -4724,20 +4913,22 @@ diagram.
 ## CLI Shape
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -v deployment-system --format json
-archinsight query . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> --format json
-archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
+archinsight query . -s <source.ai> -q query.aiq -f text
+archinsight query . -s <source.ai> -v deployment-system --format json
+archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
 
 The scope variables are:
 
-- \`$context\` - selected context id from \`--context\`.
+- \`$context\` - context declared by \`--source\`, or the explicit
+  \`--context\` used for context-wide execution without a source.
 - \`$tab\` - the semantic model fragment rooted in the source selected by
   \`--source\` / \`--tab\`. It includes content contributed to those roots by
   \`extend\` in other files.
 
-Pass \`--source\` when a query uses \`$tab\`.
+Pass \`--source\` when a query uses \`$tab\`. A selected source also supplies
+\`$context\`, so do not repeat its context on the command line.
 
 Path handling:
 
@@ -4749,7 +4940,7 @@ Path handling:
 Prefer paths relative to the project root:
 
 \`\`\`shell
-archinsight query path/to/project -c shop -s models/storefront.ai -q queries/c2.aiq -f text
+archinsight query path/to/project -s models/storefront.ai -q queries/c2.aiq -f text
 \`\`\`
 
 ## Query Shape
@@ -5112,9 +5303,9 @@ legacy \`deployment.aiq\` only when the intended result is one container-level
 graph across every relevant environment.
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f json
-archinsight render . -c <context-id> -s <source.ai> -q queries/custom.aiq -f svg -o custom.svg
+archinsight query . -s <source.ai> -q queries/custom.aiq -f text
+archinsight query . -s <source.ai> -q queries/custom.aiq -f json
+archinsight render . -s <source.ai> -q queries/custom.aiq -f svg -o custom.svg
 \`\`\`
 
 Use \`references/queries.md\` for syntax details. Use this file for common
@@ -5171,8 +5362,8 @@ archinsight structure . --format text
    that matches the diagram being investigated:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -v deployment-system -f json
-archinsight query . -c <context-id> -s <source.ai> -v deployment-container --environment <environment> -f json
+archinsight query . -s <source.ai> -v deployment-system -f json
+archinsight query . -s <source.ai> -v deployment-container --environment <environment> -f json
 \`\`\`
 
 4. Check the query filters:
@@ -5230,7 +5421,7 @@ physical path. If an all-environment deployment diagram also needs internal
 actors, use the bundled, tested legacy-view customization:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q examples/queries/deployment-internal-actors.aiq -f json
+archinsight query . -s <source.ai> -q examples/queries/deployment-internal-actors.aiq -f json
 \`\`\`
 
 This query is generated from the exact legacy \`deployment.aiq\` source and
@@ -5991,7 +6182,7 @@ function genericDeploymentProjectionsReference(): string {
   const examples = deploymentProjectionExamples().map((example) => {
     const files = example.files.map((file) => `### ${file.path}\n\n\`\`\`insight\n${file.content.trimEnd()}\n\`\`\``).join("\n\n");
     const expected = example.expected.map((item) => `- ${item}`).join("\n");
-    return `## ${example.title}\n\n${example.purpose}\n\n${files}\n\nRun:\n\n\`\`\`shell\narchinsight link examples/deployment-projections/${example.slug} --format text\narchinsight query examples/deployment-projections/${example.slug} -c ${example.context} -s model.ai -v deployment-container --environment eu --format json\n\`\`\`\n\nExpected physical result:\n\n${expected}`;
+    return `## ${example.title}\n\n${example.purpose}\n\n${files}\n\nRun:\n\n\`\`\`shell\narchinsight link examples/deployment-projections/${example.slug} --format text\narchinsight query examples/deployment-projections/${example.slug} -s model.ai -v deployment-container --environment eu --format json\n\`\`\`\n\nExpected physical result:\n\n${expected}`;
   }).join("\n\n");
 
   return `# Deployment Projections
@@ -6322,6 +6513,18 @@ interface StructureTree {
   readonly schemaVersion: "project-structure.v1";
   readonly types: readonly TypeStructureNode[];
   readonly contexts: readonly StructureNode[];
+}
+
+interface DeploymentEnvironmentList {
+  readonly schemaVersion: "deployment-environments.v1";
+  readonly source: string | null;
+  readonly environments: readonly DeploymentEnvironmentEntry[];
+}
+
+interface DeploymentEnvironmentEntry {
+  readonly id: string;
+  readonly name?: string;
+  readonly source: string;
 }
 
 interface TypeStructureNode {
