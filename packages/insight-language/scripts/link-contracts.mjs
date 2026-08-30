@@ -3718,6 +3718,7 @@ define type TestEnvironment of Environment
     Broker broker
     NetworkConnection internalNetwork
     NetworkConnection publicGateway
+    NetworkConnection missingNetwork
 `),
   ], [coreLanguageSnapshot]);
   assert.deepEqual(definitions.diagnostics, []);

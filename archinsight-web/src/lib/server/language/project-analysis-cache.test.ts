@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { LinkProjectResult } from '@insight/language';
+import {
+  CompletionEngine,
+  createGeneratedInsightSyntaxProvider,
+  type LanguageSnapshot,
+  type LinkProjectResult
+} from '@insight/language';
 import { analysisMetricsSnapshot, resetAnalysisMetrics } from './analysis-observability';
 import { ProjectAnalysisCache } from './project-analysis-cache';
 
@@ -108,6 +113,27 @@ describe('project analysis cache', () => {
     expect(result.snapshotBuild.snapshot.constructors.some((item) => item.spelling === 'application')).toBe(true);
   });
 
+  it('uses definition overlays for deployment slot completion without changing the stored snapshot', async () => {
+    const cache = new ProjectAnalysisCache();
+    const key = 'owner:a\0project:p';
+    const sources = new Map([
+      ['definitions.ai', deploymentDefinitions('internalNetwork')],
+      ['main.ai', 'context application\n\nsystem backend\n    name = Backend\n']
+    ]);
+    await cache.analyze(key, sources, {}, env);
+
+    const overlay = await cache.analyze(key, sources, {
+      'definitions.ai': deploymentDefinitions('messageBroker')
+    }, env);
+    const stored = await cache.analyze(key, sources, {}, env);
+
+    expect(overlay.mode).toBe('overlay-full');
+    expect(deploymentSlotCompletions(overlay.snapshotBuild.snapshot)).toContain('messageBroker');
+    expect(deploymentSlotCompletions(overlay.snapshotBuild.snapshot)).not.toContain('internalNetwork');
+    expect(deploymentSlotCompletions(stored.snapshotBuild.snapshot)).toContain('internalNetwork');
+    expect(deploymentSlotCompletions(stored.snapshotBuild.snapshot)).not.toContain('messageBroker');
+  });
+
   it('evicts least-recently-used states at the configured entry bound', async () => {
     const cache = new ProjectAnalysisCache();
     const boundedEnv = { ...env, ARCHINSIGHT_ANALYSIS_CACHE_MAX_ENTRIES: '1' };
@@ -145,6 +171,39 @@ function definition(constructor: string): string {
   return `define type CustomSystem of System
     constructor ${constructor}
 `;
+}
+
+function deploymentDefinitions(slot: string): string {
+  return `define type ApplicationEnvironment of Environment
+    NetworkConnection ${slot}
+`;
+}
+
+function deploymentSlotCompletions(snapshot: LanguageSnapshot): string[] {
+  const sourceWithCursor = `context consumer
+
+import backend from context application
+
+system client
+    name = Client
+    links:
+        ~> backend
+            deployment:
+                uses __CURSOR__
+`;
+  const cursorOffset = sourceWithCursor.indexOf('__CURSOR__');
+  const source = sourceWithCursor.replace('__CURSOR__', '');
+  const result = new CompletionEngine(createGeneratedInsightSyntaxProvider()).complete({
+    sourceName: 'consumer.ai',
+    source,
+    cursorOffset,
+    snapshot,
+    contextIds: ['application', 'consumer'],
+    indexedIdentifiers: new Map([
+      ['backend', { label: 'backend', type: 'System', imported: true }]
+    ])
+  });
+  return result.items.map((item) => item.label);
 }
 
 function elementName(result: LinkProjectResult): string | undefined {

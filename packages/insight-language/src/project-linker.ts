@@ -40,6 +40,7 @@ const SYSTEM_TYPE = "System";
 const ACTOR_TYPE = "Actor";
 const ORIGINAL_LINK_OPERATOR = "originalLink";
 const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
+const ENVIRONMENT_TYPE = "Environment";
 const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
 const NETWORK_CONNECTION_TYPE = "NetworkConnection";
 const DEPLOYMENT_TYPE = "Deployment";
@@ -826,6 +827,7 @@ function collectBodyItem(
   owner: ParsedElement | undefined,
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
+  expectedObjectType?: string,
 ): void {
   const assignment = firstChild(item, "assignment");
   if (assignment !== undefined) {
@@ -865,7 +867,15 @@ function collectBodyItem(
       }
     }
     if (object !== undefined) {
-      const element = collectObject(object, ownerType, owner, document, typeSystem, annotations(annotatedObject, document));
+      const element = collectObject(
+        object,
+        ownerType,
+        owner,
+        document,
+        typeSystem,
+        annotations(annotatedObject, document),
+        expectedObjectType ?? expectedNestedType(typeSystem, ownerType),
+      );
       if (owner !== undefined && element !== undefined && typeSystem.anonymousListAttribute(ownerType) !== undefined) {
         addAttributeValue(owner.attributes, "_", elementReference(element));
       }
@@ -1031,11 +1041,12 @@ function collectGroupingList(
   if (collectImplicitDeploymentGroupObject(list, listName, owner, document, typeSystem)) {
     return true;
   }
+  const expectedObjectType = deploymentGroupAttributeType(owner, listName, document, typeSystem);
   for (const item of children(list, "listBodyItem")) {
     const bodyItem = firstChild(item, "architectureBodyItem");
     if (bodyItem !== undefined) {
       const before = document.elements.length;
-      collectBodyItem(bodyItem, ownerType, owner, document, typeSystem);
+      collectBodyItem(bodyItem, ownerType, owner, document, typeSystem, expectedObjectType);
       for (const element of document.elements.slice(before)) {
         if (element.parent === owner.id && element.slotName === undefined) {
           element.slotName = listName;
@@ -1074,15 +1085,7 @@ function resolveDeploymentGroupConstructor(
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
 ): ConstructorDefinition | undefined {
-  const parent = owner.parent === undefined
-    ? undefined
-    : document.elements.find((element) => element.id === owner.parent);
-  const parentAttribute = parent === undefined ? undefined : typeSystem.attribute(parent.type, listName);
-  const attributeType = parentAttribute === undefined
-    ? undefined
-    : parentAttribute.list === true
-      ? parentAttribute.listElementType ?? parentAttribute.type
-      : parentAttribute.type;
+  const attributeType = deploymentGroupAttributeType(owner, listName, document, typeSystem);
   if (attributeType !== undefined) {
     return resolveImplicitObjectConstructor(attributeType, listName, listNameNode, document, typeSystem);
   }
@@ -1101,6 +1104,24 @@ function resolveDeploymentGroupConstructor(
     return undefined;
   }
   return constructors[0]!;
+}
+
+function deploymentGroupAttributeType(
+  owner: ParsedElement,
+  listName: string,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): string | undefined {
+  const parent = owner.parent === undefined
+    ? undefined
+    : document.elements.find((element) => element.id === owner.parent);
+  const attribute = parent === undefined ? undefined : typeSystem.attribute(parent.type, listName);
+  if (attribute === undefined) {
+    return undefined;
+  }
+  return attribute.list === true
+    ? attribute.listElementType ?? attribute.type
+    : attribute.type;
 }
 
 function collectImplicitObjectAttribute(
@@ -2448,6 +2469,15 @@ function resolveDeploymentInfrastructure(
     });
     return [];
   }
+  if (!isDeclaredDeploymentInfrastructureSlot(action.targetId, context.typeSystem)) {
+    context.diagnostics.push({
+      code: "UNDECLARED_IDENTIFIER",
+      message: `Deployment slot '${action.targetId}' is not declared by any Environment type`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return [];
+  }
   if (deployments.length === 0) {
     if (wire) {
       return [];
@@ -2482,6 +2512,28 @@ function resolveDeploymentInfrastructure(
     }
   }
   return result;
+}
+
+function isDeclaredDeploymentInfrastructureSlot(
+  slotName: string,
+  typeSystem: TypeSystem,
+): boolean {
+  for (const type of typeSystem.declaredTypes()) {
+    if (!typeSystem.isAssignable(type, ENVIRONMENT_TYPE)) {
+      continue;
+    }
+    const attribute = typeSystem.attribute(type, slotName);
+    if (attribute === undefined) {
+      continue;
+    }
+    const valueType = attribute.list === true
+      ? attribute.listElementType ?? attribute.type
+      : attribute.type;
+    if (typeSystem.isAssignable(valueType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function materializeInfrastructureUse(
