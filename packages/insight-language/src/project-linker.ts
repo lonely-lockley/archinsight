@@ -1182,16 +1182,18 @@ function resolveImplicitObjectConstructor(
     });
     return undefined;
   }
-  if (constructors.length > 1) {
+  const exactConstructors = constructors.filter((constructor) => constructor.ownerType === attributeType);
+  const candidates = exactConstructors.length > 0 ? exactConstructors : constructors;
+  if (candidates.length > 1) {
     document.diagnostics.push({
       code: "CONSTRUCTOR_AMBIGUOUS",
-      message: `Type '${attributeType}' has multiple constructors for implicit attribute '${attributeName}': ${constructors.map((constructor) => `'${constructor.spelling}'`).join(", ")}`,
+      message: `Type '${attributeType}' has multiple constructors for implicit attribute '${attributeName}': ${candidates.map((constructor) => `'${constructor.spelling}'`).join(", ")}`,
       sourceName: document.sourceName,
       ...position(attributeNameNode, document.sourceName),
     });
     return undefined;
   }
-  return constructors[0]!;
+  return candidates[0]!;
 }
 
 function collectImplicitObjectElement(

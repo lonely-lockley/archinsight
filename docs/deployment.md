@@ -114,7 +114,7 @@ deployment test
                 source $from originalLink target $to
 ```
 
-The slot names form a stable contract. A deployment profile can ask for `compute` or `database`, and each selected deployment supplies the appropriate concrete instance.
+The slot names form a stable contract. A deployment profile can ask for `compute` or `database`, and each selected deployment supplies the appropriate concrete instance. Because `Broker` derives from `NetworkConnection`, a wire can select the `events` slot directly. The concrete broker needs a projection when it should appear as part of the physical path.
 
 ## Infrastructure nesting
 
@@ -178,7 +178,14 @@ deploymentProfile stateful_service
 
 `runsOn` answers where the workload executes. `uses` identifies supporting infrastructure with which it interacts. The distinction lets a diagram place the workload under its host while drawing its other physical dependencies separately.
 
-On a wire, `uses` selects a `NetworkConnection`. This describes infrastructure used by the relationship itself, such as a public gateway, private route, ingress path, or egress path. The logical element containing the wire remains its owner and source, so deployment expansion preserves the original arrow direction.
+On a wire, `uses` selects a `NetworkConnection`. This describes infrastructure used by the relationship itself, such as a public gateway, private route, ingress path, egress path, or broker. `Broker` is a built-in `NetworkConnection` specialization, so a project-specific implementation can preserve the broker contract while adding its own constructor and attributes:
+
+```insight
+define type KafkaBroker of Broker
+    constructor kafka
+```
+
+An environment slot declared as `Broker events` can contain a `KafkaBroker`, and a logical wire can select it with `uses events`. The logical element containing the wire remains its owner and source, so deployment expansion preserves the original arrow direction.
 
 ## Optional infrastructure projections
 
@@ -320,7 +327,7 @@ Wire coverage is checked only after the project contains at least one deployment
 | `InfrastructureComponent` | `infrastructureComponent` | General physical, managed, or platform resource. |
 | `Compute` | `compute` | Runtime host, cluster, compute platform, or execution environment. |
 | `Storage` | `storage` | Database, bucket, volume, or other stateful infrastructure. |
-| `Broker` | `broker` | Message broker or event infrastructure. |
+| `Broker` | `broker` | Wire-capable message broker or event infrastructure. |
 | `NetworkConnection` | `networkConnection` | Network capability that can carry and project a logical wire. |
 | `DeploymentProfile` | `deploymentProfile` | Reusable placement and infrastructure selection for concrete deployments. |
 | `ProjectionTerm` | — | Supporting value used to describe endpoints inside an infrastructure projection. |
@@ -361,7 +368,7 @@ Project-specific environment subtypes add the named infrastructure slots filled 
 | `Compute` | `components` | `List of InfrastructureComponent` | No | Named collection of infrastructure associated with the compute platform. |
 | `Broker` | `address` | `Text` | No | Broker address or connection location. |
 
-`Storage` and `NetworkConnection` add no data attributes to the base infrastructure schema. Their types provide distinct modeling roles and presentations. A `NetworkConnection` is hidden by the default presentation until its projection contributes visible infrastructure or relationships.
+`Storage` and `NetworkConnection` add no data attributes to the base infrastructure schema. Their types provide distinct modeling roles and presentations. The base `NetworkConnection` is hidden by default. `Broker` derives from it and restores visibility so a concrete broker selected by a projection can appear on the physical diagram.
 
 ### `DeploymentProfile` attributes
 

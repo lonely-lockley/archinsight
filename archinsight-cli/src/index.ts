@@ -1643,12 +1643,11 @@ Deployment view. The wire must select an environment slot whose concrete value
 has a projection.
 
 A wire can use only a \`NetworkConnection\` descendant. The built-in \`Broker\`
-is an \`InfrastructureComponent\`, so it remains useful as inventory but cannot
-be selected directly by wire \`uses\`. When the broker belongs on the physical
-path, define a project-specific \`NetworkConnection\` such as an event channel,
-place the \`Broker\` behind one of its attributes, and project through it. Read
-the complete [Broker](deployment-projections.md#broker) example before modeling
-that path.
+is one, so an environment can expose a \`Broker\` slot directly and a wire can
+select it with \`uses\`. Derive product-specific types such as Kafka or RabbitMQ
+from \`Broker\`, then put the physical path projection on the concrete broker
+instance. Read the complete [Broker](deployment-projections.md#broker) example
+before modeling that path.
 
 If the chosen style is pragmatic mixed C2, a broker-like node can be acceptable,
 but document that the view mixes levels. If the producer or consumer is not
@@ -2018,7 +2017,7 @@ An explicit assignment on an instance replaces the constructor default.
 ### Object-valued attributes
 
 A named object attribute supports a full named declaration, a full anonymous
-declaration, or a shortened declaration when exactly one constructor is valid:
+declaration, or a shortened declaration whose constructor can be inferred:
 
 \`\`\`insight
 config:
@@ -2033,8 +2032,10 @@ config:
 
 Use a named id when another declaration must reference the nested object. The
 \`_\` form creates an anonymous instance. The shortened form infers both its
-constructor and anonymous identity and is rejected when construction is
-ambiguous.
+constructor and anonymous identity. A constructor declared directly by the
+attribute type takes precedence over constructors inherited through descendant
+types. Without a direct constructor, more than one compatible descendant makes
+the shortened form ambiguous.
 
 ## Attributes
 
@@ -3552,10 +3553,11 @@ service frontend
 \`\`\`
 
 Do not attach \`DeploymentProfile\`, \`runsOn\`, \`Storage\`, \`Compute\`, or another
-non-network infrastructure type to a wire. In particular, ingress, egress,
-service-mesh, VPN, and broker paths used by wires must inherit
-\`NetworkConnection\`. Read \`references/deployment-projections.md\` before
-defining the concrete path or placing a built-in broker on that path.
+non-network infrastructure type to a wire. Ingress, egress, service-mesh, and
+VPN path types used by wires must inherit \`NetworkConnection\`. The built-in
+\`Broker\` already does; derive product-specific broker types from \`Broker\` and
+place their projection on the concrete instance. Read
+\`references/deployment-projections.md\` before defining the physical path.
 
 For each relevant concrete deployment, the linker checks the requested slot:
 
@@ -3675,14 +3677,13 @@ define type PublicGateway of NetworkConnection
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
 
-define type EventChannel of NetworkConnection
-    constructor eventChannel
-    required Broker transport
+define type KafkaBroker of Broker
+    constructor kafka
 
 extend type Environment
     Compute compute
     Storage storage
-    EventChannel events
+    Broker events
     PublicGateway publicGateway
     NetworkConnection network
 \`\`\`
@@ -3699,16 +3700,13 @@ deployment production
             name = ECS
             technology = AWS ECS
     events:
-        eventChannel event_bus
-            name = Event bus
-            transport:
-                broker kafka
-                    name = Kafka
-                    technology = MSK
-                    address = kafka.prod.eu.internal
+        kafka event_bus
+            name = Kafka
+            technology = MSK
+            address = kafka.prod.eu.internal
             projection:
-                target $to connectTo target transport
-                target transport originalLink source $from
+                target $to connectTo target $this
+                target $this originalLink source $from
 \`\`\`
 
 \`\`\`insight
@@ -3725,7 +3723,8 @@ System files in the same logical context should import the context-owned profile
 when it is declared in a different source identity. Wires name compatible
 \`NetworkConnection\` slots directly. Read the
 [Broker](deployment-projections.md#broker) example before adding an event path;
-a built-in \`Broker\` inventory value cannot itself fill a wire-facing slot.
+the built-in \`Broker\` can fill a wire-facing slot directly, and
+product-specific broker types should derive from it.
 
 ## System Files and External Contexts
 
@@ -4096,8 +4095,9 @@ C4 query.
   \`description\`, plus deployment references.
 - \`Storage\` / constructor \`storage\`: for databases, buckets, volumes, and
   other stateful stores.
-- \`Broker\` / constructor \`broker\`: for message brokers and event buses;
-  adds optional \`address\`.
+- \`Broker\` / constructor \`broker\`: a \`NetworkConnection\` specialization
+  for message brokers and event buses; adds optional \`address\` and can carry
+  a projected logical wire.
 - \`Compute\` / constructor \`compute\`: for runtimes, clusters, nodes, and
   platforms; adds optional \`address\` and can contain nested infrastructure
   components in a \`components:\` block.
@@ -5703,11 +5703,10 @@ system commerce
       files: [
         projectionFile("definitions.ai", `define type BrokerEnvironment of Environment
     Compute compute
-    EventChannel events
+    Broker events
 
-define type EventChannel of NetworkConnection
-    constructor eventChannel
-    required Broker transport
+define type KafkaBroker of Broker
+    constructor kafka
 `),
         projectionFile("infrastructure.ai", `environment eu
     name = Europe
@@ -5718,16 +5717,13 @@ deployment production
             name = Kubernetes
 
     events:
-        eventChannel order_events
-            name = Order events
-            transport:
-                broker kafka
-                    name = Kafka
-                    technology = Managed Kafka
+        kafka kafka
+            name = Kafka
+            technology = Managed Kafka
             projection:
-                target $to connectTo target transport
+                target $to connectTo target $this
                     technology = Kafka
-                target transport originalLink source $from
+                target $this originalLink source $from
 `),
         projectionFile("model.ai", `context broker_example
 
@@ -5937,11 +5933,10 @@ receives only attributes written on that rule, while projection origin metadata
 still provides traceability. A path made entirely from \`connectTo\` therefore
 does not carry the logical operator or authored relationship attributes.
 
-Wire \`uses\` accepts only a \`NetworkConnection\` descendant. A built-in
-\`Broker\` is an \`InfrastructureComponent\`: it can exist in inventory, but a
-wire cannot select it directly. Put the broker behind a project-defined
-\`NetworkConnection\` vocabulary when it must participate in a physical wire
-path. See [Broker](#broker), the consumer-owned relationship rules in
+Wire \`uses\` accepts only a \`NetworkConnection\` descendant. The built-in
+\`Broker\` is one and can fill a wire-facing environment slot directly. Derive
+product-specific broker types from \`Broker\`, and put the physical projection
+on the concrete broker instance. See [Broker](#broker), the consumer-owned relationship rules in
 [Eventing](modeling.md#eventing), and the shared-definition layout in
 [Scaling](scaling.md#framework-once-use-everywhere).
 

@@ -133,6 +133,7 @@ function verifySharedFiles(output) {
   const modeling = readFileSync(path.join(output, "references", "modeling.md"), "utf8");
   assert.match(modeling, /inventory alone does not place an async logical wire/);
   assert(modeling.includes("built-in `Broker`"));
+  assert.match(modeling, /built-in `Broker`\s+is one/);
   assert(modeling.includes("[Broker](deployment-projections.md#broker)"));
 
   const deployment = readFileSync(path.join(output, "references", "deployment.md"), "utf8");
@@ -152,7 +153,8 @@ function verifySharedFiles(output) {
 
   const scaling = readFileSync(path.join(output, "references", "scaling.md"), "utf8");
   assert(scaling.includes("[Broker](deployment-projections.md#broker)"));
-  assert(scaling.includes("EventChannel events"));
+  assert(scaling.includes("Broker events"));
+  assert(scaling.includes("KafkaBroker of Broker"));
   verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md"]);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
@@ -348,8 +350,8 @@ function verifyDeploymentProjectionContracts(output) {
   const broker = projectionGraph(examples, "broker", "broker_example");
   const brokerDefinitions = readFileSync(path.join(examples, "broker", "definitions.ai"), "utf8");
   const brokerModel = readFileSync(path.join(examples, "broker", "model.ai"), "utf8");
-  assert(brokerDefinitions.includes("EventChannel of NetworkConnection"));
-  assert(brokerDefinitions.includes("required Broker transport"));
+  assert(brokerDefinitions.includes("Broker events"));
+  assert(brokerDefinitions.includes("KafkaBroker of Broker"));
   assert(brokerModel.includes("uses events"));
   assert.equal(brokerModel.includes("uses kafka"), false);
   assertElements(broker, ["broker_example/publisher", "broker_example/consumer", "eu/kafka"]);

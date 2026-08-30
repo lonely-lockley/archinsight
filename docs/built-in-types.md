@@ -90,9 +90,9 @@ Element
 │   └── DeploymentElement
 │       ├── InfrastructureComponent
 │       │   ├── Storage
-│       │   ├── Broker
 │       │   ├── Compute
 │       │   └── NetworkConnection
+│       │       └── Broker
 │       ├── DeploymentProfile
 │       ├── Environment
 │       └── Deployment
@@ -209,8 +209,8 @@ The core library provides several specialized infrastructure types:
 
 - `Compute` represents runtimes, hosts, clusters, and execution platforms. It can contain named infrastructure components.
 - `Storage` represents databases, buckets, volumes, and other stateful resources. Its default presentation uses a cylinder.
-- `Broker` represents message brokers and event infrastructure and adds an optional address.
-- `NetworkConnection` represents a network capability used to project a logical relationship into a physical route. It participates in projection while remaining hidden from the default rendered diagram.
+- `NetworkConnection` represents infrastructure that can project a logical relationship into a physical route. The base type remains hidden from the default rendered diagram.
+- `Broker` specializes `NetworkConnection` for message brokers and event infrastructure, adds an optional address, and is visible when its projection places it on a physical path. Project-specific broker types should derive from `Broker`.
 
 `DeploymentProfile` maps logical elements to one or more concrete deployments through its required `appliesTo` list. Reusable `runsOn` and `uses` invocations describe the environment capabilities required by the mapped element. The profile supplies deployment instructions and is hidden by its default presentation.
 

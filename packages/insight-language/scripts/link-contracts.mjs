@@ -51,8 +51,8 @@ const cases = [
   acceptsAnonymousElementsInSingleObjectSlots,
   createsImplicitAnonymousObjectForSingleConstructorObjectSlots,
   createsImplicitAnonymousDeploymentObjectsFromEnvironmentSlots,
-  reportsAmbiguousImplicitDeploymentObjectConstructors,
-  reportsAmbiguousImplicitDeploymentObjectConstructorsFromAssignableSubtypes,
+  prefersExactImplicitDeploymentConstructorOverAssignableSubtypes,
+  prefersExactNetworkConstructorOverAssignableSubtypes,
   materializesCustomImplicitAnonymousAndExplicitObjectConstructors,
   reportsMissingImplicitObjectConstructor,
   reportsAmbiguousImplicitObjectConstructor,
@@ -1452,7 +1452,7 @@ deployment production
   assert.deepEqual(deployment?.attributes._, [cloud?.id, compute?.id, network?.id]);
 }
 
-function reportsAmbiguousImplicitDeploymentObjectConstructors() {
+function prefersExactImplicitDeploymentConstructorOverAssignableSubtypes() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("framework.ai", `
 define type CustomEnvironment of Environment
@@ -1480,12 +1480,14 @@ deployment production
   });
 
   assertNoErrors(snapshot);
-  assert.equal(countDiagnostics(result, "CONSTRUCTOR_AMBIGUOUS"), 1);
+  assertNoErrors(result);
   assert.equal(countDiagnostics(result, "ATTRIBUTE_SHADOWS_PREVIOUS"), 0);
+  assert.equal(result.elements.filter((element) => element.type === "InfrastructureComponent").length, 1);
   assert.equal(result.elements.filter((element) => element.type === "Cloud").length, 0);
+  assert.equal(result.elements.filter((element) => element.type === "Platform").length, 0);
 }
 
-function reportsAmbiguousImplicitDeploymentObjectConstructorsFromAssignableSubtypes() {
+function prefersExactNetworkConstructorOverAssignableSubtypes() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("framework.ai", `
 define type CustomEnvironment of Environment
@@ -1510,9 +1512,9 @@ deployment production
   });
 
   assertNoErrors(snapshot);
-  assert.equal(countDiagnostics(result, "CONSTRUCTOR_AMBIGUOUS"), 1);
+  assertNoErrors(result);
   assert.equal(countDiagnostics(result, "ATTRIBUTE_SHADOWS_PREVIOUS"), 0);
-  assert.equal(result.elements.filter((element) => element.type === "NetworkConnection").length, 0);
+  assert.equal(result.elements.filter((element) => element.type === "NetworkConnection").length, 1);
   assert.equal(result.elements.filter((element) => element.type === "Vpn").length, 0);
 }
 

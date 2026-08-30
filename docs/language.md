@@ -225,14 +225,14 @@ config:
         image = registry.example/catalog:1.4
 ```
 
-When the attribute type resolves to exactly one compatible constructor, Insight also supports a shortened form. The constructor and anonymous identifier are inferred from the `config` attribute:
+Insight also supports a shortened form. The constructor and anonymous identifier are inferred from the `config` attribute. A constructor declared directly by the attribute type takes precedence over constructors supplied only by descendant types; when the attribute type has no direct constructor, exactly one compatible descendant constructor must exist:
 
 ```insight
 config:
     image = registry.example/catalog:1.4
 ```
 
-All three forms create a `RuntimeConfig` instance. The named full form is appropriate when other parts of the model need to address the object by its identifier. The `_` form creates an anonymous instance with an internal identity managed by the linker. It remains part of the graph and can participate through its owning attribute, while model sources do not give it a public identifier for direct references. The anonymous full form keeps the constructor visible, while the shortened form keeps a simple single-object attribute compact. If no compatible constructor exists, or several constructors could fill the same attribute, the shortened form is ambiguous and the linker reports a diagnostic.
+All three forms create a `RuntimeConfig` instance. The named full form is appropriate when other parts of the model need to address the object by its identifier. The `_` form creates an anonymous instance with an internal identity managed by the linker. It remains part of the graph and can participate through its owning attribute, while model sources do not give it a public identifier for direct references. The anonymous full form keeps the constructor visible, while the shortened form keeps a simple single-object attribute compact. If several constructors are declared directly for the attribute type, or the type has no direct constructor and several descendant constructors are compatible, the shortened form is ambiguous and the linker reports a diagnostic.
 
 ## Indentation and ownership
 
