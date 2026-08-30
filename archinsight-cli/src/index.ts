@@ -3334,18 +3334,23 @@ logical elements run, which infrastructure they use, and how their wires pass
 through the physical world. Keep C1-C4 logical; deployment inventory and
 projections supply the physical view.
 
-The built-in Deployment views include a logical element only when its deployment
-resolves at least one \`runsOn\` or \`uses\` infrastructure object. A logical wire
-appears only through physical edges created by its deployment projection. A
-plain logical wire is intentionally omitted from Deployment.
+The built-in Deployment views include a placed logical element when its deployment
+resolves at least one \`runsOn\` or \`uses\` infrastructure object. An unplaced
+system or actor can remain visible as an endpoint of a projected wire; wire
+infrastructure supplies the relevant environments when the selected source has
+no placements of its own. A logical wire appears only through physical edges
+created by its deployment projection. A plain logical wire is intentionally
+omitted from Deployment.
 
 Use \`deployment-system\` (D1) for a system-level overview across the environments
 relevant to the selected source. It folds deployed containers and services into
-their owning systems. Use \`deployment-container\` (D2) to inspect containers and
-services in one environment. Pass \`--environment <id>\` when several environments
-are relevant; the CLI selects the environment automatically when there is only
-one. The older \`deployment\` view keeps the complete all-environment container
-graph for backward compatibility.
+their owning systems, contracts internal infrastructure paths, and retains the
+external integrations reached in each environment. Use \`deployment-container\`
+(D2) to inspect containers, services, and physical infrastructure in one
+environment. Pass \`--environment <id>\` when several environments are relevant;
+the CLI selects the environment automatically when there is only one. The older
+\`deployment\` view keeps the complete all-environment container graph for
+backward compatibility.
 
 Model the infrastructure immediately relevant to those logical elements and
 connections. Do not expand a Deployment view into a complete provider, transit, replication,
@@ -4967,11 +4972,15 @@ C4 opens every component rooted in \`$tab\`, selects direct Code-element
 neighborhoods in either direction, and folds outside code to closed components.
 Concrete code types and containment remain project-defined.
 
-D1 and D2 select physically deployed logical nodes from \`$tab\`, use one
-undirected \`OPTIONAL MATCH ROLLUP\` for projected paths, and keep placement
-lookup separate from relationship matching. D1 folds logical nodes to systems.
-D2 applies the structured environment scope after discovery. The legacy
-Deployment query retains all relevant environments.
+D1 and D2 select physically deployed logical nodes and source-owned system
+endpoints from \`$tab\`, use one undirected \`OPTIONAL MATCH ROLLUP\` for projected
+paths, and keep placement lookup separate from relationship matching. When the
+source owns no deployed elements, environment discovery falls back to
+infrastructure used by its authored wires. D1 folds logical nodes to systems.
+D1 then contracts internal infrastructure paths and groups the remaining systems
+and external integrations by environment. D2 applies the structured environment
+scope after discovery and retains its physical detail. The legacy Deployment
+query retains all relevant environments.
 
 When a built-in view is close but hides the wrong thing, read
 \`references/query-recipes.md\`, copy the nearest built-in \`.aiq\`, and change

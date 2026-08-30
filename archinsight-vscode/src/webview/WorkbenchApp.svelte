@@ -16,7 +16,7 @@
     defaultQuery,
     diagramModeForQuery,
     queryForDiagramMode
-  } from '../../../archinsight-web/src/lib/QueryEditorPanel.svelte';
+  } from '../../../archinsight-web/src/lib/diagram-query-presets';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '../../../archinsight-web/src/lib/workspace-types';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
 

@@ -14,6 +14,7 @@ const query = readFileSync(
 const definitions = buildLanguageSnapshotResultFromSources([
   source("framework.ai", `
 define type AppEnvironment of Environment
+    InfrastructureComponent provider
     Compute compute
     Storage storage
     Monitoring observability
@@ -21,6 +22,7 @@ define type AppEnvironment of Environment
 define type Monitoring of InfrastructureComponent
     constructor monitoring
     required InfrastructureComponent display
+    required InfrastructureComponent telemetry
 `),
 ], [coreLanguageSnapshot]);
 assertNoErrors(definitions.diagnostics);
@@ -33,24 +35,38 @@ environment eu
     name = Europe
 
 deployment production
+    provider:
+        infrastructureComponent cloud
+            name = Cloud provider
+
     compute:
         compute kubernetes
             name = Kubernetes
+            runsOn:
+                cloud
 
     storage:
         storage database
             name = Database
+            runsOn:
+                cloud
             projection:
                 source $from originalLink target $this
 
     observability:
         monitoring metrics
             name = Metrics
+            runsOn:
+                kubernetes
             display:
                 infrastructureComponent grafana
                     name = Grafana
+            telemetry:
+                infrastructureComponent otel
+                    name = OpenTelemetry
             projection:
                 target $this connectTo target display
+                target $this connectTo target telemetry
 `),
     source("application.ai", `
 context app
@@ -86,17 +102,25 @@ const graph = selectGraph(result, { context: "app", tab: "application.ai", view:
 assert(graph.elements["app/platform"], "D1 must fold deployed services to their system");
 assert.equal(graph.elements["app/frontend"], undefined);
 assert.equal(graph.elements["app/backend"], undefined);
-assert(graph.elements["eu/database"], "D1 must retain storage used by the system");
-assert(graph.elements["eu/metrics"], "D1 must retain the observability entry point");
-assert(graph.elements["eu/grafana"], "D1 must retain infrastructure reached by a self-projection");
+assert.equal(graph.elements["eu/kubernetes"], undefined, "D1 must hide internal compute infrastructure");
+assert.equal(graph.elements["eu/database"], undefined, "D1 must hide internal storage infrastructure");
+assert.equal(graph.elements["eu/metrics"], undefined, "D1 must hide internal observability infrastructure");
+assert(graph.elements["eu/grafana"], "D1 must retain external infrastructure integrations");
+assert(graph.elements["eu/otel"], "D1 must retain every branch of an external infrastructure integration");
 assert(
-  graph.edges.some((edge) => edge.source === "app/platform" && edge.target === "eu/database"),
-  "D1 must retain the system-to-storage projection",
+  graph.edges.some((edge) => edge.source === "app/platform" && edge.target === "eu/grafana"),
+  "D1 must contract an internal infrastructure path into the external integration",
 );
 assert(
-  graph.edges.some((edge) => edge.source === "eu/metrics" && edge.target === "eu/grafana"),
-  "D1 must retain the observability projection",
+  graph.edges.some((edge) => edge.source === "app/platform" && edge.target === "eu/otel"),
+  "D1 must preserve branching external integrations while contracting their common internal source",
 );
+assert.equal(
+  graph.edges.some((edge) => edge.target === "eu/database"),
+  false,
+  "D1 must drop paths that terminate at internal infrastructure",
+);
+assert.deepEqual(graph.groups, [{ owner: "eu/eu", elements: ["app/platform", "eu/grafana", "eu/otel"] }]);
 assert.equal(
   graph.edges.some((edge) => edge.source === "app/platform" && edge.target === "app/platform"),
   false,

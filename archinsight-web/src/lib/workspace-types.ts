@@ -30,6 +30,7 @@ export type WorkspaceTab = {
   projectSource?: boolean;
   diagramMode: DiagramMode;
   query: string;
+  queryPreset: boolean;
   deploymentEnvironment?: string;
   queryVisible: boolean;
   diagramScale: number;

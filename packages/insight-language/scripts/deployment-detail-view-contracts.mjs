@@ -125,6 +125,16 @@ assert.equal(
 assert(Object.keys(d1.elements).some((id) => id.startsWith("shop/storefront")));
 assert(Object.keys(d1.elements).some((id) => id.startsWith("shop/backend")));
 assert(
+  d1.groups.some((group) => group.owner === "cluster_a/cluster_a"
+    && group.elements.some((id) => id.startsWith("shop/storefront"))),
+  "D1 must place the system occurrence in the first environment boundary",
+);
+assert(
+  d1.groups.some((group) => group.owner === "cluster_b/cluster_b"
+    && group.elements.some((id) => id.startsWith("shop/storefront"))),
+  "D1 must place the system occurrence in the second environment boundary",
+);
+assert(
   d1.externalElements.some((id) => id.startsWith("shop/backend")),
   `D1 must preserve externality after system rollup: ${JSON.stringify(d1.externalElements)}`,
 );

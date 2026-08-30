@@ -251,6 +251,7 @@ interface PendingProjection {
   readonly projectedOperator?: string;
   readonly annotations?: readonly LinkedAnnotation[];
   readonly coverage?: WireDeploymentCoverage;
+  readonly projectionOrigin: ProjectionOrigin;
 }
 
 interface WireDeploymentCoverage {
@@ -471,6 +472,12 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
           attributes: effectiveEdgeAttributes,
           projectedAttributes: materialized.edge.attributes,
           projectedOperator: materialized.edge.operator,
+          projectionOrigin: {
+            source: edge.source,
+            target: target.id,
+            sourceIdentity: materialized.edge.sourceIdentity,
+            ...(materialized.edge.declaration === undefined ? {} : { declaration: materialized.edge.declaration }),
+          },
           ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
           ...(coverage === undefined ? {} : { coverage }),
         });
@@ -478,7 +485,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
     }
   }
   for (const projection of pendingProjections) {
-    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage);
+    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage, projection.projectionOrigin);
   }
   const slotDomainTypes = typeSystem.slotDomainTypes();
   for (const element of elements) {
@@ -2717,6 +2724,7 @@ function addProjectedEdges(
   projectedOperator?: string,
   visitedProjectionElements = new Set<string>(),
   coverage?: WireDeploymentCoverage,
+  projectionOrigin: ProjectionOrigin = { source: fromId, target: toId },
 ): void {
   for (const [attributeName, values] of Object.entries(attributes)) {
     if (attributeName === "_") {
@@ -2763,7 +2771,7 @@ function addProjectedEdges(
         continue;
       }
       for (const rule of rules) {
-        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, effectiveProjectionScope, annotations, projectedAttributes, projectedOperator, coverage);
+        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, effectiveProjectionScope, annotations, projectedAttributes, projectedOperator, coverage, projectionOrigin);
       }
       addProjectedEdges(
         linkedEdges,
@@ -2782,6 +2790,7 @@ function addProjectedEdges(
         projectedOperator,
         visitedProjectionElements,
         coverage,
+        projectionOrigin,
       );
     }
   }
@@ -2845,6 +2854,7 @@ function addProjectedRuleEdge(
   projectedAttributes?: Readonly<Record<string, readonly string[]>>,
   projectedOperator?: string,
   coverage?: WireDeploymentCoverage,
+  projectionOrigin: ProjectionOrigin = { source: fromId, target: toId },
 ): void {
   if (!validateConcreteProjectionRule(rule, typeSystem, diagnostics)) {
     return;
@@ -2863,14 +2873,15 @@ function addProjectedRuleEdge(
     rule.operator === ORIGINAL_LINK_OPERATOR ? projectedAttributes : undefined,
     rule.attributes ?? {},
   );
-  const projectionOrigin: ProjectionOrigin = { source: fromId, target: toId };
+  const preservesLogicalRelationship = rule.operator === ORIGINAL_LINK_OPERATOR;
+  const originKey = projectionOriginKey(projectionOrigin);
   for (const source of sources) {
     for (const target of targets) {
       if (coverage !== undefined) {
         coverage.projected = true;
       }
       if (!projectionRuleUsesOwner(rule)) {
-        const key = `${projectionElement.id}\0${source}\0${effectiveOperator}\0${target}`;
+        const key = `${projectionElement.id}\0${source}\0${effectiveOperator}\0${target}\0${preservesLogicalRelationship ? originKey : ""}`;
         if (ownerIndependentProjectionKeys.has(key)) {
           mergeProjectedEdge(
             linkedEdges,
@@ -2899,7 +2910,9 @@ function addProjectedRuleEdge(
         && edge.projectionRoot === projectionElement.id
         && edge.projectionScope === edgeProjectionScope
         && edge.sourcePlacement === sourcePlacement
-        && edge.targetPlacement === targetPlacement);
+        && edge.targetPlacement === targetPlacement
+        && (!preservesLogicalRelationship
+          || edge.projectionOrigins?.some((origin) => projectionOriginKey(origin) === originKey) === true));
       if (existingIndex >= 0) {
         const edge = linkedEdges[existingIndex];
         if (edge !== undefined) {
@@ -2922,6 +2935,9 @@ function addProjectedRuleEdge(
         operator: effectiveOperator,
         type,
         sourceIdentity: edgeSourceIdentity,
+        ...(preservesLogicalRelationship && projectionOrigin.declaration !== undefined
+          ? { declaration: projectionOrigin.declaration }
+          : {}),
         attributes: carriedAttributes ?? {},
         ...listAttributesProperty(typeSystem, type),
         projected: true,
@@ -2996,7 +3012,7 @@ function uniqueProjectionOrigins(origins: readonly ProjectionOrigin[]): readonly
   const seen = new Set<string>();
   const result: ProjectionOrigin[] = [];
   for (const origin of origins) {
-    const key = `${origin.source}\0${origin.target}`;
+    const key = projectionOriginKey(origin);
     if (seen.has(key)) {
       continue;
     }
@@ -3004,6 +3020,20 @@ function uniqueProjectionOrigins(origins: readonly ProjectionOrigin[]): readonly
     result.push(origin);
   }
   return result;
+}
+
+function projectionOriginKey(origin: ProjectionOrigin): string {
+  const declaration = origin.declaration;
+  return [
+    origin.source,
+    origin.target,
+    origin.sourceIdentity ?? "",
+    declaration?.sourceName ?? "",
+    declaration?.line ?? "",
+    declaration?.column ?? "",
+    declaration?.endLine ?? "",
+    declaration?.endColumn ?? "",
+  ].join("\0");
 }
 
 function mergeAttributeValues(

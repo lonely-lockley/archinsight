@@ -222,6 +222,8 @@ export interface LinkedEdge {
 export interface ProjectionOrigin {
   readonly source: string;
   readonly target: string;
+  readonly sourceIdentity?: string;
+  readonly declaration?: SourceLocation;
 }
 
 export interface LinkedAnnotation {

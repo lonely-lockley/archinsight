@@ -1,46 +1,6 @@
 <script context="module" lang="ts">
   import type * as Monaco from 'monaco-editor';
-  import { BUILTIN_VIEW_QUERIES } from './generated/builtin-view-queries';
   import type { DiagramMode } from './workspace-types';
-
-  export const defaultDiagramMode: DiagramMode = 'c1';
-  export const defaultQuery = BUILTIN_VIEW_QUERIES.c1;
-
-  const savedQueries: Record<DiagramMode, string> = {
-    default: BUILTIN_VIEW_QUERIES['no-filter'],
-    c1: BUILTIN_VIEW_QUERIES.c1,
-    c2: BUILTIN_VIEW_QUERIES.c2,
-    c3: BUILTIN_VIEW_QUERIES.c3,
-    c4: BUILTIN_VIEW_QUERIES.c4,
-    'deployment-system': BUILTIN_VIEW_QUERIES['deployment-system'],
-    'deployment-container': BUILTIN_VIEW_QUERIES['deployment-container'],
-    deployment: BUILTIN_VIEW_QUERIES.deployment
-  };
-
-  export function queryForDiagramMode(mode: DiagramMode): string {
-    return savedQueries[mode];
-  }
-
-  export function diagramModeForQuery(value: string): DiagramMode | undefined {
-    const normalized = normalizeQuery(value);
-    for (const [mode, query] of Object.entries(savedQueries) as Array<[DiagramMode, string]>) {
-      if (normalized === normalizeQuery(query)) {
-        return mode;
-      }
-    }
-    return undefined;
-  }
-
-  export function normalizeDiagramMode(value: string | undefined): DiagramMode | undefined {
-    return value === 'default' || value === 'c1' || value === 'c2' || value === 'c3' || value === 'c4'
-      || value === 'deployment' || value === 'deployment-system' || value === 'deployment-container'
-      ? value
-      : undefined;
-  }
-
-  function normalizeQuery(value: string): string {
-    return value.trim().replace(/\s+/g, ' ');
-  }
 
   let queryLanguageRegistered = false;
 

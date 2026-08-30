@@ -26,9 +26,9 @@
     defaultDiagramMode,
     defaultQuery,
     diagramModeForQuery,
-    normalizeDiagramMode,
-    queryForDiagramMode
-  } from '$lib/QueryEditorPanel.svelte';
+    queryForDiagramMode,
+    resolveStoredDiagramQuery
+  } from '$lib/diagram-query-presets';
   import WorkspaceEditor from '$lib/WorkspaceEditor.svelte';
   import WorkspaceToolbar from '$lib/WorkspaceToolbar.svelte';
   import { renderDotInBrowser, terminateBrowserGraphvizWorker } from '$lib/graphviz-renderer';
@@ -163,7 +163,7 @@
     error?: string;
   };
 
-  type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query'>;
+  type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryPreset'>;
 
   type ProjectLoadGuard = {
     projectId: string;
@@ -1024,7 +1024,8 @@
     }
     return {
       diagramMode: activeDiagramMode,
-      query: activeQuery
+      query: activeQuery,
+      queryPreset: activeTab.queryPreset
     };
   }
 
@@ -1036,6 +1037,7 @@
     updateTab(tabId, {
       diagramMode: next.diagramMode,
       query: next.query,
+      queryPreset: next.queryPreset,
       dot: undefined
     });
     persistWorkspace();
@@ -1749,7 +1751,12 @@
   }
 
   function updateQuery(value: string): void {
-    patchActiveTabToolbar({ query: value, diagramMode: diagramModeForQuery(value) ?? activeDiagramMode });
+    const presetMode = diagramModeForQuery(value);
+    patchActiveTabToolbar({
+      query: value,
+      diagramMode: presetMode ?? activeDiagramMode,
+      queryPreset: presetMode !== undefined
+    });
     clearActiveTabDot();
     persistWorkspace();
     scheduleDiagramUpdate();
@@ -1762,7 +1769,8 @@
         deploymentPickerOpen = false;
         patchActiveTabToolbar({
           diagramMode: 'deployment-container',
-          query: queryForDiagramMode('deployment-container')
+          query: queryForDiagramMode('deployment-container'),
+          queryPreset: true
         });
         clearActiveTabDot();
         persistWorkspace();
@@ -1779,7 +1787,7 @@
     }
     deploymentPickerRequested = false;
     deploymentPickerOpen = false;
-    patchActiveTabToolbar({ diagramMode: mode, query: queryForDiagramMode(mode) });
+    patchActiveTabToolbar({ diagramMode: mode, query: queryForDiagramMode(mode), queryPreset: true });
     clearActiveTabDot();
     persistWorkspace();
     scheduleDiagramUpdate();
@@ -1791,6 +1799,7 @@
     patchActiveTabToolbar({
       diagramMode: 'deployment-container',
       query: queryForDiagramMode('deployment-container'),
+      queryPreset: true,
       deploymentEnvironment: environment
     });
     clearActiveTabDot();
@@ -2589,7 +2598,7 @@
   }
 
   function patchActiveTabToolbar(
-    patch: Partial<Pick<WorkspaceTab, 'diagramMode' | 'query' | 'deploymentEnvironment' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'>>
+    patch: Partial<Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryPreset' | 'deploymentEnvironment' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'>>
   ): void {
     if (activeTabId === undefined) {
       return;
@@ -2628,6 +2637,7 @@
         title: tab.title,
         diagramMode: tab.diagramMode,
         query: tab.query,
+        queryPreset: tab.queryPreset,
         deploymentEnvironment: tab.deploymentEnvironment,
         queryVisible: tab.queryVisible,
         queryPanelHeight: tab.queryPanelHeight,
@@ -2644,6 +2654,7 @@
       content: tab.content,
       diagramMode: tab.diagramMode,
       query: tab.query,
+      queryPreset: tab.queryPreset,
       deploymentEnvironment: tab.deploymentEnvironment,
       queryVisible: tab.queryVisible,
       queryPanelHeight: tab.queryPanelHeight,
@@ -2656,12 +2667,10 @@
 
   function tabToolbarState(
     tab?: Partial<WorkspaceTabState>
-  ): Pick<WorkspaceTab, 'diagramMode' | 'query' | 'deploymentEnvironment' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'> {
-    const query = tab?.query ?? defaultQuery;
-    const diagramMode = normalizeDiagramMode(tab?.diagramMode) ?? diagramModeForQuery(query) ?? defaultDiagramMode;
+  ): Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryPreset' | 'deploymentEnvironment' | 'queryVisible' | 'queryPanelHeight' | 'diagramScale' | 'diagramFit' | 'viewMode' | 'editorSplitRatio'> {
+    const queryState = resolveStoredDiagramQuery(tab);
     return {
-      diagramMode,
-      query,
+      ...queryState,
       deploymentEnvironment: tab?.deploymentEnvironment,
       queryVisible: tab?.queryVisible ?? false,
       queryPanelHeight: normalizeQueryPanelHeight(tab?.queryPanelHeight),
