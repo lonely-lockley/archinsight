@@ -333,7 +333,7 @@ system c
         operators: [],
         enums: [],
         types: [
-          { name: "Broker", baseType: "InfrastructureComponent" },
+          { name: "Broker", baseType: "NetworkConnection" },
           { name: "Wire", attributes: [{ name: "uses", type: "List", list: true, listElementType: "InfrastructureComponent" }] },
         ],
       },
@@ -619,8 +619,8 @@ system application
   assert(!wireTarget.has("globalProfile"), [...wireTarget].join(", "));
   assert(wireTarget.has("internalNetwork"), [...wireTarget].join(", "));
   assert(wireTarget.has("publicGateway"), [...wireTarget].join(", "));
+  assert(wireTarget.has("broker"), [...wireTarget].join(", "));
   assert(!wireTarget.has("database"), [...wireTarget].join(", "));
-  assert(!wireTarget.has("broker"), [...wireTarget].join(", "));
 
   const elementOverrideBody = itemLabels(completeAtMarker(`
 context app

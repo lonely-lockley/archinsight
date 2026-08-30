@@ -8,6 +8,7 @@ import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
   coreSources,
+  discoverDeploymentEnvironments,
   linkProject,
   renderGraphviz,
   selectGraph,
@@ -24,7 +25,7 @@ import {
 import { BUILTIN_VIEW_QUERIES, type BuiltinDiagramView } from "./generated/builtin-view-queries.js";
 import { version } from "./version.js";
 
-type Command = "link" | "render" | "query" | "structure" | "skill";
+type Command = "link" | "render" | "query" | "structure" | "environments" | "skill";
 type SkillAction = "init";
 type SkillTarget = "generic" | "codex" | "claude";
 type OutputFormat = "text" | "json";
@@ -38,6 +39,7 @@ interface ParsedArgs {
   readonly context?: string;
   readonly tab?: string;
   readonly view?: DiagramView;
+  readonly environment?: string;
   readonly queryFile?: string;
   readonly output?: string;
   readonly format?: string;
@@ -124,6 +126,9 @@ async function main(): Promise<void> {
       return;
     case "structure":
       await runStructure(args);
+      return;
+    case "environments":
+      await runEnvironments(args);
       return;
     case "skill":
       await runSkill(args);
@@ -213,6 +218,43 @@ async function runStructure(args: ParsedArgs): Promise<void> {
     return;
   }
   await writeOutput(args.output, formatStructure(structure));
+}
+
+async function runEnvironments(args: ParsedArgs): Promise<void> {
+  const project = await loadProject(projectPath(args));
+  if (hasErrors(project.diagnostics)) {
+    process.stderr.write(formatDiagnostics(project.diagnostics));
+    process.exitCode = 1;
+    return;
+  }
+  const source = args.tab === undefined
+    ? undefined
+    : selectedSource(project, args.tab, false, undefined);
+  const declared = declaredDeploymentEnvironments(project.result);
+  const declaredById = new Map(declared.map((environment) => [environment.id, environment]));
+  const environments = source === undefined
+    ? declared
+    : discoverDeploymentEnvironments(project.result, { tab: source }).map((environment) => {
+      const declaration = declaredById.get(environment.id);
+      if (declaration === undefined) {
+        throw new CliError(`Environment '${environment.id}' is relevant to '${source}' but has no environment declaration`);
+      }
+      const name = environment.name ?? declaration.name;
+      return {
+        id: environment.id,
+        ...(name === undefined ? {} : { name }),
+        source: declaration.source,
+      };
+    });
+  const result: DeploymentEnvironmentList = {
+    schemaVersion: "deployment-environments.v1",
+    source: source ?? null,
+    environments,
+  };
+  const format = outputFormat(args.format, "text");
+  await writeOutput(args.output, format === "json"
+    ? JSON.stringify(result, null, 2)
+    : formatDeploymentEnvironments(result.environments));
 }
 
 async function runSkill(args: ParsedArgs): Promise<void> {
@@ -326,14 +368,86 @@ async function loadProject(input: string): Promise<LoadedProject> {
 }
 
 async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph> {
-  const context = args.context ?? firstContext(project);
-  const tab = selectedSource(project, args.tab);
-  const view = args.view ?? (args.queryFile === undefined ? "c1" : undefined);
-  const scope: QueryScope = { context, tab, ...(view === undefined ? {} : { view }) };
+  const view = args.queryFile === undefined ? args.view ?? "c1" : undefined;
   const query = args.queryFile === undefined
     ? viewQueries[view ?? "c1"]
     : await readQueryFile(project.root, args.queryFile);
+  const queryNeedsTab = queryUsesVariable(query, "tab");
+  const queryNeedsContext = queryUsesVariable(query, "context");
+  const sourceRequired = (view !== undefined && view !== "c1" && view !== "no-filter") || queryNeedsTab;
+  const tab = selectedSource(project, args.tab, sourceRequired, view);
+  const context = selectedContext(project, args.context, tab, view !== undefined || queryNeedsContext, view);
+  const environment = deploymentEnvironmentOption(project, args, tab, view);
+  const scope: QueryScope = {
+    ...(context === undefined ? {} : { context }),
+    ...(tab === undefined ? {} : { tab }),
+    ...(view === undefined ? {} : { view }),
+    ...(environment === undefined ? {} : { environment }),
+  };
   return selectGraph(project.result, scope, query);
+}
+
+function deploymentEnvironmentOption(
+  project: LoadedProject,
+  args: ParsedArgs,
+  tab: string | undefined,
+  view: DiagramView | undefined,
+): string | undefined {
+  if (view !== "deployment-container") {
+    if (args.environment !== undefined) {
+      throw new CliError("Option '--environment' is supported only by the 'deployment-container' view");
+    }
+    return undefined;
+  }
+  if (tab === undefined) {
+    throw new CliError("View 'deployment-container' requires --source");
+  }
+  const environments = discoverDeploymentEnvironments(project.result, { tab });
+  if (args.environment !== undefined) {
+    if (!environments.some((candidate) => candidate.id === args.environment)) {
+      throw new CliError(`Environment '${args.environment}' is not relevant to '${tab}'. Available environments: ${environmentList(environments)}`);
+    }
+    return args.environment;
+  }
+  if (environments.length === 1) {
+    return environments[0]!.id;
+  }
+  if (environments.length === 0) {
+    throw new CliError(`No deployment environments are relevant to '${tab}'`);
+  }
+  throw new CliError(`View 'deployment-container' requires --environment. Available environments: ${environmentList(environments)}`);
+}
+
+function environmentList(environments: readonly { readonly id: string; readonly name?: string }[]): string {
+  return environments.map((environment) =>
+    environment.name === undefined || environment.name === environment.id
+      ? environment.id
+      : `${environment.id} (${environment.name})`
+  ).join(", ") || "none";
+}
+
+function declaredDeploymentEnvironments(result: LinkProjectResult): readonly DeploymentEnvironmentEntry[] {
+  return result.elements
+    .filter((element) => element.synthetic !== true
+      && element.parent === undefined
+      && (element.type === "Environment" || element.baseTypes.includes("Environment")))
+    .map((element) => ({
+      id: element.context,
+      ...(element.attributes.name?.[0] === undefined ? {} : { name: element.attributes.name[0] }),
+      source: element.sourceIdentity,
+    }))
+    .sort((left, right) =>
+      (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id)
+    );
+}
+
+function formatDeploymentEnvironments(environments: readonly DeploymentEnvironmentEntry[]): string {
+  if (environments.length === 0) {
+    return "";
+  }
+  return `${environments.map((environment) =>
+    `${environment.id}\t${environment.name ?? ""}\t${environment.source}`
+  ).join("\n")}\n`;
 }
 
 async function readQueryFile(projectRoot: string, queryFile: string): Promise<string> {
@@ -345,27 +459,77 @@ function projectPath(args: ParsedArgs): string {
   return args.input ?? ".";
 }
 
-function firstContext(project: LoadedProject): string {
-  const context = project.result.contexts[0]?.id;
-  if (context === undefined) {
-    throw new CliError("No context found; pass --context explicitly after fixing diagnostics");
+function selectedSource(
+  project: LoadedProject,
+  source: string | undefined,
+  required: boolean,
+  view: DiagramView | undefined,
+): string | undefined {
+  if (source === undefined && project.sources.length === 1) {
+    return project.sources[0]!.sourceName;
   }
-  return context;
-}
-
-function firstTab(project: LoadedProject): string {
-  return project.sources[0]?.sourceName ?? "";
-}
-
-function selectedSource(project: LoadedProject, source: string | undefined): string {
   if (source === undefined) {
-    return firstTab(project);
+    if (required) {
+      const subject = view === undefined ? "This query" : `View '${view}'`;
+      throw new CliError(`${subject} requires --source because it is scoped to a model file`);
+    }
+    return undefined;
   }
   const normalized = normalizeSourceName(project.root, source);
   if (project.sources.some((item) => item.sourceName === normalized)) {
     return normalized;
   }
   throw new CliError(`Source '${source}' is not part of project '${project.root}'`);
+}
+
+function selectedContext(
+  project: LoadedProject,
+  explicitContext: string | undefined,
+  source: string | undefined,
+  required: boolean,
+  view: DiagramView | undefined,
+): string | undefined {
+  const sourceContext = source === undefined
+    ? undefined
+    : project.result.contexts.find((context) => context.sourceIdentity === source);
+  if (sourceContext?.synthetic === true && required) {
+    throw new CliError(`Source '${source}' contains definitions and does not declare a renderable context or environment`);
+  }
+  if (view === "c1" && sourceContext !== undefined && sourceContext.type !== "Context") {
+    throw new CliError(`Source '${source}' does not declare a logical context for the C1 view`);
+  }
+
+  const available = availableContextIds(project, view);
+  if (explicitContext !== undefined && !available.includes(explicitContext)) {
+    throw new CliError(`Context '${explicitContext}' is not declared. Available contexts: ${available.join(", ") || "none"}`);
+  }
+  if (explicitContext !== undefined && sourceContext?.synthetic !== true
+      && sourceContext !== undefined && sourceContext.id !== explicitContext) {
+    throw new CliError(`Context '${explicitContext}' conflicts with source '${source}', which declares context '${sourceContext.id}'`);
+  }
+  if (explicitContext !== undefined) {
+    return explicitContext;
+  }
+  if (sourceContext?.synthetic !== true && sourceContext !== undefined) {
+    return sourceContext.id;
+  }
+  if (!required) {
+    return undefined;
+  }
+  if (available.length === 1) {
+    return available[0];
+  }
+  throw new CliError(`Cannot infer context. Pass --source or --context. Available contexts: ${available.join(", ") || "none"}`);
+}
+
+function availableContextIds(project: LoadedProject, view: DiagramView | undefined): string[] {
+  return [...new Set(project.result.contexts
+    .filter((context) => context.synthetic !== true && (view !== "c1" || context.type === "Context"))
+    .map((context) => context.id))].sort();
+}
+
+function queryUsesVariable(query: string, variable: "context" | "tab"): boolean {
+  return new RegExp(`\\$${variable}\\b`).test(query);
 }
 
 function normalizeSourceName(root: string, source: string): string {
@@ -675,6 +839,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
     context: stringOption(options.context),
     tab: stringOption(options.tab),
     view: viewOption(options.view),
+    environment: stringOption(options.environment),
     queryFile: stringOption(options.query),
     output: stringOption(options.output),
     format: stringOption(options.format),
@@ -695,6 +860,8 @@ function optionKey(arg: string): string | undefined {
     "-s": "tab",
     "--view": "view",
     "-v": "view",
+    "--environment": "environment",
+    "-e": "environment",
     "--query": "query",
     "-q": "query",
     "--out": "output",
@@ -708,7 +875,8 @@ function optionKey(arg: string): string | undefined {
 }
 
 function command(value: string | undefined): Command | undefined {
-  if (value === "link" || value === "render" || value === "query" || value === "structure" || value === "skill") {
+  if (value === "link" || value === "render" || value === "query" || value === "structure"
+      || value === "environments" || value === "skill") {
     return value;
   }
   if (value === undefined) {
@@ -748,7 +916,9 @@ function viewOption(value: unknown): DiagramView | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (value === "c1" || value === "c2" || value === "c3" || value === "c4" || value === "deployment" || value === "no-filter") {
+  if (value === "c1" || value === "c2" || value === "c3" || value === "c4"
+      || value === "deployment" || value === "deployment-system" || value === "deployment-container"
+      || value === "no-filter") {
     return value;
   }
   throw new CliError(`Unknown view '${String(value)}'`);
@@ -791,17 +961,19 @@ function helpText(): string {
 
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
-  archinsight render [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f dot|svg|json] [-o file]
-  archinsight query [project-dir] -c <context> [-s <source>] [-v c1|c2|c3|c4|deployment|no-filter] [-q query.aiq] [-f text|json] [-o file]
+  archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+  archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
+  archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 
 Options:
   project-dir             Project directory to scan recursively, default: current directory.
-  -c, --context <id>       Context id for query/render.
-  -s, --source <file>      Selected project file for queries using $tab.
+  -s, --source <file>      Selected model file. Supplies $tab and infers its context.
+  -c, --context <id>       Context for context-wide execution without --source; must match it when both are passed.
       --tab <source>       Backward-compatible alias for --source.
-  -v, --view <name>        Built-in view: c1, c2, c3, c4, deployment, no-filter.
+  -v, --view <name>        Built-in view: c1, c2, c3, c4, deployment-system, deployment-container, deployment, no-filter.
+  -e, --environment <id>   Environment scope for deployment-container; optional when exactly one is relevant.
   -q, --query <file>       Query file; overrides --view.
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
@@ -810,6 +982,16 @@ Options:
       --force              Replace the complete generated skill directory.
   -V, --version            Print version.
   -h, --help               Show help.
+
+Scope:
+  C1 and no-filter accept either --source or --context. C2-C4 and Deployment
+  views require --source unless project-dir is one .ai file. Source-scoped
+  commands infer context from that file. D2 additionally requires --environment
+  when more than one environment is relevant.
+
+Environment discovery:
+  environments lists every declared environment. With --source, it returns only
+  the environments relevant to that source for the D2 view.
 
 Diagnostics text format is TSV:
   level<TAB>code<TAB>source<TAB>line<TAB>column<TAB>message
@@ -954,10 +1136,12 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       path: "examples/c2-containers.ai",
       content: genericC2ContainersExample(),
     },
+    ...genericC2FileSplitExampleFiles(),
     {
       path: "examples/c3-components.ai",
       content: genericC3ComponentsExample(),
     },
+    ...genericC3FileSplitExampleFiles(),
     ...genericC4CodeExampleFiles(),
     {
       path: "examples/deployment-framework.ai",
@@ -998,6 +1182,14 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       content: textFileContent(viewQueries.c4),
     },
     {
+      path: "examples/builtin-views/deployment-system.aiq",
+      content: textFileContent(viewQueries["deployment-system"]),
+    },
+    {
+      path: "examples/builtin-views/deployment-container.aiq",
+      content: textFileContent(viewQueries["deployment-container"]),
+    },
+    {
       path: "examples/builtin-views/deployment.aiq",
       content: textFileContent(viewQueries.deployment),
     },
@@ -1008,6 +1200,14 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
     {
       path: "examples/queries/direct-service-dependencies.aiq",
       content: genericDirectServiceDependenciesQuery(),
+    },
+    {
+      path: "examples/queries/direct-authored-dependencies.aiq",
+      content: genericDirectAuthoredDependenciesQuery(),
+    },
+    {
+      path: "examples/queries/async-topic-dependencies.aiq",
+      content: genericAsyncTopicDependenciesQuery(),
     },
     {
       path: "examples/queries/kafka-service-dependencies.aiq",
@@ -1330,11 +1530,11 @@ archinsight link . --format text
 archinsight structure . --format text
 \`\`\`
 
-If rendering is needed, ask for the context id and source file when they are not
-obvious:
+If rendering is needed, ask for the source file when it is not obvious. The CLI
+infers the context declared by that source:
 
 \`\`\`shell
-archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
 \`\`\`
 
 Report diagnostics by source, line, column, and message. Avoid rewriting large
@@ -1432,6 +1632,50 @@ Never update a generated skill by running plain \`skill init\` repeatedly or by
 copying only the files that happen to be missing. Regenerate the entire package
 with the installed CLI, then restart the agent session when its runtime discovers
 skills only at startup.
+
+## Query and Render Scope
+
+Use the model source as the normal diagram entry point:
+
+\`\`\`shell
+archinsight query . -s <source.ai> -v c2 --format json
+archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
+\`\`\`
+
+The selected source supplies \`$tab\` and determines \`$context\`. C2, C3, C4,
+D1 (\`deployment-system\`), D2 (\`deployment-container\`), and the legacy
+Deployment view require a source when a project contains several model files.
+When the command input is one \`.ai\` file, the CLI selects it automatically.
+
+C1 opens the complete context boundary declared by the selected source. For a
+context-wide C1 or \`no-filter\` query without a source, pass
+\`--context <context-id>\` instead. If both \`--source\` and \`--context\` are
+present, they must resolve to the same context; the context does not override
+the source.
+
+A custom query file overrides \`--view\`. Pass \`--source\` when it uses
+\`$tab\`; the same source also supplies \`$context\`. A query that uses only
+\`$context\` may use an explicit \`--context\` without a source.
+
+D1 spans every environment relevant to the selected source and rejects
+\`--environment\`. D2 selects the only relevant environment automatically. If
+several are relevant, pass one of the ids reported by the CLI with
+\`--environment <id>\`.
+
+Discover environments through the linked model instead of parsing Insight
+sources:
+
+\`\`\`shell
+archinsight environments . --format json
+archinsight environments . -s <source.ai> --format json
+\`\`\`
+
+The first command returns every declared environment. The source-scoped command
+returns exactly the environments relevant to that source's D2 view. Its JSON
+uses schema \`deployment-environments.v1\` and contains the selected \`source\`
+plus \`environments\` entries with \`id\`, optional \`name\`, and the source file
+that declares the environment. Use this command before choosing D2
+\`--environment\`; do not scan source text to reconstruct the list.
 `;
 }
 
@@ -1587,12 +1831,11 @@ Deployment view. The wire must select an environment slot whose concrete value
 has a projection.
 
 A wire can use only a \`NetworkConnection\` descendant. The built-in \`Broker\`
-is an \`InfrastructureComponent\`, so it remains useful as inventory but cannot
-be selected directly by wire \`uses\`. When the broker belongs on the physical
-path, define a project-specific \`NetworkConnection\` such as an event channel,
-place the \`Broker\` behind one of its attributes, and project through it. Read
-the complete [Broker](deployment-projections.md#broker) example before modeling
-that path.
+is one, so an environment can expose a \`Broker\` slot directly and a wire can
+select it with \`uses\`. Derive product-specific types such as Kafka or RabbitMQ
+from \`Broker\`, then put the physical path projection on the concrete broker
+instance. Read the complete [Broker](deployment-projections.md#broker) example
+before modeling that path.
 
 If the chosen style is pragmatic mixed C2, a broker-like node can be acceptable,
 but document that the view mixes levels. If the producer or consumer is not
@@ -1962,7 +2205,7 @@ An explicit assignment on an instance replaces the constructor default.
 ### Object-valued attributes
 
 A named object attribute supports a full named declaration, a full anonymous
-declaration, or a shortened declaration when exactly one constructor is valid:
+declaration, or a shortened declaration whose constructor can be inferred:
 
 \`\`\`insight
 config:
@@ -1977,8 +2220,10 @@ config:
 
 Use a named id when another declaration must reference the nested object. The
 \`_\` form creates an anonymous instance. The shortened form infers both its
-constructor and anonymous identity and is rejected when construction is
-ambiguous.
+constructor and anonymous identity. A constructor declared directly by the
+attribute type takes precedence over constructors inherited through descendant
+types. Without a direct constructor, more than one compatible descendant makes
+the shortened form ambiguous.
 
 ## Attributes
 
@@ -2043,7 +2288,7 @@ links:
         technology = HTTPS, JSON
         call = POST /checkout
         description = Places an order
-    ~> order_events
+    ~> order_service
         technology = Kafka
         via = orders.created
         description = Consumes order events
@@ -2413,7 +2658,7 @@ is about boundaries and responsibilities, not implementation structure.
 4. Add \`external system\` declarations for dependencies outside the boundary.
 5. Add high-level links that explain business or capability flow.
 6. Validate with \`archinsight link . --format text\`.
-7. Render with \`archinsight render . -c <context-id> -v c1 -f svg -o c1.svg\`.
+7. Render with \`archinsight render . -s <c1-source.ai> -v c1 -f svg -o c1.svg\`.
 
 ## Boundary Choices
 
@@ -2598,12 +2843,60 @@ external system analytics_platform
 \`\`\`shell
 archinsight structure . --format text
 archinsight link . --format text
-archinsight render . -c commerce -v c1 -f svg -o commerce-c1.svg
+archinsight render . -s c1-context.ai -v c1 -f svg -o commerce-c1.svg
 \`\`\`
 
 Use \`examples/c1-context.ai\` as a compact valid C1 model when syntax is
 unclear.
 `;
+}
+
+function genericC2FileSplitExampleFiles(): readonly GeneratedFile[] {
+  return [
+    {
+      path: "examples/c2-file-split/context.ai",
+      content: `context commerce
+    name = Commerce Platform
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+    technology = Commerce system
+    description = Lets shoppers browse products and place orders
+`,
+    },
+    {
+      path: "examples/c2-file-split/storefront.ai",
+      content: `context commerce
+
+import payment_provider from context commerce
+
+extend system storefront
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Renders product pages and checkout screens
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                call = POST /checkout
+                description = Starts checkout and shows order status
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Prices carts, creates orders, and coordinates payment
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
+                description = Requests payment authorization
+`,
+    },
+  ];
 }
 
 function genericC2ContainersReference(): string {
@@ -2653,57 +2946,31 @@ because one system needs that style.
 1. Run \`archinsight structure . --format text\` to find the exact system id,
    existing containers/services, and external declarations.
 2. Create or edit a C2 file in the same \`context <id>\`.
-3. Import external systems from other contexts when needed.
+3. Import every referenced declaration owned by another source, including a
+   declaration in another file of the same context.
 4. Add \`container\` or \`service\` declarations for the system's logical runtime
    units, choosing the word that best communicates each unit's role.
 5. Add runtime links between containers/services and real external systems.
 6. Validate with \`archinsight link . --format text\`.
-7. Render with \`archinsight render . -c <context-id> -s <c2-file.ai> -v c2 -f svg -o c2.svg\`.
+7. Render with \`archinsight render . -s <c2-file.ai> -v c2 -f svg -o c2.svg\`.
 
 ## File Split Pattern
 
 Keep C1 focused on the system boundary:
 
 \`\`\`insight
-context commerce
-    name = Commerce Platform
-
-external system payment_provider
-    name = Payment Provider
-    technology = HTTPS API
-
-system storefront
-    name = Storefront
-    technology = Commerce system
-    description = Lets shoppers browse products and place orders
+${genericC2FileSplitExampleFiles()[0].content.trimEnd()}
 \`\`\`
 
 Put C2 details in a system file:
 
 \`\`\`insight
-context commerce
-
-extend system storefront
-    container web_app
-        name = Web app
-        technology = SvelteKit, TypeScript
-        description = Renders product pages and checkout screens
-        links:
-            -> checkout_api
-                technology = HTTPS, JSON
-                call = POST /checkout
-                description = Starts checkout and shows order status
-
-    service checkout_api
-        name = Checkout API
-        technology = Kotlin, PostgreSQL
-        description = Prices carts, creates orders, and coordinates payment
-        links:
-            -> payment_provider
-                technology = HTTPS
-                call = POST /payments/authorizations
-                description = Requests payment authorization
+${genericC2FileSplitExampleFiles()[1].content.trimEnd()}
 \`\`\`
+
+The extension target is resolved in the shared context and does not need an
+import. The ordinary reference to \`payment_provider\` crosses a source boundary,
+so the C2 file imports it even though both files use \`context commerce\`.
 
 ## Frontend and Backend Pattern
 
@@ -2851,7 +3118,7 @@ not compete with a broad duplicate.
 \`\`\`shell
 archinsight structure . --format text
 archinsight link . --format text
-archinsight render . -c commerce -s storefront-containers.ai -v c2 -f svg -o storefront-c2.svg
+archinsight render . -s storefront-containers.ai -v c2 -f svg -o storefront-c2.svg
 \`\`\`
 
 Use \`examples/c2-containers.ai\` as a compact valid C2 model when syntax is
@@ -2859,48 +3126,11 @@ unclear.
 `;
 }
 
-function genericC3ComponentsReference(): string {
-  return `# C3 Components
-
-Use this reference only for C3 work: decomposing one selected container or
-service into internal components and their collaborations.
-
-## What C3 Answers
-
-A C3 view answers: "Inside this container/service, what named responsibilities
-collaborate to deliver its behavior?"
-
-Prefer one focal container or service per C3 source file. The built-in C3 view
-is scoped by the selected source file, so the C3 file should usually contain an
-\`extend container <id>\` or \`extend service <id>\` block for the focal element.
-
-If the selected source opens several containers or services, components inside
-all of them are internal to one diagram. A dependency leaving that set is
-folded to the nearest closed container or service and shown as external to the
-C3 view.
-
-Do not model every class, function, method, or package. A component should be a
-stable architectural responsibility that is useful in a diagram and review.
-
-## C3 Workflow
-
-1. Run \`archinsight structure . --format text\` to find the exact container or
-   service id, available constructors, and existing imports.
-2. Create or edit a C3 file in the same \`context <id>\`.
-3. Import elements from other contexts only when the component links to them.
-4. Use \`extend container <id>\` or \`extend service <id>\`.
-5. Add \`component\` declarations with \`name\`, \`technology\`, and
-   \`responsibility\`.
-6. Add links between components and to real external endpoints.
-7. Validate with \`archinsight link . --format text\`.
-8. Render with \`archinsight render . -c <context-id> -s <c3-file.ai> -v c3 -f svg -o c3.svg\`.
-
-## File Split Pattern
-
-Keep the C2 declaration small:
-
-\`\`\`insight
-context commerce
+function genericC3FileSplitExampleFiles(): readonly GeneratedFile[] {
+  return [
+    {
+      path: "examples/c3-file-split/system.ai",
+      content: `context commerce
     name = Commerce Platform
 
 external system payment_provider
@@ -2910,16 +3140,21 @@ external system payment_provider
 system storefront
     name = Storefront
 
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+
     service checkout_api
         name = Checkout API
         technology = Kotlin, PostgreSQL
         description = Handles cart pricing, order placement, and payment orchestration
-\`\`\`
+`,
+    },
+    {
+      path: "examples/c3-file-split/checkout-components.ai",
+      content: `context commerce
 
-Put component details in a C3 file:
-
-\`\`\`insight
-context commerce
+import payment_provider from context commerce
 
 extend service checkout_api
     component checkout_controller
@@ -2951,15 +3186,13 @@ extend service checkout_api
         name = Order repository
         technology = SQL
         responsibility = Persists order state and checkout audit records
-\`\`\`
+`,
+    },
+    {
+      path: "examples/c3-file-split/web-components.ai",
+      content: `context commerce
 
-## Frontend Container Pattern
-
-Use C3 for UI responsibilities when the frontend container has distinct
-architectural parts:
-
-\`\`\`insight
-context commerce
+import checkout_api from context commerce
 
 extend container web_app
     component route_shell
@@ -2990,7 +3223,77 @@ extend container web_app
             -> checkout_api
                 technology = HTTPS, JSON
                 call = POST /checkout
+`,
+    },
+  ];
+}
+
+function genericC3ComponentsReference(): string {
+  return `# C3 Components
+
+Use this reference only for C3 work: decomposing one selected container or
+service into internal components and their collaborations.
+
+## What C3 Answers
+
+A C3 view answers: "Inside this container/service, what named responsibilities
+collaborate to deliver its behavior?"
+
+Prefer one focal container or service per C3 source file. The built-in C3 view
+is scoped by the selected source file, so the C3 file should usually contain an
+\`extend container <id>\` or \`extend service <id>\` block for the focal element.
+
+If the selected source opens several containers or services, components inside
+all of them are internal to one diagram. A dependency leaving that set is
+folded to the nearest closed container or service and shown as external to the
+C3 view.
+
+Do not model every class, function, method, or package. A component should be a
+stable architectural responsibility that is useful in a diagram and review.
+
+## C3 Workflow
+
+1. Run \`archinsight structure . --format text\` to find the exact container or
+   service id, available constructors, and existing imports.
+2. Create or edit a C3 file in the same \`context <id>\`.
+3. Import every referenced declaration owned by another source, including a
+   declaration in another file of the same context.
+4. Use \`extend container <id>\` or \`extend service <id>\`.
+5. Add \`component\` declarations with \`name\`, \`technology\`, and
+   \`responsibility\`.
+6. Add links between components and to real external endpoints.
+7. Validate with \`archinsight link . --format text\`.
+8. Render with \`archinsight render . -s <c3-file.ai> -v c3 -f svg -o c3.svg\`.
+
+## File Split Pattern
+
+Keep the C2 declaration small:
+
+\`\`\`insight
+${genericC3FileSplitExampleFiles()[0].content.trimEnd()}
 \`\`\`
+
+Put component details in a C3 file:
+
+\`\`\`insight
+${genericC3FileSplitExampleFiles()[1].content.trimEnd()}
+\`\`\`
+
+The extension target is resolved in the shared context without an import.
+\`payment_provider\` is an ordinary cross-source reference and therefore has an
+explicit same-context import.
+
+## Frontend Container Pattern
+
+Use C3 for UI responsibilities when the frontend container has distinct
+architectural parts:
+
+\`\`\`insight
+${genericC3FileSplitExampleFiles()[2].content.trimEnd()}
+\`\`\`
+
+Here \`checkout_api\` is declared in the system file, so the frontend component
+file imports it before creating the cross-container link.
 
 This is useful when frontend structure affects architecture. If the frontend is
 only a thin page with no meaningful internal decisions, leave it at C2.
@@ -3157,7 +3460,7 @@ declaration. Keep a broader wire only when it describes a different interaction.
 \`\`\`shell
 archinsight structure . --format text
 archinsight link . --format text
-archinsight render . -c commerce -s checkout_components.ai -v c3 -f svg -o checkout-c3.svg
+archinsight render . -s checkout_components.ai -v c3 -f svg -o checkout-c3.svg
 \`\`\`
 
 Use \`examples/c3-components.ai\` as a compact valid C3 model when syntax is
@@ -3260,13 +3563,13 @@ different type filter or grouping rule.
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c <context-id> -s <code-source.ai> -v c4 --format json
-archinsight render . -c <context-id> -s <code-source.ai> -v c4 -f svg -o code.svg
+archinsight query . -s <code-source.ai> -v c4 --format json
+archinsight render . -s <code-source.ai> -v c4 -f svg -o code.svg
 \`\`\`
 
 Use the self-contained \`examples/c4-code\` project when the syntax for a code
-framework or model is unclear. Deployment is a separate view selected with
-\`--view deployment\`; never use C4 as an alias for Deployment.
+framework or model is unclear. Deployment is a separate view family selected
+with \`--view deployment-system\` or \`--view deployment-container\`; never use C4 as an alias for Deployment.
 `;
 }
 
@@ -3278,10 +3581,34 @@ logical elements run, which infrastructure they use, and how their wires pass
 through the physical world. Keep C1-C4 logical; deployment inventory and
 projections supply the physical view.
 
-The built-in Deployment view includes a logical element only when its deployment
-resolves at least one \`runsOn\` or \`uses\` infrastructure object. A logical wire
-appears only through physical edges created by its deployment projection. A
-plain logical wire is intentionally omitted from Deployment.
+The built-in Deployment views include a placed logical element when its deployment
+resolves at least one \`runsOn\` or \`uses\` infrastructure object. An unplaced
+system or actor can remain visible as an endpoint of a projected wire; wire
+infrastructure supplies the relevant environments when the selected source has
+no placements of its own. A logical wire appears only through physical edges
+created by its deployment projection. A plain logical wire is intentionally
+omitted from Deployment.
+
+Use \`deployment-system\` (D1) for a system-level overview across the environments
+relevant to the selected source. It folds deployed containers and services into
+their owning systems, contracts internal infrastructure paths, and retains the
+external integrations reached in each environment. Use \`deployment-container\`
+(D2) to inspect containers, services, and physical infrastructure in one
+environment. Pass \`--environment <id>\` when several environments are relevant;
+the CLI selects the environment automatically when there is only one. The older
+\`deployment\` view keeps the complete all-environment container graph for
+backward compatibility.
+
+Obtain the available D2 choices from the linked model:
+
+\`\`\`shell
+archinsight environments . -s <logical-source.ai> --format json
+\`\`\`
+
+Read the ids from \`environments\` and pass the selected id to
+\`deployment-container --environment <id>\`. Run the command without
+\`--source\` only when the task needs the complete environment inventory rather
+than the choices relevant to one logical source.
 
 Model the infrastructure immediately relevant to those logical elements and
 connections. Do not expand a Deployment view into a complete provider, transit, replication,
@@ -3483,10 +3810,11 @@ service frontend
 \`\`\`
 
 Do not attach \`DeploymentProfile\`, \`runsOn\`, \`Storage\`, \`Compute\`, or another
-non-network infrastructure type to a wire. In particular, ingress, egress,
-service-mesh, VPN, and broker paths used by wires must inherit
-\`NetworkConnection\`. Read \`references/deployment-projections.md\` before
-defining the concrete path or placing a built-in broker on that path.
+non-network infrastructure type to a wire. Ingress, egress, service-mesh, and
+VPN path types used by wires must inherit \`NetworkConnection\`. The built-in
+\`Broker\` already does; derive product-specific broker types from \`Broker\` and
+place their projection on the concrete instance. Read
+\`references/deployment-projections.md\` before defining the physical path.
 
 For each relevant concrete deployment, the linker checks the requested slot:
 
@@ -3541,8 +3869,9 @@ Run:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c <context> -s <logical-source.ai> -v deployment --format json
-archinsight render . -c <context> -s <logical-source.ai> -v deployment -f svg -o deployment.svg
+archinsight query . -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -s <logical-source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
 \`\`\`
 
 A clean link proves that syntax, types, imports, and deployment references are
@@ -3605,14 +3934,13 @@ define type PublicGateway of NetworkConnection
     required InfrastructureComponent cdn
     required InfrastructureComponent loadBalancer
 
-define type EventChannel of NetworkConnection
-    constructor eventChannel
-    required Broker transport
+define type KafkaBroker of Broker
+    constructor kafka
 
 extend type Environment
     Compute compute
     Storage storage
-    EventChannel events
+    Broker events
     PublicGateway publicGateway
     NetworkConnection network
 \`\`\`
@@ -3629,16 +3957,13 @@ deployment production
             name = ECS
             technology = AWS ECS
     events:
-        eventChannel event_bus
-            name = Event bus
-            transport:
-                broker kafka
-                    name = Kafka
-                    technology = MSK
-                    address = kafka.prod.eu.internal
+        kafka event_bus
+            name = Kafka
+            technology = MSK
+            address = kafka.prod.eu.internal
             projection:
-                target $to connectTo target transport
-                target transport originalLink source $from
+                target $to connectTo target $this
+                target $this originalLink source $from
 \`\`\`
 
 \`\`\`insight
@@ -3655,7 +3980,8 @@ System files in the same logical context should import the context-owned profile
 when it is declared in a different source identity. Wires name compatible
 \`NetworkConnection\` slots directly. Read the
 [Broker](deployment-projections.md#broker) example before adding an event path;
-a built-in \`Broker\` inventory value cannot itself fill a wire-facing slot.
+the built-in \`Broker\` can fill a wire-facing slot directly, and
+product-specific broker types should derive from it.
 
 ## System Files and External Contexts
 
@@ -3807,8 +4133,9 @@ Deployment output after changing which root a traffic relationship extends:
 
 \`\`\`shell
 archinsight link . --format text
-archinsight query . -c deployment_shop -s deployment.ai -v deployment --format json
-archinsight render . -c deployment_shop -s deployment.ai -v deployment -f svg -o deployment.svg
+archinsight query . -s deployment.ai -v deployment-system --format json
+archinsight query . -s deployment.ai -v deployment-container --environment eu --format json
+archinsight render . -s deployment.ai -v deployment-container --environment eu -f svg -o deployment.svg
 \`\`\`
 
 If projected infrastructure edges disappear after a split, first check whether
@@ -3989,9 +4316,12 @@ sed -n '1,160p' .core/core_system.ai
 \`\`\`insight
 define type System of SystemElement
     constructor system
+        kind = internal
 
     required Text name
+    required Text kind
     Text technology
+    Text description
     List of Wire links
     List of Container _
 \`\`\`
@@ -4001,6 +4331,8 @@ Interpretation:
 - \`define type System of SystemElement\` means \`System\` inherits from
   \`SystemElement\`.
 - \`constructor system\` means \`system <id>\` is valid syntax for that type.
+- The constructor assigns \`kind = internal\`, so model authors do not repeat the
+  built-in default on every system.
 - \`required Text name\` means \`name = ...\` is required.
 - \`Text technology\` means \`technology = ...\` is optional.
 - \`List of Wire links\` enables a \`links:\` block whose children are wires.
@@ -4026,8 +4358,9 @@ C4 query.
   \`description\`, plus deployment references.
 - \`Storage\` / constructor \`storage\`: for databases, buckets, volumes, and
   other stateful stores.
-- \`Broker\` / constructor \`broker\`: for message brokers and event buses;
-  adds optional \`address\`.
+- \`Broker\` / constructor \`broker\`: a \`NetworkConnection\` specialization
+  for message brokers and event buses; adds optional \`address\` and can carry
+  a projected logical wire.
 - \`Compute\` / constructor \`compute\`: for runtimes, clusters, nodes, and
   platforms; adds optional \`address\` and can contain nested infrastructure
   components in a \`components:\` block.
@@ -4269,28 +4602,30 @@ Inspect the selected graph before rendering whenever a change affects C2, C3,
 C4, Deployment, projections, or query text:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -v c2 --format json
-archinsight query . -c <context-id> -s <source.ai> -v c3 --format json
-archinsight query . -c <context-id> -s <source.ai> -v c4 --format json
-archinsight query . -c <context-id> -s <source.ai> -v deployment --format json
+archinsight query . -s <source.ai> -v c2 --format json
+archinsight query . -s <source.ai> -v c3 --format json
+archinsight query . -s <source.ai> -v c4 --format json
+archinsight query . -s <source.ai> -v deployment-system --format json
+archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
 \`\`\`
 
-Then render the same context, source, and view:
+Then render the same source and view; the source carries the same context:
 
 \`\`\`shell
-archinsight render . -c <context-id> -v c1 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v c2 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v c3 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v c4 -f svg -o diagram.svg
-archinsight render . -c <context-id> -s <source.ai> -v deployment -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c1 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c3 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c4 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v deployment-system -f svg -o deployment-system.svg
+archinsight render . -s <source.ai> -v deployment-container --environment <environment> -f svg -o deployment-container.svg
 \`\`\`
 
 Run a custom query from a file:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f json
-archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
+archinsight query . -s <source.ai> -q query.aiq -f text
+archinsight query . -s <source.ai> -q query.aiq -f json
+archinsight render . -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
 
 Use three validation layers:
@@ -4311,12 +4646,17 @@ Useful built-in views:
 - \`c2\` for containers/services in the selected source.
 - \`c3\` for components in the selected source.
 - \`c4\` for project-defined code elements in the selected source.
-- \`deployment\` for deployment-oriented views.
+- \`deployment-system\` for the D1 system deployment overview across relevant
+  environments.
+- \`deployment-container --environment <id>\` for D2 physical detail in one
+  environment.
+- \`deployment\` only when an all-environment container graph is intentionally
+  required for backward compatibility or analysis.
 - \`no-filter\` for the full context.
 
-C2, C3, C4, Deployment, and custom queries often depend on the active file. Pass
-\`--source <file>\` / \`-s <file>\` whenever the query uses \`$tab\`; otherwise
-the CLI may choose the first source and render a valid but wrong view.
+C2, C3, C4, Deployment, and custom queries that use \`$tab\` depend on the
+active file. Pass \`--source <file>\` / \`-s <file>\`; the CLI will not guess
+between several project files. That source also supplies \`$context\`.
 
 The bundled \`examples\` directory contains several independent model projects,
 not one project to link as a whole. Validate \`layered-architecture.ai\`, the C1,
@@ -4374,9 +4714,10 @@ the Insight query and which result was computed from its output.
    \`no-filter\` for a broad logical export.
 4. Inspect query JSON before rendering. Distinguish selected outer endpoints,
    underlying edge endpoints, derived relationships, and projection origins.
-5. If the question needs traversal, aggregation, comparison, or absence checks,
-   compute them over the exported JSON without changing the model or pretending
-   the computation was supported by the query DSL.
+5. If the question needs traversal, aggregation, set intersection, or absence
+   checks, compute them over the exported JSON without changing the model or
+   pretending the computation was supported by the query DSL. Ordinary
+   property equality and inequality can stay in the Insight query.
 6. Report the scope: context, selected source when \`$tab\` is used, query or
    built-in view, and whether derived or projected edges were included.
 
@@ -4410,13 +4751,17 @@ MATCH (service:Service {id: 'checkout_api', context: $context})-[dependency:REFE
 RETURN service, dependency, target
 \`\`\`
 
-Incoming dependencies use the same left-to-right syntax with the target bound
-on the right:
+Incoming dependencies can keep the inspected service at the start of the
+pattern by using the reverse arrow:
 
 \`\`\`cypher
-MATCH (caller:Element)-[dependency:REFERENCES]->(service:Service {id: 'checkout_api', context: $context})
-RETURN caller, dependency, service
+MATCH (service:Service {id: 'checkout_api', context: $context})<-[dependency:REFERENCES]-(caller:Element)
+RETURN service, dependency, caller
 \`\`\`
+
+This selects the same stored edge as placing \`caller\` on the left with \`->\`.
+Pattern orientation changes matching readability, not the relationship stored
+in the architecture model.
 
 These answer one-hop questions. To find all transitively affected elements,
 export the relevant context graph and traverse its direct \`REFERENCES\` edges
@@ -4424,7 +4769,7 @@ outside the query language. State whether derived and projected edges were
 excluded or analyzed separately so the same dependency is not counted at
 several architectural levels.
 
-## Build a Direct Service Dependency Map
+## Choose the Dependency Scope
 
 The bundled \`examples/queries/direct-service-dependencies.aiq\` selects the
 one-hop dependency graph at container/service ownership level:
@@ -4437,9 +4782,9 @@ RETURN source, dependency, target
 
 \`withDerived\` includes relationships lifted from components to their owning
 containers or services. This is appropriate for a service dependency map, but
-it is not an inventory of authored wires. Remove \`{withDerived}\` when the
-question is specifically about relationships declared directly between those
-elements.
+it is not an inventory of authored wires. Because both endpoints must be
+\`ContainerElement\`, it intentionally omits a direct service-to-system or
+system-to-system relationship.
 
 Run the query once for the context instead of querying every service
 individually:
@@ -4455,41 +4800,70 @@ preserve dependency ownership. The source depends on the target. Use qualified
 ids from those fields when building an adjacency map; do not infer direction
 from diagram placement.
 
-## Analyze Kafka Topics
-
-The bundled \`examples/queries/kafka-service-dependencies.aiq\` selects authored
-Kafka dependencies without derived or projected copies:
+For every authored one-hop dependency regardless of architectural level, use
+\`examples/queries/direct-authored-dependencies.aiq\`:
 
 \`\`\`cypher
-MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
+MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
+WHERE source.context = $context
+RETURN source, dependency, target
+\`\`\`
+
+\`\`\`shell
+archinsight query . -c <context-id> \\
+  -q <skill-path>/examples/queries/direct-authored-dependencies.aiq \\
+  --format json
+\`\`\`
+
+This query excludes derived and projected copies. It is the correct starting
+point for questions such as "what does this service or system directly depend
+on?" when the target may live at another architectural level.
+
+## Analyze Async Topics and Channels
+
+The bundled \`examples/queries/async-topic-dependencies.aiq\` selects every
+authored async dependency without requiring a particular transport or endpoint
+level:
+
+\`\`\`cypher
+MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
 WHERE consumer.context = $context
   AND event.type = 'AsyncWire'
-  AND event.technology CONTAINS 'Kafka'
 RETURN consumer, event, producer
 \`\`\`
 
 Insight eventing is consumer-owned: the consumer declares \`~> producer\`, and
 \`via\` names the topic or channel. Therefore an outgoing async edge lists what
-a service consumes, while incoming async edges list the modeled consumers of a
-producer's topic contract.
+an element consumes, while incoming async edges list the modeled consumers of a
+producer's topic contract. The endpoints may be systems, services, components,
+or project-defined element types.
+
+Run the generic query for the whole context:
+
+\`\`\`shell
+archinsight query . -c <context-id> \\
+  -q <skill-path>/examples/queries/async-topic-dependencies.aiq \\
+  --format json
+\`\`\`
+
+To select a topic family, copy the query and add a case-sensitive membership or
+substring predicate such as \`AND event.via CONTAINS 'orders.'\`.
 
 For one consumer, constrain its local id in the first node pattern:
 
 \`\`\`cypher
-MATCH (consumer:ContainerElement {id: 'order_processor', context: $context})
-    -[event:REFERENCES]->(producer:ContainerElement)
+MATCH (consumer:Element {id: 'order_processor', context: $context})
+    -[event:REFERENCES]->(producer:Element)
 WHERE event.type = 'AsyncWire'
-  AND event.technology CONTAINS 'Kafka'
 RETURN consumer, event, producer
 \`\`\`
 
 For one producer, use the reverse pattern:
 
 \`\`\`cypher
-MATCH (producer:ContainerElement {id: 'order_processor', context: $context})
-    <-[event:REFERENCES]-(consumer:ContainerElement)
+MATCH (producer:Element {id: 'order_processor', context: $context})
+    <-[event:REFERENCES]-(consumer:Element)
 WHERE event.type = 'AsyncWire'
-  AND event.technology CONTAINS 'Kafka'
 RETURN producer, event, consumer
 \`\`\`
 
@@ -4499,7 +4873,7 @@ into the agent's context:
 
 \`\`\`shell
 archinsight query . -c <context-id> \\
-  -q <skill-path>/examples/queries/kafka-service-dependencies.aiq \\
+  -q <skill-path>/examples/queries/async-topic-dependencies.aiq \\
   --format json |
 jq -r '.edges[] | [
   .edge.source,
@@ -4512,6 +4886,62 @@ jq -r '.edges[] | [
 This reports topic contracts used by at least one modeled consumer. Do not
 claim it is a complete producer catalog: a topic with no modeled wire is not
 discoverable unless the project represents that contract separately.
+
+The bundled \`examples/queries/kafka-service-dependencies.aiq\` is a narrower
+specialization for projects that consistently record \`technology = Kafka\`
+and want only authored container-to-container dependencies without derived or
+projected copies:
+
+\`\`\`cypher
+MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
+WHERE consumer.context = $context
+  AND event.type = 'AsyncWire'
+  AND event.technology CONTAINS 'Kafka'
+RETURN consumer, event, producer
+\`\`\`
+
+Do not use this specialization when \`technology\` is absent or inconsistent;
+the generic async query still finds those modeled relationships.
+
+## Compare Endpoint Attributes
+
+Equality and inequality can compare properties on two bound endpoints:
+
+\`\`\`cypher
+MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
+WHERE source.runsOn <> target.runsOn
+RETURN source, dependency, target
+\`\`\`
+
+Scalar references compare by qualified element id. List properties compare as
+complete ordered lists. If either property is absent, both \`=\` and \`<>\`
+evaluate to false for that row. The query language does not calculate list
+intersection or set difference; export JSON and post-process it when the
+question is whether two multi-valued placements overlap.
+
+## Report Annotations
+
+Annotations are present in query JSON, but the current query language has no
+annotation predicate. Select a sufficiently broad graph and filter the JSON:
+
+\`\`\`shell
+archinsight query . -c <context-id> -v no-filter --format json |
+jq '{
+  elements: [
+    .elements[] |
+    select((.annotations // []) | length > 0) |
+    {id, annotations}
+  ],
+  edges: [
+    .edges[] |
+    select((.edge.annotations // []) | length > 0) |
+    {source, target, annotations: .edge.annotations}
+  ]
+}'
+\`\`\`
+
+Each annotation retains its name, optional value, and source position. This is
+a read-only reporting workaround, not an Insight query predicate.
 
 ## Analyze a Source Fragment
 
@@ -4531,12 +4961,18 @@ it is not a raw inventory of lines physically present in that file.
 
 ## Analyze Deployment Realization
 
-Use the built-in Deployment query JSON when the question is how logical architecture is
-realized physically:
+Use built-in Deployment query JSON when the question is how logical architecture
+is realized physically. D1 answers which systems and external integrations are
+present across relevant environments. D2 shows container and infrastructure
+detail inside one selected environment:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <logical-source.ai> -v deployment --format json
+archinsight query . -s <logical-source.ai> -v deployment-system --format json
+archinsight query . -s <logical-source.ai> -v deployment-container --environment <environment> --format json
 \`\`\`
+
+Use the legacy \`deployment\` view only when the question intentionally requires
+one container-level graph across every relevant environment.
 
 For each projected edge, compare outer \`source\` and \`target\` with nested
 \`edge.source\` and \`edge.target\`. Use \`edge.originSource\` and
@@ -4571,19 +5007,22 @@ diagram.
 ## CLI Shape
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q query.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -v deployment --format json
-archinsight render . -c <context-id> -s <source.ai> -q query.aiq -f svg -o diagram.svg
+archinsight query . -s <source.ai> -q query.aiq -f text
+archinsight query . -s <source.ai> -v deployment-system --format json
+archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
+archinsight render . -s <source.ai> -q query.aiq -f svg -o diagram.svg
 \`\`\`
 
 The scope variables are:
 
-- \`$context\` - selected context id from \`--context\`.
+- \`$context\` - context declared by \`--source\`, or the explicit
+  \`--context\` used for context-wide execution without a source.
 - \`$tab\` - the semantic model fragment rooted in the source selected by
   \`--source\` / \`--tab\`. It includes content contributed to those roots by
   \`extend\` in other files.
 
-Pass \`--source\` when a query uses \`$tab\`.
+Pass \`--source\` when a query uses \`$tab\`. A selected source also supplies
+\`$context\`, so do not repeat its context on the command line.
 
 Path handling:
 
@@ -4595,7 +5034,7 @@ Path handling:
 Prefer paths relative to the project root:
 
 \`\`\`shell
-archinsight query path/to/project -c shop -s models/storefront.ai -q queries/c2.aiq -f text
+archinsight query path/to/project -s models/storefront.ai -q queries/c2.aiq -f text
 \`\`\`
 
 ## Query Shape
@@ -4713,6 +5152,35 @@ Use single quotes for string literals.
 \`CONTAINS\` is case-sensitive. For scalar text it performs substring matching;
 for a list property it tests membership. Match the stored spelling exactly.
 
+Attribute cardinality comes from the Insight type system, not from the JSON
+representation. Use \`CONTAINS\` for list-valued attributes such as \`uses\`.
+\`runsOn\` is declared as a scalar typed reference. When it has one resolved
+target, it resolves to one graph node: compare it with another bound node, or
+test its qualified id with \`node.runsOn IN ['eu/cluster']\`.
+\`node.runsOn CONTAINS 'eu/cluster'\` does not match a scalar reference because
+that value is neither scalar text nor a list.
+
+A logical element materialized through several deployments can have several
+resolved \`runsOn\` targets. In that case bind a candidate infrastructure node
+and use \`candidate IN node.runsOn\`.
+
+Query JSON serializes attribute values as arrays for a stable transport shape.
+The linked element or edge also exposes \`listAttributes\` and
+\`referenceAttributes\`; use that metadata when an automated analysis needs to
+recover the language-level cardinality and reference kind.
+
+Properties of two bound aliases can be compared directly:
+
+\`\`\`cypher
+WHERE source.runsOn = target.runsOn
+WHERE source.runsOn <> target.runsOn
+\`\`\`
+
+Scalar references compare by qualified id and lists compare as complete ordered
+lists. If either property is absent, both comparisons evaluate to false. Set
+intersection and overlap tests are not supported; post-process query JSON for
+those operations.
+
 \`node.deployed\` is true when an element's deployment resolves to at least one
 \`runsOn\` or \`uses\` infrastructure object. The built-in Deployment view uses it to keep
 undeployed logical elements out of the physical diagram.
@@ -4786,15 +5254,21 @@ The top-level shape is:
 - \`groups\`: render groups created by \`GROUP BY\`;
 - \`externalElements\`: selected ids drawn outside the internal boundary.
 
+Elements expose their linked \`attributes\`, optional \`listAttributes\` and
+\`referenceAttributes\` metadata, and any \`annotations\`. Relationship data is
+nested under each result item's \`edge\` field and carries the same attribute
+metadata plus edge annotations. Annotations can be inspected in JSON but cannot
+currently be referenced by a \`WHERE\` predicate.
+
 For built-in C1-C4 execution, this list combines explicit model externality
 with externality relative to the opened diagram boundaries. C2 folds a closed
 endpoint to its system, C3 to its container or service, and C4 to its component.
 \`IS External\` in a custom query continues to match only the explicit model
 marker.
 
-To apply one of these boundary contracts to a custom CLI query, pass both
-\`-q <query.aiq>\` and \`-v c1|c2|c3|c4\`. Without \`-v\`, custom query
-execution does not apply a built-in view boundary.
+A custom query file supplies its own selection and grouping contract and
+overrides \`--view\`. To customize C1-C4 boundary behavior, copy the nearest
+bundled built-in \`.aiq\` file and modify its predicates or grouping explicitly.
 
 Each edge contains its selected category and two endpoint pairs:
 
@@ -4884,6 +5358,8 @@ examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
 examples/builtin-views/c4.aiq
+examples/builtin-views/deployment-system.aiq
+examples/builtin-views/deployment-container.aiq
 examples/builtin-views/deployment.aiq
 \`\`\`
 
@@ -4900,9 +5376,15 @@ C4 opens every component rooted in \`$tab\`, selects direct Code-element
 neighborhoods in either direction, and folds outside code to closed components.
 Concrete code types and containment remain project-defined.
 
-Deployment selects deployment nodes and physically deployed logical nodes from \`$tab\`,
-uses one undirected \`OPTIONAL MATCH ROLLUP\` for projected paths, and keeps
-placement lookup separate from relationship matching.
+D1 and D2 select physically deployed logical nodes and source-owned system
+endpoints from \`$tab\`, use one undirected \`OPTIONAL MATCH ROLLUP\` for projected
+paths, and keep placement lookup separate from relationship matching. When the
+source owns no deployed elements, environment discovery falls back to
+infrastructure used by its authored wires. D1 folds logical nodes to systems.
+D1 then contracts internal infrastructure paths and groups the remaining systems
+and external integrations by environment. D2 applies the structured environment
+scope after discovery and retains its physical detail. The legacy Deployment
+query retains all relevant environments.
 
 When a built-in view is close but hides the wrong thing, read
 \`references/query-recipes.md\`, copy the nearest built-in \`.aiq\`, and change
@@ -4936,16 +5418,23 @@ examples/builtin-views/c1.aiq
 examples/builtin-views/c2.aiq
 examples/builtin-views/c3.aiq
 examples/builtin-views/c4.aiq
+examples/builtin-views/deployment-system.aiq
+examples/builtin-views/deployment-container.aiq
 examples/builtin-views/deployment.aiq
 \`\`\`
 
 Before inventing a query from scratch, open the nearest built-in query, copy it
 to the project, and make the smallest change.
 
+Choose \`deployment-system.aiq\` for a D1 overview and
+\`deployment-container.aiq\` for D2 detail in one environment. Start from the
+legacy \`deployment.aiq\` only when the intended result is one container-level
+graph across every relevant environment.
+
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f text
-archinsight query . -c <context-id> -s <source.ai> -q queries/custom.aiq -f json
-archinsight render . -c <context-id> -s <source.ai> -q queries/custom.aiq -f svg -o custom.svg
+archinsight query . -s <source.ai> -q queries/custom.aiq -f text
+archinsight query . -s <source.ai> -q queries/custom.aiq -f json
+archinsight render . -s <source.ai> -q queries/custom.aiq -f svg -o custom.svg
 \`\`\`
 
 Use \`references/queries.md\` for syntax details. Use this file for common
@@ -4998,10 +5487,12 @@ archinsight link . --format text
 archinsight structure . --format text
 \`\`\`
 
-3. Run the built-in query explicitly and inspect its JSON:
+3. Run the built-in query explicitly and inspect its JSON. Choose the command
+   that matches the diagram being investigated:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/deployment.aiq -f json
+archinsight query . -s <source.ai> -v deployment-system -f json
+archinsight query . -s <source.ai> -v deployment-container --environment <environment> -f json
 \`\`\`
 
 4. Check the query filters:
@@ -5009,17 +5500,17 @@ archinsight query . -c <context-id> -s <source.ai> -q examples/builtin-views/dep
 - \`node.sourceIdentity = $tab\` selects the semantic fragment rooted in the
   selected source, including contributions added to those roots through
   \`extend\` in other files.
-- The built-in Deployment node filter includes deployment elements and logical
+- The built-in D1 and D2 node filters include deployment elements and logical
   container or external elements whose deployment resolves to physical
   infrastructure. External endpoints without their own placement still enter
   through projected paths attached to a deployed logical node.
 - \`{projected}\` means only deployment-projected edges are selected.
 - \`{derived}\` means only rolled-up relationships are selected.
 - A relationship property such as \`sourceIdentity: $tab\` is available for a
-  deliberately narrow custom view. The current built-in Deployment query does not add
-  that edge filter; the selected node scope and semantic tab closure provide
-  the boundary.
-- The built-in Deployment view uses one undirected \`MATCH ROLLUP\` for the
+  deliberately narrow custom view. The built-in D1 and D2 queries rely on the
+  selected node scope and semantic tab closure instead of applying that filter
+  to projected relationships.
+- The built-in D1 and D2 views use one undirected \`MATCH ROLLUP\` for the
   projected neighborhood. Projection origin metadata lets that clause find
   ingress and egress segments while every segment preserves its real physical
   source and target.
@@ -5054,19 +5545,20 @@ traceability, not for inventing a direct physical connection.
 
 ## Include Internal Actors In Deployment
 
-The built-in Deployment query includes external actors reached by a projected physical
-path. If a deployment diagram also needs internal actors, use the bundled,
-tested customization:
+The built-in Deployment views include external actors reached by a projected
+physical path. If an all-environment deployment diagram also needs internal
+actors, use the bundled, tested legacy-view customization:
 
 \`\`\`shell
-archinsight query . -c <context-id> -s <source.ai> -q examples/queries/deployment-internal-actors.aiq -f json
+archinsight query . -s <source.ai> -q examples/queries/deployment-internal-actors.aiq -f json
 \`\`\`
 
-This query is generated from the exact built-in Deployment source and changes only the
-node, projected-target, and incoming-source predicates to admit \`Actor\`.
-Because the rest comes from the current built-in query, deployment targets,
-incoming paths, and infrastructure-to-infrastructure projected path segments
-stay synchronized with Deployment behavior.
+This query is generated from the exact legacy \`deployment.aiq\` source and
+changes only the node, projected-target, and incoming-source predicates to admit
+\`Actor\`. For a D1 or D2 customization, copy the corresponding
+\`deployment-system.aiq\` or \`deployment-container.aiq\` source and apply the
+same actor predicates there so its current scope and environment behavior remain
+intact.
 
 If the actor is declared in another source file, either render from that source
 or relax the \`node.sourceIdentity = $tab\` condition intentionally.
@@ -5104,8 +5596,8 @@ exist in the file but the diagram question is still logical.
 
 ## Projected Edges Across Split Files
 
-The current built-in Deployment query matches \`{projected}\` edges without an explicit
-\`sourceIdentity: $tab\` relationship filter. The query engine expands \`$tab\`
+The current built-in D1 and D2 queries match \`{projected}\` edges without an
+explicit \`sourceIdentity: $tab\` relationship filter. The query engine expands \`$tab\`
 to the roots declared by the selected source and contributions made to those
 roots through \`extend\`, so a normal multi-file split does not require a looser
 edge selector.
@@ -5115,7 +5607,8 @@ filter while keeping the node scope. Start again from the bundled current query
 instead of preserving the rest of the older copy:
 
 \`\`\`text
-copy examples/builtin-views/deployment.aiq to the project's query directory
+copy examples/builtin-views/deployment-system.aiq for D1
+or copy examples/builtin-views/deployment-container.aiq for D2
 remove sourceIdentity: $tab only from the relationship selector if an old copy has it
 keep node.sourceIdentity = $tab
 \`\`\`
@@ -5126,17 +5619,16 @@ by the tab before changing the model or broadening the node scope.
 
 ## Change Grouping
 
-Grouping controls visual clusters. If Deployment grouping by \`runsOn\` is not helpful,
-copy the complete current \`examples/builtin-views/deployment.aiq\` and change only:
+Grouping controls visual clusters. If D1 or D2 grouping is not helpful, copy the
+complete corresponding built-in query and change only its \`GROUP BY\` expression:
 
 \`\`\`cypher
 GROUP BY node.parent
 \`\`\`
 
 Use \`GROUP BY node.runsOn\` for deployment placement; use \`GROUP BY node.parent\`
-for logical ownership. If you still need target-owned ingress paths, start from
-\`examples/builtin-views/deployment.aiq\` and change only the \`GROUP BY\` expression so
-the incoming projection aliases stay in the \`RETURN\`.
+for logical ownership. Preserve the rest of the selected D1 or D2 query so its
+projected-neighborhood aliases and environment behavior remain unchanged.
 
 ## Working Rule
 
@@ -5623,11 +6115,10 @@ system commerce
       files: [
         projectionFile("definitions.ai", `define type BrokerEnvironment of Environment
     Compute compute
-    EventChannel events
+    Broker events
 
-define type EventChannel of NetworkConnection
-    constructor eventChannel
-    required Broker transport
+define type KafkaBroker of Broker
+    constructor kafka
 `),
         projectionFile("infrastructure.ai", `environment eu
     name = Europe
@@ -5638,16 +6129,13 @@ deployment production
             name = Kubernetes
 
     events:
-        eventChannel order_events
-            name = Order events
-            transport:
-                broker kafka
-                    name = Kafka
-                    technology = Managed Kafka
+        kafka kafka
+            name = Kafka
+            technology = Managed Kafka
             projection:
-                target $to connectTo target transport
+                target $to connectTo target $this
                     technology = Kafka
-                target transport originalLink source $from
+                target $this originalLink source $from
 `),
         projectionFile("model.ai", `context broker_example
 
@@ -5823,7 +6311,7 @@ function genericDeploymentProjectionsReference(): string {
   const examples = deploymentProjectionExamples().map((example) => {
     const files = example.files.map((file) => `### ${file.path}\n\n\`\`\`insight\n${file.content.trimEnd()}\n\`\`\``).join("\n\n");
     const expected = example.expected.map((item) => `- ${item}`).join("\n");
-    return `## ${example.title}\n\n${example.purpose}\n\n${files}\n\nRun:\n\n\`\`\`shell\narchinsight link examples/deployment-projections/${example.slug} --format text\narchinsight query examples/deployment-projections/${example.slug} -c ${example.context} -s model.ai -v deployment --format json\n\`\`\`\n\nExpected physical result:\n\n${expected}`;
+    return `## ${example.title}\n\n${example.purpose}\n\n${files}\n\nRun:\n\n\`\`\`shell\narchinsight link examples/deployment-projections/${example.slug} --format text\narchinsight query examples/deployment-projections/${example.slug} -s model.ai -v deployment-container --environment eu --format json\n\`\`\`\n\nExpected physical result:\n\n${expected}`;
   }).join("\n\n");
 
   return `# Deployment Projections
@@ -5857,11 +6345,10 @@ receives only attributes written on that rule, while projection origin metadata
 still provides traceability. A path made entirely from \`connectTo\` therefore
 does not carry the logical operator or authored relationship attributes.
 
-Wire \`uses\` accepts only a \`NetworkConnection\` descendant. A built-in
-\`Broker\` is an \`InfrastructureComponent\`: it can exist in inventory, but a
-wire cannot select it directly. Put the broker behind a project-defined
-\`NetworkConnection\` vocabulary when it must participate in a physical wire
-path. See [Broker](#broker), the consumer-owned relationship rules in
+Wire \`uses\` accepts only a \`NetworkConnection\` descendant. The built-in
+\`Broker\` is one and can fill a wire-facing environment slot directly. Derive
+product-specific broker types from \`Broker\`, and put the physical projection
+on the concrete broker instance. See [Broker](#broker), the consumer-owned relationship rules in
 [Eventing](modeling.md#eventing), and the shared-definition layout in
 [Scaling](scaling.md#framework-once-use-everywhere).
 
@@ -6142,6 +6629,21 @@ RETURN source, dependency, target
 `;
 }
 
+function genericDirectAuthoredDependenciesQuery(): string {
+  return `MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
+WHERE source.context = $context
+RETURN source, dependency, target
+`;
+}
+
+function genericAsyncTopicDependenciesQuery(): string {
+  return `MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+WHERE consumer.context = $context
+  AND event.type = 'AsyncWire'
+RETURN consumer, event, producer
+`;
+}
+
 function genericKafkaServiceDependenciesQuery(): string {
   return `MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
 WHERE consumer.context = $context
@@ -6155,6 +6657,18 @@ interface StructureTree {
   readonly schemaVersion: "project-structure.v1";
   readonly types: readonly TypeStructureNode[];
   readonly contexts: readonly StructureNode[];
+}
+
+interface DeploymentEnvironmentList {
+  readonly schemaVersion: "deployment-environments.v1";
+  readonly source: string | null;
+  readonly environments: readonly DeploymentEnvironmentEntry[];
+}
+
+interface DeploymentEnvironmentEntry {
+  readonly id: string;
+  readonly name?: string;
+  readonly source: string;
 }
 
 interface TypeStructureNode {

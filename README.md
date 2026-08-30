@@ -100,7 +100,7 @@ archinsight link .
 Then render its container view to an SVG image:
 
 ```shell
-archinsight render . --context storefront --source storefront.ai --view c2 --format svg --out architecture.svg
+archinsight render . --source storefront.ai --view c2 --format svg --out architecture.svg
 ```
 
 The resulting `architecture.svg` contains the systems, containers, services, and relationships selected by the built-in C2 query. You can now split the model across files, introduce definitions, or open the directory in the VSCode extension without changing its semantic identities.

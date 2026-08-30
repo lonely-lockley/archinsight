@@ -54,6 +54,28 @@ When both lifecycle annotations are attached to one declaration, `@planned` has 
 
 Annotations on a logical wire are carried into physical relationships created from that wire by deployment projection. A planned logical integration therefore remains visibly planned when a Deployment view expands it through infrastructure.
 
+## Inspecting annotations
+
+Query JSON includes annotations on selected elements and relationships. The query language does not currently provide an annotation predicate, so a report starts with a broad graph and filters its JSON output:
+
+```shell
+archinsight query . -c <context-id> -v no-filter --format json |
+jq '{
+  elements: [
+    .elements[] |
+    select((.annotations // []) | length > 0) |
+    {id, annotations}
+  ],
+  edges: [
+    .edges[] |
+    select((.edge.annotations // []) | length > 0) |
+    {source, target, annotations: .edge.annotations}
+  ]
+}'
+```
+
+Each annotation retains its name, optional value, and source position. Element annotations are stored on the selected element. Relationship annotations are stored on the nested `edge` object because the outer edge record describes how that relationship was selected and rendered.
+
 ## Legacy `@attribute`
 
 `@attribute` accepts comma-separated Graphviz property assignments and applies them directly to one rendered element or relationship:

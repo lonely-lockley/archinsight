@@ -1,4 +1,5 @@
 import type {
+  DeploymentEnvironment,
   LinkedContext,
   LinkedEdge,
   LinkedElement,
@@ -181,7 +182,121 @@ export function selectGraph(
     })).filter((group) => group.elements.length > 0),
     externalElements,
   };
-  return materializeGroupedView(applyViewBoundary(result, selectedGraph, scope));
+  const bounded = applyViewBoundary(result, selectedGraph, scope);
+  const systemSeedFiltered = scope.view === "deployment-container" || scope.view === "deployment-system"
+    ? removeDescendantProjectionsCapturedBySystemSeeds(result, bounded, scope)
+    : bounded;
+  const materialized = materializeGroupedView(
+    systemSeedFiltered,
+    scope.view === "deployment" || scope.view === "deployment-container" || scope.view === "deployment-system",
+  );
+  if (scope.view === "deployment-container") {
+    return applyDeploymentEnvironmentScope(result, materialized, scope);
+  }
+  if (scope.view === "deployment-system") {
+    return simplifyDeploymentSystemInfrastructure(result, rollUpDeploymentSystems(result, materialized, scope));
+  }
+  return materialized;
+}
+
+function removeDescendantProjectionsCapturedBySystemSeeds(
+  result: LinkProjectResult,
+  graph: RenderGraph,
+  scope: QueryScope,
+): RenderGraph {
+  const sourceSystems = new Set(result.elements
+    .filter((element) => element.sourceIdentity === scope.tab && elementHasType(element, "SystemElement"))
+    .map((element) => element.id));
+  const edges = graph.edges.filter((edge) => {
+    const originSource = edge.edge.originSource ?? edge.edge.source;
+    const originTarget = edge.edge.originTarget ?? edge.edge.target;
+    return ![edge.source, edge.target].some((endpoint) => {
+      const system = baseOccurrenceId(endpoint);
+      return sourceSystems.has(system) && originSource !== system && originTarget !== system;
+    });
+  });
+  const referenced = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
+  const grouped = new Set(graph.groups.flatMap((group) => group.elements));
+  const retained = new Set(Object.keys(graph.elements).filter((id) =>
+    referenced.has(id) || grouped.has(id) || !sourceSystems.has(baseOccurrenceId(id))
+  ));
+  return {
+    ...graph,
+    elements: Object.fromEntries(Object.entries(graph.elements).filter(([id]) => retained.has(id))),
+    edges,
+    groups: graph.groups.map((group) => ({
+      ...group,
+      elements: group.elements.filter((id) => retained.has(id)),
+    })).filter((group) => group.elements.length > 0),
+    externalElements: graph.externalElements.filter((id) => retained.has(id)),
+  };
+}
+
+export function discoverDeploymentEnvironments(
+  result: LinkProjectResult,
+  scope: Pick<QueryScope, "context" | "tab">,
+): readonly DeploymentEnvironment[] {
+  const closure = tabClosure(result, scope.tab);
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const environmentIds = new Set<string>();
+  const wireEnvironmentIds = new Set<string>();
+
+  for (const element of result.elements) {
+    if (!closure.has(element.id) || element.deployed !== true) {
+      continue;
+    }
+    for (const targetId of [...(element.attributes.runsOn ?? []), ...(element.attributes.uses ?? [])]) {
+      const target = elementsById.get(targetId);
+      if (target !== undefined && target.context !== element.context) {
+        environmentIds.add(target.context);
+      }
+    }
+  }
+
+  for (const edge of result.edges) {
+    if (edge.projected === true || edge.sourceIdentity !== scope.tab) {
+      continue;
+    }
+    for (const targetId of edge.attributes.uses ?? []) {
+      const target = elementsById.get(targetId);
+      if (target !== undefined && target.context !== elementsById.get(edge.source)?.context) {
+        wireEnvironmentIds.add(target.context);
+      }
+    }
+  }
+
+  for (const context of result.contexts) {
+    const ownsConcreteDeployment = result.elements.some((element) =>
+      element.context === context.id && elementHasType(element, "Deployment")
+    );
+    if (context.synthetic !== true && context.sourceIdentity === scope.tab
+        && (context.type === "Environment" || ownsConcreteDeployment)) {
+      environmentIds.add(context.id);
+    }
+  }
+  if (environmentIds.size === 0) {
+    for (const environment of wireEnvironmentIds) {
+      environmentIds.add(environment);
+    }
+  }
+
+  const contextsById = new Map(result.contexts.map((context) => [context.id, context]));
+  const environmentNamesByContext = new Map<string, string>();
+  for (const element of result.elements) {
+    if (element.synthetic === true || element.parent !== undefined || !elementHasType(element, "Environment")) {
+      continue;
+    }
+    const name = element.attributes.name?.[0];
+    if (name !== undefined) {
+      environmentNamesByContext.set(element.context, name);
+    }
+  }
+  return [...environmentIds]
+    .map((id) => {
+      const name = environmentNamesByContext.get(id) ?? contextsById.get(id)?.attributes.name?.[0];
+      return { id, ...(name === undefined ? {} : { name }) };
+    })
+    .sort((left, right) => (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id));
 }
 
 function relationshipPatternsReturnedBy(query: ParsedQuery): ReadonlyMap<string, RelationshipPattern> {
@@ -242,14 +357,14 @@ function contextualLinkedEdge(relationship: QueryRelationship): LinkedEdge {
   };
 }
 
-function materializeGroupedView(graph: RenderGraph): RenderGraph {
+function materializeGroupedView(graph: RenderGraph, materializeDeploymentPlacements = true): RenderGraph {
   const groupsByElement = new Map<string, RenderGraphGroup[]>();
   for (const group of graph.groups) {
     for (const element of group.elements) {
       groupsByElement.set(element, [...(groupsByElement.get(element) ?? []), group]);
     }
   }
-  const placementMaterializationRequired = [...groupsByElement].some(([elementId]) => {
+  const placementMaterializationRequired = materializeDeploymentPlacements && [...groupsByElement].some(([elementId]) => {
     const element = graph.elements[elementId];
     return element?.deployed === true && (element.attributes.runsOn?.length ?? 0) > 1;
   });
@@ -344,6 +459,418 @@ function groupedCloneKey(elementId: string, groupOwner: string): string {
 
 function groupedCloneId(elementId: string, groupOwner: string): string {
   return `${elementId}@@${groupOwner}`;
+}
+
+function applyDeploymentEnvironmentScope(
+  result: LinkProjectResult,
+  graph: RenderGraph,
+  scope: QueryScope,
+): RenderGraph {
+  const environments = discoverDeploymentEnvironments(result, scope);
+  const environment = scope.environment ?? (environments.length === 1 ? environments[0]?.id : undefined);
+  if (environment === undefined) {
+    return emptyScopedGraph(graph);
+  }
+  if (!environments.some((candidate) => candidate.id === environment)) {
+    return emptyScopedGraph(graph);
+  }
+
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const sourceElements = tabClosure(result, scope.tab);
+  const groups = graph.groups.filter((group) => elementEnvironment(group.owner, elementsById) === environment);
+  const selectedIds = new Set(groups.flatMap((group) => [group.owner, ...group.elements]));
+  const candidateEdges = graph.edges.filter((edge) => deploymentEdgeInEnvironment(edge, environment, elementsById));
+  const edges = candidateEdges.filter((edge) => {
+    const sourceAllowed = deploymentEndpointAllowed(edge.source, environment, elementsById);
+    const targetAllowed = deploymentEndpointAllowed(edge.target, environment, elementsById);
+    return sourceAllowed && targetAllowed;
+  });
+  for (const edge of edges) {
+    selectedIds.add(edge.source);
+    selectedIds.add(edge.target);
+  }
+
+  const elements = Object.fromEntries(Object.entries(graph.elements).filter(([id]) => selectedIds.has(id)));
+  const externalElements = new Set(graph.externalElements.filter((id) => selectedIds.has(id)));
+  for (const id of selectedIds) {
+    const occurrenceEnvironment = deploymentOccurrenceEnvironment(id, elementsById);
+    if (occurrenceEnvironment !== undefined && occurrenceEnvironment !== environment
+        && isLogicalDeploymentEndpoint(id, elementsById)) {
+      externalElements.add(id);
+    }
+    if (isLogicalDeploymentEndpoint(id, elementsById) && !sourceElements.has(baseOccurrenceId(id))) {
+      externalElements.add(id);
+    }
+  }
+  return {
+    ...graph,
+    elements,
+    edges,
+    groups: groups.map((group) => ({ ...group, elements: group.elements.filter((id) => selectedIds.has(id)) })),
+    externalElements: [...externalElements],
+  };
+}
+
+function emptyScopedGraph(graph: RenderGraph): RenderGraph {
+  return { ...graph, elements: {}, edges: [], groups: [], externalElements: [] };
+}
+
+function deploymentEdgeInEnvironment(
+  edge: RenderGraphEdge,
+  environment: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): boolean {
+  const scopes = [edge.edge.projectionRoot, edge.edge.sourcePlacement, edge.edge.targetPlacement]
+    .filter((id): id is string => id !== undefined);
+  if (scopes.some((id) => elementEnvironment(id, elementsById) === environment)) {
+    return true;
+  }
+  return [edge.source, edge.target]
+    .some((id) => elementEnvironment(id, elementsById) === environment);
+}
+
+function deploymentEndpointAllowed(
+  id: string,
+  environment: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): boolean {
+  return isLogicalDeploymentEndpoint(id, elementsById)
+    || elementEnvironment(id, elementsById) === environment;
+}
+
+function isLogicalDeploymentEndpoint(id: string, elementsById: ReadonlyMap<string, LinkedElement>): boolean {
+  const element = elementsById.get(baseOccurrenceId(id));
+  return element !== undefined && !elementHasType(element, "InfrastructureComponent");
+}
+
+function deploymentOccurrenceEnvironment(
+  id: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): string | undefined {
+  const separator = id.indexOf("@@");
+  if (separator >= 0) {
+    return elementEnvironment(id.slice(separator + 2), elementsById);
+  }
+  const runsOn = elementsById.get(id)?.attributes.runsOn ?? [];
+  return runsOn.length === 1 ? elementEnvironment(runsOn[0]!, elementsById) : undefined;
+}
+
+function elementEnvironment(
+  id: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): string | undefined {
+  return elementsById.get(baseOccurrenceId(id))?.context;
+}
+
+function baseOccurrenceId(id: string): string {
+  const separator = id.indexOf("@@");
+  return separator < 0 ? id : id.slice(0, separator);
+}
+
+function rollUpDeploymentSystems(result: LinkProjectResult, graph: RenderGraph, scope: QueryScope): RenderGraph {
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const parentByChild = new Map(result.elements.flatMap((element) =>
+    element.parent === undefined ? [] : [[element.id, element.parent]]
+  ));
+  const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
+    .find((candidate) => elementHasType(elementsById.get(candidate), "SystemElement"));
+  const fold = (id: string): string => {
+    const system = systemFor(id);
+    if (system === undefined) {
+      return id;
+    }
+    const separator = id.indexOf("@@");
+    return separator < 0 ? system : `${system}${id.slice(separator)}`;
+  };
+  const foldedElement = (id: string): LinkedElement | undefined => {
+    const folded = fold(id);
+    const base = elementsById.get(baseOccurrenceId(folded));
+    if (base === undefined) {
+      return graph.elements[id];
+    }
+    return folded === base.id
+      ? base
+      : { ...base, id: folded, attributes: { ...base.attributes, projectedFrom: [base.id] } };
+  };
+
+  const groups = graph.groups.map((group) => ({
+    ...group,
+    elements: [...new Set(group.elements.map(fold))],
+  })).filter((group) => group.elements.length > 0);
+  const edges: RenderGraphEdge[] = [];
+  for (const edge of graph.edges) {
+    const originSource = edge.edge.originSource ?? edge.edge.source;
+    const originTarget = edge.edge.originTarget ?? edge.edge.target;
+    const originSourceSystem = systemFor(originSource);
+    const originTargetSystem = systemFor(originTarget);
+    if (originSource !== originTarget
+        && originSourceSystem !== undefined
+        && originSourceSystem === originTargetSystem) {
+      continue;
+    }
+    const next = { ...edge, source: fold(edge.source), target: fold(edge.target) };
+    if (next.source !== next.target) {
+      addFoldedViewEdge(edges, next);
+    }
+  }
+
+  const referenced = new Set([
+    ...groups.flatMap((group) => [group.owner, ...group.elements]),
+    ...edges.flatMap((edge) => [edge.source, edge.target]),
+  ]);
+  const elements: Record<string, LinkedElement> = {};
+  for (const id of referenced) {
+    const direct = graph.elements[id];
+    const element = direct ?? [...Object.keys(graph.elements)]
+      .filter((candidate) => fold(candidate) === id)
+      .map(foldedElement)
+      .find((candidate) => candidate !== undefined);
+    if (element !== undefined) {
+      elements[id] = element.id === id ? element : { ...element, id };
+    }
+  }
+  const sourceElements = tabClosure(result, scope.tab);
+  const externalElements = new Set(graph.externalElements.map(fold).filter((id) => referenced.has(id)));
+  for (const id of referenced) {
+    const system = systemFor(id);
+    if (system !== undefined && !sourceElements.has(system)) {
+      externalElements.add(id);
+    }
+  }
+  return {
+    ...graph,
+    elements,
+    edges,
+    groups,
+    externalElements: [...externalElements],
+  };
+}
+
+function simplifyDeploymentSystemInfrastructure(result: LinkProjectResult, graph: RenderGraph): RenderGraph {
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const parentByChild = new Map(result.elements.flatMap((element) =>
+    element.parent === undefined ? [] : [[element.id, element.parent]]
+  ));
+  const externalElements = new Set(graph.externalElements);
+  const placementGroupOwners = new Set(graph.groups.map((group) => group.owner));
+  const retained = new Set(Object.keys(graph.elements).filter((id) => {
+    const element = elementsById.get(baseOccurrenceId(id)) ?? graph.elements[id];
+    return !elementHasType(element, "InfrastructureComponent")
+      || (externalElements.has(id) && !placementGroupOwners.has(id));
+  }));
+  const outgoing = new Map<string, RenderGraphEdge[]>();
+  const incoming = new Map<string, RenderGraphEdge[]>();
+  for (const edge of graph.edges) {
+    const sourceEdges = outgoing.get(edge.source) ?? [];
+    sourceEdges.push(edge);
+    outgoing.set(edge.source, sourceEdges);
+    const targetEdges = incoming.get(edge.target) ?? [];
+    targetEdges.push(edge);
+    incoming.set(edge.target, targetEdges);
+  }
+
+  const edges: RenderGraphEdge[] = [];
+  const trace = (source: string, first: RenderGraphEdge): void => {
+    const visited = new Set<string>();
+    const follow = (edge: RenderGraphEdge, carrier: RenderGraphEdge): void => {
+      const target = edge.target;
+      const nextCarrier = logicalRelationshipCarrier(carrier, edge);
+      if (target === source) {
+        return;
+      }
+      if (retained.has(target)) {
+        addFoldedViewEdge(edges, { ...nextCarrier, source, target });
+        return;
+      }
+      if (visited.has(target)) {
+        return;
+      }
+      visited.add(target);
+      for (const next of outgoing.get(target) ?? []) {
+        follow(next, nextCarrier);
+      }
+    };
+    follow(first, first);
+  };
+
+  for (const source of retained) {
+    for (const edge of outgoing.get(source) ?? []) {
+      trace(source, edge);
+    }
+  }
+
+  const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
+    .find((candidate) => elementHasType(elementsById.get(candidate), "SystemElement"));
+  for (const source of Object.keys(graph.elements)) {
+    if (retained.has(source) || (incoming.get(source)?.length ?? 0) > 0) {
+      continue;
+    }
+    for (const edge of outgoing.get(source) ?? []) {
+      const originSource = edge.edge.originSource ?? edge.edge.source;
+      const system = systemFor(originSource);
+      if (system === undefined) {
+        continue;
+      }
+      const placement = edge.edge.sourcePlacement ?? edge.edge.targetPlacement ?? edge.edge.projectionScope;
+      const occurrence = placement === undefined ? system : `${system}@@${placement}`;
+      const logicalSource = retained.has(occurrence) ? occurrence : retained.has(system) ? system : undefined;
+      if (logicalSource !== undefined) {
+        trace(logicalSource, edge);
+      }
+    }
+  }
+
+  const projectedByLogicalEdge = new Map<string, RenderGraphEdge[]>();
+  for (const edge of graph.edges) {
+    const originSource = edge.edge.originSource;
+    const originTarget = edge.edge.originTarget;
+    if (edge.projected !== true || originSource === undefined || originTarget === undefined) {
+      continue;
+    }
+    const projectionScope = edge.edge.projectionRoot
+      ?? edge.edge.projectionScope
+      ?? edge.edge.sourcePlacement
+      ?? edge.edge.targetPlacement
+      ?? "";
+    const key = `${originSource}\0${originTarget}\0${projectionScope}`;
+    const related = projectedByLogicalEdge.get(key) ?? [];
+    related.push(edge);
+    projectedByLogicalEdge.set(key, related);
+  }
+  for (const related of projectedByLogicalEdge.values()) {
+    const first = related[0]!;
+    const originSource = first.edge.originSource!;
+    const originTarget = first.edge.originTarget!;
+    const sourceSystem = systemFor(originSource);
+    const targetSystem = systemFor(originTarget);
+    if (sourceSystem === undefined || targetSystem === undefined || sourceSystem === targetSystem) {
+      continue;
+    }
+    const projectionEnvironment = first.edge.projectionRoot === undefined
+      ? undefined
+      : elementEnvironment(first.edge.projectionRoot, elementsById);
+    const occurrence = (system: string): string | undefined => {
+      const relatedCandidates = related.flatMap((edge) => [edge.source, edge.target])
+        .filter((id) => retained.has(id) && systemFor(id) === system);
+      const retainedCandidates = [...retained].filter((id) => systemFor(id) === system);
+      const candidates = [...new Set([...relatedCandidates, ...retainedCandidates])];
+      if (projectionEnvironment !== undefined) {
+        return candidates.find((id) => deploymentOccurrenceEnvironment(id, elementsById) === projectionEnvironment)
+          ?? candidates.find((id) => id === system);
+      }
+      return candidates[0];
+    };
+    const source = occurrence(sourceSystem);
+    const target = occurrence(targetSystem);
+    const relatedSimplifiedEdges = edges.filter((edge) =>
+      linkedEdgeHasProjectionOrigin(edge.edge, originSource, originTarget)
+      && (edge.edge.projectionRoot
+        ?? edge.edge.projectionScope
+        ?? edge.edge.sourcePlacement
+        ?? edge.edge.targetPlacement
+        ?? "") === (first.edge.projectionRoot
+          ?? first.edge.projectionScope
+          ?? first.edge.sourcePlacement
+          ?? first.edge.targetPlacement
+          ?? "")
+    );
+    if (source === undefined || target === undefined || source === target
+        || endpointsConnected(source, target, relatedSimplifiedEdges)) {
+      continue;
+    }
+    for (const carrier of related.filter((edge) => (edge.edge.attributes.model?.length ?? 0) > 0)) {
+      addFoldedViewEdge(edges, { ...carrier, source, target });
+    }
+  }
+
+  const environmentRootByContext = new Map(result.elements
+    .filter((element) => element.synthetic !== true && element.parent === undefined && elementHasType(element, "Environment"))
+    .map((element) => [element.context, element.id]));
+  const groupedEnvironmentsByElement = new Map<string, Set<string>>();
+  for (const group of graph.groups) {
+    const environment = elementEnvironment(group.owner, elementsById);
+    if (environment === undefined || !environmentRootByContext.has(environment)) {
+      continue;
+    }
+    for (const id of group.elements) {
+      if (!retained.has(id)) {
+        continue;
+      }
+      const environments = groupedEnvironmentsByElement.get(id) ?? new Set<string>();
+      environments.add(environment);
+      groupedEnvironmentsByElement.set(id, environments);
+    }
+  }
+  const groupMembersByEnvironment = new Map<string, string[]>();
+  for (const id of retained) {
+    const element = elementsById.get(baseOccurrenceId(id)) ?? graph.elements[id];
+    const environments = new Set(groupedEnvironmentsByElement.get(id) ?? []);
+    const occurrenceEnvironment = deploymentOccurrenceEnvironment(id, elementsById);
+    if (occurrenceEnvironment !== undefined) {
+      environments.add(occurrenceEnvironment);
+    }
+    if (environments.size === 0 && elementHasType(element, "InfrastructureComponent")
+        && environmentRootByContext.has(element?.context ?? "")) {
+      environments.add(element!.context);
+    }
+    for (const environment of environments) {
+      const members = groupMembersByEnvironment.get(environment) ?? [];
+      members.push(id);
+      groupMembersByEnvironment.set(environment, members);
+    }
+  }
+  const groups: RenderGraphGroup[] = [...groupMembersByEnvironment].map(([environment, members]) => ({
+    owner: environmentRootByContext.get(environment) ?? environment,
+    elements: members,
+  }));
+
+  return {
+    ...graph,
+    elements: Object.fromEntries(Object.entries(graph.elements).filter(([id]) => retained.has(id))),
+    edges,
+    groups,
+    externalElements: graph.externalElements.filter((id) => retained.has(id)),
+  };
+}
+
+function linkedEdgeHasProjectionOrigin(edge: LinkedEdge, source: string, target: string): boolean {
+  return (edge.originSource === source && edge.originTarget === target)
+    || edge.projectionOrigins?.some((origin) => origin.source === source && origin.target === target) === true;
+}
+
+function endpointsConnected(source: string, target: string, edges: readonly RenderGraphEdge[]): boolean {
+  const neighbors = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    const sourceNeighbors = neighbors.get(edge.source) ?? new Set<string>();
+    sourceNeighbors.add(edge.target);
+    neighbors.set(edge.source, sourceNeighbors);
+    const targetNeighbors = neighbors.get(edge.target) ?? new Set<string>();
+    targetNeighbors.add(edge.source);
+    neighbors.set(edge.target, targetNeighbors);
+  }
+  const pending = [source];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if (current === target) {
+      return true;
+    }
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    pending.push(...(neighbors.get(current) ?? []));
+  }
+  return false;
+}
+
+function logicalRelationshipCarrier(current: RenderGraphEdge, candidate: RenderGraphEdge): RenderGraphEdge {
+  const currentModel = current.edge.attributes.model;
+  const candidateModel = candidate.edge.attributes.model;
+  return (currentModel === undefined || currentModel.length === 0)
+      && candidateModel !== undefined && candidateModel.length > 0
+    ? candidate
+    : current;
 }
 
 function internalElements(result: LinkProjectResult, rows: readonly Row[], query: ParsedQuery): ReadonlySet<string> {

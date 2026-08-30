@@ -52,6 +52,8 @@
     "onCommand:archinsight.preview.c2",
     "onCommand:archinsight.preview.c3",
     "onCommand:archinsight.preview.c4",
+    "onCommand:archinsight.preview.deploymentSystem",
+    "onCommand:archinsight.preview.deploymentContainer",
     "onCommand:archinsight.preview.deployment",
     "onCommand:archinsight.preview.editQuery",
     "onCommand:archinsight.preview.downloadSource",
@@ -172,8 +174,18 @@
         "icon": "$(symbol-structure)"
       },
       {
+        "command": "archinsight.preview.deploymentSystem",
+        "title": "D1: System Deployment",
+        "icon": "$(server-process)"
+      },
+      {
+        "command": "archinsight.preview.deploymentContainer",
+        "title": "D2: Container Deployment",
+        "icon": "$(server-environment)"
+      },
+      {
         "command": "archinsight.preview.deployment",
-        "title": "D",
+        "title": "Deployment (all environments)",
         "icon": "$(server-process)"
       },
       {

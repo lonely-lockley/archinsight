@@ -29,6 +29,7 @@ export type LinkRequest = {
   overlays?: Record<string, string> | null;
   query?: string | null;
   view?: BuiltinDiagramView | null;
+  environment?: string | null;
 };
 
 export type LinkResponse = {

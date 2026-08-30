@@ -29,13 +29,14 @@ define presentation Storage
     graphviz
         shape = cylinder
 
-define type Broker of InfrastructureComponent
+define type Broker of NetworkConnection
     constructor broker
 
     Text address
 
 define presentation Broker
     graphviz
+        visible = true
         shape = box
         style = filled,dashed
 

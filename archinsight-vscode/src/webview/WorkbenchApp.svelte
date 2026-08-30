@@ -16,11 +16,11 @@
     defaultQuery,
     diagramModeForQuery,
     queryForDiagramMode
-  } from '../../../archinsight-web/src/lib/QueryEditorPanel.svelte';
+  } from '../../../archinsight-web/src/lib/diagram-query-presets';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '../../../archinsight-web/src/lib/workspace-types';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
 
-  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'no-filter';
+  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container' | 'no-filter';
 
   type CompletionItem = {
     label: string;
@@ -43,11 +43,12 @@
       fileName: string;
       view: DiagramView;
       query: string;
+      environment?: string;
       diagnostics?: Diagnostic[];
       symbols?: unknown;
       readOnly?: boolean;
     }
-    | { command: 'query'; view: DiagramView; query: string }
+    | { command: 'query'; view: DiagramView; query: string; environment?: string }
     | { command: 'preview'; state: PreviewState }
     | { command: 'diagnostics'; diagnostics: Diagnostic[] }
     | { command: 'completionResult'; requestId: number; items: CompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
@@ -69,6 +70,7 @@
   type PreviewState = {
     view: DiagramView;
     query: string;
+    environment?: string;
     sourceName: string;
     fileName: string;
     source: string;
@@ -113,6 +115,7 @@
   let dot: string | undefined;
   let diagramMode: DiagramMode = defaultDiagramMode;
   let query = defaultQuery;
+  let deploymentEnvironment: string | undefined;
   let queryVisible = false;
   let queryPanelHeight = 118;
   let viewMode: EditorViewMode = defaultViewMode;
@@ -262,6 +265,7 @@
       diagnostics = message.diagnostics ?? [];
       diagramMode = diagramModeFromView(message.view);
       query = message.query;
+      deploymentEnvironment = message.environment;
       currentSymbols = message.symbols;
       readOnly = message.readOnly ?? false;
       updateSymbols(currentSymbols);
@@ -273,6 +277,7 @@
     if (message.command === 'query') {
       diagramMode = diagramModeFromView(message.view);
       query = message.query;
+      deploymentEnvironment = message.environment;
       return;
     }
     if (message.command === 'preview') {
@@ -280,6 +285,7 @@
       fileName = message.state.fileName;
       diagramMode = diagramModeFromView(message.state.view);
       query = message.state.query;
+      deploymentEnvironment = message.state.environment;
       svg = message.state.error === undefined ? message.state.svg : undefined;
       dot = message.state.dot;
       renderError = message.state.error;
@@ -537,6 +543,10 @@
   }
 
   function selectDiagramMode(mode: DiagramMode): void {
+    if (mode === 'deployment-container') {
+      vscode.postMessage({ command: 'selectDeploymentEnvironment' });
+      return;
+    }
     diagramMode = mode;
     query = queryForDiagramMode(mode);
     postRender();
@@ -776,6 +786,7 @@
   active={true}
   {svg}
   {diagramMode}
+  {deploymentEnvironment}
   {query}
   {queryVisible}
   {queryPanelHeight}

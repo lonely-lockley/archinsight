@@ -40,6 +40,7 @@ const SYSTEM_TYPE = "System";
 const ACTOR_TYPE = "Actor";
 const ORIGINAL_LINK_OPERATOR = "originalLink";
 const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
+const ENVIRONMENT_TYPE = "Environment";
 const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
 const NETWORK_CONNECTION_TYPE = "NetworkConnection";
 const DEPLOYMENT_TYPE = "Deployment";
@@ -251,6 +252,7 @@ interface PendingProjection {
   readonly projectedOperator?: string;
   readonly annotations?: readonly LinkedAnnotation[];
   readonly coverage?: WireDeploymentCoverage;
+  readonly projectionOrigin: ProjectionOrigin;
 }
 
 interface WireDeploymentCoverage {
@@ -471,6 +473,12 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
           attributes: effectiveEdgeAttributes,
           projectedAttributes: materialized.edge.attributes,
           projectedOperator: materialized.edge.operator,
+          projectionOrigin: {
+            source: edge.source,
+            target: target.id,
+            sourceIdentity: materialized.edge.sourceIdentity,
+            ...(materialized.edge.declaration === undefined ? {} : { declaration: materialized.edge.declaration }),
+          },
           ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
           ...(coverage === undefined ? {} : { coverage }),
         });
@@ -478,7 +486,7 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
     }
   }
   for (const projection of pendingProjections) {
-    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage);
+    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage, projection.projectionOrigin);
   }
   const slotDomainTypes = typeSystem.slotDomainTypes();
   for (const element of elements) {
@@ -819,6 +827,7 @@ function collectBodyItem(
   owner: ParsedElement | undefined,
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
+  expectedObjectType?: string,
 ): void {
   const assignment = firstChild(item, "assignment");
   if (assignment !== undefined) {
@@ -858,7 +867,15 @@ function collectBodyItem(
       }
     }
     if (object !== undefined) {
-      const element = collectObject(object, ownerType, owner, document, typeSystem, annotations(annotatedObject, document));
+      const element = collectObject(
+        object,
+        ownerType,
+        owner,
+        document,
+        typeSystem,
+        annotations(annotatedObject, document),
+        expectedObjectType ?? expectedNestedType(typeSystem, ownerType),
+      );
       if (owner !== undefined && element !== undefined && typeSystem.anonymousListAttribute(ownerType) !== undefined) {
         addAttributeValue(owner.attributes, "_", elementReference(element));
       }
@@ -1024,11 +1041,12 @@ function collectGroupingList(
   if (collectImplicitDeploymentGroupObject(list, listName, owner, document, typeSystem)) {
     return true;
   }
+  const expectedObjectType = deploymentGroupAttributeType(owner, listName, document, typeSystem);
   for (const item of children(list, "listBodyItem")) {
     const bodyItem = firstChild(item, "architectureBodyItem");
     if (bodyItem !== undefined) {
       const before = document.elements.length;
-      collectBodyItem(bodyItem, ownerType, owner, document, typeSystem);
+      collectBodyItem(bodyItem, ownerType, owner, document, typeSystem, expectedObjectType);
       for (const element of document.elements.slice(before)) {
         if (element.parent === owner.id && element.slotName === undefined) {
           element.slotName = listName;
@@ -1067,15 +1085,7 @@ function resolveDeploymentGroupConstructor(
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
 ): ConstructorDefinition | undefined {
-  const parent = owner.parent === undefined
-    ? undefined
-    : document.elements.find((element) => element.id === owner.parent);
-  const parentAttribute = parent === undefined ? undefined : typeSystem.attribute(parent.type, listName);
-  const attributeType = parentAttribute === undefined
-    ? undefined
-    : parentAttribute.list === true
-      ? parentAttribute.listElementType ?? parentAttribute.type
-      : parentAttribute.type;
+  const attributeType = deploymentGroupAttributeType(owner, listName, document, typeSystem);
   if (attributeType !== undefined) {
     return resolveImplicitObjectConstructor(attributeType, listName, listNameNode, document, typeSystem);
   }
@@ -1094,6 +1104,24 @@ function resolveDeploymentGroupConstructor(
     return undefined;
   }
   return constructors[0]!;
+}
+
+function deploymentGroupAttributeType(
+  owner: ParsedElement,
+  listName: string,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): string | undefined {
+  const parent = owner.parent === undefined
+    ? undefined
+    : document.elements.find((element) => element.id === owner.parent);
+  const attribute = parent === undefined ? undefined : typeSystem.attribute(parent.type, listName);
+  if (attribute === undefined) {
+    return undefined;
+  }
+  return attribute.list === true
+    ? attribute.listElementType ?? attribute.type
+    : attribute.type;
 }
 
 function collectImplicitObjectAttribute(
@@ -1154,16 +1182,18 @@ function resolveImplicitObjectConstructor(
     });
     return undefined;
   }
-  if (constructors.length > 1) {
+  const exactConstructors = constructors.filter((constructor) => constructor.ownerType === attributeType);
+  const candidates = exactConstructors.length > 0 ? exactConstructors : constructors;
+  if (candidates.length > 1) {
     document.diagnostics.push({
       code: "CONSTRUCTOR_AMBIGUOUS",
-      message: `Type '${attributeType}' has multiple constructors for implicit attribute '${attributeName}': ${constructors.map((constructor) => `'${constructor.spelling}'`).join(", ")}`,
+      message: `Type '${attributeType}' has multiple constructors for implicit attribute '${attributeName}': ${candidates.map((constructor) => `'${constructor.spelling}'`).join(", ")}`,
       sourceName: document.sourceName,
       ...position(attributeNameNode, document.sourceName),
     });
     return undefined;
   }
-  return constructors[0]!;
+  return candidates[0]!;
 }
 
 function collectImplicitObjectElement(
@@ -2441,6 +2471,15 @@ function resolveDeploymentInfrastructure(
     });
     return [];
   }
+  if (!isDeclaredDeploymentInfrastructureSlot(action.targetId, context.typeSystem)) {
+    context.diagnostics.push({
+      code: "UNDECLARED_IDENTIFIER",
+      message: `Deployment slot '${action.targetId}' is not declared by any Environment type`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return [];
+  }
   if (deployments.length === 0) {
     if (wire) {
       return [];
@@ -2475,6 +2514,28 @@ function resolveDeploymentInfrastructure(
     }
   }
   return result;
+}
+
+function isDeclaredDeploymentInfrastructureSlot(
+  slotName: string,
+  typeSystem: TypeSystem,
+): boolean {
+  for (const type of typeSystem.declaredTypes()) {
+    if (!typeSystem.isAssignable(type, ENVIRONMENT_TYPE)) {
+      continue;
+    }
+    const attribute = typeSystem.attribute(type, slotName);
+    if (attribute === undefined) {
+      continue;
+    }
+    const valueType = attribute.list === true
+      ? attribute.listElementType ?? attribute.type
+      : attribute.type;
+    if (typeSystem.isAssignable(valueType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function materializeInfrastructureUse(
@@ -2717,6 +2778,7 @@ function addProjectedEdges(
   projectedOperator?: string,
   visitedProjectionElements = new Set<string>(),
   coverage?: WireDeploymentCoverage,
+  projectionOrigin: ProjectionOrigin = { source: fromId, target: toId },
 ): void {
   for (const [attributeName, values] of Object.entries(attributes)) {
     if (attributeName === "_") {
@@ -2763,7 +2825,7 @@ function addProjectedEdges(
         continue;
       }
       for (const rule of rules) {
-        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, effectiveProjectionScope, annotations, projectedAttributes, projectedOperator, coverage);
+        addProjectedRuleEdge(linkedEdges, sourceIdentity, fromId, toId, value.element, rule, elementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, effectiveProjectionScope, annotations, projectedAttributes, projectedOperator, coverage, projectionOrigin);
       }
       addProjectedEdges(
         linkedEdges,
@@ -2782,6 +2844,7 @@ function addProjectedEdges(
         projectedOperator,
         visitedProjectionElements,
         coverage,
+        projectionOrigin,
       );
     }
   }
@@ -2845,6 +2908,7 @@ function addProjectedRuleEdge(
   projectedAttributes?: Readonly<Record<string, readonly string[]>>,
   projectedOperator?: string,
   coverage?: WireDeploymentCoverage,
+  projectionOrigin: ProjectionOrigin = { source: fromId, target: toId },
 ): void {
   if (!validateConcreteProjectionRule(rule, typeSystem, diagnostics)) {
     return;
@@ -2863,14 +2927,15 @@ function addProjectedRuleEdge(
     rule.operator === ORIGINAL_LINK_OPERATOR ? projectedAttributes : undefined,
     rule.attributes ?? {},
   );
-  const projectionOrigin: ProjectionOrigin = { source: fromId, target: toId };
+  const preservesLogicalRelationship = rule.operator === ORIGINAL_LINK_OPERATOR;
+  const originKey = projectionOriginKey(projectionOrigin);
   for (const source of sources) {
     for (const target of targets) {
       if (coverage !== undefined) {
         coverage.projected = true;
       }
       if (!projectionRuleUsesOwner(rule)) {
-        const key = `${projectionElement.id}\0${source}\0${effectiveOperator}\0${target}`;
+        const key = `${projectionElement.id}\0${source}\0${effectiveOperator}\0${target}\0${preservesLogicalRelationship ? originKey : ""}`;
         if (ownerIndependentProjectionKeys.has(key)) {
           mergeProjectedEdge(
             linkedEdges,
@@ -2899,7 +2964,9 @@ function addProjectedRuleEdge(
         && edge.projectionRoot === projectionElement.id
         && edge.projectionScope === edgeProjectionScope
         && edge.sourcePlacement === sourcePlacement
-        && edge.targetPlacement === targetPlacement);
+        && edge.targetPlacement === targetPlacement
+        && (!preservesLogicalRelationship
+          || edge.projectionOrigins?.some((origin) => projectionOriginKey(origin) === originKey) === true));
       if (existingIndex >= 0) {
         const edge = linkedEdges[existingIndex];
         if (edge !== undefined) {
@@ -2922,6 +2989,9 @@ function addProjectedRuleEdge(
         operator: effectiveOperator,
         type,
         sourceIdentity: edgeSourceIdentity,
+        ...(preservesLogicalRelationship && projectionOrigin.declaration !== undefined
+          ? { declaration: projectionOrigin.declaration }
+          : {}),
         attributes: carriedAttributes ?? {},
         ...listAttributesProperty(typeSystem, type),
         projected: true,
@@ -2996,7 +3066,7 @@ function uniqueProjectionOrigins(origins: readonly ProjectionOrigin[]): readonly
   const seen = new Set<string>();
   const result: ProjectionOrigin[] = [];
   for (const origin of origins) {
-    const key = `${origin.source}\0${origin.target}`;
+    const key = projectionOriginKey(origin);
     if (seen.has(key)) {
       continue;
     }
@@ -3004,6 +3074,20 @@ function uniqueProjectionOrigins(origins: readonly ProjectionOrigin[]): readonly
     result.push(origin);
   }
   return result;
+}
+
+function projectionOriginKey(origin: ProjectionOrigin): string {
+  const declaration = origin.declaration;
+  return [
+    origin.source,
+    origin.target,
+    origin.sourceIdentity ?? "",
+    declaration?.sourceName ?? "",
+    declaration?.line ?? "",
+    declaration?.column ?? "",
+    declaration?.endLine ?? "",
+    declaration?.endColumn ?? "",
+  ].join("\0");
 }
 
 function mergeAttributeValues(

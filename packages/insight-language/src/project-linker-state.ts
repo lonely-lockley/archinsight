@@ -49,6 +49,7 @@ export class ProjectLinkerState {
 
   replaceSource(replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
     const previous = this.currentResult;
+    const addingSource = replacement.source !== undefined && !this.sourcesByName.has(replacement.sourceName);
     const replacedReferences = previous.graph.sourceContribution(replacement.sourceName)?.referencedNodes ?? new Set<string>();
     const impact = previous.graph.removeSourceContribution(replacement.sourceName);
     if (replacement.source === undefined) {
@@ -59,7 +60,13 @@ export class ProjectLinkerState {
         source: replacement.source,
       });
     }
-    const affectedSources = new Set([replacement.sourceName, ...impact.dependentSources]);
+    // A new source can satisfy references that were unresolved in the previous
+    // graph, so there is no dependency edge from those consumers to follow yet.
+    // It can also introduce duplicates in an existing context. Relink every
+    // source for additions; replacements and removals keep using graph impact.
+    const affectedSources = addingSource
+      ? new Set(this.sourcesByName.keys())
+      : new Set([replacement.sourceName, ...impact.dependentSources]);
     const relinkedSources = this.relinkSupportSources(previous, affectedSources, new Map([
       [replacement.sourceName, replacedReferences],
     ]));

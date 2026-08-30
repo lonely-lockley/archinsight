@@ -222,6 +222,8 @@ export interface LinkedEdge {
 export interface ProjectionOrigin {
   readonly source: string;
   readonly target: string;
+  readonly sourceIdentity?: string;
+  readonly declaration?: SourceLocation;
 }
 
 export interface LinkedAnnotation {
@@ -334,12 +336,26 @@ export interface LinkProjectResult {
   readonly presentations: Readonly<Record<string, ResolvedPresentation>>;
 }
 
-export type BuiltinDiagramView = "no-filter" | "c1" | "c2" | "c3" | "c4" | "deployment";
+export type BuiltinDiagramView =
+  | "no-filter"
+  | "c1"
+  | "c2"
+  | "c3"
+  | "c4"
+  | "deployment"
+  | "deployment-system"
+  | "deployment-container";
+
+export interface DeploymentEnvironment {
+  readonly id: string;
+  readonly name?: string;
+}
 
 export interface QueryScope {
   readonly context?: string;
   readonly tab?: string;
   readonly view?: BuiltinDiagramView;
+  readonly environment?: string;
 }
 
 export interface RenderGraphEdge {

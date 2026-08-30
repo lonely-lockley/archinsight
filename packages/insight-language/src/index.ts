@@ -32,7 +32,7 @@ export { lineContextAt } from "./line-context.js";
 export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
-export { DEFAULT_QUERY, selectGraph, selectGraphs } from "./query-engine.js";
+export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraphs } from "./query-engine.js";
 export { renderGraphviz } from "./graphviz-renderer.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
 export { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
@@ -72,6 +72,7 @@ export type {
   CompletionScope,
   ConstructorDefinition,
   DuplicateLinkedEdgeGroup,
+  DeploymentEnvironment,
   ElementFrame,
   EnumDefinition,
   FileContext,

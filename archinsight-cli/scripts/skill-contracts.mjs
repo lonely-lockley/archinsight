@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -80,12 +81,33 @@ function verifySharedFiles(output) {
   assert(cli.includes("CLI Installation, Updates, and Skill Regeneration"));
   assert(cli.includes("Refusing to initialize"));
   assert(cli.includes("--force"));
+  assert(cli.includes("## Query and Render Scope"));
+  assert(cli.includes("The selected source supplies `$tab` and determines `$context`"));
+  assert.match(cli, /the context does not override\s+the source/);
+  assert(cli.includes("D1 spans every environment relevant to the selected source"));
+  assert(cli.includes("archinsight environments . -s <source.ai> --format json"));
+  assert(cli.includes("deployment-environments.v1"));
+  for (const name of readdirSync(path.join(output, "references"))) {
+    if (!name.endsWith(".md")) {
+      continue;
+    }
+    const reference = readFileSync(path.join(output, "references", name), "utf8");
+    assert.doesNotMatch(reference, /archinsight (?:query|render)[^\n]* -c \S+[^\n]* -s /, `${name} repeats context before source`);
+    assert.doesNotMatch(reference, /archinsight (?:query|render)[^\n]* -s \S+[^\n]* -c /, `${name} repeats context after source`);
+  }
   const expectedBuiltin = readFileSync(
     path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "deployment.aiq"),
     "utf8",
   );
   const bundledBuiltin = readFileSync(path.join(output, "examples", "builtin-views", "deployment.aiq"), "utf8");
   assert.equal(bundledBuiltin, expectedBuiltin);
+  for (const name of ["deployment-system", "deployment-container"]) {
+    const expected = readFileSync(
+      path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", `${name}.aiq`),
+      "utf8",
+    );
+    assert.equal(readFileSync(path.join(output, "examples", "builtin-views", `${name}.aiq`), "utf8"), expected);
+  }
   const expectedC4Builtin = readFileSync(
     path.join(repositoryRoot, "src", "main", "resources", "com", "github", "lonelylockley", "insight", "builtin-views", "c4.aiq"),
     "utf8",
@@ -126,11 +148,14 @@ function verifySharedFiles(output) {
   const modeling = readFileSync(path.join(output, "references", "modeling.md"), "utf8");
   assert.match(modeling, /inventory alone does not place an async logical wire/);
   assert(modeling.includes("built-in `Broker`"));
+  assert.match(modeling, /built-in `Broker`\s+is one/);
   assert(modeling.includes("[Broker](deployment-projections.md#broker)"));
 
   const deployment = readFileSync(path.join(output, "references", "deployment.md"), "utf8");
   assert(deployment.includes("references/deployment-projections.md"));
   assert.equal(deployment.includes("## Projection execution semantics"), false);
+  assert(deployment.includes("archinsight environments . -s <logical-source.ai> --format json"));
+  assert.match(deployment, /Read the ids from `environments` and pass the selected id/);
 
   const projections = readFileSync(path.join(output, "references", "deployment-projections.md"), "utf8");
   for (const heading of ["Gateway", "Storage", "Broker", "Egress", "Monitoring"]) {
@@ -140,18 +165,23 @@ function verifySharedFiles(output) {
   assert(projections.includes("copy-on-write"));
   assert(projections.includes("edge.projectionOrigins"));
   assert(projections.includes("eu/telemetry branches independently"));
+  assert(projections.includes("-v deployment-container --environment eu"));
   assert(projections.includes("[Eventing](modeling.md#eventing)"));
   assert(projections.includes("[Scaling](scaling.md#framework-once-use-everywhere)"));
 
   const scaling = readFileSync(path.join(output, "references", "scaling.md"), "utf8");
   assert(scaling.includes("[Broker](deployment-projections.md#broker)"));
-  assert(scaling.includes("EventChannel events"));
+  assert(scaling.includes("Broker events"));
+  assert(scaling.includes("KafkaBroker of Broker"));
   verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md"]);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
   assert(analysis.includes("It is not a general graph analytics language"));
   assert.match(analysis, /transitive\s+impact/);
   assert(analysis.includes("--format json"));
+  assert(analysis.includes("<-[dependency:REFERENCES]-"));
+  assert(analysis.includes("-v deployment-system"));
+  assert(analysis.includes("-v deployment-container --environment <environment>"));
 
   const c4Code = readFileSync(path.join(output, "references", "c4-code.md"), "utf8");
   assert(c4Code.includes("CodeElement"));
@@ -161,9 +191,16 @@ function verifySharedFiles(output) {
   assert.match(c4Code, /infer the intended entity kinds from that vocabulary and\s+reuse it without asking/);
   assert.match(c4Code, /Ask the user which code entity kinds they want only when creating a new C4 Code\s+layer or when the requested work requires new entity kinds or containment rules/);
 
+  assert(deployment.includes("deployment-system"));
+  assert(deployment.includes("deployment-container"));
+  assert(deployment.includes("--environment <environment>"));
+  assert(deployment.includes("backward compatibility"));
+
   const validation = readFileSync(path.join(output, "references", "validation.md"), "utf8");
   assert.match(validation, /archinsight query .* -v c4 --format json/);
   assert.match(validation, /archinsight render .* -v c4 -f svg/);
+  assert(validation.includes("-v deployment-system"));
+  assert(validation.includes("-v deployment-container --environment <environment>"));
   assert(validation.includes("Validate `c4-code` as its own directory"));
 
   const syntax = readFileSync(path.join(output, "references", "syntax.md"), "utf8");
@@ -173,6 +210,19 @@ function verifySharedFiles(output) {
 
   const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
   assert.match(queries, /Labels are case-sensitive[\s\S]*`CodeElement`/);
+  assert(queries.includes("overrides `--view`"));
+  assert.equal(queries.includes("pass both\n`-q <query.aiq>` and `-v"), false);
+  assert(queries.includes("`listAttributes` and\n`referenceAttributes`"));
+  assert(queries.includes("source.runsOn <> target.runsOn"));
+
+  for (const queryName of [
+    "direct-service-dependencies.aiq",
+    "direct-authored-dependencies.aiq",
+    "async-topic-dependencies.aiq",
+    "kafka-service-dependencies.aiq",
+  ]) {
+    assert(existsSync(path.join(output, "examples", "queries", queryName)), `${queryName} must be bundled`);
+  }
 
 }
 
@@ -220,6 +270,8 @@ function verifyExamples(output) {
   for (const name of ["layered-architecture.ai", "c1-context.ai", "c2-containers.ai", "c3-components.ai"]) {
     runCli(["link", path.join(examples, name), "--format", "text"]);
   }
+  runCli(["link", path.join(examples, "c2-file-split"), "--format", "text"]);
+  runCli(["link", path.join(examples, "c3-file-split"), "--format", "text"]);
 
   const deploymentProject = copyDeploymentProject(examples, "deployment-project");
   runCli(["link", deploymentProject, "--format", "text"]);
@@ -242,8 +294,6 @@ function verifyC4CodeContract(output) {
   const graph = JSON.parse(runCli([
     "query",
     project,
-    "--context",
-    "code_sample",
     "--source",
     "model.ai",
     "--view",
@@ -269,12 +319,12 @@ function verifyDeploymentRecipeAndJsonContract(output) {
   const builtinGraph = JSON.parse(runCli([
     "query",
     project,
-    "--context",
-    "deployment_shop",
     "--source",
     "deployment.ai",
     "--view",
-    "deployment",
+    "deployment-container",
+    "--environment",
+    "eu",
     "--format",
     "json",
   ]));
@@ -285,8 +335,6 @@ function verifyDeploymentRecipeAndJsonContract(output) {
   const stdout = runCli([
     "query",
     project,
-    "--context",
-    "deployment_shop",
     "--source",
     "deployment.ai",
     "--query",
@@ -311,7 +359,7 @@ function verifyDeploymentRecipeAndJsonContract(output) {
 
 function verifyDeploymentProjectionContracts(output) {
   const examples = path.join(output, "examples", "deployment-projections");
-  const gateway = projectionGraph(examples, "gateway", "gateway_example");
+  const gateway = projectionGraph(examples, "gateway");
   assertElements(gateway, ["gateway_example/customer", "gateway_example/api", "eu/edge_gateway", "eu/load_balancer"]);
   assertProjectedEdge(gateway, "gateway_example/customer", "eu/edge_gateway", {
     operator: "->",
@@ -325,7 +373,7 @@ function verifyDeploymentProjectionContracts(output) {
   });
   assert.deepEqual(gatewayConnect.edge.attributes, { technology: ["HTTPS"] });
 
-  const storage = projectionGraph(examples, "storage", "storage_example");
+  const storage = projectionGraph(examples, "storage");
   assertElements(storage, ["storage_example/orders", "eu/postgres"]);
   assertProjectedEdge(storage, "storage_example/orders", "eu/postgres", {
     operator: "->",
@@ -333,11 +381,11 @@ function verifyDeploymentProjectionContracts(output) {
     originTarget: "storage_example/orders",
   });
 
-  const broker = projectionGraph(examples, "broker", "broker_example");
+  const broker = projectionGraph(examples, "broker");
   const brokerDefinitions = readFileSync(path.join(examples, "broker", "definitions.ai"), "utf8");
   const brokerModel = readFileSync(path.join(examples, "broker", "model.ai"), "utf8");
-  assert(brokerDefinitions.includes("EventChannel of NetworkConnection"));
-  assert(brokerDefinitions.includes("required Broker transport"));
+  assert(brokerDefinitions.includes("Broker events"));
+  assert(brokerDefinitions.includes("KafkaBroker of Broker"));
   assert(brokerModel.includes("uses events"));
   assert.equal(brokerModel.includes("uses kafka"), false);
   assertElements(broker, ["broker_example/publisher", "broker_example/consumer", "eu/kafka"]);
@@ -357,7 +405,7 @@ function verifyDeploymentProjectionContracts(output) {
   assert.deepEqual(originalAsyncHop.edge.attributes.technology, ["Kafka"]);
   assert.deepEqual(originalAsyncHop.edge.attributes.description, ["Consumes order-created events"]);
 
-  const egress = projectionGraph(examples, "egress", "egress_example");
+  const egress = projectionGraph(examples, "egress");
   assertElements(egress, ["egress_example/client", "eu/nat_gateway", "providers/payment_api"]);
   assertProjectedEdge(egress, "egress_example/client", "eu/nat_gateway", {
     operator: "->",
@@ -372,7 +420,7 @@ function verifyDeploymentProjectionContracts(output) {
     sourceIdentity: "model.ai",
   });
 
-  const monitoring = projectionGraph(examples, "monitoring", "monitoring_example");
+  const monitoring = projectionGraph(examples, "monitoring");
   assertElements(monitoring, ["monitoring_example/api", "eu/telemetry", "eu/prometheus", "eu/otel_collector"]);
   assertProjectedEdge(monitoring, "eu/telemetry", "monitoring_example/api", {
     operator: "connectTo",
@@ -393,16 +441,16 @@ function verifyDeploymentProjectionContracts(output) {
   assert.equal(edgeCount(monitoring, "eu/telemetry", "eu/otel_collector"), 1);
 }
 
-function projectionGraph(examples, slug, context) {
+function projectionGraph(examples, slug) {
   return JSON.parse(runCli([
     "query",
     path.join(examples, slug),
-    "--context",
-    context,
     "--source",
     "model.ai",
     "--view",
-    "deployment",
+    "deployment-container",
+    "--environment",
+    "eu",
     "--format",
     "json",
   ]));

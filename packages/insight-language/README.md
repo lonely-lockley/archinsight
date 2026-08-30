@@ -33,14 +33,20 @@ This isolates runtime-specific recovery behavior from candidate generation.
 
 ## Runtime Contracts
 
-`npm run test:runtime` runs the current TypeScript language checks:
+`npm run test:runtime` regenerates and compiles the TypeScript language runtime,
+then executes its contract suites. The current coverage includes:
 
-1. regenerate grammar and sync `core.ai`;
-2. compile the TypeScript runtime;
-3. verify core snapshot expectations;
-4. run completion golden fixtures;
-5. run parser failure handling;
-6. run language contract fixtures.
+- generated grammar and bundled core consistency;
+- parsing, canonical types, semantic highlighting, and completion behavior;
+- linking, imports, incremental project updates, diagnostics, and source metadata;
+- direct, reverse, and undirected query matching, relationship metadata, view
+  boundaries, and relative externality;
+- deployment placement, projections, copy-on-write overrides, multiple
+  environments, D1/D2 selection, and asynchronous paths;
+- render-graph contracts.
+
+The `test:runtime` script in `package.json` is the authoritative list of concrete
+contract executables.
 
 Add new language-core behavior to contract fixtures first, then implement the TypeScript runtime slice until the contract passes.
 

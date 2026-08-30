@@ -2,7 +2,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
 
-  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'no-filter';
+  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container' | 'no-filter';
 
   type IncomingMessage = {
     command: 'state';
