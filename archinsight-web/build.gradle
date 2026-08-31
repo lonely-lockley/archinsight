@@ -40,7 +40,7 @@ tasks.register('npmBuild', Exec) {
 
 tasks.register('npmCheck', Exec) {
     group = 'verification'
-    description = 'Runs web type checks.'
+    description = 'Runs web type checks, tests, and coverage regression checks.'
     dependsOn 'npmInstall', 'svelteKitSync', rootProject.tasks.named('generateLanguageSources')
     workingDir = projectDir
     environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
@@ -101,5 +101,5 @@ tasks.register('dist') {
 }
 
 tasks.named('check') {
-    dependsOn 'npmCheck', 'npmTestSecurity', 'npmTestServer'
+    dependsOn 'npmCheck'
 }

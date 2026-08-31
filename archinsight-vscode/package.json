@@ -316,7 +316,8 @@
     "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.cjs --external:vscode --external:@viz-js/viz",
     "build": "npm run build:webview && npm run build:extension",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "npm run typecheck && npm run build",
+    "test": "node --test test/*.test.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
     "package": "npm run check && vsce package --out dist/archinsight-vscode-${npm_package_version}.vsix",
     "publish:marketplace": "npm run check && vsce publish"
   },

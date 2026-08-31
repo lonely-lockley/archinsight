@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "test-coverage.v1",
+  "measuredAt": "2026-08-31",
+  "sourceRevision": "b34b1eb",
+  "policy": "No covered-to-total ratio may decrease for any enforced package metric.",
+  "packages": {
+    "language": {
+      "scope": "Compiled language runtime, excluding generated parser code and type-only contracts.",
+      "lines": { "covered": 12523, "total": 13566 },
+      "branches": { "covered": 3978, "total": 4635 },
+      "functions": { "covered": 726, "total": 756 },
+      "statements": { "covered": 12523, "total": 13566 }
+    },
+    "cli": {
+      "scope": "CLI sources mapped from the production bundle, excluding generated version metadata.",
+      "lines": { "covered": 6385, "total": 6703 },
+      "branches": { "covered": 266, "total": 345 },
+      "functions": { "covered": 96, "total": 110 },
+      "statements": { "covered": 6385, "total": 6703 }
+    },
+    "web": {
+      "scope": "Web TypeScript and Svelte sources, excluding tests, declarations, generated code, and static themes.",
+      "measurementNote": "The counters were confirmed by two consecutive complete runs after workspace UI extraction added diagnostics, repository-path, repository-tree, tab-state, tab-component, repository-dialog, repository-context-menu, and project-dialog contracts.",
+      "lines": { "covered": 5333, "total": 9786 },
+      "branches": { "covered": 1506, "total": 1910 },
+      "functions": { "covered": 542, "total": 627 },
+      "statements": { "covered": 5333, "total": 9786 }
+    },
+    "renderer": {
+      "scope": "Renderer service modules, including the HTTP entry point.",
+      "lines": { "covered": 569, "total": 633 },
+      "branches": { "covered": 186, "total": 216 },
+      "functions": { "covered": 45, "total": 47 },
+      "statements": { "covered": 569, "total": 633 }
+    },
+    "vscode": {
+      "status": "pending",
+      "scope": "Manifest contracts are enforced; executable extension coverage awaits an extension-host or extracted-module harness.",
+      "reason": "The current smoke tests validate package contributions and source registration but do not execute extension code, so a numeric baseline would be misleading."
+    }
+  }
+}

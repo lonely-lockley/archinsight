@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { describe, expect, test } from 'vitest';
 import { sanitizeSvg } from './svg-sanitizer';
 

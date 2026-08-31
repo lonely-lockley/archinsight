@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { coreLanguageSnapshot, type LanguageSnapshot } from '@insight/language';
 import { mount, tick, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';

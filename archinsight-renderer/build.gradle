@@ -17,9 +17,9 @@ tasks.register('npmInstall', Exec) {
 
 tasks.register('test', Exec) {
     group = 'verification'
-    description = 'Runs renderer service tests.'
+    description = 'Runs renderer service tests and coverage regression checks.'
     dependsOn 'npmInstall'
-    commandLine npmCommand, 'test'
+    commandLine npmCommand, 'run', 'check'
 }
 
 tasks.register('dockerBuild', Exec) {

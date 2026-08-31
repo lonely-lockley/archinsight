@@ -15,6 +15,7 @@ replay_pid*
 node_modules/
 .svelte-kit/
 dist/
+coverage/
 
 # Generated sources
 archinsight-cli/src/version.ts

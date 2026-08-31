@@ -27,7 +27,6 @@ tasks.register('npmBuild', Exec) {
     inputs.file('vite.webview.config.mts')
     inputs.dir('../archinsight-web/src/lib')
     inputs.dir('../packages/insight-language/src')
-    outputs.dir('dist')
     workingDir = projectDir
     environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
     commandLine npmCommand, 'run', 'build'
@@ -35,10 +34,12 @@ tasks.register('npmBuild', Exec) {
 
 tasks.register('npmCheck', Exec) {
     group = 'verification'
-    description = 'Runs VSCode extension checks.'
+    description = 'Runs VSCode extension type, build, and manifest contract checks.'
     dependsOn 'npmInstall', rootProject.tasks.named('generateLanguageSources'), project(':archinsight-web').tasks.named('svelteKitSync')
     inputs.dir('src')
+    inputs.dir('test')
     inputs.dir('syntaxes')
+    inputs.file('package.json')
     inputs.file('language-configuration.json')
     inputs.file('vite.webview.config.mts')
     inputs.dir('../archinsight-web/src/lib')

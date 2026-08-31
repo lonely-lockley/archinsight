@@ -31,6 +31,7 @@
   } from '$lib/diagram-query-presets';
   import WorkspaceEditor from '$lib/WorkspaceEditor.svelte';
   import WorkspaceToolbar from '$lib/WorkspaceToolbar.svelte';
+  import WorkspaceTabs from '$lib/workspace/shell/WorkspaceTabs.svelte';
   import { renderDotInBrowser, terminateBrowserGraphvizWorker } from '$lib/graphviz-renderer';
   import { sanitizeSvg } from '$lib/svg-sanitizer';
   import { emptyWorkspaceStrategy, type EmptyWorkspaceAction } from '$lib/empty-workspace-strategy';
@@ -77,7 +78,6 @@
     type AuthUserResponse,
     type Diagnostic,
     type DotRender,
-    type FileTreeNode,
     type LinkResponse,
     type ProjectStructure
   } from '$lib/api';
@@ -102,6 +102,50 @@
     type WorkspaceTabState,
     type WorkspaceUiState
   } from '$lib/storage';
+  import {
+    diagnosticCounts,
+    diagnosticErrorSources,
+    diagnosticPosition,
+    diagnosticsBySource,
+    diagnosticsHaveErrors,
+    isErrorDiagnostic,
+    isSourceDiagnostic,
+    mergeDiagnostics,
+    messageLevel,
+    omitDiagnostics,
+    tokenRangeAt,
+    uniqueDiagnostics
+  } from '$lib/workspace/analysis/diagnostics';
+  import { removeTab, retargetTab, uniqueTabId } from '$lib/workspace/editor/tab-model';
+  import ProjectDialog from '$lib/workspace/projects/ProjectDialog.svelte';
+  import type {
+    ProjectDialogIntent,
+    ProjectDialogState
+  } from '$lib/workspace/projects/project-dialog-types';
+  import {
+    baseName,
+    defaultDialogFileName as repositoryDefaultDialogFileName,
+    displayFileName,
+    joinPath,
+    normalizeDialogName,
+    parentDirectory,
+    replaceDirectoryPrefix,
+    validateNodeName,
+    validateTargetPath as validateRepositoryTargetPath,
+    type RepositoryDialogTarget
+  } from '$lib/workspace/repository/repository-paths';
+  import RepositoryDeleteDialog from '$lib/workspace/repository/RepositoryDeleteDialog.svelte';
+  import RepositoryContextMenu from '$lib/workspace/repository/RepositoryContextMenu.svelte';
+  import RepositoryFileDialog from '$lib/workspace/repository/RepositoryFileDialog.svelte';
+  import type {
+    DeleteDialogState,
+    FileDialogState
+  } from '$lib/workspace/repository/repository-dialog-types';
+  import {
+    findRepositoryNodeByDisplayPath,
+    repositoryDirectories,
+    repositoryFilePathsInDirectory
+  } from '$lib/workspace/repository/repository-tree';
   import type { DiagramMode, EditorViewMode, MessageView, ProjectUiState, SourceLocation, TreeNode, WorkspaceTab } from '$lib/workspace-types';
 
   const defaultViewMode: EditorViewMode = 'split';
@@ -133,35 +177,7 @@
   };
   const clientLanguageService = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 
-  type FileDialogMode = 'save' | 'new' | 'rename';
-  type FileDialogTarget = 'file' | 'folder';
-
-  type FileDialogState = {
-    mode: FileDialogMode;
-    target: FileDialogTarget;
-    title: string;
-    directory: string;
-    fileName: string;
-    sourcePath?: string;
-    tabId?: string;
-    content?: string;
-    error?: string;
-  };
-
-  type DeleteDialogState = {
-    path: string;
-    target: FileDialogTarget;
-    error?: string;
-  };
-
-  type ProjectDialogState = {
-    mode: 'list' | 'create' | 'edit' | 'delete';
-    name: string;
-    published: boolean;
-    busy: boolean;
-    targetId?: string;
-    error?: string;
-  };
+  type FileDialogTarget = RepositoryDialogTarget;
 
   type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryPreset'>;
 
@@ -254,6 +270,16 @@
   $: renameFolderState = actionState('repository.folder.rename', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: deleteFileState = actionState('repository.file.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
   $: deleteFolderState = actionState('repository.folder.delete', activeProjectId !== undefined, 'No active project', surface, capabilities);
+  $: repositoryMenuActions = {
+    createFile: createFileState,
+    createFolder: createFolderState,
+    renameFile: renameFileState,
+    renameFolder: renameFolderState,
+    deleteFile: deleteFileState,
+    deleteFolder: deleteFolderState
+  };
+  $: repositoryDirectoryOptions = repositoryDirectories(tree);
+  $: openRepositoryFilePaths = tabs.flatMap((tab) => tab.filePath === undefined ? [] : [tab.filePath]);
   $: publicationFormState = controlState('publication.toggle', { surface, capabilities });
   $: tabsRightPadding = surface === 'playground'
     ? currentUser.authenticated ? 120 : 190
@@ -393,6 +419,57 @@
       return;
     }
     projectDialog = undefined;
+  }
+
+  function handleProjectDialogIntent(intent: ProjectDialogIntent): void {
+    if (projectDialog === undefined) {
+      return;
+    }
+    switch (intent.type) {
+      case 'close':
+        closeProjectDialog();
+        return;
+      case 'new':
+        projectDialog = {
+          ...projectDialog,
+          mode: 'create',
+          name: '',
+          published: false,
+          error: undefined
+        };
+        return;
+      case 'back':
+        projectDialog = { mode: 'list', name: '', published: false, busy: false };
+        return;
+      case 'select':
+        void switchProject(intent.projectId);
+        return;
+      case 'edit':
+        editProject(intent.projectId);
+        return;
+      case 'delete':
+        askDeleteProject(intent.projectId);
+        return;
+      case 'name-change':
+        projectDialog = {
+          ...projectDialog,
+          name: intent.name,
+          error: projectDialog.mode === 'create' ? undefined : projectDialog.error
+        };
+        return;
+      case 'publication-change':
+        projectDialog = { ...projectDialog, published: intent.published };
+        return;
+      case 'submit-create':
+        void confirmCreateProject();
+        return;
+      case 'submit-edit':
+        void confirmEditProject();
+        return;
+      case 'submit-delete':
+        void confirmDeleteProject();
+        return;
+    }
   }
 
   async function confirmCreateProject(): Promise<void> {
@@ -566,21 +643,6 @@
     linkerDiagnostics = {};
     overlays = {};
     systemMessages = [];
-  }
-
-  function projectDate(value: string | undefined): string {
-    if (!value) {
-      return '—';
-    }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-    const locales = typeof navigator === 'undefined' ? undefined : navigator.languages;
-    return new Intl.DateTimeFormat(locales, {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    }).format(date);
   }
 
   function controlledEmptyStrategy(actionSurface: WorkspaceSurface, actionCapabilities: readonly AppCapability[]) {
@@ -1085,7 +1147,7 @@
   }
 
   function restoreLocalTab(tab: WorkspaceTabState): void {
-    const id = uniqueTabId(tab.id);
+    const id = uniqueTabId(tabs, tab.id);
     const sourceIdentity = tab.sourceIdentity ?? virtualSourceIdentity(id);
     ensureEditorModel(id, tab.content ?? '');
     tabs = [
@@ -1123,6 +1185,8 @@
 
   function closeTab(id: string): void {
     const tab = tabs.find((item) => item.id === id);
+    const closingActiveTab = activeTabId === id;
+    const transition = removeTab(tabs, activeTabId, id);
     const removesSemanticInput = tab !== undefined
       && isProjectSourceTab(tab)
       && (tab.filePath === undefined || Object.hasOwn(overlays, tab.filePath));
@@ -1134,7 +1198,7 @@
       delete localDiagnostics[tab.sourceIdentity];
       delete linkerDiagnostics[tab.sourceIdentity];
     }
-    tabs = tabs.filter((tab) => tab.id !== id);
+    tabs = transition.tabs;
     const model = editorModels.get(id);
     if (model !== undefined) {
       if (editor?.getModel() === model) {
@@ -1144,8 +1208,8 @@
     }
     editorModels.delete(id);
     refreshEditorTokenVocabulary();
-    if (activeTabId === id) {
-      activeTabId = tabs.at(-1)?.id;
+    if (closingActiveTab) {
+      activeTabId = transition.activeTabId;
       syncEditorToActiveTab();
       if (removesSemanticInput) {
         scheduleLink();
@@ -1418,46 +1482,6 @@
     refreshDiagnostics();
   }
 
-  function omitDiagnostics(
-    current: Record<string, Diagnostic[]>,
-    sources: string[]
-  ): Record<string, Diagnostic[]> {
-    const next: Record<string, Diagnostic[]> = { ...current };
-    for (const source of sources) {
-      delete next[source];
-    }
-    return next;
-  }
-
-  function diagnosticsBySource(diagnostics: Diagnostic[]): Record<string, Diagnostic[]> {
-    const result: Record<string, Diagnostic[]> = {};
-    const byPath = new Map<string, Diagnostic[]>();
-    for (const diagnostic of diagnostics) {
-      const list = byPath.get(diagnostic.source) ?? [];
-      list.push(diagnostic);
-      byPath.set(diagnostic.source, list);
-    }
-    for (const [path, items] of byPath) {
-      result[path] = items;
-    }
-    return result;
-  }
-
-  function mergeDiagnostics(
-    current: Record<string, Diagnostic[]>,
-    checkedPaths: string[],
-    diagnostics: Diagnostic[]
-  ): Record<string, Diagnostic[]> {
-    const next: Record<string, Diagnostic[]> = { ...current };
-    for (const path of checkedPaths) {
-      delete next[path];
-    }
-    for (const diagnostic of diagnostics) {
-      next[diagnostic.source] = [...(next[diagnostic.source] ?? []), diagnostic];
-    }
-    return next;
-  }
-
   function refreshDiagnostics(): void {
     tabs = tabs.map((tab) => ({ ...tab, diagnostics: diagnosticsForTab(tab) }));
     for (const id of editorModels.keys()) {
@@ -1470,53 +1494,6 @@
       ...(linkerDiagnostics[tab.sourceIdentity] ?? []),
       ...(localDiagnostics[tab.sourceIdentity] ?? [])
     ]);
-  }
-
-  function uniqueDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
-    const result: Diagnostic[] = [];
-    const seen = new Set<string>();
-    for (const diagnostic of diagnostics) {
-      const key = diagnosticKey(diagnostic);
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      result.push(diagnostic);
-    }
-    return result;
-  }
-
-  function diagnosticKey(diagnostic: Diagnostic): string {
-    return [
-      diagnostic.source,
-      diagnostic.level ?? '',
-      diagnostic.code,
-      diagnostic.message,
-      diagnostic.line ?? '',
-      diagnostic.column ?? '',
-      diagnostic.endLine ?? '',
-      diagnostic.endColumn ?? ''
-    ].join('\u0000');
-  }
-
-  function diagnosticErrorSources(...sources: Array<Record<string, Diagnostic[]>>): Set<string> {
-    const result = new Set<string>();
-    for (const source of sources) {
-      for (const [sourceIdentity, diagnostics] of Object.entries(source)) {
-        if (diagnostics.some(isErrorDiagnostic)) {
-          result.add(sourceIdentity);
-        }
-      }
-    }
-    return result;
-  }
-
-  function diagnosticsHaveErrors(source: Record<string, Diagnostic[]>): boolean {
-    return Object.values(source).some((diagnostics) => diagnostics.some(isErrorDiagnostic));
-  }
-
-  function isErrorDiagnostic(diagnostic: Diagnostic): boolean {
-    return diagnostic.level === 'ERROR';
   }
 
   function applyMarkersFor(id: string | undefined): void {
@@ -1549,12 +1526,6 @@
     );
   }
 
-  function isSourceDiagnostic(diagnostic: Diagnostic): diagnostic is Diagnostic & { line: number; column: number } {
-    return (diagnostic.category === undefined || diagnostic.category === 'SOURCE')
-      && diagnostic.line !== undefined
-      && diagnostic.column !== undefined;
-  }
-
   function markerRange(
     model: Monaco.editor.ITextModel,
     diagnostic: Diagnostic & { line: number; column: number }
@@ -1584,36 +1555,6 @@
     };
   }
 
-  function tokenRangeAt(text: string, column: number): { start: number; end: number } {
-    if (text.length === 0) {
-      return { start: 0, end: 1 };
-    }
-
-    let index = Math.max(0, Math.min(column, text.length - 1));
-    if (column >= text.length || isTokenBreak(text[index])) {
-      while (index > 0 && isTokenBreak(text[index])) {
-        index--;
-      }
-      if (isTokenBreak(text[index])) {
-        return { start: Math.max(0, Math.min(column, text.length)), end: Math.max(1, Math.min(column + 1, text.length + 1)) };
-      }
-    }
-
-    let start = index;
-    while (start > 0 && !isTokenBreak(text[start - 1])) {
-      start--;
-    }
-    let end = index + 1;
-    while (end < text.length && !isTokenBreak(text[end])) {
-      end++;
-    }
-    return { start, end };
-  }
-
-  function isTokenBreak(char: string | undefined): boolean {
-    return char === undefined || /\s/.test(char);
-  }
-
   function markerSeverity(diagnostic: Diagnostic): Monaco.MarkerSeverity {
     if (diagnostic.level === 'ERROR') {
       return monaco.MarkerSeverity.Error;
@@ -1625,13 +1566,6 @@
       return monaco.MarkerSeverity.Info;
     }
     return monaco.MarkerSeverity.Info;
-  }
-
-  function diagnosticPosition(diagnostic: Diagnostic): string {
-    if (diagnostic.line === undefined || diagnostic.column === undefined) {
-      return diagnostic.category === 'SYSTEM' ? 'system' : '-';
-    }
-    return `${diagnostic.line}:${diagnostic.column + 1}`;
   }
 
   function diagnosticMessage(diagnostic: Diagnostic): Omit<MessageView, 'id' | 'time'> {
@@ -2167,7 +2101,9 @@
       return;
     }
     try {
-      const deletedFiles = dialog.target === 'folder' ? filePathsInDirectory(dialog.path) : [dialog.path];
+      const deletedFiles = dialog.target === 'folder'
+        ? repositoryFilePathsInDirectory(tree, dialog.path, openRepositoryFilePaths)
+        : [dialog.path];
       if (dialog.target === 'folder') {
         await deleteFolder(projectId, dialog.path);
       } else {
@@ -2304,7 +2240,7 @@
   }
 
   function retargetTabsForFolderRename(sourcePath: string, targetPath: string): void {
-    const files = filePathsInDirectory(sourcePath);
+    const files = repositoryFilePathsInDirectory(tree, sourcePath, openRepositoryFilePaths);
     for (const filePath of files) {
       const nextPath = replaceDirectoryPrefix(filePath, sourcePath, targetPath);
       retargetTabsForRename(filePath, nextPath);
@@ -2312,36 +2248,28 @@
   }
 
   function retargetOpenTab(tabId: string, path: string, content: string, local: boolean): void {
-    const tab = tabs.find((item) => item.id === tabId);
-    if (tab === undefined) {
+    const transition = retargetTab(
+      tabs,
+      tabId,
+      { path, title: baseName(path), content, local },
+      activeTabId,
+      editorTabId
+    );
+    const tab = transition.previousTab;
+    const targetId = transition.targetId;
+    if (tab === undefined || targetId === undefined) {
       return;
     }
-    const targetId = uniqueTabId(path);
     const model = editorModels.get(tab.id);
     if (model !== undefined) {
       editorModels.delete(tab.id);
       editorModels.set(targetId, model);
     }
-    if (activeTabId === tab.id) {
-      activeTabId = targetId;
-    }
-    if (editorTabId === tab.id) {
-      editorTabId = targetId;
-    }
+    activeTabId = transition.activeTabId;
+    editorTabId = transition.editorTabId;
     delete localDiagnostics[tab.sourceIdentity];
     delete linkerDiagnostics[tab.sourceIdentity];
-    tabs = tabs.map((item) => item.id === tab.id
-      ? {
-          ...item,
-          id: targetId,
-          filePath: path,
-          sourceIdentity: path,
-          title: baseName(path),
-          content,
-          local,
-          diagnostics: []
-        }
-      : item);
+    tabs = transition.tabs;
     syncEditorToActiveTab();
     refreshDiagnostics();
     refreshEditorTokenVocabulary();
@@ -2354,182 +2282,22 @@
     }
   }
 
-  function filePathsInDirectory(directory: string): string[] {
-    const result = new Set<string>();
-    const root = treeNodeByPath(directory, 'directory');
-    if (root !== undefined) {
-      const visit = (node: TreeNode) => {
-        if (node.type === 'file') {
-          result.add(node.path);
-          return;
-        }
-        for (const child of node.children) {
-          visit(child);
-        }
-      };
-      visit(root);
-    }
-    for (const tab of tabs) {
-      if (tab.filePath !== undefined && isInsideDirectory(tab.filePath, directory)) {
-        result.add(tab.filePath);
-      }
-    }
-    return [...result];
-  }
-
-  function treeNodeByPath(path: string, type?: TreeNode['type']): TreeNode | undefined {
-    if (tree === undefined) {
-      return undefined;
-    }
-    const stack = [tree];
-    while (stack.length > 0) {
-      const node = stack.pop();
-      if (node === undefined) {
-        continue;
-      }
-      if (node.path === path && (type === undefined || node.type === type)) {
-        return node;
-      }
-      stack.push(...node.children);
-    }
-    return undefined;
-  }
-
-  function isInsideDirectory(path: string, directory: string): boolean {
-    return path.startsWith(`${directory}/`);
-  }
-
-  function replaceDirectoryPrefix(path: string, sourceDirectory: string, targetDirectory: string): string {
-    return `${targetDirectory}${path.slice(sourceDirectory.length)}`;
-  }
-
   async function refreshProjectMetadata(): Promise<void> {
     const treeResponse = await fetchTree(projectId, surface);
     tree = treeResponse.root;
   }
 
-  function validateNodeName(name: string, target: FileDialogTarget): string | undefined {
-    const label = target === 'folder' ? 'Folder' : 'File';
-    if (name.length === 0) {
-      return `${label} name is required`;
-    }
-    if (name.includes('/') || name.includes('\\')) {
-      return `${label} name must not contain directories`;
-    }
-    if (target === 'folder' && name.endsWith('.ai')) {
-      return 'Folder name must not use .ai extension';
-    }
-    return undefined;
-  }
-
   function validateTargetPath(path: string, target: FileDialogTarget, sourcePath?: string): string | undefined {
-    const label = target === 'folder' ? 'Folder' : 'File';
-    if (path.length === 0) {
-      return `${label} name is required`;
-    }
-    if (path.startsWith('/') || path.includes('../') || path === '..' || path.startsWith('..')) {
-      return `${label} path must stay inside repository`;
-    }
-    if (path.length > 100) {
-      return `${label} path is longer than 100 characters`;
-    }
-    if (target === 'folder' && sourcePath !== undefined && path.startsWith(`${sourcePath}/`)) {
-      return 'Folder cannot be moved inside itself';
-    }
-    if (displayNodePath(sourcePath ?? '', target) !== path && treeNodeExists(path)) {
-      return `Repository item already exists: ${path}`;
-    }
-    return undefined;
-  }
-
-  function treeNodeExists(path: string): boolean {
-    return treeNodeByDisplayPath(path) !== undefined;
-  }
-
-  function treeNodeByDisplayPath(path: string): TreeNode | undefined {
-    if (tree === undefined) {
-      return undefined;
-    }
-    const stack = [tree];
-    while (stack.length > 0) {
-      const node = stack.pop();
-      if (node === undefined) {
-        continue;
-      }
-      if (displayNodePath(node.path, node.type === 'directory' ? 'folder' : 'file') === path) {
-        return node;
-      }
-      stack.push(...node.children);
-    }
-    return undefined;
-  }
-
-  function directoryOptions(): TreeNode[] {
-    if (tree === undefined) {
-      return [];
-    }
-    const result: TreeNode[] = [];
-    const visit = (node: TreeNode) => {
-      if (node.type === 'directory') {
-        result.push(node);
-        for (const child of node.children) {
-          visit(child);
-        }
-      }
-    };
-    visit(tree);
-    return result;
+    return validateRepositoryTargetPath(
+      path,
+      target,
+      sourcePath,
+      (candidate) => findRepositoryNodeByDisplayPath(tree, candidate) !== undefined
+    );
   }
 
   function defaultDialogFileName(title: string): string {
-    const value = title.trim();
-    if (value.length === 0 || /^Untitled \d+$/.test(value)) {
-      return defaultNewFileName;
-    }
-    return displayFileName(value);
-  }
-
-  function normalizeDialogName(name: string, target: FileDialogTarget): string {
-    const normalized = name.trim().replace(/^\/+|\/+$/g, '');
-    return target === 'file' ? stripInsightExtension(normalized) : normalized;
-  }
-
-  function displayFileName(path: string): string {
-    return stripInsightExtension(baseName(path));
-  }
-
-  function displayFilePath(path: string): string {
-    if (path.length === 0) {
-      return '';
-    }
-    return joinPath(parentDirectory(path), displayFileName(path));
-  }
-
-  function displayNodePath(path: string, target: FileDialogTarget): string {
-    if (target === 'folder') {
-      return path;
-    }
-    return displayFilePath(path);
-  }
-
-  function stripInsightExtension(value: string): string {
-    return value.endsWith('.ai') ? value.slice(0, -3) : value;
-  }
-
-  function baseName(path: string): string {
-    return path.split('/').filter(Boolean).at(-1) ?? path;
-  }
-
-  function parentDirectory(path: string): string {
-    const parts = path.split('/').filter(Boolean);
-    parts.pop();
-    return parts.join('/');
-  }
-
-  function joinPath(directory: string, fileName: string): string {
-    const cleanDirectory = directory.trim().replace(/^\/+|\/+$/g, '');
-    const cleanFileName = fileName.trim().replace(/^\/+|\/+$/g, '');
-    return cleanDirectory.length === 0 ? cleanFileName : `${cleanDirectory}/${cleanFileName}`;
+    return repositoryDefaultDialogFileName(title, defaultNewFileName);
   }
 
   function refreshActiveDiagram(): void {
@@ -2856,45 +2624,6 @@
     ]);
   }
 
-  function diagnosticCounts(diagnostics: Diagnostic[]): { errors: number; warnings: number; notes: number } {
-    let errors = 0;
-    let warnings = 0;
-    let notes = 0;
-    for (const diagnostic of diagnostics) {
-      if (diagnostic.level === 'ERROR') {
-        errors += 1;
-      } else if (diagnostic.level === 'WARNING') {
-        warnings += 1;
-      } else {
-        notes += 1;
-      }
-    }
-    return { errors, warnings, notes };
-  }
-
-  function messageLevel(diagnostic: Diagnostic): MessageView['level'] {
-    if (diagnostic.level === 'ERROR') {
-      return 'ERROR';
-    }
-    if (diagnostic.level === 'WARNING') {
-      return 'WARNING';
-    }
-    return 'NOTE';
-  }
-
-  function uniqueTabId(id: string): string {
-    if (!tabs.some((tab) => tab.id === id)) {
-      return id;
-    }
-    let suffix = 2;
-    let next = `${id}-${suffix}`;
-    while (tabs.some((tab) => tab.id === next)) {
-      suffix += 1;
-      next = `${id}-${suffix}`;
-    }
-    return next;
-  }
-
   function bumpUntitledCounter(id: string, title: string): void {
     const match = /^(?:untitled:|Untitled )(\d+)$/.exec(id) ?? /^(?:untitled:|Untitled )(\d+)$/.exec(title);
     if (match === null) {
@@ -2919,10 +2648,6 @@
 
   function builtinView(mode: DiagramMode): BuiltinDiagramView {
     return mode === 'default' ? 'no-filter' : mode;
-  }
-
-  function tabTitle(tab: WorkspaceTab): string {
-    return tab.readOnly === true ? `[r] ${tab.title}` : tab.title;
   }
 
   function virtualSourceIdentity(id: string): string {
@@ -2974,19 +2699,14 @@
         </nav>
       {/if}
     </div>
-    <section class="tabs" style={`padding-right: ${tabsRightPadding}px;`}>
-      {#each tabs as tab (tab.id)}
-        <div class:active={tab.id === activeTabId} class:error-tab={errorSourceIdentities.has(tab.sourceIdentity)} class="tab">
-          <button class="tab-main" type="button" on:click={() => void activateTab(tab.id)}>
-            <span class="tab-title"><span class="tab-title-text">{tabTitle(tab)}</span></span>
-            {#if tab.local}<span class="dirty">•</span>{/if}
-          </button>
-          <button aria-label={`Close ${tab.title}`} class="close has-tooltip" data-tooltip={`Close ${tab.title}`} type="button" on:click={() => closeTab(tab.id)}>
-            <span aria-hidden="true" class="codicon codicon-close"></span>
-          </button>
-        </div>
-      {/each}
-    </section>
+    <WorkspaceTabs
+      {tabs}
+      {activeTabId}
+      {errorSourceIdentities}
+      rightPadding={tabsRightPadding}
+      onActivate={(tabId) => void activateTab(tabId)}
+      onClose={closeTab}
+    />
 
     <WorkspaceEditor
       active={activeTab !== undefined}
@@ -3046,261 +2766,53 @@
 </main>
 
 {#if repositoryMenu !== undefined}
-  <div
-    class="context-menu"
-    style={`left: ${repositoryMenu.x}px; top: ${repositoryMenu.y}px;`}
-    role="menu"
-    tabindex="0"
-    on:click|stopPropagation
-    on:keydown={(event) => event.key === 'Escape' && closeRepositoryMenu()}
-    on:contextmenu|preventDefault
-  >
-    {#if repositoryMenu.node.type === 'directory'}
-      {#if !createFileState.hidden}
-        <button type="button" role="menuitem" disabled={createFileState.disabled} title={createFileState.reason} on:click={() => newRepositoryFile(repositoryMenu?.node.path ?? '')}>
-          <span aria-hidden="true" class="codicon codicon-new-file"></span>
-          <span>New file</span>
-        </button>
-      {/if}
-      {#if !createFolderState.hidden}
-        <button type="button" role="menuitem" disabled={createFolderState.disabled} title={createFolderState.reason} on:click={() => newRepositoryFolder(repositoryMenu?.node.path ?? '')}>
-          <span aria-hidden="true" class="codicon codicon-new-folder"></span>
-          <span>New folder</span>
-        </button>
-      {/if}
-      {#if repositoryMenu.node.path !== ''}
-        {#if !renameFolderState.hidden}
-          <button type="button" role="menuitem" disabled={renameFolderState.disabled} title={renameFolderState.reason} on:click={() => repositoryMenu && renameRepositoryFolder(repositoryMenu.node.path)}>
-            <span aria-hidden="true" class="codicon codicon-edit"></span>
-            <span>Rename / Move</span>
-          </button>
-        {/if}
-        {#if !deleteFolderState.hidden}
-          <button type="button" role="menuitem" disabled={deleteFolderState.disabled} title={deleteFolderState.reason} on:click={() => repositoryMenu && deleteRepositoryFolder(repositoryMenu.node.path)}>
-            <span aria-hidden="true" class="codicon codicon-trash"></span>
-            <span>Delete</span>
-          </button>
-        {/if}
-      {/if}
-    {:else}
-      {#if !renameFileState.hidden}
-        <button type="button" role="menuitem" disabled={renameFileState.disabled} title={renameFileState.reason} on:click={() => repositoryMenu && renameRepositoryFile(repositoryMenu.node.path)}>
-          <span aria-hidden="true" class="codicon codicon-edit"></span>
-          <span>Rename / Move</span>
-        </button>
-      {/if}
-      {#if !deleteFileState.hidden}
-        <button type="button" role="menuitem" disabled={deleteFileState.disabled} title={deleteFileState.reason} on:click={() => repositoryMenu && deleteRepositoryFile(repositoryMenu.node.path)}>
-          <span aria-hidden="true" class="codicon codicon-trash"></span>
-          <span>Delete</span>
-        </button>
-      {/if}
-    {/if}
-  </div>
+  <RepositoryContextMenu
+    menu={repositoryMenu}
+    actions={repositoryMenuActions}
+    onClose={closeRepositoryMenu}
+    onNewFile={newRepositoryFile}
+    onNewFolder={newRepositoryFolder}
+    onRenameFile={renameRepositoryFile}
+    onRenameFolder={renameRepositoryFolder}
+    onDeleteFile={deleteRepositoryFile}
+    onDeleteFolder={deleteRepositoryFolder}
+  />
 {/if}
 
 {#if projectDialog !== undefined}
-  <div class="modal-backdrop" role="presentation" on:click={closeProjectDialog}>
-    <div
-      class="file-dialog project-dialog"
-      class:project-list-dialog={projectDialog.mode === 'list'}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Manage Projects"
-      tabindex="-1"
-      on:click|stopPropagation
-      on:keydown={(event) => event.stopPropagation()}
-    >
-      {#if projectDialog.mode === 'list'}
-        <header class="project-dialog-header">
-          <h2>Manage Projects</h2>
-          <button type="button" on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'create', name: '', published: false, error: undefined }}>New Project</button>
-        </header>
-        <div class="project-list">
-          {#each projectRegistry.projects as project (project.id)}
-            <div class:active={project.id === activeProjectId} class="project-row">
-              <button class="project-select" type="button" disabled={projectDialog.busy} on:click={() => void switchProject(project.id)}>
-                <span class="project-title">
-                  <span class="project-name">{project.name}</span>
-                  {#if project.id === activeProjectId}<span class="active-project-label">Active</span>{/if}
-                  {#if project.id === publishedProjectId}<span class="playground-project-label">Playground</span>{/if}
-                </span>
-                <span class="project-stat"><strong>Created</strong>{projectDate(project.created)}</span>
-                <span class="project-stat"><strong>Last modified</strong>{projectDate(project.updated)}</span>
-                <span class="project-stat"><strong>Files</strong>{project.fileCount ?? 0}</span>
-              </button>
-              <div class="project-row-actions">
-                <button aria-label={`Edit ${project.name}`} title="Edit project" type="button" disabled={projectDialog.busy} on:click={() => editProject(project.id)}>
-                  <span aria-hidden="true" class="codicon codicon-edit"></span>
-                </button>
-                <button aria-label={`Delete ${project.name}`} title="Delete project" type="button" disabled={projectDialog.busy} on:click={() => askDeleteProject(project.id)}>
-                  <span aria-hidden="true" class="codicon codicon-trash"></span>
-                </button>
-              </div>
-            </div>
-          {/each}
-          {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
-        </div>
-        <footer>
-          <button type="button" on:click={closeProjectDialog}>Close</button>
-        </footer>
-      {:else if projectDialog.mode === 'create'}
-        <form on:submit|preventDefault={() => void confirmCreateProject()}>
-          <header><h2>Create Project</h2></header>
-          <div class="file-dialog-body">
-            <label class="file-name-field">
-              <span>Name</span>
-              <input
-                autocomplete="off"
-                maxlength="100"
-                spellcheck="false"
-                disabled={projectDialog.busy}
-                bind:value={projectDialog.name}
-                on:input={() => projectDialog = projectDialog && { ...projectDialog, error: undefined }}
-              />
-            </label>
-            {#if !publicationFormState.hidden}
-              <label class="project-publication-field">
-                <input type="checkbox" disabled={projectDialog.busy} bind:checked={projectDialog.published} />
-                <span>Available in Playground</span>
-              </label>
-            {/if}
-            {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
-          </div>
-          <footer>
-            {#if projectRegistry.projects.length > 0}
-              <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = projectDialog && { ...projectDialog, mode: 'list', name: '', published: false, error: undefined }}>Back</button>
-            {:else}
-              <button type="button" disabled={projectDialog.busy} on:click={closeProjectDialog}>Cancel</button>
-            {/if}
-            <button type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Creating…' : 'Create'}</button>
-          </footer>
-        </form>
-      {:else if projectDialog.mode === 'edit'}
-        <form on:submit|preventDefault={() => void confirmEditProject()}>
-          <header><h2>Edit Project</h2></header>
-          <div class="file-dialog-body">
-            <label class="file-name-field">
-              <span>Name</span>
-              <input autocomplete="off" maxlength="100" spellcheck="false" disabled={projectDialog.busy} bind:value={projectDialog.name} />
-            </label>
-            {#if !publicationFormState.hidden}
-              <label class="project-publication-field">
-                <input type="checkbox" disabled={projectDialog.busy} bind:checked={projectDialog.published} />
-                <span>Available in Playground</span>
-              </label>
-            {/if}
-            {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
-          </div>
-          <footer>
-            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', published: false, busy: false }}>Back</button>
-            <button type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Saving…' : 'Save'}</button>
-          </footer>
-        </form>
-      {:else}
-        <form on:submit|preventDefault={() => void confirmDeleteProject()}>
-          <header><h2>Delete Project</h2></header>
-          <div class="file-dialog-body confirm-dialog-body">
-            <p>Delete “{projectDialog.name}” and all files inside it? This action cannot be undone.</p>
-            {#if projectDialog.error !== undefined}<div class="dialog-error">{projectDialog.error}</div>{/if}
-          </div>
-          <footer>
-            <button type="button" disabled={projectDialog.busy} on:click={() => projectDialog = { mode: 'list', name: '', published: false, busy: false }}>Cancel</button>
-            <button class="danger-button" type="submit" disabled={projectDialog.busy}>{projectDialog.busy ? 'Deleting…' : 'Delete'}</button>
-          </footer>
-        </form>
-      {/if}
-    </div>
-  </div>
+  <ProjectDialog
+    view={{
+      dialog: projectDialog,
+      projects: projectRegistry.projects,
+      activeProjectId,
+      publishedProjectId,
+      publicationState: publicationFormState
+    }}
+    onIntent={handleProjectDialogIntent}
+  />
 {/if}
 
 {#if deleteDialog !== undefined}
-  <div class="modal-backdrop" role="presentation" on:click={closeDeleteDialog}>
-    <div
-      class="file-dialog confirm-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-label={deleteDialog.target === 'folder' ? 'Delete folder' : 'Delete file'}
-      tabindex="-1"
-      on:click|stopPropagation
-      on:keydown={(event) => event.stopPropagation()}
-    >
-      <form on:submit|preventDefault={() => void confirmDeleteDialog()}>
-        <header>
-          <h2>{deleteDialog.target === 'folder' ? 'Delete folder' : 'Delete file'}</h2>
-        </header>
-        <div class="file-dialog-body confirm-dialog-body">
-          <p>
-            {deleteDialog.target === 'folder'
-              ? 'Are you sure you want to delete this folder and all files inside it?'
-              : 'Are you sure you want to delete this file?'}
-          </p>
-          <div class="target-preview">{deleteDialog.path}</div>
-          {#if deleteDialog.error !== undefined}
-            <div class="dialog-error">{deleteDialog.error}</div>
-          {/if}
-        </div>
-        <footer>
-          <button type="button" on:click={closeDeleteDialog}>Cancel</button>
-          <button type="submit">OK</button>
-        </footer>
-      </form>
-    </div>
-  </div>
+  <RepositoryDeleteDialog
+    dialog={deleteDialog}
+    onCancel={closeDeleteDialog}
+    onSubmit={() => void confirmDeleteDialog()}
+  />
 {/if}
 
 {#if fileDialog !== undefined}
-  <div class="modal-backdrop" role="presentation" on:click={closeFileDialog}>
-    <div
-      class="file-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-label={fileDialog.title}
-      tabindex="-1"
-      on:click|stopPropagation
-      on:keydown={(event) => event.stopPropagation()}
-    >
-      <form on:submit|preventDefault={() => void confirmFileDialog()}>
-        <header>
-          <h2>{fileDialog.title}</h2>
-        </header>
-        <div class="file-dialog-body">
-          <div class="directory-picker" aria-label="Directories">
-            {#each directoryOptions() as directory (directory.path || '__root__')}
-              <button
-                type="button"
-                class:active={fileDialog.directory === directory.path}
-                style={`--depth: ${directory.path === '' ? 0 : directory.path.split('/').length}`}
-                on:click={() => fileDialog = fileDialog && { ...fileDialog, directory: directory.path, error: undefined }}
-              >
-                <span aria-hidden="true" class="codicon codicon-folder"></span>
-                <span>{directory.path === '' ? directory.name : directory.path}</span>
-              </button>
-            {/each}
-          </div>
-          <label class="file-name-field">
-            <span>Name</span>
-            <input
-              autocomplete="off"
-              spellcheck="false"
-              bind:value={fileDialog.fileName}
-              on:input={() => fileDialog = fileDialog && { ...fileDialog, error: undefined }}
-            />
-          </label>
-          <div class="target-preview">
-            {joinPath(fileDialog.directory, normalizeDialogName(fileDialog.fileName, fileDialog.target)) || '-'}
-          </div>
-          {#if fileDialog.error !== undefined}
-            <div class="dialog-error">{fileDialog.error}</div>
-          {/if}
-        </div>
-        <footer>
-          <button type="button" on:click={closeFileDialog}>Cancel</button>
-          <button type="submit">OK</button>
-        </footer>
-      </form>
-    </div>
-  </div>
+  <RepositoryFileDialog
+    dialog={fileDialog}
+    directories={repositoryDirectoryOptions}
+    onCancel={closeFileDialog}
+    onSubmit={() => void confirmFileDialog()}
+    onDirectoryChange={(directory) => {
+      fileDialog = fileDialog && { ...fileDialog, directory, error: undefined };
+    }}
+    onFileNameChange={(fileName) => {
+      fileDialog = fileDialog && { ...fileDialog, fileName, error: undefined };
+    }}
+  />
 {/if}
 
 <style>
@@ -3309,45 +2821,6 @@
     width: 100vw;
     height: 100vh;
     background: #252525;
-  }
-
-  .codicon-close::before {
-    content: "\ea76";
-  }
-
-  .has-tooltip {
-    position: relative;
-  }
-
-  .has-tooltip::after {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 50%;
-    z-index: 30;
-    max-width: 220px;
-    padding: 6px 8px;
-    border: 1px solid #444444;
-    border-radius: 4px;
-    background: #181818;
-    color: #eeeeee;
-    content: attr(data-tooltip);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.25;
-    opacity: 0;
-    pointer-events: none;
-    text-align: center;
-    transform: translate(-50%, -2px);
-    transition: opacity 120ms ease, transform 120ms ease;
-    transition-delay: 0ms;
-    white-space: nowrap;
-  }
-
-  .has-tooltip:hover::after,
-  .has-tooltip:focus-visible::after {
-    opacity: 1;
-    transform: translate(-50%, 0);
-    transition-delay: 300ms;
   }
 
   .main {
@@ -3396,490 +2869,6 @@
   .playground-auth .sign-up,
   .playground-auth .go-to-editor {
     border-color: #bdbdbd;
-  }
-
-  .tabs {
-    display: flex;
-    min-width: 0;
-    overflow: auto hidden;
-    border-bottom: 1px solid #393939;
-    background: #2b2b2b;
-  }
-
-  .tab {
-    display: flex;
-    align-items: center;
-    min-width: 118px;
-    max-width: 190px;
-    height: 100%;
-    border-right: 1px solid #3a3a3a;
-    border-bottom: 2px solid transparent;
-    background: #2d2d2d;
-    color: #d8d8d8;
-  }
-
-  .tab.active {
-    border-bottom-color: var(--color-primary);
-    background: #303030;
-    color: #ffffff;
-  }
-
-  .tab-main {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    height: 100%;
-    flex: 1;
-    padding: 0 6px 0 10px;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font-size: 12px;
-  }
-
-  .tab-title {
-    position: relative;
-    min-width: 0;
-    overflow: visible;
-  }
-
-  .tab-title-text {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .error-tab .tab-title::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: -4px;
-    left: 0;
-    height: 8px;
-    pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg width='8' height='8' viewBox='0 0 8 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 4 C1 2 3 2 4 4 C5 6 7 6 8 4' fill='none' stroke='%23ff5c57' stroke-width='1.3'/%3E%3C/svg%3E");
-    background-repeat: repeat-x;
-    background-position: left center;
-    background-size: 8px 8px;
-  }
-
-  .dirty {
-    color: var(--color-primary);
-  }
-
-  .close {
-    width: 28px;
-    height: 100%;
-    border: 0;
-    background: transparent;
-    color: #b5b5b5;
-  }
-
-  .close .codicon {
-    font-size: 13px;
-  }
-
-  .close:hover {
-    color: #ffffff;
-    background: #3a3a3a;
-  }
-
-  .context-menu {
-    position: fixed;
-    z-index: 80;
-    min-width: 172px;
-    padding: 4px;
-    border: 1px solid #454545;
-    border-radius: 4px;
-    background: #252525;
-    box-shadow: 0 12px 28px rgb(0 0 0 / 34%);
-  }
-
-  .context-menu button {
-    display: grid;
-    grid-template-columns: 20px 1fr;
-    align-items: center;
-    width: 100%;
-    min-height: 28px;
-    padding: 0 9px;
-    border: 0;
-    border-radius: 3px;
-    background: transparent;
-    color: #e5e5e5;
-    font: inherit;
-    font-size: 12px;
-    text-align: left;
-  }
-
-  .context-menu button:hover,
-  .context-menu button:focus-visible {
-    background: #36511f;
-    color: #ffffff;
-    outline: none;
-  }
-
-  .context-menu button:disabled {
-    background: transparent;
-    color: #707070;
-    cursor: not-allowed;
-  }
-
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 70;
-    display: grid;
-    place-items: center;
-    background: rgb(0 0 0 / 38%);
-    -webkit-backdrop-filter: blur(5px);
-    backdrop-filter: blur(5px);
-  }
-
-  .file-dialog {
-    width: min(520px, calc(100vw - 32px));
-    max-height: min(620px, calc(100vh - 32px));
-    border: 1px solid #474747;
-    border-radius: 6px;
-    background: #252525;
-    color: #eeeeee;
-    box-shadow: 0 18px 50px rgb(0 0 0 / 45%);
-  }
-
-  .file-dialog form {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    max-height: inherit;
-  }
-
-  .confirm-dialog {
-    width: min(420px, calc(100vw - 32px));
-  }
-
-  .project-dialog {
-    width: min(820px, calc(100vw - 32px));
-  }
-
-  .project-dialog.project-list-dialog {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    min-height: min(520px, calc(100vh - 32px));
-    overflow: hidden;
-  }
-
-  .project-dialog-header {
-    justify-content: space-between;
-    gap: 16px;
-  }
-
-  .project-dialog-header button,
-  .file-dialog footer button {
-    min-height: 32px;
-    padding: 0 14px;
-    border: 1px solid #505050;
-    border-radius: 4px;
-    background: #333333;
-    color: #eeeeee;
-  }
-
-  .project-list {
-    display: grid;
-    align-content: start;
-    gap: 8px;
-    min-height: 0;
-    padding: 12px 16px;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  .project-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    min-height: 68px;
-    border: 1px solid #414141;
-    border-radius: 5px;
-    background: #202020;
-    color: #dddddd;
-    overflow: hidden;
-  }
-
-  .project-row:hover,
-  .project-row:focus-within {
-    border-color: #648744;
-    background: #293025;
-  }
-
-  .project-row.active {
-    border-color: var(--color-primary);
-  }
-
-  .project-select {
-    display: grid;
-    grid-template-columns: minmax(160px, 1.5fr) minmax(130px, 1fr) minmax(130px, 1fr) 70px;
-    gap: 14px;
-    align-items: center;
-    align-self: stretch;
-    min-width: 0;
-    padding: 10px 14px;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    text-align: left;
-  }
-
-  .project-row-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 10px;
-  }
-
-  .project-row-actions button {
-    display: grid;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    place-items: center;
-    border: 0;
-    border-radius: 4px;
-    background: transparent;
-    color: #c8c8c8;
-  }
-
-  .project-row-actions button:hover {
-    background: #3b3b3b;
-    color: #ffffff;
-  }
-
-  .danger-button {
-    border-color: #8c4848 !important;
-    background: #6d3333 !important;
-  }
-
-  .project-name {
-    overflow: hidden;
-    color: #ffffff;
-    font-size: 14px;
-    font-weight: 700;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .project-title {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: 8px;
-  }
-
-  .project-stat {
-    display: grid;
-    gap: 4px;
-    color: #bdbdbd;
-    font-size: 12px;
-  }
-
-  .project-stat strong {
-    color: #858585;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .active-project-label {
-    flex: none;
-    padding: 2px 5px;
-    border: 1px solid color-mix(in srgb, var(--color-primary) 65%, transparent);
-    border-radius: 3px;
-    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-    color: var(--color-primary);
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  .playground-project-label {
-    flex: none;
-    padding: 2px 5px;
-    border: 1px solid #557b9d;
-    border-radius: 3px;
-    background: #263847;
-    color: #9dccf3;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  @media (max-width: 680px) {
-    .project-row {
-      grid-template-columns: 1fr;
-    }
-
-    .project-select {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .project-row-actions {
-      justify-content: flex-end;
-      padding: 0 10px 10px;
-    }
-
-    .project-title {
-      grid-column: 1 / -1;
-    }
-  }
-
-  .file-dialog header {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    padding: 0 16px;
-    border-bottom: 1px solid #3a3a3a;
-  }
-
-  .file-dialog h2 {
-    margin: 0;
-    font-size: 15px;
-    font-weight: 700;
-  }
-
-  .file-dialog-body {
-    display: grid;
-    gap: 12px;
-    min-height: 0;
-    padding: 12px 16px;
-  }
-
-  .confirm-dialog-body p {
-    margin: 0;
-    color: #d8d8d8;
-    font-size: 13px;
-    line-height: 1.4;
-  }
-
-  .directory-picker {
-    min-height: 180px;
-    max-height: 280px;
-    overflow: auto;
-    border: 1px solid #3d3d3d;
-    border-radius: 4px;
-    background: #202020;
-  }
-
-  .directory-picker button {
-    display: grid;
-    grid-template-columns: 20px 1fr;
-    align-items: center;
-    width: 100%;
-    min-height: 28px;
-    padding: 0 10px 0 calc(10px + var(--depth) * 16px);
-    border: 0;
-    background: transparent;
-    color: #d8d8d8;
-    font: inherit;
-    font-size: 12px;
-    text-align: left;
-  }
-
-  .directory-picker button:hover,
-  .directory-picker button:focus-visible {
-    background: #2f2f2f;
-    outline: none;
-  }
-
-  .directory-picker button.active {
-    background: #36511f;
-    color: #ffffff;
-  }
-
-  .file-name-field {
-    display: grid;
-    gap: 6px;
-    font-size: 12px;
-    color: #cfcfcf;
-  }
-
-  .project-publication-field {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: fit-content;
-    color: #cfcfcf;
-    font-size: 12px;
-  }
-
-  .file-name-field input {
-    width: 100%;
-    height: 32px;
-    box-sizing: border-box;
-    border: 1px solid #484848;
-    border-radius: 4px;
-    background: #1f1f1f;
-    color: #ffffff;
-    font: inherit;
-    padding: 0 9px;
-  }
-
-  .file-name-field input:focus {
-    border-color: var(--color-primary);
-    outline: none;
-  }
-
-  .target-preview {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: #a8a8a8;
-    font-family: "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
-    font-size: 12px;
-  }
-
-  .dialog-error {
-    color: #ff8787;
-    font-size: 12px;
-  }
-
-  .file-dialog footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    padding: 12px 16px;
-    border-top: 1px solid #3a3a3a;
-  }
-
-  .file-dialog footer button {
-    min-width: 76px;
-    height: 30px;
-    border: 1px solid #484848;
-    border-radius: 4px;
-    background: #2b2b2b;
-    color: #eeeeee;
-    font: inherit;
-    font-size: 12px;
-  }
-
-  .file-dialog footer button:hover,
-  .file-dialog footer button:focus-visible {
-    border-color: #5a5a5a;
-    background: #36511f;
-    color: #ffffff;
-    outline: none;
-  }
-
-  .file-dialog footer button[type="submit"] {
-    border-color: var(--color-primary);
-    background: var(--color-primary);
-    color: #121212;
-  }
-
-  .file-dialog footer button[type="submit"]:hover,
-  .file-dialog footer button[type="submit"]:focus-visible {
-    border-color: #4be08a;
-    background: #4be08a;
-    color: #101010;
   }
 
   @media (max-width: 980px) {

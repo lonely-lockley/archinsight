@@ -114,18 +114,30 @@ tasks.register('generateLanguageSources', Exec) {
 
 tasks.register('languageNpmTest', Exec) {
     group = 'verification'
-    description = 'Runs shared language runtime and contract tests.'
+    description = 'Runs shared language type checks, contracts, and coverage regression checks.'
     dependsOn 'languageNpmInstall', 'generateLanguageSources'
     inputs.dir('packages/insight-language/src')
     inputs.dir('packages/insight-language/scripts')
     inputs.dir('packages/insight-language/grammar')
     inputs.file('packages/insight-language/package.json')
+    inputs.file('test-coverage-baseline.json')
+    inputs.dir('scripts')
     if (file('packages/insight-language/package-lock.json').exists()) {
         inputs.file('packages/insight-language/package-lock.json')
     }
     workingDir = file('packages/insight-language')
     environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
-    commandLine npmCommand, 'run', 'test:runtime'
+    commandLine npmCommand, 'run', 'check'
+}
+
+def coverageSummary = tasks.register('coverageSummary', Exec) {
+    group = 'verification'
+    description = 'Prints consolidated package coverage after all test suites complete.'
+    dependsOn 'languageNpmTest'
+    inputs.file('test-coverage-baseline.json')
+    inputs.file('scripts/print-coverage-summary.mjs')
+    workingDir = rootProject.projectDir
+    commandLine 'node', 'scripts/print-coverage-summary.mjs'
 }
 
 tasks.register('cleanGenerated') {
@@ -182,6 +194,12 @@ gradle.projectsEvaluated {
         tasks.named('check') {
             dependsOn taskPath
         }
+        coverageSummary.configure {
+            dependsOn taskPath
+        }
+    }
+    tasks.named('check') {
+        dependsOn coverageSummary
     }
     def releaseCheckTasks = [
         ':archinsight-cli:releaseCheck',

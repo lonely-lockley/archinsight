@@ -30,6 +30,12 @@ test('rejects arbitrary malformed payloads', () => {
   assert.throws(() => validateRenderPayload({
     renders: [{ sourceIdentity: 'app.ai', diagram: 'query', dot: '' }]
   }, { maxRenderCount: 2, maxDotBytes: 1024 }), /dot is required/);
+  assert.throws(() => validateRenderPayload({
+    renders: [{ sourceIdentity: '', diagram: 'query', dot: 'digraph app {}' }]
+  }, { maxRenderCount: 2, maxDotBytes: 1024 }), /sourceIdentity is required/);
+  assert.throws(() => validateRenderPayload({
+    renders: [{ sourceIdentity: 'app.ai', diagram: 42, dot: 'digraph app {}' }]
+  }, { maxRenderCount: 2, maxDotBytes: 1024 }), /diagram is required/);
 });
 
 test('enforces count and DOT byte limits', () => {
@@ -77,6 +83,21 @@ test('reads positive integer limits from environment', () => {
   });
 });
 
+test('uses safe defaults for missing and invalid environment limits', () => {
+  const defaults = requestLimitsFromEnv({});
+  const invalid = requestLimitsFromEnv({
+    MAX_RENDER_COUNT: '0',
+    MAX_DOT_BYTES: '-1',
+    DEFAULT_PNG_DPI: '1.5',
+    MAX_PNG_BYTES: 'not-a-number'
+  });
+
+  assert.equal(invalid.maxRenderCount, defaults.maxRenderCount);
+  assert.equal(invalid.maxDotBytes, defaults.maxDotBytes);
+  assert.equal(invalid.defaultPngDpi, defaults.defaultPngDpi);
+  assert.equal(invalid.maxPngBytes, defaults.maxPngBytes);
+});
+
 test('enforces aggregate DOT bytes', () => {
   assert.throws(() => validateRenderPayload({
     renders: [
@@ -99,6 +120,10 @@ test('validates png dpi with default and maximum', () => {
   }, { maxRenderCount: 2, maxDotBytes: 1024, defaultPngDpi: 200, maxPngDpi: 600 });
 
   assert.equal(explicit.dpi, 300);
+  assert.equal(validatePngRenderPayload({
+    dpi: '400',
+    renders: [{ sourceIdentity: 'app.ai', diagram: 'query', dot: 'digraph app { a -> b }' }]
+  }, { maxRenderCount: 2, maxDotBytes: 1024, defaultPngDpi: 200, maxPngDpi: 600 }).dpi, 400);
   assert.throws(() => validatePngRenderPayload({
     dpi: 0,
     renders: [{ sourceIdentity: 'app.ai', diagram: 'query', dot: 'digraph app { a -> b }' }]

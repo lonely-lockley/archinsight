@@ -153,13 +153,16 @@ The language core lives in `packages/insight-language`. Built-in Insight framewo
 Useful development checks:
 
 ```shell
-npm --prefix packages/insight-language run test:runtime
+npm --prefix packages/insight-language run check
 npm --prefix archinsight-cli run check
 npm --prefix archinsight-vscode run check
 npm --prefix archinsight-web run check
-npm --prefix archinsight-web run test:server
-npm --prefix archinsight-renderer test
+npm --prefix archinsight-renderer run check
+./gradlew check
 ```
+
+See [Testing Policy](TESTING.md) for suite structure, package-specific test
+contracts, and the rule that coverage may not fall after a change.
 
 After editing the built-in framework, regenerate the TypeScript snapshot:
 
@@ -172,6 +175,9 @@ Build and verify every release artifact with Gradle:
 ```shell
 ./gradlew clean dist
 ```
+
+This release entrypoint runs every language, CLI, VSCode, web, and renderer test
+suite, including coverage non-regression checks, before producing artifacts.
 
 The release includes the CLI package, VSCode extension, web distribution, and
 versioned `editor-ui-<version>` and `renderer-<version>` container images. Image

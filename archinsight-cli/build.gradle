@@ -81,7 +81,7 @@ tasks.register('npmCheck') {
     doLast {
         providers.exec {
             workingDir projectDir
-            commandLine npmCommand, 'run', 'test:skill'
+            commandLine npmCommand, 'run', 'verify'
         }.result.get()
     }
 }

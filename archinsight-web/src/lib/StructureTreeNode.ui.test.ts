@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { mount, tick, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import StructureTreeNode from './StructureTreeNode.svelte';
