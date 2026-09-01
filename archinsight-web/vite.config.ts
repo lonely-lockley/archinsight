@@ -16,7 +16,9 @@ export default defineConfig({
         'src/**/*.test.ts',
         'src/**/*.d.ts',
         'src/lib/generated/**',
-        'src/lib/themes/**'
+        'src/lib/themes/**',
+        // Declarative DI wiring is smoke-tested; its one closure per port is not a unit-coverage scope.
+        'src/lib/workspace/shell/workspace-runtime.ts'
       ]
     }
   },

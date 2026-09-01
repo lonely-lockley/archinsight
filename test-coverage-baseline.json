@@ -19,8 +19,8 @@
       "statements": { "covered": 6385, "total": 6703 }
     },
     "web": {
-      "scope": "Web TypeScript and Svelte sources, excluding tests, declarations, generated code, and static themes.",
-      "measurementNote": "The counters were confirmed by two consecutive complete runs after workspace UI extraction added diagnostics, repository-path, repository-tree, tab-state, tab-component, repository-dialog, repository-context-menu, and project-dialog contracts.",
+      "scope": "Web TypeScript and Svelte sources, excluding tests, declarations, generated code, static themes, and declarative workspace DI wiring.",
+      "measurementNote": "The workspace runtime composition root is covered by smoke and lifecycle tests but excluded from ratios because its one adapter closure per controller port would make function coverage measure wiring volume rather than behavior.",
       "lines": { "covered": 5333, "total": 9786 },
       "branches": { "covered": 1506, "total": 1910 },
       "functions": { "covered": 542, "total": 627 },

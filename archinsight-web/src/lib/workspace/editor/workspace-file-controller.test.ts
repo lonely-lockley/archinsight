@@ -192,6 +192,23 @@ describe('workspace file controller', () => {
     expect(subject.monaco.retargetModel).toHaveBeenCalled();
   });
 
+  it('accepts save effects for open and newly created repository files', async () => {
+    const open = fixture([tab('untitled:1', { filePath: undefined })]);
+    await open.controller.acceptFileEffect({
+      kind: 'file-saved', tabId: 'untitled:1', path: 'saved.ai', content: 'saved content'
+    });
+    expect(open.tabs()[0]).toMatchObject({ id: 'saved.ai', filePath: 'saved.ai', local: false });
+    expect(open.ports.fileSaved).toHaveBeenCalledWith('saved.ai');
+
+    const created = fixture();
+    await created.controller.acceptFileEffect({
+      kind: 'file-saved', path: 'created.ai', content: 'created content'
+    });
+    await created.controller.acceptFileEffect({ kind: 'folder-created', path: 'domain' });
+    expect(created.ports.fetchFile).toHaveBeenCalledWith('project', 'created.ai', 'editor');
+    expect(created.ports.fileSaved).toHaveBeenCalledWith('created.ai');
+  });
+
   it('removes deleted files from tabs, overlays, storage, and diagnostics', async () => {
     const subject = fixture([tab('main.ai')]);
     subject.ports.setOverlays({ 'main.ai': 'changed' });

@@ -7,14 +7,12 @@ import { errorMessage } from '../messages/message-controller';
 import type { ProjectLoadGuard } from '../projects/project-session-controller';
 import type { RepositoryFileEffect } from '../repository/repository-controller';
 import {
-  baseName,
-  defaultDialogFileName,
-  replaceDirectoryPrefix
+  defaultDialogFileName
 } from '../repository/repository-paths';
-import { repositoryFilePathsInDirectory } from '../repository/repository-tree';
 import type { FileDialogState } from '../repository/repository-dialog-types';
 import type { MonacoSession } from './monaco-session';
 import type { TabController } from './tab-controller';
+import { createWorkspaceFileEffects } from './workspace-file-effects';
 import {
   isProjectSourceTab,
   tabToolbarState,
@@ -225,22 +223,6 @@ export function createWorkspaceFileController(
     await activateTab(tabId);
   };
 
-  const retargetOpenTab = (tabId: string, path: string, content: string, local: boolean): void => {
-    const transition = ports.tabController.retarget(tabId, {
-      path,
-      title: baseName(path),
-      content,
-      local
-    });
-    const tab = transition.previousTab;
-    const targetId = transition.targetId;
-    if (tab === undefined || targetId === undefined) return;
-    monaco().retargetModel(tab.id, targetId);
-    analysis().removeDiagnostics([tab.sourceIdentity]);
-    monaco().syncActiveTab();
-    ports.refreshEditorTokenVocabulary();
-  };
-
   const closeTab = (id: string): void => {
     const tab = ports.tabs().find((item) => item.id === id);
     const closingActiveTab = ports.activeTabId() === id;
@@ -268,25 +250,6 @@ export function createWorkspaceFileController(
     persistWorkspace();
   };
 
-  const retargetTabsForRename = (sourcePath: string, targetPath: string): void => {
-    const tab = ports.tabs().find((item) => item.filePath === sourcePath);
-    const overlays = { ...ports.overlays() };
-    if (tab === undefined) {
-      ports.removeLocalSource(ports.storageProjectId(), sourcePath);
-      delete overlays[sourcePath];
-      ports.setOverlays(overlays);
-      return;
-    }
-    retargetOpenTab(tab.id, targetPath, tab.content, tab.local);
-    if (tab.local) {
-      overlays[targetPath] = tab.content;
-      ports.writeLocalSource(ports.storageProjectId(), targetPath, tab.content);
-    }
-    ports.removeLocalSource(ports.storageProjectId(), sourcePath);
-    delete overlays[sourcePath];
-    ports.setOverlays(overlays);
-  };
-
   const saveTabToPath = async (tab: WorkspaceTab, path: string): Promise<void> => {
     if (!ports.authorizeSave()) return;
     try {
@@ -298,7 +261,7 @@ export function createWorkspaceFileController(
       delete overlays[result.path];
       ports.setOverlays(overlays);
       if (tab.filePath === undefined || tab.filePath !== result.path) {
-        retargetOpenTab(tab.id, result.path, tab.content, false);
+        fileEffects.retargetOpenTab(tab.id, result.path, tab.content, false);
       } else {
         ports.tabController.patch(tab.id, { local: false });
       }
@@ -315,6 +278,23 @@ export function createWorkspaceFileController(
     const response = await ports.fetchTree(ports.projectId(), ports.surface());
     ports.setTree(response.root);
   };
+
+  const fileEffects = createWorkspaceFileEffects({
+    tabs: ports.tabs,
+    overlays: ports.overlays,
+    setOverlays: ports.setOverlays,
+    storageProjectId: ports.storageProjectId,
+    tree: ports.tree,
+    tabController: ports.tabController,
+    monaco,
+    analysis,
+    writeLocalSource: ports.writeLocalSource,
+    removeLocalSource: ports.removeLocalSource,
+    refreshEditorTokenVocabulary: ports.refreshEditorTokenVocabulary,
+    closeTab,
+    openFile: (path) => openFile(path),
+    fileSaved: ports.fileSaved
+  });
 
   return {
     contentChanged(tab, content) {
@@ -409,44 +389,8 @@ export function createWorkspaceFileController(
       await saveTabToPath(tab, tab.filePath);
     },
 
-    async acceptDeletedFiles(paths) {
-      for (const path of paths) {
-        const tab = ports.tabs().find((item) => item.filePath === path);
-        if (tab !== undefined) closeTab(tab.id);
-        ports.removeLocalSource(ports.storageProjectId(), path);
-        const overlays = { ...ports.overlays() };
-        delete overlays[path];
-        ports.setOverlays(overlays);
-      }
-      analysis().removeDiagnostics([...paths]);
-      ports.refreshEditorTokenVocabulary();
-    },
-
-    async acceptFileEffect(effect) {
-      switch (effect.kind) {
-        case 'file-renamed':
-          retargetTabsForRename(effect.sourcePath, effect.path);
-          return;
-        case 'folder-renamed': {
-          const paths = ports.tabs().flatMap((tab) => tab.filePath === undefined ? [] : [tab.filePath]);
-          const files = repositoryFilePathsInDirectory(ports.tree(), effect.sourcePath, paths);
-          for (const path of files) {
-            retargetTabsForRename(path, replaceDirectoryPrefix(path, effect.sourcePath, effect.path));
-          }
-          return;
-        }
-        case 'file-saved':
-          if (effect.tabId !== undefined) {
-            retargetOpenTab(effect.tabId, effect.path, effect.content, false);
-          } else {
-            await openFile(effect.path);
-          }
-          ports.fileSaved(effect.path);
-          return;
-        case 'folder-created':
-          return;
-      }
-    },
+    acceptDeletedFiles: fileEffects.acceptDeletedFiles,
+    acceptFileEffect: fileEffects.acceptFileEffect,
 
     refreshProjectMetadata
   };

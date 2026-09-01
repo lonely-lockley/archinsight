@@ -629,11 +629,14 @@ function rollUpDeploymentSystems(result: LinkProjectResult, graph: RenderGraph, 
       elements[id] = element.id === id ? element : { ...element, id };
     }
   }
-  const sourceElements = tabClosure(result, scope.tab);
+  const openedSystems = openedTabBoundaries(result, scope.tab, "SystemElement");
   const externalElements = new Set(graph.externalElements.map(fold).filter((id) => referenced.has(id)));
   for (const id of referenced) {
     const system = systemFor(id);
-    if (system !== undefined && !sourceElements.has(system)) {
+    const systemElement = system === undefined ? undefined : elementsById.get(system);
+    if (system !== undefined
+        && (!openedSystems.has(system)
+          || (systemElement !== undefined && explicitlyExternal(systemElement)))) {
       externalElements.add(id);
     }
   }
@@ -1011,7 +1014,15 @@ function openedViewBoundaries(
     : scope.view === "c3"
       ? "ContainerElement"
       : "ComponentElement";
-  const closure = tabClosure(result, scope.tab);
+  return openedTabBoundaries(result, scope.tab, boundaryType);
+}
+
+function openedTabBoundaries(
+  result: LinkProjectResult,
+  tab: string | undefined,
+  boundaryType: string,
+): ReadonlySet<string> {
+  const closure = tabClosure(result, tab);
   const elementsById = new Map(result.elements.map((element) => [element.id, element]));
   const parentByChild = new Map(result.elements.flatMap((element) =>
     element.parent === undefined ? [] : [[element.id, element.parent]]
