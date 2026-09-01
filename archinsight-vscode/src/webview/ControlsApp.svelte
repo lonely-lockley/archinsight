@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+  import type { BuiltinDiagramView } from '@insight/language';
 
-  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container' | 'no-filter';
+  type DiagramView = BuiltinDiagramView;
 
   type IncomingMessage = {
     command: 'state';

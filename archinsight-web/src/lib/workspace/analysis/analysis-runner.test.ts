@@ -27,7 +27,7 @@ const linkResponse = (overrides: Partial<LinkResponse> = {}): LinkResponse => ({
   } as unknown as LinkResponse['linkedModel'],
   diagnostics: [],
   renders: [{ sourceIdentity: 'main.ai', diagram: 'query', dot: 'digraph {}' }],
-  structure: { schemaVersion: 'test', contexts: [] },
+  structure: { schemaVersion: 'project-structure.v1', contexts: [] },
   ...overrides
 });
 

@@ -1,4 +1,12 @@
-import type { GraphNode, GraphRelation, LanguageSnapshot, LinkProjectResult } from '@insight/language';
+import type {
+  BuiltinDiagramView,
+  GraphNode,
+  GraphRelation,
+  LanguageSnapshot,
+  LinkProjectResult,
+  ProjectStructure as LanguageProjectStructure,
+  ProjectStructureDeclaration
+} from '@insight/language';
 import { base } from '$app/paths';
 
 export type FileTreeNode = {
@@ -84,21 +92,9 @@ export type ProjectListResponse = {
   projects: ProjectSummaryResponse[];
 };
 
-export type StructureDeclaration = {
-  id: string;
-  kind: 'context' | 'element' | 'import' | string;
-  constructor: string;
-  type?: string;
-  source: string;
-  line: number;
-  column: number;
-  children: StructureDeclaration[];
-};
+export type StructureDeclaration = ProjectStructureDeclaration;
 
-export type ProjectStructure = {
-  schemaVersion: string;
-  contexts: StructureDeclaration[];
-};
+export type ProjectStructure = LanguageProjectStructure;
 
 export type SvgRender = {
   sourceIdentity: string;
@@ -254,7 +250,7 @@ export async function linkProject(
   openSourceIdentities: string[],
   overlays: Record<string, string>,
   query: string,
-  view: 'no-filter' | 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container',
+  view: BuiltinDiagramView,
   environment: string | undefined,
   surface: WorkspaceSurface = 'editor'
 ): Promise<LinkResponse> {

@@ -52,6 +52,7 @@
 
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
+  import { BUILTIN_VIEW_DEFINITIONS, type BuiltinViewDefinition } from '@insight/language';
 
   export let diagramMode: DiagramMode;
   export let query: string;
@@ -69,6 +70,9 @@
 
   const minQueryPanelHeight = 80;
   const maxQueryPanelHeight = 360;
+  const viewControls = BUILTIN_VIEW_DEFINITIONS
+    .filter((definition) => definition.lifecycle === 'stable')
+    .map((definition) => ({ definition, mode: diagramModeForDefinition(definition) }));
 
   let monaco: typeof Monaco | undefined;
   let queryHost: HTMLDivElement;
@@ -205,6 +209,10 @@
   function clampQueryPanelHeight(value: number): number {
     return Math.max(minQueryPanelHeight, Math.min(maxQueryPanelHeight, value));
   }
+
+  function diagramModeForDefinition(definition: BuiltinViewDefinition): DiagramMode {
+    return definition.id === 'no-filter' ? 'default' : definition.id;
+  }
 </script>
 
 <section class:query-open={queryVisible} class="query-editor" style={queryEditorStyle}>
@@ -212,58 +220,48 @@
     <slot name="leading-actions"></slot>
 
     <div class="diagram-modes tool-group" aria-label="View query preset">
-      <button aria-label="No filter view" class:active-mode={diagramMode === 'default'} type="button" on:click={() => onSelectDiagramMode('default')}>
-        <span aria-hidden="true">No filter</span>
-      </button>
-      <button aria-label="C1 context view" class:active-mode={diagramMode === 'c1'} class="has-tooltip" data-tooltip="C1 context view" type="button" on:click={() => onSelectDiagramMode('c1')}>
-        <span aria-hidden="true">C1</span>
-      </button>
-      <button aria-label="C2 container view" class:active-mode={diagramMode === 'c2'} class="has-tooltip" data-tooltip="C2 container view" type="button" on:click={() => onSelectDiagramMode('c2')}>
-        <span aria-hidden="true">C2</span>
-      </button>
-      <button aria-label="C3 component view" class:active-mode={diagramMode === 'c3'} class="has-tooltip" data-tooltip="C3 component view" type="button" on:click={() => onSelectDiagramMode('c3')}>
-        <span aria-hidden="true">C3</span>
-      </button>
-      <button aria-label="C4 code view" class:active-mode={diagramMode === 'c4'} class="has-tooltip" data-tooltip="C4 code view" type="button" on:click={() => onSelectDiagramMode('c4')}>
-        <span aria-hidden="true">C4</span>
-      </button>
-      <button aria-label="D1 system deployment view" class:active-mode={diagramMode === 'deployment-system'} class="has-tooltip" data-tooltip="D1 system deployment overview" type="button" on:click={() => onSelectDiagramMode('deployment-system')}>
-        <span aria-hidden="true">D1</span>
-      </button>
-      <div class="deployment-picker-host" bind:this={deploymentPickerHost}>
-        <button aria-expanded={deploymentPickerOpen} aria-haspopup="listbox" aria-label="D2 container deployment view" class:active-mode={diagramMode === 'deployment-container'} class="has-tooltip" data-tooltip="D2 container deployment by environment" type="button" on:click={() => onSelectDiagramMode('deployment-container')}>
-          <span aria-hidden="true">D2</span>
-        </button>
-        {#if deploymentPickerOpen}
-          <div class="environment-picker" role="dialog" aria-label="Select deployment environment">
-            {#if deploymentEnvironments.length > 1}
-              <input bind:value={environmentFilter} aria-label="Filter environments" placeholder="Filter environments" type="search" />
-            {/if}
-            <div class="environment-options" role="listbox">
-              {#each filteredDeploymentEnvironments as environment (environment.id)}
-                <button
-                  aria-selected={environment.id === deploymentEnvironment}
-                  class:selected={environment.id === deploymentEnvironment}
-                  role="option"
-                  type="button"
-                  on:click={() => onSelectDeploymentEnvironment(environment.id)}
-                >
-                  <span>{environment.id}</span>
-                  {#if environment.name !== undefined && environment.name !== environment.id}<small>{environment.name}</small>{/if}
-                </button>
-              {/each}
-              {#if filteredDeploymentEnvironments.length === 0}
-                <div class="environment-empty">
-                  {deploymentEnvironments.length === 0
-                    ? 'No deployment environments are relevant to this source'
-                    : 'No matching environments'}
+      {#each viewControls as control (control.definition.id)}
+        {#if control.definition.environment === 'single-relevant'}
+          <div class="deployment-picker-host" bind:this={deploymentPickerHost}>
+            <button aria-expanded={deploymentPickerOpen} aria-haspopup="listbox" aria-label={`${control.definition.label} view`} class:active-mode={diagramMode === control.mode} class="has-tooltip" data-tooltip={control.definition.label} type="button" on:click={() => onSelectDiagramMode(control.mode)}>
+              <span aria-hidden="true">{control.definition.shortLabel}</span>
+            </button>
+            {#if deploymentPickerOpen}
+              <div class="environment-picker" role="dialog" aria-label="Select deployment environment">
+                {#if deploymentEnvironments.length > 1}
+                  <input bind:value={environmentFilter} aria-label="Filter environments" placeholder="Filter environments" type="search" />
+                {/if}
+                <div class="environment-options" role="listbox">
+                  {#each filteredDeploymentEnvironments as environment (environment.id)}
+                    <button
+                      aria-selected={environment.id === deploymentEnvironment}
+                      class:selected={environment.id === deploymentEnvironment}
+                      role="option"
+                      type="button"
+                      on:click={() => onSelectDeploymentEnvironment(environment.id)}
+                    >
+                      <span>{environment.id}</span>
+                      {#if environment.name !== undefined && environment.name !== environment.id}<small>{environment.name}</small>{/if}
+                    </button>
+                  {/each}
+                  {#if filteredDeploymentEnvironments.length === 0}
+                    <div class="environment-empty">
+                      {deploymentEnvironments.length === 0
+                        ? 'No deployment environments are relevant to this source'
+                        : 'No matching environments'}
+                    </div>
+                  {/if}
                 </div>
-              {/if}
-            </div>
-            <button class="environment-close" type="button" on:click={onCloseDeploymentPicker}>Cancel</button>
+                <button class="environment-close" type="button" on:click={onCloseDeploymentPicker}>Cancel</button>
+              </div>
+            {/if}
           </div>
+        {:else}
+          <button aria-label={`${control.definition.label} view`} class:active-mode={diagramMode === control.mode} class="has-tooltip" data-tooltip={control.definition.label} type="button" on:click={() => onSelectDiagramMode(control.mode)}>
+            <span aria-hidden="true">{control.definition.shortLabel}</span>
+          </button>
         {/if}
-      </div>
+      {/each}
     </div>
 
     <div class="query-actions tool-group" aria-label="Query actions">

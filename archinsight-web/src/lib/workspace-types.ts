@@ -1,4 +1,5 @@
 import type { Diagnostic, FileTreeNode } from './api';
+import type { BuiltinDiagramView } from '@insight/language';
 
 export type ProjectUiState = {
   sidebarVisible: boolean;
@@ -40,7 +41,7 @@ export type WorkspaceTab = {
   queryPanelHeight: number;
 };
 
-export type DiagramMode = 'default' | 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container';
+export type DiagramMode = 'default' | BuiltinDiagramView;
 
 export type EditorViewMode = 'split' | 'code' | 'diagram';
 

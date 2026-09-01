@@ -3,7 +3,9 @@ import type {
   GraphNode,
   GraphRelation,
   LanguageSnapshot,
-  LinkProjectResult
+  LinkProjectResult,
+  ProjectStructure,
+  ProjectStructureDeclaration
 } from '@insight/language';
 
 export type DiagnosticDto = {
@@ -69,18 +71,6 @@ export type ProjectStructureRequest = {
   overlays?: Record<string, string> | null;
 };
 
-export type StructureDeclarationDto = {
-  id: string;
-  kind: 'context' | 'element' | 'import' | string;
-  constructor: string;
-  type?: string;
-  source: string;
-  line: number;
-  column: number;
-  children: StructureDeclarationDto[];
-};
+export type StructureDeclarationDto = ProjectStructureDeclaration;
 
-export type ProjectStructureResponse = {
-  schemaVersion: 'project-structure.v1';
-  contexts: StructureDeclarationDto[];
-};
+export type ProjectStructureResponse = ProjectStructure;

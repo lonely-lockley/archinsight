@@ -74,6 +74,19 @@ test('language configuration uses balanced editor pairs', () => {
   }
 });
 
+test('project structure uses the canonical language-core builders', () => {
+  assert(extensionSource.includes('buildProjectStructure'));
+  assert(extensionSource.includes('buildTypeHierarchy'));
+  assert(extensionSource.includes('filterTypeHierarchy'));
+  assert.equal(extensionSource.includes('function isOperatorType('), false);
+});
+
+test('built-in views come from the canonical language catalogue', () => {
+  assert(extensionSource.includes('BUILTIN_VIEW_QUERIES'));
+  assert(extensionSource.includes('builtinViewDefinition'));
+  assert.equal(extensionSource.includes('./generated/builtin-view-queries'), false);
+});
+
 function assertPath(relativePath) {
   assert(existsSync(path.resolve(extensionRoot, relativePath)), `${relativePath} must exist`);
 }

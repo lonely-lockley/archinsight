@@ -4,6 +4,7 @@ import {
   type LinkProjectResult
 } from '@insight/language';
 import {
+  diagramModeDefinition,
   diagramModeForQuery,
   queryForDiagramMode
 } from '$lib/diagram-query-presets';
@@ -134,7 +135,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
     },
 
     selectMode(mode) {
-      if (mode === 'deployment-container') {
+      if (diagramModeDefinition(mode).environment === 'single-relevant') {
         if (ports.linkedAnalysis() === undefined) {
           pickerRequested = true;
           ports.setPickerOpen(false);
@@ -171,7 +172,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
 
     reconcileDeploymentEnvironment(analysis) {
       const tab = ports.activeTab();
-      if (tab === undefined || tab.diagramMode !== 'deployment-container') {
+      if (tab === undefined || diagramModeDefinition(tab.diagramMode).environment !== 'single-relevant') {
         pickerRequested = false;
         return false;
       }

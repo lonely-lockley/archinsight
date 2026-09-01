@@ -1,6 +1,11 @@
 <script lang="ts">
   import 'monaco-editor/editor/contrib/symbolIcons/browser/symbolIcons.js';
-  import { coreLanguageSnapshot, type LanguageSnapshot, type TypeDefinition } from '@insight/language';
+  import {
+    buildTypeHierarchy,
+    filterTypeHierarchy,
+    type LanguageSnapshot,
+    type TypeHierarchyNode
+  } from '@insight/language';
   import type { ProjectStructure, StructureDeclaration } from './api';
   import StructureTreeNode from './StructureTreeNode.svelte';
   import type { SourceLocation, StructureTreeNodeModel } from './workspace-types';
@@ -9,8 +14,6 @@
   export let structure: ProjectStructure | undefined;
   export let loading = false;
   export let onOpenDeclaration: (declaration: SourceLocation) => void;
-
-  const languageTypeNames = new Set(coreLanguageSnapshot.types.map((type) => type.name));
 
   let search = '';
   let showLanguageTypes = false;
@@ -27,73 +30,27 @@
     includeLanguageTypes: boolean,
     includeOperators: boolean
   ): StructureTreeNodeModel[] {
-    const allTypes = [...snapshot.types];
-    const allTypesByName = new Map(allTypes.map((type) => [type.name, type]));
-    const operatorTypes = new Set(snapshot.operators.map((operator) => operator.ownerType));
-    const types = allTypes
-      .filter((type) => {
-        if (!languageTypeNames.has(type.name)) {
-          return true;
-        }
-        return isOperatorType(type, allTypesByName, operatorTypes)
-          ? includeOperators
-          : includeLanguageTypes;
-      })
-      .sort((left, right) => left.name.localeCompare(right.name));
-    const childrenByBase = new Map<string, TypeDefinition[]>();
-    const knownTypes = new Set(types.map((type) => type.name));
-
-    for (const type of types) {
-      if (type.baseType === undefined || !knownTypes.has(type.baseType)) {
-        continue;
-      }
-      const children = childrenByBase.get(type.baseType) ?? [];
-      children.push(type);
-      childrenByBase.set(type.baseType, children);
-    }
-
-    const roots = types.filter((type) => type.baseType === undefined || !knownTypes.has(type.baseType));
-    return roots.map((type) => typeNode(type, childrenByBase, allTypesByName, operatorTypes, true));
+    return filterTypeHierarchy(buildTypeHierarchy(snapshot), {
+      includeLanguageTypes,
+      includeOperators
+    }).map((type) => typeNode(type, true));
   }
 
   function typeNode(
-    type: TypeDefinition,
-    childrenByBase: Map<string, TypeDefinition[]>,
-    allTypesByName: Map<string, TypeDefinition>,
-    operatorTypes: Set<string>,
+    type: TypeHierarchyNode,
     root: boolean
   ): StructureTreeNodeModel {
-    const operator = isOperatorType(type, allTypesByName, operatorTypes);
     return {
-      id: `type:${type.name}`,
-      label: type.name,
-      kind: operator ? (root ? 'operator-root' : 'operator') : (root ? 'type-root' : 'type'),
-      icon: operator ? 'symbol-operator' : 'symbol-class',
-      ...(type.baseType === undefined ? {} : { meta: `extends ${type.baseType}` }),
+      id: `type:${type.id}`,
+      label: type.id,
+      kind: type.operator ? (root ? 'operator-root' : 'operator') : (root ? 'type-root' : 'type'),
+      icon: type.operator ? 'symbol-operator' : 'symbol-class',
+      ...(type.extends === undefined ? {} : { meta: `extends ${type.extends}` }),
       ...(type.declaration === undefined ? {} : {
-        declaration: {
-          source: type.declaration.sourceName,
-          line: type.declaration.line,
-          column: type.declaration.column
-        }
+        declaration: type.declaration
       }),
-      children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(child, childrenByBase, allTypesByName, operatorTypes, false))
+      children: type.children.map((child) => typeNode(child, false))
     };
-  }
-
-  function isOperatorType(
-    type: TypeDefinition,
-    typeByName: Map<string, TypeDefinition>,
-    operatorTypes: Set<string>
-  ): boolean {
-    let current: TypeDefinition | undefined = type;
-    while (current !== undefined) {
-      if (operatorTypes.has(current.name)) {
-        return true;
-      }
-      current = current.baseType === undefined ? undefined : typeByName.get(current.baseType);
-    }
-    return false;
   }
 
   function buildDeclarationTree(projectStructure: ProjectStructure | undefined): StructureTreeNodeModel[] {

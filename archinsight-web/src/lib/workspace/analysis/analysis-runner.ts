@@ -1,6 +1,7 @@
 import {
   IndexedGraph,
   InsightLanguageService,
+  resolveBuiltinView,
   coreLanguageSnapshot,
   type BuiltinDiagramView,
   type LanguageSnapshot,
@@ -247,7 +248,7 @@ export function hydrateLinkedModel(model: LinkResponse['linkedModel']): LinkProj
 }
 
 export function builtinView(mode: DiagramMode): BuiltinDiagramView {
-  return mode === 'default' ? 'no-filter' : mode;
+  return resolveBuiltinView(mode, true)!.id;
 }
 
 function dotRendersBySource(renders: readonly DotRender[]): Map<string, string> {

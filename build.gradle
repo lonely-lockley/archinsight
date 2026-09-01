@@ -107,6 +107,7 @@ tasks.register('generateLanguageSources', Exec) {
     dependsOn 'languageNpmInstall'
     inputs.dir('packages/insight-language/grammar')
     inputs.dir('packages/insight-language/scripts')
+    inputs.dir('src/main/resources/com/github/lonelylockley/insight')
     outputs.dir('packages/insight-language/src/generated')
     workingDir = file('packages/insight-language')
     commandLine npmCommand, 'run', 'generate:grammar'

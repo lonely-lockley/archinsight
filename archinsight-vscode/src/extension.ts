@@ -3,10 +3,15 @@ import * as fs from "node:fs";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import {
+  buildProjectStructure,
+  buildTypeHierarchy,
+  BUILTIN_VIEW_QUERIES,
+  builtinViewDefinition,
   coreLanguageSnapshot,
   coreSource,
   coreSources,
   discoverDeploymentEnvironments,
+  filterTypeHierarchy,
   insightSemanticTokenModifiers,
   insightSemanticTokenTypes,
   InsightLanguageService,
@@ -17,13 +22,13 @@ import {
   type LanguageDiagnostic,
   type LanguageSnapshot,
   type LinkedElement,
-  type LinkedImport,
   type LinkProjectResult,
+  type ProjectStructureDeclaration,
   type ProjectSource,
-  type TypeDefinition,
+  type TypeHierarchyNode,
   type VisibleIdentifier,
+  type BuiltinDiagramView,
 } from "@insight/language";
-import { BUILTIN_VIEW_QUERIES, type BuiltinDiagramView } from "./generated/builtin-view-queries.js";
 
 type DiagramView = BuiltinDiagramView;
 type AgentSkillTarget = "generic" | "codex" | "claude";
@@ -132,8 +137,11 @@ const coreSourceName = coreSources.some((source) => source.sourceName === "core.
 const coreSourceByName = new Map(coreSources.map((source) => [source.sourceName, source.source]));
 const coreSourceUri = vscode.Uri.from({ scheme: coreSourceScheme, path: `/${coreSourceName}` });
 
-const languageTypeNames = new Set(coreLanguageSnapshot.types.map((type) => type.name));
 const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
+
+function viewUsesEnvironment(view: DiagramView): boolean {
+  return builtinViewDefinition(view).environment === "single-relevant";
+}
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("archinsight");
@@ -1083,7 +1091,7 @@ class ArchinsightWorkbenchEditorSession {
     if (current === undefined) {
       return;
     }
-    if (this.view === "deployment-container") {
+    if (viewUsesEnvironment(this.view)) {
       const selection = await chooseDeploymentEnvironment(current, sourceName, this.environment, false);
       this.environment = selection.cancelled ? undefined : selection.environment;
     }
@@ -1119,7 +1127,7 @@ class ArchinsightWorkbenchEditorSession {
     forceEnvironmentPicker = false,
     requestedEnvironment: string | undefined = this.environment,
   ): Promise<void> {
-    if (view === "deployment-container" && this.project.current !== undefined) {
+    if (viewUsesEnvironment(view) && this.project.current !== undefined) {
       const selection = await chooseDeploymentEnvironment(
         this.project.current,
         this.sourceName(this.project.current),
@@ -1515,7 +1523,7 @@ class PreviewSession {
   }
 
   async show(initialView: DiagramView, initialQuery: string): Promise<void> {
-    if (initialView === "deployment-container") {
+    if (viewUsesEnvironment(initialView)) {
       const selection = await chooseDeploymentEnvironment(this.current, this.sourceName, this.environment, false);
       if (selection.cancelled) {
         return;
@@ -1565,7 +1573,7 @@ class PreviewSession {
     if (this.panel === undefined) {
       return;
     }
-    if (view === "deployment-container") {
+    if (viewUsesEnvironment(view)) {
       const selection = await chooseDeploymentEnvironment(this.current, this.sourceName, this.environment, forceEnvironmentPicker);
       if (selection.cancelled) {
         return;
@@ -1709,7 +1717,7 @@ async function previewState(
 ): Promise<PreviewState> {
   const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
   try {
-    if (view === "deployment-container" && environment === undefined) {
+    if (viewUsesEnvironment(view) && environment === undefined) {
       const available = discoverDeploymentEnvironments(current.result, { context: context?.id, tab: sourceName });
       throw new Error(available.length === 0
         ? "No deployment environments are relevant to this source."
@@ -2206,124 +2214,57 @@ function typeTree(
   includeLanguageTypes: boolean,
   includeOperators: boolean,
 ): StructureNode[] {
-  const snapshot = project.snapshot;
-  const allTypes = [...snapshot.types];
-  const allTypesByName = new Map(allTypes.map((type) => [type.name, type]));
-  const operatorTypes = new Set(snapshot.operators.map((operator) => operator.ownerType));
-  const types = allTypes
-    .filter((type) => {
-      if (!languageTypeNames.has(type.name)) {
-        return true;
-      }
-      return isOperatorType(type, allTypesByName, operatorTypes)
-        ? includeOperators
-        : includeLanguageTypes;
-    })
-    .sort((left, right) => left.name.localeCompare(right.name));
-  const knownTypes = new Set(types.map((type) => type.name));
-  const childrenByBase = new Map<string, TypeDefinition[]>();
-  for (const type of types) {
-    if (type.baseType === undefined || !knownTypes.has(type.baseType)) {
-      continue;
-    }
-    const children = childrenByBase.get(type.baseType) ?? [];
-    children.push(type);
-    childrenByBase.set(type.baseType, children);
-  }
-  return types
-    .filter((type) => type.baseType === undefined || !knownTypes.has(type.baseType))
-    .map((type) => typeNode(project, type, childrenByBase, allTypesByName, operatorTypes));
+  return filterTypeHierarchy(buildTypeHierarchy(project.snapshot), {
+    includeLanguageTypes,
+    includeOperators,
+  }).map((type) => typeNode(project, type));
 }
 
 function typeNode(
   project: LinkedProject,
-  type: TypeDefinition,
-  childrenByBase: ReadonlyMap<string, readonly TypeDefinition[]>,
-  allTypesByName: ReadonlyMap<string, TypeDefinition>,
-  operatorTypes: ReadonlySet<string>,
+  type: TypeHierarchyNode,
 ): StructureNode {
-  const operator = isOperatorType(type, allTypesByName, operatorTypes);
   return {
-    label: type.name,
-    description: type.baseType === undefined ? undefined : `extends ${type.baseType}`,
-    icon: operator ? "symbol-operator" : "symbol-class",
-    iconColor: operator ? "symbolIcon.operatorForeground" : "symbolIcon.classForeground",
+    label: type.id,
+    description: type.extends === undefined ? undefined : `extends ${type.extends}`,
+    icon: type.operator ? "symbol-operator" : "symbol-class",
+    iconColor: type.operator ? "symbolIcon.operatorForeground" : "symbolIcon.classForeground",
     kind: "type",
-    location: location(project, type.declaration),
-    children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(project, child, childrenByBase, allTypesByName, operatorTypes)),
+    location: projectStructureLocation(project, type.declaration),
+    children: type.children.map((child) => typeNode(project, child)),
   };
 }
 
-function isOperatorType(
-  type: TypeDefinition,
-  typeByName: ReadonlyMap<string, TypeDefinition>,
-  operatorTypes: ReadonlySet<string>,
-): boolean {
-  let current: TypeDefinition | undefined = type;
-  while (current !== undefined) {
-    if (operatorTypes.has(current.name)) {
-      return true;
-    }
-    current = current.baseType === undefined ? undefined : typeByName.get(current.baseType);
-  }
-  return false;
-}
-
 function declarationTree(project: LinkedProject): StructureNode[] {
-  const childrenByParent = new Map<string, LinkedElement[]>();
-  for (const element of project.result.elements) {
-    if (element.anonymous || element.parent === undefined) {
-      continue;
-    }
-    const children = childrenByParent.get(element.parent) ?? [];
-    children.push(element);
-    childrenByParent.set(element.parent, children);
-  }
-  const importsBySource = new Map<string, LinkedImport[]>();
-  for (const item of project.result.imports) {
-    const imports = importsBySource.get(item.sourceIdentity) ?? [];
-    imports.push(item);
-    importsBySource.set(item.sourceIdentity, imports);
-  }
-  const elementsById = new Map(project.result.elements.map((element) => [element.id, element]));
-  return project.result.contexts.map((context) => ({
-    label: context.id,
-    description: context.type,
-    icon: "symbol-namespace",
-    iconColor: "symbolIcon.namespaceForeground",
-    kind: "context",
-    location: location(project, context.declaration),
-    children: [
-      ...(importsBySource.get(context.sourceIdentity) ?? []).map((item) => ({
-        label: item.alias,
-        description: `import ${elementsById.get(item.target)?.type ?? ""}`.trim(),
-        icon: "symbol-reference",
-        iconColor: "symbolIcon.referenceForeground",
-        kind: "import" as const,
-        location: location(project, item.declaration),
-        children: [],
-      })),
-      ...project.result.elements
-        .filter((element) => element.context === context.id && element.parent === undefined && !element.anonymous)
-        .map((element) => declarationNode(project, element, childrenByParent)),
-    ],
-  }));
+  return buildProjectStructure(project.result).contexts.map((context) => declarationNode(project, context));
 }
 
 function declarationNode(
   project: LinkedProject,
-  element: LinkedElement,
-  childrenByParent: ReadonlyMap<string, readonly LinkedElement[]>,
+  declaration: ProjectStructureDeclaration,
 ): StructureNode {
+  const context = declaration.kind === "context";
+  const imported = declaration.kind === "import";
   return {
-    label: element.localId,
-    description: element.type,
-    icon: "symbol-variable",
-    iconColor: "symbolIcon.variableForeground",
-    kind: "element",
-    location: location(project, element.declaration),
-    children: (childrenByParent.get(element.id) ?? []).map((child) => declarationNode(project, child, childrenByParent)),
+    label: declaration.id,
+    description: imported ? `import ${declaration.type ?? ""}`.trim() : declaration.type,
+    icon: context ? "symbol-namespace" : imported ? "symbol-reference" : "symbol-variable",
+    iconColor: context
+      ? "symbolIcon.namespaceForeground"
+      : imported ? "symbolIcon.referenceForeground" : "symbolIcon.variableForeground",
+    kind: declaration.kind,
+    location: projectStructureLocation(project, declaration),
+    children: declaration.children.map((child) => declarationNode(project, child)),
   };
+}
+
+function projectStructureLocation(
+  project: LinkedProject,
+  source: { readonly source: string; readonly line: number; readonly column: number } | undefined,
+): vscode.Location | undefined {
+  return source === undefined
+    ? undefined
+    : location(project, { sourceName: source.source, line: source.line, column: source.column });
 }
 
 function location(project: LinkedProject, source: { readonly sourceName: string; readonly line: number; readonly column: number } | undefined): vscode.Location | undefined {

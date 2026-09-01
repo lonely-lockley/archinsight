@@ -10,6 +10,7 @@ export type CompletionKind =
   | "NEWLINE";
 
 import type { IndexedGraph } from "./indexed-graph.js";
+import type { BuiltinDiagramView } from "./builtin-views.js";
 
 export interface CompletionItem {
   readonly label: string;
@@ -335,16 +336,6 @@ export interface LinkProjectResult {
   readonly duplicateEdges: readonly DuplicateLinkedEdgeGroup[];
   readonly presentations: Readonly<Record<string, ResolvedPresentation>>;
 }
-
-export type BuiltinDiagramView =
-  | "no-filter"
-  | "c1"
-  | "c2"
-  | "c3"
-  | "c4"
-  | "deployment"
-  | "deployment-system"
-  | "deployment-container";
 
 export interface DeploymentEnvironment {
   readonly id: string;

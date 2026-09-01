@@ -1,19 +1,14 @@
-import { BUILTIN_VIEW_QUERIES } from './generated/builtin-view-queries';
+import {
+  BUILTIN_VIEW_DEFINITIONS,
+  BUILTIN_VIEW_QUERIES,
+  builtinViewDefinition,
+  resolveBuiltinView,
+  type BuiltinViewDefinition
+} from '@insight/language';
 import type { DiagramMode } from './workspace-types';
 
 export const defaultDiagramMode: DiagramMode = 'c1';
 export const defaultQuery = BUILTIN_VIEW_QUERIES.c1;
-
-const presetQueries: Record<DiagramMode, string> = {
-  default: BUILTIN_VIEW_QUERIES['no-filter'],
-  c1: BUILTIN_VIEW_QUERIES.c1,
-  c2: BUILTIN_VIEW_QUERIES.c2,
-  c3: BUILTIN_VIEW_QUERIES.c3,
-  c4: BUILTIN_VIEW_QUERIES.c4,
-  'deployment-system': BUILTIN_VIEW_QUERIES['deployment-system'],
-  'deployment-container': BUILTIN_VIEW_QUERIES['deployment-container'],
-  deployment: BUILTIN_VIEW_QUERIES.deployment
-};
 
 const legacyPresetQueries: Partial<Record<DiagramMode, readonly string[]>> = {
   'deployment-system': deploymentLegacyQueries(BUILTIN_VIEW_QUERIES['deployment-system']),
@@ -33,24 +28,28 @@ export type DiagramQueryPresetState = {
 };
 
 export function queryForDiagramMode(mode: DiagramMode): string {
-  return presetQueries[mode];
+  return diagramModeDefinition(mode).query;
+}
+
+export function diagramModeDefinition(mode: DiagramMode): BuiltinViewDefinition {
+  return mode === 'default' ? builtinViewDefinition('no-filter') : builtinViewDefinition(mode);
 }
 
 export function diagramModeForQuery(value: string): DiagramMode | undefined {
   const normalized = normalizeQuery(value);
-  for (const [mode, query] of Object.entries(presetQueries) as Array<[DiagramMode, string]>) {
-    if (normalized === normalizeQuery(query)) {
-      return mode;
+  for (const definition of BUILTIN_VIEW_DEFINITIONS) {
+    if (normalized === normalizeQuery(definition.query)) {
+      return definition.id === 'no-filter' ? 'default' : definition.id;
     }
   }
   return undefined;
 }
 
 export function normalizeDiagramMode(value: string | undefined): DiagramMode | undefined {
-  return value === 'default' || value === 'c1' || value === 'c2' || value === 'c3' || value === 'c4'
-    || value === 'deployment' || value === 'deployment-system' || value === 'deployment-container'
-    ? value
-    : undefined;
+  if (value === 'default') {
+    return value;
+  }
+  return resolveBuiltinView(value)?.id;
 }
 
 export function resolveStoredDiagramQuery(state: StoredDiagramQueryState | undefined): DiagramQueryPresetState {

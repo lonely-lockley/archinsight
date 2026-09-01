@@ -10,6 +10,11 @@ import type {
   RenderGraphGroup,
 } from "./contracts.js";
 import type { GraphNode, GraphRelation } from "./indexed-graph.js";
+import {
+  builtinViewDefinition,
+  builtinViewHasStage,
+  type BuiltinViewBoundary,
+} from "./builtin-views.js";
 
 export const DEFAULT_QUERY = "MATCH (n:Element {context: $context}) RETURN n";
 
@@ -183,18 +188,21 @@ export function selectGraph(
     externalElements,
   };
   const bounded = applyViewBoundary(result, selectedGraph, scope);
-  const systemSeedFiltered = scope.view === "deployment-container" || scope.view === "deployment-system"
+  const systemSeedFiltered = builtinViewHasStage(scope.view, "deployment-seed-filter")
     ? removeDescendantProjectionsCapturedBySystemSeeds(result, bounded, scope)
     : bounded;
   const materialized = materializeGroupedView(
     systemSeedFiltered,
-    scope.view === "deployment" || scope.view === "deployment-container" || scope.view === "deployment-system",
+    builtinViewHasStage(scope.view, "deployment-materialization"),
   );
-  if (scope.view === "deployment-container") {
+  if (builtinViewHasStage(scope.view, "deployment-environment")) {
     return applyDeploymentEnvironmentScope(result, materialized, scope);
   }
-  if (scope.view === "deployment-system") {
-    return simplifyDeploymentSystemInfrastructure(result, rollUpDeploymentSystems(result, materialized, scope));
+  if (builtinViewHasStage(scope.view, "deployment-system-rollup")) {
+    const rolledUp = rollUpDeploymentSystems(result, materialized, scope);
+    return builtinViewHasStage(scope.view, "deployment-infrastructure-simplification")
+      ? simplifyDeploymentSystemInfrastructure(result, rolledUp)
+      : rolledUp;
   }
   return materialized;
 }
@@ -893,17 +901,17 @@ function patternNodeAliases(pattern: QueryPattern): readonly string[] {
 }
 
 function applyViewBoundary(result: LinkProjectResult, graph: RenderGraph, scope: QueryScope): RenderGraph {
-  const view = scope.view;
-  if (view !== "c1" && view !== "c2" && view !== "c3" && view !== "c4") {
+  const boundary = scope.view === undefined ? null : builtinViewDefinition(scope.view).boundary;
+  if (boundary === null) {
     return graph;
   }
   const elementsById = new Map(result.elements.map((element) => [element.id, element]));
   const parentByChild = new Map(result.elements.flatMap((element) =>
     element.parent === undefined ? [] : [[element.id, element.parent]]
   ));
-  const openedBoundaries = openedViewBoundaries(result, scope);
-  const inside = (id: string): boolean => elementInsideView(elementsById.get(id), scope, openedBoundaries, parentByChild);
-  const visibleType = visibleElementType(view);
+  const openedBoundaries = openedViewBoundaries(result, scope, boundary);
+  const inside = (id: string): boolean => elementInsideView(elementsById.get(id), scope, boundary, openedBoundaries, parentByChild);
+  const visibleType = visibleElementType(boundary);
   const foldedIds = new Map<string, string>();
   const fold = (id: string): string => {
     const existing = foldedIds.get(id);
@@ -912,7 +920,7 @@ function applyViewBoundary(result: LinkProjectResult, graph: RenderGraph, scope:
     }
     const folded = inside(id)
       ? id
-      : closedViewBoundaryEndpoint(id, view, elementsById, parentByChild) ?? id;
+      : closedViewBoundaryEndpoint(id, boundary, elementsById, parentByChild) ?? id;
     foldedIds.set(id, folded);
     return folded;
   };
@@ -937,11 +945,11 @@ function applyViewBoundary(result: LinkProjectResult, graph: RenderGraph, scope:
     const sourceOutside = !inside(originSource);
     const targetOutside = !inside(originTarget);
     const foldedSource = sourceOutside
-      ? closedViewBoundaryEndpoint(originSource, view, elementsById, parentByChild) ?? fold(edge.source)
-      : openViewEndpoint(originSource, view, elementsById, parentByChild) ?? fold(edge.source);
+      ? closedViewBoundaryEndpoint(originSource, boundary, elementsById, parentByChild) ?? fold(edge.source)
+      : openViewEndpoint(originSource, boundary, elementsById, parentByChild) ?? fold(edge.source);
     const foldedTarget = targetOutside
-      ? closedViewBoundaryEndpoint(originTarget, view, elementsById, parentByChild) ?? fold(edge.target)
-      : openViewEndpoint(originTarget, view, elementsById, parentByChild) ?? fold(edge.target);
+      ? closedViewBoundaryEndpoint(originTarget, boundary, elementsById, parentByChild) ?? fold(edge.target)
+      : openViewEndpoint(originTarget, boundary, elementsById, parentByChild) ?? fold(edge.target);
     if (foldedSource === foldedTarget && originSource !== originTarget) {
       continue;
     }
@@ -1005,16 +1013,12 @@ function sameViewRelationship(left: RenderGraphEdge, right: RenderGraphEdge): bo
 function openedViewBoundaries(
   result: LinkProjectResult,
   scope: QueryScope,
+  boundary: BuiltinViewBoundary,
 ): ReadonlySet<string> {
-  if (scope.view === "c1") {
+  if (boundary === "context") {
     return new Set(scope.context === undefined ? [] : [scope.context]);
   }
-  const boundaryType = scope.view === "c2"
-    ? "SystemElement"
-    : scope.view === "c3"
-      ? "ContainerElement"
-      : "ComponentElement";
-  return openedTabBoundaries(result, scope.tab, boundaryType);
+  return openedTabBoundaries(result, scope.tab, boundaryElementType(boundary));
 }
 
 function openedTabBoundaries(
@@ -1036,13 +1040,14 @@ function openedTabBoundaries(
 function elementInsideView(
   element: LinkedElement | undefined,
   scope: QueryScope,
+  boundary: BuiltinViewBoundary,
   openedBoundaries: ReadonlySet<string>,
   parentByChild: ReadonlyMap<string, string>,
 ): boolean {
   if (element === undefined) {
     return false;
   }
-  if (scope.view === "c1") {
+  if (boundary === "context") {
     return scope.context !== undefined && element.context === scope.context;
   }
   return lineage(element.id, parentByChild).some((id) => openedBoundaries.has(id));
@@ -1050,36 +1055,40 @@ function elementInsideView(
 
 function closedViewBoundaryEndpoint(
   id: string,
-  view: "c1" | "c2" | "c3" | "c4",
+  boundary: BuiltinViewBoundary,
   elementsById: ReadonlyMap<string, LinkedElement>,
   parentByChild: ReadonlyMap<string, string>,
 ): string | undefined {
-  const boundaryType = view === "c1" || view === "c2"
-    ? "SystemElement"
-    : view === "c3"
-      ? "ContainerElement"
-      : "ComponentElement";
+  const boundaryType = boundaryElementType(boundary);
   return lineage(id, parentByChild)
     .find((candidate) => elementHasType(elementsById.get(candidate), boundaryType));
 }
 
 function openViewEndpoint(
   id: string,
-  view: "c1" | "c2" | "c3" | "c4",
+  boundary: BuiltinViewBoundary,
   elementsById: ReadonlyMap<string, LinkedElement>,
   parentByChild: ReadonlyMap<string, string>,
 ): string | undefined {
-  const elementType = visibleElementType(view);
+  const elementType = visibleElementType(boundary);
   return lineage(id, parentByChild)
     .find((candidate) => elementHasType(elementsById.get(candidate), elementType));
 }
 
-function visibleElementType(view: "c1" | "c2" | "c3" | "c4"): string {
-  return view === "c1"
+function boundaryElementType(boundary: BuiltinViewBoundary): string {
+  return boundary === "context" || boundary === "system"
     ? "SystemElement"
-    : view === "c2"
+    : boundary === "container"
       ? "ContainerElement"
-      : view === "c3"
+      : "ComponentElement";
+}
+
+function visibleElementType(boundary: BuiltinViewBoundary): string {
+  return boundary === "context"
+    ? "SystemElement"
+    : boundary === "system"
+      ? "ContainerElement"
+      : boundary === "container"
         ? "ComponentElement"
         : "CodeElement";
 }

@@ -1,10 +1,28 @@
 import { describe, expect, it } from 'vitest';
+import { BUILTIN_VIEW_DEFINITIONS } from '@insight/language';
 import {
+  diagramModeDefinition,
+  diagramModeForQuery,
+  normalizeDiagramMode,
   queryForDiagramMode,
   resolveStoredDiagramQuery
 } from './diagram-query-presets';
 
 describe('stored diagram query presets', () => {
+  it('adapts the UI default alias to the canonical no-filter view', () => {
+    expect(diagramModeDefinition('default').id).toBe('no-filter');
+    expect(diagramModeForQuery(queryForDiagramMode('default'))).toBe('default');
+    expect(normalizeDiagramMode('no-filter')).toBe('no-filter');
+    expect(normalizeDiagramMode('unknown')).toBeUndefined();
+  });
+
+  it('accepts every catalogue entry without a local name list', () => {
+    for (const definition of BUILTIN_VIEW_DEFINITIONS) {
+      expect(normalizeDiagramMode(definition.id)).toBe(definition.id);
+      expect(queryForDiagramMode(definition.id)).toBe(definition.query);
+    }
+  });
+
   it.each(['deployment-system', 'deployment-container'] as const)(
     'upgrades a saved built-in %s query when the preset changes',
     (diagramMode) => {

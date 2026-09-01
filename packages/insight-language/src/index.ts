@@ -1,5 +1,14 @@
 export { CompletionEngine } from "./completion-engine.js";
 export {
+  BUILTIN_VIEW_DEFINITIONS,
+  BUILTIN_VIEW_IDS,
+  BUILTIN_VIEW_QUERIES,
+  builtinViewDefinition,
+  builtinViewHasStage,
+  isBuiltinDiagramView,
+  resolveBuiltinView,
+} from "./builtin-views.js";
+export {
   AntlrInsightSyntaxProvider,
   createParsedInsightFile,
   createSyntaxContext,
@@ -32,10 +41,25 @@ export { lineContextAt } from "./line-context.js";
 export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
+export {
+  buildProjectStructure,
+  buildTypeHierarchy,
+  filterProjectStructure,
+  filterTypeHierarchy,
+} from "./project-structure.js";
 export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraphs } from "./query-engine.js";
 export { renderGraphviz } from "./graphviz-renderer.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
 export { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
+export type {
+  BuiltinDiagramView,
+  BuiltinViewAlias,
+  BuiltinViewBoundary,
+  BuiltinViewDefinition,
+  BuiltinViewEnvironmentPolicy,
+  BuiltinViewLifecycle,
+  BuiltinViewStage,
+} from "./builtin-views.js";
 export type {
   AntlrAdapterInput,
   AntlrParseFunction,
@@ -64,7 +88,6 @@ export type {
 } from "./language-service.js";
 export type {
   AttributeDefinition,
-  BuiltinDiagramView,
   CompletionItem,
   CompletionKind,
   CompletionRequest,
@@ -127,3 +150,10 @@ export type {
   ProjectLinkerStateUpdate,
   ProjectSourceReplacement,
 } from "./project-linker-state.js";
+export type {
+  ProjectStructure,
+  ProjectStructureDeclaration,
+  ProjectStructureLocation,
+  TypeHierarchyNode,
+  TypeHierarchyVisibility,
+} from "./project-structure.js";

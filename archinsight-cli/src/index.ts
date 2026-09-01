@@ -6,23 +6,30 @@ import archy from "archy";
 import { instance } from "@viz-js/viz";
 import {
   buildLanguageSnapshotResultFromSources,
+  buildProjectStructure,
+  buildTypeHierarchy,
+  BUILTIN_VIEW_DEFINITIONS,
+  BUILTIN_VIEW_IDS,
+  BUILTIN_VIEW_QUERIES,
+  builtinViewDefinition,
   coreLanguageSnapshot,
   coreSources,
   discoverDeploymentEnvironments,
+  filterTypeHierarchy,
+  resolveBuiltinView,
   linkProject,
   renderGraphviz,
   selectGraph,
   type LanguageDiagnostic,
   type LanguageSnapshot,
-  type LinkedElement,
-  type LinkedImport,
   type LinkProjectResult,
+  type ProjectStructureDeclaration,
   type ProjectSource,
   type QueryScope,
   type RenderGraph,
-  type TypeDefinition,
+  type TypeHierarchyNode,
+  type BuiltinDiagramView,
 } from "@insight/language";
-import { BUILTIN_VIEW_QUERIES, type BuiltinDiagramView } from "./generated/builtin-view-queries.js";
 import { version } from "./version.js";
 
 type Command = "link" | "render" | "query" | "structure" | "environments" | "skill";
@@ -72,8 +79,6 @@ interface SkillPackage {
 }
 
 const hiddenStructureTypes = new Set(["List", "Nothing", "Text"]);
-const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
-
 function textFileContent(content: string): string {
   return content.endsWith("\n") ? content : `${content}\n`;
 }
@@ -87,7 +92,7 @@ function replaceExactlyOnce(source: string, expected: string, replacement: strin
 }
 
 function deploymentInternalActorsQuery(): string {
-  let query = viewQueries.deployment;
+  let query = BUILTIN_VIEW_QUERIES.deployment;
   query = replaceExactlyOnce(
     query,
     "    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))",
@@ -370,13 +375,14 @@ async function loadProject(input: string): Promise<LoadedProject> {
 async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph> {
   const view = args.queryFile === undefined ? args.view ?? "c1" : undefined;
   const query = args.queryFile === undefined
-    ? viewQueries[view ?? "c1"]
+    ? BUILTIN_VIEW_QUERIES[view ?? "c1"]
     : await readQueryFile(project.root, args.queryFile);
   const queryNeedsTab = queryUsesVariable(query, "tab");
   const queryNeedsContext = queryUsesVariable(query, "context");
-  const sourceRequired = (view !== undefined && view !== "c1" && view !== "no-filter") || queryNeedsTab;
+  const sourceRequired = (view !== undefined && builtinViewDefinition(view).sourceRequired) || queryNeedsTab;
   const tab = selectedSource(project, args.tab, sourceRequired, view);
-  const context = selectedContext(project, args.context, tab, view !== undefined || queryNeedsContext, view);
+  const contextRequired = (view !== undefined && builtinViewDefinition(view).contextRequired) || queryNeedsContext;
+  const context = selectedContext(project, args.context, tab, contextRequired, view);
   const environment = deploymentEnvironmentOption(project, args, tab, view);
   const scope: QueryScope = {
     ...(context === undefined ? {} : { context }),
@@ -393,14 +399,19 @@ function deploymentEnvironmentOption(
   tab: string | undefined,
   view: DiagramView | undefined,
 ): string | undefined {
-  if (view !== "deployment-container") {
+  const definition = view === undefined ? undefined : builtinViewDefinition(view);
+  if (definition?.environment !== "single-relevant") {
     if (args.environment !== undefined) {
-      throw new CliError("Option '--environment' is supported only by the 'deployment-container' view");
+      const supported = BUILTIN_VIEW_DEFINITIONS
+        .filter((candidate) => candidate.environment === "single-relevant")
+        .map((candidate) => `'${candidate.id}'`)
+        .join(", ");
+      throw new CliError(`Option '--environment' is supported only by the ${supported} view`);
     }
     return undefined;
   }
   if (tab === undefined) {
-    throw new CliError("View 'deployment-container' requires --source");
+    throw new CliError(`View '${definition.id}' requires --source`);
   }
   const environments = discoverDeploymentEnvironments(project.result, { tab });
   if (args.environment !== undefined) {
@@ -415,7 +426,7 @@ function deploymentEnvironmentOption(
   if (environments.length === 0) {
     throw new CliError(`No deployment environments are relevant to '${tab}'`);
   }
-  throw new CliError(`View 'deployment-container' requires --environment. Available environments: ${environmentList(environments)}`);
+  throw new CliError(`View '${definition.id}' requires --environment. Available environments: ${environmentList(environments)}`);
 }
 
 function environmentList(environments: readonly { readonly id: string; readonly name?: string }[]): string {
@@ -495,7 +506,8 @@ function selectedContext(
   if (sourceContext?.synthetic === true && required) {
     throw new CliError(`Source '${source}' contains definitions and does not declare a renderable context or environment`);
   }
-  if (view === "c1" && sourceContext !== undefined && sourceContext.type !== "Context") {
+  if (view !== undefined && builtinViewDefinition(view).boundary === "context"
+      && sourceContext !== undefined && sourceContext.type !== "Context") {
     throw new CliError(`Source '${source}' does not declare a logical context for the C1 view`);
   }
 
@@ -524,7 +536,8 @@ function selectedContext(
 
 function availableContextIds(project: LoadedProject, view: DiagramView | undefined): string[] {
   return [...new Set(project.result.contexts
-    .filter((context) => context.synthetic !== true && (view !== "c1" || context.type === "Context"))
+    .filter((context) => context.synthetic !== true
+      && (view === undefined || builtinViewDefinition(view).boundary !== "context" || context.type === "Context"))
     .map((context) => context.id))].sort();
 }
 
@@ -586,94 +599,36 @@ async function renderSvg(dot: string): Promise<string> {
 }
 
 function projectStructure(result: LinkProjectResult, snapshot: LanguageSnapshot): StructureTree {
-  const childrenByParent = new Map<string, LinkedElement[]>();
-  for (const element of result.elements) {
-    if (element.anonymous || element.parent === undefined) {
-      continue;
-    }
-    const children = childrenByParent.get(element.parent) ?? [];
-    children.push(element);
-    childrenByParent.set(element.parent, children);
-  }
-  const importsBySource = new Map<string, LinkedImport[]>();
-  for (const item of result.imports) {
-    const imports = importsBySource.get(item.sourceIdentity) ?? [];
-    imports.push(item);
-    importsBySource.set(item.sourceIdentity, imports);
-  }
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const declarations = buildProjectStructure(result);
   return {
     schemaVersion: "project-structure.v1",
-    types: buildTypeTree(snapshot),
-    contexts: result.contexts.map((context) => ({
-      id: context.id,
-      kind: "context",
-      type: context.type,
-      source: context.declaration?.sourceName ?? context.sourceIdentity,
-      line: context.declaration?.line ?? 1,
-      column: context.declaration?.column ?? 1,
-      children: [
-        ...(importsBySource.get(context.sourceIdentity) ?? []).map((item) => importNode(item, elementsById)),
-        ...elementNodes(
-          result.elements.filter((element) => element.context === context.id && element.parent === undefined && !element.anonymous),
-          childrenByParent,
-        ),
-      ],
-    })),
+    types: filterTypeHierarchy(buildTypeHierarchy(snapshot), {
+      includeLanguageTypes: true,
+      includeOperators: true,
+      excludeIds: hiddenStructureTypes,
+    }).map(cliTypeNode),
+    contexts: declarations.contexts.map(cliStructureNode),
   };
 }
 
-function buildTypeTree(snapshot: LanguageSnapshot): TypeStructureNode[] {
-  const types = snapshot.types
-    .filter((type) => !hiddenStructureTypes.has(type.name))
-    .sort((left, right) => left.name.localeCompare(right.name));
-  const knownTypes = new Set(types.map((type) => type.name));
-  const childrenByBase = new Map<string, TypeDefinition[]>();
-
-  for (const type of types) {
-    if (type.baseType === undefined || !knownTypes.has(type.baseType)) {
-      continue;
-    }
-    const children = childrenByBase.get(type.baseType) ?? [];
-    children.push(type);
-    childrenByBase.set(type.baseType, children);
-  }
-
-  return types
-    .filter((type) => type.baseType === undefined || !knownTypes.has(type.baseType))
-    .map((type) => typeNode(type, childrenByBase));
-}
-
-function typeNode(type: TypeDefinition, childrenByBase: ReadonlyMap<string, readonly TypeDefinition[]>): TypeStructureNode {
+function cliTypeNode(type: TypeHierarchyNode): TypeStructureNode {
   return {
-    id: type.name,
+    id: type.id,
     kind: "type",
-    extends: type.baseType,
-    children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(child, childrenByBase)),
+    ...(type.extends === undefined ? {} : { extends: type.extends }),
+    children: type.children.map(cliTypeNode),
   };
 }
 
-function elementNodes(elements: readonly LinkedElement[], childrenByParent: ReadonlyMap<string, readonly LinkedElement[]>): StructureNode[] {
-  return elements.map((element) => ({
-    id: element.localId,
-    kind: "element",
-    type: element.type,
-    source: element.declaration?.sourceName ?? element.sourceIdentity,
-    line: element.declaration?.line ?? 1,
-    column: element.declaration?.column ?? 1,
-    children: elementNodes(childrenByParent.get(element.id) ?? [], childrenByParent),
-  }));
-}
-
-function importNode(item: LinkedImport, elementsById: ReadonlyMap<string, LinkedElement>): StructureNode {
+function cliStructureNode(node: ProjectStructureDeclaration): StructureNode {
   return {
-    id: item.alias,
-    kind: "import",
-    type: elementsById.get(item.target)?.type ?? "import",
-    source: item.declaration?.sourceName ?? item.sourceIdentity,
-    line: item.declaration?.line ?? 1,
-    column: item.declaration?.column ?? 1,
-    children: [],
+    id: node.id,
+    kind: node.kind,
+    type: node.type ?? node.constructor,
+    source: node.source,
+    line: node.line,
+    column: node.column,
+    children: node.children.map(cliStructureNode),
   };
 }
 
@@ -916,10 +871,9 @@ function viewOption(value: unknown): DiagramView | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (value === "c1" || value === "c2" || value === "c3" || value === "c4"
-      || value === "deployment" || value === "deployment-system" || value === "deployment-container"
-      || value === "no-filter") {
-    return value;
+  const definition = resolveBuiltinView(value);
+  if (definition !== undefined) {
+    return definition.id;
   }
   throw new CliError(`Unknown view '${String(value)}'`);
 }
@@ -957,12 +911,14 @@ function displayPath(from: string, target: string): string {
 }
 
 function helpText(): string {
+  const viewUsage = BUILTIN_VIEW_IDS.join("|");
+  const viewList = BUILTIN_VIEW_DEFINITIONS.map((definition) => definition.id).join(", ");
   return `Archinsight CLI ${version}
 
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
-  archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
-  archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
+  archinsight render [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+  archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
@@ -972,7 +928,7 @@ Options:
   -s, --source <file>      Selected model file. Supplies $tab and infers its context.
   -c, --context <id>       Context for context-wide execution without --source; must match it when both are passed.
       --tab <source>       Backward-compatible alias for --source.
-  -v, --view <name>        Built-in view: c1, c2, c3, c4, deployment-system, deployment-container, deployment, no-filter.
+  -v, --view <name>        Built-in view: ${viewList}.
   -e, --environment <id>   Environment scope for deployment-container; optional when exactly one is relevant.
   -q, --query <file>       Query file; overrides --view.
   -f, --format <format>    Output format.
@@ -1161,38 +1117,10 @@ function sharedSkillFiles(): readonly GeneratedFile[] {
       path: "examples/c2-containers.aiq",
       content: genericC2QueryExample(),
     },
-    {
-      path: "examples/builtin-views/no-filter.aiq",
-      content: textFileContent(viewQueries["no-filter"]),
-    },
-    {
-      path: "examples/builtin-views/c1.aiq",
-      content: textFileContent(viewQueries.c1),
-    },
-    {
-      path: "examples/builtin-views/c2.aiq",
-      content: textFileContent(viewQueries.c2),
-    },
-    {
-      path: "examples/builtin-views/c3.aiq",
-      content: textFileContent(viewQueries.c3),
-    },
-    {
-      path: "examples/builtin-views/c4.aiq",
-      content: textFileContent(viewQueries.c4),
-    },
-    {
-      path: "examples/builtin-views/deployment-system.aiq",
-      content: textFileContent(viewQueries["deployment-system"]),
-    },
-    {
-      path: "examples/builtin-views/deployment-container.aiq",
-      content: textFileContent(viewQueries["deployment-container"]),
-    },
-    {
-      path: "examples/builtin-views/deployment.aiq",
-      content: textFileContent(viewQueries.deployment),
-    },
+    ...BUILTIN_VIEW_DEFINITIONS.map((definition) => ({
+      path: `examples/builtin-views/${definition.id}.aiq`,
+      content: textFileContent(definition.query),
+    })),
     {
       path: "examples/queries/deployment-internal-actors.aiq",
       content: textFileContent(deploymentInternalActorsQuery()),

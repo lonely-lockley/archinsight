@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
-  import type { CompletionKind } from '@insight/language';
+  import type { BuiltinDiagramView, CompletionKind } from '@insight/language';
   import WorkspaceEditor from '../../../archinsight-web/src/lib/WorkspaceEditor.svelte';
   import {
     createInsightSemanticTokensProvider,
@@ -14,13 +14,14 @@
   import {
     defaultDiagramMode,
     defaultQuery,
+    diagramModeDefinition,
     diagramModeForQuery,
     queryForDiagramMode
   } from '../../../archinsight-web/src/lib/diagram-query-presets';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '../../../archinsight-web/src/lib/workspace-types';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
 
-  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container' | 'no-filter';
+  type DiagramView = BuiltinDiagramView;
 
   type CompletionItem = {
     label: string;
@@ -543,7 +544,7 @@
   }
 
   function selectDiagramMode(mode: DiagramMode): void {
-    if (mode === 'deployment-container') {
+    if (diagramModeDefinition(mode).environment === 'single-relevant') {
       vscode.postMessage({ command: 'selectDeploymentEnvironment' });
       return;
     }

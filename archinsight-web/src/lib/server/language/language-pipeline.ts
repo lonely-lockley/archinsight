@@ -1,10 +1,11 @@
 import {
+  buildProjectStructure,
   coreLanguageSnapshot,
+  filterProjectStructure,
   InsightLanguageService,
+  isBuiltinDiagramView,
   type LanguageBuildResult,
   type LanguageDiagnostic,
-  type LinkedElement,
-  type LinkedImport,
   type LinkProjectResult
 } from '@insight/language';
 import type { Cookies } from '@sveltejs/kit';
@@ -19,8 +20,7 @@ import type {
   LinkRequest,
   LinkResponse,
   ProjectStructureRequest,
-  ProjectStructureResponse,
-  StructureDeclarationDto
+  ProjectStructureResponse
 } from './types';
 
 const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
@@ -204,7 +204,8 @@ function withSnapshotDiagnostics(result: LinkProjectResult, projectSnapshot: Lan
 function validateRequest(request: LinkRequest | ProjectStructureRequest | null, env: EnvSource | undefined): void {
   validateQuery('query' in (request ?? {}) ? (request as LinkRequest).query : null, requestLimits(env));
   validateOverlays(request?.overlays, requestLimits(env));
-  if ('view' in (request ?? {}) && !isBuiltinDiagramView((request as LinkRequest).view)) {
+  const view = 'view' in (request ?? {}) ? (request as LinkRequest).view : undefined;
+  if (view != null && !isBuiltinDiagramView(view)) {
     throw new Error('Invalid built-in diagram view');
   }
   if ('environment' in (request ?? {})) {
@@ -213,12 +214,6 @@ function validateRequest(request: LinkRequest | ProjectStructureRequest | null, 
       throw new Error('Invalid deployment environment');
     }
   }
-}
-
-function isBuiltinDiagramView(value: LinkRequest['view']): boolean {
-  return value == null || value === 'no-filter' || value === 'c1' || value === 'c2'
-    || value === 'c3' || value === 'c4' || value === 'deployment'
-    || value === 'deployment-system' || value === 'deployment-container';
 }
 
 async function analyzeStoredProject(
@@ -249,75 +244,7 @@ function renderPaths(request: LinkRequest | null, result: LinkProjectResult): st
 }
 
 function projectStructure(result: LinkProjectResult): ProjectStructureResponse {
-  const childrenByParent = new Map<string, LinkedElement[]>();
-  for (const element of result.elements) {
-    if (element.anonymous) {
-      continue;
-    }
-    if (!element.parent) {
-      continue;
-    }
-    const children = childrenByParent.get(element.parent) ?? [];
-    children.push(element);
-    childrenByParent.set(element.parent, children);
-  }
-  const importsBySource = new Map<string, LinkedImport[]>();
-  for (const item of result.imports) {
-    const imports = importsBySource.get(item.sourceIdentity) ?? [];
-    imports.push(item);
-    importsBySource.set(item.sourceIdentity, imports);
-  }
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-
-  return {
-    schemaVersion: 'project-structure.v1',
-    contexts: result.contexts.filter((context) => context.synthetic !== true).map((context) => ({
-      id: context.id,
-      kind: 'context',
-      constructor: context.type,
-      type: context.type,
-      source: context.declaration?.sourceName ?? context.sourceIdentity,
-      line: context.declaration?.line ?? 1,
-      column: context.declaration?.column ?? 1,
-      children: [
-        ...(importsBySource.get(context.sourceIdentity) ?? []).map((item) => importDeclaration(item, elementsById)),
-        ...children(
-          result.elements.filter((element) => element.context === context.id && element.parent == null && !element.anonymous),
-          childrenByParent
-        )
-      ]
-    }))
-  };
-}
-
-function children(elements: LinkedElement[], childrenByParent: Map<string, LinkedElement[]>): StructureDeclarationDto[] {
-  return elements.map((element) => ({
-    id: element.localId,
-    kind: 'element',
-    constructor: element.constructor,
-    type: element.type,
-    source: element.declaration?.sourceName ?? element.sourceIdentity,
-    line: element.declaration?.line ?? 1,
-    column: element.declaration?.column ?? 1,
-    children: children(childrenByParent.get(element.id) ?? [], childrenByParent)
-  }));
-}
-
-function importDeclaration(
-  item: LinkedImport,
-  elementsById: ReadonlyMap<string, LinkedElement>
-): StructureDeclarationDto {
-  const imported = elementsById.get(item.target);
-  return {
-    id: item.alias,
-    kind: 'import',
-    constructor: 'import',
-    ...(imported?.type === undefined ? {} : { type: imported.type }),
-    source: item.declaration?.sourceName ?? item.sourceIdentity,
-    line: item.declaration?.line ?? 1,
-    column: item.declaration?.column ?? 1,
-    children: []
-  };
+  return filterProjectStructure(buildProjectStructure(result), { includeSyntheticContexts: false });
 }
 
 function diagnostic(item: LanguageDiagnostic): DiagnosticDto {
