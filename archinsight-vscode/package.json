@@ -325,6 +325,7 @@
     "@viz-js/viz": "^3.28.0"
   },
   "devDependencies": {
+    "@archinsight/contracts": "file:../packages/archinsight-contracts",
     "@insight/language": "file:../packages/insight-language",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/node": "^24.0.0",

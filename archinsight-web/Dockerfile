@@ -3,6 +3,8 @@ FROM node:22-alpine AS dependencies
 WORKDIR /workspace
 COPY packages/insight-language/package*.json ./packages/insight-language/
 COPY packages/insight-language/src ./packages/insight-language/src
+COPY packages/archinsight-contracts/package*.json ./packages/archinsight-contracts/
+COPY packages/archinsight-contracts/src ./packages/archinsight-contracts/src
 COPY archinsight-web/package*.json ./archinsight-web/
 RUN cd archinsight-web \
     && npm ci --omit=dev \
@@ -24,6 +26,7 @@ ENV NODE_ENV=production \
 WORKDIR /workspace/archinsight-web
 COPY --from=dependencies --chown=node:node /workspace/archinsight-web/node_modules ./node_modules
 COPY --from=dependencies --chown=node:node /workspace/packages/insight-language ../packages/insight-language
+COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-contracts ../packages/archinsight-contracts
 COPY --chown=node:node archinsight-web/package.json ./package.json
 COPY --chown=node:node archinsight-web/build ./build
 

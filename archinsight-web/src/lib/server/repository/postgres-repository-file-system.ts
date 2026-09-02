@@ -1,27 +1,30 @@
+import { baseName, normalizeFileName, parentDirectory } from './path';
 import {
-  baseName,
-  normalizeDirectoryPath,
-  normalizeFileName,
-  parentDirectory
-} from './path';
-import {
-  addDirectoryNode,
   addFileNode,
   ensureDirectory,
-  fileIds,
-  fileNodes,
   findNode,
-  moveNode,
   normalizeTree,
-  removeNode,
-  requireDirectory,
   requireFile,
   rootNode,
   toFileTreeDto
 } from './repository-tree';
+import {
+  createFolderNode,
+  deleteFileNode,
+  deleteFolderNode,
+  normalizedFileSave,
+  projectDisplayName,
+  projectSummary,
+  projectNameInput,
+  renameFileNode,
+  renameFolderNode,
+  saveFileNode,
+  sortProjectSummaries,
+  sourceFileNodes
+} from './repository-domain';
 import { randomUUID } from 'node:crypto';
 import type { Queryable, TransactionalDatabase } from '$lib/server/database/types';
-import { conflict, invalidRequest, notFound } from '$lib/server/errors/application-error';
+import { conflict, notFound } from '$lib/server/errors/application-error';
 import type {
   FileContentResponse,
   FileOperationResponse,
@@ -74,7 +77,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
       `,
       [ownerId]
     );
-    return result.rows.map(projectSummary);
+    return sortProjectSummaries(result.rows.map(toProjectSummary));
   }
 
   async createProject(ownerId: string, request: ProjectCreateRequest | null): Promise<ProjectSummaryResponse> {
@@ -92,7 +95,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
          returning id, name, created, updated`,
         [id, ownerId, name, JSON.stringify(structure)]
       );
-      return projectSummary({ ...result.rows[0], file_count: 0 });
+      return toProjectSummary({ ...result.rows[0], file_count: 0 });
     });
   }
 
@@ -119,7 +122,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
         'select count(*)::integer as file_count from public.file where owner_id = $1 and repository_id = $2',
         [ownerId, repository.id]
       );
-      return projectSummary({ ...result.rows[0], file_count: fileCount.rows[0]?.file_count ?? 0 });
+      return toProjectSummary({ ...result.rows[0], file_count: fileCount.rows[0]?.file_count ?? 0 });
     });
   }
 
@@ -135,7 +138,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   async tree(ownerId: string, projectId: string): Promise<FileTreeResponse> {
     const repository = await this.requireRepository(this.database, ownerId, projectId);
     const root = await this.loadTree(this.database, ownerId, repository);
-    return { root: toFileTreeDto(root, '', projectName(repository)) };
+    return { root: toFileTreeDto(root, '', projectDisplayName(repository.id, repository.name)) };
   }
 
   async read(ownerId: string, projectId: string, path: string): Promise<FileContentResponse> {
@@ -162,18 +165,12 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     request: FileSaveRequest | null
   ): Promise<FileOperationResponse> {
     const filePath = normalizeFileName(path);
-    const content = request?.content ?? '';
-    const level = nullableText(request?.level, 50, 'level');
-    const projectIdentifier = nullableText(request?.projectIdentifier, 50, 'projectIdentifier');
+    const { content, level, projectIdentifier } = normalizedFileSave(request);
 
     return this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
-      const existing = findNode(root, filePath);
-      if (existing?.type === 'd') {
-        throw conflict(`Repository folder already exists: ${filePath}`);
-      }
-      const node = existing ?? addFileNode(root, filePath);
+      const { node } = saveFileNode(root, filePath);
       const current = await this.findFileById(client, ownerId, repository.id, node.id);
       if (current) {
         const changed = await client.query(
@@ -210,19 +207,10 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   }
 
   async rename(ownerId: string, projectId: string, request: FileRenameRequest | null): Promise<FileOperationResponse> {
-    if (!request) {
-      throw invalidRequest('Rename request is required');
-    }
-    const sourcePath = normalizeFileName(request.sourcePath);
-    const targetPath = normalizeFileName(request.targetPath);
-    if (sourcePath === targetPath) {
-      throw invalidRequest(`Source and target file paths are equal: ${sourcePath}`);
-    }
     return this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
-      const source = requireFile(root, sourcePath);
-      moveNode(root, source, targetPath, 'f');
+      const { path: targetPath, node: source } = renameFileNode(root, request);
       const changed = await client.query(
         `
           update public.file
@@ -234,23 +222,21 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
         `,
         [ownerId, repository.id, source.id, source.name]
       );
-      requireChanged(changed.rowCount, `Repository file was not renamed: ${sourcePath}`);
+      requireChanged(changed.rowCount, `Repository file was not renamed: ${request?.sourcePath ?? ''}`);
       await this.saveTree(client, ownerId, repository.id, root);
       const renamed = await this.findFileById(client, ownerId, repository.id, source.id);
       if (!renamed) {
-        throw new Error(`Repository file was not renamed: ${sourcePath}`);
+        throw new Error(`Repository file was not renamed: ${request?.sourcePath ?? ''}`);
       }
       return { path: targetPath, revision: revision(renamed) };
     });
   }
 
   async delete(ownerId: string, projectId: string, path: string): Promise<void> {
-    const filePath = normalizeFileName(path);
     await this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
-      const node = requireFile(root, filePath);
-      removeNode(root, node);
+      const { path: filePath, node } = deleteFileNode(root, path);
       const changed = await client.query(
         `
           delete from public.file
@@ -270,49 +256,30 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     projectId: string,
     request: FolderCreateRequest | null
   ): Promise<FileOperationResponse> {
-    if (!request) {
-      throw invalidRequest('Create folder request is required');
-    }
-    const folderPath = normalizeDirectoryPath(request.path);
     return this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
-      addDirectoryNode(root, folderPath);
+      const { path: folderPath } = createFolderNode(root, request);
       await this.saveTree(client, ownerId, repository.id, root);
       return { path: folderPath, revision: `tree:${folderPath}` };
     });
   }
 
   async renameFolder(ownerId: string, projectId: string, request: FileRenameRequest | null): Promise<FileOperationResponse> {
-    if (!request) {
-      throw invalidRequest('Rename folder request is required');
-    }
-    const sourcePath = normalizeDirectoryPath(request.sourcePath);
-    const targetPath = normalizeDirectoryPath(request.targetPath);
-    if (sourcePath === targetPath) {
-      throw invalidRequest(`Source and target folder paths are equal: ${sourcePath}`);
-    }
-    if (targetPath.startsWith(`${sourcePath}/`)) {
-      throw invalidRequest(`Folder cannot be moved inside itself: ${sourcePath}`);
-    }
     return this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
-      const source = requireDirectory(root, sourcePath);
-      moveNode(root, source, targetPath, 'd');
+      const { path: targetPath } = renameFolderNode(root, request);
       await this.saveTree(client, ownerId, repository.id, root);
       return { path: targetPath, revision: `tree:${targetPath}` };
     });
   }
 
   async deleteFolder(ownerId: string, projectId: string, path: string): Promise<void> {
-    const folderPath = normalizeDirectoryPath(path);
     await this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
       const root = await this.loadTree(client, ownerId, repository);
-      const folder = requireDirectory(root, folderPath);
-      const ids = fileIds(folder);
-      removeNode(root, folder);
+      const { path: folderPath, fileIds: ids } = deleteFolderNode(root, path);
       if (ids.length > 0) {
         const changed = await client.query(
           `
@@ -335,10 +302,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     const repository = await this.requireRepository(this.database, ownerId, projectId);
     const root = await this.loadTree(this.database, ownerId, repository);
     const result = new Map<string, string>();
-    for (const entry of fileNodes(root)) {
-      if (!entry.path.endsWith('.ai')) {
-        continue;
-      }
+    for (const entry of sourceFileNodes(root)) {
       const file = await this.findFileById(this.database, ownerId, repository.id, entry.node.id);
       if (file) {
         result.set(entry.path, file.content ?? '');
@@ -476,44 +440,14 @@ function readStructure(value: string | RepositoryNode): RepositoryNode {
   return value;
 }
 
-function projectName(repository: Pick<RepositoryRow, 'id' | 'name'>): string {
-  return repository.name?.trim() || repository.id;
-}
-
-function projectSummary(repository: RepositoryRow): ProjectSummaryResponse {
-  return {
+function toProjectSummary(repository: RepositoryRow): ProjectSummaryResponse {
+  return projectSummary({
     id: repository.id,
-    name: projectName(repository),
-    created: timestamp(repository.created),
-    updated: timestamp(repository.updated),
+    name: repository.name,
+    created: repository.created,
+    updated: repository.updated,
     fileCount: Number(repository.file_count ?? 0)
-  };
-}
-
-function projectNameInput(value: string | null | undefined): string {
-  const name = value?.trim() ?? '';
-  if (name.length === 0) {
-    throw invalidRequest('Project name is required');
-  }
-  if (name.length > 100) {
-    throw invalidRequest('Project name is longer than 100 characters');
-  }
-  return name;
-}
-
-function timestamp(value: Date | string | null | undefined): string {
-  return value instanceof Date ? value.toISOString() : String(value ?? '');
-}
-
-function nullableText(value: string | null | undefined, maxLength: number, fieldName: string): string | null {
-  if (!value || value.trim() === '') {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (trimmed.length > maxLength) {
-    throw invalidRequest(`${fieldName} is longer than ${maxLength} characters`);
-  }
-  return trimmed;
+  });
 }
 
 function requireChanged(rowCount: number | null, message: string): void {

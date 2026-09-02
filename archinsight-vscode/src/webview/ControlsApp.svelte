@@ -2,23 +2,15 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
   import type { BuiltinDiagramView } from '@insight/language';
+  import {
+    parseControlsHostToWebviewMessage,
+    type ControlsWebviewToHostMessage
+  } from '@archinsight/contracts';
 
   type DiagramView = BuiltinDiagramView;
 
-  type IncomingMessage = {
-    command: 'state';
-    view?: DiagramView;
-    query?: string;
-    readOnly?: boolean;
-    focusQuery?: boolean;
-  } | {
-    command: 'clipboardText';
-    requestId: number;
-    text: string;
-  };
-
   type VscodeApi = {
-    postMessage(message: unknown): void;
+    postMessage(message: ControlsWebviewToHostMessage): void;
   };
 
   declare const acquireVsCodeApi: () => VscodeApi;
@@ -92,8 +84,13 @@
     });
   }
 
-  function handleMessage(event: MessageEvent<IncomingMessage>): void {
-    const message = event.data;
+  function handleMessage(event: MessageEvent<unknown>): void {
+    let message;
+    try {
+      message = parseControlsHostToWebviewMessage(event.data);
+    } catch {
+      return;
+    }
     if (message.command === 'clipboardText') {
       pasteClipboardText(message.requestId, message.text);
       return;

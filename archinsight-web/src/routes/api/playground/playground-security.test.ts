@@ -153,7 +153,7 @@ describe('playground security boundary', () => {
     const projectList = await projectsRoute.GET(editorEvent('/api/projects'));
     expect(projectList.status).toBe(200);
     const listed = await projectList.json() as { projects: Array<{ id: string }> };
-    expect(listed.projects.map((project) => project.id)).toEqual(['published-project', 'private-project']);
+    expect(listed.projects.map((project) => project.id).sort()).toEqual(['private-project', 'published-project']);
 
     const attempts: Array<() => Response | Promise<Response>> = [
       () => projectFilesRoute.GET(editorEvent('/api/projects/foreign-project/files', 'foreign-project')),

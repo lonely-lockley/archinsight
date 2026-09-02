@@ -1,55 +1,30 @@
-export type ProjectSummaryResponse = {
-  id: string;
-  name: string;
-  created: string;
-  updated: string;
-  fileCount: number;
-};
+import type {
+  FileContentResponse,
+  FileOperationResponse,
+  FileRenameRequest,
+  FileSaveRequest,
+  FileTreeNode,
+  FileTreeResponse,
+  FolderCreateRequest,
+  ProjectCreateRequest,
+  ProjectListResponse,
+  ProjectSummaryResponse,
+  ProjectUpdateRequest
+} from '@archinsight/contracts';
 
-export type ProjectCreateRequest = { name?: string | null };
-export type ProjectUpdateRequest = { name?: string | null };
-
-export type ProjectListResponse = {
-  projects: ProjectSummaryResponse[];
-};
-
-export type FileTreeNode = {
-  name: string;
-  path: string;
-  type: 'directory' | 'file';
-  children: FileTreeNode[];
-};
-
-export type FileTreeResponse = {
-  root: FileTreeNode;
-};
-
-export type FileContentResponse = {
-  path: string;
-  content: string;
-  readOnly: boolean;
-  revision: string;
-};
-
-export type FileSaveRequest = {
-  content?: string | null;
-  level?: string | null;
-  projectIdentifier?: string | null;
-};
-
-export type FileRenameRequest = {
-  sourcePath?: string | null;
-  targetPath?: string | null;
-};
-
-export type FolderCreateRequest = {
-  path?: string | null;
-};
-
-export type FileOperationResponse = {
-  path: string;
-  revision: string;
-};
+export type {
+  FileContentResponse,
+  FileOperationResponse,
+  FileRenameRequest,
+  FileSaveRequest,
+  FileTreeNode,
+  FileTreeResponse,
+  FolderCreateRequest,
+  ProjectCreateRequest,
+  ProjectListResponse,
+  ProjectSummaryResponse,
+  ProjectUpdateRequest
+} from '@archinsight/contracts';
 
 export type RepositoryNode = {
   id: string;

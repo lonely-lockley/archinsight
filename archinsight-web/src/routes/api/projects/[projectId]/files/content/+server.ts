@@ -1,6 +1,7 @@
 import { deleteFile, read, save } from '$lib/server/repository/project-file-service';
 import { emptyEndpoint, env, jsonEndpoint, pathParam, requestJson } from '../../../route-utils';
 import type { FileSaveRequest } from '$lib/server/repository/types';
+import { parseFileSaveRequest } from '@archinsight/contracts';
 
 export const GET = (event) =>
   jsonEndpoint(event, () =>
@@ -14,7 +15,7 @@ export const PUT = (event) =>
       env(event),
       pathParam(event, 'projectId'),
       event.url.searchParams.get('path') ?? '',
-      await requestJson<FileSaveRequest | null>(event)
+      await requestJson<FileSaveRequest>(event, parseFileSaveRequest)
     )
   );
 

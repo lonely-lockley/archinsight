@@ -5,6 +5,7 @@ plugins {
 def artifactVersions = gradle.ext.archinsightVersions
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
 def npmArtifacts = [
+    contracts: [dir: file('packages/archinsight-contracts'), versionKey: 'contracts', license: false],
     language: [dir: file('packages/insight-language'), versionKey: 'language', license: false],
     web     : [dir: file('archinsight-web'), versionKey: 'web', license: false],
     renderer: [dir: file('archinsight-renderer'), versionKey: 'renderer', license: false],

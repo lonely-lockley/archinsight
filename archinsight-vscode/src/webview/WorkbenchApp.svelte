@@ -2,6 +2,13 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
   import type { BuiltinDiagramView, CompletionKind } from '@insight/language';
+  import {
+    parseWorkbenchHostToWebviewMessage,
+    type WebviewCompletionItem,
+    type WebviewDiagnostic,
+    type WebviewPreviewState,
+    type WorkbenchWebviewToHostMessage
+  } from '@archinsight/contracts';
   import WorkspaceEditor from '../../../archinsight-web/src/lib/WorkspaceEditor.svelte';
   import {
     createInsightSemanticTokensProvider,
@@ -23,12 +30,7 @@
 
   type DiagramView = BuiltinDiagramView;
 
-  type CompletionItem = {
-    label: string;
-    insertText?: string;
-    kind: CompletionKind;
-    imported?: boolean;
-  };
+  type CompletionItem = WebviewCompletionItem;
 
   type CompletionResponse = {
     items: CompletionItem[];
@@ -36,52 +38,11 @@
     replacementEndOffset: number;
   };
 
-  type IncomingMessage =
-    | {
-      command: 'source';
-      source: string;
-      sourceName: string;
-      fileName: string;
-      view: DiagramView;
-      query: string;
-      environment?: string;
-      diagnostics?: Diagnostic[];
-      symbols?: unknown;
-      readOnly?: boolean;
-    }
-    | { command: 'query'; view: DiagramView; query: string; environment?: string }
-    | { command: 'preview'; state: PreviewState }
-    | { command: 'diagnostics'; diagnostics: Diagnostic[] }
-    | { command: 'completionResult'; requestId: number; items: CompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
-    | { command: 'clipboardText'; requestId: number; text: string }
-    | { command: 'exportPng'; svg: string }
-    | { command: 'reveal'; line: number; column: number };
-
-  type Diagnostic = {
-    sourceName: string;
-    line?: number;
-    column?: number;
-    endLine?: number;
-    endColumn?: number;
-    level?: string;
-    code?: string;
-    message: string;
-  };
-
-  type PreviewState = {
-    view: DiagramView;
-    query: string;
-    environment?: string;
-    sourceName: string;
-    fileName: string;
-    source: string;
-    svg?: string;
-    dot?: string;
-    error?: string;
-  };
+  type Diagnostic = WebviewDiagnostic;
+  type PreviewState = WebviewPreviewState;
 
   type VscodeApi = {
-    postMessage(message: unknown): void;
+    postMessage(message: WorkbenchWebviewToHostMessage): void;
   };
 
   declare const acquireVsCodeApi: () => VscodeApi;
@@ -257,8 +218,13 @@
     return result;
   }
 
-  function handleMessage(event: MessageEvent<IncomingMessage>): void {
-    const message = event.data;
+  function handleMessage(event: MessageEvent<unknown>): void {
+    let message;
+    try {
+      message = parseWorkbenchHostToWebviewMessage(event.data);
+    } catch {
+      return;
+    }
     if (message.command === 'source') {
       sourceName = message.sourceName;
       fileName = message.fileName;

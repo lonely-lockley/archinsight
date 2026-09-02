@@ -27,6 +27,7 @@
     "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts src/lib/actions/*.test.ts"
   },
   "dependencies": {
+    "@archinsight/contracts": "file:../packages/archinsight-contracts",
     "@insight/language": "file:../packages/insight-language",
     "@sveltejs/kit": "^2.70.2",
     "@viz-js/viz": "^3.28.0",

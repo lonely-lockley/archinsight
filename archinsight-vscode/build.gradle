@@ -26,6 +26,7 @@ tasks.register('npmBuild', Exec) {
     inputs.file('language-configuration.json')
     inputs.file('vite.webview.config.mts')
     inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/archinsight-contracts/src')
     inputs.dir('../packages/insight-language/src')
     workingDir = projectDir
     environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
@@ -43,6 +44,7 @@ tasks.register('npmCheck', Exec) {
     inputs.file('language-configuration.json')
     inputs.file('vite.webview.config.mts')
     inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/archinsight-contracts/src')
     inputs.dir('../packages/insight-language/src')
     outputs.dir('dist')
     workingDir = projectDir
@@ -62,6 +64,7 @@ tasks.register('npmPackage', Exec) {
     inputs.file('README.md')
     inputs.file('LICENSE')
     inputs.dir('../archinsight-web/src/lib')
+    inputs.dir('../packages/archinsight-contracts/src')
     inputs.dir('../packages/insight-language/src')
     outputs.dir('dist')
     workingDir = projectDir

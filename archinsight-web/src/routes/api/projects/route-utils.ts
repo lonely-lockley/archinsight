@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { eventEnv } from '$lib/server/auth/svelte-event';
 import { ApplicationError, invalidRequest } from '$lib/server/errors/application-error';
+import { ContractValidationError, type ContractParser } from '@archinsight/contracts';
 
 type Handler<T> = (event: RequestEvent) => T | Promise<T>;
 
@@ -29,11 +30,20 @@ export function pathParam(event: RequestEvent, name: string): string {
   return (event.params as Record<string, string | undefined>)[name] ?? '';
 }
 
-export async function requestJson<T>(event: RequestEvent): Promise<T> {
+export async function requestJson<T>(event: RequestEvent, parser: ContractParser<T>): Promise<T> {
+  let value: unknown;
   try {
-    return await event.request.json() as T;
+    value = await event.request.json();
   } catch (error) {
     throw invalidRequest('Request body must be valid JSON', { cause: error });
+  }
+  try {
+    return parser(value);
+  } catch (error) {
+    if (error instanceof ContractValidationError) {
+      throw invalidRequest(error.message, { cause: error });
+    }
+    throw error;
   }
 }
 

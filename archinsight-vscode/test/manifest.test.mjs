@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = json('package.json');
 const extensionSource = readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+const controlsSource = readFileSync(path.join(extensionRoot, 'src', 'webview', 'ControlsApp.svelte'), 'utf8');
+const workbenchSource = readFileSync(path.join(extensionRoot, 'src', 'webview', 'WorkbenchApp.svelte'), 'utf8');
 
 test('contributed commands are unique, activated, and registered', () => {
   const contributed = manifest.contributes.commands.map((item) => item.command);
@@ -91,6 +93,17 @@ test('project analysis lifecycle is owned by the language session', () => {
   assert(extensionSource.includes('createProjectAnalysisSession'));
   assert.equal(extensionSource.includes('service.buildSnapshot'), false);
   assert.equal(extensionSource.includes('service.link('), false);
+});
+
+test('webview trust boundaries use the shared runtime message contracts', () => {
+  assert(extensionSource.includes('parseControlsWebviewToHostMessage'));
+  assert(extensionSource.includes('parseWorkbenchWebviewToHostMessage'));
+  assert(extensionSource.includes('parsePreviewWebviewToHostMessage'));
+  assert(controlsSource.includes('parseControlsHostToWebviewMessage'));
+  assert(workbenchSource.includes('parseWorkbenchHostToWebviewMessage'));
+  assert.equal(extensionSource.includes('type WorkbenchEditorMessage ='), false);
+  assert.equal(controlsSource.includes('type IncomingMessage ='), false);
+  assert.equal(workbenchSource.includes('type IncomingMessage ='), false);
 });
 
 function assertPath(relativePath) {

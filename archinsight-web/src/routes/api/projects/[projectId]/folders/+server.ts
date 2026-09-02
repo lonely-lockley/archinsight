@@ -1,10 +1,11 @@
 import { createFolder, deleteFolder } from '$lib/server/repository/project-file-service';
 import { emptyEndpoint, env, jsonEndpoint, pathParam, requestJson } from '../../route-utils';
 import type { FolderCreateRequest } from '$lib/server/repository/types';
+import { parseFolderCreateRequest } from '@archinsight/contracts';
 
 export const POST = (event) =>
   jsonEndpoint(event, async () =>
-    createFolder(event.cookies, env(event), pathParam(event, 'projectId'), await requestJson<FolderCreateRequest | null>(event))
+    createFolder(event.cookies, env(event), pathParam(event, 'projectId'), await requestJson<FolderCreateRequest>(event, parseFolderCreateRequest))
   );
 
 export const DELETE = (event) =>

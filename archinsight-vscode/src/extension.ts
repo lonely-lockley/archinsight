@@ -30,6 +30,12 @@ import {
   type VisibleIdentifier,
   type BuiltinDiagramView,
 } from "@insight/language";
+import {
+  parseControlsWebviewToHostMessage,
+  parsePreviewWebviewToHostMessage,
+  parseWorkbenchWebviewToHostMessage,
+  type WorkbenchHostToWebviewMessage,
+} from "@archinsight/contracts";
 
 type DiagramView = BuiltinDiagramView;
 type AgentSkillTarget = "generic" | "codex" | "claude";
@@ -52,34 +58,6 @@ interface DiagramQueryState {
   readonly query: string;
   readonly environment?: string;
 }
-
-type PreviewMessage =
-  | { readonly command: "ready" }
-  | { readonly command: "png"; readonly dataUrl: string };
-
-type ControlsMessage =
-  | { readonly command: "ready" }
-  | { readonly command: "render"; readonly view: DiagramView; readonly query: string }
-  | { readonly command: "clipboardRead"; readonly requestId: number }
-  | { readonly command: "clipboardWrite"; readonly text: string };
-
-type WorkbenchEditorMessage =
-  | { readonly command: "ready" }
-  | { readonly command: "sourceChanged"; readonly source: string }
-  | { readonly command: "render"; readonly view: DiagramView; readonly query: string }
-  | { readonly command: "selectDeploymentEnvironment" }
-  | { readonly command: "refresh" }
-  | { readonly command: "download"; readonly kind: "source" | "svg" | "png" | "dot" }
-  | { readonly command: "editQuery"; readonly view: DiagramView; readonly query: string }
-  | { readonly command: "png"; readonly dataUrl: string }
-  | { readonly command: "complete"; readonly requestId: number; readonly sourceName: string; readonly source: string; readonly cursorOffset: number }
-  | { readonly command: "clipboardRead"; readonly requestId: number }
-  | { readonly command: "clipboardWrite"; readonly text: string }
-  | { readonly command: "openDeclaration"; readonly declaration: { readonly source: string; readonly line: number; readonly column: number } };
-
-type WorkbenchEditorIncomingMessage =
-  | { readonly command: "reveal"; readonly line: number; readonly column: number }
-  | { readonly command: "clipboardText"; readonly requestId: number; readonly text: string };
 
 interface LinkedProject {
   readonly root: vscode.Uri;
@@ -129,6 +107,16 @@ const semanticLegend = new vscode.SemanticTokensLegend([...semanticTokenTypes], 
 
 const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 const output = vscode.window.createOutputChannel("Archinsight");
+
+function validatedWebviewMessage<T>(parser: (value: unknown) => T, value: unknown, channel: string): T | undefined {
+  try {
+    return parser(value);
+  } catch (error) {
+    output.appendLine(`Ignored invalid ${channel} webview message: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
+}
+
 let activePreview: PreviewSession | undefined;
 let activeWorkbenchEditor: ArchinsightWorkbenchEditorSession | undefined;
 const archinsightEditorViewType = "archinsight.editor";
@@ -789,7 +777,9 @@ class ArchinsightControlsProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist", "webview")],
     };
     view.webview.html = controlsHtml(view.webview, this.extensionUri);
-    view.webview.onDidReceiveMessage((message: ControlsMessage) => {
+    view.webview.onDidReceiveMessage((value: unknown) => {
+      const message = validatedWebviewMessage(parseControlsWebviewToHostMessage, value, "controls");
+      if (message === undefined) return;
       if (message.command === "ready") {
         void this.postState();
         return;
@@ -1081,7 +1071,9 @@ class ArchinsightWorkbenchEditorSession {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist", "webview")],
     };
     this.panel.webview.html = workbenchEditorHtml(this.panel.webview, this.extensionUri);
-    this.panel.webview.onDidReceiveMessage((message: WorkbenchEditorMessage) => {
+    this.panel.webview.onDidReceiveMessage((value: unknown) => {
+      const message = validatedWebviewMessage(parseWorkbenchWebviewToHostMessage, value, "workbench");
+      if (message === undefined) return;
       void this.handleMessage(message);
     });
     await this.project.refresh("custom-editor");
@@ -1160,7 +1152,7 @@ class ArchinsightWorkbenchEditorSession {
     await this.panel.webview.postMessage({ command: "query", view: this.view, query: this.query, environment: this.environment });
   }
 
-  private async handleMessage(message: WorkbenchEditorMessage): Promise<void> {
+  private async handleMessage(message: ReturnType<typeof parseWorkbenchWebviewToHostMessage>): Promise<void> {
     if (message.command === "ready") {
       this.webviewReady = true;
       await this.postSource();
@@ -1255,7 +1247,7 @@ class ArchinsightWorkbenchEditorSession {
       command: "clipboardText",
       requestId,
       text,
-    } satisfies WorkbenchEditorIncomingMessage);
+    } satisfies WorkbenchHostToWebviewMessage);
   }
 
   private async complete(requestId: number, sourceName: string, source: string, cursorOffset: number): Promise<void> {
@@ -1315,7 +1307,7 @@ class ArchinsightWorkbenchEditorSession {
       command: "reveal",
       line: position.line + 1,
       column: position.character + 1,
-    } satisfies WorkbenchEditorIncomingMessage);
+    } satisfies WorkbenchHostToWebviewMessage);
   }
 
   private async replaceDocument(source: string): Promise<void> {
@@ -1570,7 +1562,9 @@ class PreviewSession {
         activePreview = this;
       }
     });
-    this.panel.webview.onDidReceiveMessage((message: PreviewMessage) => {
+    this.panel.webview.onDidReceiveMessage((value: unknown) => {
+      const message = validatedWebviewMessage(parsePreviewWebviewToHostMessage, value, "preview");
+      if (message === undefined) return;
       if (message.command === "ready") {
         void this.postState();
         return;

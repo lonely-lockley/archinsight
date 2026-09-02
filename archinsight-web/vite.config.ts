@@ -14,6 +14,7 @@ export default defineConfig({
       include: ['src/**/*.{ts,svelte}'],
       exclude: [
         'src/**/*.test.ts',
+        'src/**/*.test-support.ts',
         'src/**/*.d.ts',
         'src/lib/generated/**',
         'src/lib/themes/**',

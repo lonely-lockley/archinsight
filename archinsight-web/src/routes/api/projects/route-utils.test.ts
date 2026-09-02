@@ -8,6 +8,7 @@ import {
   serviceUnavailable,
   unauthorized
 } from '$lib/server/errors/application-error';
+import { parseProjectCreateRequest } from '@archinsight/contracts';
 import { jsonEndpoint, requestJson } from './route-utils';
 
 describe('project route error contract', () => {
@@ -56,13 +57,22 @@ describe('project route error contract', () => {
       throw new SyntaxError('Unexpected token');
     });
 
-    const response = await jsonEndpoint(malformed, () => requestJson(malformed));
+    const response = await jsonEndpoint(malformed, () => requestJson(malformed, parseProjectCreateRequest));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
       error: 'Request body must be valid JSON',
       code: 'INVALID_REQUEST'
     });
+  });
+
+  it('rejects a structurally invalid JSON request before it reaches a handler', async () => {
+    const invalid = event(undefined, async () => ({ name: 42 }));
+
+    const response = await jsonEndpoint(invalid, () => requestJson(invalid, parseProjectCreateRequest));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'name must be a string', code: 'INVALID_REQUEST' });
   });
 });
 

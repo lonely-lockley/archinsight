@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ContractValidationError } from '@archinsight/contracts';
 import {
   ApiError,
   AuthRequiredError,
@@ -56,8 +57,8 @@ describe('web API client', () => {
 
   it('encodes identifiers and sends JSON mutation requests', async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ id: 'new', name: 'New' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'a/b', name: 'Renamed' }))
+      .mockResolvedValueOnce(jsonResponse(projectSummary('new', 'New')))
+      .mockResolvedValueOnce(jsonResponse(projectSummary('a/b', 'Renamed')))
       .mockResolvedValueOnce(jsonResponse({ path: 'models/a b.ai', revision: '2' }));
 
     await createProject('New');
@@ -93,67 +94,79 @@ describe('web API client', () => {
       {
         invoke: () => fetchTree('a/b'),
         url: /\/api\/projects\/a%2Fb\/files$/,
-        method: 'GET'
+        method: 'GET',
+        response: fileTree()
       },
       {
         invoke: () => fetchTree('ignored', 'playground'),
         url: /\/api\/playground\/files$/,
-        method: 'GET'
+        method: 'GET',
+        response: fileTree()
       },
       {
         invoke: () => fetchFile('a/b', 'model one.ai'),
         url: /\/api\/projects\/a%2Fb\/files\/content\?path=model%20one\.ai$/,
-        method: 'GET'
+        method: 'GET',
+        response: { path: 'model one.ai', content: '', readOnly: false, revision: '1' }
       },
       {
         invoke: () => renameFile('demo', 'old.ai', 'new.ai'),
         url: /\/api\/projects\/demo\/files\/rename$/,
-        method: 'POST'
+        method: 'POST',
+        response: { path: 'new.ai', revision: '1' }
       },
       {
         invoke: () => createFolder('demo', 'models'),
         url: /\/api\/projects\/demo\/folders$/,
-        method: 'POST'
+        method: 'POST',
+        response: { path: 'models', revision: '1' }
       },
       {
         invoke: () => renameFolder('demo', 'old', 'new'),
         url: /\/api\/projects\/demo\/folders\/rename$/,
-        method: 'POST'
+        method: 'POST',
+        response: { path: 'new', revision: '1' }
       },
       {
         invoke: () => fetchProjectStructure('demo', { 'model.ai': 'context demo' }),
         url: /\/api\/projects\/demo\/structure$/,
-        method: 'POST'
+        method: 'POST',
+        response: projectStructure()
       },
       {
         invoke: () => linkProject('demo', ['model.ai'], {}, '', 'c2', undefined),
         url: /\/api\/projects\/demo\/link$/,
-        method: 'POST'
+        method: 'POST',
+        response: linkResponse()
       },
       {
         invoke: () => renderProjectSvg('demo', []),
         url: /\/api\/projects\/demo\/render\/svg$/,
-        method: 'POST'
+        method: 'POST',
+        response: { diagnostics: [], svgs: [] }
       },
       {
         invoke: () => fetchPlaygroundPublication(),
         url: /\/api\/admin\/playground\/publication$/,
-        method: 'GET'
+        method: 'GET',
+        response: null
       },
       {
         invoke: () => publishToPlayground('demo'),
         url: /\/api\/admin\/playground\/publication$/,
-        method: 'PUT'
+        method: 'PUT',
+        response: publication()
       },
       {
         invoke: () => fetchCurrentUser(),
         url: /\/api\/auth\/me$/,
-        method: 'GET'
+        method: 'GET',
+        response: { authenticated: false }
       }
     ];
 
     for (const operation of operations) {
-      fetchMock.mockResolvedValueOnce(jsonResponse({}));
+      fetchMock.mockResolvedValueOnce(jsonResponse(operation.response));
       await operation.invoke();
       const [url, init] = fetchMock.mock.lastCall!;
       expect(String(url)).toMatch(operation.url);
@@ -218,6 +231,12 @@ describe('web API client', () => {
     await expect(fetchProjects()).rejects.toThrow('503 Unavailable');
   });
 
+  it('rejects malformed successful responses at the HTTP trust boundary', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ projects: [{ id: 'broken', name: 'Broken' }] }));
+
+    await expect(fetchProjects()).rejects.toBeInstanceOf(ContractValidationError);
+  });
+
   it('normalizes optional symbol fields at the HTTP boundary', async () => {
     fetchMock.mockResolvedValue(jsonResponse({
       schemaVersion: 'language.v1',
@@ -272,4 +291,49 @@ function jsonResponse(body: unknown): Response {
     status: 200,
     headers: { 'content-type': 'application/json' }
   });
+}
+
+function projectSummary(id: string, name: string) {
+  return { id, name, created: '2026-01-01T00:00:00.000Z', updated: '2026-01-01T00:00:00.000Z', fileCount: 0 };
+}
+
+function fileTree() {
+  return { root: { name: 'Project', path: '', type: 'directory', children: [] } };
+}
+
+function projectStructure() {
+  return { schemaVersion: 'project-structure.v1', contexts: [] };
+}
+
+function linkResponse() {
+  return {
+    revision: '1',
+    analysis: { mode: 'full', relinkedSources: 0 },
+    symbols: { schemaVersion: 'language.v1', types: [], constructors: [], operators: [], enums: [] },
+    linkedModel: {
+      diagnostics: [],
+      contexts: [],
+      elements: [],
+      imports: [],
+      edges: [],
+      tabRoots: {},
+      duplicateEdges: [],
+      presentations: {},
+      graph: { nodes: [], relations: [] }
+    },
+    diagnostics: [],
+    renders: [],
+    structure: projectStructure()
+  };
+}
+
+function publication() {
+  return {
+    slot: 'default',
+    repositoryId: 'demo',
+    ownerId: 'owner',
+    publishedBy: 'owner',
+    publishedAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  };
 }
