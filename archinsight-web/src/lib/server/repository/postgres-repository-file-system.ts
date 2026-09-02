@@ -21,6 +21,7 @@ import {
 } from './repository-tree';
 import { randomUUID } from 'node:crypto';
 import type { Queryable, TransactionalDatabase } from '$lib/server/database/types';
+import { conflict, invalidRequest, notFound } from '$lib/server/errors/application-error';
 import type {
   FileContentResponse,
   FileOperationResponse,
@@ -81,7 +82,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     return this.database.transaction(async (client) => {
       const duplicate = await client.query('select id from public.repository where owner_id = $1 and lower(name) = lower($2)', [ownerId, name]);
       if (duplicate.rows.length > 0) {
-        throw new Error(`Project already exists: ${name}`);
+        throw conflict(`Project already exists: ${name}`);
       }
       const id = randomUUID();
       const structure = rootNode();
@@ -104,7 +105,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
         [ownerId, name, repository.id]
       );
       if (duplicate.rows.length > 0) {
-        throw new Error(`Project already exists: ${name}`);
+        throw conflict(`Project already exists: ${name}`);
       }
       const result = await client.query<RepositoryRow>(
         `update public.repository
@@ -144,7 +145,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     const node = requireFile(root, filePath);
     const file = await this.findFileById(this.database, ownerId, repository.id, node.id);
     if (!file) {
-      throw new Error(`Repository file content not found: ${filePath}`);
+      throw notFound(`Repository file content not found: ${filePath}`);
     }
     return {
       path: filePath,
@@ -170,7 +171,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
       const root = await this.loadTree(client, ownerId, repository);
       const existing = findNode(root, filePath);
       if (existing?.type === 'd') {
-        throw new Error(`Repository folder already exists: ${filePath}`);
+        throw conflict(`Repository folder already exists: ${filePath}`);
       }
       const node = existing ?? addFileNode(root, filePath);
       const current = await this.findFileById(client, ownerId, repository.id, node.id);
@@ -210,12 +211,12 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
 
   async rename(ownerId: string, projectId: string, request: FileRenameRequest | null): Promise<FileOperationResponse> {
     if (!request) {
-      throw new Error('Rename request is required');
+      throw invalidRequest('Rename request is required');
     }
     const sourcePath = normalizeFileName(request.sourcePath);
     const targetPath = normalizeFileName(request.targetPath);
     if (sourcePath === targetPath) {
-      throw new Error(`Source and target file paths are equal: ${sourcePath}`);
+      throw invalidRequest(`Source and target file paths are equal: ${sourcePath}`);
     }
     return this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
@@ -270,7 +271,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
     request: FolderCreateRequest | null
   ): Promise<FileOperationResponse> {
     if (!request) {
-      throw new Error('Create folder request is required');
+      throw invalidRequest('Create folder request is required');
     }
     const folderPath = normalizeDirectoryPath(request.path);
     return this.database.transaction(async (client) => {
@@ -284,15 +285,15 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
 
   async renameFolder(ownerId: string, projectId: string, request: FileRenameRequest | null): Promise<FileOperationResponse> {
     if (!request) {
-      throw new Error('Rename folder request is required');
+      throw invalidRequest('Rename folder request is required');
     }
     const sourcePath = normalizeDirectoryPath(request.sourcePath);
     const targetPath = normalizeDirectoryPath(request.targetPath);
     if (sourcePath === targetPath) {
-      throw new Error(`Source and target folder paths are equal: ${sourcePath}`);
+      throw invalidRequest(`Source and target folder paths are equal: ${sourcePath}`);
     }
     if (targetPath.startsWith(`${sourcePath}/`)) {
-      throw new Error(`Folder cannot be moved inside itself: ${sourcePath}`);
+      throw invalidRequest(`Folder cannot be moved inside itself: ${sourcePath}`);
     }
     return this.database.transaction(async (client) => {
       const repository = await this.requireRepository(client, ownerId, projectId, true);
@@ -354,7 +355,7 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   ): Promise<RepositoryRow> {
     const repository = await this.resolveRepository(client, ownerId, projectId, forUpdate);
     if (!repository) {
-      throw new Error(`Repository not found: ${projectId}`);
+      throw notFound(`Repository not found: ${projectId}`);
     }
     return repository;
   }
@@ -492,10 +493,10 @@ function projectSummary(repository: RepositoryRow): ProjectSummaryResponse {
 function projectNameInput(value: string | null | undefined): string {
   const name = value?.trim() ?? '';
   if (name.length === 0) {
-    throw new Error('Project name is required');
+    throw invalidRequest('Project name is required');
   }
   if (name.length > 100) {
-    throw new Error('Project name is longer than 100 characters');
+    throw invalidRequest('Project name is longer than 100 characters');
   }
   return name;
 }
@@ -510,7 +511,7 @@ function nullableText(value: string | null | undefined, maxLength: number, field
   }
   const trimmed = value.trim();
   if (trimmed.length > maxLength) {
-    throw new Error(`${fieldName} is longer than ${maxLength} characters`);
+    throw invalidRequest(`${fieldName} is longer than ${maxLength} characters`);
   }
   return trimmed;
 }

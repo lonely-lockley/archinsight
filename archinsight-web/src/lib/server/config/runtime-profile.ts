@@ -1,4 +1,5 @@
 import { runtimeEnv, type EnvSource } from './local-config';
+import { notFound } from '$lib/server/errors/application-error';
 
 export type RuntimeProfile = 'all' | 'editor' | 'playground';
 
@@ -13,9 +14,6 @@ export function runtimeProfile(env?: EnvSource): RuntimeProfile {
 export function requireRuntimeProfile(env: EnvSource | undefined, required: Exclude<RuntimeProfile, 'all'>): void {
   const actual = runtimeProfile(env);
   if (actual !== 'all' && actual !== required) {
-    throw new Response(JSON.stringify({ error: 'Not found' }), {
-      status: 404,
-      headers: { 'content-type': 'application/json' }
-    });
+    throw notFound('Not found');
   }
 }

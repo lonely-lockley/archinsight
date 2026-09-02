@@ -4,13 +4,14 @@ import { getDatabaseConfig } from './database-config';
 import { migrateDatabase } from './migrations';
 import type { QueryResult, Queryable, TransactionalDatabase } from './types';
 import type { EnvSource } from '$lib/server/auth/auth-config';
+import { ApplicationError, serviceUnavailable } from '$lib/server/errors/application-error';
 
 const pools = new Map<string, Promise<PostgresDatabase>>();
 
 export async function postgresDatabase(env: EnvSource | undefined): Promise<PostgresDatabase> {
   const config = getDatabaseConfig(env);
   if (!config.enabled) {
-    throw new Error('Database integration is disabled');
+    throw serviceUnavailable('Database integration is disabled');
   }
   const key = databaseKey(config);
   let pool = pools.get(key);
@@ -24,7 +25,14 @@ export async function postgresDatabase(env: EnvSource | undefined): Promise<Post
       }
     });
   }
-  return pool;
+  try {
+    return await pool;
+  } catch (error) {
+    if (error instanceof ApplicationError) {
+      throw error;
+    }
+    throw serviceUnavailable('Database is unavailable', { cause: error });
+  }
 }
 
 export class PostgresDatabase implements TransactionalDatabase {

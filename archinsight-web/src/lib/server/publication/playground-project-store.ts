@@ -7,6 +7,7 @@ import { fileNodes, normalizeTree, requireFile, rootNode, toFileTreeDto } from '
 import { repositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import type { FileContentResponse, FileTreeResponse, RepositoryNode } from '$lib/server/repository/types';
 import { currentPlaygroundPublication } from './playground-publication-service';
+import { notFound } from '$lib/server/errors/application-error';
 
 export type PlaygroundProjectSummary = { id: string; name: string };
 
@@ -32,7 +33,7 @@ class InMemoryPlaygroundProjectStore implements PlaygroundProjectStore {
     const project = (await repositoryFileSystem(this.env).projects(publication.ownerId))
       .find((candidate) => candidate.id === publication.repositoryId);
     if (!project) {
-      throw unavailable();
+      throw notFound('Published playground project is unavailable');
     }
     return project;
   }
@@ -112,7 +113,7 @@ class PostgresPlaygroundProjectStore implements PlaygroundProjectStore {
     );
     const repository = result.rows[0];
     if (!repository) {
-      throw unpublished();
+      throw notFound('Playground project is not published');
     }
     return repository;
   }
@@ -144,23 +145,9 @@ function repositoryTree(repository: PublishedRepositoryRow): RepositoryNode {
 async function requirePublication(env: EnvSource | undefined) {
   const publication = await currentPlaygroundPublication(env);
   if (!publication) {
-    throw unpublished();
+    throw notFound('Playground project is not published');
   }
   return publication;
-}
-
-function unpublished(): Response {
-  return new Response(JSON.stringify({ error: 'Playground project is not published' }), {
-    status: 404,
-    headers: { 'content-type': 'application/json' }
-  });
-}
-
-function unavailable(): Response {
-  return new Response(JSON.stringify({ error: 'Published playground project is unavailable' }), {
-    status: 404,
-    headers: { 'content-type': 'application/json' }
-  });
 }
 
 function timestamp(value: Date | string | null): string {

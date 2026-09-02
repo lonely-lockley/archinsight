@@ -24,6 +24,7 @@ import {
   type LinkedElement,
   type LinkProjectResult,
   type ProjectStructureDeclaration,
+  type ProjectAnalysisSession,
   type ProjectSource,
   type TypeHierarchyNode,
   type VisibleIdentifier,
@@ -450,6 +451,8 @@ function isArchinsightEditorTab(tab: vscode.Tab): boolean {
 class ProjectModel {
   private readonly listeners = new Set<() => void>();
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private analysisSession: ProjectAnalysisSession | undefined;
+  private analysisRoot: string | undefined;
   current: LinkedProject | undefined;
 
   constructor(private readonly diagnostics: vscode.DiagnosticCollection) {
@@ -472,6 +475,8 @@ class ProjectModel {
   async refresh(reason: string): Promise<void> {
     const root = workspaceRoot();
     if (root === undefined) {
+      this.analysisSession = undefined;
+      this.analysisRoot = undefined;
       this.current = undefined;
       this.diagnostics.clear();
       this.fire();
@@ -479,23 +484,31 @@ class ProjectModel {
     }
     try {
       const sources = await readWorkspaceSources(root);
-      const snapshot = service.buildSnapshot(
-        sources.map((source) => ({ sourceName: source.sourceName, source: source.source })),
-        [coreLanguageSnapshot],
-      );
-      const result = service.link({ sources, snapshot: snapshot.snapshot });
+      const rootKey = root.toString();
+      let analysis;
+      let analysisMode;
+      if (this.analysisSession === undefined || this.analysisRoot !== rootKey) {
+        this.analysisSession = service.createProjectAnalysisSession(sources);
+        this.analysisRoot = rootKey;
+        analysis = this.analysisSession.analysis();
+        analysisMode = "full";
+      } else {
+        const update = this.analysisSession.update(sources);
+        analysis = update;
+        analysisMode = update.mode;
+      }
       const project: LinkedProject = {
         root,
         sources,
         sourceUris: sourceUris(root, sources),
-        snapshot: snapshot.snapshot,
-        result,
-        diagnostics: uniqueDiagnostics([...result.diagnostics, ...snapshot.diagnostics]),
-        tokenVocabulary: tokenVocabulary(snapshot.snapshot, sources),
+        snapshot: analysis.snapshotBuild.snapshot,
+        result: analysis.result,
+        diagnostics: analysis.diagnostics,
+        tokenVocabulary: tokenVocabulary(analysis.snapshotBuild.snapshot, sources),
       };
       this.current = project;
       this.updateDiagnostics(project);
-      output.appendLine(`Linker finished (${reason}): ${summary(project.diagnostics)}`);
+      output.appendLine(`Linker finished (${reason}, ${analysisMode}): ${summary(project.diagnostics)}`);
       this.fire();
     } catch (error) {
       output.appendLine(`Linker failed (${reason}): ${error instanceof Error ? error.message : String(error)}`);
@@ -2329,33 +2342,6 @@ function summary(diagnostics: readonly LanguageDiagnostic[]): string {
 
 function hasErrors(diagnostics: readonly LanguageDiagnostic[]): boolean {
   return diagnostics.some((diagnostic) => (diagnostic.level ?? "ERROR") === "ERROR");
-}
-
-function uniqueDiagnostics(diagnostics: readonly LanguageDiagnostic[]): readonly LanguageDiagnostic[] {
-  const result: LanguageDiagnostic[] = [];
-  const seen = new Set<string>();
-  for (const diagnostic of diagnostics) {
-    const key = diagnosticKey(diagnostic);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    result.push(diagnostic);
-  }
-  return result;
-}
-
-function diagnosticKey(diagnostic: LanguageDiagnostic): string {
-  return [
-    diagnostic.sourceName,
-    diagnostic.level ?? "",
-    diagnostic.code,
-    diagnostic.message,
-    diagnostic.line,
-    diagnostic.column,
-    diagnostic.endLine ?? "",
-    diagnostic.endColumn ?? "",
-  ].join("\0");
 }
 
 function letters(): string[] {

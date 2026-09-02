@@ -5,19 +5,17 @@ import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
 import {
-  buildLanguageSnapshotResultFromSources,
   buildProjectStructure,
   buildTypeHierarchy,
   BUILTIN_VIEW_DEFINITIONS,
   BUILTIN_VIEW_IDS,
   BUILTIN_VIEW_QUERIES,
   builtinViewDefinition,
-  coreLanguageSnapshot,
   coreSources,
   discoverDeploymentEnvironments,
   filterTypeHierarchy,
   resolveBuiltinView,
-  linkProject,
+  ProjectAnalysisSession,
   renderGraphviz,
   selectGraph,
   type LanguageDiagnostic,
@@ -358,17 +356,13 @@ async function loadProject(input: string): Promise<LoadedProject> {
   if (sources.length === 0) {
     throw new CliError(`No .ai sources found under '${input}'`);
   }
-  const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
-  const result = linkProject({
-    snapshot: snapshot.snapshot,
-    sources,
-  });
+  const analysis = ProjectAnalysisSession.create(sources).analysis();
   return {
     root,
     sources,
-    snapshot: snapshot.snapshot,
-    result,
-    diagnostics: [...snapshot.diagnostics, ...result.diagnostics],
+    snapshot: analysis.snapshotBuild.snapshot,
+    result: analysis.result,
+    diagnostics: analysis.diagnostics,
   };
 }
 

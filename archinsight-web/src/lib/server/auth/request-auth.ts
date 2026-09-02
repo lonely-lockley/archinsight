@@ -5,6 +5,7 @@ import { authenticateSsrSession, authenticateStandaloneClaims } from './userdata
 import { capabilitiesFor } from './authorization';
 import { verifyGhostSessionSignature } from './ghost-session';
 import type { AuthenticatedUser, AuthUserResponse } from './types';
+import { unauthorized } from '$lib/server/errors/application-error';
 
 export async function currentUserResponse(cookies: Cookies, env: EnvSource | undefined): Promise<AuthUserResponse> {
   const config = getAuthConfig(env);
@@ -49,12 +50,7 @@ export async function authenticateRequired(cookies: Cookies, env: EnvSource | un
     ? await authenticateSsrSession(ghostSession, env, config.token.secret)
     : await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), env);
   if (!user) {
-    throw new Response(JSON.stringify({ error: 'Authentication required' }), {
-      status: 401,
-      headers: {
-        'content-type': 'application/json'
-      }
-    });
+    throw unauthorized('Authentication required');
   }
   return user;
 }

@@ -1,8 +1,8 @@
 import { rename } from '$lib/server/repository/project-file-service';
-import { env, jsonEndpoint, pathParam } from '../../../route-utils';
+import { env, jsonEndpoint, pathParam, requestJson } from '../../../route-utils';
 import type { FileRenameRequest } from '$lib/server/repository/types';
 
 export const POST = (event) =>
   jsonEndpoint(event, async () =>
-    rename(event.cookies, env(event), pathParam(event, 'projectId'), (await event.request.json()) as FileRenameRequest | null)
+    rename(event.cookies, env(event), pathParam(event, 'projectId'), await requestJson<FileRenameRequest | null>(event))
   );

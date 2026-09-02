@@ -35,7 +35,7 @@ describe('repository API routes', () => {
     const response = await projects({ cookies: cookies(), platform: { env } } as never);
 
     expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toEqual({ error: 'Authentication required' });
+    await expect(response.json()).resolves.toEqual({ error: 'Authentication required', code: 'UNAUTHORIZED' });
   });
 
   it('lists projects for the authenticated user', async () => {
@@ -74,8 +74,8 @@ describe('repository API routes', () => {
       {},
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     ));
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Repository not found: project-1' });
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'Repository not found: project-1', code: 'NOT_FOUND' });
   });
 
   it('renames and deletes only an owned project', async () => {
@@ -90,7 +90,7 @@ describe('repository API routes', () => {
       {},
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     ));
-    expect(foreign.status).toBe(400);
+    expect(foreign.status).toBe(404);
 
     const deleted = await deleteProject(event('/api/projects/project-1', 'project-1'));
     expect(deleted.status).toBe(200);
@@ -123,8 +123,15 @@ describe('repository API routes', () => {
       })
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'File content is too large' });
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: 'File content is too large', code: 'PAYLOAD_TOO_LARGE' });
+  });
+
+  it('reports duplicate project names as conflicts', async () => {
+    const response = await createProject(event('/api/projects', 'project-1', { name: 'Project 1' }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: 'Project already exists: Project 1', code: 'CONFLICT' });
   });
 });
 

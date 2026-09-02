@@ -87,6 +87,12 @@ test('built-in views come from the canonical language catalogue', () => {
   assert.equal(extensionSource.includes('./generated/builtin-view-queries'), false);
 });
 
+test('project analysis lifecycle is owned by the language session', () => {
+  assert(extensionSource.includes('createProjectAnalysisSession'));
+  assert.equal(extensionSource.includes('service.buildSnapshot'), false);
+  assert.equal(extensionSource.includes('service.link('), false);
+});
+
 function assertPath(relativePath) {
   assert(existsSync(path.resolve(extensionRoot, relativePath)), `${relativePath} must exist`);
 }

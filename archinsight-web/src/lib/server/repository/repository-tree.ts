@@ -6,6 +6,7 @@ import {
   parentDirectory
 } from './path';
 import type { FileTreeNode, RepositoryNode } from './types';
+import { conflict, invalidRequest, notFound } from '$lib/server/errors/application-error';
 
 export function rootNode(): RepositoryNode {
   return {
@@ -91,7 +92,7 @@ export function ensureDirectory(root: RepositoryNode, path: string): RepositoryN
     const existing = current.childNodes.find((child) => child.name === segment);
     if (existing) {
       if (existing.type === 'f') {
-        throw new Error(`Repository file already exists: ${path}`);
+        throw conflict(`Repository file already exists: ${path}`);
       }
       current = existing;
       continue;
@@ -108,7 +109,7 @@ export function moveNode(root: RepositoryNode, source: RepositoryNode, targetPat
   const targetParent = requireDirectory(root, parentDirectory(targetPath));
   rejectChildCollision(targetParent, baseName(targetPath));
   if (source.type !== expectedType) {
-    throw new Error(`Repository node type mismatch: ${targetPath}`);
+    throw invalidRequest(`Repository node type mismatch: ${targetPath}`);
   }
   removeNode(root, source);
   source.name = baseName(targetPath);
@@ -121,7 +122,7 @@ export function moveNode(root: RepositoryNode, source: RepositoryNode, targetPat
 export function removeNode(root: RepositoryNode, node: RepositoryNode): void {
   const nodeParent = parent(root, node.parentId);
   if (!nodeParent) {
-    throw new Error(`Repository parent folder not found: ${node.name}`);
+    throw notFound(`Repository parent folder not found: ${node.name}`);
   }
   nodeParent.childNodes = nodeParent.childNodes.filter((child) => child.id !== node.id);
 }
@@ -129,10 +130,10 @@ export function removeNode(root: RepositoryNode, node: RepositoryNode): void {
 export function requireFile(root: RepositoryNode, path: string): RepositoryNode {
   const node = findNode(root, normalizeFileName(path));
   if (!node) {
-    throw new Error(`Repository file not found: ${normalizeFileName(path)}`);
+    throw notFound(`Repository file not found: ${normalizeFileName(path)}`);
   }
   if (node.type !== 'f') {
-    throw new Error(`Repository path is not a file: ${normalizeFileName(path)}`);
+    throw invalidRequest(`Repository path is not a file: ${normalizeFileName(path)}`);
   }
   return node;
 }
@@ -144,10 +145,10 @@ export function requireDirectory(root: RepositoryNode, path: string): Repository
   }
   const node = findNode(root, directoryPath);
   if (!node) {
-    throw new Error(`Repository folder not found: ${directoryPath}`);
+    throw notFound(`Repository folder not found: ${directoryPath}`);
   }
   if (node.type !== 'd') {
-    throw new Error(`Repository path is not a folder: ${directoryPath}`);
+    throw invalidRequest(`Repository path is not a folder: ${directoryPath}`);
   }
   return node;
 }
@@ -217,7 +218,7 @@ export function sortChildren(node: RepositoryNode): void {
 
 function rejectChildCollision(parent: RepositoryNode, name: string): void {
   if (parent.childNodes.some((child) => child.name === name)) {
-    throw new Error(`Repository item already exists: ${name}`);
+    throw conflict(`Repository item already exists: ${name}`);
   }
 }
 

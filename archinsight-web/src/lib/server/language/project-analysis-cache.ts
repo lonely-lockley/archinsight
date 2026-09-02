@@ -4,7 +4,8 @@ import {
   InsightLanguageService,
   type LanguageBuildResult,
   type LinkProjectResult,
-  type ProjectLinkerState,
+  type ProjectAnalysis as LanguageProjectAnalysis,
+  type ProjectAnalysisSession,
   type ProjectSource
 } from '@insight/language';
 import type { EnvSource } from '$lib/server/auth/auth-config';
@@ -27,8 +28,7 @@ type AnalysisEntry = {
   coreVersion: string;
   sources: Map<string, string>;
   sourceBytes: number;
-  snapshotBuild: LanguageBuildResult;
-  state: ProjectLinkerState;
+  session: ProjectAnalysisSession;
   lastAccess: number;
 };
 
@@ -123,7 +123,6 @@ export class ProjectAnalysisCache {
       previous !== undefined
       && previous.coreVersion === coreVersion
       && changes.length > 0
-      && canUpdateIncrementally(changes)
     ) {
       stored = this.incrementalEntry(previous, sources, revision, changes, now, env);
     } else {
@@ -158,26 +157,22 @@ export class ProjectAnalysisCache {
     now: number,
     env?: EnvSource
   ): AnalysisEntry {
-    const snapshotStarted = performance.now();
-    const snapshotBuild = buildProjectSnapshot(sources);
+    const analysisStarted = performance.now();
+    const session = service.createProjectAnalysisSession(projectSources(sources));
+    const project = session.analysis();
     incrementAnalysisMetric('fullSnapshotBuilds');
     observeAnalysis(env, 'language.snapshot', {
       mode: 'full',
       sourceCount: sources.size,
-      definitionSourceCount: definitionSources(sources).length,
-      durationMs: elapsed(snapshotStarted)
+      definitionSourceCount: project.snapshotSources.length,
+      durationMs: elapsed(analysisStarted)
     });
 
-    const linkStarted = performance.now();
-    const state = service.createState({
-      sources: projectSources(sources),
-      snapshot: snapshotBuild.snapshot
-    });
     incrementAnalysisMetric('fullProjectLinks');
     observeAnalysis(env, 'language.link', {
       mode: 'full',
       sourceCount: sources.size,
-      durationMs: elapsed(linkStarted)
+      durationMs: elapsed(analysisStarted)
     });
     return {
       key,
@@ -185,8 +180,7 @@ export class ProjectAnalysisCache {
       coreVersion,
       sources,
       sourceBytes: sourcesSize(sources),
-      snapshotBuild,
-      state,
+      session,
       lastAccess: now
     };
   }
@@ -200,21 +194,15 @@ export class ProjectAnalysisCache {
     env?: EnvSource
   ): StoredAnalysis {
     const started = performance.now();
-    try {
-      const state = service.forkState(previous.state);
-      let relinkedSources = 0;
-      for (const change of orderedChanges(changes)) {
-        const update = change.next === undefined
-          ? service.removeSource(state, change.sourceName)
-          : service.replaceSource(state, { sourceName: change.sourceName, source: change.next });
-        relinkedSources += update.relinkedSources.size;
-      }
-      incrementAnalysisMetric('incrementalSourceUpdates', changes.length);
-      incrementAnalysisMetric('incrementalSourcesRelinked', relinkedSources);
+    const session = previous.session.fork();
+    const update = session.update(projectSources(sources));
+    if (update.mode === 'incremental') {
+      incrementAnalysisMetric('incrementalSourceUpdates', update.changedSources.size);
+      incrementAnalysisMetric('incrementalSourcesRelinked', update.relinkedSourceCount);
       observeAnalysis(env, 'language.link', {
         mode: 'incremental',
-        changedSources: changes.length,
-        relinkedSources,
+        changedSources: update.changedSources.size,
+        relinkedSources: update.relinkedSourceCount,
         durationMs: elapsed(started)
       });
       return {
@@ -223,25 +211,39 @@ export class ProjectAnalysisCache {
           revision,
           sources,
           sourceBytes: sourcesSize(sources),
-          state,
+          session,
           lastAccess: now
         },
         mode: 'incremental',
-        relinkedSources
-      };
-    } catch (error) {
-      observeAnalysis(env, 'language.link', {
-        mode: 'incremental-fallback',
-        changedSources: changes.length,
-        durationMs: elapsed(started),
-        error: error instanceof Error ? error.name : 'unknown'
-      });
-      return {
-        entry: this.fullEntry(previous.key, sources, revision, now, env),
-        mode: 'full',
-        relinkedSources: 0
+        relinkedSources: update.relinkedSourceCount
       };
     }
+
+    incrementAnalysisMetric('fullSnapshotBuilds');
+    incrementAnalysisMetric('fullProjectLinks');
+    observeAnalysis(env, 'language.snapshot', {
+      mode: update.incrementalFallback ? 'incremental-fallback' : 'full',
+      sourceCount: sources.size,
+      definitionSourceCount: update.snapshotSources.length,
+      durationMs: elapsed(started)
+    });
+    observeAnalysis(env, 'language.link', {
+      mode: update.incrementalFallback ? 'incremental-fallback' : 'full',
+      changedSources: changes.length,
+      durationMs: elapsed(started)
+    });
+    return {
+      entry: {
+        ...previous,
+        revision,
+        sources,
+        sourceBytes: sourcesSize(sources),
+        session,
+        lastAccess: now
+      },
+      mode: 'full',
+      relinkedSources: 0
+    };
   }
 
   private applyOverlays(
@@ -254,7 +256,7 @@ export class ProjectAnalysisCache {
       .map(([sourceName, next]) => ({ sourceName: normalizeSourceName(sourceName), previous: base.sources.get(normalizeSourceName(sourceName)), next }))
       .filter((change) => change.previous !== change.next);
     if (changes.length === 0) {
-      return analysis(base, base.state.result(), stored.mode, stored.relinkedSources);
+      return analysis(base, base.session.analysis(), stored.mode, stored.relinkedSources);
     }
 
     const merged = new Map(base.sources);
@@ -262,44 +264,47 @@ export class ProjectAnalysisCache {
       merged.set(change.sourceName, change.next!);
     }
     const revision = sourceRevision(merged);
-    if (!canUpdateIncrementally(changes)) {
-      const transient = this.fullEntry(base.key, merged, revision, Date.now(), env);
-      return analysis(transient, transient.state.result(), 'overlay-full', merged.size);
-    }
-
     const started = performance.now();
-    try {
-      const state = service.forkState(base.state);
-      let relinkedSources = 0;
-      for (const change of orderedChanges(changes)) {
-        const update = service.replaceSource(state, { sourceName: change.sourceName, source: change.next! });
-        relinkedSources += update.relinkedSources.size;
-      }
-      incrementAnalysisMetric('incrementalSourceUpdates', changes.length);
-      incrementAnalysisMetric('incrementalSourcesRelinked', relinkedSources);
+    const session = base.session.fork();
+    const update = session.update(projectSources(merged));
+    if (update.mode === 'incremental') {
+      incrementAnalysisMetric('incrementalSourceUpdates', update.changedSources.size);
+      incrementAnalysisMetric('incrementalSourcesRelinked', update.relinkedSourceCount);
       observeAnalysis(env, 'language.link', {
         mode: 'overlay-incremental',
-        changedSources: changes.length,
-        relinkedSources,
+        changedSources: update.changedSources.size,
+        relinkedSources: update.relinkedSourceCount,
         durationMs: elapsed(started)
       });
       return {
         revision,
-        snapshotBuild: base.snapshotBuild,
-        result: state.result(),
+        snapshotBuild: update.snapshotBuild,
+        result: update.result,
         mode: 'overlay-incremental',
-        relinkedSources
+        relinkedSources: update.relinkedSourceCount
       };
-    } catch (error) {
-      observeAnalysis(env, 'language.link', {
-        mode: 'overlay-incremental-fallback',
-        changedSources: changes.length,
-        durationMs: elapsed(started),
-        error: error instanceof Error ? error.name : 'unknown'
-      });
-      const transient = this.fullEntry(base.key, merged, revision, Date.now(), env);
-      return analysis(transient, transient.state.result(), 'overlay-full', merged.size);
     }
+
+    incrementAnalysisMetric('fullSnapshotBuilds');
+    incrementAnalysisMetric('fullProjectLinks');
+    observeAnalysis(env, 'language.snapshot', {
+      mode: 'overlay-full',
+      sourceCount: merged.size,
+      definitionSourceCount: update.snapshotSources.length,
+      durationMs: elapsed(started)
+    });
+    observeAnalysis(env, 'language.link', {
+      mode: update.incrementalFallback ? 'overlay-incremental-fallback' : 'overlay-full',
+      changedSources: update.changedSources.size,
+      durationMs: elapsed(started)
+    });
+    return {
+      revision,
+      snapshotBuild: update.snapshotBuild,
+      result: update.result,
+      mode: 'overlay-full',
+      relinkedSources: merged.size
+    };
   }
 
   private prune(config: CacheConfig, now: number): void {
@@ -326,66 +331,17 @@ export function resetProjectAnalysisCache(): void {
 
 function analysis(
   entry: AnalysisEntry,
-  result: LinkProjectResult,
+  project: LanguageProjectAnalysis,
   mode: ProjectAnalysis['mode'],
   relinkedSources: number
 ): ProjectAnalysis {
   return {
     revision: entry.revision,
-    snapshotBuild: entry.snapshotBuild,
-    result,
+    snapshotBuild: project.snapshotBuild,
+    result: project.result,
     mode,
     relinkedSources
   };
-}
-
-function buildProjectSnapshot(sources: ReadonlyMap<string, string>): LanguageBuildResult {
-  return service.buildSnapshot(definitionSources(sources), [coreLanguageSnapshot]);
-}
-
-function definitionSources(sources: ReadonlyMap<string, string>) {
-  return projectSources(sources).filter((source) => sourceAffectsSnapshot(source.source));
-}
-
-function sourceAffectsSnapshot(source: string | undefined): boolean {
-  return source !== undefined && /^\s*(?:define\s+(?:type|operator|enum|presentation)\b|extend\s+(?:type|enum|presentation)\b)/mu.test(source);
-}
-
-function canUpdateIncrementally(changes: readonly SourceChange[]): boolean {
-  return changes.length > 0 && changes.every((change) => {
-    if (sourceAffectsSnapshot(change.previous) || sourceAffectsSnapshot(change.next)) {
-      return false;
-    }
-    if (change.previous === undefined) {
-      return supportDependencySignature(change.next) === '';
-    }
-    if (change.next === undefined) {
-      return true;
-    }
-    return dependencySignature(change.previous) === dependencySignature(change.next);
-  });
-}
-
-function dependencySignature(source: string | undefined): string {
-  if (source === undefined) {
-    return '';
-  }
-  return source
-    .split(/\r?\n/u)
-    .filter((line) => /^(?:context|environment|import|from|extend)\b/u.test(line))
-    .map((line) => line.trimEnd())
-    .join('\n');
-}
-
-function supportDependencySignature(source: string | undefined): string {
-  if (source === undefined) {
-    return '';
-  }
-  return source
-    .split(/\r?\n/u)
-    .filter((line) => /^(?:import|from|extend)\b/u.test(line))
-    .map((line) => line.trimEnd())
-    .join('\n');
 }
 
 function sourceChanges(previous: ReadonlyMap<string, string>, next: ReadonlyMap<string, string>): SourceChange[] {
@@ -394,14 +350,6 @@ function sourceChanges(previous: ReadonlyMap<string, string>, next: ReadonlyMap<
     const before = previous.get(sourceName);
     const after = next.get(sourceName);
     return before === after ? [] : [{ sourceName, previous: before, next: after }];
-  });
-}
-
-function orderedChanges(changes: readonly SourceChange[]): SourceChange[] {
-  return [...changes].sort((left, right) => {
-    const leftOrder = left.next === undefined ? 2 : left.previous === undefined ? 0 : 1;
-    const rightOrder = right.next === undefined ? 2 : right.previous === undefined ? 0 : 1;
-    return leftOrder - rightOrder || left.sourceName.localeCompare(right.sourceName);
   });
 }
 

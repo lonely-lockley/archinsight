@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ApiError,
   AuthRequiredError,
   createFolder,
   createProject,
@@ -189,7 +190,11 @@ describe('web API client', () => {
 
   it('prefers structured server errors and removes stack lines', async () => {
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Invalid model\nat handler' }), {
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: 'Invalid model\nat handler',
+        code: 'INVALID_REQUEST',
+        correlationId: 'request-123'
+      }), {
         status: 400,
         statusText: 'Bad Request'
       }))
@@ -198,7 +203,13 @@ describe('web API client', () => {
         statusText: 'Server Error'
       }));
 
-    await expect(fetchProjects()).rejects.toThrow('Invalid model');
+    await expect(fetchProjects()).rejects.toMatchObject({
+      name: 'ApiError',
+      message: 'Invalid model',
+      status: 400,
+      code: 'INVALID_REQUEST',
+      correlationId: 'request-123'
+    } satisfies Partial<ApiError>);
     await expect(createProject('New')).rejects.toThrow('Readable failure');
   });
 

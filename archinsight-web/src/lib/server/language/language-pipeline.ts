@@ -4,7 +4,6 @@ import {
   filterProjectStructure,
   InsightLanguageService,
   isBuiltinDiagramView,
-  type LanguageBuildResult,
   type LanguageDiagnostic,
   type LinkProjectResult
 } from '@insight/language';
@@ -13,6 +12,7 @@ import type { EnvSource } from '$lib/server/auth/auth-config';
 import { requireUserId, sourcesForProjectWithOverlays } from '$lib/server/repository/project-file-service';
 import { requestLimits, validateOverlays, validateQuery } from '$lib/server/security/request-limits';
 import { requireRuntimeProfile } from '$lib/server/config/runtime-profile';
+import { invalidRequest } from '$lib/server/errors/application-error';
 import { incrementAnalysisMetric, observeAnalysis } from './analysis-observability';
 import { ProjectAnalysisCache, projectAnalysisCache, type ProjectAnalysis } from './project-analysis-cache';
 import type {
@@ -61,7 +61,7 @@ export async function structureForProject(
 ): Promise<ProjectStructureResponse> {
   validateRequest(request, env);
   const analysis = await analyzeStoredProject(env, ownerId, projectId, request?.overlays ?? {});
-  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
+  return projectStructure(analysis.result);
 }
 
 export async function structureForSources(
@@ -71,7 +71,7 @@ export async function structureForSources(
 ): Promise<ProjectStructureResponse> {
   validateRequest(request, env);
   const analysis = await transientAnalysis(sources, request?.overlays ?? {}, env);
-  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
+  return projectStructure(analysis.result);
 }
 
 export async function link(
@@ -125,7 +125,7 @@ export async function structureForStoredSources(
 ): Promise<ProjectStructureResponse> {
   validateRequest(request, env);
   const analysis = await projectAnalysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, env);
-  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
+  return projectStructure(analysis.result);
 }
 
 export async function symbolsForStoredSources(
@@ -137,20 +137,19 @@ export async function symbolsForStoredSources(
 }
 
 function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null, env: EnvSource | undefined): LinkResponse {
-  const resultWithSnapshotDiagnostics = withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild);
-  const diagnostics = resultWithSnapshotDiagnostics.diagnostics.map(diagnostic);
+  const diagnostics = analysis.result.diagnostics.map(diagnostic);
   const renderStarted = performance.now();
   const renders = diagnostics.some((item) => item.level === 'ERROR')
     ? []
-    : renderPaths(request, resultWithSnapshotDiagnostics).flatMap((sourceIdentity) => {
-      const context = resultWithSnapshotDiagnostics.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
+    : renderPaths(request, analysis.result).flatMap((sourceIdentity) => {
+      const context = analysis.result.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
       try {
         return [
           {
             sourceIdentity,
             diagram: 'query',
             dot: service.render({
-              result: resultWithSnapshotDiagnostics,
+              result: analysis.result,
               scope: {
                 context: context?.id,
                 tab: sourceIdentity,
@@ -182,22 +181,15 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
     },
     symbols: analysis.snapshotBuild.snapshot,
     linkedModel: {
-      ...resultWithSnapshotDiagnostics,
+      ...analysis.result,
       graph: {
-        nodes: resultWithSnapshotDiagnostics.graph.nodes(),
-        relations: resultWithSnapshotDiagnostics.graph.relations()
+        nodes: analysis.result.graph.nodes(),
+        relations: analysis.result.graph.relations()
       }
     },
     diagnostics,
     renders,
-    structure: projectStructure(resultWithSnapshotDiagnostics)
-  };
-}
-
-function withSnapshotDiagnostics(result: LinkProjectResult, projectSnapshot: LanguageBuildResult): LinkProjectResult {
-  return {
-    ...result,
-    diagnostics: [...projectSnapshot.diagnostics, ...result.diagnostics]
+    structure: projectStructure(analysis.result)
   };
 }
 
@@ -206,12 +198,12 @@ function validateRequest(request: LinkRequest | ProjectStructureRequest | null, 
   validateOverlays(request?.overlays, requestLimits(env));
   const view = 'view' in (request ?? {}) ? (request as LinkRequest).view : undefined;
   if (view != null && !isBuiltinDiagramView(view)) {
-    throw new Error('Invalid built-in diagram view');
+    throw invalidRequest('Invalid built-in diagram view');
   }
   if ('environment' in (request ?? {})) {
     const environment = (request as LinkRequest).environment;
     if (environment != null && (typeof environment !== 'string' || environment.length > 256)) {
-      throw new Error('Invalid deployment environment');
+      throw invalidRequest('Invalid deployment environment');
     }
   }
 }

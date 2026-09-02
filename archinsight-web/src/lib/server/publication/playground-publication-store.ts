@@ -3,6 +3,7 @@ import { postgresDatabase } from '$lib/server/database/postgres-database';
 import type { Queryable, TransactionalDatabase } from '$lib/server/database/types';
 import type { EnvSource } from '$lib/server/auth/auth-config';
 import type { PlaygroundPublication, PlaygroundPublicationStore } from './types';
+import { forbidden } from '$lib/server/errors/application-error';
 
 const defaultSlot = 'default';
 let inMemoryStore: PlaygroundPublicationStore | undefined;
@@ -144,11 +145,4 @@ async function selectPublication(client: Queryable, slot: string): Promise<Playg
 
 function timestamp(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
-}
-
-function forbidden(message: string): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status: 403,
-    headers: { 'content-type': 'application/json' }
-  });
 }

@@ -15,6 +15,7 @@ import { createGeneratedInsightSyntaxProvider } from "./generated-provider.js";
 import { renderGraphviz } from "./graphviz-renderer.js";
 import { linkProject } from "./project-linker.js";
 import { ProjectLinkerState, type ProjectLinkerStateUpdate, type ProjectSourceReplacement } from "./project-linker-state.js";
+import { ProjectAnalysisSession } from "./project-analysis-session.js";
 import { selectGraph } from "./query-engine.js";
 
 export interface InsightLanguageServiceOptions {
@@ -61,6 +62,10 @@ export class InsightLanguageService {
     baseSnapshots: readonly LanguageSnapshot[] = [],
   ): ReturnType<typeof buildLanguageSnapshotResultFromSources> {
     return buildLanguageSnapshotResultFromSources(sources, baseSnapshots);
+  }
+
+  createProjectAnalysisSession(sources: readonly ProjectSource[]): ProjectAnalysisSession {
+    return ProjectAnalysisSession.create(sources, [this.defaultSnapshot]);
   }
 
   complete(request: ServiceCompletionRequest): CompletionResult {

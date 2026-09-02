@@ -148,6 +148,19 @@ export class AuthRequiredError extends Error {
   }
 }
 
+export class ApiError extends Error {
+  readonly name = 'ApiError';
+
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+    readonly correlationId?: string
+  ) {
+    super(message);
+  }
+}
+
 export function routePath(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return `${base}${normalized}`;
@@ -171,7 +184,7 @@ export async function deleteProject(projectId: string): Promise<void> {
     credentials: 'include'
   });
   if (response.status === 401) throw new AuthRequiredError();
-  if (!response.ok) throw new Error(await responseErrorMessage(response));
+  if (!response.ok) throw await responseError(response);
 }
 
 export async function fetchTree(projectId: string, surface: WorkspaceSurface = 'editor'): Promise<FileTreeResponse> {
@@ -215,7 +228,7 @@ export async function deleteFile(projectId: string, path: string): Promise<void>
     throw new AuthRequiredError();
   }
   if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
+    throw await responseError(response);
   }
 }
 
@@ -228,7 +241,7 @@ export async function deleteFolder(projectId: string, path: string): Promise<voi
     throw new AuthRequiredError();
   }
   if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
+    throw await responseError(response);
   }
 }
 
@@ -290,7 +303,7 @@ export async function unpublishFromPlayground(): Promise<void> {
     throw new AuthRequiredError();
   }
   if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
+    throw await responseError(response);
   }
 }
 
@@ -307,7 +320,7 @@ export async function logoutCurrentUser(): Promise<void> {
     throw new AuthRequiredError();
   }
   if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
+    throw await responseError(response);
   }
 }
 
@@ -317,7 +330,7 @@ async function getJson<T>(path: string): Promise<T> {
     throw new AuthRequiredError();
   }
   if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
+    throw await responseError(response);
   }
   return response.json() as Promise<T>;
 }
@@ -337,27 +350,37 @@ async function requestJson<T>(method: 'POST' | 'PUT' | 'PATCH', path: string, bo
     throw new AuthRequiredError();
   }
   if (!response.ok) {
-    throw new Error(await responseErrorMessage(response));
+    throw await responseError(response);
   }
   return response.json() as Promise<T>;
 }
 
-async function responseErrorMessage(response: Response): Promise<string> {
+async function responseError(response: Response): Promise<ApiError> {
   const fallback = `${response.status} ${response.statusText}`.trim();
   const body = await response.text();
   if (body.trim().length === 0) {
-    return fallback;
+    return new ApiError(fallback, response.status);
   }
   try {
-    const parsed = JSON.parse(body) as { error?: unknown; message?: unknown };
+    const parsed = JSON.parse(body) as {
+      error?: unknown;
+      message?: unknown;
+      code?: unknown;
+      correlationId?: unknown;
+    };
     const message = parsed.error ?? parsed.message;
     if (typeof message === 'string' && message.trim().length > 0) {
-      return firstMessageLine(message);
+      return new ApiError(
+        firstMessageLine(message),
+        response.status,
+        typeof parsed.code === 'string' ? parsed.code : undefined,
+        typeof parsed.correlationId === 'string' ? parsed.correlationId : undefined
+      );
     }
   } catch {
     // Fall back to plain-text response handling below.
   }
-  return firstMessageLine(body) || fallback;
+  return new ApiError(firstMessageLine(body) || fallback, response.status);
 }
 
 function firstMessageLine(message: string): string {

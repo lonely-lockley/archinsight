@@ -1,4 +1,5 @@
 import type { EnvSource } from '$lib/server/auth/auth-config';
+import { payloadTooLarge } from '$lib/server/errors/application-error';
 
 export type RequestLimits = {
   maxFileBytes: number;
@@ -32,26 +33,26 @@ export function validateOverlays(overlays: Record<string, string> | null | undef
     return;
   }
   if (entries.length > limits.maxOverlays) {
-    throw new Error(`Too many overlays: ${entries.length}`);
+    throw payloadTooLarge(`Too many overlays: ${entries.length}`);
   }
   let totalBytes = 0;
   for (const [sourceIdentity, content] of entries) {
     totalBytes += bytes(sourceIdentity) + bytes(content);
     if (totalBytes > limits.maxOverlayBytes) {
-      throw new Error('Overlay payload is too large');
+      throw payloadTooLarge('Overlay payload is too large');
     }
   }
 }
 
 export function validateQuery(query: string | null | undefined, limits: RequestLimits): void {
   if (query != null && query.length > limits.maxQueryChars) {
-    throw new Error('Query is too long');
+    throw payloadTooLarge('Query is too long');
   }
 }
 
 export function validateRenderCount(count: number, limits: RequestLimits): void {
   if (count > limits.maxRenderCount) {
-    throw new Error(`Too many diagrams to render: ${count}`);
+    throw payloadTooLarge(`Too many diagrams to render: ${count}`);
   }
 }
 
@@ -61,7 +62,7 @@ export function validateDot(dot: string | null | undefined, limits: RequestLimit
 
 function requireBytes(label: string, value: string | null | undefined, maxBytes: number): void {
   if (bytes(value) > maxBytes) {
-    throw new Error(`${label} is too large`);
+    throw payloadTooLarge(`${label} is too large`);
   }
 }
 

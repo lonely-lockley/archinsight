@@ -1,3 +1,5 @@
+import { invalidRequest } from '$lib/server/errors/application-error';
+
 const SOURCE_FILE_EXTENSION = '.ai';
 
 export function normalizeFileName(path: string | null | undefined): string {
@@ -8,7 +10,7 @@ export function normalizeFileName(path: string | null | undefined): string {
 export function normalizeDirectoryPath(path: string | null | undefined): string {
   const normalized = normalizePath(path, 'folder');
   if (normalized.endsWith(SOURCE_FILE_EXTENSION)) {
-    throw new Error(`Repository folder path must not use source file extension: ${path ?? ''}`);
+    throw invalidRequest(`Repository folder path must not use source file extension: ${path ?? ''}`);
   }
   return normalized;
 }
@@ -34,17 +36,17 @@ export function normalizeSourceIdentity(sourceIdentity: string): string {
 function normalizePath(path: string | null | undefined, label: string): string {
   const raw = path ?? '';
   if (raw.startsWith('/')) {
-    throw new Error(`Repository ${label} path must be relative: ${raw}`);
+    throw invalidRequest(`Repository ${label} path must be relative: ${raw}`);
   }
   if (raw.includes('//')) {
-    throw new Error(`Repository ${label} path contains an empty segment: ${raw}`);
+    throw invalidRequest(`Repository ${label} path contains an empty segment: ${raw}`);
   }
   const normalized = normalizeSegments(raw);
   if (normalized === '' || normalized === '.' || normalized === '..' || normalized.startsWith('../')) {
-    throw new Error(`Repository ${label} path is outside project scope: ${raw}`);
+    throw invalidRequest(`Repository ${label} path is outside project scope: ${raw}`);
   }
   if (normalized.length > 100) {
-    throw new Error(`Repository ${label} path is longer than 100 characters: ${normalized}`);
+    throw invalidRequest(`Repository ${label} path is longer than 100 characters: ${normalized}`);
   }
   return normalized;
 }

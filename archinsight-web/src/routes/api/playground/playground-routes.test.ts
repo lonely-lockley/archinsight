@@ -54,7 +54,7 @@ describe('playground API', () => {
   it('returns 404 when no project is published', async () => {
     const response = await playground(event('/api/playground'));
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: 'Playground project is not published' });
+    await expect(response.json()).resolves.toEqual({ error: 'Playground project is not published', code: 'NOT_FOUND' });
   });
 
   it('is unavailable from the editor-only runtime profile', async () => {

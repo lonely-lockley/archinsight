@@ -1,4 +1,5 @@
 import type { AppCapability, AuthenticatedUser } from './types';
+import { forbidden } from '$lib/server/errors/application-error';
 
 export type AuthorizationReason = 'authentication-required' | 'missing-capability' | 'not-owner';
 
@@ -33,19 +34,12 @@ export function authorize(user: AuthenticatedUser | null, capability: AppCapabil
 export function requireCapability(user: AuthenticatedUser, capability: AppCapability): void {
   const decision = authorize(user, capability);
   if (!decision.permitted) {
-    throw forbidden(decision.reason);
+    throw forbidden('Forbidden', { cause: decision.reason });
   }
 }
 
 export function requireOwner(user: AuthenticatedUser, ownerId: string): void {
   if (user.id !== ownerId) {
-    throw forbidden('not-owner');
+    throw forbidden('Forbidden', { cause: 'not-owner' });
   }
-}
-
-function forbidden(reason: AuthorizationReason): Response {
-  return new Response(JSON.stringify({ error: 'Forbidden', reason }), {
-    status: 403,
-    headers: { 'content-type': 'application/json' }
-  });
 }

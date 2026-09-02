@@ -5,6 +5,7 @@ import { authenticateRequired } from '$lib/server/auth/request-auth';
 import { repositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import { playgroundPublicationStore } from './playground-publication-store';
 import { requireRuntimeProfile } from '$lib/server/config/runtime-profile';
+import { forbidden } from '$lib/server/errors/application-error';
 
 const slot = 'default';
 
@@ -25,10 +26,7 @@ export async function publishProject(cookies: Cookies, env: EnvSource | undefine
   requireCapability(user, 'publication:manage');
   const owned = (await repositoryFileSystem(env).projects(user.id)).some((project) => project.id === projectId);
   if (!owned) {
-    throw new Response(JSON.stringify({ error: 'Project is not owned by the current user' }), {
-      status: 403,
-      headers: { 'content-type': 'application/json' }
-    });
+    throw forbidden('Project is not owned by the current user');
   }
   return playgroundPublicationStore(env).publish(slot, user.id, projectId, user.id);
 }
@@ -39,10 +37,7 @@ export async function unpublishProject(cookies: Cookies, env: EnvSource | undefi
   requireCapability(user, 'publication:manage');
   const current = await currentPlaygroundPublication(env);
   if (current && current.ownerId !== user.id) {
-    throw new Response(JSON.stringify({ error: 'Published project is not owned by the current user' }), {
-      status: 403,
-      headers: { 'content-type': 'application/json' }
-    });
+    throw forbidden('Published project is not owned by the current user');
   }
   await playgroundPublicationStore(env).unpublish(slot);
 }

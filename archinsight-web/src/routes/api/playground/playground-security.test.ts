@@ -140,7 +140,7 @@ describe('playground security boundary', () => {
     for (const attempt of attempts) {
       const response = await attempt();
       expect(response.status).toBe(404);
-      await expect(response.json()).resolves.toEqual({ error: 'Not found' });
+      await expect(response.json()).resolves.toEqual({ error: 'Not found', code: 'NOT_FOUND' });
     }
 
     await expect(repository.read(foreignOwnerId, 'foreign-project', 'main.ai')).resolves.toMatchObject({
@@ -174,7 +174,7 @@ describe('playground security boundary', () => {
 
     for (const attempt of attempts) {
       const response = await attempt();
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(404);
     }
 
     await expect(repository.read(foreignOwnerId, 'foreign-project', 'main.ai')).resolves.toMatchObject({

@@ -57,7 +57,11 @@ describe('normalizePostgresResult', () => {
     };
     pg.query.mockRejectedValueOnce(new Error('database unavailable')).mockResolvedValue({ rows: [], rowCount: 0 });
 
-    await expect(postgresDatabase(env)).rejects.toThrow('database unavailable');
+    await expect(postgresDatabase(env)).rejects.toMatchObject({
+      status: 503,
+      code: 'SERVICE_UNAVAILABLE',
+      cause: expect.objectContaining({ message: 'database unavailable' })
+    });
     await expect(postgresDatabase(env)).resolves.toBeInstanceOf(Object);
 
     expect(pg.pools).toHaveLength(2);

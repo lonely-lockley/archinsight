@@ -30,6 +30,7 @@ import type {
   RepositoryNode,
   RepositoryProjectSeed
 } from './types';
+import { conflict, invalidRequest, notFound } from '$lib/server/errors/application-error';
 
 type RepositoryFileRecord = {
   id: string;
@@ -70,14 +71,14 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
   async createProject(ownerId: string, request: ProjectCreateRequest | null): Promise<ProjectSummaryResponse> {
     const name = request?.name?.trim() ?? '';
     if (name.length === 0) {
-      throw new Error('Project name is required');
+      throw invalidRequest('Project name is required');
     }
     if (name.length > 100) {
-      throw new Error('Project name is longer than 100 characters');
+      throw invalidRequest('Project name is longer than 100 characters');
     }
     const projects = this.ownerProjects(ownerId);
     if (projects.some((project) => project.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      throw new Error(`Project already exists: ${name}`);
+      throw conflict(`Project already exists: ${name}`);
     }
     const now = new Date().toISOString();
     const project: RepositoryProject = {
@@ -90,10 +91,10 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
   async updateProject(ownerId: string, projectId: string, request: ProjectUpdateRequest | null): Promise<ProjectSummaryResponse> {
     const project = this.requireProject(ownerId, projectId);
     const name = request?.name?.trim() ?? '';
-    if (name.length === 0) throw new Error('Project name is required');
-    if (name.length > 100) throw new Error('Project name is longer than 100 characters');
+    if (name.length === 0) throw invalidRequest('Project name is required');
+    if (name.length > 100) throw invalidRequest('Project name is longer than 100 characters');
     if (this.ownerProjects(ownerId).some((item) => item.id !== project.id && item.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      throw new Error(`Project already exists: ${name}`);
+      throw conflict(`Project already exists: ${name}`);
     }
     project.name = name;
     project.updated = new Date().toISOString();
@@ -118,7 +119,7 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
     const node = requireFile(project.root, filePath);
     const file = project.files.get(node.id);
     if (!file) {
-      throw new Error(`Repository file content not found: ${filePath}`);
+      throw notFound(`Repository file content not found: ${filePath}`);
     }
     return {
       path: filePath,
@@ -138,7 +139,7 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
     const project = this.requireProject(ownerId, projectId);
     const existing = findNode(project.root, filePath);
     if (existing?.type === 'd') {
-      throw new Error(`Repository folder already exists: ${filePath}`);
+      throw conflict(`Repository folder already exists: ${filePath}`);
     }
     const node = existing ?? addFileNode(project.root, filePath);
     const previous = project.files.get(node.id);
@@ -156,12 +157,12 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
 
   async rename(ownerId: string, projectId: string, request: FileRenameRequest | null): Promise<FileOperationResponse> {
     if (!request) {
-      throw new Error('Rename request is required');
+      throw invalidRequest('Rename request is required');
     }
     const sourcePath = normalizeFileName(request.sourcePath);
     const targetPath = normalizeFileName(request.targetPath);
     if (sourcePath === targetPath) {
-      throw new Error(`Source and target file paths are equal: ${sourcePath}`);
+      throw invalidRequest(`Source and target file paths are equal: ${sourcePath}`);
     }
     const project = this.requireProject(ownerId, projectId);
     const source = requireFile(project.root, sourcePath);
@@ -178,7 +179,7 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
     const node = requireFile(project.root, filePath);
     removeNode(project.root, node);
     if (!project.files.delete(node.id)) {
-      throw new Error(`Repository file content not found: ${filePath}`);
+      throw notFound(`Repository file content not found: ${filePath}`);
     }
   }
 
@@ -188,7 +189,7 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
     request: FolderCreateRequest | null
   ): Promise<FileOperationResponse> {
     if (!request) {
-      throw new Error('Create folder request is required');
+      throw invalidRequest('Create folder request is required');
     }
     const folderPath = normalizeDirectoryPath(request.path);
     const project = this.requireProject(ownerId, projectId);
@@ -205,15 +206,15 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
     request: FileRenameRequest | null
   ): Promise<FileOperationResponse> {
     if (!request) {
-      throw new Error('Rename folder request is required');
+      throw invalidRequest('Rename folder request is required');
     }
     const sourcePath = normalizeDirectoryPath(request.sourcePath);
     const targetPath = normalizeDirectoryPath(request.targetPath);
     if (sourcePath === targetPath) {
-      throw new Error(`Source and target folder paths are equal: ${sourcePath}`);
+      throw invalidRequest(`Source and target folder paths are equal: ${sourcePath}`);
     }
     if (targetPath.startsWith(`${sourcePath}/`)) {
-      throw new Error(`Folder cannot be moved inside itself: ${sourcePath}`);
+      throw invalidRequest(`Folder cannot be moved inside itself: ${sourcePath}`);
     }
     const project = this.requireProject(ownerId, projectId);
     const source = requireDirectory(project.root, sourcePath);
@@ -281,7 +282,7 @@ export class InMemoryRepositoryFileSystem implements RepositoryFileSystem {
   private requireProject(ownerId: string, projectId: string): RepositoryProject {
     const project = this.ownerProjects(ownerId).find((candidate) => candidate.id === projectId || candidate.name === projectId);
     if (!project) {
-      throw new Error(`Repository not found: ${projectId}`);
+      throw notFound(`Repository not found: ${projectId}`);
     }
     return project;
   }

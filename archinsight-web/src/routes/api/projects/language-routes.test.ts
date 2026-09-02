@@ -228,8 +228,8 @@ cloudEnvironment do
       )
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Query is too long' });
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: 'Query is too long', code: 'PAYLOAD_TOO_LARGE' });
   });
 
   it('rejects overlay payloads over the configured byte limit', async () => {
@@ -247,8 +247,8 @@ cloudEnvironment do
       )
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Overlay payload is too large' });
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: 'Overlay payload is too large', code: 'PAYLOAD_TOO_LARGE' });
   });
 
   it('rejects server-side SVG rendering over the configured render count limit', async () => {
@@ -264,8 +264,8 @@ cloudEnvironment do
       )
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Too many diagrams to render: 1' });
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: 'Too many diagrams to render: 1', code: 'PAYLOAD_TOO_LARGE' });
   });
 });
 

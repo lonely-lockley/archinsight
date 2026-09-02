@@ -41,6 +41,7 @@ export { lineContextAt } from "./line-context.js";
 export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
+export { ProjectAnalysisSession } from "./project-analysis-session.js";
 export {
   buildProjectStructure,
   buildTypeHierarchy,
@@ -51,6 +52,11 @@ export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraph
 export { renderGraphviz } from "./graphviz-renderer.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
 export { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
+export type {
+  ProjectAnalysis,
+  ProjectAnalysisUpdate,
+  ProjectAnalysisUpdateMode,
+} from "./project-analysis-session.js";
 export type {
   BuiltinDiagramView,
   BuiltinViewAlias,
