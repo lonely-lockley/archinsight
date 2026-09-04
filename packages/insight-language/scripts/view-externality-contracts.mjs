@@ -156,8 +156,8 @@ function rendersTheSameRelativeExternalityCarriedByQueryJson() {
   const graph = selectBuiltin(result, "c2", "storefront.ai");
   const dot = renderGraphviz(result, graph, "dark");
   assertExternal(graph, "shop/payments");
-  assert.match(dot, /"shop__payments" \[[^\n]*fillcolor="#737C67"/);
-  assert.match(dot, /"shop__storefront_service" \[[^\n]*fillcolor="#5A189A"/);
+  assert.match(dot, /"shop\/payments" \[[^\n]*fillcolor="#737C67"/);
+  assert.match(dot, /"shop\/storefront_service" \[[^\n]*fillcolor="#5A189A"/);
 }
 
 function focusedSplitProject() {

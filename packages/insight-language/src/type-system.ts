@@ -161,10 +161,10 @@ export class TypeSystem {
   }
 
   operatorConstructor(spelling: string, ownerType: string, targetType: string): OperatorDefinition | undefined {
-    return this.operatorsBySpelling
-      .get(spelling)
-      ?.find((operator) => (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))
+    const candidates = (this.operatorsBySpelling.get(spelling) ?? [])
+      .filter((operator) => (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))
         && this.isAssignable(targetType, operator.targetType));
+    return this.uniqueMostSpecificOperator(candidates);
   }
 
   relationOperatorConstructors(expectedType?: string): readonly OperatorDefinition[] {
@@ -174,16 +174,18 @@ export class TypeSystem {
   }
 
   relationOperatorConstructor(spelling: string): OperatorDefinition | undefined {
-    return this.relationOperatorConstructors()
-      .find((operator) => operator.spelling === spelling);
+    return this.uniqueMostSpecificOperator(
+      this.relationOperatorConstructors().filter((operator) => operator.spelling === spelling),
+    );
   }
 
   slotOperatorConstructor(spelling: string, ownerType: string, expectedType: string): OperatorDefinition | undefined {
-    return this.operatorsBySpelling
-      .get(spelling)
-      ?.find((operator) => this.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE)
+    return this.uniqueMostSpecificOperator(
+      (this.operatorsBySpelling.get(spelling) ?? [])
+        .filter((operator) => this.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE)
         && this.isAssignable(operator.ownerType, expectedType)
-        && (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType)));
+        && (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))),
+    );
   }
 
   private inheritanceChain(type: string): string[] {
@@ -196,6 +198,22 @@ export class TypeSystem {
       current = this.types.get(current)?.baseType;
     }
     return result;
+  }
+
+  private operatorMoreSpecific(candidate: OperatorDefinition, other: OperatorDefinition): boolean {
+    const leftAtLeastAsSpecific = other.leftType === undefined
+      || (candidate.leftType !== undefined && this.isAssignable(candidate.leftType, other.leftType));
+    const targetAtLeastAsSpecific = this.isAssignable(candidate.targetType, other.targetType);
+    const strictlyMoreSpecific = candidate.leftType !== other.leftType
+      || candidate.targetType !== other.targetType;
+    return leftAtLeastAsSpecific && targetAtLeastAsSpecific && strictlyMoreSpecific;
+  }
+
+  private uniqueMostSpecificOperator(candidates: readonly OperatorDefinition[]): OperatorDefinition | undefined {
+    const mostSpecific = candidates.filter((candidate) => !candidates.some((other) =>
+      other !== candidate && this.operatorMoreSpecific(other, candidate)
+    ));
+    return mostSpecific.length === 1 ? mostSpecific[0] : undefined;
   }
 }
 

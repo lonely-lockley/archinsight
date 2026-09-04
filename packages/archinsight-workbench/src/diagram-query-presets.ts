@@ -10,14 +10,14 @@ import type { DiagramMode } from './workspace-types';
 export const defaultDiagramMode: DiagramMode = 'c1';
 export const defaultQuery = BUILTIN_VIEW_QUERIES.c1;
 
-const legacyPresetQueries: Partial<Record<DiagramMode, readonly string[]>> = {
-  'deployment-system': deploymentLegacyQueries(BUILTIN_VIEW_QUERIES['deployment-system']),
-  'deployment-container': deploymentLegacyQueries(BUILTIN_VIEW_QUERIES['deployment-container'])
-};
-
 export type StoredDiagramQueryState = {
   diagramMode?: string;
+  presetId?: string;
+  presetVersion?: number;
+  customizedQuery?: string;
+  /** Legacy v1 state. New state uses presetId or customizedQuery. */
   query?: string;
+  /** Legacy v1 state. New state uses presetId or customizedQuery. */
   queryPreset?: boolean;
 };
 
@@ -53,9 +53,22 @@ export function normalizeDiagramMode(value: string | undefined): DiagramMode | u
 }
 
 export function resolveStoredDiagramQuery(state: StoredDiagramQueryState | undefined): DiagramQueryPresetState {
-  const recognizedMode = state?.query === undefined ? undefined : presetModeForStoredQuery(state.query);
-  const diagramMode = normalizeDiagramMode(state?.diagramMode) ?? recognizedMode ?? defaultDiagramMode;
-  const queryPreset = state?.queryPreset ?? (state?.query === undefined || recognizedMode !== undefined);
+  if (state?.customizedQuery !== undefined) {
+    return customQueryState(normalizeDiagramMode(state.diagramMode) ?? defaultDiagramMode, state.customizedQuery);
+  }
+  const identifiedPreset = resolveBuiltinView(state?.presetId);
+  if (identifiedPreset !== undefined) {
+    return presetQueryState(diagramModeForDefinition(identifiedPreset));
+  }
+  const storedMode = normalizeDiagramMode(state?.diagramMode);
+  if (state?.queryPreset !== undefined) {
+    return state.queryPreset
+      ? presetQueryState(storedMode ?? defaultDiagramMode)
+      : customQueryState(storedMode ?? defaultDiagramMode, state.query ?? queryForDiagramMode(storedMode ?? defaultDiagramMode));
+  }
+  const recognizedMode = state?.query === undefined ? undefined : legacyPresetModeForStoredQuery(state.query);
+  const diagramMode = storedMode ?? recognizedMode ?? defaultDiagramMode;
+  const queryPreset = state?.query === undefined || recognizedMode !== undefined;
   return {
     diagramMode,
     query: queryPreset ? queryForDiagramMode(diagramMode) : state?.query ?? queryForDiagramMode(diagramMode),
@@ -63,27 +76,30 @@ export function resolveStoredDiagramQuery(state: StoredDiagramQueryState | undef
   };
 }
 
-function presetModeForStoredQuery(value: string): DiagramMode | undefined {
+function legacyPresetModeForStoredQuery(value: string): DiagramMode | undefined {
   const current = diagramModeForQuery(value);
   if (current !== undefined) {
     return current;
   }
   const normalized = normalizeQuery(value);
-  for (const [mode, queries] of Object.entries(legacyPresetQueries) as Array<[DiagramMode, readonly string[]]>) {
-    if (queries.some((query) => normalizeQuery(query) === normalized)) {
-      return mode;
+  for (const definition of BUILTIN_VIEW_DEFINITIONS) {
+    if (definition.legacyPresetQueries.some(({ query }) => normalizeQuery(query) === normalized)) {
+      return diagramModeForDefinition(definition);
     }
   }
   return undefined;
 }
 
-function withoutSystemSeed(query: string): string {
-  return query.replace('\n    OR node IS SystemElement', '');
+function presetQueryState(diagramMode: DiagramMode): DiagramQueryPresetState {
+  return { diagramMode, query: queryForDiagramMode(diagramMode), queryPreset: true };
 }
 
-function deploymentLegacyQueries(query: string): readonly string[] {
-  const previous = query.replace('\n   OR projectedPeer IS SystemElement', '');
-  return [previous, withoutSystemSeed(previous)];
+function customQueryState(diagramMode: DiagramMode, query: string): DiagramQueryPresetState {
+  return { diagramMode, query, queryPreset: false };
+}
+
+function diagramModeForDefinition(definition: BuiltinViewDefinition): DiagramMode {
+  return definition.id === 'no-filter' ? 'default' : definition.id;
 }
 
 function normalizeQuery(value: string): string {

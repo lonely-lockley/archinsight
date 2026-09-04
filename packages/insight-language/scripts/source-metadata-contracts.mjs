@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import {
   coreLanguageSnapshot,
   linkProject,
+  parseInsightSource,
 } from "../build/runtime/index.js";
 
 const cases = [
   coreTypesCarryDeclarationMetadata,
+  abstractTypesContributeToTheLanguageSnapshot,
   linkedEntitiesCarryDeclarationMetadata,
 ];
 
@@ -38,6 +40,17 @@ function coreTypesCarryDeclarationMetadata() {
   assert.equal(wire.declaration.sourceName, "core_operator.ai");
   assert.equal(wire.declaration.line, 7);
   assert.equal(wire.declaration.column, 17);
+}
+
+function abstractTypesContributeToTheLanguageSnapshot() {
+  const parsed = parseInsightSource({
+    sourceName: "extension-point.ai",
+    source: "define abstract type ExtensionPoint of Element\n",
+  });
+
+  assert.equal(parsed.metadata.role, "definitions");
+  assert.equal(parsed.metadata.contributesToSnapshot, true);
+  assert.equal(parsed.metadata.reliable, true);
 }
 
 function linkedEntitiesCarryDeclarationMetadata() {

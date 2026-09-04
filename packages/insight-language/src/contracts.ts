@@ -80,6 +80,7 @@ export interface ProjectionRuleDefinition {
 export interface TypeDefinition {
   readonly name: string;
   readonly baseType?: string;
+  readonly abstract?: boolean;
   readonly attributes?: readonly AttributeDefinition[];
   readonly declaration?: SourceLocation;
   readonly capabilities?: readonly string[];

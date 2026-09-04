@@ -1,4 +1,4 @@
-import { resolveStoredDiagramQuery } from '@archinsight/workbench/presets';
+import { diagramModeDefinition, resolveStoredDiagramQuery } from '@archinsight/workbench/presets';
 import type { WorkspaceTabState } from '$lib/storage';
 import type { EditorViewMode, WorkspaceTab } from '@archinsight/workbench/types';
 
@@ -12,13 +12,18 @@ const minEditorSplitRatio = 20;
 const maxEditorSplitRatio = 80;
 
 export function workspaceTabState(tab: WorkspaceTab): WorkspaceTabState {
+  const persistedQuery = tab.queryPreset
+    ? {
+        presetId: diagramModeDefinition(tab.diagramMode).id,
+        presetVersion: diagramModeDefinition(tab.diagramMode).presetVersion
+      }
+    : { customizedQuery: tab.query };
   const state = {
     id: tab.id,
     sourceIdentity: tab.sourceIdentity,
     title: tab.title,
     diagramMode: tab.diagramMode,
-    query: tab.query,
-    queryPreset: tab.queryPreset,
+    ...persistedQuery,
     deploymentEnvironment: tab.deploymentEnvironment,
     queryVisible: tab.queryVisible,
     queryPanelHeight: tab.queryPanelHeight,

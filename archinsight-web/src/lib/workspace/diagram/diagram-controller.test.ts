@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceTab } from '@archinsight/workbench/types';
+import { queryForDiagramMode } from '@archinsight/workbench/presets';
 import { createDiagramController, type DiagramControllerPorts, emptyDiagramSvg } from './diagram-controller';
 import type { LinkProjectResult } from '@insight/language';
 
@@ -46,6 +47,12 @@ describe('diagram controller', () => {
     expect(subject.tab()).toMatchObject({ query: 'custom query', queryPreset: false, dot: undefined });
     expect(subject.ports.persistWorkspace).toHaveBeenCalledOnce();
     expect(subject.ports.scheduleDiagramUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('keeps manually edited text customized even when it equals a preset', () => {
+    const subject = fixture(tab({ diagramMode: 'c2' }));
+    subject.controller.updateQuery(queryForDiagramMode('c2'));
+    expect(subject.tab()).toMatchObject({ diagramMode: 'c2', queryPreset: false });
   });
 
   it('requests a link before selecting deployment environments', () => {

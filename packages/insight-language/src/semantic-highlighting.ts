@@ -62,6 +62,7 @@ const emptySnapshot: LanguageSnapshot = {
 
 const keywordTokens = new Set([
   "DEFINE",
+  "ABSTRACT",
   "EXTEND",
   "PRESENTATION",
   "TYPE",
@@ -141,6 +142,9 @@ function classifyTree(
   classifications: Map<number, TokenClassification>,
 ): void {
   switch (ruleName(tree, ruleNames)) {
+    case "defineTypeDeclaration":
+      markFirstChildRule(tree, "typeIdentifier", ruleNames, classifications, "type", ["declaration"]);
+      break;
     case "contextDeclaration":
       markFirstChildRule(tree, "contextDeclarationName", ruleNames, classifications, "variable", ["declaration"]);
       break;

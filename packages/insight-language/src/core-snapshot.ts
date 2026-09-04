@@ -39,6 +39,7 @@ import { coreSource, coreSources } from "./generated/core-source.js";
 interface MutableTypeDefinition {
   name: string;
   baseType?: string;
+  abstract?: boolean;
   attributes: AttributeDefinition[];
   declaration?: SourceLocation;
   capabilities: string[];
@@ -163,6 +164,7 @@ export function buildLanguageSnapshotResultFromSources(
       ...validateEnumExtensions(enumDeclarations, collected.flatMap((source) => source.enumExtensions)),
       ...validatePresentationExtensions(presentationDeclarations, presentationExtensions),
       ...validateConstructorCollisions(snapshots),
+      ...validateOperatorOverloadAmbiguities(snapshot),
       ...relocateSnapshotDiagnostics(validateLanguageSnapshot(snapshot), sourceReferences),
     ],
   };
@@ -311,6 +313,7 @@ function mergeTypeDefinition(
   return {
     name: existing.name,
     ...(next.baseType !== undefined ? { baseType: next.baseType } : existing.baseType === undefined ? {} : { baseType: existing.baseType }),
+    ...((next.abstract ?? existing.abstract) === true ? { abstract: true } : {}),
     ...(attributes.length === 0 ? {} : { attributes }),
     ...mergeCapabilities(existing.capabilities, next.capabilities),
     ...(next.declaration !== undefined ? { declaration: next.declaration } : existing.declaration === undefined ? {} : { declaration: existing.declaration }),
@@ -369,12 +372,17 @@ function collectLanguageSnapshotSource(
   for (const declaration of parsed.syntax.descendants("declaration")) {
     const typeDeclaration = firstChild<DefineTypeDeclarationContext>(declaration, "defineTypeDeclaration");
     if (typeDeclaration !== undefined) {
-      const type = ensureType(types, text(typeDeclaration.typeIdentifier()));
+      const identifier = typeDeclaration.typeIdentifier();
+      if (identifier === null) {
+        continue;
+      }
+      const type = ensureType(types, text(identifier));
+      type.abstract = typeDeclaration.ABSTRACT() !== null;
       typeDeclarations.push({
         name: type.name,
-        ...position(typeDeclaration.typeIdentifier(), sourceName),
+        ...position(identifier, sourceName),
       });
-      type.declaration ??= position(typeDeclaration.typeIdentifier(), sourceName);
+      type.declaration ??= position(identifier, sourceName);
       const base = typeDeclaration.typeReference();
       if (base !== null) {
         type.baseType = typeReference(base).type;
@@ -511,6 +519,7 @@ function collectLanguageSnapshotSource(
       types: [...types.values()].map((type) => ({
         name: type.name,
         ...(type.baseType === undefined ? {} : { baseType: type.baseType }),
+        ...(type.abstract === true ? { abstract: true } : {}),
         ...(type.attributes.length === 0 ? {} : { attributes: type.attributes }),
         ...(type.capabilities.length === 0 ? {} : { capabilities: type.capabilities }),
         ...(type.declaration === undefined ? {} : { declaration: type.declaration }),
@@ -789,6 +798,7 @@ function validateRequiredConstructors(snapshot: LanguageSnapshot, diagnostics: L
   ]);
   for (const type of snapshot.types) {
     if (isBuiltinType(type.name)
+      || type.abstract === true
       || isAbstractBaseType(snapshot, type.name)
       || !requiresConstructor(snapshot, type.name)
       || constructedTypes.has(type.name)) {
@@ -801,12 +811,7 @@ function validateRequiredConstructors(snapshot: LanguageSnapshot, diagnostics: L
   }
 }
 
-const CONSTRUCTORLESS_EXTENSION_POINT_TYPES = new Set(["CodeElement"]);
-
 function requiresConstructor(snapshot: LanguageSnapshot, type: string): boolean {
-  if (CONSTRUCTORLESS_EXTENSION_POINT_TYPES.has(type)) {
-    return false;
-  }
   if (type !== "Environment" && isAssignable(snapshot, type, "Environment")) {
     return false;
   }
@@ -878,6 +883,65 @@ function validateOperatorConstructorCollisions(
     }
   }
   return diagnostics;
+}
+
+function validateOperatorOverloadAmbiguities(snapshot: LanguageSnapshot): readonly LanguageDiagnostic[] {
+  const diagnostics: LanguageDiagnostic[] = [];
+  const bySpelling = groupByItems(snapshot.operators, (operator) => operator.spelling);
+  for (const [spelling, unsorted] of bySpelling) {
+    const operators = [...unsorted].sort((left, right) => operatorSignature(left).localeCompare(operatorSignature(right)));
+    for (let leftIndex = 0; leftIndex < operators.length; leftIndex++) {
+      for (let rightIndex = leftIndex + 1; rightIndex < operators.length; rightIndex++) {
+        const left = operators[leftIndex]!;
+        const right = operators[rightIndex]!;
+        if (sameOperatorDomain(left, right)
+          || !operatorDomainsOverlap(snapshot, left, right)
+          || operatorMoreSpecific(snapshot, left, right)
+          || operatorMoreSpecific(snapshot, right, left)) {
+          continue;
+        }
+        diagnostics.push({
+          code: "OPERATOR_OVERLOAD_AMBIGUOUS",
+          message: `Operator '${spelling}' has incomparable overloads '${operatorSignature(left)}' and '${operatorSignature(right)}'`,
+          ...snapshotDiagnosticLocation(right.source),
+        });
+      }
+    }
+  }
+  return diagnostics;
+}
+
+function operatorDomainsOverlap(
+  snapshot: LanguageSnapshot,
+  left: OperatorDefinition,
+  right: OperatorDefinition,
+): boolean {
+  const leftOperandsOverlap = left.leftType === undefined
+    || right.leftType === undefined
+    || isAssignable(snapshot, left.leftType, right.leftType)
+    || isAssignable(snapshot, right.leftType, left.leftType);
+  const targetsOverlap = isAssignable(snapshot, left.targetType, right.targetType)
+    || isAssignable(snapshot, right.targetType, left.targetType);
+  return leftOperandsOverlap && targetsOverlap;
+}
+
+function operatorMoreSpecific(
+  snapshot: LanguageSnapshot,
+  candidate: OperatorDefinition,
+  other: OperatorDefinition,
+): boolean {
+  const leftAtLeastAsSpecific = other.leftType === undefined
+    || (candidate.leftType !== undefined && isAssignable(snapshot, candidate.leftType, other.leftType));
+  const targetAtLeastAsSpecific = isAssignable(snapshot, candidate.targetType, other.targetType);
+  return leftAtLeastAsSpecific && targetAtLeastAsSpecific && !sameOperatorDomain(candidate, other);
+}
+
+function sameOperatorDomain(left: OperatorDefinition, right: OperatorDefinition): boolean {
+  return left.leftType === right.leftType && left.targetType === right.targetType;
+}
+
+function operatorSignature(operator: OperatorDefinition): string {
+  return `${operator.leftType ?? "*"} ${operator.spelling} ${operator.targetType} -> ${operator.ownerType}`;
 }
 
 function builtinTypeDeclarations(baseDeclarations: readonly DeclarationReference[]): readonly DeclarationReference[] {

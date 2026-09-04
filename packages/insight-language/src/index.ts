@@ -85,7 +85,11 @@ export {
   filterTypeHierarchy,
 } from "./project-structure.js";
 export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraphs } from "./query-engine.js";
+export { analyzeQuery, parseQuery } from "./query-syntax.js";
+export type { ParsedQuery, QueryAnalysis } from "./query-syntax.js";
 export { renderGraphviz } from "./graphviz-renderer.js";
+export { parseRenderIdentity, renderIdentity } from "./render-identity.js";
+export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
 export {
   isSyntheticLinkedLocalId,

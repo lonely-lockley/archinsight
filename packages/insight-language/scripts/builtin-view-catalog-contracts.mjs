@@ -22,7 +22,20 @@ for (const definition of BUILTIN_VIEW_DEFINITIONS) {
   assert(definition.query.trim().length > 0, `${definition.id} must provide a query`);
   assert.equal(isBuiltinDiagramView(definition.id), true);
   assert.equal(resolveBuiltinView(definition.id), definition);
+  assert(Number.isInteger(definition.presetVersion) && definition.presetVersion > 0);
+  assert(definition.legacyPresetQueries.every(({ version, query }) =>
+    Number.isInteger(version) && version > 0 && version < definition.presetVersion && query.trim().length > 0
+  ));
 }
+
+assert.deepEqual(
+  builtinViewDefinition("deployment-system").legacyPresetQueries.map(({ version }) => version),
+  [1, 2],
+);
+assert.deepEqual(
+  builtinViewDefinition("deployment-container").legacyPresetQueries.map(({ version }) => version),
+  [1, 2],
+);
 
 assert.equal(resolveBuiltinView("default"), undefined);
 assert.equal(resolveBuiltinView("default", true), builtinViewDefinition("no-filter"));

@@ -139,6 +139,7 @@ function definitionItems(
   if (line.hasOnlyIndentBeforeCursor) {
     return [
       keyword("define type "),
+      keyword("define abstract type "),
       keyword("define operator "),
       keyword("define enum of "),
       keyword("define presentation "),
@@ -148,7 +149,10 @@ function definitionItems(
     ];
   }
   if (syntax.previousToken?.type === "DEFINE") {
-    return [keyword("type "), keyword("operator "), keyword("enum of "), keyword("presentation ")];
+    return [keyword("type "), keyword("abstract type "), keyword("operator "), keyword("enum of "), keyword("presentation ")];
+  }
+  if (syntax.previousToken?.type === "ABSTRACT" && syntax.previousPreviousToken?.type === "DEFINE") {
+    return [keyword("type ")];
   }
   if (syntax.previousToken?.type === "EXTEND") {
     return [keyword("type "), keyword("enum of "), keyword("presentation ")];

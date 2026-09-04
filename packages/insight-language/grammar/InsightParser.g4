@@ -140,7 +140,7 @@ operatorBodyItem
     ;
 
 defineTypeDeclaration
-    : DEFINE TYPE typeIdentifier (OF typeReference)? EOL
+    : DEFINE ABSTRACT? TYPE typeIdentifier (OF typeReference)? EOL
       (INDENT typeBodyItem* anonymousListAttributeDeclaration? trivia* DEDENT)?
     ;
 

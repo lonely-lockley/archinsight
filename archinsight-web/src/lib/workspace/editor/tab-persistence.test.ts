@@ -30,7 +30,11 @@ const tab = (overrides: Partial<WorkspaceTab> = {}): WorkspaceTab => ({
 
 describe('tab persistence', () => {
   it('does not duplicate persisted content for repository files', () => {
-    expect(workspaceTabState(tab())).not.toHaveProperty('content');
+    const state = workspaceTabState(tab());
+    expect(state).not.toHaveProperty('content');
+    expect(state).toMatchObject({ presetId: 'c2', presetVersion: 1 });
+    expect(state).not.toHaveProperty('query');
+    expect(state).not.toHaveProperty('queryPreset');
   });
 
   it('persists content for unsaved tabs', () => {
@@ -38,6 +42,12 @@ describe('tab persistence', () => {
       id: 'untitled:1',
       content: 'content'
     });
+  });
+
+  it('persists customized queries explicitly even when text equals a preset', () => {
+    const state = workspaceTabState(tab({ query: 'preset text', queryPreset: false }));
+    expect(state).toMatchObject({ customizedQuery: 'preset text' });
+    expect(state).not.toHaveProperty('presetId');
   });
 
   it('normalizes invalid and out-of-range toolbar values', () => {

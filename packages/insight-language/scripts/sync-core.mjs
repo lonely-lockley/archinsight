@@ -24,10 +24,17 @@ writeFileSync(
 const builtinViewDirectory = resolve(sourceDirectory, "builtin-views");
 const builtinViewCatalog = JSON.parse(readFileSync(resolve(builtinViewDirectory, "catalog.json"), "utf8"));
 const builtinViews = builtinViewCatalog
-  .map((definition) => ({
-    ...definition,
-    query: readFileSync(resolve(builtinViewDirectory, `${definition.id}.aiq`), "utf8").trimEnd(),
-  }))
+  .map((definition) => {
+    const { legacyPresetVersions = [], ...metadata } = definition;
+    return {
+      ...metadata,
+      query: readFileSync(resolve(builtinViewDirectory, `${definition.id}.aiq`), "utf8").trimEnd(),
+      legacyPresetQueries: legacyPresetVersions.map((version) => ({
+        version,
+        query: readFileSync(resolve(builtinViewDirectory, `${definition.id}.v${version}.aiq`), "utf8").trimEnd(),
+      })),
+    };
+  })
   .sort((left, right) => left.order - right.order);
 const builtinViewsTarget = resolve("src/generated/builtin-view-catalog.ts");
 const builtinViewsModule = [

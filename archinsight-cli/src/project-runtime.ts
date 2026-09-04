@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   BUILTIN_VIEW_DEFINITIONS,
   BUILTIN_VIEW_QUERIES,
+  analyzeQuery,
   builtinViewDefinition,
   discoverDeploymentEnvironments,
   ProjectAnalysisSession,
@@ -46,11 +47,10 @@ export async function selectedGraph(project: LoadedProject, args: ParsedArgs): P
   const query = args.queryFile === undefined
     ? BUILTIN_VIEW_QUERIES[view ?? "c1"]
     : await readQueryFile(project.root, args.queryFile);
-  const queryNeedsTab = queryUsesVariable(query, "tab");
-  const queryNeedsContext = queryUsesVariable(query, "context");
-  const sourceRequired = (view !== undefined && builtinViewDefinition(view).sourceRequired) || queryNeedsTab;
+  const queryAnalysis = analyzeQuery(query);
+  const sourceRequired = (view !== undefined && builtinViewDefinition(view).sourceRequired) || queryAnalysis.requiresSource;
   const tab = selectedSource(project, args.tab, sourceRequired, view);
-  const contextRequired = (view !== undefined && builtinViewDefinition(view).contextRequired) || queryNeedsContext;
+  const contextRequired = (view !== undefined && builtinViewDefinition(view).contextRequired) || queryAnalysis.requiresContext;
   const context = selectedContext(project, args.context, tab, contextRequired, view);
   const environment = deploymentEnvironmentOption(project, args, tab, view);
   const scope: QueryScope = {
@@ -208,10 +208,6 @@ function availableContextIds(project: LoadedProject, view: DiagramView | undefin
     .filter((context) => context.synthetic !== true
       && (view === undefined || builtinViewDefinition(view).boundary?.scope !== "context" || context.type === "Context"))
     .map((context) => context.id))].sort();
-}
-
-function queryUsesVariable(query: string, variable: "context" | "tab"): boolean {
-  return new RegExp(`\\$${variable}\\b`).test(query);
 }
 
 function normalizeSourceName(root: string, source: string): string {

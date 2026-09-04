@@ -25,6 +25,7 @@ export interface QueryViewPipelineDefinition {
 
 export interface BuiltinViewDefinition {
   readonly id: BuiltinDiagramView;
+  readonly presetVersion: number;
   readonly order: number;
   readonly label: string;
   readonly shortLabel: string;
@@ -36,6 +37,10 @@ export interface BuiltinViewDefinition {
   readonly lifecycle: BuiltinViewLifecycle;
   readonly boundary: ViewBoundaryDefinition | null;
   readonly stages: readonly BuiltinViewStage[];
+  readonly legacyPresetQueries: readonly {
+    readonly version: number;
+    readonly query: string;
+  }[];
 }
 
 export const BUILTIN_VIEW_DEFINITIONS: readonly BuiltinViewDefinition[] = GENERATED_BUILTIN_VIEW_DEFINITIONS;

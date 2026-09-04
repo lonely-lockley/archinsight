@@ -5,7 +5,6 @@ import {
 } from '@insight/language';
 import {
   diagramModeDefinition,
-  diagramModeForQuery,
   queryForDiagramMode
 } from '@archinsight/workbench/presets';
 import type { DiagramMode, EditorViewMode, WorkspaceTab } from '@archinsight/workbench/types';
@@ -124,11 +123,10 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
   return {
     updateQuery(value) {
       const tab = ports.activeTab();
-      const presetMode = diagramModeForQuery(value);
       persistPatch({
         query: value,
-        diagramMode: presetMode ?? tab?.diagramMode ?? 'default',
-        queryPreset: presetMode !== undefined,
+        diagramMode: tab?.diagramMode ?? 'default',
+        queryPreset: false,
         dot: undefined
       });
       ports.scheduleDiagramUpdate();

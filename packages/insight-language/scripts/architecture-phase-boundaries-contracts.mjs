@@ -7,6 +7,13 @@ const querySyntax = source("../src/query-syntax.ts");
 const queryContext = source("../src/query-execution-context.ts");
 const queryPipeline = source("../src/query-view-pipeline.ts");
 const operatorRegistry = source("../src/operator-implementation-registry.ts");
+const graphvizRenderer = source("../src/graphviz-renderer.ts");
+const coreSnapshot = source("../src/core-snapshot.ts");
+const typeSystem = source("../src/type-system.ts");
+const coreCode = source("../../../src/main/resources/com/github/lonelylockley/insight/core_code.ai");
+const cliProjectRuntime = source("../../../archinsight-cli/src/project-runtime.ts");
+const diagramQueryPresets = source("../../archinsight-workbench/src/diagram-query-presets.ts");
+const tabPersistence = source("../../../archinsight-web/src/lib/workspace/editor/tab-persistence.ts");
 
 assert(linker.includes('from "./presentation-resolver.js"'));
 assert(linker.includes('from "./linked-project-index.js"'));
@@ -39,6 +46,34 @@ assert.equal(linker.includes("const operatorImplementations = new Map"), false,
   "operator implementations must be supplied by the immutable registry contract");
 assert.equal(/action\.operator\s*[!=]==?\s*["'](?:uses|runsOn)["']/.test(linker), false,
   "deployment behavior must be selected by semantic capability, not operator spelling");
+assert(graphvizRenderer.includes('from "./render-identity.js"'));
+assert.equal(graphvizRenderer.includes("function safeId"), false,
+  "render identities must not collapse punctuation through lossy replacement");
+assert.equal(graphvizRenderer.includes('.replace("/", "__")'), false,
+  "qualified model ids must remain intact in DOT");
+assert.equal(coreSnapshot.includes("CONSTRUCTORLESS_EXTENSION_POINT_TYPES"), false,
+  "constructorless extension points must be declared explicitly, not privileged by name");
+assert(coreCode.includes("define abstract type CodeElement of Element"),
+  "the core extension point must exercise the public abstract-type contract");
+const operatorResolver = typeSystem.slice(
+  typeSystem.indexOf("operatorConstructor("),
+  typeSystem.indexOf("private inheritanceChain("),
+);
+assert.equal(operatorResolver.includes(".find("), false,
+  "linking and completion operator resolution must not depend on declaration order");
+assert.equal(occurrences(operatorResolver, "uniqueMostSpecificOperator("), 3,
+  "ordinary, relation, and type-slot operators must share specificity resolution");
+assert(cliProjectRuntime.includes("analyzeQuery(query)"),
+  "CLI scope requirements must come from parsed query metadata");
+assert.equal(cliProjectRuntime.includes("function queryUsesVariable"), false,
+  "CLI scope requirements must not scan raw query text");
+assert(diagramQueryPresets.includes("legacyPresetQueries"),
+  "legacy preset migrations must consume explicit catalogue history");
+assert.equal(diagramQueryPresets.includes("deploymentLegacyQueries"), false,
+  "legacy presets must not be synthesized by editing the latest query");
+assert(tabPersistence.includes("presetId") && tabPersistence.includes("presetVersion")
+  && tabPersistence.includes("customizedQuery"),
+  "persisted tabs must distinguish identified presets from customized queries");
 
 const route = source("../../../archinsight-web/src/routes/+page.svelte");
 const workspacePage = source("../../../archinsight-web/src/lib/workspace/WorkspacePage.svelte");

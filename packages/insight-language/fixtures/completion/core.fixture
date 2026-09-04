@@ -4,6 +4,7 @@
 --- contains
 KEYWORD context
 KEYWORD define type
+KEYWORD define abstract type
 KEYWORD define operator
 KEYWORD define enum of
 KEYWORD define presentation
@@ -14,6 +15,15 @@ KEYWORD extend presentation
 KEYWORD import
 CONSTRUCTOR actor
 CONSTRUCTOR system
+
+=== abstract type modifier
+--- source
+define abstract <caret>
+--- contains
+KEYWORD type
+--- lacks
+KEYWORD operator
+KEYWORD presentation
 
 === context declaration name is identifier declaration
 --- source

@@ -1,6 +1,7 @@
 [
   {
     "id": "no-filter",
+    "presetVersion": 1,
     "order": 0,
     "label": "No filter",
     "shortLabel": "All",
@@ -14,6 +15,7 @@
   },
   {
     "id": "c1",
+    "presetVersion": 1,
     "order": 1,
     "label": "C1 System landscape",
     "shortLabel": "C1",
@@ -31,6 +33,7 @@
   },
   {
     "id": "c2",
+    "presetVersion": 1,
     "order": 2,
     "label": "C2 Containers",
     "shortLabel": "C2",
@@ -48,6 +51,7 @@
   },
   {
     "id": "c3",
+    "presetVersion": 1,
     "order": 3,
     "label": "C3 Components",
     "shortLabel": "C3",
@@ -65,6 +69,7 @@
   },
   {
     "id": "c4",
+    "presetVersion": 1,
     "order": 4,
     "label": "C4 Code",
     "shortLabel": "C4",
@@ -82,6 +87,8 @@
   },
   {
     "id": "deployment-system",
+    "presetVersion": 3,
+    "legacyPresetVersions": [1, 2],
     "order": 5,
     "label": "D1 System deployment",
     "shortLabel": "D1",
@@ -100,6 +107,8 @@
   },
   {
     "id": "deployment-container",
+    "presetVersion": 3,
+    "legacyPresetVersions": [1, 2],
     "order": 6,
     "label": "D2 Container deployment",
     "shortLabel": "D2",
@@ -117,6 +126,7 @@
   },
   {
     "id": "deployment",
+    "presetVersion": 1,
     "order": 7,
     "label": "Deployment (legacy)",
     "shortLabel": "Deployment",

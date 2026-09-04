@@ -31,6 +31,13 @@ export interface ParsedQuery {
   readonly returns: readonly string[];
 }
 
+export interface QueryAnalysis {
+  readonly query: ParsedQuery;
+  readonly referencedVariables: readonly string[];
+  readonly requiresContext: boolean;
+  readonly requiresSource: boolean;
+}
+
 export type QueryValue =
   | { readonly kind: "literal"; readonly value: string }
   | { readonly kind: "variable"; readonly name: string };
@@ -53,6 +60,20 @@ export function parseQuery(query: string): ParsedQuery {
   return new QueryParser(tokenizeQuery(query)).parseQuery();
 }
 
+export function analyzeQuery(query: string): QueryAnalysis {
+  const tokens = tokenizeQuery(query);
+  const parsed = new QueryParser(tokens).parseQuery();
+  const referencedVariables = [...new Set(tokens
+    .filter((token): token is Extract<QueryToken, { readonly kind: "variable" }> => token.kind === "variable")
+    .map((token) => token.text))].sort();
+  return {
+    query: parsed,
+    referencedVariables,
+    requiresContext: referencedVariables.includes("context"),
+    requiresSource: referencedVariables.includes("tab"),
+  };
+}
+
 type QueryToken =
   | { readonly kind: "identifier"; readonly text: string }
   | { readonly kind: "string"; readonly text: string }
@@ -66,6 +87,12 @@ function tokenizeQuery(source: string): readonly QueryToken[] {
     const char = source[index] ?? "";
     if (/\s/.test(char)) {
       index++;
+      continue;
+    }
+    if (char === "#") {
+      while (index < source.length && source[index] !== "\n") {
+        index++;
+      }
       continue;
     }
     if (/[A-Za-z_]/.test(char)) {

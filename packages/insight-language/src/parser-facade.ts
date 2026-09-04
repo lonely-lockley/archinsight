@@ -534,8 +534,13 @@ function descendantText(tree: AntlrParseTreeLike, rule: string, ruleNames: reado
 
 function tokensContainDefinition(tokens: readonly AntlrTokenLike[], resolver: TokenNameResolver): boolean {
   const visible = tokens.filter((token) => tokenType(token) !== -1).map((token) => tokenName(resolver, tokenType(token)));
-  return visible.some((name, index) => (name === "DEFINE" || name === "EXTEND")
-    && ["TYPE", "OPERATOR", "ENUM", "PRESENTATION"].includes(visible[index + 1] ?? ""));
+  return visible.some((name, index) => {
+    if (name !== "DEFINE" && name !== "EXTEND") {
+      return false;
+    }
+    const kindIndex = name === "DEFINE" && visible[index + 1] === "ABSTRACT" ? index + 2 : index + 1;
+    return ["TYPE", "OPERATOR", "ENUM", "PRESENTATION"].includes(visible[kindIndex] ?? "");
+  });
 }
 
 function tokensAfterParserFailure(source: string): Token[] {

@@ -127,8 +127,8 @@ function graphvizRendersTheStoredDirectionOfReverseMatches() {
   `);
   const dot = renderGraphviz(result, graph);
 
-  assert(dot.includes('"shared__sender" -> "shared__receiver"'));
-  assert.equal(dot.includes('"shared__receiver" -> "shared__sender"'), false);
+  assert(dot.includes('"shared/sender" -> "shared/receiver"'));
+  assert.equal(dot.includes('"shared/receiver" -> "shared/sender"'), false);
 }
 
 function categoryCounts(graph) {

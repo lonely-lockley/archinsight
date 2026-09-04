@@ -4,6 +4,8 @@ import {
   coreLanguageSnapshot,
   linkProject,
   mergeLanguageSnapshots,
+  parseRenderIdentity,
+  renderIdentity,
   renderGraphviz,
   selectGraph,
 } from "../build/runtime/index.js";
@@ -12,6 +14,7 @@ const cases = [
   rendersFixedContextCypherProjection,
   rendersFixedSourceIdentityCypherProjection,
   quotesGraphIdsThatAreNotPlainIdentifiers,
+  keepsRenderIdentitiesDistinctAndReversible,
   rendersEdgesFromGroupOwnersThroughClusterAnchors,
   rendersParallelEdgesBetweenSameElementsAsDistinctEdges,
   rendersRelativeExternalElementsWithoutTheirViewClusters,
@@ -79,7 +82,7 @@ RETURN n, r, m
   assert(dot.includes("App"));
   assert(dot.includes("Google"));
   assert(dot.includes("HTTP"));
-  assert(dot.includes("\"source__app\" -> \"external_systems__google\""));
+  assert(dot.includes('"source/app" -> "external_systems/google"'));
   assert(dot.includes("rankdir=TB"));
   assert(dot.includes("shape=\"box\""));
 }
@@ -128,9 +131,9 @@ RETURN n, r, m
   assert.equal(Object.keys(projection.elements).length, 4);
   assert.equal(projection.edges.length, 2);
   assert.equal(projection.groups.length, 2);
-  assert(dot.includes('subgraph "cluster_source"'));
+  assert(dot.includes(`subgraph "${clusterId("source")}"`));
   assert(dot.includes("Source Context"));
-  assert(dot.includes('subgraph "cluster_source__app"'));
+  assert(dot.includes(`subgraph "${clusterId("source/app")}"`));
   assert(dot.includes("URL=\"insight://goto?source=source.ai&line="));
   assert(dot.includes("style=\"dotted\""));
   assert(dot.includes("API"));
@@ -142,14 +145,15 @@ RETURN n, r, m
   assert(dot.includes("shape=\"note\""));
   assert(dot.includes("fillcolor=\"#faf6a2\""));
   assert(dot.includes("dir=\"none\""));
-  assert(dot.includes("\"source__api_note\" -> \"source__api\""));
-  assert(/"source__api_note" \[.*URL="insight:\/\/goto\?source=source\.ai&line=\d+&column=\d+"/.test(dot));
+  assert(dot.includes(`"${noteId("source/api")}" -> "source/api"`));
+  assert(dot.split("\n").find((line) => line.includes(`"${noteId("source/api")}" [`))
+    ?.match(/URL="insight:\/\/goto\?source=source\.ai&line=\d+&column=\d+"/));
   assert(dot.includes("Postgres"));
   assert(dot.includes("Google"));
   assert(dot.includes("JDBC"));
   assert(dot.includes("HTTP"));
-  assert(dot.includes("\"source__api\" -> \"source__database\""));
-  assert(dot.includes("\"source__api\" -> \"external_systems__google\""));
+  assert(dot.includes('"source/api" -> "source/database"'));
+  assert(dot.includes('"source/api" -> "external_systems/google"'));
 }
 
 function quotesGraphIdsThatAreNotPlainIdentifiers() {
@@ -169,6 +173,57 @@ define type Widget of BoundaryElement
 
   assertNoErrors(result);
   assert(dot.startsWith('digraph "definitions.ai" {'));
+}
+
+function keepsRenderIdentitiesDistinctAndReversible() {
+  const result = linkWithCore(
+    source("first.ai", `
+context a
+
+import c from context a__b
+
+system b__c # First note
+    name = First
+    links:
+        -> c
+        -> c
+`),
+    source("second.ai", `
+context a__b
+
+system c # Second note
+    name = Second
+`),
+  );
+  const projection = selectGraph(result, { context: "a" }, `
+MATCH (n:System)
+OPTIONAL MATCH (n)-[edge]->(target:System)
+GROUP BY n.parent
+RETURN n, edge, target
+`);
+  const dot = renderGraphviz(result, projection, "light");
+  const ids = [...dot.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+  const identities = ids.map((id) => parseRenderIdentity(id));
+
+  assertNoErrors(result);
+  assert(dot.includes('"a/b__c" ['));
+  assert(dot.includes('"a__b/c" ['));
+  assert.equal(new Set(ids).size, ids.length, `duplicate SVG-target ids: ${JSON.stringify(ids)}`);
+  assert(identities.every((identity) => identity !== undefined));
+  assert.deepEqual(
+    identities.filter((identity) => identity?.kind === "node").map((identity) => identity.provenance[0]).sort(),
+    ["a/b__c", "a__b/c"],
+  );
+  assert.equal(identities.filter((identity) => identity?.kind === "edge").length, 2);
+  assert.equal(new Set(identities
+    .filter((identity) => identity?.kind === "edge")
+    .map((identity) => identity?.provenance[0])).size, 2);
+  assert.deepEqual(
+    identities.filter((identity) => identity?.kind === "note").map((identity) => identity.provenance[0]).sort(),
+    ["a/b__c", "a__b/c"],
+  );
+  assert(parseRenderIdentity("edge__a__b") === undefined);
+  assert(parseRenderIdentity("insight_node_not-hex") === undefined);
 }
 
 function rendersEdgesFromGroupOwnersThroughClusterAnchors() {
@@ -206,10 +261,11 @@ RETURN n, r, m
 
   assertNoErrors(result);
   assert(dot.includes("compound=true"));
-  assert(dot.includes("\"source__app__cluster_anchor\" [label=\"\",shape=\"point\",width=\"0\",height=\"0\",style=\"invis\"]"));
-  assert(dot.includes("\"source__app__cluster_anchor\" -> \"external_systems__google\""));
-  assert(dot.includes("ltail=\"cluster_source__app\""));
-  assert(!dot.includes("\"source__app\" -> \"external_systems__google\""));
+  const anchor = clusterAnchorId("source/app");
+  assert(dot.includes(`"${anchor}" [id="${anchor}",label="",shape="point",width="0",height="0",style="invis"]`));
+  assert(dot.includes(`"${anchor}" -> "external_systems/google"`));
+  assert(dot.includes(`ltail="${clusterId("source/app")}"`));
+  assert(!dot.includes('"source/app" -> "external_systems/google"'));
 }
 
 function rendersParallelEdgesBetweenSameElementsAsDistinctEdges() {
@@ -235,8 +291,8 @@ RETURN n, r, m
 
   assertNoErrors(result);
   assert.equal(projection.edges.length, 2);
-  assert.equal(countOccurrences(dot, "\"source__app\" -> \"source__target\""), 2);
-  assert.equal(countOccurrences(dot, "id=\"edge__"), 2);
+  assert.equal(countOccurrences(dot, '"source/app" -> "source/target"'), 2);
+  assert.equal(countOccurrences(dot, 'id="insight_edge_'), 2);
   assert(dot.includes("URL=\"insight://goto?source=source.ai"));
   assert(dot.includes("&line="));
   assert(dot.includes("&column="));
@@ -274,10 +330,10 @@ RETURN n, out, outNode, in, inNode
   assertNoErrors(result);
   assert(projection.externalElements.includes("external_systems/partner"));
   assert(dot.includes("Partner"));
-  assert(dot.includes("\"external_systems__partner\" ["));
+  assert(dot.includes('"external_systems/partner" ['));
   assert(dot.includes("fillcolor=\"#999999\""));
-  assert(!dot.includes('subgraph "cluster_external_systems"'));
-  assert(dot.includes("\"external_systems__partner\" -> \"source__app\""));
+  assert(!dot.includes(`subgraph "${clusterId("external_systems")}"`));
+  assert(dot.includes('"external_systems/partner" -> "source/app"'));
 }
 
 function preservesProjectPresentationWhenElementIsRelativelyExternal() {
@@ -323,7 +379,7 @@ OPTIONAL MATCH (external:Element)-[incoming]->(n)
 RETURN n, external, incoming
 `);
   const dot = renderGraphviz(result, projection, "light");
-  const vendor = dot.split("\n").find((line) => line.includes('"partners__vendor" ['));
+  const vendor = dot.split("\n").find((line) => line.includes('"partners/vendor" ['));
 
   assertNoErrors(result);
   assert(projection.externalElements.includes("partners/vendor"));
@@ -358,12 +414,12 @@ system app
 
   assertNoErrors(result);
   assert.equal(projection.groups.length, 1);
-  assert(dot.includes('subgraph "cluster_scalar__Java"'));
+  assert(dot.includes(`subgraph "${clusterId("scalar__Java")}"`));
   assert(dot.includes("<b>Java</b>"));
-  assert(dot.includes("\"source__api\" ["));
-  assert(dot.includes("\"source__worker\" ["));
+  assert(dot.includes('"source/api" ['));
+  assert(dot.includes('"source/worker" ['));
   assert(!dot.includes("\"scalar__Java\" ["));
-  assert(!dot.includes("__cluster_anchor"));
+  assert(!dot.includes("insight_cluster-anchor_"));
 }
 
 function rendersNestedAttributeObjectsAsNestedClusters() {
@@ -426,11 +482,11 @@ cont l
 
   assertNoErrors(result);
   assert.equal(projection.groups.length, 3);
-  assert(dot.includes('\n  subgraph "cluster_f"'));
-  assert(dot.includes('\n    subgraph "cluster_f__l"'));
-  assert(dot.includes('\n      subgraph "cluster_f__i"'));
-  assert(!dot.includes('\n  subgraph "cluster_f__l"'));
-  assert(!dot.includes('\n  subgraph "cluster_f__i"'));
+  assert(dot.includes(`\n  subgraph "${clusterId("f")}"`));
+  assert(dot.includes(`\n    subgraph "${clusterId("f/l")}"`));
+  assert(dot.includes(`\n      subgraph "${clusterId("f/i")}"`));
+  assert(!dot.includes(`\n  subgraph "${clusterId("f/l")}"`));
+  assert(!dot.includes(`\n  subgraph "${clusterId("f/i")}"`));
   assert(dot.includes("lslkfjbv"));
   assert(dot.includes("eufbv"));
 }
@@ -475,8 +531,8 @@ RETURN n, r, m
   assertNoErrors(result);
   assert(dot.includes("App"));
   assert(!dot.includes("Secret"));
-  assert(!dot.includes("\"source__secret\" ["));
-  assert(!dot.includes("\"source__app\" -> \"source__secret\""));
+  assert(!dot.includes('"source/secret" ['));
+  assert(!dot.includes('"source/app" -> "source/secret"'));
 }
 
 function rendersSelectedContextAsClusterForWideDefaultQuery() {
@@ -499,8 +555,8 @@ RETURN n, r, m
   const dot = renderGraphviz(result, projection, "light");
 
   assertNoErrors(result);
-  assert(dot.includes('\n  subgraph "cluster_source"'));
-  assert(dot.includes('\n    subgraph "cluster_source__app"'));
+  assert(dot.includes(`\n  subgraph "${clusterId("source")}"`));
+  assert(dot.includes(`\n    subgraph "${clusterId("source/app")}"`));
   assert(!dot.includes("\"source\" ["));
   assert(dot.includes("App"));
   assert(dot.includes("API"));
@@ -575,15 +631,15 @@ system app
   const dot = renderGraphviz(result, projection, "light");
 
   assertNoErrors(result);
-  assert(dot.includes("\"source__app\" ["));
+  assert(dot.includes('"source/app" ['));
   assert(dot.includes("shape=\"box\""));
   assert(!dot.includes("shape=\"component\""));
   assert(!dot.includes("penwidth=\"1.8\""));
   assert(dot.includes("<font point-size=\"9px\">{system}</font>"));
-  assert(dot.includes("\"source__api\" ["));
+  assert(dot.includes('"source/api" ['));
   assert(dot.includes("style=\"filled,rounded\""));
   assert(dot.includes("<font point-size=\"9px\">{service}</font>"));
-  assert(dot.includes("\"source__handler\" ["));
+  assert(dot.includes('"source/handler" ['));
   assert(!dot.includes("style=\"filled,rounded,dashed\""));
   assert(dot.includes("<font point-size=\"9px\">{component}</font>"));
 }
@@ -603,7 +659,7 @@ system app
   const dot = renderGraphviz(result, projection, "light");
 
   assertNoErrors(result);
-  assert(dot.includes('\n  subgraph "cluster_source"'));
+  assert(dot.includes(`\n  subgraph "${clusterId("source")}"`));
   assert(!dot.includes("\"source\" ["));
   assert(dot.includes("App"));
 }
@@ -711,4 +767,16 @@ function countOccurrences(value, needle) {
     offset += needle.length;
   }
   return count;
+}
+
+function clusterId(owner) {
+  return `cluster_${renderIdentity("cluster", [owner])}`;
+}
+
+function clusterAnchorId(owner) {
+  return renderIdentity("cluster-anchor", [owner]);
+}
+
+function noteId(element) {
+  return renderIdentity("note", [element]);
 }

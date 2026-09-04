@@ -113,7 +113,7 @@ Type names begin with an uppercase letter. They identify schema concepts such as
 A type can serve as an abstract base for a family of more specific types. An abstract type declares their shared attributes and inheritance position while leaving construction to its descendants:
 
 ```insight
-define type Api of Service
+define abstract type Api of Service
     required Text owner
     required Text protocol
 
@@ -126,11 +126,23 @@ define type InternalApi of Api
     constructor internalApi
 ```
 
-`Api` has no constructor, so architecture sources have no direct syntax for creating an `Api` instance. Its two descendants provide concrete constructors and inherit the common `owner` and `protocol` contract. Code completion and the linker can still use `Api` as an expected type: both `PublicApi` and `InternalApi` are assignable to it.
+`abstract` explicitly records that `Api` is an extension point rather than a
+directly constructible graph type. Its two descendants provide concrete
+constructors and inherit the common `owner` and `protocol` contract. Code
+completion and the linker can still use `Api` as an expected type: both
+`PublicApi` and `InternalApi` are assignable to it.
 
 Abstract types keep a framework hierarchy expressive without introducing generic instances into the model. They are useful for grouping related elements, defining shared child slots, collecting attributes used by queries, and attaching a presentation inherited by every concrete descendant. The built-in framework uses this pattern for types such as `SystemElement`, `ContainerElement`, and `BoundaryElement`.
 
-For graph types derived from `Element` or `Edge`, a type with descendants may omit its constructor and act as their abstract base. A leaf graph type represents a construct that can appear directly in a model and must declare at least one constructor. The built-in `CodeElement` is a constructorless extension point whose concrete descendants are supplied by project definitions. Schema and value types outside the graph hierarchy may also exist without constructors when they are used only as type-level contracts.
+For graph types derived from `Element` or `Edge`, use `define abstract type` when
+the type intentionally has no constructor. A type with descendants is also
+recognized as an abstract base for compatibility, but explicit abstractness is
+stable when a framework and its descendants are distributed in separate
+snapshots. A concrete leaf graph type must declare at least one constructor.
+The built-in `CodeElement` is explicitly abstract and its concrete descendants
+are supplied by project definitions. Schema and value types outside the graph
+hierarchy may still exist without constructors when they are used only as
+type-level contracts.
 
 ## Constructors
 

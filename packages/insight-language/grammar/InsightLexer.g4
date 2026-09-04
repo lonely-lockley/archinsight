@@ -38,6 +38,7 @@ tokens {
 }
 
 DEFINE      : 'define';
+ABSTRACT    : 'abstract';
 EXTEND      : 'extend';
 PRESENTATION: 'presentation';
 TYPE        : 'type';

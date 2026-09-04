@@ -26,7 +26,7 @@ const rendered = service.render({
   query: "MATCH (node:System) WHERE node.sourceIdentity = $tab RETURN node",
 });
 assert(rendered.graph.elements["shared/api"]);
-assert.match(rendered.dot, /shared__api/);
+assert.match(rendered.dot, /"shared\/api"/);
 
 const completion = service.complete({
   sourceName: "draft.ai",
