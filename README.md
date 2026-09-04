@@ -161,7 +161,7 @@ npm --prefix archinsight-renderer run check
 ./gradlew check
 ```
 
-See [Testing Policy](TESTING.md) for suite structure, package-specific test
+See [Testing Policy](docs/development/testing.md) for suite structure, package-specific test
 contracts, and the rule that coverage may not fall after a change.
 
 After editing the built-in framework, regenerate the TypeScript snapshot:

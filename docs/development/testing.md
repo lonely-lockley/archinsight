@@ -1,6 +1,6 @@
 # Testing Policy
 
-This document defines the repository-wide test contract. A change is complete
+This guide defines the repository-wide test contract. A change is complete
 only when the authoritative check for every affected package passes. The normal
 test path must be hermetic: it may not require PostgreSQL, Docker, Kubernetes,
 the internet, developer credentials, or a particular execution order.

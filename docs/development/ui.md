@@ -1,6 +1,6 @@
 # UI Development Rules
 
-These rules apply to human contributors and coding agents changing UI code in
+This guide applies to human contributors and coding agents changing UI code in
 `archinsight-web` or `packages/archinsight-workbench`. They exist to prevent the
 workspace from becoming a single stateful page again.
 
