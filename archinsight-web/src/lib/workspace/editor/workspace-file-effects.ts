@@ -7,7 +7,7 @@ import {
   replaceDirectoryPrefix
 } from '$lib/workspace/repository/repository-paths';
 import { repositoryFilePathsInDirectory } from '$lib/workspace/repository/repository-tree';
-import type { TreeNode, WorkspaceTab } from '$lib/workspace-types';
+import type { TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
 
 export type WorkspaceFileEffectsPorts = {
   tabs(): WorkspaceTab[];

@@ -311,8 +311,7 @@
   },
   "scripts": {
     "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs",
-    "prepare:web": "npm --prefix ../archinsight-web run sync:svelte-kit",
-    "build:webview": "npm run prepare:web && vite build --config vite.webview.config.mts",
+    "build:webview": "vite build --config vite.webview.config.mts",
     "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.cjs --external:vscode --external:@viz-js/viz",
     "build": "npm run build:webview && npm run build:extension",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -326,6 +325,9 @@
   },
   "devDependencies": {
     "@archinsight/contracts": "file:../packages/archinsight-contracts",
+    "@archinsight/editor-support": "file:../packages/archinsight-editor-support",
+    "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
+    "@archinsight/workbench": "file:../packages/archinsight-workbench",
     "@insight/language": "file:../packages/insight-language",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/node": "^24.0.0",

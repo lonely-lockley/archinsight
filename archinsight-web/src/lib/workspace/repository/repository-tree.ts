@@ -1,4 +1,4 @@
-import type { TreeNode } from '$lib/workspace-types';
+import type { TreeNode } from '@archinsight/workbench/types';
 import { displayNodePath, isInsideDirectory } from './repository-paths';
 
 export function findRepositoryNode(

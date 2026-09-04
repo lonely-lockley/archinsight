@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AppCapability } from '$lib/api';
 import type { ProjectSummary } from '$lib/storage';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
   createWorkspaceActionController,
   type WorkspaceActionControllerPorts

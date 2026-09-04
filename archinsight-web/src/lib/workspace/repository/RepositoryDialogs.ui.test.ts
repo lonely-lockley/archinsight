@@ -2,7 +2,7 @@
 
 import { mount, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
-import type { TreeNode } from '$lib/workspace-types';
+import type { TreeNode } from '@archinsight/workbench/types';
 import RepositoryDeleteDialog from './RepositoryDeleteDialog.svelte';
 import RepositoryFileDialog from './RepositoryFileDialog.svelte';
 

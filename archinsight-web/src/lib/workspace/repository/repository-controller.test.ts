@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TreeNode } from '$lib/workspace-types';
+import type { TreeNode } from '@archinsight/workbench/types';
 import {
   createRepositoryController,
   type RepositoryControllerPorts

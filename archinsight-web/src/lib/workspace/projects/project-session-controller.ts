@@ -7,7 +7,7 @@ import type {
   WorkspaceState,
   WorkspaceTabState
 } from '$lib/storage';
-import type { ProjectUiState, TreeNode, WorkspaceTab } from '$lib/workspace-types';
+import type { ProjectUiState, TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
 import { errorMessage } from '../messages/message-controller';
 
 export type ProjectLoadGuard = {

@@ -1,5 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { instance } from '@viz-js/viz';
+import { normalizeGraphvizSvgResult } from '@archinsight/graphviz';
 import { Resvg } from '@resvg/resvg-js';
 import {
   addOutputBytes,
@@ -46,13 +47,13 @@ try {
 }
 
 function renderSvg(viz, dot) {
-  const result = viz.render(dot, { format: 'svg', engine: 'dot' });
+  const result = normalizeGraphvizSvgResult(viz.render(dot, { format: 'svg', engine: 'dot' }));
   if (result.status === 'failure') {
-    throw new Error(formatMessages(result.errors.map((error) => error.message)));
+    throw new Error(result.error);
   }
   return {
-    svg: result.output,
-    warnings: result.errors.map((warning) => warning.message)
+    svg: result.svg,
+    warnings: result.warnings
   };
 }
 
@@ -88,8 +89,4 @@ function renderPngItem(item, svg, dpi, limits) {
     contentType: 'image/png',
     png: png.toString('base64')
   };
-}
-
-function formatMessages(messages) {
-  return messages.filter(Boolean).join('\n') || 'Graphviz render failed';
 }

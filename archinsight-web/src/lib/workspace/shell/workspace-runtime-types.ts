@@ -9,7 +9,7 @@ import type { RepositoryDialogController } from '$lib/workspace/repository/repos
 import type { LayoutController } from '$lib/workspace/shell/layout-controller';
 import type { WorkspaceActionController } from '$lib/workspace/shell/workspace-action-controller';
 import type { WorkspaceRuntimeState } from '$lib/workspace/shell/workspace-runtime-state';
-import type { TreeNode } from '$lib/workspace-types';
+import type { TreeNode } from '@archinsight/workbench/types';
 
 export type WorkspaceRuntimeHost = {
   surface(): WorkspaceSurface;

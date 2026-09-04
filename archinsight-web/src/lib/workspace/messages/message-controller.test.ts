@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MessageView } from '$lib/workspace-types';
+import type { MessageView } from '@archinsight/workbench/types';
 import {
   createMessageController,
   errorMessage,

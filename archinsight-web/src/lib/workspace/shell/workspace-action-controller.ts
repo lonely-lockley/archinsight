@@ -10,9 +10,9 @@ import {
   emptyWorkspaceStrategy,
   type EmptyWorkspaceAction,
   type EmptyWorkspaceStrategy
-} from '$lib/empty-workspace-strategy';
+} from '@archinsight/workbench/empty-workspace';
 import type { ProjectSummary } from '$lib/storage';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 
 export type RepositoryActionStates = {
   readonly createFile: ControlState;

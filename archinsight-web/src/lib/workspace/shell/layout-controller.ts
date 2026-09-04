@@ -1,4 +1,4 @@
-import type { ProjectUiState } from '$lib/workspace-types';
+import type { ProjectUiState } from '@archinsight/workbench/types';
 import { clamp, minMessagesHeight, minSidebarWidth, normalizeProjectUi } from './layout-model';
 
 type PointerCoordinates = {

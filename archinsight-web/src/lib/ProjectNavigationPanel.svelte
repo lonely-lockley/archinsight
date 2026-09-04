@@ -3,7 +3,7 @@
   import FileTreeNode from './FileTreeNode.svelte';
   import StructurePanel from './StructurePanel.svelte';
   import { routePath, type ProjectStructure } from './api';
-  import type { ProjectUiState, SourceLocation, TreeNode } from './workspace-types';
+  import type { ProjectUiState, SourceLocation, TreeNode } from '@archinsight/workbench/types';
 
   export let tree: TreeNode | undefined;
   export let hasActiveProject = true;

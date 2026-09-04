@@ -1,5 +1,5 @@
 import type { WorkspaceTabState, WorkspaceUiState } from '$lib/storage';
-import type { ProjectUiState } from '$lib/workspace-types';
+import type { ProjectUiState } from '@archinsight/workbench/types';
 
 export const minSidebarWidth = 150;
 export const defaultSidebarWidth = 300;

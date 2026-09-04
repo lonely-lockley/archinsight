@@ -1,5 +1,5 @@
 import type { Diagnostic } from '$lib/api';
-import type { MessageView } from '$lib/workspace-types';
+import type { MessageView } from '@archinsight/workbench/types';
 import { diagnosticCounts, diagnosticPosition, messageLevel } from '../analysis/diagnostics';
 
 const maxMessages = 250;

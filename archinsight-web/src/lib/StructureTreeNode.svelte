@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SourceLocation, StructureTreeNodeModel } from './workspace-types';
+  import type { SourceLocation, StructureTreeNodeModel } from '@archinsight/workbench/types';
 
   export let node: StructureTreeNodeModel;
   export let depth = 0;

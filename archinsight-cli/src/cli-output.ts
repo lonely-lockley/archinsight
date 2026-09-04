@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
+import { normalizeGraphvizSvgResult } from "@archinsight/graphviz";
 import {
   buildProjectStructure,
   buildTypeHierarchy,
@@ -19,11 +20,11 @@ const hiddenStructureTypes = new Set(["List", "Nothing", "Text"]);
 
 export async function renderSvg(dot: string): Promise<string> {
   const viz = await instance();
-  const result = viz.render(dot, { format: "svg", engine: "dot" });
+  const result = normalizeGraphvizSvgResult(viz.render(dot, { format: "svg", engine: "dot" }));
   if (result.status === "failure") {
-    throw new CliError(result.errors.map((error) => error.message).filter(Boolean).join("\n") || "Graphviz render failed");
+    throw new CliError(result.error);
   }
-  return result.output;
+  return result.svg;
 }
 
 export function projectStructure(result: LinkProjectResult, snapshot: LanguageSnapshot): StructureTree {

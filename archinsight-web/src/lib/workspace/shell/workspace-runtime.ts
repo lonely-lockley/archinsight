@@ -1,5 +1,5 @@
 import { tick } from 'svelte';
-import { defaultDiagramMode, defaultQuery } from '$lib/diagram-query-presets';
+import { defaultDiagramMode, defaultQuery } from '@archinsight/workbench/presets';
 import { createAnalysisController, type AnalysisController } from '$lib/workspace/analysis/analysis-controller';
 import { createAnalysisRunner, type AnalysisRunner } from '$lib/workspace/analysis/analysis-runner';
 import { createAuthController, type AuthController } from '$lib/workspace/auth/auth-controller';

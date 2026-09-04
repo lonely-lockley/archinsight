@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { TreeNode } from '$lib/workspace-types';
+  import type { TreeNode } from '@archinsight/workbench/types';
   import { joinPath, normalizeDialogName } from './repository-paths';
   import type { FileDialogState } from './repository-dialog-types';
 

@@ -4,6 +4,9 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: './',
   plugins: [svelte()],
+  resolve: {
+    preserveSymlinks: true
+  },
   optimizeDeps: {
     exclude: ['@insight/language']
   },

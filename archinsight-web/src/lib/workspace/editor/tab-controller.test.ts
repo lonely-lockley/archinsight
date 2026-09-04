@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
   createTabController,
   type TabControllerState

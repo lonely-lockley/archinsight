@@ -1,4 +1,6 @@
-import type { ProjectSummary } from './storage';
+export type ProjectSummaryLike = {
+  id: string;
+};
 
 export type EmptyWorkspaceActionId = 'create-project' | 'create-tab' | 'manage-projects';
 
@@ -17,7 +19,7 @@ export type EmptyWorkspaceStrategy = {
 };
 
 export function emptyWorkspaceStrategy(
-  projects: ProjectSummary[],
+  projects: readonly ProjectSummaryLike[],
   activeProjectId: string | undefined
 ): EmptyWorkspaceStrategy {
   if (projects.length === 0) {

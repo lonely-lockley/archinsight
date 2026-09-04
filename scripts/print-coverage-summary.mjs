@@ -25,6 +25,24 @@ for (const [packageName, relativePath] of Object.entries(reports)) {
   ]);
 }
 
+const editorSupport = baseline.packages.editorSupport;
+rows.push([
+  'editor',
+  editorSupport.status,
+  editorSupport.status,
+  editorSupport.status,
+  'not reported',
+]);
+
+const graphviz = baseline.packages.graphviz;
+rows.push([
+  'graphviz',
+  graphviz.status,
+  graphviz.status,
+  graphviz.status,
+  'not reported',
+]);
+
 const vscode = baseline.packages.vscode;
 rows.push(['vscode', vscode.status, vscode.status, vscode.status, vscode.status]);
 

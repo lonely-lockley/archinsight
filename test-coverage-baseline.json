@@ -19,12 +19,22 @@
       "statements": { "covered": 6385, "total": 6703 }
     },
     "web": {
-      "scope": "Web TypeScript and Svelte sources, excluding tests, declarations, generated code, static themes, and declarative workspace DI wiring.",
+      "scope": "Web application plus shared workbench TypeScript and Svelte sources, excluding tests, declarations, generated code, static themes, and declarative workspace DI wiring.",
       "measurementNote": "The workspace runtime composition root is covered by smoke and lifecycle tests but excluded from ratios because its one adapter closure per controller port would make function coverage measure wiring volume rather than behavior.",
       "lines": { "covered": 5333, "total": 9786 },
       "branches": { "covered": 1506, "total": 1910 },
       "functions": { "covered": 542, "total": 627 },
       "statements": { "covered": 5333, "total": 9786 }
+    },
+    "editorSupport": {
+      "status": "100% threshold",
+      "scope": "Dependency-free completion metadata, semantic-token bit calculation, diagnostic identity, and recursive tree filtering.",
+      "reason": "The Node test runner enforces 100% line, branch, and function coverage directly; it does not emit Istanbul statement counters."
+    },
+    "graphviz": {
+      "status": "100% threshold",
+      "scope": "Dependency-free Graphviz result normalization shared by CLI, web, VS Code, and the isolated renderer.",
+      "reason": "The Node test runner enforces 100% line, branch, and function coverage directly; it does not emit Istanbul statement counters."
     },
     "renderer": {
       "scope": "Renderer service modules, including the HTTP entry point.",

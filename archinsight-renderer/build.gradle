@@ -12,7 +12,7 @@ tasks.register('npmInstall', Exec) {
     inputs.file('package.json')
     inputs.file('package-lock.json')
     outputs.dir('node_modules')
-    commandLine npmCommand, 'install'
+    commandLine npmCommand, 'install', '--prefer-offline', '--no-audit', '--no-fund'
 }
 
 tasks.register('test', Exec) {
@@ -25,14 +25,20 @@ tasks.register('test', Exec) {
 tasks.register('dockerBuild', Exec) {
     group = 'build'
     description = "Builds the hardened Archinsight renderer service container image ${releaseImage}."
-    commandLine 'docker', 'build', '-t', releaseImage, '.'
+    workingDir = rootProject.projectDir
+    commandLine 'docker', 'build',
+        '--file', 'archinsight-renderer/Dockerfile',
+        '--tag', releaseImage,
+        '.'
 }
 
 tasks.register('dockerPush', Exec) {
     group = 'publishing'
     description = "Builds and publishes the multi-platform Archinsight renderer image ${releaseImage}."
+    workingDir = rootProject.projectDir
     commandLine 'docker', 'buildx', 'build',
         '--platform', releasePlatforms,
+        '--file', 'archinsight-renderer/Dockerfile',
         '--tag', releaseImage,
         '--push',
         '.'

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, expect, test } from 'vitest';
-import { sanitizeSvg } from './svg-sanitizer';
+import { sanitizeSvg } from '@archinsight/workbench/svg-sanitizer';
 
 describe('sanitizeSvg', () => {
   test('removes executable and embedded foreign content', () => {

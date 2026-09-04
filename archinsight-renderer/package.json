@@ -14,6 +14,7 @@
     "check": "npm run verify"
   },
   "dependencies": {
+    "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
     "@resvg/resvg-js": "^2.6.2",
     "@viz-js/viz": "^3.28.0"
   },

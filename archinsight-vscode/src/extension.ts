@@ -3,6 +3,14 @@ import * as fs from "node:fs";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import {
+  completionDetail,
+  completionSortText,
+  diagnosticIdentity,
+  filterTreeByQuery,
+  semanticTokenModifierBits,
+} from "@archinsight/editor-support";
+import { normalizeGraphvizSvgResult } from "@archinsight/graphviz";
+import {
   buildProjectStructure,
   buildTypeHierarchy,
   BUILTIN_VIEW_QUERIES,
@@ -506,7 +514,13 @@ class ProjectModel {
 
   private updateDiagnostics(project: LinkedProject): void {
     const grouped = new Map<string, vscode.Diagnostic[]>();
+    const seen = new Set<string>();
     for (const diagnostic of project.diagnostics) {
+      const identity = diagnosticIdentity({ ...diagnostic, source: diagnostic.sourceName });
+      if (seen.has(identity)) {
+        continue;
+      }
+      seen.add(identity);
       const uri = project.sourceUris.get(diagnostic.sourceName);
       if (uri === undefined) {
         continue;
@@ -554,7 +568,7 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
         document.positionAt(result.replacementEndOffset),
       );
       completion.detail = completionDetail(item);
-      completion.sortText = `${completionSortBucket(item.kind)}:${item.label}`;
+      completion.sortText = completionSortText(item);
       return completion;
     });
   }
@@ -635,7 +649,7 @@ class InsightSemanticTokensProvider implements vscode.DocumentSemanticTokensProv
         token.column,
         token.length,
         semanticTokenIndex(token.type),
-        semanticTokenModifierBits(token.modifiers),
+        semanticTokenModifierBits(token.modifiers, semanticTokenModifiers),
       );
     }
     const tokens = builder.build();
@@ -724,7 +738,11 @@ class ArchinsightStructureProvider implements vscode.TreeDataProvider<StructureN
     if (this.showIdentifiers) {
       roots.push({ label: "Declarations", icon: "symbol-variable", iconColor: "symbolIcon.variableForeground", kind: "root", children: declarationTree(current) });
     }
-    return filterStructureNodes(roots, this.filterQuery);
+    return filterTreeByQuery(roots, this.filterQuery, (node) => [
+      node.label,
+      node.description ?? "",
+      node.kind,
+    ].join(" "));
   }
 
   private syncFilterContexts(): void {
@@ -732,30 +750,6 @@ class ArchinsightStructureProvider implements vscode.TreeDataProvider<StructureN
     void vscode.commands.executeCommand("setContext", "archinsight.structure.showOperators", this.showOperators);
     void vscode.commands.executeCommand("setContext", "archinsight.structure.showIdentifiers", this.showIdentifiers);
   }
-}
-
-function filterStructureNodes(nodes: readonly StructureNode[], query: string): StructureNode[] {
-  const normalized = query.trim().toLocaleLowerCase();
-  if (normalized.length === 0) {
-    return [...nodes];
-  }
-  return nodes.flatMap((node) => filterStructureNode(node, normalized));
-}
-
-function filterStructureNode(node: StructureNode, query: string): StructureNode[] {
-  if (matchesStructureNode(node, query)) {
-    return [node];
-  }
-  const children = node.children.flatMap((child) => filterStructureNode(child, query));
-  return children.length === 0 ? [] : [{ ...node, children }];
-}
-
-function matchesStructureNode(node: StructureNode, query: string): boolean {
-  return [
-    node.label,
-    node.description ?? "",
-    node.kind,
-  ].some((value) => value.toLocaleLowerCase().includes(query));
 }
 
 class ArchinsightControlsProvider implements vscode.WebviewViewProvider {
@@ -1769,11 +1763,11 @@ async function previewState(
 async function renderSvg(dot: string): Promise<string> {
   const { instance } = await import("@viz-js/viz");
   const viz = await instance();
-  const result = viz.render(dot, { format: "svg", engine: "dot" });
+  const result = normalizeGraphvizSvgResult(viz.render(dot, { format: "svg", engine: "dot" }));
   if (result.status === "failure") {
-    throw new Error(result.errors.map((error) => error.message).filter(Boolean).join("\n") || "Graphviz render failed");
+    throw new Error(result.error);
   }
-  return makeGraphvizBackgroundsTransparent(result.output);
+  return makeGraphvizBackgroundsTransparent(result.svg);
 }
 
 function makeGraphvizBackgroundsTransparent(svg: string): string {
@@ -2133,33 +2127,6 @@ function completionKind(item: { readonly kind: CompletionKind; readonly imported
   }
 }
 
-function completionDetail(item: { readonly kind: CompletionKind; readonly imported?: boolean }): string {
-  return item.kind === "IDENTIFIER" && item.imported === true ? "imported identifier" : item.kind;
-}
-
-function completionSortBucket(kind: CompletionKind): string {
-  switch (kind) {
-    case "KEYWORD":
-      return "0";
-    case "CONSTRUCTOR":
-      return "1";
-    case "OPERATOR":
-      return "2";
-    case "ATTRIBUTE":
-      return "3";
-    case "IDENTIFIER":
-      return "4";
-    case "ENUM_VALUE":
-      return "5";
-    case "TYPE":
-      return "6";
-    case "ANNOTATION":
-      return "7";
-    case "NEWLINE":
-      return "8";
-  }
-}
-
 function tokenVocabulary(_snapshot: LanguageSnapshot, _sources: readonly ProjectSource[]): InsightTokenVocabulary {
   return {};
 }
@@ -2175,10 +2142,6 @@ function semanticSnapshotKey(snapshot: LanguageSnapshot): string {
 
 function semanticTokenIndex(type: SemanticTokenType): number {
   return semanticTokenTypes.indexOf(type);
-}
-
-function semanticTokenModifierBits(modifiers: readonly SemanticTokenModifier[] | undefined): number {
-  return (modifiers ?? []).reduce((bits, modifier) => bits | (1 << semanticTokenModifiers.indexOf(modifier)), 0);
 }
 
 function documentSymbolsForSource(project: LinkedProject, sourceName: string): vscode.DocumentSymbol[] {

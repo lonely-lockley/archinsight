@@ -1,6 +1,6 @@
 import type { DeploymentEnvironment } from '@insight/language';
 import { routePath } from '$lib/api';
-import type { EmptyWorkspaceStrategy } from '$lib/empty-workspace-strategy';
+import type { EmptyWorkspaceStrategy } from '@archinsight/workbench/empty-workspace';
 import type { ProjectSummary } from '$lib/storage';
 import type { AuthController } from '$lib/workspace/auth/auth-controller';
 import type { DiagramController } from '$lib/workspace/diagram/diagram-controller';

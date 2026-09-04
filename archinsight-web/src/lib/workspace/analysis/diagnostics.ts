@@ -1,5 +1,6 @@
 import type { Diagnostic } from '$lib/api';
-import type { MessageView } from '$lib/workspace-types';
+import { diagnosticIdentity } from '@archinsight/editor-support';
+import type { MessageView } from '@archinsight/workbench/types';
 
 export type DiagnosticsBySource = Record<string, Diagnostic[]>;
 
@@ -41,7 +42,7 @@ export function uniqueDiagnostics(diagnostics: readonly Diagnostic[]): Diagnosti
   const result: Diagnostic[] = [];
   const seen = new Set<string>();
   for (const diagnostic of diagnostics) {
-    const key = diagnosticKey(diagnostic);
+    const key = diagnosticIdentity(diagnostic);
     if (seen.has(key)) {
       continue;
     }
@@ -143,20 +144,6 @@ export function messageLevel(diagnostic: Diagnostic): MessageView['level'] {
   return 'NOTE';
 }
 
-function diagnosticKey(diagnostic: Diagnostic): string {
-  return [
-    diagnostic.source,
-    diagnostic.level ?? '',
-    diagnostic.code,
-    diagnostic.message,
-    diagnostic.line ?? '',
-    diagnostic.column ?? '',
-    diagnostic.endLine ?? '',
-    diagnostic.endColumn ?? ''
-  ].join('\u0000');
-}
-
 function isTokenBreak(char: string | undefined): boolean {
   return char === undefined || /\s/.test(char);
 }
-

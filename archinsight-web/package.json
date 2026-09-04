@@ -28,6 +28,9 @@
   },
   "dependencies": {
     "@archinsight/contracts": "file:../packages/archinsight-contracts",
+    "@archinsight/editor-support": "file:../packages/archinsight-editor-support",
+    "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
+    "@archinsight/workbench": "file:../packages/archinsight-workbench",
     "@insight/language": "file:../packages/insight-language",
     "@sveltejs/kit": "^2.70.2",
     "@viz-js/viz": "^3.28.0",

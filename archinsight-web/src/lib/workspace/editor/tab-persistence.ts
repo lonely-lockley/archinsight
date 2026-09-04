@@ -1,6 +1,6 @@
-import { resolveStoredDiagramQuery } from '$lib/diagram-query-presets';
+import { resolveStoredDiagramQuery } from '@archinsight/workbench/presets';
 import type { WorkspaceTabState } from '$lib/storage';
-import type { EditorViewMode, WorkspaceTab } from '$lib/workspace-types';
+import type { EditorViewMode, WorkspaceTab } from '@archinsight/workbench/types';
 
 const defaultViewMode: EditorViewMode = 'split';
 const defaultDiagramScale = 1;

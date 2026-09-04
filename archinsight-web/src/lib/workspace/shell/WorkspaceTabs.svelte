@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { WorkspaceTab } from '$lib/workspace-types';
+  import type { WorkspaceTab } from '@archinsight/workbench/types';
 
   export let tabs: readonly WorkspaceTab[];
   export let activeTabId: string | undefined;

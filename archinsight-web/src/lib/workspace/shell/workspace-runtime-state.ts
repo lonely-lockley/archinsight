@@ -16,7 +16,7 @@ import type {
   FileDialogState
 } from '$lib/workspace/repository/repository-dialog-types';
 import { defaultProjectUi } from '$lib/workspace/shell/layout-model';
-import type { MessageView, ProjectUiState, TreeNode, WorkspaceTab } from '$lib/workspace-types';
+import type { MessageView, ProjectUiState, TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
 import {
   diagnosticErrorSources,
   diagnosticsHaveErrors

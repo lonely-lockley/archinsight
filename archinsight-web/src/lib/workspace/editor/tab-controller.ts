@@ -1,4 +1,4 @@
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
   removeTab,
   retargetTab,

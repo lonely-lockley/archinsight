@@ -1,6 +1,6 @@
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { WorkspaceTabState } from '$lib/storage';
-import type { ProjectUiState, SourceLocation, TreeNode, WorkspaceTab } from '$lib/workspace-types';
+import type { ProjectUiState, SourceLocation, TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
 import type { AnalysisController } from '../analysis/analysis-controller';
 import { emptyDiagramSvg } from '../diagram/diagram-controller';
 import { errorMessage } from '../messages/message-controller';

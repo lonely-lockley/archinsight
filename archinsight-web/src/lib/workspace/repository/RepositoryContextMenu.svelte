@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ControlState } from '$lib/actions/action-model';
-  import type { TreeNode } from '$lib/workspace-types';
+  import type { TreeNode } from '@archinsight/workbench/types';
 
   type RepositoryContextMenuState = {
     node: TreeNode;

@@ -16,7 +16,10 @@ rootProject.name = 'insight'
 
 gradle.ext.archinsightVersions = [
     contracts: '3.0.3',
+    editorSupport: '3.0.3',
+    graphviz : '3.0.3',
     language: '3.0.3',
+    workbench: '3.0.3',
     web     : '3.0.3',
     renderer: '3.0.3',
     cli     : '3.0.3',

@@ -9,7 +9,7 @@ import {
   createInsightTokenVocabulary,
   createInsightSemanticTokensProvider,
   refreshInsightTokenVocabulary
-} from './insight-monaco-language';
+} from '@archinsight/workbench/monaco';
 
 describe('Insight Monaco lexical tokens', () => {
   it('maps lexer categories to stable editor scopes', () => {

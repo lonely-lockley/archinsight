@@ -1,4 +1,4 @@
-import type { Diagnostic, FileTreeNode } from './api';
+import type { DiagnosticDto, FileTreeNode } from '@archinsight/contracts';
 import type { BuiltinDiagramView } from '@insight/language';
 
 export type ProjectUiState = {
@@ -25,7 +25,7 @@ export type WorkspaceTab = {
   content: string;
   svg: string;
   dot?: string;
-  diagnostics: Diagnostic[];
+  diagnostics: DiagnosticDto[];
   local: boolean;
   readOnly?: boolean;
   projectSource?: boolean;

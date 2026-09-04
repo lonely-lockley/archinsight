@@ -1,4 +1,4 @@
-import type { TreeNode } from '$lib/workspace-types';
+import type { TreeNode } from '@archinsight/workbench/types';
 import type { DeleteDialogState, FileDialogState } from './repository-dialog-types';
 import {
   findRepositoryNodeByDisplayPath,

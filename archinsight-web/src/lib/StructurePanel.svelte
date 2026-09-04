@@ -6,9 +6,10 @@
     type LanguageSnapshot,
     type TypeHierarchyNode
   } from '@insight/language';
+  import { filterTreeByQuery } from '@archinsight/editor-support';
   import type { ProjectStructure, StructureDeclaration } from './api';
   import StructureTreeNode from './StructureTreeNode.svelte';
-  import type { SourceLocation, StructureTreeNodeModel } from './workspace-types';
+  import type { SourceLocation, StructureTreeNodeModel } from '@archinsight/workbench/types';
 
   export let symbols: LanguageSnapshot;
   export let structure: ProjectStructure | undefined;
@@ -21,8 +22,10 @@
   let showIdentifiers = true;
 
   $: query = search.trim().toLowerCase();
-  $: typeTree = filterNodes(buildTypeTree(symbols, showLanguageTypes, showOperators), query);
-  $: declarationTree = showIdentifiers ? filterNodes(buildDeclarationTree(structure), query) : [];
+  $: typeTree = filterTreeByQuery(buildTypeTree(symbols, showLanguageTypes, showOperators), query, searchText);
+  $: declarationTree = showIdentifiers
+    ? filterTreeByQuery(buildDeclarationTree(structure), query, searchText)
+    : [];
   $: hasMatches = typeTree.length > 0 || declarationTree.length > 0;
 
   function buildTypeTree(
@@ -91,21 +94,6 @@
       return 'symbol-reference';
     }
     return 'symbol-variable';
-  }
-
-  function filterNodes(nodes: StructureTreeNodeModel[], value: string): StructureTreeNodeModel[] {
-    if (value.length === 0) {
-      return nodes;
-    }
-    return nodes.flatMap((node) => filterNode(node, value));
-  }
-
-  function filterNode(node: StructureTreeNodeModel, value: string): StructureTreeNodeModel[] {
-    if (searchText(node).includes(value)) {
-      return [node];
-    }
-    const children = filterNodes(node.children, value);
-    return children.length === 0 ? [] : [{ ...node, children }];
   }
 
   function searchText(node: StructureTreeNodeModel): string {

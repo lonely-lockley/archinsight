@@ -1,5 +1,5 @@
 import type { ActionId } from '$lib/actions/action-model';
-import type { TreeNode } from '$lib/workspace-types';
+import type { TreeNode } from '@archinsight/workbench/types';
 import { errorMessage } from '../messages/message-controller';
 import type {
   RepositoryController,

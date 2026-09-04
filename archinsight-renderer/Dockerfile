@@ -1,7 +1,9 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
+COPY archinsight-renderer/package*.json ./
+COPY packages/archinsight-graphviz/package.json /packages/archinsight-graphviz/package.json
+COPY packages/archinsight-graphviz/src /packages/archinsight-graphviz/src
+RUN npm ci --omit=dev --prefer-offline --no-audit --no-fund
 
 FROM node:22-alpine
 LABEL org.opencontainers.image.title="archinsight-renderer" \
@@ -33,8 +35,9 @@ ENV NODE_ENV=production \
     WORKER_STACK_MB=4
 WORKDIR /app
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
-COPY --chown=node:node package.json ./
-COPY --chown=node:node src ./src
+COPY --from=deps --chown=node:node /packages /packages
+COPY --chown=node:node archinsight-renderer/package.json ./
+COPY --chown=node:node archinsight-renderer/src ./src
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

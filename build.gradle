@@ -6,7 +6,10 @@ def artifactVersions = gradle.ext.archinsightVersions
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
 def npmArtifacts = [
     contracts: [dir: file('packages/archinsight-contracts'), versionKey: 'contracts', license: false],
+    editorSupport: [dir: file('packages/archinsight-editor-support'), versionKey: 'editorSupport', license: false],
+    graphviz : [dir: file('packages/archinsight-graphviz'), versionKey: 'graphviz', license: false],
     language: [dir: file('packages/insight-language'), versionKey: 'language', license: false],
+    workbench: [dir: file('packages/archinsight-workbench'), versionKey: 'workbench', license: false],
     web     : [dir: file('archinsight-web'), versionKey: 'web', license: false],
     renderer: [dir: file('archinsight-renderer'), versionKey: 'renderer', license: false],
     cli     : [dir: file('archinsight-cli'), versionKey: 'cli', license: true],
@@ -58,6 +61,40 @@ tasks.register('testPackageVersionSync', Exec) {
     commandLine 'node', '--test', 'scripts/package-version-sync.test.mjs'
 }
 
+tasks.register('testGraphvizContracts', Exec) {
+    group = 'verification'
+    description = 'Tests the shared Graphviz result contract and runtime boundaries.'
+    inputs.dir('packages/archinsight-graphviz/src')
+    inputs.dir('packages/archinsight-graphviz/test')
+    inputs.file('scripts/graphviz-boundaries.test.mjs')
+    commandLine 'node',
+        '--experimental-test-coverage',
+        '--test-coverage-include=packages/archinsight-graphviz/src/**/*.js',
+        '--test-coverage-lines=100',
+        '--test-coverage-branches=100',
+        '--test-coverage-functions=100',
+        '--test',
+        'packages/archinsight-graphviz/test/*.test.mjs',
+        'scripts/graphviz-boundaries.test.mjs'
+}
+
+tasks.register('testEditorSupportContracts', Exec) {
+    group = 'verification'
+    description = 'Tests presentation-neutral editor metadata and tree semantics.'
+    inputs.dir('packages/archinsight-editor-support/src')
+    inputs.dir('packages/archinsight-editor-support/test')
+    inputs.file('scripts/editor-package-boundaries.test.mjs')
+    commandLine 'node',
+        '--experimental-test-coverage',
+        '--test-coverage-include=packages/archinsight-editor-support/src/**/*.js',
+        '--test-coverage-lines=100',
+        '--test-coverage-branches=100',
+        '--test-coverage-functions=100',
+        '--test',
+        'packages/archinsight-editor-support/test/*.test.mjs',
+        'scripts/editor-package-boundaries.test.mjs'
+}
+
 tasks.register('copyLicenses') {
     group = 'build'
     description = 'Copies the root Apache license into publishable package directories.'
@@ -87,7 +124,7 @@ tasks.register('languageNpmInstall', Exec) {
     inputs.file('packages/insight-language/package-lock.json')
     outputs.dir('packages/insight-language/node_modules')
     workingDir = file('packages/insight-language')
-    commandLine npmCommand, 'install'
+    commandLine npmCommand, 'install', '--prefer-offline', '--no-audit', '--no-fund'
 }
 
 tasks.register('generateLanguageSources', Exec) {
@@ -123,7 +160,7 @@ tasks.register('languageNpmTest', Exec) {
 def coverageSummary = tasks.register('coverageSummary', Exec) {
     group = 'verification'
     description = 'Prints consolidated package coverage after all test suites complete.'
-    dependsOn 'languageNpmTest'
+    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts'
     inputs.file('test-coverage-baseline.json')
     inputs.file('scripts/print-coverage-summary.mjs')
     workingDir = rootProject.projectDir
@@ -159,7 +196,7 @@ tasks.register('dockerPush') {
 }
 
 tasks.named('check') {
-    dependsOn 'languageNpmTest', 'testPackageVersionSync'
+    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts', 'testPackageVersionSync'
 }
 
 gradle.projectsEvaluated {

@@ -7,8 +7,8 @@ import {
   diagramModeDefinition,
   diagramModeForQuery,
   queryForDiagramMode
-} from '$lib/diagram-query-presets';
-import type { DiagramMode, EditorViewMode, WorkspaceTab } from '$lib/workspace-types';
+} from '@archinsight/workbench/presets';
+import type { DiagramMode, EditorViewMode, WorkspaceTab } from '@archinsight/workbench/types';
 
 const defaultDiagramScale = 1;
 const minDiagramScale = 0.25;

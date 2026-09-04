@@ -3,7 +3,7 @@
 import { BUILTIN_VIEW_DEFINITIONS } from '@insight/language';
 import { mount, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
-import QueryEditorPanel from './QueryEditorPanel.svelte';
+import QueryEditorPanel from '@archinsight/workbench/query-editor-panel';
 
 describe('QueryEditorPanel built-in views', () => {
   it('renders every stable catalogue entry and maps the no-filter alias', async () => {

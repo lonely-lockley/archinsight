@@ -2,9 +2,9 @@
   import { tick } from 'svelte';
   import AuthMenu from '$lib/AuthMenu.svelte';
   import ProjectNavigationPanel from '$lib/ProjectNavigationPanel.svelte';
-  import WorkspaceEditor from '$lib/WorkspaceEditor.svelte';
+  import WorkspaceEditor from '@archinsight/workbench/workspace-editor';
   import WorkspaceToolbar from '$lib/WorkspaceToolbar.svelte';
-  import { defaultDiagramMode, defaultQuery } from '$lib/diagram-query-presets';
+  import { defaultDiagramMode, defaultQuery } from '@archinsight/workbench/presets';
   import ProjectDialog from '$lib/workspace/projects/ProjectDialog.svelte';
   import RepositoryContextMenu from '$lib/workspace/repository/RepositoryContextMenu.svelte';
   import RepositoryDeleteDialog from '$lib/workspace/repository/RepositoryDeleteDialog.svelte';
@@ -16,7 +16,7 @@
     minSidebarWidth
   } from '$lib/workspace/shell/layout-model';
   import WorkspaceTabs from '$lib/workspace/shell/WorkspaceTabs.svelte';
-  import type { MessageView, TreeNode } from '$lib/workspace-types';
+  import type { MessageView, TreeNode } from '@archinsight/workbench/types';
   import type {
     WorkspaceShellControllers,
     WorkspaceShellView

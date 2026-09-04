@@ -12,7 +12,7 @@ import {
   type WorkspaceCompletionSnapshot
 } from '$lib/workspace-completion-snapshot';
 import { isProjectSourceTab } from '$lib/workspace/editor/tab-persistence';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 
 const coreSourceIdentity = coreSources.some((source) => source.sourceName === 'core.ai')
   ? 'core.ai'

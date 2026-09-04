@@ -2,7 +2,7 @@
 
 import { mount, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import WorkspaceTabs from './WorkspaceTabs.svelte';
 
 const tab = (overrides: Partial<WorkspaceTab> = {}): WorkspaceTab => ({

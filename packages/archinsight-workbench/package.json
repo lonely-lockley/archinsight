@@ -1,0 +1,26 @@
+{
+  "name": "@archinsight/workbench",
+  "version": "3.0.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./workspace-editor": "./src/WorkspaceEditor.svelte",
+    "./query-editor-panel": "./src/QueryEditorPanel.svelte",
+    "./monaco": "./src/insight-monaco-language.ts",
+    "./monaco-themes": "./src/monaco-themes.ts",
+    "./presets": "./src/diagram-query-presets.ts",
+    "./svg-sanitizer": "./src/svg-sanitizer.ts",
+    "./empty-workspace": "./src/empty-workspace-strategy.ts",
+    "./types": "./src/workspace-types.ts"
+  },
+  "dependencies": {
+    "@archinsight/contracts": "file:../archinsight-contracts",
+    "@archinsight/editor-support": "file:../archinsight-editor-support",
+    "@insight/language": "file:../insight-language"
+  },
+  "peerDependencies": {
+    "monaco-editor": ">=0.55.0 <0.57.0",
+    "svelte": "^5.0.0"
+  }
+}

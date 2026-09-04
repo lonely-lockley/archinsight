@@ -6,7 +6,7 @@ import {
   normalizeDiagramMode,
   queryForDiagramMode,
   resolveStoredDiagramQuery
-} from './diagram-query-presets';
+} from '@archinsight/workbench/presets';
 
 describe('stored diagram query presets', () => {
   it('adapts the UI default alias to the canonical no-filter view', () => {

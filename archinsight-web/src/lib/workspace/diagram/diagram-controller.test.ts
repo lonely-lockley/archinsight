@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import { createDiagramController, type DiagramControllerPorts, emptyDiagramSvg } from './diagram-controller';
 import type { LinkProjectResult } from '@insight/language';
 

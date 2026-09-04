@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AnalysisController } from '../analysis/analysis-controller';
 import type { MonacoSession } from './monaco-session';
 import { createTabController } from './tab-controller';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
   createWorkspaceFileController,
   nextUntitledCounter,

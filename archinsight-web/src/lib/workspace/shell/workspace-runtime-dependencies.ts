@@ -33,7 +33,7 @@ import {
   writeWorkspace
 } from '$lib/storage';
 import { renderDotInBrowser } from '$lib/graphviz-renderer';
-import { sanitizeSvg } from '$lib/svg-sanitizer';
+import { sanitizeSvg } from '@archinsight/workbench/svg-sanitizer';
 import { downloadBlob, downloadText, svgToPngBlob } from '$lib/workspace/diagram/download';
 
 export const workspaceRuntimeDependencies = {

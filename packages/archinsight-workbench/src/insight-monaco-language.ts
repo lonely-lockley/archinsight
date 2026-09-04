@@ -8,6 +8,7 @@ import {
   type InsightLineToken,
   type LanguageSnapshot
 } from '@insight/language';
+import { semanticTokenModifierBits } from '@archinsight/editor-support';
 import type * as Monaco from 'monaco-editor';
 
 const keywordTokens = new Set([
@@ -149,19 +150,12 @@ function encodeSemanticTokens(tokens: ReturnType<typeof semanticHighlightInsight
       deltaColumn,
       token.length,
       insightSemanticTokenTypes.indexOf(token.type),
-      semanticTokenModifierBits(token.modifiers)
+      semanticTokenModifierBits(token.modifiers, insightSemanticTokenModifiers)
     );
     previousLine = token.line;
     previousColumn = token.column;
   }
   return { data: new Uint32Array(data) };
-}
-
-function semanticTokenModifierBits(modifiers: readonly string[] | undefined): number {
-  return (modifiers ?? []).reduce((bits, modifier) => {
-    const index = insightSemanticTokenModifiers.indexOf(modifier as (typeof insightSemanticTokenModifiers)[number]);
-    return index < 0 ? bits : bits | (1 << index);
-  }, 0);
 }
 
 function monacoTokens(

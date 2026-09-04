@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LinkResponse } from '$lib/api';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
   builtinView,
   createAnalysisRunner,

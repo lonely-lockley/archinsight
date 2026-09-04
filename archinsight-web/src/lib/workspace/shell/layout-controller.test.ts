@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ProjectUiState } from '$lib/workspace-types';
+import type { ProjectUiState } from '@archinsight/workbench/types';
 import { createLayoutController, type LayoutControllerPorts } from './layout-controller';
 import { defaultProjectUi, normalizeProjectUi } from './layout-model';
 

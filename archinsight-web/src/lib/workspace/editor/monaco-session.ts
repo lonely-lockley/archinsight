@@ -4,6 +4,7 @@ import {
   type CompletionKind,
   type LanguageSnapshot
 } from '@insight/language';
+import { completionDetail, completionSortText } from '@archinsight/editor-support';
 import type * as Monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import type { Diagnostic } from '$lib/api';
@@ -14,16 +15,16 @@ import {
   refreshInsightTokenVocabulary,
   type InsightSemanticTokensProvider,
   type InsightTokenVocabulary
-} from '$lib/insight-monaco-language';
+} from '@archinsight/workbench/monaco';
 import LanguageWorker from '$lib/language.worker?worker';
-import { defineInsightThemes, insightDarkTheme } from '$lib/monaco-themes';
+import { defineInsightThemes, insightDarkTheme } from '@archinsight/workbench/monaco-themes';
 import {
   visibleIdentifiersForSource,
   type WorkspaceCompletionSnapshot
 } from '$lib/workspace-completion-snapshot';
 import { isSourceDiagnostic } from '../analysis/diagnostics';
 import { markerRange } from './monaco-markers';
-import type { SourceLocation, WorkspaceTab } from '$lib/workspace-types';
+import type { SourceLocation, WorkspaceTab } from '@archinsight/workbench/types';
 
 type AnalysisSource = { readonly sourceIdentity: string; readonly content: string };
 
@@ -114,7 +115,8 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
             kind: completionItemKind(runtime, item),
             insertText: item.insertText,
             range,
-            detail: completionItemDetail(item)
+            detail: completionDetail(item),
+            sortText: completionSortText(item)
           }))
         };
       }
@@ -386,10 +388,6 @@ function completionItemKind(
     case 'ANNOTATION': return runtime.languages.CompletionItemKind.Function;
     case 'NEWLINE': return runtime.languages.CompletionItemKind.Snippet;
   }
-}
-
-function completionItemDetail(item: { kind: CompletionKind; imported?: boolean }): string {
-  return item.kind === 'IDENTIFIER' && item.imported === true ? 'imported identifier' : item.kind;
 }
 
 function clamp(value: number, min: number, max: number): number {

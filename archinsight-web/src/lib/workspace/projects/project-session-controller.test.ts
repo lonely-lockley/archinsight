@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ProjectSummary, WorkspaceTabState } from '$lib/storage';
-import type { WorkspaceTab } from '$lib/workspace-types';
+import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
   createProjectSessionController,
   emptyProjectSymbols,

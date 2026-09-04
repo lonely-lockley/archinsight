@@ -15,7 +15,7 @@ import type {
   SvgRenderResponse
 } from '$lib/api';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
-import type { DiagramMode, WorkspaceTab } from '$lib/workspace-types';
+import type { DiagramMode, WorkspaceTab } from '@archinsight/workbench/types';
 import { hasErrorDiagnostics } from '$lib/workspace-completion-snapshot';
 import { isProjectSourceTab } from '../editor/tab-persistence';
 import { errorMessage, isQueryErrorMessage } from '../messages/message-controller';

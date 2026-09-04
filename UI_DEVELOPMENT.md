@@ -1,8 +1,8 @@
 # UI Development Rules
 
 These rules apply to human contributors and coding agents changing UI code in
-`archinsight-web`. They exist to prevent the workspace from becoming a single
-stateful page again.
+`archinsight-web` or `packages/archinsight-workbench`. They exist to prevent the
+workspace from becoming a single stateful page again.
 
 ## Architecture
 
@@ -31,6 +31,14 @@ component -> controller -> infrastructure port
 Keep one shared workspace core for Editor and Playground. Express differences
 through `surface`, capabilities, and tested policy. Do not fork the workspace
 into independent Editor and Playground implementations.
+
+Reusable Svelte/Monaco workbench UI belongs in `packages/archinsight-workbench`.
+Web and VSCode may depend on its public subpath exports; the package must not
+import either application's source tree or private aliases such as `$lib` and
+`$app`. Keep routing, persistence, authentication, host messaging, and native
+editor enum mapping in their application adapters. Presentation-neutral
+completion, diagnostic, token, and tree semantics belong in the dependency-free
+`packages/archinsight-editor-support` package.
 
 Do not create module-global mutable workspace state. Every mounted workspace
 and every test must receive an isolated state/controller instance.
@@ -78,7 +86,8 @@ All UI tests must run through the package `check` task and therefore through:
 ```
 
 Coverage may not fall below the exact counters in
-`test-coverage-baseline.json`. New source files are part of the measured scope.
+`test-coverage-baseline.json`. New source files are part of the measured scope;
+the web coverage suite includes the physical workbench package sources.
 
 ## Styling
 

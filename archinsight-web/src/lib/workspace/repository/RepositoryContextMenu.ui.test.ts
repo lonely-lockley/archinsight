@@ -3,7 +3,7 @@
 import { mount, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import type { ControlState } from '$lib/actions/action-model';
-import type { TreeNode } from '$lib/workspace-types';
+import type { TreeNode } from '@archinsight/workbench/types';
 import RepositoryContextMenu from './RepositoryContextMenu.svelte';
 
 const enabled: ControlState = { hidden: false, disabled: false };

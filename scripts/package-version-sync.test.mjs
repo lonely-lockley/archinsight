@@ -85,6 +85,27 @@ test("Gradle version synchronization has no npm installation fallback", () => {
   assert.doesNotMatch(syncTask, /commandLine\s+npmCommand|package-lock-only|['"]install['"]/);
 });
 
+test("Gradle dependency installation remains registry-capable without audit waits", () => {
+  const gradleFiles = [
+    "build.gradle",
+    "archinsight-cli/build.gradle",
+    "archinsight-web/build.gradle",
+    "archinsight-vscode/build.gradle",
+    "archinsight-renderer/build.gradle",
+  ];
+  for (const relativePath of gradleFiles) {
+    const build = readFileSync(path.join(repositoryRoot, relativePath), "utf8");
+    assert.match(build, /commandLine npmCommand, 'install', '--prefer-offline', '--no-audit', '--no-fund'/);
+    assert.doesNotMatch(build, /commandLine npmCommand, 'install', '--offline'/);
+  }
+
+  for (const relativePath of ["archinsight-web/Dockerfile", "archinsight-renderer/Dockerfile"]) {
+    const dockerfile = readFileSync(path.join(repositoryRoot, relativePath), "utf8");
+    assert.match(dockerfile, /npm ci --omit=dev --prefer-offline --no-audit --no-fund/);
+    assert.doesNotMatch(dockerfile, /npm ci [^\n]*--offline(?:\s|$)/);
+  }
+});
+
 function fixturePackage(root, directoryName, name, version, extraSnapshots = {}) {
   const directory = path.join(root, directoryName);
   mkdirSync(directory);

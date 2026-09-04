@@ -3,7 +3,7 @@
 import { mount, tick, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import StructureTreeNode from './StructureTreeNode.svelte';
-import type { StructureTreeNodeModel } from './workspace-types';
+import type { StructureTreeNodeModel } from '@archinsight/workbench/types';
 
 describe('StructureTreeNode', () => {
   it('opens a non-leaf declaration from its row and folds it only from the chevron', async () => {
