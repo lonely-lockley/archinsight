@@ -252,8 +252,8 @@ function builtinViewFixture() {
     edge("eu/gateway", "eu/database", 43, "selected.ai"),
     edge("external/partner", "eu/gateway", 44, "peer.ai"),
   ];
-  edges.forEach((item, index) => graph.addRelation({
-    id: `references:${linkedEdgeKey(item)}:${index}`,
+  edges.forEach((item) => graph.addRelation({
+    id: item.id,
     kind: "REFERENCES",
     source: item.source,
     target: item.target,
@@ -312,6 +312,7 @@ function nestingLevel(item) {
 
 function edge(source, target, line, sourceIdentity, projected = false) {
   return {
+    id: `edge-${line.toString(16).padStart(32, "0")}`,
     source,
     target,
     operator: "Wire",
@@ -321,16 +322,4 @@ function edge(source, target, line, sourceIdentity, projected = false) {
     attributes: {},
     ...(projected ? { projected: true } : {}),
   };
-}
-
-function linkedEdgeKey(item) {
-  return [
-    item.sourceIdentity,
-    item.source,
-    item.target,
-    item.operator,
-    item.type,
-    item.projected === true ? "projected" : "real",
-    item.projectionScope ?? "",
-  ].join("\0");
 }

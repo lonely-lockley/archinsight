@@ -44,9 +44,9 @@
       "statements": { "covered": 569, "total": 633 }
     },
     "vscode": {
-      "status": "pending",
-      "scope": "Manifest contracts are enforced; executable extension coverage awaits an extension-host or extracted-module harness.",
-      "reason": "The current smoke tests validate package contributions and source registration but do not execute extension code, so a numeric baseline would be misleading."
+      "status": "100% threshold",
+      "scope": "Extracted diagram-session state machine, artifact/PNG lifecycle, SVG post-processing, and standalone preview document, plus manifest and architecture contracts.",
+      "reason": "The Node test runner enforces 100% line, branch, and function coverage for the extracted runtime modules. VSCode API adapters remain covered by build, type, manifest, and boundary checks until an extension-host harness is introduced."
     }
   }
 }

@@ -1,12 +1,3 @@
-import {
-  BaseErrorListener,
-  CharStream,
-  CommonTokenStream,
-  RecognitionException,
-  Recognizer,
-  type ATNSimulator,
-  type Token,
-} from "antlr4ng";
 import type {
   LanguageDiagnostic,
   LinkedContext,
@@ -26,9 +17,20 @@ import type {
   ResolvedPresentation,
   SourceLocation,
 } from "./contracts.js";
-import { InsightLexer } from "./generated/InsightLexer.js";
 import { InsightParser } from "./generated/InsightParser.js";
 import { IndexedGraph, type GraphNode, type GraphRelation, type RelationKind } from "./indexed-graph.js";
+import { linkedEdgeId } from "./linked-edge-id.js";
+import {
+  directChildrenByRule,
+  directTerminalTokens,
+  firstChildByRule,
+  firstDescendantByRule,
+  parseInsightSource,
+  sourceRangeOf,
+  tokenText,
+  tokenType as tokenTypeOf,
+  type AntlrParseTreeLike,
+} from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
 
 const ELEMENT_TYPE = "Element";
@@ -572,18 +574,9 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
 }
 
 function parseDocument(sourceName: string, source: string, typeSystem: TypeSystem, anonymousCounters: Map<string, number>): ParsedDocument {
-  const diagnostics: LanguageDiagnostic[] = [];
-  const lexer = new InsightLexer(CharStream.fromString(source));
-  lexer.removeErrorListeners();
-  lexer.addErrorListener(new LinkerErrorListener(sourceName, diagnostics));
-
-  const tokenStream = new CommonTokenStream(lexer);
-  const parser = new InsightParser(tokenStream);
-  parser.removeErrorListeners();
-  parser.addErrorListener(new LinkerErrorListener(sourceName, diagnostics));
-
-  const tree = parser.insight();
-  const architecture = firstDescendant(tree, "architectureFile");
+  const parsed = parseInsightSource({ sourceName, source });
+  const diagnostics = [...parsed.diagnostics];
+  const architecture = parsed.syntax.firstDescendant<RuleNode>("architectureFile");
   const contextDeclaration = architecture === undefined ? undefined : firstChild(architecture, "contextDeclaration");
   const environmentFile = architecture === undefined ? undefined : firstChild(architecture, "environmentFile");
   const environmentDeclaration = environmentFile === undefined ? undefined : firstChild(environmentFile, "environmentDeclaration");
@@ -2980,6 +2973,19 @@ function addProjectedRuleEdge(
         continue;
       }
       linkedEdges.push({
+        id: linkedEdgeId([
+          "projected",
+          edgeSourceIdentity,
+          source,
+          target,
+          effectiveOperator,
+          type,
+          projectionElement.id,
+          edgeProjectionScope,
+          sourcePlacement,
+          targetPlacement,
+          preservesLogicalRelationship ? originKey : undefined,
+        ]),
         source,
         target,
         originSource: fromId,
@@ -3638,13 +3644,9 @@ function buildIndexedGraph(
       imported.sourceName,
     ));
   }
-  const referenceOccurrences = new Map<string, number>();
   for (const edge of edges) {
-    const occurrenceKey = referenceRelationOccurrenceKey(edge);
-    const occurrence = referenceOccurrences.get(occurrenceKey) ?? 0;
-    referenceOccurrences.set(occurrenceKey, occurrence + 1);
     safeAddRelation(graph, graphRelation(
-      `references:${occurrenceKey}:${occurrence}`,
+      edge.id,
       "REFERENCES",
       edge.source,
       edge.target,
@@ -3655,18 +3657,6 @@ function buildIndexedGraph(
   }
 
   return graph;
-}
-
-function referenceRelationOccurrenceKey(edge: LinkedEdge): string {
-  return [
-    edge.sourceIdentity,
-    edge.source,
-    edge.target,
-    edge.operator,
-    edge.type,
-    edge.projected === true ? "projected" : "real",
-    edge.projectionScope ?? "",
-  ].join("\0");
 }
 
 function elementNode(
@@ -3767,6 +3757,16 @@ class CoreEdgeImplementation implements LinkOperatorImplementation {
     const edge = input.edge;
     return {
       edge: {
+        id: linkedEdgeId([
+          "authored",
+          edge.sourceName,
+          edge.line,
+          edge.column,
+          edge.source,
+          input.target.id,
+          edge.operator,
+          input.edgeType,
+        ]),
         source: edge.source,
         target: input.target.id,
         operator: edge.operator,
@@ -4199,72 +4199,38 @@ function diagnosticPosition(item: SourcePosition): Pick<LanguageDiagnostic, "lin
   };
 }
 
-type RuleNode = {
+type RuleNode = AntlrParseTreeLike & {
   readonly ruleIndex: number;
   getText(): string;
   getChildCount(): number;
-  getChild(index: number): unknown;
+  getChild(index: number): AntlrParseTreeLike | null;
 };
 
-function children(root: RuleNode, ruleName: string): RuleNode[] {
-  const result: RuleNode[] = [];
-  for (let index = 0; index < root.getChildCount(); index++) {
-    const item = root.getChild(index);
-    if (isRule(item) && rule(item) === ruleName) {
-      result.push(item);
-    }
-  }
-  return result;
+function children(root: AntlrParseTreeLike, rule: string): RuleNode[] {
+  return directChildrenByRule<RuleNode>(root, rule);
 }
 
-function firstChild(root: RuleNode, ruleName: string): RuleNode | undefined {
-  return children(root, ruleName)[0];
+function firstChild(root: AntlrParseTreeLike, rule: string): RuleNode | undefined {
+  return firstChildByRule<RuleNode>(root, rule);
 }
 
-function firstDescendant(root: unknown, ruleName: string): RuleNode | undefined {
-  if (isRule(root) && rule(root) === ruleName) {
-    return root;
-  }
-  if (!hasChildren(root)) {
-    return undefined;
-  }
-  for (let index = 0; index < root.getChildCount(); index++) {
-    const found = firstDescendant(root.getChild(index), ruleName);
-    if (found !== undefined) {
-      return found;
-    }
-  }
-  return undefined;
+function firstDescendant(root: AntlrParseTreeLike, rule: string): RuleNode | undefined {
+  return firstDescendantByRule<RuleNode>(root, rule);
 }
 
 function terminalText(root: RuleNode, tokenType: number): string | undefined {
-  for (let index = 0; index < root.getChildCount(); index++) {
-    const item = root.getChild(index);
-    if (typeof item === "object" && item !== null && "symbol" in item) {
-      const symbol = (item as { readonly symbol?: { readonly type: number; readonly text?: string } }).symbol;
-      if (symbol?.type === tokenType) {
-        return symbol.text;
-      }
-    }
-  }
-  return undefined;
+  const token = directTerminalTokens(root).find((item) => tokenTypeOf(item) === tokenType);
+  return token === undefined ? undefined : tokenText(token);
 }
 
 function textValue(root: RuleNode | undefined): string {
   if (root === undefined) {
     return "";
   }
-  const result: string[] = [];
-  for (let index = 0; index < root.getChildCount(); index++) {
-    const item = root.getChild(index);
-    if (typeof item === "object" && item !== null && "symbol" in item) {
-      const symbol = (item as { readonly symbol?: { readonly type: number; readonly text?: string } }).symbol;
-      if (symbol?.type === InsightParser.TEXT) {
-        result.push(symbol.text ?? "");
-      }
-    }
-  }
-  return result.join("");
+  return directTerminalTokens(root)
+    .filter((item) => tokenTypeOf(item) === InsightParser.TEXT)
+    .map(tokenText)
+    .join("");
 }
 
 function concreteProjectionRule(ruleNode: RuleNode, sourceName: string): ProjectionRuleDefinition {
@@ -4322,34 +4288,14 @@ function concreteProjectionTerm(termNode: RuleNode | undefined, sourceName: stri
   return { ...base, kind: "attribute", value };
 }
 
-function rule(node: RuleNode): string | undefined {
-  return InsightParser.ruleNames[node.ruleIndex];
-}
-
-function isRule(node: unknown): node is RuleNode {
-  return hasChildren(node) && "ruleIndex" in node && typeof (node as { readonly ruleIndex?: unknown }).ruleIndex === "number";
-}
-
-function hasChildren(node: unknown): node is { getChildCount(): number; getChild(index: number): unknown } {
-  return typeof node === "object"
-    && node !== null
-    && "getChildCount" in node
-    && "getChild" in node;
-}
-
 function position(node: unknown, _sourceName: string): SourcePosition {
-  if (typeof node === "object" && node !== null && "start" in node) {
-    const item = node as {
-      readonly start?: TokenLike | null;
-      readonly stop?: TokenLike | null;
-    };
-    const token = item.start;
-    const stop = item.stop ?? item.start;
+  if (typeof node === "object" && node !== null) {
+    const range = sourceRangeOf(node as AntlrParseTreeLike);
     return {
-      line: token?.line ?? 1,
-      column: (token?.column ?? 0) + 1,
-      endLine: stop?.line ?? token?.line ?? 1,
-      endColumn: endColumn(stop ?? token),
+      line: range.line,
+      column: range.column,
+      endLine: range.endLine,
+      endColumn: range.endColumn,
     };
   }
   return { line: 1, column: 1 };
@@ -4371,23 +4317,6 @@ function operatorInvocationHeaderPosition(invocation: RuleNode, sourceName: stri
     endLine: end.endLine ?? end.line,
     endColumn: end.endColumn ?? end.column + 1,
   };
-}
-
-interface TokenLike {
-  readonly line?: number;
-  readonly column?: number;
-  readonly text?: string | null;
-  readonly start?: number;
-  readonly stop?: number;
-}
-
-function endColumn(token: TokenLike | null | undefined): number {
-  if (token === undefined || token === null) {
-    return 2;
-  }
-  const textLength = token.text?.length
-    ?? (token.start !== undefined && token.stop !== undefined ? Math.max(1, token.stop - token.start + 1) : 1);
-  return (token.column ?? 0) + textLength + 1;
 }
 
 function prefixedPosition<K extends string>(
@@ -4414,33 +4343,4 @@ function addToGroup<K, V>(groups: Map<K, V[]>, key: K, value: V): void {
   const group = groups.get(key) ?? [];
   group.push(value);
   groups.set(key, group);
-}
-
-class LinkerErrorListener extends BaseErrorListener {
-  public constructor(
-    private readonly sourceName: string,
-    private readonly diagnostics: LanguageDiagnostic[],
-  ) {
-    super();
-  }
-
-  public override syntaxError<S extends Token, T extends ATNSimulator>(
-    _recognizer: Recognizer<T>,
-    offendingSymbol: S | null,
-    line: number,
-    column: number,
-    message: string,
-    _exception: RecognitionException | null,
-  ): void {
-    const end = endColumn(offendingSymbol);
-    this.diagnostics.push({
-      code: "SYNTAX_ERROR",
-      message,
-      sourceName: this.sourceName,
-      line,
-      column: column + 1,
-      endLine: offendingSymbol?.line ?? line,
-      endColumn: Math.max(column + 2, end),
-    });
-  }
 }

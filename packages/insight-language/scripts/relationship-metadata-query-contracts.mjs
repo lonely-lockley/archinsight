@@ -84,6 +84,14 @@ system storefront
 });
 assertNoErrors(result.diagnostics);
 
+const referenceIds = new Set(result.graph.relationsOfKind("REFERENCES"));
+assert.deepEqual(
+  referenceIds,
+  new Set(result.edges.map((edge) => edge.id)),
+  "authored and projected relationships must use the same IDs in the linked model and graph",
+);
+assert.equal(referenceIds.size, result.edges.length, "projected relationships must have unique IDs");
+
 const allProjected = selectByProjectionRoot("CONTAINS '/'");
 assert.equal(allProjected.edges.length, 3, "a true metadata predicate must keep every projected edge");
 assert.deepEqual(

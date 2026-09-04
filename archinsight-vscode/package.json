@@ -3,6 +3,7 @@
   "displayName": "Archinsight",
   "description": "Native VSCode support for Insight architecture models.",
   "version": "3.0.10",
+  "type": "module",
   "license": "Apache-2.0",
   "publisher": "archinsight",
   "icon": "assets/icon.png",
@@ -315,7 +316,7 @@
     "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.cjs --external:vscode --external:@viz-js/viz",
     "build": "npm run build:webview && npm run build:extension",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test test/*.test.mjs",
+    "test": "node --experimental-test-coverage --test-coverage-include=src/diagram-session.ts --test-coverage-include=src/diagram-svg.ts --test-coverage-include=src/preview-webview.ts --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/*.test.mjs",
     "check": "npm run typecheck && npm run build && npm test",
     "package": "npm run check && vsce package --out dist/archinsight-vscode-${npm_package_version}.vsix",
     "publish:marketplace": "npm run check && vsce publish"

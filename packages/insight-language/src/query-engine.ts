@@ -1524,54 +1524,7 @@ function queryRelationshipFromGraphRelation(
 }
 
 function linkedEdgesByGraphRelationId(result: LinkProjectResult): ReadonlyMap<string, LinkedEdge> {
-  const mapped = new Map<string, LinkedEdge>();
-  const edgesByKey = new Map<string, LinkedEdge[]>();
-  for (const edge of result.edges) {
-    const values = edgesByKey.get(linkedEdgeKey(edge)) ?? [];
-    values.push(edge);
-    edgesByKey.set(linkedEdgeKey(edge), values);
-  }
-  result.graph.relations().forEach((relation) => {
-    if (relation.kind !== "REFERENCES") {
-      return;
-    }
-    const edge = edgesByKey.get(graphReferenceKey(relation))?.shift();
-    if (edge !== undefined) {
-      mapped.set(relation.id, edge);
-    }
-  });
-  return mapped;
-}
-
-function linkedEdgeKey(edge: LinkedEdge): string {
-  return [
-    edge.sourceIdentity,
-    edge.source,
-    edge.target,
-    edge.operator,
-    edge.type,
-    edge.projected === true ? "projected" : "real",
-    edge.projectionScope ?? "",
-  ].join("\0");
-}
-
-function graphReferenceKey(relation: GraphRelation): string {
-  const prefix = "references:";
-  if (relation.id.startsWith(prefix)) {
-    const withoutPrefix = relation.id.slice(prefix.length);
-    const lastSeparator = withoutPrefix.lastIndexOf(":");
-    if (lastSeparator >= 0) {
-      return withoutPrefix.slice(0, lastSeparator);
-    }
-  }
-  return [
-    relation.ownerSource,
-    relation.source,
-    relation.target,
-    relation.type ?? relation.kind,
-    relation.type ?? relation.kind,
-    relation.projected === true ? "projected" : "real",
-  ].join("\0");
+  return new Map(result.edges.map((edge) => [edge.id, edge]));
 }
 
 function parentByChildFromGraph(result: LinkProjectResult): ReadonlyMap<string, string> {

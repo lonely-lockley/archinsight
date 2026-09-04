@@ -6,6 +6,7 @@ import type {
   ProjectSource,
 } from "./contracts.js";
 import { buildLanguageSnapshotResultFromSources, coreLanguageSnapshot } from "./core-snapshot.js";
+import { parseInsightSource, type SourceAnalysisMetadata } from "./parser-facade.js";
 import { ProjectLinkerState } from "./project-linker-state.js";
 
 export type ProjectAnalysisUpdateMode = "unchanged" | "incremental" | "full";
@@ -164,7 +165,7 @@ function buildProject(
   readonly state: ProjectLinkerState;
 } {
   const sources = [...sourcesByName.values()];
-  const snapshotSources = sources.filter((source) => sourceAffectsSnapshot(source.source));
+  const snapshotSources = sources.filter((source) => sourceMetadata(source.sourceName, source.source).contributesToSnapshot);
   const snapshotBuild = buildLanguageSnapshotResultFromSources(snapshotSources, baseSnapshots);
   return {
     snapshotBuild,
@@ -206,38 +207,31 @@ function orderedChanges(changes: readonly SourceChange[]): SourceChange[] {
 
 function canUpdateIncrementally(changes: readonly SourceChange[]): boolean {
   return changes.every((change) => {
-    if (sourceAffectsSnapshot(change.previous) || sourceAffectsSnapshot(change.next)) {
+    const previous = sourceMetadata(change.sourceName, change.previous);
+    const next = sourceMetadata(change.sourceName, change.next);
+    if (!previous.reliable || !next.reliable || previous.contributesToSnapshot || next.contributesToSnapshot) {
       return false;
     }
     if (change.previous === undefined) {
-      return supportDependencySignature(change.next) === "";
+      return next.supportDependencySignature === "";
     }
     if (change.next === undefined) {
       return true;
     }
-    return dependencySignature(change.previous) === dependencySignature(change.next);
+    return previous.dependencySignature === next.dependencySignature;
   });
 }
 
-function sourceAffectsSnapshot(source: string | undefined): boolean {
-  return source !== undefined
-    && /^\s*(?:define\s+(?:type|operator|enum|presentation)\b|extend\s+(?:type|enum|presentation)\b)/mu.test(source);
-}
-
-function dependencySignature(source: string | undefined): string {
-  return source === undefined ? "" : source
-    .split(/\r?\n/u)
-    .filter((line) => /^(?:context|environment|import|from|extend)\b/u.test(line))
-    .map((line) => line.trimEnd())
-    .join("\n");
-}
-
-function supportDependencySignature(source: string | undefined): string {
-  return source === undefined ? "" : source
-    .split(/\r?\n/u)
-    .filter((line) => /^(?:import|from|extend)\b/u.test(line))
-    .map((line) => line.trimEnd())
-    .join("\n");
+function sourceMetadata(sourceName: string, source: string | undefined): SourceAnalysisMetadata {
+  return source === undefined
+    ? {
+      role: "empty",
+      contributesToSnapshot: false,
+      dependencySignature: "",
+      supportDependencySignature: "",
+      reliable: true,
+    }
+    : parseInsightSource({ sourceName, source }).metadata;
 }
 
 function uniqueDiagnostics(diagnostics: readonly LanguageDiagnostic[]): readonly LanguageDiagnostic[] {

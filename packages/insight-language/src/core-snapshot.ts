@@ -1,12 +1,3 @@
-import {
-  BaseErrorListener,
-  CharStream,
-  CommonTokenStream,
-  RecognitionException,
-  Recognizer,
-  type ATNSimulator,
-  type Token,
-} from "antlr4ng";
 import type {
   AttributeDefinition,
   PresentationDefinition,
@@ -16,7 +7,6 @@ import type {
   OperatorDefinition,
   SourceLocation,
 } from "./contracts.js";
-import { InsightLexer } from "./generated/InsightLexer.js";
 import {
   AnonymousListAttributeDeclarationContext,
   AssignmentContext,
@@ -28,7 +18,6 @@ import {
   ExtendEnumDeclarationContext,
   ExtendPresentationDeclarationContext,
   ExtendTypeDeclarationContext,
-  InsightParser,
   OperatorConstructorDeclarationContext,
   PresentationAssignmentContext,
   PresentationSectionContext,
@@ -37,6 +26,13 @@ import {
   TypeReferenceContext,
   TypeUnionContext,
 } from "./generated/InsightParser.js";
+import {
+  firstChildByRule as firstChild,
+  parseInsightSource,
+  sourceLocationOf,
+  textOf,
+  type AntlrParseTreeLike,
+} from "./parser-facade.js";
 import { coreSource, coreSources } from "./generated/core-source.js";
 
 interface MutableTypeDefinition {
@@ -343,16 +339,8 @@ function collectLanguageSnapshotSource(
   const enumDeclarations: DeclarationReference[] = [];
   const enumExtensions: DeclarationReference[] = [];
   const presentationExtensions: DeclarationReference[] = [];
-  const lexer = new InsightLexer(CharStream.fromString(source));
-  lexer.removeErrorListeners();
-  lexer.addErrorListener(new SnapshotErrorListener(sourceName, diagnostics));
-
-  const tokenStream = new CommonTokenStream(lexer);
-  const parser = new InsightParser(tokenStream);
-  parser.removeErrorListeners();
-  parser.addErrorListener(new SnapshotErrorListener(sourceName, diagnostics));
-
-  const tree = parser.insight();
+  const parsed = parseInsightSource({ sourceName, source });
+  diagnostics.push(...parsed.diagnostics);
 
   const types = new Map<string, MutableTypeDefinition>();
   if (includeBuiltinTypes) {
@@ -363,11 +351,11 @@ function collectLanguageSnapshotSource(
   const enums: Array<LanguageSnapshot["enums"][number]> = [];
   const presentations: PresentationDefinition[] = [];
   const presentationExtensionDefinitions: PresentationDefinition[] = [];
-  const typeReferences = descendants(tree, "typeReference")
+  const typeReferences = parsed.syntax.descendants("typeReference")
     .map((reference) => typeReferenceDeclaration(reference as TypeReferenceContext, sourceName));
   const presentationDeclarations: DeclarationReference[] = [];
 
-  for (const declaration of descendants(tree, "declaration")) {
+  for (const declaration of parsed.syntax.descendants("declaration")) {
     const typeDeclaration = firstChild<DefineTypeDeclarationContext>(declaration, "defineTypeDeclaration");
     if (typeDeclaration !== undefined) {
       const type = ensureType(types, text(typeDeclaration.typeIdentifier()));
@@ -661,7 +649,7 @@ function operatorDefinitions(
 
 function operatorImplementation(operator: DefineOperatorDeclarationContext): string | undefined {
   for (const item of operator.operatorBodyItem()) {
-    const implementation = firstChild<unknown>(item, "implementationAssignment");
+    const implementation = firstChild<AntlrParseTreeLike>(item, "implementationAssignment");
     if (implementation !== undefined) {
       const value = firstChild<TextValueContext>(implementation, "textValue");
       return value === undefined ? "" : implementationValue(value);
@@ -1045,71 +1033,12 @@ function typeUnion(union: TypeUnionContext): readonly string[] {
   return union.typeReference().map((reference) => typeReference(reference).type);
 }
 
-function descendants(root: unknown, ruleName: string): unknown[] {
-  const result: unknown[] = [];
-  collectDescendants(root, ruleName, result);
-  return result;
-}
-
-function collectDescendants(root: unknown, ruleName: string, result: unknown[]): void {
-  if (rule(root) === ruleName) {
-    result.push(root);
-  }
-  for (let index = 0; index < childCount(root); index++) {
-    collectDescendants(child(root, index), ruleName, result);
-  }
-}
-
-function firstChild<T>(root: unknown, ruleName: string): T | undefined {
-  for (let index = 0; index < childCount(root); index++) {
-    const item = child(root, index);
-    if (rule(item) === ruleName) {
-      return item as T;
-    }
-  }
-  return undefined;
-}
-
-function rule(node: unknown): string | undefined {
-  if (typeof node !== "object" || node === null || !("ruleIndex" in node)) {
-    return undefined;
-  }
-  const index = (node as { readonly ruleIndex: number }).ruleIndex;
-  return InsightParser.ruleNames[index];
-}
-
-function childCount(node: unknown): number {
-  if (typeof node !== "object" || node === null || !("getChildCount" in node)) {
-    return 0;
-  }
-  return (node as { getChildCount(): number }).getChildCount();
-}
-
-function child(node: unknown, index: number): unknown {
-  return (node as { getChild(index: number): unknown }).getChild(index);
-}
-
-function text(node: { getText(): string } | null): string {
-  return node?.getText() ?? "";
+function text(node: AntlrParseTreeLike | null): string {
+  return node === null ? "" : textOf(node);
 }
 
 function position(node: unknown, sourceName: string): Omit<DeclarationReference, "name"> {
-  if (typeof node === "object" && node !== null && "start" in node) {
-    const item = node as {
-      readonly start?: TokenLike | null;
-      readonly stop?: TokenLike | null;
-    };
-    const token = item.start;
-    const stop = item.stop ?? item.start;
-    return {
-      sourceName,
-      line: token?.line ?? 1,
-      column: (token?.column ?? 0) + 1,
-      endLine: stop?.line ?? token?.line ?? 1,
-      endColumn: endColumn(stop ?? token),
-    };
-  }
-  return { sourceName, line: 1, column: 1 };
+  return sourceLocationOf(node as AntlrParseTreeLike | undefined, sourceName);
 }
 
 function diagnosticPosition(
@@ -1124,54 +1053,8 @@ function diagnosticPosition(
   };
 }
 
-interface TokenLike {
-  readonly line?: number;
-  readonly column?: number;
-  readonly text?: string | null;
-  readonly start?: number;
-  readonly stop?: number;
-}
-
-function endColumn(token: TokenLike | null | undefined): number {
-  if (token === undefined || token === null) {
-    return 2;
-  }
-  const textLength = token.text?.length
-    ?? (token.start !== undefined && token.stop !== undefined ? Math.max(1, token.stop - token.start + 1) : 1);
-  return (token.column ?? 0) + textLength + 1;
-}
-
 function formatDiagnostic(diagnostic: LanguageDiagnostic): string {
   return `${diagnostic.sourceName}:${diagnostic.line}:${diagnostic.column} ${diagnostic.code}: ${diagnostic.message}`;
-}
-
-class SnapshotErrorListener extends BaseErrorListener {
-  public constructor(
-    private readonly sourceName: string,
-    private readonly diagnostics: LanguageDiagnostic[],
-  ) {
-    super();
-  }
-
-  public override syntaxError<S extends Token, T extends ATNSimulator>(
-    _recognizer: Recognizer<T>,
-    offendingSymbol: S | null,
-    line: number,
-    column: number,
-    message: string,
-    _exception: RecognitionException | null,
-  ): void {
-    const end = endColumn(offendingSymbol);
-    this.diagnostics.push({
-      code: "SYNTAX_ERROR",
-      message,
-      sourceName: this.sourceName,
-      line,
-      column: column + 1,
-      endLine: offendingSymbol?.line ?? line,
-      endColumn: Math.max(column + 2, end),
-    });
-  }
 }
 
 export const coreLanguageSnapshot: LanguageSnapshot = buildLanguageSnapshotFromCoreSources(coreSources);

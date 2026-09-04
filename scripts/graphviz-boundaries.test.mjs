@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const consumers = [
   'archinsight-cli/src/cli-output.ts',
-  'archinsight-vscode/src/extension.ts',
+  'archinsight-vscode/src/diagram-rendering.ts',
   'archinsight-web/src/lib/graphviz.worker.ts',
   'archinsight-renderer/src/render-worker.mjs'
 ];
@@ -21,7 +21,7 @@ test('all Viz.js runtimes share result normalization without sharing execution b
 test('runtime-specific isolation and output policy remain in their host adapters', async () => {
   const browser = await readFile('archinsight-web/src/lib/graphviz.worker.ts', 'utf8');
   const renderer = await readFile('archinsight-renderer/src/render-worker.mjs', 'utf8');
-  const vscode = await readFile('archinsight-vscode/src/extension.ts', 'utf8');
+  const vscode = await readFile('archinsight-vscode/src/diagram-rendering.ts', 'utf8');
 
   assert.match(browser, /self\.onmessage/);
   assert.match(renderer, /workerData\.limits/);

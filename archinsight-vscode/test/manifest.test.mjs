@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const extensionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = json('package.json');
 const extensionSource = readFileSync(path.join(extensionRoot, 'src', 'extension.ts'), 'utf8');
+const diagramSessionSource = readFileSync(path.join(extensionRoot, 'src', 'diagram-session.ts'), 'utf8');
+const diagramServiceSource = readFileSync(path.join(extensionRoot, 'src', 'vscode-diagram-service.ts'), 'utf8');
 const controlsSource = readFileSync(path.join(extensionRoot, 'src', 'webview', 'ControlsApp.svelte'), 'utf8');
 const workbenchSource = readFileSync(path.join(extensionRoot, 'src', 'webview', 'WorkbenchApp.svelte'), 'utf8');
 
@@ -84,8 +86,8 @@ test('project structure uses the canonical language-core builders', () => {
 });
 
 test('built-in views come from the canonical language catalogue', () => {
-  assert(extensionSource.includes('BUILTIN_VIEW_QUERIES'));
-  assert(extensionSource.includes('builtinViewDefinition'));
+  assert(diagramServiceSource.includes('BUILTIN_VIEW_QUERIES'));
+  assert(diagramServiceSource.includes('builtinViewDefinition'));
   assert.equal(extensionSource.includes('./generated/builtin-view-queries'), false);
 });
 
@@ -104,6 +106,16 @@ test('webview trust boundaries use the shared runtime message contracts', () => 
   assert.equal(extensionSource.includes('type WorkbenchEditorMessage ='), false);
   assert.equal(controlsSource.includes('type IncomingMessage ='), false);
   assert.equal(workbenchSource.includes('type IncomingMessage ='), false);
+});
+
+test('custom editor and preview share one diagram state machine', () => {
+  assert(diagramSessionSource.includes('export class DiagramSession'));
+  assert.equal([...diagramServiceSource.matchAll(/new DiagramSession</g)].length, 1);
+  assert.equal([...extensionSource.matchAll(/this\.diagram = createDiagramSession\(/g)].length, 2);
+  assert.equal(extensionSource.includes('private renderGeneration'), false);
+  assert.equal(extensionSource.includes('private pngResolve'), false);
+  assert.equal(extensionSource.includes('private async exportPng'), false);
+  assert.equal(extensionSource.includes('function fileNameWithExtension'), false);
 });
 
 function assertPath(relativePath) {

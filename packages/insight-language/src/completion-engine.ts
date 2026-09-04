@@ -6,9 +6,8 @@ import type {
   InsightSyntaxProvider,
   SyntaxContext,
 } from "./contracts.js";
-import { CharStream, Token } from "antlr4ng";
-import { InsightLexer } from "./generated/InsightLexer.js";
 import { lineContextAt, type LineContext } from "./line-context.js";
+import { tokenizeInsightSource, tokenName, tokenStart, tokenStop, tokenType } from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, PROJECTION_TERM, TYPE_SLOT_REFERENCE, TypeSystem } from "./type-system.js";
 
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
@@ -1079,29 +1078,30 @@ function currentTokenType(
   replacementStartOffset: number,
   replacementEndOffset: number,
 ): string | undefined {
-  const lexer = new InsightLexer(CharStream.fromString(source));
-  lexer.removeErrorListeners();
-  while (true) {
-    const token = lexer.nextToken();
-    if (token.type === Token.EOF) {
+  const tokenization = tokenizeInsightSource(source);
+  for (const token of tokenization.tokens) {
+    const type = tokenType(token);
+    const start = tokenStart(token);
+    const stop = tokenStop(token);
+    const name = tokenName(tokenization.tokenName, type);
+    if (type === -1) {
       return undefined;
     }
-    if (token.start < 0 || token.stop < 0 || isTechnicalTokenType(token.type)) {
+    if (start < 0 || stop < 0 || isTechnicalTokenType(name)) {
       continue;
     }
-    const tokenStart = token.start;
-    const tokenEnd = token.stop + 1;
-    if (tokenStart < replacementEndOffset
-      && replacementStartOffset < tokenEnd
-      && tokenStart <= cursorOffset
-      && cursorOffset < tokenEnd) {
-      return InsightLexer.symbolicNames[token.type] ?? String(token.type);
+    const end = stop + 1;
+    if (start < replacementEndOffset
+      && replacementStartOffset < end
+      && start <= cursorOffset
+      && cursorOffset < end) {
+      return name;
     }
   }
+  return undefined;
 }
 
-function isTechnicalTokenType(type: number): boolean {
-  const name = InsightLexer.symbolicNames[type];
+function isTechnicalTokenType(name: string): boolean {
   return name === "EOL"
     || name === "INDENT"
     || name === "DEDENT"

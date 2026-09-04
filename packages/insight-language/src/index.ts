@@ -18,6 +18,34 @@ export {
   parseWithGeneratedInsightParser,
 } from "./generated-provider.js";
 export {
+  ParsedSyntaxModel,
+  childrenOf,
+  descendantsByRule,
+  directChildrenByRule,
+  directTerminalTokens,
+  firstChildByRule,
+  firstDescendantByRule,
+  firstTokenByName,
+  firstTokenTextByName,
+  parseInsightSource,
+  ruleName,
+  sourceLocationOf,
+  sourceRangeOf,
+  startToken,
+  stopToken,
+  terminalSymbol,
+  textOf,
+  tokenizeInsightSource,
+  tokenColumn,
+  tokenIndex,
+  tokenLine,
+  tokenName,
+  tokenStart,
+  tokenStop,
+  tokenText,
+  tokenType,
+} from "./parser-facade.js";
+export {
   buildLanguageSnapshotResultFromSources,
   buildLanguageSnapshotFromSources,
   buildLanguageSnapshotFromCore,
@@ -69,12 +97,20 @@ export type {
 export type {
   AntlrAdapterInput,
   AntlrParseFunction,
+} from "./antlr-adapter.js";
+export type {
   AntlrParseFailureLike,
   AntlrParseTreeLike,
   AntlrSyntaxErrorLike,
   AntlrTokenLike,
+  InsightTokenization,
+  ParsedSource,
+  ParsedSourceRole,
+  ParseInsightSourceRequest,
+  SourceAnalysisMetadata,
+  SourceRange,
   TokenNameResolver,
-} from "./antlr-adapter.js";
+} from "./parser-facade.js";
 export type {
   InsightLineLexerState,
   InsightLineToken,
@@ -112,6 +148,7 @@ export type {
   LinkedAnnotation,
   LinkedContext,
   LinkedEdge,
+  LinkedEdgeId,
   LinkedElement,
   LinkedImport,
   LinkProjectRequest,

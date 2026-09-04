@@ -88,6 +88,63 @@ import app from context demo
 ]);
 assert.equal(supportAddition.mode, "full");
 
+const commentSession = ProjectAnalysisSession.create([
+  source("comment.ai", `context comments
+
+# define type ThisIsOnlyAComment
+system app
+`),
+]);
+assert.deepEqual(commentSession.analysis().snapshotSources, []);
+const commentEdit = commentSession.update([
+  source("comment.ai", `context comments
+
+# define type StillOnlyAComment
+system app
+`),
+]);
+assert.equal(commentEdit.mode, "incremental");
+
+const formattingSession = ProjectAnalysisSession.create([
+  source("formatted.ai", `context demo
+
+import vendor from context external
+system app
+`),
+  source("external.ai", `context external
+
+system vendor
+`),
+]);
+const formattingOnly = formattingSession.update([
+  source("formatted.ai", `# formatting does not change dependencies
+context demo
+
+# same import
+import   vendor   from context external
+system app
+`),
+  source("external.ai", `context external
+
+system vendor
+`),
+]);
+assert.equal(formattingOnly.mode, "incremental");
+
+const anonymousImportSession = ProjectAnalysisSession.create([
+  source("main.ai", model("system", "Main")),
+]);
+const anonymousImportAddition = anonymousImportSession.update([
+  source("main.ai", model("system", "Main")),
+  source("consumer.ai", `context consumer
+
+system client
+    links:
+        -> app from demo
+`),
+]);
+assert.equal(anonymousImportAddition.mode, "full");
+
 console.log("project analysis session contracts passed");
 
 function model(constructor, name) {

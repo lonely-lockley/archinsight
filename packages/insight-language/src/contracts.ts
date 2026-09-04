@@ -12,6 +12,8 @@ export type CompletionKind =
 import type { IndexedGraph } from "./indexed-graph.js";
 import type { BuiltinDiagramView } from "./builtin-views.js";
 
+export type LinkedEdgeId = string;
+
 export interface CompletionItem {
   readonly label: string;
   readonly insertText: string;
@@ -198,6 +200,7 @@ export interface LinkedImport {
 }
 
 export interface LinkedEdge {
+  readonly id: LinkedEdgeId;
   readonly source: string;
   readonly target: string;
   readonly originSource?: string;
