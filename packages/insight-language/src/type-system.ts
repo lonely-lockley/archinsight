@@ -62,6 +62,16 @@ export class TypeSystem {
       .filter((constructor) => this.isAssignable(constructor.ownerType, expectedType));
   }
 
+  constructorsForSpelling(spelling: string): readonly ConstructorDefinition[] {
+    return this.constructorsBySpelling.get(spelling) ?? [];
+  }
+
+  constructorsDeclaredBy(type: string): readonly ConstructorDefinition[] {
+    return [...this.constructorsBySpelling.values()]
+      .flat()
+      .filter((constructor) => constructor.ownerType === type);
+  }
+
   findConstructor(spelling: string, expectedType = NOTHING): ConstructorDefinition | undefined {
     const candidates = this.constructorsBySpelling.get(spelling) ?? [];
     if (expectedType === NOTHING) {

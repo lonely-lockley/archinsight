@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const linker = source("../src/project-linker.ts");
+const antlrAdapter = source("../src/antlr-adapter.ts");
+const documentAggregate = source("../src/document-aggregate.ts");
 const queryEngine = source("../src/query-engine.ts");
 const querySyntax = source("../src/query-syntax.ts");
 const queryContext = source("../src/query-execution-context.ts");
@@ -17,6 +19,14 @@ const tabPersistence = source("../../../archinsight-web/src/lib/workspace/editor
 
 assert(linker.includes('from "./presentation-resolver.js"'));
 assert(linker.includes('from "./linked-project-index.js"'));
+assert(linker.includes('from "./document-aggregate.js"'));
+assert(antlrAdapter.includes('from "./document-aggregate.js"'));
+assert(documentAggregate.includes("documentAggregateRoot"));
+assert(documentAggregate.includes("documentAggregateMember"));
+assert.equal(linker.includes('findConstructor("environment", "Environment")'), false,
+  "document aggregate roots must resolve from capabilities, not built-in names");
+assert.equal(linker.includes('constructorsForExpectedType("DeploymentElement")'), false,
+  "aggregate member fallback must resolve from the root schema");
 assert.deepEqual(stageCalls(linker), [
   "createLinkingWorkspace",
   "resolveDeploymentStage",

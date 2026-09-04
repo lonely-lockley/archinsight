@@ -10,6 +10,11 @@ import type {
   VisibleIdentifier,
 } from "./contracts.js";
 import {
+  aggregateGroupAttribute,
+  isDocumentAggregateMember,
+  resolveDocumentAggregateRoot,
+} from "./document-aggregate.js";
+import {
   childrenOf,
   directChildrenByRule,
   firstChildByRule,
@@ -231,11 +236,15 @@ function createCompletionScope(
       state.contextId = textOf(environmentName);
     }
     let environmentFrame: MutableElementFrame | undefined;
+    let documentAggregateType: string | undefined;
     if (environmentDeclaration !== undefined && startsBefore(environmentDeclaration, cursorOffset)) {
-      const baseEnvironmentType = typeSystem.findConstructor("environment", "Environment")?.ownerType;
-      const environmentType = baseEnvironmentType === undefined
-        ? undefined
-        : completionEnvironmentDeclarationType(typeSystem, baseEnvironmentType, environmentDeclaration, input.ruleNames);
+      documentAggregateType = completionDocumentAggregateType(
+        typeSystem,
+        environmentDeclaration,
+        environmentFile,
+        input.ruleNames,
+      );
+      const environmentType = documentAggregateType;
       if (environmentName !== undefined && environmentType !== undefined) {
         state.visibleIdentifiers.set(textOf(environmentName), {
           label: textOf(environmentName),
@@ -258,7 +267,7 @@ function createCompletionScope(
       processArchitectureItem(item, CONTEXT, undefined, cursorOffset, cursor, typeSystem, state, input.ruleNames);
     }
     if (environmentFile !== undefined) {
-      const environmentType = environmentFrame?.type ?? typeSystem.findConstructor("environment", "Environment")?.ownerType;
+      const environmentType = environmentFrame?.type ?? documentAggregateType;
       for (const item of directChildrenByRule(environmentFile, "architectureTopLevelItem", input.ruleNames)) {
         processArchitectureItem(
           item,
@@ -336,7 +345,7 @@ function processLineFallbackScope(
     if (declaration.constructor === "context") {
       state.contextId = declaration.identifier;
     }
-    const frame = mutableFrame(indent, resolvedType);
+    const frame = mutableFrame(indent, resolvedType, undefined, parent);
     stack.push(frame);
     state.visibleIdentifiers.set(declaration.identifier, { label: declaration.identifier, type: resolvedType, imported: false });
   }
@@ -345,30 +354,47 @@ function processLineFallbackScope(
   }
 }
 
-function completionEnvironmentDeclarationType(
+function completionDocumentAggregateType(
   typeSystem: TypeSystem,
-  baseType: string,
   declaration: AntlrParseTreeLike,
+  environmentFile: AntlrParseTreeLike | undefined,
   ruleNames: readonly string[],
-): string {
-  const projectEnvironmentTypes = typeSystem.descendantTypes(baseType)
-    .filter((type) => !typeSystem.constructorsForExpectedType(type).some((constructor) => constructor.ownerType === type));
-  const capabilityNames = completionEnvironmentCapabilityNames(declaration, ruleNames);
-  if (capabilityNames.size > 0) {
-    const matchingTypes = projectEnvironmentTypes.filter((type) =>
-      [...capabilityNames].every((name) => typeSystem.attribute(type, name) !== undefined)
-    );
-    if (matchingTypes.length === 1) {
-      return matchingTypes[0]!;
-    }
-  }
-  return projectEnvironmentTypes.length === 1 ? projectEnvironmentTypes[0]! : baseType;
+): string | undefined {
+  const groupNames = completionAggregateGroupNames(declaration, environmentFile, typeSystem, ruleNames);
+  return resolveDocumentAggregateRoot(typeSystem, groupNames)?.type;
 }
 
-function completionEnvironmentCapabilityNames(
+function completionAggregateGroupNames(
   declaration: AntlrParseTreeLike,
+  environmentFile: AntlrParseTreeLike | undefined,
+  typeSystem: TypeSystem,
   ruleNames: readonly string[],
 ): ReadonlySet<string> {
+  const result = completionNamedListNames(declaration, ruleNames);
+  if (environmentFile !== undefined) {
+    for (const item of directChildrenByRule(environmentFile, "architectureTopLevelItem", ruleNames)) {
+      const object = firstDescendantByRule(item, "objectDeclaration", ruleNames);
+      if (object === undefined) {
+        continue;
+      }
+      const constructorName = firstChildByRule(object, "elementConstructor", ruleNames);
+      if (constructorName === undefined || !typeSystem.constructorsForSpelling(textOf(constructorName))
+        .some((constructor) => isDocumentAggregateMember(typeSystem, constructor.ownerType))) {
+        continue;
+      }
+      const body = firstChildByRule(object, "objectBody", ruleNames);
+      if (body !== undefined) {
+        collectNamedListNamesFromBody(body, result, ruleNames);
+      }
+    }
+  }
+  return result;
+}
+
+function completionNamedListNames(
+  declaration: AntlrParseTreeLike,
+  ruleNames: readonly string[],
+): Set<string> {
   const result = new Set<string>();
   const body = firstChildByRule(declaration, "objectBody", ruleNames);
   if (body !== undefined) {
@@ -623,11 +649,14 @@ function processList(
     return;
   }
   const attribute = textOf(listName);
-  const attributeDefinition = typeSystem.attribute(ownerType, attribute);
+  const rootType = ownerFrame?.parentType;
+  const aggregateAttribute = aggregateGroupAttribute(typeSystem, rootType, ownerType, attribute);
+  const attributeOwnerType = aggregateAttribute === undefined ? ownerType : rootType!;
+  const attributeDefinition = typeSystem.attribute(attributeOwnerType, attribute);
   const expectedType = attributeDefinition === undefined ? undefined : typeSystem.nestedElementType(attributeDefinition);
   if ((contains(list, cursorOffset, cursor) || isIndentedUnderListHeader(list, cursor))
     && cursor.line > tokenLine(startToken(list))) {
-    state.lists.unshift({ indent: indentLevel(list), ownerType, attribute });
+    state.lists.unshift({ indent: indentLevel(list), ownerType: attributeOwnerType, attribute });
   }
   for (const listItem of directChildrenByRule(list, "listBodyItem", ruleNames)) {
     const item = firstChildByRule(listItem, "architectureBodyItem", ruleNames);
@@ -686,7 +715,7 @@ function processElementDeclaration(
     || resolvedType === undefined) {
     return;
   }
-  const frame = mutableFrame(indentLevel(declaration), resolvedType);
+  const frame = mutableFrame(indentLevel(declaration), resolvedType, undefined, parentType);
   state.frames.unshift(frame);
   const body = firstChildByRule(declaration, "objectBody", ruleNames);
   if (body !== undefined) {
@@ -1203,10 +1232,16 @@ function cursorPosition(source: string, offset: number): CursorPosition {
   return { line, column };
 }
 
-function mutableFrame(indent: number, type: string, completionTypes?: readonly string[]): MutableElementFrame {
+function mutableFrame(
+  indent: number,
+  type: string,
+  completionTypes?: readonly string[],
+  parentType?: string,
+): MutableElementFrame {
   return {
     indent,
     type,
+    ...(parentType === undefined ? {} : { parentType }),
     ...(completionTypes === undefined || completionTypes.length === 0 ? {} : { completionTypes }),
     assignedAttributes: new Set(),
   };

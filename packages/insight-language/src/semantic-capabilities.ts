@@ -1,4 +1,6 @@
 export const TYPE_CAPABILITIES = Object.freeze({
+  documentAggregateRoot: "document-aggregate-root",
+  documentAggregateMember: "document-aggregate-member",
   deploymentElement: "deployment-element",
   deploymentProfile: "deployment-profile",
   deployment: "deployment",

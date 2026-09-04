@@ -600,7 +600,7 @@ function identifierPositionItems(
   const implicitObjectTypeSlotOperatorItems = implicitObjectType === undefined
     ? []
     : typeSlotOperatorItems(typeSystem, implicitObjectType);
-  if (slotReferenceItems.length > 0 && (implicitObjectType === undefined || implicitObjectTypeSlotOperatorItems.length === 0)) {
+  if (slotReferenceItems.length > 0 && implicitObjectType === undefined) {
     return slotReferenceItems;
   }
   result.push(...slotReferenceItems);

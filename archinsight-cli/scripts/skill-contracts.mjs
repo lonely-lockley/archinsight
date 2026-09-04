@@ -18,6 +18,8 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const cliRoot = path.resolve(scriptDirectory, "..");
 const repositoryRoot = path.resolve(cliRoot, "..");
 const cliEntrypoint = path.join(cliRoot, "build", "index.js");
+const canonicalResourcesRoot = path.join(cliRoot, "src", "skill", "resources");
+const cliVersion = JSON.parse(readFileSync(path.join(cliRoot, "package.json"), "utf8")).version;
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "archinsight-skill-contracts-"));
 
 try {
@@ -27,6 +29,7 @@ try {
     runCli(["skill", "init", repositoryRoot, "--target", target, "--out", output]);
     generated.set(target, output);
     verifyEntrypoint(target, output);
+    verifyCanonicalStaticResources(target, output);
     verifySharedFiles(output);
   }
 
@@ -43,6 +46,30 @@ try {
   console.log("agent skill contract fixtures passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
+}
+
+function verifyCanonicalStaticResources(target, output) {
+  assertResourceTreeEquals(path.join(canonicalResourcesRoot, "shared"), output);
+  assertResourceTreeEquals(path.join(canonicalResourcesRoot, "targets", target), output, cliVersion);
+}
+
+function assertResourceTreeEquals(expectedRoot, actualRoot, version) {
+  for (const relativePath of filesUnder(expectedRoot)) {
+    const expected = readFileSync(path.join(expectedRoot, relativePath), "utf8")
+      .replaceAll("{{CLI_VERSION}}", version ?? "{{CLI_VERSION}}");
+    const actualFile = path.join(actualRoot, relativePath);
+    assert(existsSync(actualFile), `generated skill is missing canonical resource '${relativePath}'`);
+    assert.equal(readFileSync(actualFile, "utf8"), expected, `${relativePath} differs from its canonical resource`);
+  }
+}
+
+function filesUnder(root, relative = "") {
+  return readdirSync(path.join(root, relative), { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .flatMap((entry) => {
+      const child = path.join(relative, entry.name);
+      return entry.isDirectory() ? filesUnder(root, child) : [child];
+    });
 }
 
 function runCli(args) {

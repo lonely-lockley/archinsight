@@ -19,6 +19,12 @@ import type {
 } from "./contracts.js";
 import { InsightParser } from "./generated/InsightParser.js";
 import { elementTypeOrKindIsExplicitlyExternal } from "./externality.js";
+import {
+  aggregateGroupAttribute,
+  aggregateMemberType,
+  isDocumentAggregateMember,
+  resolveDocumentAggregateRoot,
+} from "./document-aggregate.js";
 import { IndexedGraph } from "./indexed-graph.js";
 import { linkedEdgeId } from "./linked-edge-id.js";
 import { syntheticLinkedLocalId } from "./linked-identity.js";
@@ -808,31 +814,41 @@ function collectEnvironmentDeclaration(
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
 ): ParsedElement | undefined {
-  const constructor = typeSystem.findConstructor("environment", "Environment");
-  const environmentType = environmentDeclarationType(typeSystem, constructor?.ownerType ?? "Environment", declaration, environmentFile);
+  const requiredGroups = aggregateRequiredGroupNames(declaration, environmentFile, typeSystem);
+  const resolution = resolveDocumentAggregateRoot(typeSystem, requiredGroups);
   const name = firstChild(declaration, "environmentDeclarationName");
   const localId = name?.getText() ?? document.context.id;
-  if (constructor === undefined) {
+  if (resolution === undefined) {
     document.diagnostics.push({
       code: "CONSTRUCTOR_NOT_DECLARED",
-      message: "Unknown element kind 'environment'",
+      message: `No type declares capability '${TYPE_CAPABILITIES.documentAggregateRoot}'`,
       sourceName: document.sourceName,
       ...position(declaration, document.sourceName),
     });
     return undefined;
   }
+  if (resolution.ambiguousTypes.length > 0) {
+    document.diagnostics.push({
+      code: "DOCUMENT_AGGREGATE_SCHEMA_AMBIGUOUS",
+      message: `Document root matches multiple aggregate schemas: ${resolution.ambiguousTypes.map((type) => `'${type}'`).join(", ")}`,
+      sourceName: document.sourceName,
+      ...position(name ?? declaration, document.sourceName),
+    });
+  }
+  const environmentType = resolution.type;
+  const constructor = aggregateRootConstructor(typeSystem, environmentType);
   const element: ParsedElement = {
     id: `${document.context.id}/${localId}`,
     context: document.context.id,
     localId,
     type: environmentType,
-    constructor: constructor.spelling,
+    constructor: constructor?.spelling ?? "environment",
     sourceName: document.sourceName,
     anonymous: false,
     projectionRules: [],
     attributes: {},
     referenceAttributePositions: {},
-    scalarAttributes: { ...(constructor.defaults ?? {}) },
+    scalarAttributes: { ...(constructor?.defaults ?? {}) },
     scalarAttributePositions: {},
     assignedScalarAttributes: new Set(),
     deploymentActions: [],
@@ -849,27 +865,20 @@ function collectEnvironmentDeclaration(
   return element;
 }
 
-function environmentDeclarationType(
+function aggregateRootConstructor(
   typeSystem: TypeSystem,
-  baseType: string,
-  declaration: RuleNode,
-  environmentFile: RuleNode | undefined,
-): string {
-  const projectEnvironmentTypes = typeSystem.descendantTypes(baseType)
-    .filter((type) => !typeSystem.constructorsForExpectedType(type).some((constructor) => constructor.ownerType === type));
-  const capabilityNames = environmentCapabilityNames(declaration, environmentFile, typeSystem);
-  if (capabilityNames.size > 0) {
-    const matchingTypes = projectEnvironmentTypes.filter((type) =>
-      [...capabilityNames].every((name) => typeSystem.attribute(type, name) !== undefined)
-    );
-    if (matchingTypes.length === 1) {
-      return matchingTypes[0]!;
+  rootType: string,
+): ConstructorDefinition | undefined {
+  for (const type of [rootType, ...typeSystem.baseTypes(rootType)]) {
+    const constructors = typeSystem.constructorsDeclaredBy(type);
+    if (constructors.length === 1) {
+      return constructors[0];
     }
   }
-  return projectEnvironmentTypes.length === 1 ? projectEnvironmentTypes[0]! : baseType;
+  return undefined;
 }
 
-function environmentCapabilityNames(
+function aggregateRequiredGroupNames(
   declaration: RuleNode,
   environmentFile: RuleNode | undefined,
   typeSystem: TypeSystem,
@@ -882,7 +891,7 @@ function environmentCapabilityNames(
   if (environmentFile !== undefined) {
     for (const item of children(environmentFile, "architectureTopLevelItem")) {
       const object = firstDescendant(item, "objectDeclaration");
-      if (object === undefined || !isDeploymentObject(object, typeSystem)) {
+      if (object === undefined || !isAggregateMemberObject(object, typeSystem)) {
         continue;
       }
       const objectBody = firstChild(object, "objectBody");
@@ -907,12 +916,10 @@ function collectNamedListNames(body: RuleNode, result: Set<string>): void {
   }
 }
 
-function isDeploymentObject(object: RuleNode, typeSystem: TypeSystem): boolean {
+function isAggregateMemberObject(object: RuleNode, typeSystem: TypeSystem): boolean {
   const constructorName = firstChild(object, "elementConstructor")?.getText();
-  const constructor = constructorName === undefined
-    ? undefined
-    : typeSystem.findConstructor(constructorName, "DeploymentElement");
-  return constructor !== undefined && typeSystem.isAssignable(constructor.ownerType, "Deployment");
+  return constructorName !== undefined && typeSystem.constructorsForSpelling(constructorName)
+    .some((constructor) => isDocumentAggregateMember(typeSystem, constructor.ownerType));
 }
 
 function collectTopLevelItem(
@@ -1194,15 +1201,17 @@ function collectGroupingList(
     return false;
   }
   const listName = firstChild(list, "listName")?.getText() ?? "";
-  if (!typeSystem.isAssignable(ownerType, "Deployment")
+  const root = aggregateParent(owner, document, typeSystem);
+  if (root === undefined
+    || !isDocumentAggregateMember(typeSystem, ownerType)
     || typeSystem.attribute(ownerType, listName) !== undefined
     || typeSystem.anonymousListAttribute(ownerType) === undefined) {
     return false;
   }
-  if (collectImplicitDeploymentGroupObject(list, listName, owner, document, typeSystem)) {
+  if (collectImplicitAggregateGroupObject(list, listName, owner, root, document, typeSystem)) {
     return true;
   }
-  const expectedObjectType = deploymentGroupAttributeType(owner, listName, document, typeSystem);
+  const expectedObjectType = aggregateGroupType(root.type, ownerType, listName, typeSystem);
   for (const item of children(list, "listBodyItem")) {
     const bodyItem = firstChild(item, "architectureBodyItem");
     if (bodyItem !== undefined) {
@@ -1218,10 +1227,11 @@ function collectGroupingList(
   return true;
 }
 
-function collectImplicitDeploymentGroupObject(
+function collectImplicitAggregateGroupObject(
   list: RuleNode,
   listName: string,
   owner: ParsedElement,
+  root: ParsedElement,
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
 ): boolean {
@@ -1229,7 +1239,7 @@ function collectImplicitDeploymentGroupObject(
     return false;
   }
   const diagnosticCount = document.diagnostics.length;
-  const constructor = resolveDeploymentGroupConstructor(listName, firstChild(list, "listName"), owner, document, typeSystem);
+  const constructor = resolveAggregateGroupConstructor(listName, firstChild(list, "listName"), owner, root, document, typeSystem);
   if (constructor === undefined) {
     return document.diagnostics.length > diagnosticCount;
   }
@@ -1239,18 +1249,20 @@ function collectImplicitDeploymentGroupObject(
   return true;
 }
 
-function resolveDeploymentGroupConstructor(
+function resolveAggregateGroupConstructor(
   listName: string,
   listNameNode: RuleNode | undefined,
   owner: ParsedElement,
+  root: ParsedElement,
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
 ): ConstructorDefinition | undefined {
-  const attributeType = deploymentGroupAttributeType(owner, listName, document, typeSystem);
+  const attributeType = aggregateGroupType(root.type, owner.type, listName, typeSystem);
   if (attributeType !== undefined) {
     return resolveImplicitObjectConstructor(attributeType, listName, listNameNode, document, typeSystem);
   }
-  const constructors = typeSystem.constructorsForExpectedType("DeploymentElement")
+  const memberType = aggregateMemberType(typeSystem, root.type);
+  const constructors = memberType === undefined ? [] : typeSystem.constructorsForExpectedType(memberType)
     .filter((constructor) => constructor.spelling === listName);
   if (constructors.length === 0) {
     return undefined;
@@ -1258,7 +1270,7 @@ function resolveDeploymentGroupConstructor(
   if (constructors.length > 1) {
     document.diagnostics.push({
       code: "CONSTRUCTOR_AMBIGUOUS",
-      message: `Deployment group '${listName}' has multiple constructors: ${constructors.map((constructor) => `'${constructor.spelling}' for type '${constructor.ownerType}'`).join(", ")}`,
+      message: `Aggregate group '${listName}' has multiple constructors: ${constructors.map((constructor) => `'${constructor.spelling}' for type '${constructor.ownerType}'`).join(", ")}`,
       sourceName: document.sourceName,
       ...position(listNameNode, document.sourceName),
     });
@@ -1267,22 +1279,33 @@ function resolveDeploymentGroupConstructor(
   return constructors[0]!;
 }
 
-function deploymentGroupAttributeType(
-  owner: ParsedElement,
+function aggregateGroupType(
+  rootType: string,
+  memberType: string,
   listName: string,
-  document: MutableParsedDocument,
   typeSystem: TypeSystem,
 ): string | undefined {
-  const parent = owner.parent === undefined
-    ? undefined
-    : document.elements.find((element) => element.id === owner.parent);
-  const attribute = parent === undefined ? undefined : typeSystem.attribute(parent.type, listName);
+  const attribute = aggregateGroupAttribute(typeSystem, rootType, memberType, listName);
   if (attribute === undefined) {
     return undefined;
   }
   return attribute.list === true
     ? attribute.listElementType ?? attribute.type
     : attribute.type;
+}
+
+function aggregateParent(
+  owner: ParsedElement,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): ParsedElement | undefined {
+  const parent = owner.parent === undefined
+    ? undefined
+    : document.elements.find((element) => element.id === owner.parent);
+  return parent !== undefined
+      && typeSystem.typeHasCapability(parent.type, TYPE_CAPABILITIES.documentAggregateRoot)
+    ? parent
+    : undefined;
 }
 
 function collectImplicitObjectAttribute(

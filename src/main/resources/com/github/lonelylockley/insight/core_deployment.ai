@@ -64,6 +64,7 @@ define type NetworkConnection of InfrastructureComponent
 define type Environment of BoundaryElement
     constructor environment
 
+    capability = "document-aggregate-root"
     capability = "environment"
 
     required Text name
@@ -73,6 +74,7 @@ define type Environment of BoundaryElement
 define type Deployment of DeploymentElement
     constructor deployment
 
+    capability = "document-aggregate-member"
     capability = "deployment"
 
     Text name

@@ -481,9 +481,10 @@ environment digitalocean
 --- contains
 IDENTIFIER europe
 CONSTRUCTOR region
+ATTRIBUTE name
 --- lacks
 IDENTIFIER digitalocean
-ATTRIBUTE name
+ATTRIBUTE primaryRegion
 
 === extend constructor candidates
 --- source

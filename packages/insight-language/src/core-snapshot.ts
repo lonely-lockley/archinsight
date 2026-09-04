@@ -34,6 +34,7 @@ import {
   textOf,
   type AntlrParseTreeLike,
 } from "./parser-facade.js";
+import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 import { coreSource, coreSources } from "./generated/core-source.js";
 
 interface MutableTypeDefinition {
@@ -812,12 +813,18 @@ function validateRequiredConstructors(snapshot: LanguageSnapshot, diagnostics: L
 }
 
 function requiresConstructor(snapshot: LanguageSnapshot, type: string): boolean {
-  if (type !== "Environment" && isAssignable(snapshot, type, "Environment")) {
+  if (snapshotTypeHasCapability(snapshot, type, TYPE_CAPABILITIES.documentAggregateRoot)) {
     return false;
   }
   return type === "Context"
     || (type !== "Element" && isAssignable(snapshot, type, "Element"))
     || (type !== "Edge" && isAssignable(snapshot, type, "Edge"));
+}
+
+function snapshotTypeHasCapability(snapshot: LanguageSnapshot, type: string, capability: string): boolean {
+  return inheritanceChain(snapshot, type).some((candidate) =>
+    snapshot.types.find((definition) => definition.name === candidate)?.capabilities?.includes(capability) === true
+  );
 }
 
 function isAbstractBaseType(snapshot: LanguageSnapshot, type: string): boolean {

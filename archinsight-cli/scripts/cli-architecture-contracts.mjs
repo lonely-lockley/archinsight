@@ -18,6 +18,8 @@ const packageSource = source(path.join("skill", "skill-package.ts"));
 assert.match(packageSource, /generated\/skill-resources\.js/);
 assert.match(packageSource, /BUILTIN_VIEW_DEFINITIONS/);
 assert.match(packageSource, /coreSources/);
+assert(packageSource.split("\n").length < 150, "skill package assembly must not absorb resource prose again");
+assert.doesNotMatch(packageSource, /# Archinsight Agent Guide|## Reference routing/);
 assert.doesNotMatch(packageSource, /node:fs|mkdtemp|rename\(|writeFile|process\.stdout/);
 
 const installerSource = source(path.join("skill", "skill-installer.ts"));

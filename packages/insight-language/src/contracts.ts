@@ -406,6 +406,7 @@ export interface ListFrame {
 export interface ElementFrame {
   readonly indent: number;
   readonly type: string;
+  readonly parentType?: string;
   readonly completionTypes?: readonly string[];
   readonly assignedAttributes: ReadonlySet<string>;
 }
