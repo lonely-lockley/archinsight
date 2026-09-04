@@ -12,44 +12,26 @@ import type {
 import type { GraphNode, GraphRelation } from "./indexed-graph.js";
 import {
   builtinViewDefinition,
-  builtinViewHasStage,
   type BuiltinViewBoundary,
 } from "./builtin-views.js";
+import {
+  parseQuery,
+  type Expression,
+  type MatchClause,
+  type NodePattern,
+  type ParsedQuery,
+  type QueryPattern,
+  type QueryValue,
+  type RelationshipPattern,
+  type ValueExpression,
+} from "./query-syntax.js";
+import {
+  createQueryExecutionContext,
+  type QueryExecutionContext,
+} from "./query-execution-context.js";
+import { runQueryViewPipeline } from "./query-view-pipeline.js";
 
 export const DEFAULT_QUERY = "MATCH (n:Element {context: $context}) RETURN n";
-
-interface NodePattern {
-  readonly alias: string;
-  readonly label?: string;
-  readonly properties: Readonly<Record<string, QueryValue>>;
-}
-
-interface RelationshipPattern {
-  readonly alias?: string;
-  readonly type?: string;
-  readonly properties: Readonly<Record<string, QueryValue>>;
-  readonly selectors: ReadonlySet<string>;
-}
-
-interface QueryPattern {
-  readonly left: NodePattern;
-  readonly relationship?: RelationshipPattern;
-  readonly right?: NodePattern;
-  readonly direction?: "outgoing" | "incoming" | "undirected";
-}
-
-interface MatchClause {
-  readonly optional: boolean;
-  readonly rollup: boolean;
-  readonly pattern: QueryPattern;
-  readonly where?: Expression;
-}
-
-interface ParsedQuery {
-  readonly matches: readonly MatchClause[];
-  readonly groupBy?: ValueExpression;
-  readonly returns: readonly string[];
-}
 
 interface Row {
   readonly nodes: Readonly<Record<string, QueryNode>>;
@@ -61,10 +43,10 @@ interface RollupEndpoint {
   readonly binding: QueryNode;
 }
 
-interface EvaluationContext {
-  readonly result: LinkProjectResult;
-  readonly scope: QueryScope;
-  readonly tabClosure: ReadonlySet<string>;
+interface EvaluationContext extends QueryExecutionContext {
+  readonly nodes: readonly QueryNode[];
+  readonly nodeById: ReadonlyMap<string, QueryNode>;
+  readonly relationships: readonly QueryRelationship[];
 }
 
 interface QueryRelationship {
@@ -86,38 +68,21 @@ type QueryNode =
   | { readonly kind: "source"; readonly id: string; readonly sourceIdentity: string }
   | { readonly kind: "type"; readonly id: string; readonly type: string; readonly baseTypes: readonly string[] };
 
-type QueryValue =
-  | { readonly kind: "literal"; readonly value: string }
-  | { readonly kind: "variable"; readonly name: string };
-
-type Expression =
-  | { readonly kind: "and"; readonly left: Expression; readonly right: Expression }
-  | { readonly kind: "or"; readonly left: Expression; readonly right: Expression }
-  | { readonly kind: "not"; readonly expression: Expression }
-  | { readonly kind: "is"; readonly left: ValueExpression; readonly target: string }
-  | { readonly kind: "in"; readonly left: ValueExpression; readonly right: ValueExpression }
-  | { readonly kind: "compare"; readonly operator: "eq" | "ne" | "contains"; readonly left: ValueExpression; readonly right: ValueExpression };
-
-type ValueExpression =
-  | { readonly kind: "property"; readonly alias: string; readonly property: string }
-  | { readonly kind: "binding"; readonly alias: string }
-  | { readonly kind: "list"; readonly values: readonly QueryValue[] }
-  | QueryValue;
-
 export function selectGraph(
   result: LinkProjectResult,
   scope: QueryScope,
   query: string | undefined,
 ): RenderGraph {
   const parsed = parseQuery(query === undefined || query.trim() === "" ? DEFAULT_QUERY : query);
-  const rows = evaluate(result, scope, parsed);
+  const execution = evaluationContext(createQueryExecutionContext(result, scope));
+  const rows = evaluate(execution, parsed);
   const selectedElements = new Map<string, LinkedElement>();
   const selectedEdges: RenderGraphEdge[] = [];
   const selectedEdgeIdentities = new Map<LinkedEdge, Set<string>>();
   const returnedRelationshipPatterns = relationshipPatternsReturnedBy(parsed);
   const selectedStructuralRelationships = new Set<string>();
   const groups = new Map<string, RenderGraphGroup>();
-  const nodeById = queryNodeIndex(result);
+  const nodeById = execution.nodeById;
 
   for (const row of rows) {
     for (const alias of parsed.returns) {
@@ -158,7 +123,7 @@ export function selectGraph(
   let groupedSelectedElements: ReadonlySet<string> = new Set<string>();
   if (parsed.groupBy !== undefined) {
     groupedSelectedElements = collectSelectedReferenceGroups(selectedElements, selectedEdges, groups, parsed.groupBy);
-    for (const owner of completeReferenceGroupClosure(result, groups, parsed.groupBy)) {
+    for (const owner of completeReferenceGroupClosure(execution.nodeById, groups, parsed.groupBy)) {
       const element = linkedElementForNode(nodeById.get(owner));
       if (element !== undefined) {
         selectedElements.set(owner, element);
@@ -187,24 +152,14 @@ export function selectGraph(
     })).filter((group) => group.elements.length > 0),
     externalElements,
   };
-  const bounded = applyViewBoundary(result, selectedGraph, scope);
-  const systemSeedFiltered = builtinViewHasStage(scope.view, "deployment-seed-filter")
-    ? removeDescendantProjectionsCapturedBySystemSeeds(result, bounded, scope)
-    : bounded;
-  const materialized = materializeGroupedView(
-    systemSeedFiltered,
-    builtinViewHasStage(scope.view, "deployment-materialization"),
-  );
-  if (builtinViewHasStage(scope.view, "deployment-environment")) {
-    return applyDeploymentEnvironmentScope(result, materialized, scope);
-  }
-  if (builtinViewHasStage(scope.view, "deployment-system-rollup")) {
-    const rolledUp = rollUpDeploymentSystems(result, materialized, scope);
-    return builtinViewHasStage(scope.view, "deployment-infrastructure-simplification")
-      ? simplifyDeploymentSystemInfrastructure(result, rolledUp)
-      : rolledUp;
-  }
-  return materialized;
+  return runQueryViewPipeline(result, scope, selectedGraph, {
+    applyBoundary: (_result, graph) => applyViewBoundary(execution, graph),
+    filterDeploymentSeeds: removeDescendantProjectionsCapturedBySystemSeeds,
+    materializeGroups: materializeGroupedView,
+    applyEnvironment: (_result, graph) => applyDeploymentEnvironmentScope(execution, graph),
+    rollUpSystems: (_result, graph) => rollUpDeploymentSystems(execution, graph),
+    simplifyInfrastructure: (_result, graph) => simplifyDeploymentSystemInfrastructure(execution, graph),
+  });
 }
 
 function removeDescendantProjectionsCapturedBySystemSeeds(
@@ -244,8 +199,9 @@ export function discoverDeploymentEnvironments(
   result: LinkProjectResult,
   scope: Pick<QueryScope, "context" | "tab">,
 ): readonly DeploymentEnvironment[] {
-  const closure = tabClosure(result, scope.tab);
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const execution = createQueryExecutionContext(result, scope);
+  const closure = execution.tabClosure;
+  const elementsById = execution.elementsById;
   const environmentIds = new Set<string>();
   const wireEnvironmentIds = new Set<string>();
 
@@ -288,7 +244,7 @@ export function discoverDeploymentEnvironments(
     }
   }
 
-  const contextsById = new Map(result.contexts.map((context) => [context.id, context]));
+  const contextsById = execution.contextsById;
   const environmentNamesByContext = new Map<string, string>();
   for (const element of result.elements) {
     if (element.synthetic === true || element.parent !== undefined || !elementHasType(element, "Environment")) {
@@ -470,10 +426,10 @@ function groupedCloneId(elementId: string, groupOwner: string): string {
 }
 
 function applyDeploymentEnvironmentScope(
-  result: LinkProjectResult,
+  context: EvaluationContext,
   graph: RenderGraph,
-  scope: QueryScope,
 ): RenderGraph {
+  const { result, scope, elementsById } = context;
   const environments = discoverDeploymentEnvironments(result, scope);
   const environment = scope.environment ?? (environments.length === 1 ? environments[0]?.id : undefined);
   if (environment === undefined) {
@@ -483,8 +439,7 @@ function applyDeploymentEnvironmentScope(
     return emptyScopedGraph(graph);
   }
 
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-  const sourceElements = tabClosure(result, scope.tab);
+  const sourceElements = context.tabClosure;
   const groups = graph.groups.filter((group) => elementEnvironment(group.owner, elementsById) === environment);
   const selectedIds = new Set(groups.flatMap((group) => [group.owner, ...group.elements]));
   const candidateEdges = graph.edges.filter((edge) => deploymentEdgeInEnvironment(edge, environment, elementsById));
@@ -575,11 +530,8 @@ function baseOccurrenceId(id: string): string {
   return separator < 0 ? id : id.slice(0, separator);
 }
 
-function rollUpDeploymentSystems(result: LinkProjectResult, graph: RenderGraph, scope: QueryScope): RenderGraph {
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-  const parentByChild = new Map(result.elements.flatMap((element) =>
-    element.parent === undefined ? [] : [[element.id, element.parent]]
-  ));
+function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph): RenderGraph {
+  const { elementsById, parentByChild } = context;
   const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
     .find((candidate) => elementHasType(elementsById.get(candidate), "SystemElement"));
   const fold = (id: string): string => {
@@ -637,7 +589,7 @@ function rollUpDeploymentSystems(result: LinkProjectResult, graph: RenderGraph, 
       elements[id] = element.id === id ? element : { ...element, id };
     }
   }
-  const openedSystems = openedTabBoundaries(result, scope.tab, "SystemElement");
+  const openedSystems = openedTabBoundaries(context, "SystemElement");
   const externalElements = new Set(graph.externalElements.map(fold).filter((id) => referenced.has(id)));
   for (const id of referenced) {
     const system = systemFor(id);
@@ -657,11 +609,8 @@ function rollUpDeploymentSystems(result: LinkProjectResult, graph: RenderGraph, 
   };
 }
 
-function simplifyDeploymentSystemInfrastructure(result: LinkProjectResult, graph: RenderGraph): RenderGraph {
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-  const parentByChild = new Map(result.elements.flatMap((element) =>
-    element.parent === undefined ? [] : [[element.id, element.parent]]
-  ));
+function simplifyDeploymentSystemInfrastructure(context: EvaluationContext, graph: RenderGraph): RenderGraph {
+  const { result, elementsById, parentByChild } = context;
   const externalElements = new Set(graph.externalElements);
   const placementGroupOwners = new Set(graph.groups.map((group) => group.owner));
   const retained = new Set(Object.keys(graph.elements).filter((id) => {
@@ -900,16 +849,13 @@ function patternNodeAliases(pattern: QueryPattern): readonly string[] {
   return pattern.right === undefined ? [pattern.left.alias] : [pattern.left.alias, pattern.right.alias];
 }
 
-function applyViewBoundary(result: LinkProjectResult, graph: RenderGraph, scope: QueryScope): RenderGraph {
+function applyViewBoundary(context: EvaluationContext, graph: RenderGraph): RenderGraph {
+  const { result, scope, elementsById, parentByChild } = context;
   const boundary = scope.view === undefined ? null : builtinViewDefinition(scope.view).boundary;
   if (boundary === null) {
     return graph;
   }
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-  const parentByChild = new Map(result.elements.flatMap((element) =>
-    element.parent === undefined ? [] : [[element.id, element.parent]]
-  ));
-  const openedBoundaries = openedViewBoundaries(result, scope, boundary);
+  const openedBoundaries = openedViewBoundaries(context, boundary);
   const inside = (id: string): boolean => elementInsideView(elementsById.get(id), scope, boundary, openedBoundaries, parentByChild);
   const visibleType = visibleElementType(boundary);
   const foldedIds = new Map<string, string>();
@@ -1011,29 +957,23 @@ function sameViewRelationship(left: RenderGraphEdge, right: RenderGraphEdge): bo
 }
 
 function openedViewBoundaries(
-  result: LinkProjectResult,
-  scope: QueryScope,
+  context: EvaluationContext,
   boundary: BuiltinViewBoundary,
 ): ReadonlySet<string> {
+  const { scope } = context;
   if (boundary === "context") {
     return new Set(scope.context === undefined ? [] : [scope.context]);
   }
-  return openedTabBoundaries(result, scope.tab, boundaryElementType(boundary));
+  return openedTabBoundaries(context, boundaryElementType(boundary));
 }
 
 function openedTabBoundaries(
-  result: LinkProjectResult,
-  tab: string | undefined,
+  context: EvaluationContext,
   boundaryType: string,
 ): ReadonlySet<string> {
-  const closure = tabClosure(result, tab);
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-  const parentByChild = new Map(result.elements.flatMap((element) =>
-    element.parent === undefined ? [] : [[element.id, element.parent]]
-  ));
-  return new Set([...closure]
-    .flatMap((id) => lineage(id, parentByChild))
-    .filter((id) => elementHasType(elementsById.get(id), boundaryType))
+  return new Set([...context.tabClosure]
+    .flatMap((id) => lineage(id, context.parentByChild))
+    .filter((id) => elementHasType(context.elementsById.get(id), boundaryType))
     .sort());
 }
 
@@ -1101,8 +1041,17 @@ function explicitlyExternal(element: LinkedElement): boolean {
   return element.attributes.kind?.includes("external") === true;
 }
 
-function evaluate(result: LinkProjectResult, scope: QueryScope, query: ParsedQuery): readonly Row[] {
-  const context = evaluationContext(result, scope);
+function evaluationContext(base: QueryExecutionContext): EvaluationContext {
+  const nodes = queryNodes(base);
+  return {
+    ...base,
+    nodes,
+    nodeById: new Map(nodes.map((node) => [node.id, node])),
+    relationships: queryRelationships(base),
+  };
+}
+
+function evaluate(context: EvaluationContext, query: ParsedQuery): readonly Row[] {
   let rows: readonly Row[] = [{ nodes: {}, relationships: {} }];
   for (const match of query.matches) {
     rows = match.optional
@@ -1139,11 +1088,11 @@ function matchRows(
   }
   const pattern = clause.pattern;
   const rows: Row[] = [];
-  const relationships = queryRelationships(context.result);
+  const relationships = context.relationships;
   if (pattern.relationship === undefined || pattern.right === undefined) {
     for (const row of inputRows) {
       const bound = row.nodes[pattern.left.alias];
-      const candidates = bound === undefined ? queryNodes(context.result) : [bound];
+      const candidates = bound === undefined ? context.nodes : [bound];
       for (const node of candidates) {
         if (matchesNode(node, pattern.left, context)) {
           rows.push({
@@ -1169,8 +1118,8 @@ function matchRows(
       if (!matchesRelationship(edge, relationship, context)) {
         continue;
       }
-      const source = queryNodeById(context.result, edge.source);
-      const target = queryNodeById(context.result, edge.target);
+      const source = context.nodeById.get(edge.source);
+      const target = context.nodeById.get(edge.target);
       if (source === undefined || target === undefined) {
         continue;
       }
@@ -1211,8 +1160,8 @@ function rollupMatchRows(
   }
 
   const rows: Row[] = [];
-  const relationships = queryRelationships(context.result);
-  const parentByChild = parentByChildFromGraph(context.result);
+  const relationships = context.relationships;
+  const parentByChild = context.parentByChild;
   const right = pattern.right;
   const relationship = pattern.relationship;
   for (const row of inputRows) {
@@ -1232,8 +1181,8 @@ function rollupMatchRows(
           continue;
         }
         for (const targetEndpoint of rollupTargetCandidates(context, edge, orientation.targetBound, parentByChild)) {
-          const source = queryNodeById(context.result, sourceEndpoint.id);
-          const target = queryNodeById(context.result, targetEndpoint.id);
+          const source = context.nodeById.get(sourceEndpoint.id);
+          const target = context.nodeById.get(targetEndpoint.id);
           if (source === undefined || target === undefined) {
             continue;
           }
@@ -1335,7 +1284,7 @@ function rollupSourceEndpoint(
       return { id: bound.id, binding: bound };
     }
     if (edgeOriginSourceLineage(edge, parentByChild).includes(bound.id)) {
-      return queryNodeById(context.result, edge.source) === undefined
+      return context.nodeById.get(edge.source) === undefined
         ? undefined
         : { id: edge.source, binding: bound };
     }
@@ -1355,14 +1304,14 @@ function rollupTargetCandidates(
       return [{ id: bound.id, binding: bound }];
     }
     if (edgeOriginTargetLineage(edge, parentByChild).includes(bound.id)) {
-      return queryNodeById(context.result, edge.target) === undefined
+      return context.nodeById.get(edge.target) === undefined
         ? []
         : [{ id: edge.target, binding: bound }];
     }
     return [];
   }
   return lineage(edge.target, parentByChild).flatMap((id) => {
-    const binding = queryNodeById(context.result, id);
+    const binding = context.nodeById.get(id);
     return binding === undefined ? [] : [{ id, binding }];
   });
 }
@@ -1376,7 +1325,7 @@ function nearestEndpoint(
   binding: QueryNode | undefined = undefined,
 ): { readonly id: string; readonly binding: QueryNode } | undefined {
   for (const id of lineage(start, parentByChild)) {
-    const node = queryNodeById(context.result, id);
+    const node = context.nodeById.get(id);
     if (node === undefined || !matchesNode(node, pattern, context)) {
       continue;
     }
@@ -1404,31 +1353,22 @@ function matchesNode(node: QueryNode, pattern: NodePattern, context: EvaluationC
   return Object.entries(pattern.properties).every(([name, value]) => matchesNodeProperty(node, name, value, context));
 }
 
-function queryNodes(result: LinkProjectResult): readonly QueryNode[] {
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-  const contextById = new Map(result.contexts.map((context) => [context.id, context]));
-  return result.graph.nodes().flatMap((node) => queryNodeFromGraphNode(node, elementsById, contextById));
-}
-
-function queryNodeById(result: LinkProjectResult, id: string): QueryNode | undefined {
-  return queryNodeIndex(result).get(id);
-}
-
-function queryNodeIndex(result: LinkProjectResult): ReadonlyMap<string, QueryNode> {
-  return new Map(queryNodes(result).map((node) => [node.id, node]));
+function queryNodes(context: QueryExecutionContext): readonly QueryNode[] {
+  return context.result.graph.nodes().flatMap((node) =>
+    queryNodeFromGraphNode(node, context.elementsById, context.contextsById)
+  );
 }
 
 function elementNode(element: LinkedElement): QueryNode {
   return { kind: "element", id: element.id, element };
 }
 
-function queryRelationships(result: LinkProjectResult): readonly QueryRelationship[] {
-  const edgeByRelationId = linkedEdgesByGraphRelationId(result);
-  const contextBySourceIdentity = new Map(result.contexts.map((context) => [context.sourceIdentity, context.id]));
-  const relationships: QueryRelationship[] = result.graph.relations().flatMap((relation) =>
-    queryRelationshipVariants(relation, edgeByRelationId.get(relation.id), contextBySourceIdentity)
+function queryRelationships(context: QueryExecutionContext): readonly QueryRelationship[] {
+  const edgeByRelationId = linkedEdgesByGraphRelationId(context.result);
+  const relationships: QueryRelationship[] = context.result.graph.relations().flatMap((relation) =>
+    queryRelationshipVariants(relation, edgeByRelationId.get(relation.id), context.contextBySourceIdentity)
   );
-  const parentByChild = parentByChildFromGraph(result);
+  const parentByChild = context.parentByChild;
   for (const relationship of [...relationships]) {
     if (relationship.kind !== "REFERENCES" || relationship.edge === undefined) {
       continue;
@@ -1527,17 +1467,6 @@ function linkedEdgesByGraphRelationId(result: LinkProjectResult): ReadonlyMap<st
   return new Map(result.edges.map((edge) => [edge.id, edge]));
 }
 
-function parentByChildFromGraph(result: LinkProjectResult): ReadonlyMap<string, string> {
-  const resultMap = new Map<string, string>();
-  for (const relationId of result.graph.relationsOfKind("CONTAINS")) {
-    const relation = result.graph.relation(relationId);
-    if (relation !== undefined) {
-      resultMap.set(relation.target, relation.source);
-    }
-  }
-  return resultMap;
-}
-
 function lineage(id: string, parentByChild: ReadonlyMap<string, string>): readonly string[] {
   return [id, ...ancestors(id, parentByChild)];
 }
@@ -1558,31 +1487,6 @@ function isDescendantOf(id: string, ancestor: string, parentByChild: ReadonlyMap
   return ancestors(id, parentByChild).includes(ancestor);
 }
 
-function evaluationContext(result: LinkProjectResult, scope: QueryScope): EvaluationContext {
-  return {
-    result,
-    scope,
-    tabClosure: tabClosure(result, scope.tab),
-  };
-}
-
-function tabClosure(result: LinkProjectResult, tab: string | undefined): ReadonlySet<string> {
-  if (tab === undefined) {
-    return new Set();
-  }
-  const roots = new Set(result.tabRoots[tab] ?? []);
-  if (roots.size === 0) {
-    return new Set();
-  }
-  const parentByChild = new Map(result.elements.flatMap((element) =>
-    element.parent === undefined ? [] : [[element.id, element.parent]]
-  ));
-  return new Set(result.elements
-    .filter((element) => element.synthetic !== true
-      && (roots.has(element.id) || ancestors(element.id, parentByChild).some((ancestor) => roots.has(ancestor))))
-    .map((element) => element.id));
-}
-
 function relationshipInTab(relationship: QueryRelationship, context: EvaluationContext): boolean {
   const edge = relationship.edge;
   if (edge === undefined) {
@@ -1593,7 +1497,7 @@ function relationshipInTab(relationship: QueryRelationship, context: EvaluationC
       return true;
     }
     return context.tabClosure.has(relationship.originSource ?? edge.originSource ?? edge.source)
-      && endpointIsExternal(context.result, relationship.originTarget ?? edge.originTarget ?? edge.target);
+      && endpointIsExternal(context, relationship.originTarget ?? edge.originTarget ?? edge.target);
   }
   return context.tabClosure.has(relationship.originSource ?? edge.originSource ?? edge.source)
     || context.tabClosure.has(relationship.originTarget ?? edge.originTarget ?? edge.target);
@@ -1603,8 +1507,8 @@ function sourceRootsInTabClosure(result: LinkProjectResult, sourceName: string, 
   return (result.tabRoots[sourceName] ?? []).some((root) => tabClosure.has(root));
 }
 
-function endpointIsExternal(result: LinkProjectResult, id: string): boolean {
-  const node = queryNodeById(result, id);
+function endpointIsExternal(context: EvaluationContext, id: string): boolean {
+  const node = context.nodeById.get(id);
   return node !== undefined && matchesTypePredicate(node, "External");
 }
 
@@ -2081,14 +1985,13 @@ function collectSelectedEdgePlacementGroup(
 }
 
 function completeReferenceGroupClosure(
-  result: LinkProjectResult,
+  nodeById: ReadonlyMap<string, QueryNode>,
   groups: Map<string, RenderGraphGroup>,
   expression: ValueExpression,
 ): ReadonlySet<string> {
   if (expression.kind !== "property") {
     return new Set();
   }
-  const nodeById = queryNodeIndex(result);
   const visited = new Set<string>();
   const selectedOwners = new Set<string>();
   for (const owner of [...groups.keys()]) {
@@ -2161,402 +2064,4 @@ function resolveValue(value: QueryValue, scope: QueryScope): string | undefined 
 
 function elementById(result: LinkProjectResult, id: string): LinkedElement | undefined {
   return result.elements.find((candidate) => candidate.id === id);
-}
-
-function parseQuery(query: string): ParsedQuery {
-  return new QueryParser(tokenizeQuery(query)).parseQuery();
-}
-
-type QueryToken =
-  | { readonly kind: "identifier"; readonly text: string }
-  | { readonly kind: "string"; readonly text: string }
-  | { readonly kind: "variable"; readonly text: string }
-  | { readonly kind: "symbol"; readonly text: string }
-  | { readonly kind: "eof"; readonly text: "" };
-
-function tokenizeQuery(source: string): readonly QueryToken[] {
-  const tokens: QueryToken[] = [];
-  for (let index = 0; index < source.length;) {
-    const char = source[index] ?? "";
-    if (/\s/.test(char)) {
-      index++;
-      continue;
-    }
-    if (/[A-Za-z_]/.test(char)) {
-      const start = index;
-      index++;
-      while (/[A-Za-z0-9_]/.test(source[index] ?? "")) {
-        index++;
-      }
-      tokens.push({ kind: "identifier", text: source.slice(start, index) });
-      continue;
-    }
-    if (char === "$") {
-      const start = index + 1;
-      index++;
-      if (!/[A-Za-z_]/.test(source[index] ?? "")) {
-        throw new Error(`Unsupported query variable near '${source.slice(index - 1)}'`);
-      }
-      while (/[A-Za-z0-9_]/.test(source[index] ?? "")) {
-        index++;
-      }
-      tokens.push({ kind: "variable", text: source.slice(start, index) });
-      continue;
-    }
-    if (char === "'") {
-      const start = ++index;
-      while (index < source.length && source[index] !== "'") {
-        index++;
-      }
-      if (index >= source.length) {
-        throw new Error("Unterminated string literal in query");
-      }
-      tokens.push({ kind: "string", text: source.slice(start, index) });
-      index++;
-      continue;
-    }
-    const two = source.slice(index, index + 2);
-    if (two === "->" || two === "<-" || two === "<>") {
-      tokens.push({ kind: "symbol", text: two });
-      index += 2;
-      continue;
-    }
-    if ("()[]{}:,.=-".includes(char)) {
-      tokens.push({ kind: "symbol", text: char });
-      index++;
-      continue;
-    }
-    throw new Error(`Unsupported query token '${char}'`);
-  }
-  tokens.push({ kind: "eof", text: "" });
-  return tokens;
-}
-
-class QueryParser {
-  private index = 0;
-  private readonly aliases = new Set<string>();
-
-  constructor(private readonly tokens: readonly QueryToken[]) {
-  }
-
-  parseQuery(): ParsedQuery {
-    const matches: MatchClause[] = [];
-    while (this.atKeyword("MATCH") || this.atKeyword("OPTIONAL")) {
-      matches.push(this.parseMatchClause());
-    }
-    if (matches.length === 0) {
-      throw new Error("Unsupported MATCH clause");
-    }
-    let groupBy: ValueExpression | undefined;
-    if (this.consumeKeyword("GROUP")) {
-      this.expectKeyword("BY");
-      groupBy = this.parseValueExpression();
-    }
-    this.expectKeyword("RETURN");
-    const returns = this.parseReturnList();
-    this.expectEof();
-    return {
-      matches,
-      ...(groupBy === undefined ? {} : { groupBy }),
-      returns,
-    };
-  }
-
-  private parseMatchClause(): MatchClause {
-    const optional = this.consumeKeyword("OPTIONAL");
-    this.expectKeyword("MATCH");
-    const rollup = this.consumeKeyword("ROLLUP");
-    const pattern = this.parsePattern();
-    const where = this.consumeKeyword("WHERE") ? this.parseExpression() : undefined;
-    return {
-      optional,
-      rollup,
-      pattern,
-      ...(where === undefined ? {} : { where }),
-    };
-  }
-
-  private parsePattern(): QueryPattern {
-    const left = this.parseNodePattern();
-    const incoming = this.consumeSymbol("<-");
-    if (!incoming && !this.consumeSymbol("-")) {
-      return { left };
-    }
-    const relationship = this.parseRelationshipPattern();
-    const direction = incoming
-      ? this.consumeSymbol("-") ? "incoming" : undefined
-      : this.consumeSymbol("->")
-        ? "outgoing"
-        : this.consumeSymbol("-")
-          ? "undirected"
-          : undefined;
-    if (direction === undefined) {
-      const expected = incoming ? "'-'" : "'->' or '-'";
-      throw new Error(`Expected ${expected} after relationship pattern, found '${this.current().text}'`);
-    }
-    return {
-      left,
-      relationship,
-      right: this.parseNodePattern(),
-      direction,
-    };
-  }
-
-  private parseNodePattern(): NodePattern {
-    this.expectSymbol("(");
-    const alias = this.expectIdentifier();
-    this.aliases.add(alias);
-    const label = this.consumeSymbol(":") ? this.expectIdentifier() : undefined;
-    const properties = this.consumeSymbol("{") ? this.parseProperties("}") : {};
-    this.expectSymbol(")");
-    return {
-      alias,
-      ...(label === undefined ? {} : { label }),
-      properties,
-    };
-  }
-
-  private parseRelationshipPattern(): RelationshipPattern {
-    this.expectSymbol("[");
-    let alias: string | undefined;
-    let type: string | undefined;
-    if (this.atIdentifier()) {
-      const identifier = this.expectIdentifier();
-      if (this.consumeSymbol(":")) {
-        alias = identifier;
-        type = this.expectIdentifier();
-      } else {
-        alias = identifier;
-      }
-    } else if (this.consumeSymbol(":")) {
-      type = this.expectIdentifier();
-    }
-    if (alias !== undefined) {
-      this.aliases.add(alias);
-    }
-    const parsed = this.consumeSymbol("{") ? this.parseRelationshipProperties() : { properties: {}, selectors: new Set<string>() };
-    this.expectSymbol("]");
-    return {
-      ...(alias === undefined ? {} : { alias }),
-      ...(type === undefined ? {} : { type }),
-      properties: parsed.properties,
-      selectors: parsed.selectors,
-    };
-  }
-
-  private parseProperties(endSymbol: string): Readonly<Record<string, QueryValue>> {
-    const properties: Record<string, QueryValue> = {};
-    if (this.consumeSymbol(endSymbol)) {
-      return properties;
-    }
-    while (true) {
-      const name = this.expectIdentifier();
-      this.expectSymbol(":");
-      properties[name] = this.parseQueryValue();
-      if (this.consumeSymbol(endSymbol)) {
-        return properties;
-      }
-      this.expectSymbol(",");
-    }
-  }
-
-  private parseRelationshipProperties(): { readonly properties: Readonly<Record<string, QueryValue>>; readonly selectors: ReadonlySet<string> } {
-    const properties: Record<string, QueryValue> = {};
-    const selectors = new Set<string>();
-    if (this.consumeSymbol("}")) {
-      return { properties, selectors };
-    }
-    while (true) {
-      const name = this.expectIdentifier();
-      if (this.consumeSymbol(":")) {
-        properties[name] = this.parseQueryValue();
-      } else {
-        selectors.add(name);
-      }
-      if (this.consumeSymbol("}")) {
-        return { properties, selectors };
-      }
-      this.expectSymbol(",");
-    }
-  }
-
-  private parseExpression(): Expression {
-    return this.parseOrExpression();
-  }
-
-  private parseOrExpression(): Expression {
-    let expression = this.parseAndExpression();
-    while (this.consumeKeyword("OR")) {
-      expression = { kind: "or", left: expression, right: this.parseAndExpression() };
-    }
-    return expression;
-  }
-
-  private parseAndExpression(): Expression {
-    let expression = this.parseNotExpression();
-    while (this.consumeKeyword("AND")) {
-      expression = { kind: "and", left: expression, right: this.parseNotExpression() };
-    }
-    return expression;
-  }
-
-  private parseNotExpression(): Expression {
-    if (this.consumeKeyword("NOT")) {
-      return { kind: "not", expression: this.parseNotExpression() };
-    }
-    return this.parsePrimaryExpression();
-  }
-
-  private parsePrimaryExpression(): Expression {
-    if (this.consumeSymbol("(")) {
-      const expression = this.parseExpression();
-      this.expectSymbol(")");
-      return expression;
-    }
-    return this.parseComparison();
-  }
-
-  private parseComparison(): Expression {
-    const left = this.parseValueExpression();
-    if (this.consumeKeyword("IS")) {
-      if (this.consumeKeyword("NOT")) {
-        return { kind: "not", expression: { kind: "is", left, target: this.expectIdentifier() } };
-      }
-      return { kind: "is", left, target: this.expectIdentifier() };
-    }
-    if (this.consumeKeyword("IN")) {
-      return { kind: "in", left, right: this.parseValueExpression() };
-    }
-    const operator = this.parseComparisonOperator();
-    const right = this.parseValueExpression();
-    return {
-      kind: "compare",
-      operator,
-      left,
-      right,
-    };
-  }
-
-  private parseComparisonOperator(): "eq" | "ne" | "contains" {
-    if (this.consumeSymbol("=")) {
-      return "eq";
-    }
-    if (this.consumeSymbol("<>")) {
-      return "ne";
-    }
-    this.expectKeyword("CONTAINS");
-    return "contains";
-  }
-
-  private parseValueExpression(): ValueExpression {
-    if (this.consumeSymbol("[")) {
-      const values: QueryValue[] = [];
-      if (this.consumeSymbol("]")) {
-        return { kind: "list", values };
-      }
-      while (true) {
-        values.push(this.parseQueryValue());
-        if (this.consumeSymbol("]")) {
-          return { kind: "list", values };
-        }
-        this.expectSymbol(",");
-      }
-    }
-    if (this.atIdentifier()) {
-      const identifier = this.expectIdentifier();
-      if (this.consumeSymbol(".")) {
-        return {
-          kind: "property",
-          alias: identifier,
-          property: this.expectIdentifier(),
-        };
-      }
-      return this.aliases.has(identifier)
-        ? { kind: "binding", alias: identifier }
-        : { kind: "literal", value: identifier };
-    }
-    return this.parseQueryValue();
-  }
-
-  private parseQueryValue(): QueryValue {
-    const token = this.current();
-    if (token.kind === "variable") {
-      this.index++;
-      return { kind: "variable", name: token.text };
-    }
-    if (token.kind === "string") {
-      this.index++;
-      return { kind: "literal", value: token.text };
-    }
-    if (token.kind === "identifier") {
-      this.index++;
-      return { kind: "literal", value: token.text };
-    }
-    throw new Error(`Expected query value, found '${token.text}'`);
-  }
-
-  private parseReturnList(): readonly string[] {
-    const returns = [this.expectIdentifier()];
-    while (this.consumeSymbol(",")) {
-      returns.push(this.expectIdentifier());
-    }
-    return returns;
-  }
-
-  private atIdentifier(): boolean {
-    return this.current().kind === "identifier";
-  }
-
-  private atKeyword(keyword: string): boolean {
-    const token = this.current();
-    return token.kind === "identifier" && token.text.toUpperCase() === keyword;
-  }
-
-  private consumeKeyword(keyword: string): boolean {
-    if (!this.atKeyword(keyword)) {
-      return false;
-    }
-    this.index++;
-    return true;
-  }
-
-  private expectKeyword(keyword: string): void {
-    if (!this.consumeKeyword(keyword)) {
-      throw new Error(`Expected ${keyword}, found '${this.current().text}'`);
-    }
-  }
-
-  private consumeSymbol(symbol: string): boolean {
-    const token = this.current();
-    if (token.kind !== "symbol" || token.text !== symbol) {
-      return false;
-    }
-    this.index++;
-    return true;
-  }
-
-  private expectSymbol(symbol: string): void {
-    if (!this.consumeSymbol(symbol)) {
-      throw new Error(`Expected '${symbol}', found '${this.current().text}'`);
-    }
-  }
-
-  private expectIdentifier(): string {
-    const token = this.current();
-    if (token.kind !== "identifier") {
-      throw new Error(`Expected identifier, found '${token.text}'`);
-    }
-    this.index++;
-    return token.text;
-  }
-
-  private expectEof(): void {
-    if (this.current().kind !== "eof") {
-      throw new Error(`Unexpected query token '${this.current().text}'`);
-    }
-  }
-
-  private current(): QueryToken {
-    return this.tokens[this.index] ?? { kind: "eof", text: "" };
-  }
 }

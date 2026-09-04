@@ -10,16 +10,16 @@ import type {
   ConstructorDefinition,
   OperatorDefinition,
   DuplicateLinkedEdgeGroup,
-  PresentationDefinition,
   ProjectionRuleDefinition,
   ProjectionOrigin,
   ProjectionTermDefinition,
-  ResolvedPresentation,
   SourceLocation,
 } from "./contracts.js";
 import { InsightParser } from "./generated/InsightParser.js";
-import { IndexedGraph, type GraphNode, type GraphRelation, type RelationKind } from "./indexed-graph.js";
+import type { IndexedGraph } from "./indexed-graph.js";
 import { linkedEdgeId } from "./linked-edge-id.js";
+import { buildIndexedGraph } from "./linked-project-index.js";
+import { buildPresentationIndex } from "./presentation-resolver.js";
 import {
   directChildrenByRule,
   directTerminalTokens,
@@ -53,7 +53,7 @@ const USES_OPERATOR = "uses";
 const RUNS_ON_ATTRIBUTE = "runsOn";
 const USES_ATTRIBUTE = "uses";
 
-interface ParsedDocument {
+export interface ParsedDocument {
   readonly sourceName: string;
   readonly context: ParsedContext;
   readonly imports: readonly ParsedImport[];
@@ -91,7 +91,7 @@ interface ParsedImport {
   readonly contextEndColumn?: number;
 }
 
-interface ParsedElement {
+export interface ParsedElement {
   readonly id: string;
   readonly context: string;
   readonly localId: string;
@@ -217,7 +217,7 @@ interface MutableParsedDocument {
   readonly anonymousCounters: Map<string, number>;
 }
 
-interface ResolvedImport {
+export interface ResolvedImport {
   readonly sourceName: string;
   readonly alias: string;
   readonly importedId: string;
@@ -329,12 +329,40 @@ interface LinkOperatorImplementation {
   applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult;
 }
 
+interface LinkingWorkspace {
+  readonly documents: readonly ParsedDocument[];
+  readonly elements: ParsedElement[];
+  readonly imports: readonly ResolvedImport[];
+  readonly diagnostics: LanguageDiagnostic[];
+  readonly typeSystem: TypeSystem;
+  readonly elementsByContextAndLocalId: ReadonlyMap<string, readonly ParsedElement[]>;
+  readonly sourceElementsBySourceAndLocalId: ReadonlyMap<string, ParsedElement>;
+  readonly importsBySourceAndAlias: ReadonlyMap<string, ResolvedImport>;
+  readonly linkedEdges: LinkedEdge[];
+  readonly ownerIndependentProjectionKeys: Set<string>;
+  readonly pendingProjections: PendingProjection[];
+  readonly wireDeploymentCoverage: WireDeploymentCoverage[];
+  readonly deployedElementIds: Set<string>;
+  readonly linkedElementsById: ReadonlyMap<string, ParsedElement>;
+  readonly resolvedElementAttributes: Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>;
+  readonly deploymentContext: DeploymentExpansionContext;
+}
+
 export function linkProject(request: LinkProjectRequest): LinkProjectResult {
+  const pipeline = createLinkingWorkspace(request);
+  resolveDeploymentStage(pipeline);
+  materializeLogicalRelationshipsStage(pipeline);
+  expandProjectionStage(pipeline);
+  return completeLinkingPipeline(request, pipeline);
+}
+
+function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
   const typeSystem = new TypeSystem(request.snapshot);
   const anonymousCounters = new Map<string, number>();
-  const documents = request.sources.map((source) => parseDocument(source.sourceName, source.source, typeSystem, anonymousCounters));
+  const documents = request.sources.map((source) =>
+    parseDocument(source.sourceName, source.source, typeSystem, anonymousCounters)
+  );
   const diagnostics: LanguageDiagnostic[] = [];
-
   const elementsByContextAndLocalId = new Map<string, ParsedElement[]>();
   const sourceElementsBySourceAndLocalId = new Map<string, ParsedElement>();
   for (const element of documents.flatMap((document) => document.elements)) {
@@ -344,22 +372,17 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
   diagnostics.unshift(...documents.flatMap((document) => document.diagnostics));
   const elements = documents.flatMap((document) => document.elements);
   reportDuplicateElements(elementsByContextAndLocalId, diagnostics);
-
   const imports = resolveImports(documents, elementsByContextAndLocalId, diagnostics);
   const importsBySourceAndAlias = new Map<string, ResolvedImport>();
   for (const item of imports) {
     importsBySourceAndAlias.set(`${item.sourceName}\0${item.alias}`, item);
   }
-
   const linkedEdges: LinkedEdge[] = [];
   const ownerIndependentProjectionKeys = new Set<string>();
   const pendingProjections: PendingProjection[] = [];
   const wireDeploymentCoverage: WireDeploymentCoverage[] = [];
   const deployedElementIds = new Set<string>();
-  const linkedElementsById = new Map<string, ParsedElement>();
-  for (const element of elements) {
-    linkedElementsById.set(element.id, element);
-  }
+  const linkedElementsById = new Map(elements.map((element) => [element.id, element]));
   const resolvedElementAttributes = new Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>();
   for (const element of elements) {
     resolvedElementAttributes.set(
@@ -383,6 +406,34 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       return `${owner.context}/_deployment_${sanitizeLocalId(owner.localId)}_${sanitizeLocalId(source.localId)}_${deploymentCloneCounter}`;
     },
   };
+  return {
+    documents,
+    elements,
+    imports,
+    diagnostics,
+    typeSystem,
+    elementsByContextAndLocalId,
+    sourceElementsBySourceAndLocalId,
+    importsBySourceAndAlias,
+    linkedEdges,
+    ownerIndependentProjectionKeys,
+    pendingProjections,
+    wireDeploymentCoverage,
+    deployedElementIds,
+    linkedElementsById,
+    resolvedElementAttributes,
+    deploymentContext,
+  };
+}
+
+function resolveDeploymentStage(workspace: LinkingWorkspace): void {
+  const {
+    elements,
+    typeSystem,
+    deploymentContext,
+    deployedElementIds,
+    resolvedElementAttributes,
+  } = workspace;
   for (const element of elements) {
     if (typeSystem.isAssignable(element.type, DEPLOYMENT_PROFILE_TYPE)) {
       continue;
@@ -412,7 +463,22 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       }),
     );
   }
+}
 
+function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void {
+  const {
+    documents,
+    sourceElementsBySourceAndLocalId,
+    elementsByContextAndLocalId,
+    importsBySourceAndAlias,
+    diagnostics,
+    typeSystem,
+    deploymentContext,
+    linkedEdges,
+    linkedElementsById,
+    wireDeploymentCoverage,
+    pendingProjections,
+  } = workspace;
   for (const document of documents) {
     for (const edge of document.edges) {
       const target = resolveEdgeTarget(edge, document.context.id, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, diagnostics);
@@ -432,8 +498,8 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
         });
         continue;
       }
-      const edgeType = operator?.ownerType ?? edge.operator;
-      const edgeScalarAttributes = { ...(operator?.defaults ?? {}), ...edge.scalarAttributes };
+      const edgeType = operator.ownerType ?? edge.operator;
+      const edgeScalarAttributes = { ...(operator.defaults ?? {}), ...edge.scalarAttributes };
       const edgeAttributes = resolveAttributes(edge, edgeType, edge.attributes, edge.referenceAttributePositions, edgeScalarAttributes, edge.scalarAttributePositions, document.context.id, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, typeSystem, diagnostics);
       const deploymentAttributes = edge.deploymentActions.length === 0
         ? {}
@@ -449,54 +515,87 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
         typeSystem,
       });
       diagnostics.push(...(materialized.diagnostics ?? []));
-      if (materialized.edge !== undefined) {
-        linkedEdges.push(materialized.edge);
-        const deploymentSource = deploymentViewLogicalEndpoint(edge.source, linkedElementsById, typeSystem);
-        const deploymentTarget = deploymentViewLogicalEndpoint(target.id, linkedElementsById, typeSystem);
-        const coverage = typeSystem.isAssignable(edgeType, WIRE_TYPE)
-          && !typeSystem.isAssignable(edge.sourceType, DEPLOYMENT_ELEMENT_TYPE)
-          && deploymentSource !== undefined
-          && deploymentTarget !== undefined
-          && deploymentSource !== deploymentTarget
-          ? {
-            parsed: edge,
-            linked: materialized.edge,
-            deploymentDefined: edge.deploymentActions.length > 0,
-            projected: false,
-          }
-          : undefined;
-        if (coverage !== undefined) {
-          wireDeploymentCoverage.push(coverage);
-        }
-        pendingProjections.push({
-          sourceIdentity: edge.sourceName,
-          fromId: edge.source,
-          toId: target.id,
-          attributes: effectiveEdgeAttributes,
-          projectedAttributes: materialized.edge.attributes,
-          projectedOperator: materialized.edge.operator,
-          projectionOrigin: {
-            source: edge.source,
-            target: target.id,
-            sourceIdentity: materialized.edge.sourceIdentity,
-            ...(materialized.edge.declaration === undefined ? {} : { declaration: materialized.edge.declaration }),
-          },
-          ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
-          ...(coverage === undefined ? {} : { coverage }),
-        });
+      if (materialized.edge === undefined) {
+        continue;
       }
+      linkedEdges.push(materialized.edge);
+      const deploymentSource = deploymentViewLogicalEndpoint(edge.source, linkedElementsById, typeSystem);
+      const deploymentTarget = deploymentViewLogicalEndpoint(target.id, linkedElementsById, typeSystem);
+      const coverage = typeSystem.isAssignable(edgeType, WIRE_TYPE)
+        && !typeSystem.isAssignable(edge.sourceType, DEPLOYMENT_ELEMENT_TYPE)
+        && deploymentSource !== undefined
+        && deploymentTarget !== undefined
+        && deploymentSource !== deploymentTarget
+        ? {
+          parsed: edge,
+          linked: materialized.edge,
+          deploymentDefined: edge.deploymentActions.length > 0,
+          projected: false,
+        }
+        : undefined;
+      if (coverage !== undefined) {
+        wireDeploymentCoverage.push(coverage);
+      }
+      pendingProjections.push({
+        sourceIdentity: edge.sourceName,
+        fromId: edge.source,
+        toId: target.id,
+        attributes: effectiveEdgeAttributes,
+        projectedAttributes: materialized.edge.attributes,
+        projectedOperator: materialized.edge.operator,
+        projectionOrigin: {
+          source: edge.source,
+          target: target.id,
+          sourceIdentity: materialized.edge.sourceIdentity,
+          ...(materialized.edge.declaration === undefined ? {} : { declaration: materialized.edge.declaration }),
+        },
+        ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
+        ...(coverage === undefined ? {} : { coverage }),
+      });
     }
   }
+}
+
+function expandProjectionStage(workspace: LinkingWorkspace): void {
+  const {
+    pendingProjections,
+    linkedEdges,
+    linkedElementsById,
+    resolvedElementAttributes,
+    ownerIndependentProjectionKeys,
+    typeSystem,
+    diagnostics,
+    elements,
+  } = workspace;
   for (const projection of pendingProjections) {
     addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage, projection.projectionOrigin);
   }
   const slotDomainTypes = typeSystem.slotDomainTypes();
   for (const element of elements) {
-    if (!isProjectionRoot(element, slotDomainTypes, typeSystem)) {
-      continue;
+    if (isProjectionRoot(element, slotDomainTypes, typeSystem)) {
+      addProjectedEdges(linkedEdges, element.sourceName, element.id, element.id, resolvedElementAttributes.get(element.id) ?? {}, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics);
     }
-    addProjectedEdges(linkedEdges, element.sourceName, element.id, element.id, resolvedElementAttributes.get(element.id) ?? {}, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics);
   }
+}
+
+function completeLinkingPipeline(
+  request: LinkProjectRequest,
+  workspace: LinkingWorkspace,
+): LinkProjectResult {
+  const {
+    typeSystem,
+    documents,
+    elements,
+    imports,
+    diagnostics,
+    linkedEdges,
+    resolvedElementAttributes,
+    deployedElementIds,
+    wireDeploymentCoverage,
+    elementsByContextAndLocalId,
+    sourceElementsBySourceAndLocalId,
+    importsBySourceAndAlias,
+  } = workspace;
   const duplicateEdges = duplicateLinkedEdges(linkedEdges);
   const presentations = buildPresentationIndex(request.snapshot.presentations ?? [], typeSystem, diagnostics);
   const graph = buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem);
@@ -519,7 +618,6 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
       diagnostics,
     );
   }
-
   const contexts: LinkedContext[] = documents.map((document) => ({
     id: document.context.id,
     type: document.context.type,
@@ -528,7 +626,6 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
     declaration: sourceLocation(document.sourceName, document.context),
     attributes: flattenAttributes(document.context.scalarAttributes, {}),
   }));
-
   return {
     diagnostics,
     graph,
@@ -3389,342 +3486,8 @@ function duplicateLinkedEdges(edges: readonly LinkedEdge[]): readonly DuplicateL
     }));
 }
 
-const PRESENTATION_FIELDS = new Set(["header", "subtitle", "body"]);
-const PRESENTATION_SECTIONS = new Set(["light", "dark", "graphviz"]);
-const PRESENTATION_SECTION_PROPERTIES = new Set([
-  "fill",
-  "stroke",
-  "text",
-  "bgcolor",
-  "shape",
-  "style",
-  "width",
-  "height",
-  "rankdir",
-  "overlap",
-  "newrank",
-  "nodesep",
-  "ranksep",
-  "splines",
-  "labelloc",
-  "minlen",
-  "fontsize",
-  "penwidth",
-  "visible",
-]);
-
-function buildPresentationIndex(
-  presentations: readonly PresentationDefinition[],
-  typeSystem: TypeSystem,
-  diagnostics: LanguageDiagnostic[],
-): Readonly<Record<string, ResolvedPresentation>> {
-  const byName = new Map(presentations.map((presentation) => [presentation.name, presentation]));
-  for (const presentation of presentations) {
-    validatePresentationDefinition(presentation, typeSystem, diagnostics);
-  }
-  const resolved = new Map<string, ResolvedPresentation>();
-  for (const name of byName.keys()) {
-    resolvePresentation(name, byName, typeSystem, resolved, new Set(), diagnostics);
-  }
-  for (const name of typeSystem.declaredTypes()) {
-    resolvePresentation(name, byName, typeSystem, resolved, new Set(), diagnostics);
-  }
-  return Object.fromEntries(resolved);
-}
-
-function validatePresentationDefinition(
-  presentation: PresentationDefinition,
-  typeSystem: TypeSystem,
-  diagnostics: LanguageDiagnostic[],
-): void {
-  if (!typeSystem.isDeclared(presentation.name)) {
-    diagnostics.push({
-      code: "UNKNOWN_PRESENTATION_TYPE",
-      message: `Presentation target type '${presentation.name}' is not declared`,
-      ...presentationDiagnosticLocation(presentation.source),
-    });
-    return;
-  }
-  const attributes = typeSystem.attributes(presentation.name);
-  for (const [field, value] of Object.entries(presentation.assignments ?? {})) {
-    if (!PRESENTATION_FIELDS.has(field)) {
-      diagnostics.push({
-        code: "ATTRIBUTE_NOT_DECLARED",
-        message: `Presentation field '${field}' is not declared`,
-        ...presentationDiagnosticLocation(presentation.assignmentPositions?.[field], presentation.source),
-      });
-      continue;
-    }
-    if (attributes.size > 0 && !attributes.has(value) && !attributeExistsOnDescendant(typeSystem, presentation.name, value)) {
-      diagnostics.push({
-        code: "ATTRIBUTE_NOT_DECLARED",
-        message: `Attribute '${value}' is not declared on type '${presentation.name}'`,
-        ...presentationDiagnosticLocation(presentation.assignmentValuePositions?.[field], presentation.assignmentPositions?.[field], presentation.source),
-      });
-    }
-  }
-  for (const [section, assignments] of Object.entries(presentation.sections ?? {})) {
-    if (!PRESENTATION_SECTIONS.has(section)) {
-      diagnostics.push({
-        code: "ATTRIBUTE_NOT_DECLARED",
-        message: `Presentation section '${section}' is not declared`,
-        ...presentationDiagnosticLocation(presentation.sectionPositions?.[section], presentation.source),
-      });
-      continue;
-    }
-    for (const property of Object.keys(assignments)) {
-      if (!PRESENTATION_SECTION_PROPERTIES.has(property)) {
-        diagnostics.push({
-          code: "ATTRIBUTE_NOT_DECLARED",
-          message: `Presentation section property '${property}' is not declared`,
-          ...presentationDiagnosticLocation(presentation.sectionPropertyPositions?.[section]?.[property], presentation.sectionPositions?.[section], presentation.source),
-        });
-      }
-    }
-  }
-}
-
-function presentationDiagnosticLocation(
-  ...locations: Array<SourceLocation | undefined>
-): Pick<LanguageDiagnostic, "sourceName" | "line" | "column" | "endLine" | "endColumn"> {
-  return locations.find((location) => location !== undefined) ?? {
-    sourceName: "presentation",
-    line: 1,
-    column: 1,
-  };
-}
-
-function attributeExistsOnDescendant(typeSystem: TypeSystem, type: string, attribute: string): boolean {
-  for (const candidate of typeSystem.declaredTypes()) {
-    if (candidate !== type
-      && typeSystem.baseTypes(candidate).includes(type)
-      && typeSystem.attribute(candidate, attribute) !== undefined) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function resolvePresentation(
-  name: string,
-  presentations: ReadonlyMap<string, PresentationDefinition>,
-  typeSystem: TypeSystem,
-  resolved: Map<string, ResolvedPresentation>,
-  visiting: Set<string>,
-  diagnostics: LanguageDiagnostic[],
-): ResolvedPresentation | undefined {
-  const existing = resolved.get(name);
-  if (existing !== undefined) {
-    return existing;
-  }
-  const declaration = presentations.get(name);
-  const baseName = inferPresentationBase(name, presentations, typeSystem);
-  if (declaration === undefined && baseName === undefined) {
-    return undefined;
-  }
-  if (visiting.has(name)) {
-    diagnostics.push({
-      code: "CYCLIC_PRESENTATION_INHERITANCE",
-      message: `Presentation inheritance for '${name}' contains a cycle`,
-      sourceName: "presentation",
-      line: 1,
-      column: 1,
-    });
-    return undefined;
-  }
-  visiting.add(name);
-  const base = baseName === undefined
-    ? undefined
-    : resolvePresentation(baseName, presentations, typeSystem, resolved, visiting, diagnostics);
-  visiting.delete(name);
-  const item: ResolvedPresentation = {
-    name,
-    ...(baseName === undefined ? {} : { basePresentation: baseName }),
-    assignments: {
-      ...(base?.assignments ?? {}),
-      ...(declaration?.assignments ?? {}),
-    },
-    sections: mergeResolvedPresentationSections(base?.sections ?? {}, declaration?.sections ?? {}),
-  };
-  resolved.set(name, item);
-  return item;
-}
-
-function inferPresentationBase(
-  name: string,
-  presentations: ReadonlyMap<string, PresentationDefinition>,
-  typeSystem: TypeSystem,
-): string | undefined {
-  return typeSystem.baseTypes(name).find((candidate) => presentations.has(candidate));
-}
-
-function mergeResolvedPresentationSections(
-  base: Readonly<Record<string, Readonly<Record<string, string>>>>,
-  own: Readonly<Record<string, Readonly<Record<string, string>>>>,
-): Readonly<Record<string, Readonly<Record<string, string>>>> {
-  const result: Record<string, Readonly<Record<string, string>>> = { ...base };
-  for (const [section, assignments] of Object.entries(own)) {
-    result[section] = {
-      ...(result[section] ?? {}),
-      ...assignments,
-    };
-  }
-  return result;
-}
-
 function duplicateEdgeKey(edge: LinkedEdge): string {
   return `${edge.source}\0${edge.operator}\0${edge.target}`;
-}
-
-function buildIndexedGraph(
-  documents: readonly ParsedDocument[],
-  elements: readonly ParsedElement[],
-  imports: readonly ResolvedImport[],
-  edges: readonly LinkedEdge[],
-  typeSystem: TypeSystem,
-): IndexedGraph {
-  const graph = new IndexedGraph();
-
-  for (const type of typeSystem.declaredTypes()) {
-    safeAddNode(graph, {
-      kind: "type",
-      id: type,
-      baseTypes: typeSystem.baseTypes(type),
-    });
-  }
-  if (typeSystem.declaredTypes().size === 0) {
-    safeAddNode(graph, {
-      kind: "type",
-      id: ELEMENT_TYPE,
-      baseTypes: [],
-    });
-  }
-
-  for (const document of documents) {
-    const sourceIdentity = document.sourceName;
-    safeAddNode(graph, { kind: "context", id: document.context.id });
-    safeAddNode(graph, { kind: "source", id: sourceIdentity });
-    safeAddRelation(graph, graphRelation(
-      `contributes:${sourceIdentity}->${document.context.id}`,
-      "CONTRIBUTES",
-      sourceIdentity,
-      document.context.id,
-      sourceIdentity,
-    ));
-  }
-
-  const graphElements = elements.filter(isGraphElement);
-  const elementsById = new Map(graphElements.map((element) => [element.id, element]));
-  for (const element of graphElements) {
-    safeAddNode(graph, elementNode(element, typeSystem, elementsById));
-  }
-  for (const element of graphElements) {
-    const parent = element.parent ?? element.context;
-    safeAddRelation(graph, graphRelation(
-      `declares:${element.sourceName}->${element.id}`,
-      "DECLARES",
-      element.sourceName,
-      element.id,
-      element.sourceName,
-    ));
-    safeAddRelation(graph, graphRelation(
-      `contains:${parent}->${element.id}`,
-      "CONTAINS",
-      parent,
-      element.id,
-      element.sourceName,
-    ));
-  }
-  for (const imported of imports) {
-    safeAddRelation(graph, graphRelation(
-      `imports:${imported.sourceName}:${imported.alias}->${imported.target}`,
-      "IMPORTS",
-      imported.sourceName,
-      imported.target,
-      imported.sourceName,
-    ));
-  }
-  for (const edge of edges) {
-    safeAddRelation(graph, graphRelation(
-      edge.id,
-      "REFERENCES",
-      edge.source,
-      edge.target,
-      edge.sourceIdentity,
-      edge.type,
-      edge.projected === true,
-    ));
-  }
-
-  return graph;
-}
-
-function elementNode(
-  element: ParsedElement,
-  typeSystem: TypeSystem,
-  elementsById: ReadonlyMap<string, ParsedElement>,
-): GraphNode {
-  return {
-    kind: "element",
-    id: element.id,
-    context: element.context,
-    localId: element.localId,
-    constructor: element.constructor,
-    type: element.type,
-    baseTypes: typeSystem.baseTypes(element.type),
-    nestingLevel: elementNestingLevel(element, elementsById),
-    ...(element.note === undefined ? {} : { note: element.note }),
-    declarationSource: element.sourceName,
-  };
-}
-
-function elementNestingLevel(
-  element: ParsedElement,
-  elementsById: ReadonlyMap<string, ParsedElement>,
-): number {
-  let level = 1;
-  let parent = element.parent === undefined ? undefined : elementsById.get(element.parent);
-  const visited = new Set<string>([element.id]);
-  while (parent !== undefined && !visited.has(parent.id)) {
-    visited.add(parent.id);
-    level++;
-    parent = parent.parent === undefined ? undefined : elementsById.get(parent.parent);
-  }
-  return level;
-}
-
-function graphRelation(
-  id: string,
-  kind: RelationKind,
-  source: string,
-  target: string,
-  ownerSource: string,
-  type?: string,
-  projected = false,
-): GraphRelation {
-  return {
-    id,
-    kind,
-    source,
-    target,
-    ownerSource,
-    ...(type === undefined ? {} : { type }),
-    ...(projected ? { projected: true } : {}),
-  };
-}
-
-function safeAddNode(graph: IndexedGraph, node: GraphNode): void {
-  if (graph.node(node.id) !== undefined) {
-    return;
-  }
-  graph.addNode(node);
-}
-
-function safeAddRelation(graph: IndexedGraph, relation: GraphRelation): void {
-  if (graph.relation(relation.id) !== undefined || graph.node(relation.source) === undefined || graph.node(relation.target) === undefined) {
-    return;
-  }
-  graph.addRelation(relation);
 }
 
 function isGraphElement(element: ParsedElement): boolean {
@@ -3886,11 +3649,42 @@ function inspectGraph(
   if (diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
     return;
   }
-  reportIsolatedElements(graph, elements, edges, resolvedElementAttributes, diagnostics);
-  reportShadowedLowerLevelEdges(graph, edges, diagnostics);
-  reportIncompleteWireDeployments(wireDeploymentCoverage, diagnostics);
-  reportIncompleteElementDeployments(elements, typeSystem, deployedElementIds, diagnostics);
+  const context: LinkIntrospectionContext = {
+    graph,
+    elements,
+    edges,
+    resolvedElementAttributes,
+    typeSystem,
+    deployedElementIds,
+    wireDeploymentCoverage,
+    diagnostics,
+  };
+  for (const rule of LINK_INTROSPECTION_RULES) {
+    rule(context);
+  }
 }
+
+interface LinkIntrospectionContext {
+  readonly graph: IndexedGraph;
+  readonly elements: readonly ParsedElement[];
+  readonly edges: readonly LinkedEdge[];
+  readonly resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>;
+  readonly typeSystem: TypeSystem;
+  readonly deployedElementIds: ReadonlySet<string>;
+  readonly wireDeploymentCoverage: readonly WireDeploymentCoverage[];
+  readonly diagnostics: LanguageDiagnostic[];
+}
+
+type LinkIntrospectionRule = (context: LinkIntrospectionContext) => void;
+
+const LINK_INTROSPECTION_RULES: readonly LinkIntrospectionRule[] = [
+  ({ graph, elements, edges, resolvedElementAttributes, diagnostics }) =>
+    reportIsolatedElements(graph, elements, edges, resolvedElementAttributes, diagnostics),
+  ({ graph, edges, diagnostics }) => reportShadowedLowerLevelEdges(graph, edges, diagnostics),
+  ({ wireDeploymentCoverage, diagnostics }) => reportIncompleteWireDeployments(wireDeploymentCoverage, diagnostics),
+  ({ elements, typeSystem, deployedElementIds, diagnostics }) =>
+    reportIncompleteElementDeployments(elements, typeSystem, deployedElementIds, diagnostics),
+];
 
 function reportIncompleteWireDeployments(
   coverage: readonly WireDeploymentCoverage[],
