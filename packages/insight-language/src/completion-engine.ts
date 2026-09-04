@@ -9,16 +9,11 @@ import type {
 import { lineContextAt, type LineContext } from "./line-context.js";
 import { tokenizeInsightSource, tokenName, tokenStart, tokenStop, tokenType } from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, PROJECTION_TERM, TYPE_SLOT_REFERENCE, TypeSystem } from "./type-system.js";
+import { ATTRIBUTE_CAPABILITIES, OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
 const PRESENTATION_SECTIONS = ["light", "dark", "graphviz"];
 const PROJECTION_ENDPOINTS = ["$from", "$to", "$this"];
-const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
-const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
-const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
-const NETWORK_CONNECTION_TYPE = "NetworkConnection";
-const USES_OPERATOR = "uses";
-const RUNS_ON_OPERATOR = "runsOn";
 const PRESENTATION_SECTION_PROPERTIES = [
   "fill",
   "stroke",
@@ -513,7 +508,8 @@ function deploymentDefinitionItems(
   context: CompletionScope,
 ): CompletionItem[] | undefined {
   const list = currentList(context, line.indentLevel);
-  if (list?.attribute !== DEPLOYMENT_LIST_ATTRIBUTE) {
+  if (list === undefined || typeSystem.attribute(list.ownerType, list.attribute)?.capabilities
+    ?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) !== true) {
     return undefined;
   }
   const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
@@ -533,8 +529,8 @@ function deploymentOperatorItems(typeSystem: TypeSystem, ownerType: string): Com
 function deploymentOperatorSpellings(typeSystem: TypeSystem, ownerType: string): string[] {
   return unique(typeSystem.operatorConstructorsFrom(ownerType)
     .filter((operator) => typeSystem.isAssignable(operator.ownerType, EDGE))
-    .filter((operator) => typeSystem.isAssignable(operator.targetType, DEPLOYMENT_PROFILE_TYPE)
-      || typeSystem.isAssignable(operator.targetType, INFRASTRUCTURE_COMPONENT_TYPE))
+    .filter((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement))
     .map((operator) => operator.spelling));
 }
 
@@ -566,19 +562,24 @@ function deploymentSlotItems(
   targetType: string,
   operatorSpelling: string,
 ): CompletionItem[] {
-  if (!typeSystem.isAssignable(targetType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+  if (!typeSystem.typeHasCapability(targetType, TYPE_CAPABILITIES.infrastructure)) {
     return [];
   }
-  const expectedSlotType = operatorSpelling === USES_OPERATOR && typeSystem.isAssignable(ownerType, "Wire")
-    ? NETWORK_CONNECTION_TYPE
-    : INFRASTRUCTURE_COMPONENT_TYPE;
-  return unique([...typeSystem.declaredTypes()]
-    .filter((type) => typeSystem.isAssignable(type, "Environment"))
+  const operator = typeSystem.operatorConstructorsFrom(ownerType)
+    .find((candidate) => candidate.spelling === operatorSpelling && candidate.targetType === targetType);
+  const expectedSlotTypes = operator !== undefined
+      && typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      && typeSystem.isAssignable(ownerType, "Wire")
+    ? typeSystem.typesWithCapability(TYPE_CAPABILITIES.networkConnection)
+    : typeSystem.typesWithCapability(TYPE_CAPABILITIES.infrastructure);
+  return unique(typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
     .flatMap((type) => [...typeSystem.attributes(type).values()])
     .filter((attribute) => attribute.name !== "_")
     .filter((attribute) => {
       const valueType = referenceAttributeValueType(attribute);
-      return valueType !== undefined && typeSystem.isAssignable(valueType, expectedSlotType);
+      return valueType !== undefined && expectedSlotTypes.some((expectedType) =>
+        typeSystem.isAssignable(valueType, expectedType)
+      );
     })
     .map((attribute) => attribute.name))
     .map(identifierItem);

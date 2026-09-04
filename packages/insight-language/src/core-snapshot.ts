@@ -11,6 +11,7 @@ import {
   AnonymousListAttributeDeclarationContext,
   AssignmentContext,
   AttributeDeclarationContext,
+  CapabilityAssignmentContext,
   DefineEnumDeclarationContext,
   DefineOperatorDeclarationContext,
   DefinePresentationDeclarationContext,
@@ -40,6 +41,7 @@ interface MutableTypeDefinition {
   baseType?: string;
   attributes: AttributeDefinition[];
   declaration?: SourceLocation;
+  capabilities: string[];
 }
 
 const BUILTIN_TYPES = ["Element", "Edge", "Nothing", "List", "Text", "TypeSlotReference"] as const;
@@ -310,8 +312,17 @@ function mergeTypeDefinition(
     name: existing.name,
     ...(next.baseType !== undefined ? { baseType: next.baseType } : existing.baseType === undefined ? {} : { baseType: existing.baseType }),
     ...(attributes.length === 0 ? {} : { attributes }),
+    ...mergeCapabilities(existing.capabilities, next.capabilities),
     ...(next.declaration !== undefined ? { declaration: next.declaration } : existing.declaration === undefined ? {} : { declaration: existing.declaration }),
   };
+}
+
+function mergeCapabilities(
+  existing: readonly string[] | undefined,
+  next: readonly string[] | undefined,
+): Pick<LanguageSnapshot["types"][number], "capabilities"> {
+  const capabilities = [...new Set([...(existing ?? []), ...(next ?? [])])];
+  return capabilities.length === 0 ? {} : { capabilities };
 }
 
 function mergeAttributes(
@@ -382,6 +393,10 @@ function collectLanguageSnapshotSource(
         if (attribute !== null) {
           type.attributes.push(attributeDefinition(attribute));
         }
+        const capability = item.capabilityAssignment();
+        if (capability !== null) {
+          type.capabilities.push(capabilityValue(capability));
+        }
       }
       const anonymous = typeDeclaration.anonymousListAttributeDeclaration();
       if (anonymous !== null) {
@@ -396,10 +411,11 @@ function collectLanguageSnapshotSource(
       type.declaration ??= position(operatorDeclaration.typeIdentifier(), sourceName);
       type.baseType = typeReference(operatorDeclaration.typeReference()).type;
       const implementation = operatorImplementation(operatorDeclaration);
+      const capabilities = operatorCapabilities(operatorDeclaration);
       for (const item of operatorDeclaration.operatorBodyItem()) {
         const constructor = item.operatorConstructorDeclaration();
         if (constructor !== null) {
-          operators.push(...operatorDefinitions(constructor, type.name, implementation, sourceName));
+          operators.push(...operatorDefinitions(constructor, type.name, implementation, capabilities, sourceName));
         }
         const attribute = item.attributeDeclaration();
         if (attribute !== null) {
@@ -496,6 +512,7 @@ function collectLanguageSnapshotSource(
         name: type.name,
         ...(type.baseType === undefined ? {} : { baseType: type.baseType }),
         ...(type.attributes.length === 0 ? {} : { attributes: type.attributes }),
+        ...(type.capabilities.length === 0 ? {} : { capabilities: type.capabilities }),
         ...(type.declaration === undefined ? {} : { declaration: type.declaration }),
       })),
       constructors,
@@ -574,16 +591,18 @@ function ensureType(types: Map<string, MutableTypeDefinition>, name: string): Mu
   if (existing !== undefined) {
     return existing;
   }
-  const created: MutableTypeDefinition = { name, attributes: [] };
+  const created: MutableTypeDefinition = { name, attributes: [], capabilities: [] };
   types.set(name, created);
   return created;
 }
 
 function attributeDefinition(attribute: AttributeDeclarationContext): AttributeDefinition {
+  const capabilities = attribute.capabilityAssignment().map(capabilityValue);
   return {
     ...attributeType(attribute.typeReference()),
     name: text(attribute.identifier()),
     ...(attribute.REQUIRED() === null ? {} : { required: true }),
+    ...(capabilities.length === 0 ? {} : { capabilities }),
   };
 }
 
@@ -623,6 +642,7 @@ function operatorDefinitions(
   constructor: OperatorConstructorDeclarationContext,
   ownerType: string,
   implementation: string | undefined,
+  capabilities: readonly string[],
   sourceName: string,
 ): readonly OperatorDefinition[] {
   const unions = constructor.typeUnion();
@@ -639,12 +659,24 @@ function operatorDefinitions(
         ...(leftType === undefined ? {} : { leftType }),
         targetType,
         ...(implementation === undefined ? {} : { implementation }),
+        ...(capabilities.length === 0 ? {} : { capabilities }),
         source,
         ...defaultsProperty(defaults),
       });
     }
   }
   return result;
+}
+
+function operatorCapabilities(operator: DefineOperatorDeclarationContext): readonly string[] {
+  return operator.operatorBodyItem().flatMap((item) => {
+    const capability = item.capabilityAssignment();
+    return capability === null ? [] : [capabilityValue(capability)];
+  });
+}
+
+function capabilityValue(capability: CapabilityAssignmentContext): string {
+  return implementationValue(capability.textValue());
 }
 
 function operatorImplementation(operator: DefineOperatorDeclarationContext): string | undefined {

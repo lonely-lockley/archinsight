@@ -59,6 +59,7 @@ FIXED       : 'fixed';
 IN          : 'in';
 IMPLEMENTATION
             : 'implementation';
+CAPABILITY  : 'capability';
 
 PROJECTION_FROM
     : '$from'

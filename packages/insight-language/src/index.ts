@@ -6,6 +6,7 @@ export {
   builtinViewDefinition,
   builtinViewHasStage,
   isBuiltinDiagramView,
+  queryViewPipeline,
   resolveBuiltinView,
 } from "./builtin-views.js";
 export {
@@ -71,6 +72,13 @@ export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
 export { ProjectAnalysisSession } from "./project-analysis-session.js";
 export {
+  CORE_EDGE_IMPLEMENTATION,
+  CORE_ELEMENT_IMPLEMENTATION,
+  ImmutableOperatorImplementationRegistry,
+  coreOperatorImplementationRegistry,
+  createOperatorImplementationRegistry,
+} from "./operator-implementation-registry.js";
+export {
   buildProjectStructure,
   buildTypeHierarchy,
   filterProjectStructure,
@@ -80,6 +88,11 @@ export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraph
 export { renderGraphviz } from "./graphviz-renderer.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
 export { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
+export {
+  ATTRIBUTE_CAPABILITIES,
+  OPERATOR_CAPABILITIES,
+  TYPE_CAPABILITIES,
+} from "./semantic-capabilities.js";
 export type {
   ProjectAnalysis,
   ProjectAnalysisUpdate,
@@ -88,11 +101,13 @@ export type {
 export type {
   BuiltinDiagramView,
   BuiltinViewAlias,
-  BuiltinViewBoundary,
   BuiltinViewDefinition,
   BuiltinViewEnvironmentPolicy,
   BuiltinViewLifecycle,
   BuiltinViewStage,
+  QueryViewPipelineDefinition,
+  ViewBoundaryDefinition,
+  ViewBoundaryScope,
 } from "./builtin-views.js";
 export type {
   AntlrAdapterInput,
@@ -155,6 +170,11 @@ export type {
   LinkProjectResult,
   ListFrame,
   OperatorDefinition,
+  OperatorImplementationApiVersion,
+  OperatorImplementationRegistry,
+  OperatorImplementationV1,
+  OperatorInvocationInputV1,
+  OperatorInvocationResultV1,
   ParsedInsightFile,
   PresentationDefinition,
   ProjectSource,

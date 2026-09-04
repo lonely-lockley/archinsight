@@ -4,7 +4,12 @@ export type BuiltinDiagramView = typeof GENERATED_BUILTIN_VIEW_DEFINITIONS[numbe
 export type BuiltinViewAlias = typeof GENERATED_BUILTIN_VIEW_DEFINITIONS[number]["aliases"][number];
 export type BuiltinViewEnvironmentPolicy = "none" | "single-relevant";
 export type BuiltinViewLifecycle = "stable" | "legacy";
-export type BuiltinViewBoundary = "context" | "system" | "container" | "component";
+export type ViewBoundaryScope = "context" | "tab";
+export interface ViewBoundaryDefinition {
+  readonly scope: ViewBoundaryScope;
+  readonly boundaryType: string;
+  readonly visibleType: string;
+}
 export type BuiltinViewStage =
   | "logical-boundary"
   | "deployment-seed-filter"
@@ -12,6 +17,11 @@ export type BuiltinViewStage =
   | "deployment-environment"
   | "deployment-system-rollup"
   | "deployment-infrastructure-simplification";
+
+export interface QueryViewPipelineDefinition {
+  readonly boundary: ViewBoundaryDefinition | null;
+  readonly stages: readonly BuiltinViewStage[];
+}
 
 export interface BuiltinViewDefinition {
   readonly id: BuiltinDiagramView;
@@ -24,7 +34,7 @@ export interface BuiltinViewDefinition {
   readonly environment: BuiltinViewEnvironmentPolicy;
   readonly aliases: readonly string[];
   readonly lifecycle: BuiltinViewLifecycle;
-  readonly boundary: BuiltinViewBoundary | null;
+  readonly boundary: ViewBoundaryDefinition | null;
   readonly stages: readonly BuiltinViewStage[];
 }
 
@@ -60,4 +70,18 @@ export function builtinViewHasStage(
   stage: BuiltinViewStage,
 ): boolean {
   return view !== undefined && builtinViewDefinition(view).stages.includes(stage);
+}
+
+export function queryViewPipeline(
+  view: BuiltinDiagramView | undefined,
+  pipeline?: QueryViewPipelineDefinition,
+): QueryViewPipelineDefinition {
+  if (pipeline !== undefined) {
+    return pipeline;
+  }
+  const definition = view === undefined ? undefined : builtinViewDefinition(view);
+  return {
+    boundary: definition?.boundary ?? null,
+    stages: definition?.stages ?? [],
+  };
 }

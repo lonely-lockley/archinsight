@@ -175,7 +175,7 @@ function selectedContext(
   if (sourceContext?.synthetic === true && required) {
     throw new CliError(`Source '${source}' contains definitions and does not declare a renderable context or environment`);
   }
-  if (view !== undefined && builtinViewDefinition(view).boundary === "context"
+  if (view !== undefined && builtinViewDefinition(view).boundary?.scope === "context"
       && sourceContext !== undefined && sourceContext.type !== "Context") {
     throw new CliError(`Source '${source}' does not declare a logical context for the C1 view`);
   }
@@ -206,7 +206,7 @@ function selectedContext(
 function availableContextIds(project: LoadedProject, view: DiagramView | undefined): string[] {
   return [...new Set(project.result.contexts
     .filter((context) => context.synthetic !== true
-      && (view === undefined || builtinViewDefinition(view).boundary !== "context" || context.type === "Context"))
+      && (view === undefined || builtinViewDefinition(view).boundary?.scope !== "context" || context.type === "Context"))
     .map((context) => context.id))].sort();
 }
 

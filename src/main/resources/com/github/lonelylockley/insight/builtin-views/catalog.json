@@ -22,7 +22,11 @@
     "environment": "none",
     "aliases": [],
     "lifecycle": "stable",
-    "boundary": "context",
+    "boundary": {
+      "scope": "context",
+      "boundaryType": "SystemElement",
+      "visibleType": "SystemElement"
+    },
     "stages": ["logical-boundary"]
   },
   {
@@ -35,7 +39,11 @@
     "environment": "none",
     "aliases": [],
     "lifecycle": "stable",
-    "boundary": "system",
+    "boundary": {
+      "scope": "tab",
+      "boundaryType": "SystemElement",
+      "visibleType": "ContainerElement"
+    },
     "stages": ["logical-boundary"]
   },
   {
@@ -48,7 +56,11 @@
     "environment": "none",
     "aliases": [],
     "lifecycle": "stable",
-    "boundary": "container",
+    "boundary": {
+      "scope": "tab",
+      "boundaryType": "ContainerElement",
+      "visibleType": "ComponentElement"
+    },
     "stages": ["logical-boundary"]
   },
   {
@@ -61,7 +73,11 @@
     "environment": "none",
     "aliases": [],
     "lifecycle": "stable",
-    "boundary": "component",
+    "boundary": {
+      "scope": "tab",
+      "boundaryType": "ComponentElement",
+      "visibleType": "CodeElement"
+    },
     "stages": ["logical-boundary"]
   },
   {

@@ -91,6 +91,33 @@ export class TypeSystem {
     return this.attributes(ownerType).get(name);
   }
 
+  attributeWithCapability(ownerType: string, capability: string): AttributeDefinition | undefined {
+    return [...this.attributes(ownerType).values()]
+      .find((attribute) => attribute.capabilities?.includes(capability) === true);
+  }
+
+  typeHasCapability(type: string, capability: string): boolean {
+    return this.inheritanceChain(type)
+      .some((candidate) => this.types.get(candidate)?.capabilities?.includes(capability) === true);
+  }
+
+  capabilities(type: string): readonly string[] {
+    return [...new Set(this.inheritanceChain(type)
+      .flatMap((candidate) => this.types.get(candidate)?.capabilities ?? []))];
+  }
+
+  declaresCapability(type: string, capability: string): boolean {
+    return this.types.get(type)?.capabilities?.includes(capability) === true;
+  }
+
+  typesWithCapability(capability: string): readonly string[] {
+    return [...this.types.keys()].filter((type) => this.typeHasCapability(type, capability));
+  }
+
+  operatorHasCapability(operator: OperatorDefinition, capability: string): boolean {
+    return operator.capabilities?.includes(capability) === true;
+  }
+
   anonymousListAttribute(ownerType: string): AttributeDefinition | undefined {
     return this.attribute(ownerType, "_");
   }

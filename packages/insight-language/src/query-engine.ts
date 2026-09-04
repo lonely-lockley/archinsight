@@ -11,8 +11,8 @@ import type {
 } from "./contracts.js";
 import type { GraphNode, GraphRelation } from "./indexed-graph.js";
 import {
-  builtinViewDefinition,
-  type BuiltinViewBoundary,
+  queryViewPipeline,
+  type ViewBoundaryDefinition,
 } from "./builtin-views.js";
 import {
   parseQuery,
@@ -30,6 +30,7 @@ import {
   type QueryExecutionContext,
 } from "./query-execution-context.js";
 import { runQueryViewPipeline } from "./query-view-pipeline.js";
+import { ATTRIBUTE_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 export const DEFAULT_QUERY = "MATCH (n:Element {context: $context}) RETURN n";
 
@@ -209,7 +210,10 @@ export function discoverDeploymentEnvironments(
     if (!closure.has(element.id) || element.deployed !== true) {
       continue;
     }
-    for (const targetId of [...(element.attributes.runsOn ?? []), ...(element.attributes.uses ?? [])]) {
+    for (const targetId of [
+      ...semanticAttribute(element, ATTRIBUTE_CAPABILITIES.placementOwner),
+      ...semanticAttribute(element, ATTRIBUTE_CAPABILITIES.infrastructureUses),
+    ]) {
       const target = elementsById.get(targetId);
       if (target !== undefined && target.context !== element.context) {
         environmentIds.add(target.context);
@@ -221,7 +225,7 @@ export function discoverDeploymentEnvironments(
     if (edge.projected === true || edge.sourceIdentity !== scope.tab) {
       continue;
     }
-    for (const targetId of edge.attributes.uses ?? []) {
+    for (const targetId of semanticAttribute(edge, ATTRIBUTE_CAPABILITIES.infrastructureUses)) {
       const target = elementsById.get(targetId);
       if (target !== undefined && target.context !== elementsById.get(edge.source)?.context) {
         wireEnvironmentIds.add(target.context);
@@ -231,10 +235,10 @@ export function discoverDeploymentEnvironments(
 
   for (const context of result.contexts) {
     const ownsConcreteDeployment = result.elements.some((element) =>
-      element.context === context.id && elementHasType(element, "Deployment")
+      element.context === context.id && elementHasCapability(element, TYPE_CAPABILITIES.deployment)
     );
     if (context.synthetic !== true && context.sourceIdentity === scope.tab
-        && (context.type === "Environment" || ownsConcreteDeployment)) {
+        && (context.capabilities?.includes(TYPE_CAPABILITIES.environment) === true || ownsConcreteDeployment)) {
       environmentIds.add(context.id);
     }
   }
@@ -247,7 +251,8 @@ export function discoverDeploymentEnvironments(
   const contextsById = execution.contextsById;
   const environmentNamesByContext = new Map<string, string>();
   for (const element of result.elements) {
-    if (element.synthetic === true || element.parent !== undefined || !elementHasType(element, "Environment")) {
+    if (element.synthetic === true || element.parent !== undefined
+        || !elementHasCapability(element, TYPE_CAPABILITIES.environment)) {
       continue;
     }
     const name = element.attributes.name?.[0];
@@ -503,7 +508,7 @@ function deploymentEndpointAllowed(
 
 function isLogicalDeploymentEndpoint(id: string, elementsById: ReadonlyMap<string, LinkedElement>): boolean {
   const element = elementsById.get(baseOccurrenceId(id));
-  return element !== undefined && !elementHasType(element, "InfrastructureComponent");
+  return element !== undefined && !elementHasCapability(element, TYPE_CAPABILITIES.infrastructure);
 }
 
 function deploymentOccurrenceEnvironment(
@@ -514,7 +519,7 @@ function deploymentOccurrenceEnvironment(
   if (separator >= 0) {
     return elementEnvironment(id.slice(separator + 2), elementsById);
   }
-  const runsOn = elementsById.get(id)?.attributes.runsOn ?? [];
+  const runsOn = semanticAttribute(elementsById.get(id), ATTRIBUTE_CAPABILITIES.placementOwner);
   return runsOn.length === 1 ? elementEnvironment(runsOn[0]!, elementsById) : undefined;
 }
 
@@ -615,7 +620,7 @@ function simplifyDeploymentSystemInfrastructure(context: EvaluationContext, grap
   const placementGroupOwners = new Set(graph.groups.map((group) => group.owner));
   const retained = new Set(Object.keys(graph.elements).filter((id) => {
     const element = elementsById.get(baseOccurrenceId(id)) ?? graph.elements[id];
-    return !elementHasType(element, "InfrastructureComponent")
+    return !elementHasCapability(element, TYPE_CAPABILITIES.infrastructure)
       || (externalElements.has(id) && !placementGroupOwners.has(id));
   }));
   const outgoing = new Map<string, RenderGraphEdge[]>();
@@ -744,7 +749,8 @@ function simplifyDeploymentSystemInfrastructure(context: EvaluationContext, grap
   }
 
   const environmentRootByContext = new Map(result.elements
-    .filter((element) => element.synthetic !== true && element.parent === undefined && elementHasType(element, "Environment"))
+    .filter((element) => element.synthetic !== true && element.parent === undefined
+      && elementHasCapability(element, TYPE_CAPABILITIES.environment))
     .map((element) => [element.context, element.id]));
   const groupedEnvironmentsByElement = new Map<string, Set<string>>();
   for (const group of graph.groups) {
@@ -769,7 +775,7 @@ function simplifyDeploymentSystemInfrastructure(context: EvaluationContext, grap
     if (occurrenceEnvironment !== undefined) {
       environments.add(occurrenceEnvironment);
     }
-    if (environments.size === 0 && elementHasType(element, "InfrastructureComponent")
+    if (environments.size === 0 && elementHasCapability(element, TYPE_CAPABILITIES.infrastructure)
         && environmentRootByContext.has(element?.context ?? "")) {
       environments.add(element!.context);
     }
@@ -851,13 +857,13 @@ function patternNodeAliases(pattern: QueryPattern): readonly string[] {
 
 function applyViewBoundary(context: EvaluationContext, graph: RenderGraph): RenderGraph {
   const { result, scope, elementsById, parentByChild } = context;
-  const boundary = scope.view === undefined ? null : builtinViewDefinition(scope.view).boundary;
+  const boundary = queryViewPipeline(scope.view, scope.pipeline).boundary;
   if (boundary === null) {
     return graph;
   }
   const openedBoundaries = openedViewBoundaries(context, boundary);
   const inside = (id: string): boolean => elementInsideView(elementsById.get(id), scope, boundary, openedBoundaries, parentByChild);
-  const visibleType = visibleElementType(boundary);
+  const visibleType = boundary.visibleType;
   const foldedIds = new Map<string, string>();
   const fold = (id: string): string => {
     const existing = foldedIds.get(id);
@@ -958,13 +964,13 @@ function sameViewRelationship(left: RenderGraphEdge, right: RenderGraphEdge): bo
 
 function openedViewBoundaries(
   context: EvaluationContext,
-  boundary: BuiltinViewBoundary,
+  boundary: ViewBoundaryDefinition,
 ): ReadonlySet<string> {
   const { scope } = context;
-  if (boundary === "context") {
+  if (boundary.scope === "context") {
     return new Set(scope.context === undefined ? [] : [scope.context]);
   }
-  return openedTabBoundaries(context, boundaryElementType(boundary));
+  return openedTabBoundaries(context, boundary.boundaryType);
 }
 
 function openedTabBoundaries(
@@ -980,14 +986,14 @@ function openedTabBoundaries(
 function elementInsideView(
   element: LinkedElement | undefined,
   scope: QueryScope,
-  boundary: BuiltinViewBoundary,
+  boundary: ViewBoundaryDefinition,
   openedBoundaries: ReadonlySet<string>,
   parentByChild: ReadonlyMap<string, string>,
 ): boolean {
   if (element === undefined) {
     return false;
   }
-  if (boundary === "context") {
+  if (boundary.scope === "context") {
     return scope.context !== undefined && element.context === scope.context;
   }
   return lineage(element.id, parentByChild).some((id) => openedBoundaries.has(id));
@@ -995,46 +1001,37 @@ function elementInsideView(
 
 function closedViewBoundaryEndpoint(
   id: string,
-  boundary: BuiltinViewBoundary,
+  boundary: ViewBoundaryDefinition,
   elementsById: ReadonlyMap<string, LinkedElement>,
   parentByChild: ReadonlyMap<string, string>,
 ): string | undefined {
-  const boundaryType = boundaryElementType(boundary);
   return lineage(id, parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), boundaryType));
+    .find((candidate) => elementHasType(elementsById.get(candidate), boundary.boundaryType));
 }
 
 function openViewEndpoint(
   id: string,
-  boundary: BuiltinViewBoundary,
+  boundary: ViewBoundaryDefinition,
   elementsById: ReadonlyMap<string, LinkedElement>,
   parentByChild: ReadonlyMap<string, string>,
 ): string | undefined {
-  const elementType = visibleElementType(boundary);
   return lineage(id, parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), elementType));
-}
-
-function boundaryElementType(boundary: BuiltinViewBoundary): string {
-  return boundary === "context" || boundary === "system"
-    ? "SystemElement"
-    : boundary === "container"
-      ? "ContainerElement"
-      : "ComponentElement";
-}
-
-function visibleElementType(boundary: BuiltinViewBoundary): string {
-  return boundary === "context"
-    ? "SystemElement"
-    : boundary === "system"
-      ? "ContainerElement"
-      : boundary === "container"
-        ? "ComponentElement"
-        : "CodeElement";
+    .find((candidate) => elementHasType(elementsById.get(candidate), boundary.visibleType));
 }
 
 function elementHasType(element: LinkedElement | undefined, type: string): boolean {
   return element !== undefined && (element.type === type || element.baseTypes.includes(type));
+}
+
+function elementHasCapability(element: LinkedElement | undefined, capability: string): boolean {
+  return element?.capabilities?.includes(capability) === true;
+}
+
+function semanticAttribute(
+  item: Pick<LinkedElement | LinkedEdge, "semanticAttributes"> | undefined,
+  capability: string,
+): readonly string[] {
+  return item?.semanticAttributes?.[capability] ?? [];
 }
 
 function explicitlyExternal(element: LinkedElement): boolean {
@@ -1951,7 +1948,9 @@ function collectSelectedReferenceGroups(
       : isQueryNode(value)
         ? [value.id]
         : [];
-    const selectedOwners = expression.property === "runsOn" && owners.length > 1 ? [] : owners;
+    const isSinglePlacement = element.semanticAttributeNames?.[ATTRIBUTE_CAPABILITIES.placementOwner]
+      === expression.property;
+    const selectedOwners = isSinglePlacement && owners.length > 1 ? [] : owners;
     for (const owner of selectedOwners) {
       collectGroupValue(groups, node, owner, undefined);
       grouped.add(element.id);

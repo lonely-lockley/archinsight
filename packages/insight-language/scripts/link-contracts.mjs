@@ -2349,7 +2349,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Wire deployment cannot use 'DeploymentProfile'")));
+    && diagnostic.message.includes("Wire deployment cannot use a deployment profile")));
 }
 
 function rejectsNonNetworkInfrastructureOnWires() {
@@ -2370,7 +2370,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Wire deployment can use only 'NetworkConnection'")));
+    && diagnostic.message.includes("Wire deployment can use only network infrastructure")));
 }
 
 function skipsUnavailableWireNetworksPerDeployment() {
@@ -3555,6 +3555,8 @@ extend type Wire
 define operator OriginalLink of PhysicalWire
     constructor originalLink ProjectionTerm
         on ProjectionTerm
+
+    capability = "preserve-logical-edge"
 
 define operator ConnectTo of PhysicalWire
     constructor connectTo Element

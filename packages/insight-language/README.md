@@ -12,6 +12,7 @@ The package owns:
 - authoritative project linking;
 - object-extension materialization;
 - deployment validation;
+- semantic capability resolution and immutable operator implementation registries;
 - indexed graph/query result construction;
 - render model and DOT generation;
 - language-service facade for consumers.
@@ -114,6 +115,11 @@ Active consumers:
 Consumer adapters may translate language results into Monaco markers, VSCode
 diagnostics/completions, Svelte state, CLI stdout/stderr, or HTTP DTOs. Those
 translations must stay outside this package.
+
+Custom query hosts may pass a `QueryViewPipelineDefinition` in `QueryScope`.
+Built-in views and user queries then execute the same parameterized boundary and
+deployment stages; pipeline behavior must never be inferred from a copied
+built-in view name.
 
 ## Core Framework Sources
 

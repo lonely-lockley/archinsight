@@ -9,6 +9,8 @@ import type {
   LinkProjectResult,
   ConstructorDefinition,
   OperatorDefinition,
+  OperatorImplementationRegistry,
+  OperatorImplementationV1,
   DuplicateLinkedEdgeGroup,
   ProjectionRuleDefinition,
   ProjectionOrigin,
@@ -16,10 +18,15 @@ import type {
   SourceLocation,
 } from "./contracts.js";
 import { InsightParser } from "./generated/InsightParser.js";
-import type { IndexedGraph } from "./indexed-graph.js";
+import { IndexedGraph } from "./indexed-graph.js";
 import { linkedEdgeId } from "./linked-edge-id.js";
 import { buildIndexedGraph } from "./linked-project-index.js";
 import { buildPresentationIndex } from "./presentation-resolver.js";
+import {
+  CORE_EDGE_IMPLEMENTATION,
+  CORE_ELEMENT_IMPLEMENTATION,
+  coreOperatorImplementationRegistry,
+} from "./operator-implementation-registry.js";
 import {
   directChildrenByRule,
   directTerminalTokens,
@@ -32,24 +39,19 @@ import {
   type AntlrParseTreeLike,
 } from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
+import {
+  ATTRIBUTE_CAPABILITIES,
+  OPERATOR_CAPABILITIES,
+  TYPE_CAPABILITIES,
+} from "./semantic-capabilities.js";
 
 const ELEMENT_TYPE = "Element";
 const WIRE_TYPE = "Wire";
-const DEPLOYMENT_ELEMENT_TYPE = "DeploymentElement";
 const COMPONENT_ELEMENT_TYPE = "ComponentElement";
 const CONTAINER_ELEMENT_TYPE = "ContainerElement";
 const SYSTEM_TYPE = "System";
 const ACTOR_TYPE = "Actor";
-const ORIGINAL_LINK_OPERATOR = "originalLink";
-const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
-const ENVIRONMENT_TYPE = "Environment";
-const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
-const NETWORK_CONNECTION_TYPE = "NetworkConnection";
-const DEPLOYMENT_TYPE = "Deployment";
-const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
 const APPLIES_TO_ATTRIBUTE = "appliesTo";
-const RUNS_ON_OPERATOR = "runsOn";
-const USES_OPERATOR = "uses";
 const RUNS_ON_ATTRIBUTE = "runsOn";
 const USES_ATTRIBUTE = "uses";
 
@@ -215,6 +217,7 @@ interface MutableParsedDocument {
   readonly extensions: ParsedExtension[];
   readonly diagnostics: LanguageDiagnostic[];
   readonly anonymousCounters: Map<string, number>;
+  readonly operatorImplementations: OperatorImplementationRegistry;
 }
 
 export interface ResolvedImport {
@@ -305,6 +308,9 @@ interface EdgeMaterializationInput {
   readonly edgeScalarAttributes: Readonly<Record<string, string>>;
   readonly edgeAttributes: Readonly<Record<string, readonly ResolvedReferenceValue[]>>;
   readonly typeSystem: TypeSystem;
+  readonly graph: IndexedGraph;
+  readonly from: LinkedElement;
+  readonly to: LinkedElement;
 }
 
 interface EdgeMaterializationResult {
@@ -346,6 +352,7 @@ interface LinkingWorkspace {
   readonly linkedElementsById: ReadonlyMap<string, ParsedElement>;
   readonly resolvedElementAttributes: Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>;
   readonly deploymentContext: DeploymentExpansionContext;
+  readonly operatorImplementations: OperatorImplementationRegistry;
 }
 
 export function linkProject(request: LinkProjectRequest): LinkProjectResult {
@@ -358,9 +365,10 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
 
 function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
   const typeSystem = new TypeSystem(request.snapshot);
+  const operatorImplementations = request.operatorImplementations ?? coreOperatorImplementationRegistry;
   const anonymousCounters = new Map<string, number>();
   const documents = request.sources.map((source) =>
-    parseDocument(source.sourceName, source.source, typeSystem, anonymousCounters)
+    parseDocument(source.sourceName, source.source, typeSystem, anonymousCounters, operatorImplementations)
   );
   const diagnostics: LanguageDiagnostic[] = [];
   const elementsByContextAndLocalId = new Map<string, ParsedElement[]>();
@@ -423,6 +431,7 @@ function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
     linkedElementsById,
     resolvedElementAttributes,
     deploymentContext,
+    operatorImplementations,
   };
 }
 
@@ -435,7 +444,7 @@ function resolveDeploymentStage(workspace: LinkingWorkspace): void {
     resolvedElementAttributes,
   } = workspace;
   for (const element of elements) {
-    if (typeSystem.isAssignable(element.type, DEPLOYMENT_PROFILE_TYPE)) {
+    if (typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deploymentProfile)) {
       continue;
     }
     const application = element.deploymentActions.length === 0
@@ -454,13 +463,21 @@ function resolveDeploymentStage(workspace: LinkingWorkspace): void {
     if (element.deploymentActions.length === 0 && effectiveDeployments.length === 0) {
       continue;
     }
+    const placementAttribute = typeSystem.attributeWithCapability(
+      element.type,
+      ATTRIBUTE_CAPABILITIES.placementOwner,
+    )?.name ?? RUNS_ON_ATTRIBUTE;
+    const usesAttribute = typeSystem.attributeWithCapability(
+      element.type,
+      ATTRIBUTE_CAPABILITIES.infrastructureUses,
+    )?.name ?? USES_ATTRIBUTE;
     resolvedElementAttributes.set(
       element.id,
       mergeResolvedReferenceAttributes(resolvedElementAttributes.get(element.id) ?? {}, {
         [APPLIES_TO_ATTRIBUTE]: effectiveDeployments.map((deployment) => resolvedValueForElement(deployment, deployment)),
-        [RUNS_ON_ATTRIBUTE]: application.runsOn.map(resolvedValueForDeploymentUse),
-        [USES_ATTRIBUTE]: application.uses.map(resolvedValueForDeploymentUse),
-      }),
+        [placementAttribute]: application.runsOn.map(resolvedValueForDeploymentUse),
+        [usesAttribute]: application.uses.map(resolvedValueForDeploymentUse),
+      }, new Set([placementAttribute])),
     );
   }
 }
@@ -478,6 +495,9 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
     linkedElementsById,
     wireDeploymentCoverage,
     pendingProjections,
+    deployedElementIds,
+    resolvedElementAttributes,
+    operatorImplementations,
   } = workspace;
   for (const document of documents) {
     for (const edge of document.edges) {
@@ -503,9 +523,13 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
       const edgeAttributes = resolveAttributes(edge, edgeType, edge.attributes, edge.referenceAttributePositions, edgeScalarAttributes, edge.scalarAttributePositions, document.context.id, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, typeSystem, diagnostics);
       const deploymentAttributes = edge.deploymentActions.length === 0
         ? {}
-        : deploymentAttributesForWire(edge, target, deploymentContext);
+        : deploymentAttributesForWire(edge, target, edgeType, deploymentContext);
       const effectiveEdgeAttributes = mergeResolvedReferenceAttributes(edgeAttributes, deploymentAttributes);
-      const materialized = implementationFor(operator, typeSystem).materializeEdge({
+      const source = linkedElementsById.get(edge.source);
+      if (source === undefined) {
+        continue;
+      }
+      const materialized = implementationFor(operator, typeSystem, operatorImplementations).materializeEdge({
         edge,
         operator,
         target,
@@ -513,6 +537,9 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
         edgeScalarAttributes,
         edgeAttributes: effectiveEdgeAttributes,
         typeSystem,
+        graph: buildIndexedGraph(documents, workspace.elements, workspace.imports, linkedEdges, typeSystem),
+        from: linkedElementSnapshot(source, typeSystem, resolvedElementAttributes, deployedElementIds),
+        to: linkedElementSnapshot(target, typeSystem, resolvedElementAttributes, deployedElementIds),
       });
       diagnostics.push(...(materialized.diagnostics ?? []));
       if (materialized.edge === undefined) {
@@ -522,7 +549,7 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
       const deploymentSource = deploymentViewLogicalEndpoint(edge.source, linkedElementsById, typeSystem);
       const deploymentTarget = deploymentViewLogicalEndpoint(target.id, linkedElementsById, typeSystem);
       const coverage = typeSystem.isAssignable(edgeType, WIRE_TYPE)
-        && !typeSystem.isAssignable(edge.sourceType, DEPLOYMENT_ELEMENT_TYPE)
+        && !typeSystem.typeHasCapability(edge.sourceType, TYPE_CAPABILITIES.deploymentElement)
         && deploymentSource !== undefined
         && deploymentTarget !== undefined
         && deploymentSource !== deploymentTarget
@@ -624,32 +651,18 @@ function completeLinkingPipeline(
     sourceIdentity: document.sourceName,
     ...(document.context.synthetic ? { synthetic: true } : {}),
     declaration: sourceLocation(document.sourceName, document.context),
+    ...(typeSystem.capabilities(document.context.type).length === 0
+      ? {}
+      : { capabilities: typeSystem.capabilities(document.context.type) }),
     attributes: flattenAttributes(document.context.scalarAttributes, {}),
   }));
   return {
     diagnostics,
     graph,
     contexts,
-    elements: graphElements.map((element) => ({
-      id: element.id,
-      context: element.context,
-      localId: element.localId,
-      type: element.type,
-      constructor: element.constructor,
-      sourceIdentity: element.sourceName,
-      declaration: sourceLocation(element.sourceName, element),
-      ...(element.anonymous ? { anonymous: true } : {}),
-      ...(element.synthetic ? { synthetic: true } : {}),
-      ...(element.parent === undefined ? {} : { parent: element.parent }),
-      baseTypes: typeSystem.baseTypes(element.type),
-      attributes: flattenAttributes(element.scalarAttributes, resolvedElementAttributes.get(element.id) ?? {}),
-      ...(deployedElementIds.has(element.id) ? { deployed: true } : {}),
-      ...listAttributesProperty(typeSystem, element.type),
-      ...referenceAttributesProperty(resolvedElementAttributes.get(element.id) ?? {}),
-      ...(element.note === undefined ? {} : { note: element.note }),
-      ...(element.noteSource === undefined ? {} : { noteSource: element.noteSource }),
-      ...(element.annotations.length === 0 ? {} : { annotations: element.annotations }),
-    })),
+    elements: graphElements.map((element) =>
+      linkedElementSnapshot(element, typeSystem, resolvedElementAttributes, deployedElementIds)
+    ),
     imports: imports.map((item) => ({
       sourceIdentity: item.sourceName,
       alias: item.alias,
@@ -670,7 +683,49 @@ function completeLinkingPipeline(
   };
 }
 
-function parseDocument(sourceName: string, source: string, typeSystem: TypeSystem, anonymousCounters: Map<string, number>): ParsedDocument {
+function linkedElementSnapshot(
+  element: ParsedElement,
+  typeSystem: TypeSystem,
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  deployedElementIds: ReadonlySet<string>,
+): LinkedElement {
+  const resolvedAttributes = resolvedElementAttributes.get(element.id) ?? {};
+  const attributes = flattenAttributes(element.scalarAttributes, resolvedAttributes);
+  const capabilities = typeSystem.capabilities(element.type);
+  const semanticAttributes = semanticAttributesFor(element.type, attributes, typeSystem);
+  const semanticAttributeNames = semanticAttributeNamesFor(element.type, typeSystem);
+  return {
+    id: element.id,
+    context: element.context,
+    localId: element.localId,
+    type: element.type,
+    constructor: element.constructor,
+    sourceIdentity: element.sourceName,
+    declaration: sourceLocation(element.sourceName, element),
+    ...(element.anonymous ? { anonymous: true } : {}),
+    ...(element.synthetic ? { synthetic: true } : {}),
+    ...(element.parent === undefined ? {} : { parent: element.parent }),
+    baseTypes: typeSystem.baseTypes(element.type),
+    ...(capabilities.length === 0 ? {} : { capabilities }),
+    attributes,
+    ...(Object.keys(semanticAttributes).length === 0 ? {} : { semanticAttributes }),
+    ...(Object.keys(semanticAttributeNames).length === 0 ? {} : { semanticAttributeNames }),
+    ...(deployedElementIds.has(element.id) ? { deployed: true } : {}),
+    ...listAttributesProperty(typeSystem, element.type),
+    ...referenceAttributesProperty(resolvedAttributes),
+    ...(element.note === undefined ? {} : { note: element.note }),
+    ...(element.noteSource === undefined ? {} : { noteSource: element.noteSource }),
+    ...(element.annotations.length === 0 ? {} : { annotations: element.annotations }),
+  };
+}
+
+function parseDocument(
+  sourceName: string,
+  source: string,
+  typeSystem: TypeSystem,
+  anonymousCounters: Map<string, number>,
+  operatorImplementations: OperatorImplementationRegistry,
+): ParsedDocument {
   const parsed = parseInsightSource({ sourceName, source });
   const diagnostics = [...parsed.diagnostics];
   const architecture = parsed.syntax.firstDescendant<RuleNode>("architectureFile");
@@ -700,6 +755,7 @@ function parseDocument(sourceName: string, source: string, typeSystem: TypeSyste
     extensions: [],
     diagnostics,
     anonymousCounters,
+    operatorImplementations,
   };
 
   if (architecture === undefined) {
@@ -949,7 +1005,7 @@ function collectBodyItem(
   const annotatedObject = firstChild(item, "annotatedObjectDeclaration");
   if (annotatedObject !== undefined) {
     const object = firstChild(annotatedObject, "objectDeclaration");
-    if (object !== undefined && owner !== undefined && typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+    if (object !== undefined && owner !== undefined && typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
       const action = buildDeploymentActionFromObject(object, owner, owner.type, document, typeSystem);
       if (action !== undefined) {
         owner.deploymentActions.push(action);
@@ -976,7 +1032,7 @@ function collectBodyItem(
   const annotatedOperator = firstChild(item, "annotatedOperatorInvocation");
   if (annotatedOperator !== undefined && owner !== undefined) {
     const invocation = firstChild(annotatedOperator, "operatorInvocation");
-    if (invocation !== undefined && typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+    if (invocation !== undefined && typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
       collectDeploymentAction(invocation, owner, owner.type, document, typeSystem);
       return;
     }
@@ -1028,7 +1084,8 @@ function collectNamedList(
 ): void {
   const listNameNode = firstChild(list, "listName");
   const listName = listNameNode?.getText() ?? "";
-  if (listName === DEPLOYMENT_LIST_ATTRIBUTE && owner !== undefined) {
+  if (owner !== undefined
+      && typeSystem.attribute(ownerType, listName)?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true) {
     collectDeploymentList(list, owner, owner.type, document, typeSystem);
     return;
   }
@@ -1420,7 +1477,7 @@ function collectObject(
   const prefixNode = firstChild(object, "namedPrefixOperatorInvocation");
   const prefixOperator = prefix === undefined ? undefined : typeSystem.operatorConstructor(prefix, parentType, baseType);
   if (prefixOperator !== undefined) {
-    const prefixResult = implementationFor(prefixOperator, typeSystem).applyElementPrefix({
+    const prefixResult = implementationFor(prefixOperator, typeSystem, document.operatorImplementations).applyElementPrefix({
       operator: prefixOperator,
       prefix: prefix ?? "",
       sourceName: document.sourceName,
@@ -1719,7 +1776,7 @@ function buildDeploymentActionFromObject(
     ? firstChild(object, "elementConstructor")
     : prefixOperatorNode;
   const operator = operatorNode?.getText() ?? "";
-  if (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR) {
+  if (!operatorHasDeploymentCapability(typeSystem, ownerType, operator)) {
     return undefined;
   }
   const targetReference = prefixedOperator === undefined
@@ -1752,6 +1809,28 @@ function buildDeploymentActionFromObject(
     assignedScalarAttributes,
     ...position(object, document.sourceName),
   };
+}
+
+function operatorHasDeploymentCapability(
+  typeSystem: TypeSystem,
+  ownerType: string,
+  spelling: string,
+): boolean {
+  return typeSystem.operatorConstructorsFrom(ownerType)
+    .filter((operator) => operator.spelling === spelling)
+    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
+}
+
+function deploymentOperator(
+  typeSystem: TypeSystem,
+  ownerType: string,
+  spelling: string,
+  targetType?: string,
+): OperatorDefinition | undefined {
+  return targetType === undefined
+    ? typeSystem.operatorConstructorsFrom(ownerType).find((operator) => operator.spelling === spelling)
+    : typeSystem.operatorConstructor(spelling, ownerType, targetType);
 }
 
 function collectDeploymentActionAttributes(
@@ -1816,7 +1895,10 @@ function collectReferenceAttributes(
     }
     const listNameNode = firstChild(list, "listName");
     const listName = listNameNode?.getText() ?? "";
-    if (listName === DEPLOYMENT_LIST_ATTRIBUTE) {
+    if (typeSystem.operatorConstructorsFrom(owner.type)
+      .filter((operator) => operator.spelling === edgeOperator)
+      .some((operator) => typeSystem.attribute(operator.ownerType, listName)
+        ?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true)) {
       for (const listItem of children(list, "listBodyItem")) {
         const bodyItem = firstChild(listItem, "architectureBodyItem");
         const annotatedOperator = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedOperatorInvocation");
@@ -2362,6 +2444,7 @@ function flattenAttributes(
 function deploymentAttributesForWire(
   edge: ParsedEdge,
   target: ParsedElement,
+  edgeType: string,
   context: DeploymentExpansionContext,
 ): Readonly<Record<string, readonly ResolvedReferenceValue[]>> {
   const source = context.linkedElementsById.get(edge.source);
@@ -2373,8 +2456,12 @@ function deploymentAttributesForWire(
     context.effectiveDeploymentsByElementId.get(target.id) ?? [],
   );
   const application = resolveDeploymentApplication(source, edge.deploymentActions, true, context, deployments);
+  const usesAttribute = context.typeSystem.attributeWithCapability(
+    edgeType,
+    ATTRIBUTE_CAPABILITIES.infrastructureUses,
+  )?.name ?? USES_ATTRIBUTE;
   return {
-    [USES_ATTRIBUTE]: application.uses.map(resolvedValueForDeploymentUse),
+    [usesAttribute]: application.uses.map(resolvedValueForDeploymentUse),
   };
 }
 
@@ -2419,11 +2506,17 @@ function applyDeploymentAction(
     context.elementsByContextAndLocalId,
     context.importsBySourceAndAlias,
   );
-  if (action.operator === USES_OPERATOR && target !== undefined && context.typeSystem.isAssignable(target.type, DEPLOYMENT_PROFILE_TYPE)) {
+  const operator = deploymentOperator(context.typeSystem, owner.type, action.operator, target?.type);
+  const isUse = operator !== undefined
+    && context.typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse);
+  const isPlacement = operator !== undefined
+    && context.typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement);
+  if (isUse && target !== undefined
+      && context.typeSystem.typeHasCapability(target.type, TYPE_CAPABILITIES.deploymentProfile)) {
     if (wire) {
       context.diagnostics.push({
         code: "TYPE_MISMATCH",
-        message: `Wire deployment cannot use '${DEPLOYMENT_PROFILE_TYPE}'; use '${NETWORK_CONNECTION_TYPE}' infrastructure`,
+        message: "Wire deployment cannot use a deployment profile; use network infrastructure",
         sourceName: action.sourceName,
         ...diagnosticPosition(action),
       });
@@ -2432,16 +2525,16 @@ function applyDeploymentAction(
     applyDeploymentProfile(owner, action, target, wire, state, context);
     return;
   }
-  if (action.operator !== USES_OPERATOR && action.operator !== RUNS_ON_OPERATOR) {
+  if (!isUse && !isPlacement) {
     context.diagnostics.push({
       code: "TYPE_MISMATCH",
-      message: `Deployment operator '${action.operator}' is not supported; use 'uses' or 'runsOn'`,
+      message: `Operator '${action.operator}' does not declare a deployment capability`,
       sourceName: action.sourceName,
       ...diagnosticPosition(action),
     });
     return;
   }
-  if (wire && action.operator === RUNS_ON_OPERATOR) {
+  if (wire && isPlacement) {
     if (!inherited) {
       context.diagnostics.push({
         code: "TYPE_MISMATCH",
@@ -2454,11 +2547,11 @@ function applyDeploymentAction(
   }
   const selected = resolveDeploymentInfrastructure(owner, action, target, resolutionDeployments, inherited, wire, context);
   for (const item of selected) {
-    if (wire && !context.typeSystem.isAssignable(item.element.type, NETWORK_CONNECTION_TYPE)) {
+    if (wire && !context.typeSystem.typeHasCapability(item.element.type, TYPE_CAPABILITIES.networkConnection)) {
       if (!inherited) {
         context.diagnostics.push({
           code: "TYPE_MISMATCH",
-          message: `Wire deployment can use only '${NETWORK_CONNECTION_TYPE}' infrastructure, got '${item.element.type}'`,
+          message: `Wire deployment can use only network infrastructure, got '${item.element.type}'`,
           sourceName: action.sourceName,
           ...diagnosticPosition(action),
         });
@@ -2469,7 +2562,7 @@ function applyDeploymentAction(
       ...item,
       inherited,
     };
-    if (action.operator === RUNS_ON_OPERATOR) {
+    if (isPlacement) {
       state.runsOn.push(use);
       continue;
     }
@@ -2525,9 +2618,13 @@ function profileDeployments(
   profile: ParsedElement,
   context: DeploymentExpansionContext,
 ): readonly ParsedElement[] {
-  const deployments = (context.resolvedElementAttributes.get(profile.id)?.[APPLIES_TO_ATTRIBUTE] ?? [])
+  const profileMembers = context.typeSystem.attributeWithCapability(
+    profile.type,
+    ATTRIBUTE_CAPABILITIES.deploymentProfileMembers,
+  )?.name ?? APPLIES_TO_ATTRIBUTE;
+  const deployments = (context.resolvedElementAttributes.get(profile.id)?.[profileMembers] ?? [])
     .flatMap((value) => value.element === undefined ? [] : [value.element])
-    .filter((element) => context.typeSystem.isAssignable(element.type, DEPLOYMENT_TYPE));
+    .filter((element) => context.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deployment));
   return mergeUniqueElements([], deployments);
 }
 
@@ -2541,12 +2638,12 @@ function resolveDeploymentInfrastructure(
   context: DeploymentExpansionContext,
 ): readonly DeploymentUse[] {
   if (target !== undefined) {
-    if (context.typeSystem.isAssignable(target.type, INFRASTRUCTURE_COMPONENT_TYPE)) {
+    if (context.typeSystem.typeHasCapability(target.type, TYPE_CAPABILITIES.infrastructure)) {
       return [materializeInfrastructureUse(owner, target, action, undefined, context, inherited)];
     }
     context.diagnostics.push({
       code: "TYPE_MISMATCH",
-      message: `Deployment operator '${action.operator}' expects '${DEPLOYMENT_PROFILE_TYPE}' or '${INFRASTRUCTURE_COMPONENT_TYPE}', got '${target.type}'`,
+      message: `Deployment operator '${action.operator}' expects a deployment profile or infrastructure, got '${target.type}'`,
       sourceName: action.sourceName,
       ...diagnosticPosition(action),
     });
@@ -2611,7 +2708,7 @@ function isDeclaredDeploymentInfrastructureSlot(
   typeSystem: TypeSystem,
 ): boolean {
   for (const type of typeSystem.declaredTypes()) {
-    if (!typeSystem.isAssignable(type, ENVIRONMENT_TYPE)) {
+  if (!typeSystem.typeHasCapability(type, TYPE_CAPABILITIES.environment)) {
       continue;
     }
     const attribute = typeSystem.attribute(type, slotName);
@@ -2621,7 +2718,8 @@ function isDeclaredDeploymentInfrastructureSlot(
     const valueType = attribute.list === true
       ? attribute.listElementType ?? attribute.type
       : attribute.type;
-    if (typeSystem.isAssignable(valueType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+    if (typeSystem.typesWithCapability(TYPE_CAPABILITIES.infrastructure)
+      .some((infrastructureType) => typeSystem.isAssignable(valueType, infrastructureType))) {
       return true;
     }
   }
@@ -2706,7 +2804,8 @@ function cloneInfrastructureElement(
       continue;
     }
     clonedAttributes[name] = values.map((value) => {
-      if (value.element === undefined || !context.typeSystem.isAssignable(value.element.type, INFRASTRUCTURE_COMPONENT_TYPE)) {
+      if (value.element === undefined
+          || !context.typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.infrastructure)) {
         return value;
       }
       const child = cloneInfrastructureElement(owner, value.element, action, context, cloneMap, clone.id, false);
@@ -2770,13 +2869,14 @@ function deploymentUseFamilyKey(
 }
 
 function deploymentUseFamily(type: string, typeSystem: TypeSystem): string {
-  if (typeSystem.isAssignable(type, NETWORK_CONNECTION_TYPE)) {
-    return NETWORK_CONNECTION_TYPE;
+  if (typeSystem.typeHasCapability(type, TYPE_CAPABILITIES.networkConnection)) {
+    return TYPE_CAPABILITIES.networkConnection;
   }
-  return [type, ...typeSystem.baseTypes(type)]
-    .find((candidate) => candidate !== INFRASTRUCTURE_COMPONENT_TYPE
-      && typeSystem.baseTypes(candidate).includes(INFRASTRUCTURE_COMPONENT_TYPE))
-    ?? type;
+  const lineage = [type, ...typeSystem.baseTypes(type)];
+  const capabilityRoot = lineage.findIndex((candidate) =>
+    typeSystem.declaresCapability(candidate, TYPE_CAPABILITIES.infrastructure)
+  );
+  return capabilityRoot > 0 ? lineage[capabilityRoot - 1]! : type;
 }
 
 function resolvedValueForElement(element: ParsedElement, source: SourcePosition): ResolvedReferenceValue {
@@ -2800,6 +2900,7 @@ function resolvedValueForDeploymentUse(use: DeploymentUse): ResolvedReferenceVal
 function mergeResolvedReferenceAttributes(
   base: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
   override: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
+  singleAttributes: ReadonlySet<string> = new Set([RUNS_ON_ATTRIBUTE]),
 ): Readonly<Record<string, readonly ResolvedReferenceValue[]>> {
   const result: Record<string, ResolvedReferenceValue[]> = Object.fromEntries(
     Object.entries(base).map(([name, values]) => [name, [...values]]),
@@ -2808,7 +2909,7 @@ function mergeResolvedReferenceAttributes(
     if (values.length === 0) {
       continue;
     }
-    const attribute = name === RUNS_ON_ATTRIBUTE ? "single" : "list";
+    const attribute = singleAttributes.has(name) ? "single" : "list";
     result[name] = attribute === "single" ? [...values] : [...(result[name] ?? []), ...values];
   }
   return result;
@@ -2895,6 +2996,7 @@ function addProjectedEdges(
         value,
         elementsById,
         resolvedElementAttributes,
+        typeSystem,
       );
       const rules = value.element.projectionRules;
       if (fromId === toId && rules.some(projectionRuleUsesTo)) {
@@ -3005,19 +3107,23 @@ function addProjectedRuleEdge(
   }
   const sources = projectionTerm(rule.source, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics, projectionScope);
   const targets = projectionTerm(rule.target, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics, projectionScope);
-  const effectiveOperator = rule.operator === ORIGINAL_LINK_OPERATOR
+  const preservesLogicalRelationship = projectionRuleHasCapability(
+    rule,
+    typeSystem,
+    OPERATOR_CAPABILITIES.preserveLogicalEdge,
+  );
+  const effectiveOperator = preservesLogicalRelationship
     ? projectedOperator ?? "->"
     : rule.operator;
-  const edgeOwnerPlacement = projectionRuleOwnerPlacement(rule);
+  const edgeOwnerPlacement = projectionRuleOwnerPlacement(rule, preservesLogicalRelationship);
   const edgeProjectionScope = projectionPlacementScope(edgeOwnerPlacement, projectionScope);
   const sourcePlacement = projectionPlacementScope(rule.source.placement, projectionScope);
   const targetPlacement = projectionPlacementScope(rule.target.placement, projectionScope);
   const edgeSourceIdentity = projectionPlacementSourceIdentity(edgeOwnerPlacement, fromId, toId, elementsById) ?? sourceIdentity;
   const carriedAttributes = mergeAttributeValues(
-    rule.operator === ORIGINAL_LINK_OPERATOR ? projectedAttributes : undefined,
+    preservesLogicalRelationship ? projectedAttributes : undefined,
     rule.attributes ?? {},
   );
-  const preservesLogicalRelationship = rule.operator === ORIGINAL_LINK_OPERATOR;
   const originKey = projectionOriginKey(projectionOrigin);
   for (const source of sources) {
     for (const target of targets) {
@@ -3309,10 +3415,22 @@ function uniqueIds(values: readonly string[]): readonly string[] {
   return [...new Set(values)];
 }
 
-function projectionRuleOwnerPlacement(rule: ProjectionRuleDefinition): "source" | "target" {
-  return rule.operator === ORIGINAL_LINK_OPERATOR
+function projectionRuleOwnerPlacement(
+  rule: ProjectionRuleDefinition,
+  preservesLogicalRelationship: boolean,
+): "source" | "target" {
+  return preservesLogicalRelationship
     ? rule.target.placement
     : rule.source.placement;
+}
+
+function projectionRuleHasCapability(
+  rule: ProjectionRuleDefinition,
+  typeSystem: TypeSystem,
+  capability: string,
+): boolean {
+  const operator = typeSystem.relationOperatorConstructor(rule.operator);
+  return operator !== undefined && typeSystem.operatorHasCapability(operator, capability);
 }
 
 function projectionScopeFor(
@@ -3321,6 +3439,7 @@ function projectionScopeFor(
   projectionValue: ResolvedReferenceValue,
   elementsById: ReadonlyMap<string, ParsedElement>,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
 ): ProjectionScope | undefined {
   const sourcePlacement = endpointPlacement(
     fromId,
@@ -3328,6 +3447,7 @@ function projectionScopeFor(
     projectionValue.element?.context,
     elementsById,
     resolvedElementAttributes,
+    typeSystem,
   );
   const targetPlacement = endpointPlacement(
     toId,
@@ -3335,6 +3455,7 @@ function projectionScopeFor(
     projectionValue.element?.context,
     elementsById,
     resolvedElementAttributes,
+    typeSystem,
   );
   return sourcePlacement === undefined && targetPlacement === undefined
     ? undefined
@@ -3350,8 +3471,9 @@ function endpointPlacement(
   projectionContext: string | undefined,
   elementsById: ReadonlyMap<string, ParsedElement>,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
 ): string | undefined {
-  const placements = endpointPlacementValues(endpointId, elementsById, resolvedElementAttributes);
+  const placements = endpointPlacementValues(endpointId, elementsById, resolvedElementAttributes, typeSystem);
   if (deploymentId !== undefined) {
     const inDeployment = uniqueIds(placements
       .filter((placement) => placement.deploymentId === deploymentId)
@@ -3376,12 +3498,17 @@ function endpointPlacementValues(
   endpointId: string,
   elementsById: ReadonlyMap<string, ParsedElement>,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
 ): readonly ResolvedReferenceValue[] {
   const visited = new Set<string>();
   let current = elementsById.get(endpointId);
   while (current !== undefined && !visited.has(current.id)) {
     visited.add(current.id);
-    const placements = resolvedElementAttributes.get(current.id)?.[RUNS_ON_ATTRIBUTE] ?? [];
+    const placementAttribute = typeSystem.attributeWithCapability(
+      current.type,
+      ATTRIBUTE_CAPABILITIES.placementOwner,
+    )?.name ?? RUNS_ON_ATTRIBUTE;
+    const placements = resolvedElementAttributes.get(current.id)?.[placementAttribute] ?? [];
     if (placements.length > 0) {
       return placements;
     }
@@ -3513,55 +3640,135 @@ function isSlotDomainElement(
   return false;
 }
 
-class CoreEdgeImplementation implements LinkOperatorImplementation {
-  static readonly id = "@insight/core.edge";
+function edgeCandidate(input: EdgeMaterializationInput): LinkedEdge {
+  const edge = input.edge;
+  const attributes = flattenAttributes(input.edgeScalarAttributes, input.edgeAttributes);
+  const semanticAttributes = semanticAttributesFor(input.edgeType, attributes, input.typeSystem);
+  const semanticAttributeNames = semanticAttributeNamesFor(input.edgeType, input.typeSystem);
+  return {
+    id: linkedEdgeId([
+      "authored",
+      edge.sourceName,
+      edge.line,
+      edge.column,
+      edge.source,
+      input.target.id,
+      edge.operator,
+      input.edgeType,
+    ]),
+    source: edge.source,
+    target: input.target.id,
+    operator: edge.operator,
+    type: input.edgeType,
+    sourceIdentity: edge.sourceName,
+    declaration: sourceLocation(edge.sourceName, edge),
+    attributes,
+    ...(Object.keys(semanticAttributes).length === 0 ? {} : { semanticAttributes }),
+    ...(Object.keys(semanticAttributeNames).length === 0 ? {} : { semanticAttributeNames }),
+    ...listAttributesProperty(input.typeSystem, input.edgeType),
+    ...referenceAttributesProperty(input.edgeAttributes),
+    ...(edge.note === undefined ? {} : { note: edge.note }),
+    ...(edge.noteSource === undefined ? {} : { noteSource: edge.noteSource }),
+    ...(edge.annotations.length === 0 ? {} : { annotations: edge.annotations }),
+  };
+}
+
+function semanticAttributesFor(
+  type: string,
+  attributes: Readonly<Record<string, readonly string[]>>,
+  typeSystem: TypeSystem,
+): Readonly<Record<string, readonly string[]>> {
+  const semantic: Record<string, readonly string[]> = {};
+  for (const attribute of typeSystem.attributes(type).values()) {
+    const values = attributes[attribute.name];
+    if (values === undefined) {
+      continue;
+    }
+    for (const capability of attribute.capabilities ?? []) {
+      semantic[capability] = [...(semantic[capability] ?? []), ...values];
+    }
+  }
+  return semantic;
+}
+
+function semanticAttributeNamesFor(
+  type: string,
+  typeSystem: TypeSystem,
+): Readonly<Record<string, string>> {
+  return Object.fromEntries([...typeSystem.attributes(type).values()].flatMap((attribute) =>
+    (attribute.capabilities ?? []).map((capability) => [capability, attribute.name] as const)
+  ));
+}
+
+class RegisteredOperatorImplementation implements LinkOperatorImplementation {
+  constructor(
+    private readonly id: string,
+    private readonly implementation: OperatorImplementationV1,
+  ) {}
 
   materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult {
-    const edge = input.edge;
-    return {
-      edge: {
-        id: linkedEdgeId([
-          "authored",
-          edge.sourceName,
-          edge.line,
-          edge.column,
-          edge.source,
-          input.target.id,
-          edge.operator,
-          input.edgeType,
-        ]),
-        source: edge.source,
-        target: input.target.id,
-        operator: edge.operator,
-        type: input.edgeType,
-        sourceIdentity: edge.sourceName,
-        declaration: sourceLocation(edge.sourceName, edge),
-        attributes: flattenAttributes(input.edgeScalarAttributes, input.edgeAttributes),
-        ...listAttributesProperty(input.typeSystem, input.edgeType),
-        ...referenceAttributesProperty(input.edgeAttributes),
-        ...(edge.note === undefined ? {} : { note: edge.note }),
-        ...(edge.noteSource === undefined ? {} : { noteSource: edge.noteSource }),
-        ...(edge.annotations.length === 0 ? {} : { annotations: edge.annotations }),
+    const candidate = edgeCandidate(input);
+    const result = this.implementation.invoke({
+      execution: { implementation: this.id, mode: "link" },
+      invocation: {
+        operator: input.operator,
+        sourceIdentity: input.edge.sourceName,
+        ...(candidate.declaration === undefined ? {} : { declaration: candidate.declaration }),
+        from: input.from,
+        to: input.to,
+        target: input.to,
+        edge: candidate,
+        attributes: candidate.attributes,
+        ...(candidate.annotations === undefined ? {} : { annotations: candidate.annotations }),
       },
+      graph: input.graph,
+      projector: EMPTY_PROJECTION_API,
+      from: input.from,
+      to: input.to,
+      scope: { sourceIdentity: input.edge.sourceName },
+    });
+    const edges = result.edges ?? [];
+    if (edges.length > 1) {
+      return {
+        diagnostics: [invalidOperatorResultDiagnostic(
+          input.operator,
+          input.edge.sourceName,
+          input.edge,
+          `returned ${edges.length} edges where at most one is allowed during link materialization`,
+        ), ...(result.diagnostics ?? [])],
+      };
+    }
+    return {
+      ...(edges[0] === undefined ? {} : { edge: edges[0] }),
+      ...(result.diagnostics === undefined ? {} : { diagnostics: result.diagnostics }),
     };
   }
 
   applyElementPrefix(input: ElementPrefixInput): ElementPrefixResult {
-    return unsupportedOperatorResult(input.operator, input.prefix, "element materialization", input.sourceName, input.sourcePosition);
+    const result = this.implementation.invoke({
+      execution: { implementation: this.id, mode: "link" },
+      invocation: {
+        operator: input.operator,
+        sourceIdentity: input.sourceName,
+        declaration: sourceLocation(input.sourceName, input.sourcePosition),
+        attributes: {},
+      },
+      graph: new IndexedGraph(),
+      projector: EMPTY_PROJECTION_API,
+      scope: { sourceIdentity: input.sourceName },
+    });
+    const diagnostics = result.diagnostics ?? [];
+    return {
+      accepted: !diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR"),
+      ...(diagnostics.length === 0 ? {} : { diagnostics }),
+    };
   }
 }
 
-class CoreElementImplementation implements LinkOperatorImplementation {
-  static readonly id = "@insight/core.element";
-
-  materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult {
-    return unsupportedEdgeOperatorResult(input.operator, input.edge, "edge materialization");
-  }
-
-  applyElementPrefix(_input: ElementPrefixInput): ElementPrefixResult {
-    return { accepted: true };
-  }
-}
+const EMPTY_PROJECTION_API = Object.freeze({
+  resolveSlot: () => [],
+  project: () => ({}),
+});
 
 class UnsupportedOperatorImplementation implements LinkOperatorImplementation {
   materializeEdge(input: EdgeMaterializationInput): EdgeMaterializationResult {
@@ -3573,17 +3780,18 @@ class UnsupportedOperatorImplementation implements LinkOperatorImplementation {
   }
 }
 
-const operatorImplementations = new Map<string, LinkOperatorImplementation>([
-  [CoreEdgeImplementation.id, new CoreEdgeImplementation()],
-  [CoreElementImplementation.id, new CoreElementImplementation()],
-]);
 const unsupportedOperatorImplementation = new UnsupportedOperatorImplementation();
 
-function implementationFor(operator: OperatorDefinition, typeSystem: TypeSystem): LinkOperatorImplementation {
+function implementationFor(
+  operator: OperatorDefinition,
+  typeSystem: TypeSystem,
+  registry: OperatorImplementationRegistry,
+): LinkOperatorImplementation {
   const id = implementationId(operator) ?? defaultImplementationId(operator, typeSystem);
-  return id === undefined
+  const implementation = id === undefined ? undefined : registry.resolve(id);
+  return id === undefined || implementation === undefined
     ? unsupportedOperatorImplementation
-    : operatorImplementations.get(id) ?? unsupportedOperatorImplementation;
+    : new RegisteredOperatorImplementation(id, implementation);
 }
 
 function implementationId(operator: OperatorDefinition): string | undefined {
@@ -3595,12 +3803,26 @@ function defaultImplementationId(operator: OperatorDefinition, typeSystem: TypeS
     return operator.implementation;
   }
   if (typeSystem.isAssignable(operator.ownerType, EDGE)) {
-    return CoreEdgeImplementation.id;
+    return CORE_EDGE_IMPLEMENTATION;
   }
   if (typeSystem.isAssignable(operator.ownerType, ELEMENT_TYPE)) {
-    return CoreElementImplementation.id;
+    return CORE_ELEMENT_IMPLEMENTATION;
   }
   return undefined;
+}
+
+function invalidOperatorResultDiagnostic(
+  operator: OperatorDefinition,
+  sourceName: string,
+  sourcePosition: SourcePosition,
+  detail: string,
+): LanguageDiagnostic {
+  return {
+    code: "INVALID_OPERATOR_IMPLEMENTATION_RESULT",
+    message: `Operator '${operator.spelling}' implementation '${operator.implementation ?? "<default>"}' ${detail}`,
+    sourceName,
+    ...diagnosticPosition(sourcePosition),
+  };
 }
 
 function unsupportedEdgeOperatorResult(
@@ -3766,8 +3988,8 @@ function deploymentViewLogicalEndpoint(
 }
 
 function elementDeploymentFamily(element: ParsedElement, typeSystem: TypeSystem): string | undefined {
-  if (typeSystem.isAssignable(element.type, DEPLOYMENT_ELEMENT_TYPE)
-      || typeSystem.isAssignable(element.type, DEPLOYMENT_PROFILE_TYPE)) {
+  if (typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deploymentElement)
+      || typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deploymentProfile)) {
     return undefined;
   }
   if (element.scalarAttributes.kind === "external" && element.deploymentActions.length === 0) {

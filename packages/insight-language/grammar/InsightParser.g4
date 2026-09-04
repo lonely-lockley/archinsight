@@ -134,6 +134,7 @@ operatorBodyItem
     : operatorConstructorDeclaration
     | attributeDeclaration
     | implementationAssignment
+    | capabilityAssignment
     | commentLine
     | EOL
     ;
@@ -146,6 +147,7 @@ defineTypeDeclaration
 typeBodyItem
     : typeConstructorDeclaration
     | attributeDeclaration
+    | capabilityAssignment
     | commentLine
     | EOL
     ;
@@ -191,6 +193,10 @@ presentationPropertyIdentifier
 
 implementationAssignment
     : IMPLEMENTATION EQ textValue EOL
+    ;
+
+capabilityAssignment
+    : CAPABILITY EQ textValue EOL
     ;
 
 enumValueDeclaration
@@ -250,6 +256,7 @@ constructorName
 
 attributeDeclaration
     : REQUIRED? typeReference identifier EOL
+      (INDENT capabilityAssignment+ DEDENT)?
     ;
 
 anonymousListAttributeDeclaration

@@ -10,11 +10,15 @@ define operator Wire of Edge
     required WireModel model
 
     List of Edge deployment
+        capability = "deployment-actions"
     List of NetworkConnection uses
+        capability = "infrastructure-uses"
 
 define operator DeploymentProfileUse of Edge
     constructor uses DeploymentProfile
         on Element
+
+    capability = "deployment-use"
 
 define operator InfrastructureUse of Edge
     constructor uses InfrastructureComponent
@@ -23,9 +27,13 @@ define operator InfrastructureUse of Edge
     constructor uses NetworkConnection
         on Wire
 
+    capability = "deployment-use"
+
 define operator InfrastructurePlacement of Edge
     constructor runsOn InfrastructureComponent
         on DeploymentProfile or Element
+
+    capability = "deployment-placement"
 
 define operator SyncWire of Wire
     constructor -> Element
@@ -70,6 +78,8 @@ define operator ReplicateFrom of PhysicalWire
 define operator OriginalLink of PhysicalWire
     constructor originalLink ProjectionTerm
         on ProjectionTerm
+
+    capability = "preserve-logical-edge"
 
     Text call
     Text via

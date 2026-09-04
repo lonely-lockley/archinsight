@@ -6,6 +6,7 @@ const queryEngine = source("../src/query-engine.ts");
 const querySyntax = source("../src/query-syntax.ts");
 const queryContext = source("../src/query-execution-context.ts");
 const queryPipeline = source("../src/query-view-pipeline.ts");
+const operatorRegistry = source("../src/operator-implementation-registry.ts");
 
 assert(linker.includes('from "./presentation-resolver.js"'));
 assert(linker.includes('from "./linked-project-index.js"'));
@@ -29,6 +30,15 @@ assert(querySyntax.includes("class QueryParser"));
 assert(queryContext.includes("elementsById"));
 assert(queryContext.includes("parentByChild"));
 assert(queryPipeline.includes("runQueryViewPipeline"));
+assert(queryPipeline.includes("queryViewPipeline(scope.view, scope.pipeline)"),
+  "custom and built-in views must resolve through the same explicit pipeline contract");
+assert.equal(queryPipeline.includes("builtinViewHasStage(scope.view"), false,
+  "pipeline execution must not dispatch directly on a built-in view name");
+assert(operatorRegistry.includes("ImmutableOperatorImplementationRegistry"));
+assert.equal(linker.includes("const operatorImplementations = new Map"), false,
+  "operator implementations must be supplied by the immutable registry contract");
+assert.equal(/action\.operator\s*[!=]==?\s*["'](?:uses|runsOn)["']/.test(linker), false,
+  "deployment behavior must be selected by semantic capability, not operator spelling");
 
 const route = source("../../../archinsight-web/src/routes/+page.svelte");
 const workspacePage = source("../../../archinsight-web/src/lib/workspace/WorkspacePage.svelte");

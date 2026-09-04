@@ -10,7 +10,7 @@ export type CompletionKind =
   | "NEWLINE";
 
 import type { IndexedGraph } from "./indexed-graph.js";
-import type { BuiltinDiagramView } from "./builtin-views.js";
+import type { BuiltinDiagramView, QueryViewPipelineDefinition } from "./builtin-views.js";
 
 export type LinkedEdgeId = string;
 
@@ -53,6 +53,7 @@ export interface AttributeDefinition {
   readonly listElementType?: string;
   readonly required?: boolean;
   readonly list?: boolean;
+  readonly capabilities?: readonly string[];
 }
 
 export type ProjectionTermKind = "from" | "to" | "this" | "attribute" | "slot";
@@ -81,6 +82,7 @@ export interface TypeDefinition {
   readonly baseType?: string;
   readonly attributes?: readonly AttributeDefinition[];
   readonly declaration?: SourceLocation;
+  readonly capabilities?: readonly string[];
 }
 
 export interface ConstructorDefinition {
@@ -98,6 +100,7 @@ export interface OperatorDefinition {
   readonly implementation?: string;
   readonly defaults?: Readonly<Record<string, string>>;
   readonly source?: SourceLocation;
+  readonly capabilities?: readonly string[];
 }
 
 export interface EnumDefinition {
@@ -158,6 +161,7 @@ export interface ProjectSource {
 export interface LinkProjectRequest {
   readonly snapshot: LanguageSnapshot;
   readonly sources: readonly ProjectSource[];
+  readonly operatorImplementations?: OperatorImplementationRegistry;
 }
 
 export interface LinkedContext {
@@ -166,6 +170,7 @@ export interface LinkedContext {
   readonly sourceIdentity: string;
   readonly synthetic?: boolean;
   readonly declaration?: SourceLocation;
+  readonly capabilities?: readonly string[];
   readonly attributes: Readonly<Record<string, readonly string[]>>;
 }
 
@@ -181,7 +186,10 @@ export interface LinkedElement {
   readonly synthetic?: boolean;
   readonly parent?: string;
   readonly baseTypes: readonly string[];
+  readonly capabilities?: readonly string[];
   readonly attributes: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributes?: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributeNames?: Readonly<Record<string, string>>;
   readonly deployed?: boolean;
   readonly listAttributes?: readonly string[];
   readonly referenceAttributes?: readonly string[];
@@ -212,6 +220,8 @@ export interface LinkedEdge {
   readonly sourceIdentity: string;
   readonly declaration?: SourceLocation;
   readonly attributes: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributes?: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributeNames?: Readonly<Record<string, string>>;
   readonly listAttributes?: readonly string[];
   readonly referenceAttributes?: readonly string[];
   readonly note?: string;
@@ -243,6 +253,10 @@ export interface OperatorImplementationV1 {
   invoke(input: OperatorInvocationInputV1): OperatorInvocationResultV1;
 }
 
+export interface OperatorImplementationRegistry {
+  resolve(id: string): OperatorImplementationV1 | undefined;
+}
+
 export interface OperatorInvocationInputV1 {
   readonly execution: OperatorExecutionV1;
   readonly invocation: OperatorInvocationV1;
@@ -267,6 +281,7 @@ export interface OperatorInvocationV1 {
   readonly from?: LinkedElement;
   readonly to?: LinkedElement;
   readonly target?: LinkedElement;
+  readonly edge?: LinkedEdge;
   readonly attributes: Readonly<Record<string, readonly string[]>>;
   readonly annotations?: readonly LinkedAnnotation[];
 }
@@ -349,6 +364,7 @@ export interface QueryScope {
   readonly context?: string;
   readonly tab?: string;
   readonly view?: BuiltinDiagramView;
+  readonly pipeline?: QueryViewPipelineDefinition;
   readonly environment?: string;
 }
 

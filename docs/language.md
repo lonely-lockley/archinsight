@@ -445,6 +445,24 @@ service storefront
 
 Operator attributes describe the relationship created by an invocation. Required attributes are validated in the same way as attributes on ordinary elements. Operator inheritance can refine a general relationship family into synchronous, asynchronous, physical, or domain-specific connections while keeping shared attributes and presentation rules.
 
+### Semantic capabilities
+
+Runtime behavior that is independent of the displayed vocabulary is declared with capabilities. A capability can be attached to a type, an operator, or an attribute:
+
+```insight
+define operator HostedBy of Edge
+    constructor hostedBy InfrastructureComponent
+        on Element
+
+    capability = "deployment-placement"
+
+extend type Element
+    InfrastructureComponent host
+        capability = "placement-owner"
+```
+
+The runtime resolves the capability from the language snapshot. It does not require the operator to be called `runsOn` or the attribute to be called `host`. Built-in deployment definitions use the same mechanism as project definitions. Capabilities are stable semantic protocol identifiers; user-facing constructor and attribute names remain free to follow the project's vocabulary.
+
 The type context determines where an operator is available. In the example above, `calls` produces a `Wire`, so it can appear in a list whose element type accepts `Wire`. The source and target must also satisfy the types declared by the constructor. An operator name may have several typed constructor variants when the same operation applies to different owners or targets. Together, these constraints let custom operators participate in completion, linking, queries, and rendering without special syntax rules for each operator name.
 
 ### TypeScript implementations
@@ -469,7 +487,23 @@ Every operator needs an effective runtime implementation. Insight supplies defau
 
 This mechanism is the language's extension point for behavior backed by arbitrary TypeScript code. The TypeScript code lives in the application and follows the operator implementation contract; the Insight source invokes it through its registered identifier. The result exposed to the linker remains constrained by that contract even though the implementation itself is application code.
 
-Projects cannot currently provide their own TypeScript operator implementations. A project-defined operator can use the generic behavior for `Edge` or `Element`, while custom execution requires adding and registering an implementation in the Archinsight application code.
+Embedding applications can provide TypeScript implementations through `InsightLanguageService`:
+
+```typescript
+const registry = coreOperatorImplementationRegistry.with("@acme/audited-edge", {
+  apiVersion: "insight.operator.v1",
+  invoke(input) {
+    return { edges: input.invocation.edge === undefined ? [] : [input.invocation.edge] };
+  },
+});
+
+const service = new InsightLanguageService({
+  snapshot,
+  operatorImplementations: registry,
+});
+```
+
+Registries are immutable: `with` returns a new registry, and an incremental linker state and all of its forks retain the registry with which they were created. Unknown implementation IDs produce deterministic linker diagnostics.
 
 ## Extending a type
 

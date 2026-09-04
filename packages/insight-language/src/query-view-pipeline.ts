@@ -1,4 +1,4 @@
-import { builtinViewHasStage } from "./builtin-views.js";
+import { queryViewPipeline, type BuiltinViewStage } from "./builtin-views.js";
 import type { LinkProjectResult, QueryScope, RenderGraph } from "./contracts.js";
 
 export interface QueryViewTransformations {
@@ -16,22 +16,24 @@ export function runQueryViewPipeline(
   selected: RenderGraph,
   transformations: QueryViewTransformations,
 ): RenderGraph {
+  const pipeline = queryViewPipeline(scope.view, scope.pipeline);
+  const hasStage = (stage: BuiltinViewStage): boolean => pipeline.stages.includes(stage);
   const bounded = transformations.applyBoundary(result, selected, scope);
-  const seedFiltered = builtinViewHasStage(scope.view, "deployment-seed-filter")
+  const seedFiltered = hasStage("deployment-seed-filter")
     ? transformations.filterDeploymentSeeds(result, bounded, scope)
     : bounded;
   const materialized = transformations.materializeGroups(
     seedFiltered,
-    builtinViewHasStage(scope.view, "deployment-materialization"),
+    hasStage("deployment-materialization"),
   );
-  if (builtinViewHasStage(scope.view, "deployment-environment")) {
+  if (hasStage("deployment-environment")) {
     return transformations.applyEnvironment(result, materialized, scope);
   }
-  if (!builtinViewHasStage(scope.view, "deployment-system-rollup")) {
+  if (!hasStage("deployment-system-rollup")) {
     return materialized;
   }
   const rolledUp = transformations.rollUpSystems(result, materialized, scope);
-  return builtinViewHasStage(scope.view, "deployment-infrastructure-simplification")
+  return hasStage("deployment-infrastructure-simplification")
     ? transformations.simplifyInfrastructure(result, rolledUp)
     : rolledUp;
 }

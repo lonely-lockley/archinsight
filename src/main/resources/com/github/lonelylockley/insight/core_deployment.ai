@@ -1,17 +1,24 @@
 define type DeploymentElement of BoundaryElement
+    capability = "deployment-element"
 
 extend type Element
     List of Edge deployment
+        capability = "deployment-actions"
     InfrastructureComponent runsOn
+        capability = "placement-owner"
     List of InfrastructureComponent uses
+        capability = "infrastructure-uses"
 
 define type InfrastructureComponent of DeploymentElement
     constructor infrastructureComponent
+
+    capability = "infrastructure"
 
     Text name
     Text technology
     Text description
     InfrastructureComponent runsOn
+        capability = "placement-owner"
     List of PhysicalWire projection
     List of InfrastructureComponent _
 
@@ -20,7 +27,10 @@ define type ProjectionTerm
 define type DeploymentProfile of BoundaryElement
     constructor deploymentProfile
 
+    capability = "deployment-profile"
+
     required List of Deployment appliesTo
+        capability = "deployment-profile-members"
 
 define type Storage of InfrastructureComponent
     constructor storage
@@ -49,8 +59,12 @@ define type Compute of InfrastructureComponent
 define type NetworkConnection of InfrastructureComponent
     constructor networkConnection
 
+    capability = "network-connection"
+
 define type Environment of BoundaryElement
     constructor environment
+
+    capability = "environment"
 
     required Text name
     Text region
@@ -58,6 +72,8 @@ define type Environment of BoundaryElement
 
 define type Deployment of DeploymentElement
     constructor deployment
+
+    capability = "deployment"
 
     Text name
     List of DeploymentElement _

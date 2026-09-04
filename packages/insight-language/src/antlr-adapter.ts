@@ -35,12 +35,7 @@ import {
   type TokenNameResolver,
 } from "./parser-facade.js";
 import { CONTEXT, NOTHING, TypeSystem } from "./type-system.js";
-
-const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
-const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
-const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
-const USES_OPERATOR = "uses";
-const RUNS_ON_OPERATOR = "runsOn";
+import { ATTRIBUTE_CAPABILITIES, OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 export interface AntlrAdapterInput {
   readonly source: string;
@@ -581,11 +576,14 @@ function processDeploymentActionObject(
   const operatorNode = firstChildByRule(declaration, "namedPrefixOperatorInvocation", ruleNames)
     ?? firstChildByRule(declaration, "elementConstructor", ruleNames);
   const operator = operatorNode === undefined ? undefined : textOf(operatorNode);
-  if (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR) {
+  if (operator === undefined || !deploymentOperator(typeSystem, ownerType, operator)) {
     return false;
   }
-  const inDeploymentList = state.lists.some((list) => list.attribute === DEPLOYMENT_LIST_ATTRIBUTE);
-  if (!inDeploymentList && !typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+  const inDeploymentList = state.lists.some((list) =>
+    typeSystem.attribute(list.ownerType, list.attribute)?.capabilities
+      ?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true
+  );
+  if (!inDeploymentList && !typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
     return false;
   }
   if (contains(declaration, cursorOffset, cursor)) {
@@ -776,23 +774,34 @@ function deploymentActionOverrideTypes(
   typeSystem: TypeSystem,
   state: FileContextState,
 ): readonly string[] {
-  if (target === undefined || (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR)) {
+  if (target === undefined || !deploymentOperator(typeSystem, ownerType, operator)) {
     return [];
   }
-  const inDeploymentList = state.lists.some((list) => list.attribute === DEPLOYMENT_LIST_ATTRIBUTE);
-  if (!inDeploymentList && !typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+  const inDeploymentList = state.lists.some((list) =>
+    typeSystem.attribute(list.ownerType, list.attribute)?.capabilities
+      ?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true
+  );
+  if (!inDeploymentList && !typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
     return [];
   }
   const targetText = textOf(target);
   const identifierType = state.visibleIdentifiers.get(targetText)?.type;
-  if (identifierType !== undefined && typeSystem.isAssignable(identifierType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+  if (identifierType !== undefined && typeSystem.typeHasCapability(identifierType, TYPE_CAPABILITIES.infrastructure)) {
     return [identifierType];
   }
   if (identifierType !== undefined) {
     return [];
   }
-  return unique(typeSlotAttributeTypes(typeSystem, "Environment", targetText)
-    .filter((type) => typeSystem.isAssignable(type, INFRASTRUCTURE_COMPONENT_TYPE)));
+  return unique(typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
+    .flatMap((environmentType) => typeSlotAttributeTypes(typeSystem, environmentType, targetText))
+    .filter((type) => typeSystem.typeHasCapability(type, TYPE_CAPABILITIES.infrastructure)));
+}
+
+function deploymentOperator(typeSystem: TypeSystem, ownerType: string, spelling: string): boolean {
+  return typeSystem.operatorConstructorsFrom(ownerType)
+    .filter((operator) => operator.spelling === spelling)
+    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
 }
 
 function typeSlotAttributeTypes(
