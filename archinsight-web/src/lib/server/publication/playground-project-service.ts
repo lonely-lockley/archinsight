@@ -1,4 +1,4 @@
-import type { EnvSource } from '$lib/server/auth/auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import {
   linkForStoredSources,
   structureForStoredSources,
@@ -8,36 +8,36 @@ import type { LinkRequest, ProjectStructureRequest } from '$lib/server/language/
 import { requireRuntimeProfile } from '$lib/server/config/runtime-profile';
 import { playgroundProjectStore } from './playground-project-store';
 
-export async function playgroundProjects(env: EnvSource | undefined) {
-  const project = await publishedProject(env);
+export async function playgroundProjects(services: ApplicationServices) {
+  const project = await publishedProject(services);
   return { projects: [await project.project()] };
 }
 
-export async function playgroundTree(env: EnvSource | undefined) {
-  return (await publishedProject(env)).tree();
+export async function playgroundTree(services: ApplicationServices) {
+  return (await publishedProject(services)).tree();
 }
 
-export async function playgroundRead(env: EnvSource | undefined, path: string) {
-  return (await publishedProject(env)).read(path);
+export async function playgroundRead(services: ApplicationServices, path: string) {
+  return (await publishedProject(services)).read(path);
 }
 
-export async function playgroundSymbols(env: EnvSource | undefined) {
-  const { cacheKey, sources } = await analysisSources(env);
-  return symbolsForStoredSources(env, cacheKey, sources);
+export async function playgroundSymbols(services: ApplicationServices) {
+  const { cacheKey, sources } = await analysisSources(services);
+  return symbolsForStoredSources(services, cacheKey, sources);
 }
 
-export async function playgroundStructure(env: EnvSource | undefined, request: ProjectStructureRequest | null) {
-  const { cacheKey, sources } = await analysisSources(env);
-  return structureForStoredSources(env, cacheKey, sources, request);
+export async function playgroundStructure(services: ApplicationServices, request: ProjectStructureRequest | null) {
+  const { cacheKey, sources } = await analysisSources(services);
+  return structureForStoredSources(services, cacheKey, sources, request);
 }
 
-export async function playgroundLink(env: EnvSource | undefined, request: LinkRequest | null) {
-  const { cacheKey, sources } = await analysisSources(env);
-  return linkForStoredSources(env, cacheKey, sources, request);
+export async function playgroundLink(services: ApplicationServices, request: LinkRequest | null) {
+  const { cacheKey, sources } = await analysisSources(services);
+  return linkForStoredSources(services, cacheKey, sources, request);
 }
 
-async function analysisSources(env: EnvSource | undefined) {
-  const project = await publishedProject(env);
+async function analysisSources(services: ApplicationServices) {
+  const project = await publishedProject(services);
   const summary = await project.project();
   return {
     cacheKey: `playground:${summary.id}`,
@@ -45,7 +45,7 @@ async function analysisSources(env: EnvSource | undefined) {
   };
 }
 
-async function publishedProject(env: EnvSource | undefined) {
-  requireRuntimeProfile(env, 'playground');
-  return playgroundProjectStore(env);
+async function publishedProject(services: ApplicationServices) {
+  requireRuntimeProfile(services.config.runtimeProfile, 'playground');
+  return playgroundProjectStore(services);
 }

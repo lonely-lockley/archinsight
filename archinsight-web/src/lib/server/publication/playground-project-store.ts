@@ -1,12 +1,8 @@
-import { getDatabaseConfig } from '$lib/server/database/database-config';
-import { postgresDatabase } from '$lib/server/database/postgres-database';
 import type { Queryable } from '$lib/server/database/types';
-import type { EnvSource } from '$lib/server/auth/auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import { normalizeFileName } from '$lib/server/repository/path';
 import { fileNodes, normalizeTree, requireFile, rootNode, toFileTreeDto } from '$lib/server/repository/repository-tree';
-import { repositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import type { FileContentResponse, FileTreeResponse, RepositoryNode } from '$lib/server/repository/types';
-import { currentPlaygroundPublication } from './playground-publication-service';
 import { notFound } from '$lib/server/errors/application-error';
 
 export type PlaygroundProjectSummary = { id: string; name: string };
@@ -18,19 +14,19 @@ export interface PlaygroundProjectStore {
   sources(): Promise<Map<string, string>>;
 }
 
-export async function playgroundProjectStore(env: EnvSource | undefined): Promise<PlaygroundProjectStore> {
-  if (getDatabaseConfig(env).enabled) {
-    return new PostgresPlaygroundProjectStore(await postgresDatabase(env));
+export async function playgroundProjectStore(services: ApplicationServices): Promise<PlaygroundProjectStore> {
+  if (services.config.database.enabled) {
+    return new PostgresPlaygroundProjectStore(await services.database.get());
   }
-  return new InMemoryPlaygroundProjectStore(env);
+  return new InMemoryPlaygroundProjectStore(services);
 }
 
 class InMemoryPlaygroundProjectStore implements PlaygroundProjectStore {
-  constructor(private readonly env: EnvSource | undefined) {}
+  constructor(private readonly services: ApplicationServices) {}
 
   async project(): Promise<PlaygroundProjectSummary> {
-    const publication = await requirePublication(this.env);
-    const project = (await repositoryFileSystem(this.env).projects(publication.ownerId))
+    const publication = await requirePublication(this.services);
+    const project = (await this.services.repository.projects(publication.ownerId))
       .find((candidate) => candidate.id === publication.repositoryId);
     if (!project) {
       throw notFound('Published playground project is unavailable');
@@ -39,19 +35,19 @@ class InMemoryPlaygroundProjectStore implements PlaygroundProjectStore {
   }
 
   async tree(): Promise<FileTreeResponse> {
-    const publication = await requirePublication(this.env);
-    return repositoryFileSystem(this.env).tree(publication.ownerId, publication.repositoryId);
+    const publication = await requirePublication(this.services);
+    return this.services.repository.tree(publication.ownerId, publication.repositoryId);
   }
 
   async read(path: string): Promise<FileContentResponse> {
-    const publication = await requirePublication(this.env);
-    const response = await repositoryFileSystem(this.env).read(publication.ownerId, publication.repositoryId, path);
+    const publication = await requirePublication(this.services);
+    const response = await this.services.repository.read(publication.ownerId, publication.repositoryId, path);
     return { ...response, readOnly: false };
   }
 
   async sources(): Promise<Map<string, string>> {
-    const publication = await requirePublication(this.env);
-    return repositoryFileSystem(this.env).sources(publication.ownerId, publication.repositoryId);
+    const publication = await requirePublication(this.services);
+    return this.services.repository.sources(publication.ownerId, publication.repositoryId);
   }
 }
 
@@ -142,8 +138,8 @@ function repositoryTree(repository: PublishedRepositoryRow): RepositoryNode {
   return normalizeTree(structure);
 }
 
-async function requirePublication(env: EnvSource | undefined) {
-  const publication = await currentPlaygroundPublication(env);
+async function requirePublication(services: ApplicationServices) {
+  const publication = await services.publicationStore.current('default');
   if (!publication) {
     throw notFound('Playground project is not published');
   }

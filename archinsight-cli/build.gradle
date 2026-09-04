@@ -34,6 +34,7 @@ tasks.register('npmBuild', Exec) {
     description = 'Builds the Archinsight CLI.'
     dependsOn 'npmInstall', 'generateVersion', rootProject.tasks.named('generateLanguageSources')
     inputs.dir('src')
+    inputs.file('scripts/generate-skill-resources.mjs')
     inputs.dir('../packages/insight-language/src')
     outputs.dir('build')
     workingDir = projectDir

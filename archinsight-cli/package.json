@@ -25,7 +25,8 @@
   },
   "scripts": {
     "generate:version": "node scripts/generate-version.mjs",
-    "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs && npm run generate:version",
+    "generate:skill-resources": "node scripts/generate-skill-resources.mjs",
+    "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs && npm run generate:version && npm run generate:skill-resources",
     "build": "esbuild src/index.ts --bundle --platform=node --format=esm --sourcemap --outfile=build/index.js --external:@viz-js/viz",
     "test:skill": "node scripts/run-test-suite.mjs skill",
     "test:cli": "node scripts/run-test-suite.mjs cli",

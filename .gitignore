@@ -19,6 +19,7 @@ coverage/
 
 # Generated sources
 archinsight-cli/src/version.ts
+archinsight-cli/src/generated/skill-resources.ts
 packages/insight-language/src/generated/
 
 # IDEs

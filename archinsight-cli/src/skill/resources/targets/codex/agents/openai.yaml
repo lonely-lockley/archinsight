@@ -1,0 +1,7 @@
+interface:
+  display_name: "Archinsight"
+  short_description: "Work with Insight architecture models"
+  default_prompt: "Use $archinsight to model, analyze, repair, or validate Insight architecture-as-code files."
+
+policy:
+  allow_implicit_invocation: true

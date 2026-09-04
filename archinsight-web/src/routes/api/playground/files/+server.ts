@@ -1,4 +1,4 @@
 import { playgroundTree } from '$lib/server/publication/playground-project-service';
-import { env, jsonEndpoint } from '../../projects/route-utils';
+import { jsonEndpoint, services } from '../../projects/route-utils';
 
-export const GET = (event) => jsonEndpoint(event, () => playgroundTree(env(event)));
+export const GET = (event) => jsonEndpoint(event, () => playgroundTree(services(event)));

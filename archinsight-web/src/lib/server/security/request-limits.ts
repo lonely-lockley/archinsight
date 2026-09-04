@@ -1,5 +1,7 @@
 import type { EnvSource } from '$lib/server/auth/auth-config';
 import { payloadTooLarge } from '$lib/server/errors/application-error';
+import { integerConfigValue } from '$lib/server/config/config-values';
+import { runtimeEnv } from '$lib/server/config/local-config';
 
 export type RequestLimits = {
   maxFileBytes: number;
@@ -13,13 +15,17 @@ export type RequestLimits = {
 const encoder = new TextEncoder();
 
 export function requestLimits(env: EnvSource | undefined): RequestLimits {
+  return parseRequestLimits(runtimeEnv(env));
+}
+
+export function parseRequestLimits(env: EnvSource): RequestLimits {
   return {
-    maxFileBytes: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_FILE_BYTES, 1_048_576),
-    maxOverlays: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_OVERLAYS, 100),
-    maxOverlayBytes: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_OVERLAY_BYTES, 1_048_576),
-    maxQueryChars: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_QUERY_CHARS, 20_000),
-    maxRenderCount: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_RENDER_COUNT, 16),
-    maxDotBytes: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_DOT_BYTES, 1_048_576)
+    maxFileBytes: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_FILE_BYTES', 1_048_576, { min: 0 }),
+    maxOverlays: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_OVERLAYS', 100, { min: 0 }),
+    maxOverlayBytes: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_OVERLAY_BYTES', 1_048_576, { min: 0 }),
+    maxQueryChars: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_QUERY_CHARS', 20_000, { min: 0 }),
+    maxRenderCount: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_RENDER_COUNT', 16, { min: 0 }),
+    maxDotBytes: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_DOT_BYTES', 1_048_576, { min: 0 })
   };
 }
 
@@ -68,12 +74,4 @@ function requireBytes(label: string, value: string | null | undefined, maxBytes:
 
 function bytes(value: string | null | undefined): number {
   return value == null ? 0 : encoder.encode(value).byteLength;
-}
-
-function numberValue(value: string | undefined, fallback: number): number {
-  if (value == null || value.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
 }

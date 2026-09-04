@@ -3,11 +3,10 @@ import { GET as playground } from './+server';
 import { GET as tree } from './files/+server';
 import * as contentRoute from './files/content/+server';
 import { InMemoryRepositoryFileSystem } from '$lib/server/repository/in-memory-repository-file-system';
-import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import {
-  InMemoryPlaygroundPublicationStore,
-  setPlaygroundPublicationStore
+  InMemoryPlaygroundPublicationStore
 } from '$lib/server/publication/playground-publication-store';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const env = {
@@ -16,18 +15,17 @@ const env = {
   ARCHINSIGHT_REPOSITORY_BACKEND: 'memory'
 };
 let publications: InMemoryPlaygroundPublicationStore;
+let repository: InMemoryRepositoryFileSystem;
 
 describe('playground API', () => {
   beforeEach(() => {
-    const fs = new InMemoryRepositoryFileSystem();
-    fs.setProjects(ownerId, [{
+    repository = new InMemoryRepositoryFileSystem();
+    repository.setProjects(ownerId, [{
       id: 'published-project',
       name: 'Published project',
       files: { 'main.ai': 'context published' }
     }]);
-    setRepositoryFileSystem(fs);
     publications = new InMemoryPlaygroundPublicationStore();
-    setPlaygroundPublicationStore(publications);
   });
 
   it('returns only the selected published project without authentication', async () => {
@@ -69,6 +67,11 @@ function event(url: string, override: Record<string, string> = {}) {
     cookies: { get: () => undefined },
     request: { json: async () => null },
     url: new URL(url, 'http://localhost'),
-    platform: { env: { ...env, ...override } }
+    locals: {
+      services: createApplicationServices(
+        { ...env, ...override },
+        { repository, publicationStore: publications }
+      )
+    }
   } as never;
 }

@@ -1,8 +1,6 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
-import { postgresDatabase } from '$lib/server/database/postgres-database';
-import { getDatabaseConfig } from '$lib/server/database/database-config';
 import type { Queryable, TransactionalDatabase } from '$lib/server/database/types';
-import type { EnvSource } from './auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import type { AppRole, AuthenticatedUser, StandaloneTokenClaims, UserdataProfile } from './types';
 
 type UserdataRow = {
@@ -23,12 +21,12 @@ type UserdataRow = {
 
 export async function authenticateStandaloneClaims(
   claims: StandaloneTokenClaims | null,
-  env: EnvSource | undefined
+  services: ApplicationServices
 ): Promise<AuthenticatedUser | null> {
   if (!claims) {
     return null;
   }
-  if (!getDatabaseConfig(env).enabled) {
+  if (!services.config.database.enabled) {
     return {
       id: claims.userId,
       email: claims.email ?? null,
@@ -38,15 +36,15 @@ export async function authenticateStandaloneClaims(
       roles: ['user']
     };
   }
-  const store = new PostgresUserdataStore(await postgresDatabase(env));
+  const store = new PostgresUserdataStore(await services.database.get());
   return store.authenticateStandaloneClaims(claims);
 }
 
 export async function upsertUserdataProfile(
   profile: UserdataProfile,
-  env: EnvSource | undefined
+  services: ApplicationServices
 ): Promise<AuthenticatedUser> {
-  if (!getDatabaseConfig(env).enabled) {
+  if (!services.config.database.enabled) {
     const email = normalizeEmail(profile.email);
     return {
       id: blankToNull(profile.id) ?? deterministicUserId(`${profile.source ?? 'standalone'}|${email}`),
@@ -57,52 +55,52 @@ export async function upsertUserdataProfile(
       roles: ['user']
     };
   }
-  const store = new PostgresUserdataStore(await postgresDatabase(env));
+  const store = new PostgresUserdataStore(await services.database.get());
   return store.upsert(profile);
 }
 
 export async function authenticateSsrSession(
   session: string | null | undefined,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   tokenSecret: string
 ): Promise<AuthenticatedUser | null> {
-  if (!getDatabaseConfig(env).enabled) {
+  if (!services.config.database.enabled) {
     return null;
   }
-  const store = new PostgresUserdataStore(await postgresDatabase(env));
+  const store = new PostgresUserdataStore(await services.database.get());
   return store.authenticateSsrSession(session, tokenSecret);
 }
 
 export async function storeSsrSession(
   email: string,
   session: string | null | undefined,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   tokenSecret: string
 ): Promise<void> {
-  if (!session || session.trim() === '' || !getDatabaseConfig(env).enabled) {
+  if (!session || session.trim() === '' || !services.config.database.enabled) {
     return;
   }
-  const store = new PostgresUserdataStore(await postgresDatabase(env));
+  const store = new PostgresUserdataStore(await services.database.get());
   await store.storeSsrSession(email, session, tokenSecret);
 }
 
-export async function revokeUserSessions(userId: string, env: EnvSource | undefined): Promise<void> {
-  if (!getDatabaseConfig(env).enabled) {
+export async function revokeUserSessions(userId: string, services: ApplicationServices): Promise<void> {
+  if (!services.config.database.enabled) {
     return;
   }
-  const store = new PostgresUserdataStore(await postgresDatabase(env));
+  const store = new PostgresUserdataStore(await services.database.get());
   await store.revokeUserSessions(userId);
 }
 
 export async function revokeSsrSession(
   session: string,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   tokenSecret: string
 ): Promise<boolean> {
-  if (!getDatabaseConfig(env).enabled) {
+  if (!services.config.database.enabled) {
     return false;
   }
-  const store = new PostgresUserdataStore(await postgresDatabase(env));
+  const store = new PostgresUserdataStore(await services.database.get());
   return store.revokeSsrSession(session, tokenSecret);
 }
 

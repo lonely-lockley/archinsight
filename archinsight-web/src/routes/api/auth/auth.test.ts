@@ -9,6 +9,7 @@ import { GET as oidcLogin } from './oidc/login/[provider]/+server';
 import { GET as oidcCallback } from './oidc/callback/[provider]/+server';
 import { verifyGhostSessionSignature } from '$lib/server/auth/ghost-session';
 import { getAuthConfig } from '$lib/server/auth/auth-config';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const devConfig = {
   ARCHINSIGHT_DATABASE_ENABLED: 'false',
@@ -51,7 +52,7 @@ const standaloneSyncConfig = {
 
 describe('auth API', () => {
   it('returns anonymous user with configured login options', async () => {
-    const response = await me({ cookies: cookies(), platform: { env: devConfig } } as never);
+    const response = await me({ cookies: cookies(), locals: { services: createApplicationServices(devConfig) } } as never);
 
     await expect(response.json()).resolves.toMatchObject({
       authenticated: false,
@@ -66,7 +67,7 @@ describe('auth API', () => {
   });
 
   it('returns configured OIDC providers as login options', async () => {
-    const response = await me({ cookies: cookies(), platform: { env: oidcConfig } } as never);
+    const response = await me({ cookies: cookies(), locals: { services: createApplicationServices(oidcConfig) } } as never);
 
     await expect(response.json()).resolves.toMatchObject({
       authenticated: false,
@@ -85,7 +86,7 @@ describe('auth API', () => {
   });
 
   it('does not authenticate local-dev requests without an explicit session cookie', async () => {
-    const response = await me({ cookies: cookies(), platform: { env: localDevConfig } } as never);
+    const response = await me({ cookies: cookies(), locals: { services: createApplicationServices(localDevConfig) } } as never);
 
     await expect(response.json()).resolves.toMatchObject({
       authenticated: false,
@@ -104,7 +105,7 @@ describe('auth API', () => {
     const response = await devLogin({
       cookies: jar,
       url: new URL('http://localhost/api/auth/dev/login?returnTo=/editor'),
-      platform: { env: devConfig }
+      locals: { services: createApplicationServices(devConfig) }
     } as never);
 
     expect(response.status).toBe(307);
@@ -121,7 +122,7 @@ describe('auth API', () => {
 
     const authenticated = await me({
       cookies: cookies({ 'archinsight-session': jar.setCalls[0].value }),
-      platform: { env: devConfig }
+      locals: { services: createApplicationServices(devConfig) }
     } as never);
 
     await expect(authenticated.json()).resolves.toMatchObject({
@@ -136,7 +137,7 @@ describe('auth API', () => {
     const response = await devLogin({
       cookies: jar,
       url: new URL('http://localhost/api/auth/dev/login?returnTo=/app/editor'),
-      platform: { env: ghostConfig },
+      locals: { services: createApplicationServices(ghostConfig) },
       fetch: fakeGhostFetch()
     } as never);
 
@@ -156,7 +157,7 @@ describe('auth API', () => {
 
   it('logout clears standalone session cookie', async () => {
     const jar = cookies();
-    const response = await logout({ cookies: jar, platform: { env: devConfig } } as never);
+    const response = await logout({ cookies: jar, locals: { services: createApplicationServices(devConfig) } } as never);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
@@ -174,7 +175,7 @@ describe('auth API', () => {
       'ghost-members-ssr': 'ghost-session',
       'ghost-members-ssr.sig': 'ghost-signature'
     });
-    const response = await portalLogout({ cookies: jar, platform: { env: ghostConfig } } as never);
+    const response = await portalLogout({ cookies: jar, locals: { services: createApplicationServices(ghostConfig) } } as never);
 
     expect(response.status).toBe(200);
     expect(jar.deleteCalls.map((call) => call.name)).toEqual([
@@ -189,13 +190,13 @@ describe('auth API', () => {
     await devLogin({
       cookies: standaloneJar,
       url: new URL('http://localhost/api/auth/dev/login'),
-      platform: { env: devConfig }
+      locals: { services: createApplicationServices(devConfig) }
     } as never);
     const standaloneSession = standaloneJar.setCalls.find((call) => call.name === 'archinsight-session')?.value ?? '';
 
     const response = await me({
       cookies: cookies({ 'archinsight-session': standaloneSession }),
-      platform: { env: ghostConfig }
+      locals: { services: createApplicationServices(ghostConfig) }
     } as never);
 
     await expect(response.json()).resolves.toMatchObject({ authenticated: false });
@@ -209,7 +210,7 @@ describe('auth API', () => {
       cookies: jar,
       params: { provider: 'google' },
       url: new URL('http://localhost/api/auth/oidc/login/google?returnTo=/editor'),
-      platform: { env: oidcGhostConfig }
+      locals: { services: createApplicationServices(oidcGhostConfig) }
     } as never);
 
     expect(login.status).toBe(307);
@@ -244,7 +245,7 @@ describe('auth API', () => {
       cookies: jar,
       params: { provider: 'google' },
       url: new URL(`http://localhost/api/auth/oidc/callback/google?code=code-1&state=${encodeURIComponent(state)}`),
-      platform: { env: oidcGhostConfig },
+      locals: { services: createApplicationServices(oidcGhostConfig) },
       fetch: fakeOidcFetch({
         token: {
           access_token: 'access-token',
@@ -281,7 +282,7 @@ describe('auth API', () => {
     const response = await standaloneToken({
       cookies: cookies(),
       request: jsonRequest({ email: 'standalone@example.com' }, 'Bearer standalone-sync-token'),
-      platform: { env: devConfig }
+      locals: { services: createApplicationServices(devConfig) }
     } as never);
 
     expect(response.status).toBe(404);
@@ -292,7 +293,7 @@ describe('auth API', () => {
     const response = await standaloneToken({
       cookies: cookies(),
       request: jsonRequest({ email: 'standalone@example.com' }, 'Bearer standalone-sync-token'),
-      platform: { env: { ...ghostConfig, ARCHINSIGHT_AUTH_STANDALONE_SYNC_API_TOKEN: 'standalone-sync-token' } }
+      locals: { services: createApplicationServices({ ...ghostConfig, ARCHINSIGHT_AUTH_STANDALONE_SYNC_API_TOKEN: 'standalone-sync-token' }) }
     } as never);
 
     expect(response.status).toBe(404);
@@ -303,7 +304,7 @@ describe('auth API', () => {
     const response = await standaloneToken({
       cookies: cookies(),
       request: jsonRequest({ email: 'standalone@example.com' }, 'Bearer wrong-token'),
-      platform: { env: standaloneSyncConfig }
+      locals: { services: createApplicationServices(standaloneSyncConfig) }
     } as never);
 
     expect(response.status).toBe(401);
@@ -326,7 +327,7 @@ describe('auth API', () => {
         },
         'Bearer standalone-sync-token'
       ),
-      platform: { env: standaloneSyncConfig }
+      locals: { services: createApplicationServices(standaloneSyncConfig) }
     } as never);
 
     expect(response.status).toBe(200);
@@ -349,7 +350,7 @@ describe('auth API', () => {
 
     const authenticated = await me({
       cookies: cookies({ 'archinsight-session': session?.value ?? '' }),
-      platform: { env: standaloneSyncConfig }
+      locals: { services: createApplicationServices(standaloneSyncConfig) }
     } as never);
     await expect(authenticated.json()).resolves.toMatchObject({
       authenticated: true,
@@ -362,7 +363,7 @@ describe('auth API', () => {
     const response = await ghostSync({
       cookies: cookies(),
       request: jsonRequest({ email: 'ghost@example.com' }, 'Bearer ghost-sync-token'),
-      platform: { env: devConfig },
+      locals: { services: createApplicationServices(devConfig) },
       fetch: fakeGhostFetch()
     } as never);
 
@@ -374,7 +375,7 @@ describe('auth API', () => {
     const response = await ghostSync({
       cookies: cookies(),
       request: jsonRequest({ email: 'ghost@example.com' }, 'Bearer wrong-token'),
-      platform: { env: ghostConfig },
+      locals: { services: createApplicationServices(ghostConfig) },
       fetch: fakeGhostFetch()
     } as never);
 
@@ -400,7 +401,7 @@ describe('auth API', () => {
         },
         'Bearer ghost-sync-token'
       ),
-      platform: { env: ghostConfig },
+      locals: { services: createApplicationServices(ghostConfig) },
       fetch: fakeGhostFetch(requests)
     } as never);
 

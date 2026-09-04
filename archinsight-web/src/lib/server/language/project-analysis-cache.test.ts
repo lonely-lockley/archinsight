@@ -7,6 +7,7 @@ import {
 } from '@insight/language';
 import { analysisMetricsSnapshot, resetAnalysisMetrics } from './analysis-observability';
 import { ProjectAnalysisCache } from './project-analysis-cache';
+import { parseAnalysisCacheConfig } from '$lib/server/config/analysis-cache-config';
 
 const env = { NODE_ENV: 'test' };
 
@@ -135,8 +136,8 @@ describe('project analysis cache', () => {
   });
 
   it('evicts least-recently-used states at the configured entry bound', async () => {
-    const cache = new ProjectAnalysisCache();
     const boundedEnv = { ...env, ARCHINSIGHT_ANALYSIS_CACHE_MAX_ENTRIES: '1' };
+    const cache = new ProjectAnalysisCache(parseAnalysisCacheConfig(boundedEnv));
     await cache.analyze('owner:a\0project:one', model('One'), {}, boundedEnv);
     await cache.analyze('owner:a\0project:two', model('Two'), {}, boundedEnv);
     expect(cache.size()).toBe(1);

@@ -22,11 +22,10 @@ import { actionCatalog, canExecute, controlState } from '$lib/actions/action-mod
 import type { AppCapability } from '$lib/api';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { InMemoryRepositoryFileSystem } from '$lib/server/repository/in-memory-repository-file-system';
-import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import {
-  InMemoryPlaygroundPublicationStore,
-  setPlaygroundPublicationStore
+  InMemoryPlaygroundPublicationStore
 } from '$lib/server/publication/playground-publication-store';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const foreignOwnerId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -66,9 +65,7 @@ describe('playground security boundary', () => {
         files: { 'main.ai': 'context foreign_owner_secret' }
       }
     ]);
-    setRepositoryFileSystem(repository);
     publications = new InMemoryPlaygroundPublicationStore();
-    setPlaygroundPublicationStore(publications);
     await publications.publish('default', ownerId, 'published-project', ownerId);
   });
 
@@ -237,6 +234,11 @@ function routeEvent(
     params: { projectId },
     request: { json: async () => body ?? null },
     url: new URL(url, 'http://localhost'),
-    platform: { env }
+    locals: {
+      services: createApplicationServices(env, {
+        repository,
+        publicationStore: publications
+      })
+    }
   } as never;
 }

@@ -22,19 +22,6 @@ def generatedPaths = [
     file('packages/insight-language/build'),
     file('packages/insight-language/src/generated')
 ]
-def updatePackageJsonVersion = { File packageJsonFile, String version ->
-    def original = packageJsonFile.text
-    def matcher = java.util.regex.Pattern
-        .compile('(?m)^(\\s*"version"\\s*:\\s*")[^"]+(")')
-        .matcher(original)
-    if (!matcher.find()) {
-        throw new GradleException("Could not find top-level version in ${packageJsonFile}")
-    }
-    def replacement = java.util.regex.Matcher.quoteReplacement("${matcher.group(1)}${version}${matcher.group(2)}")
-    def updated = matcher.replaceFirst(replacement)
-    packageJsonFile.text = updated
-}
-
 allprojects {
     group = 'com.github.lonelylockley.archinsight'
     version = artifactVersions.find { entry ->
@@ -46,28 +33,29 @@ tasks.register('syncPackageVersions') {
     group = 'build'
     description = 'Synchronizes package.json and package-lock.json versions from settings.gradle.'
     inputs.properties(artifactVersions)
+    inputs.file('scripts/sync-package-versions.mjs')
     inputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
     outputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
     outputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package-lock.json').toFile() })
 
     doLast {
-        npmArtifacts.each { name, artifact ->
-            def version = artifactVersions[artifact.versionKey]
-            def packageJsonFile = new File(artifact.dir, 'package.json')
-
-            if (!packageJsonFile.exists()) {
-                throw new GradleException("Missing ${packageJsonFile}")
-            }
-
-            updatePackageJsonVersion(packageJsonFile, version)
-            if (new File(artifact.dir, 'package-lock.json').exists()) {
-                providers.exec {
-                    workingDir artifact.dir
-                    commandLine npmCommand, 'install', '--package-lock-only', '--ignore-scripts'
-                }.result.get()
-            }
-        }
+        def plan = npmArtifacts.collect { name, artifact -> [
+            directory: rootProject.relativePath(artifact.dir),
+            version: artifactVersions[artifact.versionKey]
+        ] }
+        providers.exec {
+            workingDir rootProject.projectDir
+            commandLine 'node', 'scripts/sync-package-versions.mjs', groovy.json.JsonOutput.toJson(plan)
+        }.result.get()
     }
+}
+
+tasks.register('testPackageVersionSync', Exec) {
+    group = 'verification'
+    description = 'Tests deterministic offline npm package version synchronization.'
+    inputs.file('scripts/sync-package-versions.mjs')
+    inputs.file('scripts/package-version-sync.test.mjs')
+    commandLine 'node', '--test', 'scripts/package-version-sync.test.mjs'
 }
 
 tasks.register('copyLicenses') {
@@ -171,7 +159,7 @@ tasks.register('dockerPush') {
 }
 
 tasks.named('check') {
-    dependsOn 'languageNpmTest'
+    dependsOn 'languageNpmTest', 'testPackageVersionSync'
 }
 
 gradle.projectsEvaluated {

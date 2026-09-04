@@ -1,16 +1,28 @@
 import type { AuthLoginOption, StandaloneTokenConfig } from './types';
 import { randomBytes } from 'node:crypto';
 import { runtimeEnv, type EnvSource } from '$lib/server/config/local-config';
-
-const UNCONFIGURED = '__unset__';
+import {
+  booleanConfigValue,
+  configValue,
+  csvConfigValue,
+  enumConfigValue,
+  integerConfigValue,
+  optionalConfigValue,
+  optionalUrlConfigValue,
+  requiredConfigValue,
+  requiredUrlConfigValue,
+  urlConfigValue
+} from '$lib/server/config/config-values';
 const runtimeTokenSecret = randomBytes(32).toString('base64url');
 
 export type { EnvSource } from '$lib/server/config/local-config';
 
+export type AuthMode = 'standalone' | 'local-dev' | 'oidc';
+
 export type AuthConfig = {
   contextRoot: string;
   editorPath: string;
-  mode: string;
+  mode: AuthMode;
   devLoginEnabled: boolean;
   devUserId: string | null;
   devUserEmail: string;
@@ -57,21 +69,24 @@ export type OidcProviderConfig = {
 };
 
 export function getAuthConfig(env?: EnvSource): AuthConfig {
-  const source = runtimeEnv(env);
+  return parseAuthConfig(runtimeEnv(env));
+}
+
+export function parseAuthConfig(source: EnvSource): AuthConfig {
   const contextRoot = normalizePathPrefix(source.ARCHINSIGHT_CONTEXT_ROOT ?? '/');
   const editorPath = normalizeAbsolutePath(source.ARCHINSIGHT_EDITOR_PATH ?? '/editor');
-  const mode = (source.ARCHINSIGHT_AUTH_MODE ?? 'standalone').toLowerCase();
-  const tokenCookieName = source.ARCHINSIGHT_AUTH_TOKEN_COOKIE_NAME ?? 'archinsight-session';
-  const devLoginEnabled = booleanValue(source.ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED, false);
-  if (devLoginEnabled && (source.NODE_ENV ?? '').trim().toLowerCase() === 'production') {
+  const mode = enumConfigValue(source, 'ARCHINSIGHT_AUTH_MODE', ['standalone', 'local-dev', 'oidc'], 'standalone');
+  const tokenCookieName = configValue(source, 'ARCHINSIGHT_AUTH_TOKEN_COOKIE_NAME', 'archinsight-session');
+  const devLoginEnabled = booleanConfigValue(source, 'ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED', false);
+  if (devLoginEnabled && configValue(source, 'NODE_ENV', '').toLowerCase() === 'production') {
     throw new Error('ARCHINSIGHT_AUTH_DEV_LOGIN_ENABLED cannot be enabled in production');
   }
-  const devUserId = optionalValue(source.ARCHINSIGHT_AUTH_DEV_USER_ID);
-  const devUserEmail = source.ARCHINSIGHT_AUTH_DEV_USER_EMAIL ?? 'dev@archinsight.local';
-  const devUserDisplayName = source.ARCHINSIGHT_AUTH_DEV_USER_DISPLAY_NAME ?? 'Development User';
-  const loginUrl = optionalValue(source.ARCHINSIGHT_AUTH_LOGIN_URL);
-  const logoutUrl = optionalValue(source.ARCHINSIGHT_AUTH_LOGOUT_URL);
-  const standaloneSyncApiToken = optionalValue(source.ARCHINSIGHT_AUTH_STANDALONE_SYNC_API_TOKEN);
+  const devUserId = optionalConfigValue(source, 'ARCHINSIGHT_AUTH_DEV_USER_ID');
+  const devUserEmail = configValue(source, 'ARCHINSIGHT_AUTH_DEV_USER_EMAIL', 'dev@archinsight.local');
+  const devUserDisplayName = configValue(source, 'ARCHINSIGHT_AUTH_DEV_USER_DISPLAY_NAME', 'Development User');
+  const loginUrl = optionalConfigValue(source, 'ARCHINSIGHT_AUTH_LOGIN_URL');
+  const logoutUrl = optionalConfigValue(source, 'ARCHINSIGHT_AUTH_LOGOUT_URL');
+  const standaloneSyncApiToken = optionalConfigValue(source, 'ARCHINSIGHT_AUTH_STANDALONE_SYNC_API_TOKEN', { preserveWhitespace: true });
   const ghost = ghostConfig(source);
   const oidc = oidcConfig(source);
   const tokenSecret = authTokenSecret(source, mode);
@@ -88,12 +103,12 @@ export function getAuthConfig(env?: EnvSource): AuthConfig {
     logoutUrl,
     standaloneSyncApiToken,
     tokenCookieName,
-    cookieSecure: booleanValue(source.ARCHINSIGHT_AUTH_COOKIE_SECURE, true),
+    cookieSecure: booleanConfigValue(source, 'ARCHINSIGHT_AUTH_COOKIE_SECURE', true),
     token: {
       secret: tokenSecret,
-      issuer: source.ARCHINSIGHT_AUTH_TOKEN_ISSUER ?? 'archinsight',
-      audience: source.ARCHINSIGHT_AUTH_TOKEN_AUDIENCE ?? 'archinsight-editor',
-      ttlMinutes: numberValue(source.ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES, 1440)
+      issuer: configValue(source, 'ARCHINSIGHT_AUTH_TOKEN_ISSUER', 'archinsight'),
+      audience: configValue(source, 'ARCHINSIGHT_AUTH_TOKEN_AUDIENCE', 'archinsight-editor'),
+      ttlMinutes: integerConfigValue(source, 'ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES', 1440, { min: 1 })
     },
     ghost,
     oidc
@@ -102,15 +117,15 @@ export function getAuthConfig(env?: EnvSource): AuthConfig {
 }
 
 function authTokenSecret(env: EnvSource, mode: string): string {
-  const configured = optionalValue(env.ARCHINSIGHT_AUTH_TOKEN_SECRET);
+  const configured = optionalConfigValue(env, 'ARCHINSIGHT_AUTH_TOKEN_SECRET', { preserveWhitespace: true });
   if (configured) {
     return configured;
   }
-  const persistentSecretRequired = env.NODE_ENV === 'production'
-    || booleanValue(env.ARCHINSIGHT_DATABASE_ENABLED, false)
-    || (env.ARCHINSIGHT_REPOSITORY_BACKEND ?? '').toLowerCase() === 'postgres'
+  const persistentSecretRequired = configValue(env, 'NODE_ENV', '').toLowerCase() === 'production'
+    || booleanConfigValue(env, 'ARCHINSIGHT_DATABASE_ENABLED', false)
+    || enumConfigValue(env, 'ARCHINSIGHT_REPOSITORY_BACKEND', ['memory', 'postgres'], 'memory') === 'postgres'
     || mode === 'oidc'
-    || splitCsv(env.ARCHINSIGHT_AUTH_OIDC_PROVIDERS).length > 0;
+    || csvConfigValue(env, 'ARCHINSIGHT_AUTH_OIDC_PROVIDERS').length > 0;
   if (persistentSecretRequired) {
     throw new Error('ARCHINSIGHT_AUTH_TOKEN_SECRET must be configured for production, Postgres, or OIDC authentication');
   }
@@ -118,18 +133,18 @@ function authTokenSecret(env: EnvSource, mode: string): string {
 }
 
 function ghostConfig(env: EnvSource): GhostConfig {
-  const enabled = booleanValue(env.ARCHINSIGHT_AUTH_GHOST_ENABLED, false);
-  const ssrSecretKey = optionalValue(env.ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY);
+  const enabled = booleanConfigValue(env, 'ARCHINSIGHT_AUTH_GHOST_ENABLED', false);
+  const ssrSecretKey = optionalConfigValue(env, 'ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY', { preserveWhitespace: true });
   if (enabled && !ssrSecretKey) {
     throw new Error('ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY must be configured when Ghost integration is enabled');
   }
   return {
     enabled,
-    adminApiUrl: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_ADMIN_API_URL),
-    publicUrl: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_PUBLIC_URL),
-    adminApiKey: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_ADMIN_API_KEY),
-    syncApiToken: optionalValue(env.ARCHINSIGHT_AUTH_GHOST_SYNC_API_TOKEN),
-    ssrCookieName: env.ARCHINSIGHT_AUTH_GHOST_SSR_COOKIE_NAME ?? 'ghost-members-ssr',
+    adminApiUrl: optionalUrlConfigValue(env, 'ARCHINSIGHT_AUTH_GHOST_ADMIN_API_URL', { protocols: ['http:', 'https:'], allowCredentials: false }),
+    publicUrl: optionalUrlConfigValue(env, 'ARCHINSIGHT_AUTH_GHOST_PUBLIC_URL', { protocols: ['http:', 'https:'], allowCredentials: false }),
+    adminApiKey: optionalConfigValue(env, 'ARCHINSIGHT_AUTH_GHOST_ADMIN_API_KEY', { preserveWhitespace: true }),
+    syncApiToken: optionalConfigValue(env, 'ARCHINSIGHT_AUTH_GHOST_SYNC_API_TOKEN', { preserveWhitespace: true }),
+    ssrCookieName: configValue(env, 'ARCHINSIGHT_AUTH_GHOST_SSR_COOKIE_NAME', 'ghost-members-ssr'),
     ssrSecretKey
   };
 }
@@ -215,11 +230,11 @@ export function oidcRedirectUri(config: AuthConfig, provider: OidcProviderConfig
 }
 
 function oidcConfig(env: EnvSource): OidcConfig {
-  const providerIds = splitCsv(env.ARCHINSIGHT_AUTH_OIDC_PROVIDERS);
+  const providerIds = csvConfigValue(env, 'ARCHINSIGHT_AUTH_OIDC_PROVIDERS');
   return {
-    callbackBaseUrl: env.ARCHINSIGHT_AUTH_OIDC_CALLBACK_BASE_URL ?? 'http://localhost:5173',
-    stateCookiePrefix: env.ARCHINSIGHT_AUTH_OIDC_STATE_COOKIE_PREFIX ?? 'archinsight-oidc-state',
-    stateTtlSeconds: numberValue(env.ARCHINSIGHT_AUTH_OIDC_STATE_TTL_SECONDS, 600),
+    callbackBaseUrl: urlConfigValue(env, 'ARCHINSIGHT_AUTH_OIDC_CALLBACK_BASE_URL', 'http://localhost:5173', { protocols: ['http:', 'https:'], allowCredentials: false }),
+    stateCookiePrefix: configValue(env, 'ARCHINSIGHT_AUTH_OIDC_STATE_COOKIE_PREFIX', 'archinsight-oidc-state'),
+    stateTtlSeconds: integerConfigValue(env, 'ARCHINSIGHT_AUTH_OIDC_STATE_TTL_SECONDS', 600, { min: 1 }),
     providers: providerIds.map((providerId) => oidcProviderConfig(env, providerId))
   };
 }
@@ -227,19 +242,21 @@ function oidcConfig(env: EnvSource): OidcConfig {
 function oidcProviderConfig(env: EnvSource, providerId: string): OidcProviderConfig {
   const prefix = `ARCHINSIGHT_AUTH_OIDC_${envKey(providerId)}_`;
   const defaults = defaultOidcProvider(providerId);
-  const issuer = requiredValue(env[`${prefix}ISSUER`] ?? defaults.issuer, `${prefix}ISSUER`);
+  const issuer = requiredUrlConfigValue({ ...env, [`${prefix}ISSUER`]: env[`${prefix}ISSUER`] ?? defaults.issuer }, `${prefix}ISSUER`, { protocols: ['http:', 'https:'], allowCredentials: false });
   return {
     id: providerId,
-    label: env[`${prefix}LABEL`] ?? providerLabel(providerId),
+    label: configValue(env, `${prefix}LABEL`, providerLabel(providerId)),
     issuer,
-    authorizationUrl: requiredValue(env[`${prefix}AUTHORIZATION_URL`] ?? defaults.authorizationUrl, `${prefix}AUTHORIZATION_URL`),
-    tokenUrl: requiredValue(env[`${prefix}TOKEN_URL`] ?? defaults.tokenUrl, `${prefix}TOKEN_URL`),
-    jwksUrl: requiredValue(env[`${prefix}JWKS_URL`] ?? defaults.jwksUrl, `${prefix}JWKS_URL`),
-    userInfoUrl: optionalValue(env[`${prefix}USERINFO_URL`] ?? defaults.userInfoUrl),
-    clientId: requiredValue(env[`${prefix}CLIENT_ID`], `${prefix}CLIENT_ID`),
-    clientSecret: requiredValue(env[`${prefix}CLIENT_SECRET`], `${prefix}CLIENT_SECRET`),
-    scopes: requiredValue(env[`${prefix}SCOPES`] ?? defaults.scopes, `${prefix}SCOPES`),
-    redirectUri: optionalValue(env[`${prefix}REDIRECT_URI`])
+    authorizationUrl: requiredUrlConfigValue(env, `${prefix}AUTHORIZATION_URL`, { protocols: ['http:', 'https:'], allowCredentials: false }, defaults.authorizationUrl),
+    tokenUrl: requiredUrlConfigValue(env, `${prefix}TOKEN_URL`, { protocols: ['http:', 'https:'], allowCredentials: false }, defaults.tokenUrl),
+    jwksUrl: requiredUrlConfigValue(env, `${prefix}JWKS_URL`, { protocols: ['http:', 'https:'], allowCredentials: false }, defaults.jwksUrl),
+    userInfoUrl: defaults.userInfoUrl == null && env[`${prefix}USERINFO_URL`] == null
+      ? null
+      : optionalUrlConfigValue({ ...env, [`${prefix}USERINFO_URL`]: env[`${prefix}USERINFO_URL`] ?? defaults.userInfoUrl ?? undefined }, `${prefix}USERINFO_URL`, { protocols: ['http:', 'https:'], allowCredentials: false }),
+    clientId: requiredConfigValue(env, `${prefix}CLIENT_ID`),
+    clientSecret: requiredConfigValue(env, `${prefix}CLIENT_SECRET`, undefined, { preserveWhitespace: true }),
+    scopes: requiredConfigValue(env, `${prefix}SCOPES`, defaults.scopes),
+    redirectUri: optionalUrlConfigValue(env, `${prefix}REDIRECT_URI`, { protocols: ['http:', 'https:'], allowCredentials: false })
   };
 }
 
@@ -264,23 +281,8 @@ function defaultOidcProvider(providerId: string): Omit<OidcProviderConfig, 'id' 
   };
 }
 
-function splitCsv(value: string | undefined): string[] {
-  return (value ?? '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item, index, items) => item !== '' && items.indexOf(item) === index);
-}
-
 function envKey(value: string): string {
   return value.toUpperCase().replaceAll(/[^A-Z0-9]+/gu, '_');
-}
-
-function requiredValue(value: string | null | undefined, name: string): string {
-  const optional = optionalValue(value ?? undefined);
-  if (!optional) {
-    throw new Error(`${name} must be configured`);
-  }
-  return optional;
 }
 
 function providerLabel(provider: string): string {
@@ -300,28 +302,6 @@ function capitalizeProviderLabelPart(value: string): string {
 
 function trimSlash(value: string): string {
   return value.endsWith('/') ? value.slice(0, -1) : value;
-}
-
-function optionalValue(value: string | null | undefined): string | null {
-  if (!value || value.trim() === '' || value === UNCONFIGURED) {
-    return null;
-  }
-  return value;
-}
-
-function booleanValue(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') {
-    return fallback;
-  }
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
-}
-
-function numberValue(value: string | undefined, fallback: number): number {
-  if (value == null || value.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function normalizePathPrefix(path: string): string {

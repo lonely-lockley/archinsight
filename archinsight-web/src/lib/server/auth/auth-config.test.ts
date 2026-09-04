@@ -62,4 +62,15 @@ describe('getAuthConfig', () => {
       ARCHINSIGHT_AUTH_GHOST_ENABLED: 'true'
     })).toThrow('ARCHINSIGHT_AUTH_GHOST_SSR_SECRET_KEY must be configured');
   });
+
+  it('rejects malformed booleans and session durations instead of silently falling back', () => {
+    expect(() => getAuthConfig({
+      ARCHINSIGHT_AUTH_MODE: 'local-dev',
+      ARCHINSIGHT_AUTH_COOKIE_SECURE: 'ture'
+    })).toThrow('ARCHINSIGHT_AUTH_COOKIE_SECURE');
+    expect(() => getAuthConfig({
+      ARCHINSIGHT_AUTH_MODE: 'local-dev',
+      ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES: '-1'
+    })).toThrow('ARCHINSIGHT_AUTH_TOKEN_TTL_MINUTES');
+  });
 });

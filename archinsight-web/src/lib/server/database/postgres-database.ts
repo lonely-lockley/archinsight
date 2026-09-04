@@ -1,41 +1,12 @@
 import { Pool, type PoolClient, type PoolConfig, type QueryResult as PgQueryResult, type QueryResultRow } from 'pg';
 import type { DatabaseConfig } from './database-config';
-import { getDatabaseConfig } from './database-config';
 import { migrateDatabase } from './migrations';
 import type { QueryResult, Queryable, TransactionalDatabase } from './types';
-import type { EnvSource } from '$lib/server/auth/auth-config';
 import { ApplicationError, serviceUnavailable } from '$lib/server/errors/application-error';
 
-const pools = new Map<string, Promise<PostgresDatabase>>();
-
-export async function postgresDatabase(env: EnvSource | undefined): Promise<PostgresDatabase> {
-  const config = getDatabaseConfig(env);
-  if (!config.enabled) {
-    throw serviceUnavailable('Database integration is disabled');
-  }
-  const key = databaseKey(config);
-  let pool = pools.get(key);
-  if (!pool) {
-    pool = createDatabase(config);
-    pools.set(key, pool);
-    const pending = pool;
-    void pending.catch(() => {
-      if (pools.get(key) === pending) {
-        pools.delete(key);
-      }
-    });
-  }
-  try {
-    return await pool;
-  } catch (error) {
-    if (error instanceof ApplicationError) {
-      throw error;
-    }
-    throw serviceUnavailable('Database is unavailable', { cause: error });
-  }
-}
-
 export class PostgresDatabase implements TransactionalDatabase {
+  private closed = false;
+
   constructor(private readonly pool: Pool) {}
 
   async query<T extends QueryResultRow = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
@@ -56,6 +27,47 @@ export class PostgresDatabase implements TransactionalDatabase {
     } finally {
       client.release();
     }
+  }
+
+  async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    await this.pool.end();
+  }
+}
+
+export class PostgresDatabaseProvider {
+  private databasePromise: Promise<PostgresDatabase> | undefined;
+
+  constructor(private readonly config: DatabaseConfig) {}
+
+  async get(): Promise<PostgresDatabase> {
+    if (!this.config.enabled) {
+      throw serviceUnavailable('Database integration is disabled');
+    }
+    let database = this.databasePromise;
+    if (!database) {
+      database = createDatabase(this.config);
+      this.databasePromise = database;
+      const pending = database;
+      void pending.catch(() => {
+        if (this.databasePromise === pending) this.databasePromise = undefined;
+      });
+    }
+    try {
+      return await database;
+    } catch (error) {
+      if (error instanceof ApplicationError) throw error;
+      throw serviceUnavailable('Database is unavailable', { cause: error });
+    }
+  }
+
+  async dispose(): Promise<void> {
+    const pending = this.databasePromise;
+    this.databasePromise = undefined;
+    if (!pending) return;
+    const database = await pending.catch(() => null);
+    await database?.close();
   }
 }
 
@@ -119,17 +131,4 @@ function poolConfig(config: DatabaseConfig): PoolConfig {
     max: config.maxConnections,
     ssl: config.ssl ? { rejectUnauthorized: false } : undefined
   };
-}
-
-function databaseKey(config: DatabaseConfig): string {
-  return JSON.stringify({
-    url: config.connectionString,
-    host: config.host,
-    port: config.port,
-    database: config.database,
-    user: config.user,
-    ssl: config.ssl,
-    max: config.maxConnections,
-    migrations: config.migrationsEnabled
-  });
 }

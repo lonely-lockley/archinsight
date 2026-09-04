@@ -1,15 +1,14 @@
 import { createPublicKey, randomBytes, verify as verifySignature, type JsonWebKey as CryptoJsonWebKey } from 'node:crypto';
 import type { Cookies } from '@sveltejs/kit';
 import {
-  getAuthConfig,
   oidcProvider,
   oidcRedirectUri,
   postLoginRedirect,
   safeReturnTo,
   type AuthConfig,
-  type EnvSource,
   type OidcProviderConfig
 } from './auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import { issueStandaloneToken } from './standalone-token';
 import { upsertUserdataProfile } from './userdata-store';
 import { synchronizeGhostUser } from './ghost-service';
@@ -62,9 +61,9 @@ export function startOidcLogin(
   providerId: string,
   returnTo: string | null,
   cookies: Cookies,
-  env: EnvSource | undefined
+  services: ApplicationServices
 ): Response {
-  const config = getAuthConfig(env);
+  const config = services.config.auth;
   const provider = requireProvider(config, providerId);
   const state = randomToken();
   const nonce = randomToken();
@@ -88,10 +87,10 @@ export async function completeOidcLogin(
   providerId: string,
   url: URL,
   cookies: Cookies,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   fetcher: typeof fetch = defaultFetch
 ): Promise<Response> {
-  const config = getAuthConfig(env);
+  const config = services.config.auth;
   const provider = requireProvider(config, providerId);
   const providerError = url.searchParams.get('error');
   if (providerError) {
@@ -108,9 +107,9 @@ export async function completeOidcLogin(
   }
   const profile = await userProfile(provider, token, expected.nonce, fetcher);
   if (config.ghost.enabled) {
-    await synchronizeGhostUser(profile, cookies, env, fetcher);
+    await synchronizeGhostUser(profile, cookies, services, fetcher);
   } else {
-    const user = await upsertUserdataProfile(profile, env);
+    const user = await upsertUserdataProfile(profile, services);
     const sessionToken = issueStandaloneToken(user, config.token);
     cookies.delete(config.ghost.ssrCookieName, { path: '/' });
     cookies.delete(`${config.ghost.ssrCookieName}.sig`, { path: '/' });

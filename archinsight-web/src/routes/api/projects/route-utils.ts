@@ -1,7 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
-import { eventEnv } from '$lib/server/auth/svelte-event';
 import { ApplicationError, invalidRequest } from '$lib/server/errors/application-error';
 import { ContractValidationError, type ContractParser } from '@archinsight/contracts';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 
 type Handler<T> = (event: RequestEvent) => T | Promise<T>;
 
@@ -22,8 +22,8 @@ export async function emptyEndpoint(event: RequestEvent, handler: Handler<void>)
   }
 }
 
-export function env(event: RequestEvent) {
-  return eventEnv(event);
+export function services(event: RequestEvent): ApplicationServices {
+  return event.locals.services;
 }
 
 export function pathParam(event: RequestEvent, name: string): string {

@@ -5,9 +5,9 @@ import { POST as link } from './[projectId]/link/+server';
 import { POST as renderSvg } from './[projectId]/render/svg/+server';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { InMemoryRepositoryFileSystem } from '$lib/server/repository/in-memory-repository-file-system';
-import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import { analysisMetricsSnapshot, resetAnalysisMetrics } from '$lib/server/language/analysis-observability';
-import { resetProjectAnalysisCache } from '$lib/server/language/project-analysis-cache';
+import { ProjectAnalysisCache } from '$lib/server/language/project-analysis-cache';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const env = {
@@ -17,13 +17,15 @@ const env = {
   ARCHINSIGHT_AUTH_TOKEN_SECRET: 'standalone-token-test-secret',
   ARCHINSIGHT_AUTH_COOKIE_SECURE: 'false'
 };
+let repository: InMemoryRepositoryFileSystem;
+let analysisCache: ProjectAnalysisCache;
 
 describe('language API routes', () => {
   beforeEach(() => {
-    resetProjectAnalysisCache();
     resetAnalysisMetrics();
-    const fs = new InMemoryRepositoryFileSystem();
-    fs.setProjects(ownerId, [
+    analysisCache = new ProjectAnalysisCache();
+    repository = new InMemoryRepositoryFileSystem();
+    repository.setProjects(ownerId, [
       {
         id: 'project-1',
         name: 'Project 1',
@@ -37,7 +39,6 @@ system app
         }
       }
     ]);
-    setRepositoryFileSystem(fs);
   });
 
   it('returns project symbols from the TypeScript language service', async () => {
@@ -297,7 +298,12 @@ function event(
     },
     fetch: fetcher,
     url: new URL(url, 'http://localhost'),
-    platform: { env: { ...env, ...envOverride } }
+    locals: {
+      services: createApplicationServices(
+        { ...env, ...envOverride },
+        { repository, analysisCache }
+      )
+    }
   } as never;
 }
 

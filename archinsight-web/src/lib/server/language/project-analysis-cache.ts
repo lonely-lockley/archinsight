@@ -9,6 +9,7 @@ import {
   type ProjectSource
 } from '@insight/language';
 import type { EnvSource } from '$lib/server/auth/auth-config';
+import { getAnalysisCacheConfig, type AnalysisCacheConfig } from '$lib/server/config/analysis-cache-config';
 import {
   incrementAnalysisMetric,
   observeAnalysis
@@ -38,13 +39,6 @@ type StoredAnalysis = {
   relinkedSources: number;
 };
 
-type CacheConfig = {
-  maxEntries: number;
-  ttlMs: number;
-  maxEntrySourceBytes: number;
-  maxTotalSourceBytes: number;
-};
-
 type SourceChange = {
   sourceName: string;
   previous?: string;
@@ -57,6 +51,8 @@ const coreVersion = digest(JSON.stringify(coreLanguageSnapshot));
 export class ProjectAnalysisCache {
   private readonly entries = new Map<string, AnalysisEntry>();
   private readonly pending = new Map<string, Promise<void>>();
+
+  constructor(private readonly config: AnalysisCacheConfig = getAnalysisCacheConfig()) {}
 
   async analyze(
     key: string,
@@ -97,9 +93,8 @@ export class ProjectAnalysisCache {
     env?: EnvSource
   ): StoredAnalysis {
     const started = performance.now();
-    const config = cacheConfig(env);
     const now = Date.now();
-    this.prune(config, now);
+    this.prune(this.config, now);
     const sources = normalizedSources(requestedSources);
     const revision = sourceRevision(sources);
     const previous = this.entries.get(key);
@@ -134,10 +129,10 @@ export class ProjectAnalysisCache {
     }
 
     const { entry } = stored;
-    if (entry.sourceBytes <= config.maxEntrySourceBytes) {
+    if (entry.sourceBytes <= this.config.maxEntrySourceBytes) {
       this.entries.set(key, entry);
       touch(this.entries, key, entry);
-      this.prune(config, now);
+      this.prune(this.config, now);
     } else {
       this.entries.delete(key);
     }
@@ -307,7 +302,7 @@ export class ProjectAnalysisCache {
     };
   }
 
-  private prune(config: CacheConfig, now: number): void {
+  private prune(config: AnalysisCacheConfig, now: number): void {
     for (const [key, entry] of this.entries) {
       if (now - entry.lastAccess > config.ttlMs) {
         this.entries.delete(key);
@@ -321,12 +316,6 @@ export class ProjectAnalysisCache {
       this.entries.delete(oldest);
     }
   }
-}
-
-export const projectAnalysisCache = new ProjectAnalysisCache();
-
-export function resetProjectAnalysisCache(): void {
-  projectAnalysisCache.clear();
 }
 
 function analysis(
@@ -385,20 +374,6 @@ function sourcesSize(sources: ReadonlyMap<string, string>): number {
     result += Buffer.byteLength(sourceName) + Buffer.byteLength(source);
   }
   return result;
-}
-
-function cacheConfig(env: EnvSource | undefined): CacheConfig {
-  return {
-    maxEntries: numberValue(env?.ARCHINSIGHT_ANALYSIS_CACHE_MAX_ENTRIES, 32),
-    ttlMs: numberValue(env?.ARCHINSIGHT_ANALYSIS_CACHE_TTL_SECONDS, 900) * 1_000,
-    maxEntrySourceBytes: numberValue(env?.ARCHINSIGHT_ANALYSIS_CACHE_MAX_ENTRY_SOURCE_BYTES, 16_777_216),
-    maxTotalSourceBytes: numberValue(env?.ARCHINSIGHT_ANALYSIS_CACHE_MAX_TOTAL_SOURCE_BYTES, 67_108_864)
-  };
-}
-
-function numberValue(value: string | undefined, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function totalSourceBytes(entries: ReadonlyMap<string, AnalysisEntry>): number {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { linkForStoredSources, symbolsForSources } from './language-pipeline';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 describe('language error reporting', () => {
   it('builds transient symbols through the shared project analysis boundary', async () => {
@@ -17,7 +18,7 @@ describe('language error reporting', () => {
 
   it('returns source diagnostics without attempting to render an invalid link result', async () => {
     const response = await linkForStoredSources(
-      { NODE_ENV: 'test' },
+      createApplicationServices({ NODE_ENV: 'test' }),
       'error-reporting-project',
       new Map([
         ['main.ai', `

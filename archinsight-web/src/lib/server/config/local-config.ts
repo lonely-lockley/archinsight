@@ -3,8 +3,6 @@ import { dirname, resolve } from 'node:path';
 
 export type EnvSource = Record<string, string | undefined>;
 
-let cachedLocalEnv: EnvSource | undefined;
-
 export function runtimeEnv(env?: EnvSource): EnvSource {
   if (env) {
     return { ...process.env, ...env };
@@ -13,8 +11,7 @@ export function runtimeEnv(env?: EnvSource): EnvSource {
 }
 
 export function loadLocalEnv(): EnvSource {
-  cachedLocalEnv ??= loadLocalEnvUncached();
-  return cachedLocalEnv;
+  return loadLocalEnvUncached();
 }
 
 export function legacyYamlToEnv(text: string): EnvSource {

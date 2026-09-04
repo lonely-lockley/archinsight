@@ -5,7 +5,7 @@ import { GET as tree } from './[projectId]/files/+server';
 import { GET as read, PUT as save } from './[projectId]/files/content/+server';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { InMemoryRepositoryFileSystem } from '$lib/server/repository/in-memory-repository-file-system';
-import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-system';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const env = {
@@ -15,11 +15,12 @@ const env = {
   ARCHINSIGHT_AUTH_TOKEN_SECRET: 'standalone-token-test-secret',
   ARCHINSIGHT_AUTH_COOKIE_SECURE: 'false'
 };
+let repository: InMemoryRepositoryFileSystem;
 
 describe('repository API routes', () => {
   beforeEach(() => {
-    const fs = new InMemoryRepositoryFileSystem();
-    fs.setProjects(ownerId, [
+    repository = new InMemoryRepositoryFileSystem();
+    repository.setProjects(ownerId, [
       {
         id: 'project-1',
         name: 'Project 1',
@@ -28,11 +29,10 @@ describe('repository API routes', () => {
         }
       }
     ]);
-    setRepositoryFileSystem(fs);
   });
 
   it('requires authentication', async () => {
-    const response = await projects({ cookies: cookies(), platform: { env } } as never);
+    const response = await projects({ cookies: cookies(), locals: { services: appServices(env) } } as never);
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: 'Authentication required', code: 'UNAUTHORIZED' });
@@ -51,7 +51,7 @@ describe('repository API routes', () => {
     const response = await createProject({
       cookies: cookies(),
       request: { json: async () => ({ name: 'Private project' }) },
-      platform: { env }
+      locals: { services: appServices(env) }
     } as never);
     expect(response.status).toBe(401);
   });
@@ -157,8 +157,12 @@ function event(url = '/api/projects', projectId = 'project-1', body?: unknown, e
       json: async () => body ?? null
     },
     url: new URL(url, 'http://localhost'),
-    platform: { env: { ...env, ...envOverride } }
+    locals: { services: appServices({ ...env, ...envOverride }) }
   } as never;
+}
+
+function appServices(source: Record<string, string>) {
+  return createApplicationServices(source, { repository });
 }
 
 function cookies(initial: Record<string, string> = {}) {

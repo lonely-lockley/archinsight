@@ -1,8 +1,13 @@
 import { completeOidcLogin } from '$lib/server/auth/oidc-service';
-import { eventEnv } from '$lib/server/auth/svelte-event';
 
 export const GET = (event) =>
-  authResponse(() => completeOidcLogin(event.params.provider, event.url, event.cookies, eventEnv(event), event.fetch));
+  authResponse(() => completeOidcLogin(
+    event.params.provider,
+    event.url,
+    event.cookies,
+    event.locals.services,
+    event.fetch
+  ));
 
 async function authResponse(handler: () => Promise<Response>): Promise<Response> {
   try {

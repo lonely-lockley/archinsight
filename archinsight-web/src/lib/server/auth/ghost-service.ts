@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import type { Cookies } from '@sveltejs/kit';
-import { getAuthConfig, type EnvSource, type GhostConfig } from './auth-config';
+import type { GhostConfig } from './auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import { bearerTokenMatches } from './bearer-token';
 import { storeSsrSession, upsertUserdataProfile } from './userdata-store';
 import type { AuthenticatedUser, AuthUserResponse, UserdataProfile } from './types';
@@ -47,10 +48,10 @@ export async function syncGhostUser(
   authorization: string | null,
   request: GhostSyncRequest | null,
   cookies: Cookies,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   fetcher: typeof fetch = defaultFetch
 ): Promise<Response> {
-  const config = getAuthConfig(env);
+  const config = services.config.auth;
   const authorizationError = requireGhostSyncAuthorization(config.ghost, authorization);
   if (authorizationError) {
     return authorizationError;
@@ -62,7 +63,7 @@ export async function syncGhostUser(
     return jsonError('Ghost sync request is required', 400);
   }
 
-  const result = await synchronizeGhostUser(profileFromGhostRequest(request), cookies, env, fetcher);
+  const result = await synchronizeGhostUser(profileFromGhostRequest(request), cookies, services, fetcher);
 
   return new Response(JSON.stringify(result.response), {
     status: 200,
@@ -75,18 +76,18 @@ export async function syncGhostUser(
 export async function synchronizeGhostUser(
   profile: UserdataProfile,
   cookies: Cookies,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   fetcher: typeof fetch = defaultFetch
 ): Promise<GhostSynchronizationResult> {
-  const config = getAuthConfig(env);
+  const config = services.config.auth;
   if (!config.ghost.enabled) {
     throw new Error('Ghost integration is disabled');
   }
-  const user = await upsertUserdataProfile(profile, env);
+  const user = await upsertUserdataProfile(profile, services);
   const member = await resolveMember(config.ghost, user.email ?? profile.email, user.displayName ?? profile.displayName ?? profile.email, fetcher);
   const sessionCookies = await signinCookies(config.ghost, member, fetcher);
   const ssrSession = sessionCookies.find((cookie) => cookie.name === config.ghost.ssrCookieName)?.value ?? null;
-  await storeSsrSession(user.email ?? profile.email, ssrSession, env, config.token.secret);
+  await storeSsrSession(user.email ?? profile.email, ssrSession, services, config.token.secret);
   cookies.delete(config.tokenCookieName, { path: '/' });
   for (const cookie of sessionCookies) {
     cookies.set(cookie.name, cookie.value, {

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "archinsight-skill-resources.v1",
+  "sharedRoot": "shared",
+  "targets": {
+    "generic": {
+      "defaultOutput": ".archinsight/agent",
+      "entrypoint": "archinsight.md",
+      "installedByDefault": false,
+      "resourceRoot": "targets/generic"
+    },
+    "codex": {
+      "defaultOutput": ".codex/skills/archinsight",
+      "entrypoint": "SKILL.md",
+      "installedByDefault": true,
+      "resourceRoot": "targets/codex"
+    },
+    "claude": {
+      "defaultOutput": ".claude/skills/archinsight",
+      "entrypoint": "SKILL.md",
+      "installedByDefault": true,
+      "resourceRoot": "targets/claude"
+    }
+  }
+}

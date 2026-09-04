@@ -9,12 +9,13 @@ import {
 } from '@insight/language';
 import type { Cookies } from '@sveltejs/kit';
 import type { EnvSource } from '$lib/server/auth/auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import { requireUserId, sourcesForProjectWithOverlays } from '$lib/server/repository/project-file-service';
 import { requestLimits, validateOverlays, validateQuery } from '$lib/server/security/request-limits';
 import { requireRuntimeProfile } from '$lib/server/config/runtime-profile';
 import { invalidRequest } from '$lib/server/errors/application-error';
 import { incrementAnalysisMetric, observeAnalysis } from './analysis-observability';
-import { ProjectAnalysisCache, projectAnalysisCache, type ProjectAnalysis } from './project-analysis-cache';
+import { ProjectAnalysisCache, type ProjectAnalysis } from './project-analysis-cache';
 import type {
   DiagnosticDto,
   LinkRequest,
@@ -25,14 +26,14 @@ import type {
 
 const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 
-export async function symbols(cookies: Cookies, env: EnvSource | undefined, projectId: string) {
-  requireRuntimeProfile(env, 'editor');
-  const ownerId = await requireUserId(cookies, env);
-  return symbolsForProject(env, ownerId, projectId);
+export async function symbols(cookies: Cookies, services: ApplicationServices, projectId: string) {
+  requireRuntimeProfile(services.config.runtimeProfile, 'editor');
+  const ownerId = await requireUserId(cookies, services);
+  return symbolsForProject(services, ownerId, projectId);
 }
 
-export async function symbolsForProject(env: EnvSource | undefined, ownerId: string, projectId: string) {
-  const analysis = await analyzeStoredProject(env, ownerId, projectId, {});
+export async function symbolsForProject(services: ApplicationServices, ownerId: string, projectId: string) {
+  const analysis = await analyzeStoredProject(services, ownerId, projectId, {});
   return analysis.snapshotBuild.snapshot;
 }
 
@@ -43,24 +44,24 @@ export async function symbolsForSources(sources: ReadonlyMap<string, string>) {
 
 export async function structure(
   cookies: Cookies,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   projectId: string,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  requireRuntimeProfile(env, 'editor');
-  validateRequest(request, env);
-  const ownerId = await requireUserId(cookies, env);
-  return structureForProject(env, ownerId, projectId, request);
+  requireRuntimeProfile(services.config.runtimeProfile, 'editor');
+  validateRequest(request, services.config.requestLimits);
+  const ownerId = await requireUserId(cookies, services);
+  return structureForProject(services, ownerId, projectId, request);
 }
 
 export async function structureForProject(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   ownerId: string,
   projectId: string,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  validateRequest(request, env);
-  const analysis = await analyzeStoredProject(env, ownerId, projectId, request?.overlays ?? {});
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await analyzeStoredProject(services, ownerId, projectId, request?.overlays ?? {});
   return projectStructure(analysis.result);
 }
 
@@ -69,32 +70,32 @@ export async function structureForSources(
   sources: ReadonlyMap<string, string>,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  validateRequest(request, env);
+  validateRequest(request, requestLimits(env));
   const analysis = await transientAnalysis(sources, request?.overlays ?? {}, env);
   return projectStructure(analysis.result);
 }
 
 export async function link(
   cookies: Cookies,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   projectId: string,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  requireRuntimeProfile(env, 'editor');
-  validateRequest(request, env);
-  const ownerId = await requireUserId(cookies, env);
-  return linkForProject(env, ownerId, projectId, request);
+  requireRuntimeProfile(services.config.runtimeProfile, 'editor');
+  validateRequest(request, services.config.requestLimits);
+  const ownerId = await requireUserId(cookies, services);
+  return linkForProject(services, ownerId, projectId, request);
 }
 
 export async function linkForProject(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   ownerId: string,
   projectId: string,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  validateRequest(request, env);
-  const analysis = await analyzeStoredProject(env, ownerId, projectId, request?.overlays ?? {});
-  return linkFromAnalysis(analysis, request, env);
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await analyzeStoredProject(services, ownerId, projectId, request?.overlays ?? {});
+  return linkFromAnalysis(analysis, request, services.env);
 }
 
 export async function linkForSources(
@@ -102,38 +103,38 @@ export async function linkForSources(
   sources: ReadonlyMap<string, string>,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  validateRequest(request, env);
+  validateRequest(request, requestLimits(env));
   return linkFromAnalysis(await transientAnalysis(sources, request?.overlays ?? {}, env), request, env);
 }
 
 export async function linkForStoredSources(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   cacheKey: string,
   sources: ReadonlyMap<string, string>,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  validateRequest(request, env);
-  const analysis = await projectAnalysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, env);
-  return linkFromAnalysis(analysis, request, env);
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await services.analysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, services.env);
+  return linkFromAnalysis(analysis, request, services.env);
 }
 
 export async function structureForStoredSources(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   cacheKey: string,
   sources: ReadonlyMap<string, string>,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  validateRequest(request, env);
-  const analysis = await projectAnalysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, env);
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await services.analysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, services.env);
   return projectStructure(analysis.result);
 }
 
 export async function symbolsForStoredSources(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   cacheKey: string,
   sources: ReadonlyMap<string, string>
 ) {
-  return (await projectAnalysisCache.analyze(cacheKey, sources, {}, env)).snapshotBuild.snapshot;
+  return (await services.analysisCache.analyze(cacheKey, sources, {}, services.env)).snapshotBuild.snapshot;
 }
 
 function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null, env: EnvSource | undefined): LinkResponse {
@@ -193,9 +194,12 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
   };
 }
 
-function validateRequest(request: LinkRequest | ProjectStructureRequest | null, env: EnvSource | undefined): void {
-  validateQuery('query' in (request ?? {}) ? (request as LinkRequest).query : null, requestLimits(env));
-  validateOverlays(request?.overlays, requestLimits(env));
+function validateRequest(
+  request: LinkRequest | ProjectStructureRequest | null,
+  limits: ReturnType<typeof requestLimits>
+): void {
+  validateQuery('query' in (request ?? {}) ? (request as LinkRequest).query : null, limits);
+  validateOverlays(request?.overlays, limits);
   const view = 'view' in (request ?? {}) ? (request as LinkRequest).view : undefined;
   if (view != null && !isBuiltinDiagramView(view)) {
     throw invalidRequest('Invalid built-in diagram view');
@@ -209,13 +213,18 @@ function validateRequest(request: LinkRequest | ProjectStructureRequest | null, 
 }
 
 async function analyzeStoredProject(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   ownerId: string,
   projectId: string,
   overlays: Readonly<Record<string, string>>
 ): Promise<ProjectAnalysis> {
-  const storedSources = await sourcesForProjectWithOverlays(env, ownerId, projectId, {});
-  return projectAnalysisCache.analyze(`owner:${ownerId}\0project:${projectId}`, storedSources, overlays, env);
+  const storedSources = await sourcesForProjectWithOverlays(services, ownerId, projectId, {});
+  return services.analysisCache.analyze(
+    `owner:${ownerId}\0project:${projectId}`,
+    storedSources,
+    overlays,
+    services.env
+  );
 }
 
 async function transientAnalysis(
