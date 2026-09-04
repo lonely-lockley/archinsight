@@ -15,6 +15,7 @@ const cases = [
   rendersEdgesFromGroupOwnersThroughClusterAnchors,
   rendersParallelEdgesBetweenSameElementsAsDistinctEdges,
   rendersRelativeExternalElementsWithoutTheirViewClusters,
+  preservesProjectPresentationWhenElementIsRelativelyExternal,
   rendersScalarGroupByAsSyntheticCluster,
   rendersNestedAttributeObjectsAsNestedClusters,
   skipsElementsWithInvisibleGraphvizPresentation,
@@ -277,6 +278,60 @@ RETURN n, out, outNode, in, inNode
   assert(dot.includes("fillcolor=\"#999999\""));
   assert(!dot.includes('subgraph "cluster_external_systems"'));
   assert(dot.includes("\"external_systems__partner\" -> \"source__app\""));
+}
+
+function preservesProjectPresentationWhenElementIsRelativelyExternal() {
+  const result = linkWithCoreDefinitions(
+    source("definitions.ai", `
+define type PartnerActor of Actor
+    constructor partnerActor
+        kind = internal
+
+define presentation PartnerActor
+    header = name
+    body = description
+
+    light
+        fill = "#123456"
+
+    graphviz
+        shape = ellipse
+        style = filled,dashed
+`),
+    source("source.ai", `
+context source
+
+system app
+    name = App
+`),
+    source("partner.ai", `
+context partners
+
+import app from context source
+
+partnerActor vendor
+    name = Vendor
+    description = Identity provider
+    links:
+        -> app
+`),
+  );
+  const projection = selectGraph(result, { context: "source" }, `
+MATCH (n:Element)
+WHERE n.context = $context
+OPTIONAL MATCH (external:Element)-[incoming]->(n)
+RETURN n, external, incoming
+`);
+  const dot = renderGraphviz(result, projection, "light");
+  const vendor = dot.split("\n").find((line) => line.includes('"partners__vendor" ['));
+
+  assertNoErrors(result);
+  assert(projection.externalElements.includes("partners/vendor"));
+  assert(vendor?.includes("Vendor"), vendor);
+  assert(vendor?.includes("Identity provider"), vendor);
+  assert(vendor?.includes('fillcolor="#999999"'), vendor);
+  assert(vendor?.includes('shape="ellipse"'), vendor);
+  assert(vendor?.includes('style="filled,dashed"'), vendor);
 }
 
 function rendersScalarGroupByAsSyntheticCluster() {

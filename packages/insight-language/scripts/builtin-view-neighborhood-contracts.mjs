@@ -285,7 +285,6 @@ function builtinViewFixture() {
 function element(context, localId, type, baseTypes, sourceIdentity, parent = undefined, options = {}) {
   const attributes = {
     name: [localId],
-    ...(options.external === true ? { kind: ["external"] } : {}),
     ...(options.uses === undefined ? {} : { uses: options.uses }),
   };
   return {
@@ -297,6 +296,7 @@ function element(context, localId, type, baseTypes, sourceIdentity, parent = und
     sourceIdentity,
     ...(parent === undefined ? {} : { parent }),
     baseTypes,
+    ...(options.external === true ? { capabilities: ["external-element"] } : {}),
     attributes,
     ...(options.deployed === true ? { deployed: true } : {}),
     ...(options.uses === undefined ? {} : { listAttributes: ["uses"], referenceAttributes: ["uses"] }),

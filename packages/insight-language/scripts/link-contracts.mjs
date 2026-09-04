@@ -3,6 +3,7 @@ import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
   linkProject,
+  isSyntheticLinkedLocalId,
   mergeLanguageSnapshots,
   ProjectLinkerState,
 } from "../build/runtime/index.js";
@@ -1366,7 +1367,7 @@ system source
 
   assertNoErrors(result);
   assert.equal(members.length, 1);
-  assert(members[0]?.id.startsWith("shared/_anonymous_"));
+  assert(members[0] !== undefined && isSyntheticLinkedLocalId(members[0].localId));
   assert.equal(members[0]?.anonymous, true);
   assert.deepEqual(result.elements.find((element) => element.id === "shared/source")?.attributes.lead, [members[0]?.id]);
 }
@@ -2155,7 +2156,7 @@ service backend
       && edge.target === database?.id
       && edge.projected === true));
   }
-  assert(!result.elements.some((element) => element.localId.startsWith("_deployment_")));
+  assert(!result.elements.some((element) => element.synthetic === true));
 }
 
 function overridesClonedDeploymentUsesLocally() {
@@ -2274,7 +2275,7 @@ service backend
   const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
   const network = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Cluster network");
   assert.deepEqual(edge?.attributes.uses, [network?.id]);
-  assert(!result.elements.some((element) => element.localId.startsWith("_deployment_")));
+  assert(!result.elements.some((element) => element.synthetic === true));
 }
 
 function inheritsDeploymentTargetsForComponentWires() {

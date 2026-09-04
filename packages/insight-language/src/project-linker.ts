@@ -18,8 +18,10 @@ import type {
   SourceLocation,
 } from "./contracts.js";
 import { InsightParser } from "./generated/InsightParser.js";
+import { elementTypeOrKindIsExplicitlyExternal } from "./externality.js";
 import { IndexedGraph } from "./indexed-graph.js";
 import { linkedEdgeId } from "./linked-edge-id.js";
+import { syntheticLinkedLocalId } from "./linked-identity.js";
 import { buildIndexedGraph } from "./linked-project-index.js";
 import { buildPresentationIndex } from "./presentation-resolver.js";
 import {
@@ -216,7 +218,6 @@ interface MutableParsedDocument {
   readonly edges: ParsedEdge[];
   readonly extensions: ParsedExtension[];
   readonly diagnostics: LanguageDiagnostic[];
-  readonly anonymousCounters: Map<string, number>;
   readonly operatorImplementations: OperatorImplementationRegistry;
 }
 
@@ -277,7 +278,7 @@ interface DeploymentExpansionContext {
   readonly typeSystem: TypeSystem;
   readonly diagnostics: LanguageDiagnostic[];
   readonly elements: ParsedElement[];
-  nextCloneId(owner: ParsedElement, source: ParsedElement): string;
+  cloneId(owner: ParsedElement, source: ParsedElement, action: ParsedDeploymentAction): string;
 }
 
 interface DeploymentUse {
@@ -366,9 +367,8 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
 function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
   const typeSystem = new TypeSystem(request.snapshot);
   const operatorImplementations = request.operatorImplementations ?? coreOperatorImplementationRegistry;
-  const anonymousCounters = new Map<string, number>();
   const documents = request.sources.map((source) =>
-    parseDocument(source.sourceName, source.source, typeSystem, anonymousCounters, operatorImplementations)
+    parseDocument(source.sourceName, source.source, typeSystem, operatorImplementations)
   );
   const diagnostics: LanguageDiagnostic[] = [];
   const elementsByContextAndLocalId = new Map<string, ParsedElement[]>();
@@ -398,7 +398,6 @@ function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
       resolveAttributes(element, element.type, element.attributes, element.referenceAttributePositions, element.scalarAttributes, element.scalarAttributePositions, element.context, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, typeSystem, diagnostics),
     );
   }
-  let deploymentCloneCounter = 0;
   const deploymentContext: DeploymentExpansionContext = {
     sourceElementsBySourceAndLocalId,
     elementsByContextAndLocalId,
@@ -409,9 +408,14 @@ function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
     typeSystem,
     diagnostics,
     elements,
-    nextCloneId(owner, source) {
-      deploymentCloneCounter += 1;
-      return `${owner.context}/_deployment_${sanitizeLocalId(owner.localId)}_${sanitizeLocalId(source.localId)}_${deploymentCloneCounter}`;
+    cloneId(owner, source, action) {
+      return `${owner.context}/${syntheticLinkedLocalId("deployment-clone", [
+        owner.id,
+        source.id,
+        action.sourceName,
+        action.line,
+        action.column,
+      ])}`;
     },
   };
   return {
@@ -723,7 +727,6 @@ function parseDocument(
   sourceName: string,
   source: string,
   typeSystem: TypeSystem,
-  anonymousCounters: Map<string, number>,
   operatorImplementations: OperatorImplementationRegistry,
 ): ParsedDocument {
   const parsed = parseInsightSource({ sourceName, source });
@@ -754,7 +757,6 @@ function parseDocument(
     edges: [],
     extensions: [],
     diagnostics,
-    anonymousCounters,
     operatorImplementations,
   };
 
@@ -782,10 +784,22 @@ function parseDocument(
   return document;
 }
 
-function nextAnonymousLocalId(document: MutableParsedDocument): string {
-  const next = (document.anonymousCounters.get(document.context.id) ?? 0) + 1;
-  document.anonymousCounters.set(document.context.id, next);
-  return `_anonymous_${next}`;
+function anonymousLocalId(
+  document: MutableParsedDocument,
+  declaration: RuleNode | undefined,
+  role: string,
+  ownerId?: string,
+): string {
+  const source = position(declaration, document.sourceName);
+  return syntheticLinkedLocalId("anonymous", [
+    document.sourceName,
+    role,
+    ownerId ?? document.context.id,
+    source.line,
+    source.column,
+    source.endLine ?? source.line,
+    source.endColumn ?? source.column,
+  ]);
 }
 
 function collectEnvironmentDeclaration(
@@ -1351,7 +1365,12 @@ function collectImplicitObjectElement(
   document: MutableParsedDocument,
   slotName?: string,
 ): ParsedElement {
-  const localId = nextAnonymousLocalId(document);
+  const localId = anonymousLocalId(
+    document,
+    attributeNameNode ?? list,
+    `implicit:${constructor.spelling}:${slotName ?? "_"}`,
+    parent.id,
+  );
   const element: ParsedElement = {
     id: `${document.context.id}/${localId}`,
     context: document.context.id,
@@ -1471,7 +1490,9 @@ function collectObject(
     });
     return undefined;
   }
-  const localId = anonymous ? nextAnonymousLocalId(document) : declaredId;
+  const localId = anonymous
+    ? anonymousLocalId(document, object, `object:${constructor}`, parent?.id)
+    : declaredId;
   const baseType = typeConstructor.ownerType;
   const prefix = firstChild(object, "namedPrefixOperatorInvocation")?.getText();
   const prefixNode = firstChild(object, "namedPrefixOperatorInvocation");
@@ -1570,7 +1591,12 @@ function collectSlotOperatorObject(
     : slotAttribute.list === true
       ? slotAttribute.listElementType ?? slotAttribute.type
       : slotAttribute.type;
-  const localId = nextAnonymousLocalId(document);
+  const localId = anonymousLocalId(
+    document,
+    object,
+    `slot:${constructor}:${slotName}`,
+    parent?.id,
+  );
   const identifierDeclaration = firstChild(object, "identifierDeclaration");
   const element: ParsedElement = {
     id: `${document.context.id}/${localId}`,
@@ -2769,7 +2795,7 @@ function cloneInfrastructureElement(
   if (existing !== undefined) {
     return existing;
   }
-  const id = context.nextCloneId(owner, source);
+  const id = context.cloneId(owner, source, action);
   const localId = id.slice(id.lastIndexOf("/") + 1);
   const clone: ParsedElement = {
     ...source,
@@ -2946,10 +2972,6 @@ function mergeUniqueElements(
     result.push(element);
   }
   return result;
-}
-
-function sanitizeLocalId(value: string): string {
-  return value.replace(/[^A-Za-z0-9_]/g, "_");
 }
 
 function addProjectedEdges(
@@ -3979,7 +4001,7 @@ function deploymentViewLogicalEndpoint(
   let element = elementsById.get(elementId);
   while (element !== undefined) {
     if (typeSystem.isAssignable(element.type, CONTAINER_ELEMENT_TYPE)
-        || element.scalarAttributes.kind === "external") {
+        || elementTypeOrKindIsExplicitlyExternal(element.type, element.scalarAttributes.kind, typeSystem)) {
       return element.id;
     }
     element = element.parent === undefined ? undefined : elementsById.get(element.parent);
@@ -3992,7 +4014,8 @@ function elementDeploymentFamily(element: ParsedElement, typeSystem: TypeSystem)
       || typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deploymentProfile)) {
     return undefined;
   }
-  if (element.scalarAttributes.kind === "external" && element.deploymentActions.length === 0) {
+  if (elementTypeOrKindIsExplicitlyExternal(element.type, element.scalarAttributes.kind, typeSystem)
+      && element.deploymentActions.length === 0) {
     return undefined;
   }
   if (typeSystem.isAssignable(element.type, COMPONENT_ELEMENT_TYPE)) {

@@ -184,9 +184,10 @@ function writeGroup(
 }
 
 function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: string, indent: string): void {
+  const basePresentation = presentation(result, element.type);
   const resolvedPresentation = graph.externalElements.includes(element.id)
-    ? presentation(result, "ExternalSystem")
-    : presentation(result, element.type);
+    ? externalizedPresentation(result, element, basePresentation)
+    : basePresentation;
   const properties = dotProperties(resolvedPresentation, theme, false);
   Object.assign(properties, section(resolvedPresentation, "graphviz"));
   applyAnnotations(properties, element.annotations ?? [], false);
@@ -293,6 +294,25 @@ function presentation(result: LinkProjectResult, type: string): ResolvedPresenta
     name: "Element",
     assignments: {},
     sections: {},
+  };
+}
+
+function externalizedPresentation(
+  result: LinkProjectResult,
+  element: LinkedElement,
+  base: ResolvedPresentation,
+): ResolvedPresentation {
+  const modifierType = element.type === "Actor" || element.baseTypes.includes("Actor")
+    ? "ExternalActor"
+    : "ExternalSystem";
+  const modifier = presentation(result, modifierType);
+  return {
+    ...base,
+    sections: {
+      ...base.sections,
+      light: { ...section(base, "light"), ...section(modifier, "light") },
+      dark: { ...section(base, "dark"), ...section(modifier, "dark") },
+    },
   };
 }
 

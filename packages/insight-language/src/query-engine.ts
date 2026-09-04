@@ -10,6 +10,7 @@ import type {
   RenderGraphGroup,
 } from "./contracts.js";
 import type { GraphNode, GraphRelation } from "./indexed-graph.js";
+import { linkedElementIsExplicitlyExternal } from "./externality.js";
 import {
   queryViewPipeline,
   type ViewBoundaryDefinition,
@@ -141,8 +142,10 @@ export function selectGraph(
         .map((edge) => ({ edge, source: edge.source, target: edge.target, derived: false, projected: false }));
   const internalElementIds = new Set([...internalElements(result, rows, parsed)]
     .filter((id) => selectedElements.has(id)));
-  const externalElements = [...selectedElements.keys()]
-    .filter((id) => !internalElementIds.has(id) && !groupedSelectedElements.has(id));
+  const externalElements = [...selectedElements.entries()]
+    .filter(([id, element]) => explicitlyExternal(element)
+      || (!internalElementIds.has(id) && !groupedSelectedElements.has(id)))
+    .map(([id]) => id);
   const selectedGraph: RenderGraph = {
     context: scope.context ?? "",
     elements: Object.fromEntries(selectedElements),
@@ -1035,7 +1038,7 @@ function semanticAttribute(
 }
 
 function explicitlyExternal(element: LinkedElement): boolean {
-  return element.attributes.kind?.includes("external") === true;
+  return linkedElementIsExplicitlyExternal(element);
 }
 
 function evaluationContext(base: QueryExecutionContext): EvaluationContext {
@@ -1686,7 +1689,8 @@ function matchesTypePredicate(value: string | readonly string[] | QueryNode | un
     return false;
   }
   if (target === "External") {
-    return property(value, "kind") === "external";
+    return value.kind === "element"
+      && linkedElementIsExplicitlyExternal(value.element);
   }
   return labels(value).has(target);
 }

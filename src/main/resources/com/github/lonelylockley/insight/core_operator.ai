@@ -92,12 +92,18 @@ define operator TargetProjectionTerm of TypeSlotReference
     constructor target Environment or InfrastructureComponent
         on ProjectionTerm
 
+define type ExternalSystem of System
+    capability = "external-element"
+
 define operator ExternalSystem of System
     constructor external System
         on Context
         kind = external
 
     implementation = "@insight/core.element"
+
+define type ExternalActor of Actor
+    capability = "external-element"
 
 define operator ExternalActor of Actor
     constructor external Actor

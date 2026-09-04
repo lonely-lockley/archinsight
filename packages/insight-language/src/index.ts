@@ -87,6 +87,12 @@ export {
 export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraphs } from "./query-engine.js";
 export { renderGraphviz } from "./graphviz-renderer.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
+export {
+  isSyntheticLinkedLocalId,
+  parseSyntheticLinkedLocalId,
+  syntheticLinkedLocalId,
+} from "./linked-identity.js";
+export type { SyntheticLinkedIdentity } from "./linked-identity.js";
 export { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
 export {
   ATTRIBUTE_CAPABILITIES,

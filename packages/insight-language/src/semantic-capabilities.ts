@@ -3,6 +3,7 @@ export const TYPE_CAPABILITIES = Object.freeze({
   deploymentProfile: "deployment-profile",
   deployment: "deployment",
   environment: "environment",
+  externalElement: "external-element",
   infrastructure: "infrastructure",
   networkConnection: "network-connection",
 } as const);

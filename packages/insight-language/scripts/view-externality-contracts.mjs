@@ -21,6 +21,7 @@ const cases = [
   treatsEveryOpenedBoundaryAsInternal,
   preservesFocusAcrossSplitImportedAndExtendedSources,
   keepsCustomExternalPredicateModelRelative,
+  resolvesExplicitExternalityFromTypeCapability,
   rendersTheSameRelativeExternalityCarriedByQueryJson,
 ];
 
@@ -117,6 +118,37 @@ function keepsCustomExternalPredicateModelRelative() {
   `);
   assert.deepEqual(Object.keys(custom.elements), ["shop/vendor"]);
   assert.equal(custom.elements["shop/payments"], undefined);
+}
+
+function resolvesExplicitExternalityFromTypeCapability() {
+  const result = linkedProject(
+    source("definitions.ai", `
+define type PartnerSystem of System
+    constructor partner
+        kind = internal
+
+    capability = "external-element"
+`),
+    source("model.ai", `
+context shop
+
+partner vendor
+    name = Vendor
+
+system explicitly_marked
+    name = Explicitly marked
+    kind = external
+`),
+  );
+  const graph = selectGraph(result, { context: "shop" }, `
+    MATCH (element:SystemElement)
+    WHERE element IS External
+    RETURN element
+  `);
+
+  assert.deepEqual(Object.keys(graph.elements).sort(), ["shop/explicitly_marked", "shop/vendor"]);
+  assert.deepEqual([...graph.externalElements].sort(), ["shop/explicitly_marked", "shop/vendor"]);
+  assert.equal(result.elements.find((element) => element.id === "shop/vendor")?.attributes.kind?.[0], "internal");
 }
 
 function rendersTheSameRelativeExternalityCarriedByQueryJson() {
