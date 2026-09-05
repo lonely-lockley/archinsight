@@ -15,9 +15,29 @@ export interface EditorCompletionItem {
   readonly imported?: boolean;
 }
 
+export interface EditorCompletionDocumentation {
+  readonly header?: string;
+  readonly subtitle?: string;
+  readonly body?: string;
+  readonly type?: {
+    readonly abstract: boolean;
+    readonly baseType?: string;
+    readonly constructors: readonly {
+      readonly spelling: string;
+      readonly ownerType: string;
+    }[];
+  };
+}
+
 export declare function completionDetail(item: Pick<EditorCompletionItem, "kind" | "imported">): string;
+export declare function completionDisplayLabel(
+  item: Pick<EditorCompletionItem, "kind" | "label" | "imported">
+): { readonly label: string; readonly description: string };
 export declare function completionSortBucket(kind: EditorCompletionKind): string;
 export declare function completionSortText(item: Pick<EditorCompletionItem, "kind" | "label">): string;
+export declare function completionDocumentationMarkdown(
+  documentation: EditorCompletionDocumentation | undefined
+): string | undefined;
 
 export declare function semanticTokenModifierBits(
   modifiers: readonly string[] | undefined,

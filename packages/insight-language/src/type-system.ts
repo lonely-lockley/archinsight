@@ -39,6 +39,10 @@ export class TypeSystem {
     return this.types.has(type);
   }
 
+  definition(type: string): TypeDefinition | undefined {
+    return this.types.get(type);
+  }
+
   isAssignable(type: string, expectedType: string): boolean {
     if (type === expectedType || expectedType === NOTHING) {
       return true;
@@ -70,6 +74,22 @@ export class TypeSystem {
     return [...this.constructorsBySpelling.values()]
       .flat()
       .filter((constructor) => constructor.ownerType === type);
+  }
+
+  operatorConstructorsForExpectedType(expectedType: string): readonly OperatorDefinition[] {
+    return [...this.operatorsBySpelling.values()]
+      .flat()
+      .filter((operator) => this.isAssignable(operator.ownerType, expectedType));
+  }
+
+  isAbstract(type: string): boolean {
+    const definition = this.types.get(type);
+    if (definition?.abstract === true) {
+      return true;
+    }
+    const hasConcreteConstructor = this.constructorsDeclaredBy(type).length > 0
+      || this.operatorConstructorsForExpectedType(type).some((operator) => operator.ownerType === type);
+    return !hasConcreteConstructor && this.descendantTypes(type).length > 0;
   }
 
   findConstructor(spelling: string, expectedType = NOTHING): ConstructorDefinition | undefined {

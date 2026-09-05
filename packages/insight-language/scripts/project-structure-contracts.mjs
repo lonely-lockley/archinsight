@@ -4,6 +4,7 @@ import {
   buildProjectStructure,
   buildTypeHierarchy,
   coreLanguageSnapshot,
+  elementCompletionDocumentation,
   filterProjectStructure,
   filterTypeHierarchy,
   linkProject,
@@ -13,7 +14,14 @@ const sources = [
   source("definitions.ai", `
 define type Module of CodeElement
     constructor module
-    required Text name
+    required Text displayTitle
+    Text runtimeSummary
+    Text details
+
+define presentation Module
+    header = displayTitle
+    subtitle = runtimeSummary
+    body = details
 
 extend type Component
     List of Module _
@@ -39,7 +47,9 @@ system storefront
             name = Checkout
 
             module handler
-                name = Handler
+                displayTitle = Handler
+                runtimeSummary = TypeScript
+                details = Handles requests
 `),
 ];
 
@@ -73,9 +83,21 @@ assert.deepEqual(
     source: "model.ai",
     line: 14,
     column: 13,
+    documentation: {
+      header: "Handler",
+      subtitle: "TypeScript",
+      body: "Handles requests",
+    },
     children: [],
   },
 );
+assert.deepEqual(shop.children[0]?.documentation, { header: "Vendor" });
+const handlerElement = result.elements.find((element) => element.localId === "handler");
+assert(handlerElement);
+assert.equal(elementCompletionDocumentation(handlerElement, {}), undefined);
+assert.equal(elementCompletionDocumentation(handlerElement, {
+  Module: { name: "Module", assignments: { header: "missing" }, sections: {} },
+}), undefined);
 
 const hierarchy = buildTypeHierarchy(snapshotBuild.snapshot);
 const system = typeById(hierarchy, "System");

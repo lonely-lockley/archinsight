@@ -1,10 +1,15 @@
 import type { ProjectStructure } from './api';
-import type { ContextualIdentifier, VisibleIdentifier } from '@insight/language';
+import type {
+  CompletionDocumentation,
+  ContextualIdentifier,
+  VisibleIdentifier
+} from '@insight/language';
 
 type WorkspaceCompletionIdentifier = {
   label: string;
   type: string;
   imported?: boolean;
+  documentation?: CompletionDocumentation;
 };
 
 export type WorkspaceCompletionSnapshot = {
@@ -55,7 +60,19 @@ function uniqueSorted(values: readonly string[]): string[] {
 }
 
 function contextualIdentifiersFrom(structure: ProjectStructure): ContextualIdentifier[] {
-  return structure.contexts.flatMap((context) => collectContextualIdentifiers(context.children, context.id));
+  const identifiers = new Map<string, ContextualIdentifier>();
+  for (const context of structure.contexts) {
+    for (const identifier of collectContextualIdentifiers(context.children, context.id)) {
+      const key = JSON.stringify([
+        identifier.contextId,
+        identifier.label,
+        identifier.type,
+        identifier.documentation
+      ]);
+      if (!identifiers.has(key)) identifiers.set(key, identifier);
+    }
+  }
+  return [...identifiers.values()];
 }
 
 function collectContextualIdentifiers(
@@ -64,7 +81,12 @@ function collectContextualIdentifiers(
 ): ContextualIdentifier[] {
   return declarations.flatMap((declaration) => [
     ...(declaration.kind === 'element' && declaration.type !== undefined
-      ? [{ label: declaration.id, type: declaration.type, contextId }]
+      ? [{
+          label: declaration.id,
+          type: declaration.type,
+          contextId,
+          ...(declaration.documentation === undefined ? {} : { documentation: declaration.documentation })
+        }]
       : []),
     ...collectContextualIdentifiers(declaration.children, contextId)
   ]);
@@ -90,7 +112,12 @@ function collectImportedIdentifiers(
   for (const declaration of declarations) {
     if (declaration.kind === 'import' && declaration.type !== undefined) {
       const identifiers = result.get(declaration.source) ?? new Map<string, WorkspaceCompletionIdentifier>();
-      identifiers.set(declaration.id, { label: declaration.id, type: declaration.type, imported: true });
+      identifiers.set(declaration.id, {
+        label: declaration.id,
+        type: declaration.type,
+        imported: true,
+        ...(declaration.documentation === undefined ? {} : { documentation: declaration.documentation })
+      });
       result.set(declaration.source, identifiers);
     }
     collectImportedIdentifiers(declaration.children, result);

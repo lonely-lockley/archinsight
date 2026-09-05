@@ -67,6 +67,7 @@ export {
   semanticHighlightInsight,
 } from "./semantic-highlighting.js";
 export { lineContextAt } from "./line-context.js";
+export { elementCompletionDocumentation } from "./completion-documentation.js";
 export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
@@ -157,9 +158,12 @@ export type {
   AttributeDefinition,
   CompletionItem,
   CompletionKind,
+  CompletionConstructorDocumentation,
+  CompletionDocumentation,
   CompletionRequest,
   CompletionResult,
   CompletionScope,
+  CompletionTypeDocumentation,
   ContextualIdentifier,
   ConstructorDefinition,
   DuplicateLinkedEdgeGroup,

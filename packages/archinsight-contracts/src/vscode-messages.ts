@@ -1,4 +1,10 @@
-import { isBuiltinDiagramView, type BuiltinDiagramView, type CompletionKind, type LanguageSnapshot } from '@insight/language';
+import {
+  isBuiltinDiagramView,
+  type BuiltinDiagramView,
+  type CompletionDocumentation,
+  type CompletionKind,
+  type LanguageSnapshot
+} from '@insight/language';
 import { ContractValidationError, array, boolean, number, record, string } from './validation.js';
 
 const COMPLETION_KINDS = new Set<CompletionKind>([
@@ -22,6 +28,7 @@ export type WebviewCompletionItem = {
   insertText?: string;
   kind: CompletionKind;
   imported?: boolean;
+  documentation?: CompletionDocumentation;
 };
 
 export type WebviewPreviewState = {
@@ -209,9 +216,38 @@ function completionItems(value: unknown): WebviewCompletionItem[] {
       label: string(input.label, `${itemLabel}.label`),
       kind,
       ...(input.insertText === undefined ? {} : { insertText: string(input.insertText, `${itemLabel}.insertText`) }),
-      ...(input.imported === undefined ? {} : { imported: boolean(input.imported, `${itemLabel}.imported`) })
+      ...(input.imported === undefined ? {} : { imported: boolean(input.imported, `${itemLabel}.imported`) }),
+      ...(input.documentation === undefined
+        ? {}
+        : { documentation: completionDocumentation(input.documentation, `${itemLabel}.documentation`) })
     };
   });
+}
+
+function completionDocumentation(value: unknown, label: string): CompletionDocumentation {
+  const input = record(value, label);
+  return {
+    ...(input.header === undefined ? {} : { header: string(input.header, `${label}.header`) }),
+    ...(input.subtitle === undefined ? {} : { subtitle: string(input.subtitle, `${label}.subtitle`) }),
+    ...(input.body === undefined ? {} : { body: string(input.body, `${label}.body`) }),
+    ...(input.type === undefined ? {} : { type: completionTypeDocumentation(input.type, `${label}.type`) })
+  };
+}
+
+function completionTypeDocumentation(value: unknown, label: string): NonNullable<CompletionDocumentation['type']> {
+  const input = record(value, label);
+  return {
+    abstract: boolean(input.abstract, `${label}.abstract`),
+    ...(input.baseType === undefined ? {} : { baseType: string(input.baseType, `${label}.baseType`) }),
+    constructors: array(input.constructors, `${label}.constructors`).map((value, index) => {
+      const constructorLabel = `${label}.constructors[${index}]`;
+      const constructor = record(value, constructorLabel);
+      return {
+        spelling: string(constructor.spelling, `${constructorLabel}.spelling`),
+        ownerType: string(constructor.ownerType, `${constructorLabel}.ownerType`)
+      };
+    })
+  };
 }
 
 function queryRecord(value: unknown): Readonly<Record<BuiltinDiagramView, string>> {

@@ -50,4 +50,40 @@ describe('shared transport contracts', () => {
       declaration: { source: 'main.ai', line: 4, column: 8 }
     });
   });
+
+  it('validates structured completion documentation from the extension host', () => {
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'completionResult',
+      requestId: 3,
+      items: [{
+        label: 'Application',
+        kind: 'TYPE',
+        documentation: {
+          header: 'Application',
+          type: {
+            abstract: true,
+            baseType: 'SystemElement',
+            constructors: [{ spelling: 'service', ownerType: 'ServiceApplication' }]
+          }
+        }
+      }]
+    })).toMatchObject({
+      items: [{
+        documentation: {
+          type: {
+            constructors: [{ spelling: 'service', ownerType: 'ServiceApplication' }]
+          }
+        }
+      }]
+    });
+    expect(() => parseWorkbenchHostToWebviewMessage({
+      command: 'completionResult',
+      requestId: 3,
+      items: [{
+        label: 'Application',
+        kind: 'TYPE',
+        documentation: { type: { abstract: 'yes', constructors: [] } }
+      }]
+    })).toThrow(ContractValidationError);
+  });
 });

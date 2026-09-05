@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import {
   completionDetail,
+  completionDocumentationMarkdown,
   completionSortText,
   diagnosticIdentity,
   filterTreeByQuery,
@@ -15,6 +16,7 @@ import {
   coreLanguageSnapshot,
   coreSource,
   coreSources,
+  elementCompletionDocumentation,
   filterTypeHierarchy,
   insightSemanticTokenModifiers,
   insightSemanticTokenTypes,
@@ -553,6 +555,10 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
       );
       completion.detail = completionDetail(item);
       completion.sortText = completionSortText(item);
+      const documentation = completionDocumentationMarkdown(item.documentation);
+      if (documentation !== undefined) {
+        completion.documentation = new vscode.MarkdownString(documentation, false);
+      }
       return completion;
     });
   }
@@ -1226,6 +1232,7 @@ class ArchinsightWorkbenchEditorSession {
         insertText: item.insertText,
         kind: item.kind,
         imported: item.imported,
+        documentation: item.documentation,
       })),
     });
   }
@@ -1701,7 +1708,12 @@ function visibleIdentifiersForSource(result: LinkProjectResult, sourceName: stri
       continue;
     }
     const target = result.elements.find((element) => element.id === item.target);
-    identifiers.set(item.alias, { label: item.alias, type: target?.type, imported: true });
+    identifiers.set(item.alias, {
+      label: item.alias,
+      type: target?.type,
+      imported: true,
+      ...(target === undefined ? {} : completionDocumentationProperty(result, target)),
+    });
   }
   return identifiers;
 }
@@ -1709,7 +1721,20 @@ function visibleIdentifiersForSource(result: LinkProjectResult, sourceName: stri
 function contextualIdentifiers(result: LinkProjectResult): readonly ContextualIdentifier[] {
   return result.elements
     .filter((element) => element.anonymous !== true && element.synthetic !== true)
-    .map((element) => ({ label: element.localId, type: element.type, contextId: element.context }));
+    .map((element) => ({
+      label: element.localId,
+      type: element.type,
+      contextId: element.context,
+      ...completionDocumentationProperty(result, element),
+    }));
+}
+
+function completionDocumentationProperty(
+  result: LinkProjectResult,
+  element: LinkedElement,
+): Pick<VisibleIdentifier, "documentation"> | Record<string, never> {
+  const documentation = elementCompletionDocumentation(element, result.presentations);
+  return documentation === undefined ? {} : { documentation };
 }
 
 function completionKind(item: { readonly kind: CompletionKind; readonly imported?: boolean }): vscode.CompletionItemKind {
