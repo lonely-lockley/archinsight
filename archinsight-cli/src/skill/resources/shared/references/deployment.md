@@ -194,6 +194,9 @@ deploymentProfile test_service
 `appliesTo` is required and contains `Deployment` references, not environment
 references. The full identity is the pair of environment context and deployment
 id. Therefore `production from eu` and `test from eu` are different targets.
+Repeating the same resolved deployment in one profile produces a
+`DEPLOYMENT_PROFILE_MEMBER_DUPLICATE` warning on the repeated entry, including
+when an alias and an inline reference resolve to the same target.
 
 Apply profiles only to logical elements:
 

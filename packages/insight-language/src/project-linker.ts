@@ -3996,6 +3996,8 @@ interface LinkIntrospectionContext {
 type LinkIntrospectionRule = (context: LinkIntrospectionContext) => void;
 
 const LINK_INTROSPECTION_RULES: readonly LinkIntrospectionRule[] = [
+  ({ elements, resolvedElementAttributes, typeSystem, diagnostics }) =>
+    reportDuplicateDeploymentProfileMembers(elements, resolvedElementAttributes, typeSystem, diagnostics),
   ({ graph, elements, edges, resolvedElementAttributes, diagnostics }) =>
     reportIsolatedElements(graph, elements, edges, resolvedElementAttributes, diagnostics),
   ({ graph, edges, diagnostics }) => reportShadowedLowerLevelEdges(graph, edges, diagnostics),
@@ -4003,6 +4005,42 @@ const LINK_INTROSPECTION_RULES: readonly LinkIntrospectionRule[] = [
   ({ elements, typeSystem, deployedElementIds, diagnostics }) =>
     reportIncompleteElementDeployments(elements, typeSystem, deployedElementIds, diagnostics),
 ];
+
+function reportDuplicateDeploymentProfileMembers(
+  elements: readonly ParsedElement[],
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
+  diagnostics: LanguageDiagnostic[],
+): void {
+  for (const profile of elements) {
+    const membersAttribute = typeSystem.attributeWithCapability(
+      profile.type,
+      ATTRIBUTE_CAPABILITIES.deploymentProfileMembers,
+    );
+    if (membersAttribute === undefined) {
+      continue;
+    }
+    const seen = new Set<string>();
+    for (const member of resolvedElementAttributes.get(profile.id)?.[membersAttribute.name] ?? []) {
+      if (!seen.has(member.id)) {
+        seen.add(member.id);
+        continue;
+      }
+      diagnostics.push({
+        level: "WARNING",
+        code: "DEPLOYMENT_PROFILE_MEMBER_DUPLICATE",
+        message: `Deployment '${member.element?.localId ?? localName(member.id)}' is listed more than once in profile '${profile.localId}'`,
+        sourceName: profile.sourceName,
+        ...diagnosticPosition({
+          line: member.line ?? profile.idLine,
+          column: member.column ?? profile.idColumn,
+          ...(member.endLine === undefined ? {} : { endLine: member.endLine }),
+          ...(member.endColumn === undefined ? {} : { endColumn: member.endColumn }),
+        }),
+      });
+    }
+  }
+}
 
 function reportIncompleteWireDeployments(
   coverage: readonly WireDeploymentCoverage[],

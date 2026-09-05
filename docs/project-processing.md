@@ -136,6 +136,12 @@ Introspection reads this semantic graph and the linked domain objects. It does n
 
 Introspection also reports incomplete deployment coverage once a project begins modeling that coverage. Wire checks remain disabled until at least one deployment-relevant wire has a `deployment` block. After that point, an undeployed wire between different deployment endpoints receives `WIRE_MISSING_DEPLOYMENT`, while a configured wire that produces no physical edge receives `WIRE_DEPLOYMENT_NOT_PROJECTED`. Relationships inside one logical container are excluded because they collapse to a self-relationship in the Deployment view. Element checks are activated separately for each logical modeling family; missing placement receives `ELEMENT_MISSING_DEPLOYMENT`, and a deployment block that resolves to neither `runsOn` nor `uses` receives `ELEMENT_DEPLOYMENT_NOT_PHYSICAL`. These diagnostics are warnings, so they identify objects omitted from deployment views without invalidating the logical model.
 
+Deployment-profile membership is inspected after references are resolved. If
+the same deployment is listed more than once—even through different import
+forms or aliases—`DEPLOYMENT_PROFILE_MEMBER_DUPLICATE` points to every repeated
+entry after the first. It is a warning: linking remains successful and the
+effective deployment set is unchanged.
+
 ## Selecting a render graph
 
 The complete indexed graph usually contains more information than one diagram can communicate. A [graph query](graph-queries.md) selects the elements and relationships relevant to a particular architectural question.

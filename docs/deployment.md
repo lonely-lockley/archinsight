@@ -281,6 +281,11 @@ deploymentProfile regional_service
 
 Every selected deployment must provide compatible values for `compute` and `events`. A missing slot or a value of the wrong type produces an error at the profile action that cannot be resolved.
 
+Listing the same concrete deployment more than once in one profile produces a
+`DEPLOYMENT_PROFILE_MEMBER_DUPLICATE` warning on every repeated entry after the
+first. References are compared after resolution, so an alias and an inline
+`production from eu` reference to the same deployment are duplicates too.
+
 Several profiles can be applied to one logical element when their `appliesTo` sets are disjoint. Two profiles that select the same concrete deployment contradict one another for that element, and Archinsight reports an error. Different deployment schemes inside the same environment remain valid when they refer to different deployment IDs, such as `production from eu` and `test from eu`.
 
 `appliesTo` accepts `Deployment` values. Pointing it at an `Environment` directly is a type error because the environment may contain several deployment schemes.
