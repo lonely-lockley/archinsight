@@ -633,3 +633,11 @@ The language recognizes the following section properties. The descriptions follo
 | Visibility | `visible` | Controls Archinsight rendering rather than a native Graphviz attribute. Setting it to `false` in the `graphviz` section removes elements of the presented type from the rendered graph. |
 
 Presentations follow type inheritance. A derived type starts with the nearest presentation declared for one of its base types and overrides only the fields and section properties it declares itself. This makes broad visual conventions reusable while allowing a specialized type to change a label, color, shape, or edge style. An existing presentation can also be adjusted with `extend presentation`, which merges the supplied fields and section properties into its definition.
+
+Editor completion uses the same resolved presentation to describe identifier
+suggestions. The values selected by `header`, `subtitle`, and `body` appear in
+the suggestion documentation, so project-defined attributes work without
+special handling for names such as `name`, `technology`, or `description`.
+Type suggestions are described from the type system and list every compatible
+constructor, including constructors declared by concrete descendants of an
+abstract type.

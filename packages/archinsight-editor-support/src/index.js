@@ -14,12 +14,51 @@ export function completionDetail(item) {
   return item.kind === 'IDENTIFIER' && item.imported === true ? 'imported identifier' : item.kind;
 }
 
+export function completionDisplayLabel(item) {
+  return { label: item.label, description: completionDetail(item) };
+}
+
 export function completionSortBucket(kind) {
   return completionBuckets[kind];
 }
 
 export function completionSortText(item) {
   return `${completionSortBucket(item.kind)}:${item.label}`;
+}
+
+export function completionDocumentationMarkdown(documentation) {
+  if (documentation === undefined) {
+    return undefined;
+  }
+  const sections = [];
+  if (documentation.header !== undefined) {
+    sections.push(`**${markdownText(documentation.header)}**`);
+  }
+  if (documentation.subtitle !== undefined) {
+    sections.push(markdownText(documentation.subtitle));
+  }
+  if (documentation.body !== undefined) {
+    sections.push(markdownText(documentation.body));
+  }
+  if (documentation.type !== undefined) {
+    const typeDescription = documentation.type.abstract ? 'Abstract type' : 'Type';
+    sections.push(documentation.type.baseType === undefined
+      ? `_${typeDescription}_`
+      : `_${typeDescription} · extends \`${documentation.type.baseType}\`_`);
+    sections.push('**Available constructors**');
+    sections.push(documentation.type.constructors.length === 0
+      ? 'No compatible constructors.'
+      : documentation.type.constructors
+        .map((constructor) => `- \`${constructor.spelling}\` → \`${constructor.ownerType}\``)
+        .join('\n'));
+  }
+  return sections.length === 0 ? undefined : sections.join('\n\n');
+}
+
+function markdownText(value) {
+  return value
+    .replace(/([\\`*_{}\[\]<>#+\-.!|>])/g, '\\$1')
+    .replace(/\r?\n/g, '  \n');
 }
 
 export function semanticTokenModifierBits(modifiers, vocabulary) {

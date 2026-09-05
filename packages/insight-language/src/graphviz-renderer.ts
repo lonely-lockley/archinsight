@@ -8,6 +8,7 @@ import type {
   ResolvedPresentation,
   SourceLocation,
 } from "./contracts.js";
+import { presentationText, type PresentationTextField } from "./presentation-resolver.js";
 import { renderIdentity } from "./render-identity.js";
 
 export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, theme = "light"): string {
@@ -319,19 +320,16 @@ function section(presentationDefinition: ResolvedPresentation, name: string): Re
   return presentationDefinition.sections[name] ?? {};
 }
 
-function field(presentationDefinition: ResolvedPresentation, name: string, element: LinkedElement): string | undefined {
-  const attribute = presentationDefinition.assignments[name];
-  return attribute === undefined ? undefined : element.attributes[attribute]?.[0];
+function field(presentationDefinition: ResolvedPresentation, name: PresentationTextField, element: LinkedElement): string | undefined {
+  return presentationText(presentationDefinition, name, element.attributes);
 }
 
-function contextField(presentationDefinition: ResolvedPresentation, name: string, context: LinkedContext): string | undefined {
-  const attribute = presentationDefinition.assignments[name];
-  return attribute === undefined ? undefined : context.attributes[attribute]?.[0];
+function contextField(presentationDefinition: ResolvedPresentation, name: PresentationTextField, context: LinkedContext): string | undefined {
+  return presentationText(presentationDefinition, name, context.attributes);
 }
 
-function edgeField(presentationDefinition: ResolvedPresentation, name: string, edge: RenderGraphEdge["edge"]): string | undefined {
-  const attribute = presentationDefinition.assignments[name];
-  return attribute === undefined ? undefined : edge.attributes[attribute]?.[0];
+function edgeField(presentationDefinition: ResolvedPresentation, name: PresentationTextField, edge: RenderGraphEdge["edge"]): string | undefined {
+  return presentationText(presentationDefinition, name, edge.attributes);
 }
 
 function applyAnnotations(properties: Record<string, string>, annotations: readonly { readonly name: string; readonly value?: string }[], edge: boolean): void {

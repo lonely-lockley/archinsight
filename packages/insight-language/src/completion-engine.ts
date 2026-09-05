@@ -5,6 +5,7 @@ import type {
   CompletionScope,
   InsightSyntaxProvider,
   SyntaxContext,
+  VisibleIdentifier,
 } from "./contracts.js";
 import { lineContextAt, type LineContext } from "./line-context.js";
 import { tokenizeInsightSource, tokenName, tokenStart, tokenStop, tokenType } from "./parser-facade.js";
@@ -110,7 +111,7 @@ function definitionItems(
   typeSystem: TypeSystem,
 ): CompletionItem[] {
   if (expectsPresentationName(syntax)) {
-    return [...visibleTypes].map((name) => type(`${name} `));
+    return [...visibleTypes].map((name) => type(`${name} `, typeSystem));
   }
   if (expectsPresentationFieldValue(syntax)) {
     const presentationName = syntax.activePresentationName;
@@ -134,9 +135,9 @@ function definitionItems(
     return [
       keyword("constructor "),
       keyword("required "),
-      type("List of "),
-      type("Text "),
-      ...[...visibleTypes].map((name) => type(`${name} `)),
+      type("List of ", typeSystem),
+      type("Text ", typeSystem),
+      ...[...visibleTypes].map((name) => type(`${name} `, typeSystem)),
     ];
   }
   if (line.hasOnlyIndentBeforeCursor) {
@@ -162,9 +163,9 @@ function definitionItems(
   }
   if (expectsTypeReference(syntax)) {
     return [
-      type("List of "),
-      type("Text "),
-      ...[...visibleTypes].map((name) => type(`${name} `)),
+      type("List of ", typeSystem),
+      type("Text ", typeSystem),
+      ...[...visibleTypes].map((name) => type(`${name} `, typeSystem)),
     ];
   }
   return [];
@@ -1159,8 +1160,34 @@ function keyword(text: string): CompletionItem {
   return { label: text.trimEnd(), insertText: text, kind: "KEYWORD" };
 }
 
-function type(text: string): CompletionItem {
-  return { label: text.trimEnd(), insertText: text, kind: "TYPE" };
+function type(text: string, typeSystem: TypeSystem): CompletionItem {
+  const label = text.trimEnd();
+  const definition = typeSystem.definition(label);
+  if (definition === undefined) {
+    return { label, insertText: text, kind: "TYPE" };
+  }
+  const constructors = [...new Map([
+    ...typeSystem.constructorsForExpectedType(label),
+    ...typeSystem.operatorConstructorsForExpectedType(label),
+  ]
+    .map((constructor) => [
+      `${constructor.spelling}\u0000${constructor.ownerType}`,
+      { spelling: constructor.spelling, ownerType: constructor.ownerType },
+    ] as const)).values()]
+    .sort((left, right) => left.spelling.localeCompare(right.spelling) || left.ownerType.localeCompare(right.ownerType));
+  return {
+    label,
+    insertText: text,
+    kind: "TYPE",
+    documentation: {
+      header: label,
+      type: {
+        abstract: typeSystem.isAbstract(label),
+        ...(definition.baseType === undefined ? {} : { baseType: definition.baseType }),
+        constructors,
+      },
+    },
+  };
 }
 
 function constructorItem(text: string): CompletionItem {
@@ -1181,13 +1208,16 @@ function attributeItem(text: string): CompletionItem {
   return { label, insertText: text, kind: "ATTRIBUTE" };
 }
 
-function identifierItem(identifier: string | { readonly label: string; readonly imported?: boolean }): CompletionItem {
+function identifierItem(identifier: string | VisibleIdentifier): CompletionItem {
   const label = typeof identifier === "string" ? identifier : identifier.label;
   return {
     label,
     insertText: label,
     kind: "IDENTIFIER",
     ...(typeof identifier !== "string" && identifier.imported === true ? { imported: true } : {}),
+    ...(typeof identifier !== "string" && identifier.documentation !== undefined
+      ? { documentation: identifier.documentation }
+      : {}),
   };
 }
 

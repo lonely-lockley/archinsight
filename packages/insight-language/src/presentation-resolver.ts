@@ -14,6 +14,17 @@ const PRESENTATION_SECTION_PROPERTIES = new Set([
   "splines", "labelloc", "minlen", "fontsize", "penwidth", "visible",
 ]);
 
+export type PresentationTextField = "header" | "subtitle" | "body";
+
+export function presentationText(
+  presentation: ResolvedPresentation,
+  field: PresentationTextField,
+  attributes: Readonly<Record<string, readonly string[]>>,
+): string | undefined {
+  const attribute = presentation.assignments[field];
+  return attribute === undefined ? undefined : attributes[attribute]?.[0];
+}
+
 export function buildPresentationIndex(
   presentations: readonly PresentationDefinition[],
   typeSystem: TypeSystem,

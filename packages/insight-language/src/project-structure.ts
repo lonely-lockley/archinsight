@@ -1,4 +1,5 @@
 import type {
+  CompletionDocumentation,
   LanguageSnapshot,
   LinkedElement,
   LinkedImport,
@@ -6,6 +7,7 @@ import type {
   SourceLocation,
   TypeDefinition,
 } from "./contracts.js";
+import { elementCompletionDocumentation } from "./completion-documentation.js";
 import { coreLanguageSnapshot } from "./core-snapshot.js";
 
 export interface ProjectStructureLocation {
@@ -20,6 +22,7 @@ export interface ProjectStructureDeclaration extends ProjectStructureLocation {
   readonly constructor: string;
   readonly type?: string;
   readonly synthetic?: boolean;
+  readonly documentation?: CompletionDocumentation;
   readonly children: readonly ProjectStructureDeclaration[];
 }
 
@@ -74,12 +77,13 @@ export function buildProjectStructure(result: LinkProjectResult): ProjectStructu
       ...(context.synthetic === true ? { synthetic: true } : {}),
       children: [
         ...(importsBySource.get(context.sourceIdentity) ?? [])
-          .map((item) => importDeclaration(item, elementsById)),
+          .map((item) => importDeclaration(item, elementsById, result.presentations)),
         ...elementDeclarations(
           result.elements.filter((element) =>
             element.context === context.id && element.parent === undefined && !element.anonymous
           ),
           childrenByParent,
+          result.presentations,
         ),
       ],
     })),
@@ -132,29 +136,39 @@ export function filterTypeHierarchy(
 function elementDeclarations(
   elements: readonly LinkedElement[],
   childrenByParent: ReadonlyMap<string, readonly LinkedElement[]>,
+  presentations: LinkProjectResult["presentations"],
 ): readonly ProjectStructureDeclaration[] {
-  return elements.map((element) => ({
-    id: element.localId,
-    kind: "element",
-    constructor: element.constructor,
-    type: element.type,
-    ...structureLocation(element.declaration, element.sourceIdentity),
-    ...(element.synthetic === true ? { synthetic: true } : {}),
-    children: elementDeclarations(childrenByParent.get(element.id) ?? [], childrenByParent),
-  }));
+  return elements.map((element) => {
+    const documentation = elementCompletionDocumentation(element, presentations);
+    return {
+      id: element.localId,
+      kind: "element",
+      constructor: element.constructor,
+      type: element.type,
+      ...structureLocation(element.declaration, element.sourceIdentity),
+      ...(element.synthetic === true ? { synthetic: true } : {}),
+      ...(documentation === undefined ? {} : { documentation }),
+      children: elementDeclarations(childrenByParent.get(element.id) ?? [], childrenByParent, presentations),
+    };
+  });
 }
 
 function importDeclaration(
   item: LinkedImport,
   elementsById: ReadonlyMap<string, LinkedElement>,
+  presentations: LinkProjectResult["presentations"],
 ): ProjectStructureDeclaration {
   const imported = elementsById.get(item.target);
+  const documentation = imported === undefined
+    ? undefined
+    : elementCompletionDocumentation(imported, presentations);
   return {
     id: item.alias,
     kind: "import",
     constructor: "import",
     ...(imported?.type === undefined ? {} : { type: imported.type }),
     ...structureLocation(item.declaration, item.sourceIdentity),
+    ...(documentation === undefined ? {} : { documentation }),
     children: [],
   };
 }

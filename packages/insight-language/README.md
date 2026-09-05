@@ -21,6 +21,12 @@ It does not own backend repository/auth/storage behavior, Monaco adapters, VS Co
 
 Completion candidates must be derived from parser rule context, typed context, and visible declarations/imports. Do not add source-shape shortcuts such as checking whether a line "looks like" a special construct.
 
+Completion documentation follows the same semantic rule. Type items expose
+their compatible constructors through the type system. Identifier items use
+the linked element's resolved presentation mappings for `header`, `subtitle`,
+and `body`; consumers must not infer those fields from hardcoded attribute
+names.
+
 ## ANTLR adapter
 
 `AntlrInsightSyntaxProvider` is intentionally structural. The generated `antlr4ng` wrapper should:

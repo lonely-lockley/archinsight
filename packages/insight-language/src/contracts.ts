@@ -9,6 +9,24 @@ export type CompletionKind =
   | "ANNOTATION"
   | "NEWLINE";
 
+export interface CompletionConstructorDocumentation {
+  readonly spelling: string;
+  readonly ownerType: string;
+}
+
+export interface CompletionTypeDocumentation {
+  readonly abstract: boolean;
+  readonly baseType?: string;
+  readonly constructors: readonly CompletionConstructorDocumentation[];
+}
+
+export interface CompletionDocumentation {
+  readonly header?: string;
+  readonly subtitle?: string;
+  readonly body?: string;
+  readonly type?: CompletionTypeDocumentation;
+}
+
 import type { IndexedGraph } from "./indexed-graph.js";
 import type { BuiltinDiagramView, QueryViewPipelineDefinition } from "./builtin-views.js";
 
@@ -19,6 +37,7 @@ export interface CompletionItem {
   readonly insertText: string;
   readonly kind: CompletionKind;
   readonly imported?: boolean;
+  readonly documentation?: CompletionDocumentation;
 }
 
 export interface CompletionResult {
@@ -395,6 +414,7 @@ export interface VisibleIdentifier {
   readonly label: string;
   readonly type?: string;
   readonly imported?: boolean;
+  readonly documentation?: CompletionDocumentation;
 }
 
 export interface ContextualIdentifier extends VisibleIdentifier {

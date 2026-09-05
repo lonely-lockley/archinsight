@@ -2,7 +2,11 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
   import type { BuiltinDiagramView } from '@insight/language';
-  import { completionDetail, completionSortText } from '@archinsight/editor-support';
+  import {
+    completionDisplayLabel,
+    completionDocumentationMarkdown,
+    completionSortText
+  } from '@archinsight/editor-support';
   import {
     parseWorkbenchHostToWebviewMessage,
     type WebviewCompletionItem,
@@ -193,14 +197,19 @@
           endColumn: replacementEnd.column
         };
         return {
-          suggestions: response.items.map((item) => ({
-            label: item.label,
-            insertText: item.insertText ?? item.label,
-            kind: completionItemKind(monacoInstance, item),
-            range,
-            sortText: completionSortText(item),
-            detail: completionDetail(item)
-          }))
+          suggestions: response.items.map((item) => {
+            const documentation = completionDocumentationMarkdown(item.documentation);
+            return {
+              label: completionDisplayLabel(item),
+              insertText: item.insertText ?? item.label,
+              kind: completionItemKind(monacoInstance, item),
+              range,
+              sortText: completionSortText(item),
+              ...(documentation === undefined
+                ? {}
+                : { documentation: { value: documentation, isTrusted: false, supportHtml: false } })
+            };
+          })
         };
       }
     });

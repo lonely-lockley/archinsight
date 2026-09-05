@@ -32,6 +32,8 @@ export type ProjectSummaryResponse = {
 };
 
 export type ProjectListResponse = { projects: ProjectSummaryResponse[] };
+export type PlaygroundProjectSummaryResponse = { id: string; name: string };
+export type PlaygroundProjectListResponse = { projects: PlaygroundProjectSummaryResponse[] };
 export type ProjectCreateRequest = { name?: string | null };
 export type ProjectUpdateRequest = { name?: string | null };
 

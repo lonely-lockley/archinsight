@@ -15,6 +15,7 @@ const cases = [
   importContextCompletionUsesProvidedContextIds,
   typedSlotCompletionUsesIndexedImportAliasTypes,
   wireUsesCompletionMarksOnlyImportedIdentifiersAsImported,
+  typeCompletionDescribesCompatibleConstructors,
   topLevelCompletionSuggestsEnvironmentKeyword,
   contextBodySuggestsExternalPrefixOperatorAtLineStart,
   contextBodySuggestsObjectExtensionAtLineStart,
@@ -162,13 +163,67 @@ system c
       },
     ]),
     indexedIdentifiers: new Map([
-      ["kafka", { label: "kafka", type: "InfrastructureComponent", imported: true }],
+      ["kafka", {
+        label: "kafka",
+        type: "InfrastructureComponent",
+        imported: true,
+        documentation: {
+          header: "Shared event bus",
+          subtitle: "Kafka",
+          body: "Carries domain events",
+        },
+      }],
     ]),
+    contextualIdentifiers: [{
+      label: "local_db",
+      type: "Storage",
+      contextId: "test",
+      documentation: { header: "Local database", subtitle: "PostgreSQL" },
+    }],
   });
   const items = new Map(result.items.map((item) => [item.label, item]));
 
   assert.equal(items.get("kafka")?.imported, true, JSON.stringify([...items.values()]));
+  assert.deepEqual(items.get("kafka")?.documentation, {
+    header: "Shared event bus",
+    subtitle: "Kafka",
+    body: "Carries domain events",
+  });
   assert.notEqual(items.get("local_db")?.imported, true, JSON.stringify([...items.values()]));
+  assert.deepEqual(items.get("local_db")?.documentation, {
+    header: "Local database",
+    subtitle: "PostgreSQL",
+  });
+}
+
+function typeCompletionDescribesCompatibleConstructors() {
+  const snapshot = buildLanguageSnapshotResultFromSources([
+    source("completion-documentation.ai", `
+define abstract type DeliveryTarget of SystemElement
+
+define type HttpDelivery of DeliveryTarget
+    constructor gateway
+
+define type BatchDelivery of DeliveryTarget
+    constructor worker
+`),
+  ], [coreLanguageSnapshot]);
+  assert.deepEqual(snapshot.diagnostics, []);
+  const sourceText = "define type Choice of ";
+  const result = complete(sourceText, sourceText.length, { snapshot: snapshot.snapshot });
+  const item = result.items.find((candidate) => candidate.label === "DeliveryTarget");
+
+  assert.deepEqual(item?.documentation, {
+    header: "DeliveryTarget",
+    type: {
+      abstract: true,
+      baseType: "SystemElement",
+      constructors: [
+        { spelling: "gateway", ownerType: "HttpDelivery" },
+        { spelling: "worker", ownerType: "BatchDelivery" },
+      ],
+    },
+  });
 }
 
 function contextBodySuggestsExternalPrefixOperatorAtLineStart() {

@@ -33,7 +33,7 @@ system application
 ## What You Get
 
 - `.ai` language support with syntax highlighting and semantic tokens.
-- Smart completion from parser context, types, visible declarations, and imports.
+- Smart completion from parser context, types, visible declarations, and imports, with constructor and presentation-derived documentation.
 - Workspace diagnostics for parser, linker, and type-system errors.
 - A custom split editor with Insight source and live diagram preview side by side.
 - Built-in view buttons for no-filter, C1, C2, C3, C4, D1 system deployment,

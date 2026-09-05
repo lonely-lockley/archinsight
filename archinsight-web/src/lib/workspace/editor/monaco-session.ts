@@ -4,7 +4,11 @@ import {
   type CompletionKind,
   type LanguageSnapshot
 } from '@insight/language';
-import { completionDetail, completionSortText } from '@archinsight/editor-support';
+import {
+  completionDisplayLabel,
+  completionDocumentationMarkdown,
+  completionSortText
+} from '@archinsight/editor-support';
 import type * as Monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import type { Diagnostic } from '$lib/api';
@@ -111,14 +115,19 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
           endColumn: replacementEnd.column
         };
         return {
-          suggestions: result.items.map((item) => ({
-            label: item.label,
-            kind: completionItemKind(runtime, item),
-            insertText: item.insertText,
-            range,
-            detail: completionDetail(item),
-            sortText: completionSortText(item)
-          }))
+          suggestions: result.items.map((item) => {
+            const documentation = completionDocumentationMarkdown(item.documentation);
+            return {
+              label: completionDisplayLabel(item),
+              kind: completionItemKind(runtime, item),
+              insertText: item.insertText,
+              range,
+              sortText: completionSortText(item),
+              ...(documentation === undefined
+                ? {}
+                : { documentation: { value: documentation, isTrusted: false, supportHtml: false } })
+            };
+          })
         };
       }
     });

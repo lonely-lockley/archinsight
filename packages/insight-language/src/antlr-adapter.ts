@@ -294,6 +294,12 @@ function createCompletionScope(
     processLineFallbackScope(input.source, cursorOffset, typeSystem, state);
   }
 
+  enrichLocalIdentifierDocumentation(
+    visibleIdentifiers,
+    input.contextualIdentifiers ?? [],
+    state.contextId,
+  );
+
   return {
     mode: inferCompletionMode(syntax, input.tree, input.ruleNames, state),
     ...(state.contextId === undefined ? {} : { contextId: state.contextId }),
@@ -308,6 +314,35 @@ function createCompletionScope(
       ? {}
       : { currentOperatorSpelling: state.currentOperatorSpelling }),
   };
+}
+
+function enrichLocalIdentifierDocumentation(
+  identifiers: Map<string, VisibleIdentifier>,
+  contextualIdentifiers: readonly ContextualIdentifier[],
+  contextId: string | undefined,
+): void {
+  if (contextId === undefined) {
+    return;
+  }
+  const candidatesByLabel = new Map<string, ContextualIdentifier[]>();
+  for (const candidate of contextualIdentifiers) {
+    if (candidate.contextId !== contextId || candidate.documentation === undefined) {
+      continue;
+    }
+    const candidates = candidatesByLabel.get(candidate.label) ?? [];
+    candidates.push(candidate);
+    candidatesByLabel.set(candidate.label, candidates);
+  }
+  for (const [label, identifier] of identifiers) {
+    if (identifier.imported === true || identifier.documentation !== undefined) {
+      continue;
+    }
+    const matches = (candidatesByLabel.get(label) ?? [])
+      .filter((candidate) => identifier.type === undefined || candidate.type === identifier.type);
+    if (matches.length === 1) {
+      identifiers.set(label, { ...identifier, documentation: matches[0]!.documentation! });
+    }
+  }
 }
 
 function processLineFallbackScope(
@@ -950,6 +985,7 @@ function collectImportAliases(
       label: alias,
       ...(indexed?.type === undefined ? {} : { type: indexed.type }),
       imported: true,
+      ...(indexed?.documentation === undefined ? {} : { documentation: indexed.documentation }),
     });
   }
 }

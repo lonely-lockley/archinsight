@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   completionDetail,
+  completionDisplayLabel,
+  completionDocumentationMarkdown,
   completionSortBucket,
   completionSortText,
   diagnosticIdentity,
@@ -15,6 +17,51 @@ test('completion metadata has one stable ordering and imported detail policy', (
   assert.equal(completionSortText({ kind: 'TYPE', label: 'System' }), '6:System');
   assert.equal(completionDetail({ kind: 'IDENTIFIER', imported: true }), 'imported identifier');
   assert.equal(completionDetail({ kind: 'IDENTIFIER' }), 'IDENTIFIER');
+  assert.deepEqual(completionDisplayLabel({ kind: 'IDENTIFIER', label: 'backend' }), {
+    label: 'backend',
+    description: 'IDENTIFIER'
+  });
+});
+
+test('completion documentation renders presentation text as escaped markdown', () => {
+  assert.equal(completionDocumentationMarkdown(undefined), undefined);
+  assert.equal(completionDocumentationMarkdown({}), undefined);
+  assert.equal(completionDocumentationMarkdown({
+    header: 'Payments *API*',
+    subtitle: 'HTTP [public]',
+    body: 'Accepts #payments\nand > redirects.'
+  }), [
+    '**Payments \\*API\\***',
+    'HTTP \\[public\\]',
+    'Accepts \\#payments  \nand \\> redirects\\.'
+  ].join('\n\n'));
+});
+
+test('completion documentation renders type ancestry and compatible constructors', () => {
+  assert.equal(completionDocumentationMarkdown({
+    header: 'Application',
+    type: {
+      abstract: true,
+      baseType: 'SystemElement',
+      constructors: [
+        { spelling: 'service', ownerType: 'ServiceApplication' },
+        { spelling: 'worker', ownerType: 'WorkerApplication' }
+      ]
+    }
+  }), [
+    '**Application**',
+    '_Abstract type · extends `SystemElement`_',
+    '**Available constructors**',
+    '- `service` → `ServiceApplication`\n- `worker` → `WorkerApplication`'
+  ].join('\n\n'));
+
+  assert.equal(completionDocumentationMarkdown({
+    type: { abstract: false, constructors: [] }
+  }), [
+    '_Type_',
+    '**Available constructors**',
+    'No compatible constructors.'
+  ].join('\n\n'));
 });
 
 test('semantic modifier bits follow vocabulary order and ignore unknown modifiers', () => {

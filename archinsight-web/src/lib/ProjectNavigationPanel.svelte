@@ -62,8 +62,9 @@
       {/if}
     </section>
     <div class="sidebar-controls" aria-label="Panel controls">
-      <button aria-label={ui.messagesVisible ? 'Hide messages' : 'Show messages'} class:active-tool={ui.messagesVisible} class="icon-button has-tooltip tooltip-top" data-tooltip={ui.messagesVisible ? 'Hide messages' : 'Show messages'} type="button" on:click={onToggleMessages}>
+      <button aria-label={ui.messagesVisible ? 'Hide messages' : 'Show messages'} class:active-tool={ui.messagesVisible} class="icon-button messages-button has-tooltip tooltip-top" data-tooltip={ui.messagesVisible ? 'Hide messages' : 'Show messages'} type="button" on:click={onToggleMessages}>
         <span aria-hidden="true" class:show-panel={!ui.messagesVisible} class:hide-panel={ui.messagesVisible} class="panel-toggle-icon bottom-panel-icon"></span>
+        <span class="control-label">Output</span>
       </button>
       <button aria-label="Hide panel" class="icon-button has-tooltip tooltip-top" data-tooltip="Hide panel" type="button" on:click={onToggleSidebar}>
         <span aria-hidden="true" class="panel-toggle-icon sidebar-panel-icon hide-panel"></span>
@@ -110,6 +111,17 @@
   .icon-button {
     display: inline-grid;
     place-items: center;
+    line-height: 1;
+  }
+
+  .messages-button {
+    grid-auto-flow: column;
+    gap: 7px;
+    padding: 0 10px;
+  }
+
+  .control-label {
+    font-size: 12px;
     line-height: 1;
   }
 
@@ -324,6 +336,11 @@
     background: #2d2d2d;
     color: #dddddd;
     font-size: 16px;
+  }
+
+  .sidebar-controls .messages-button {
+    width: auto;
+    flex-basis: auto;
   }
 
   .sidebar-controls button:hover,
