@@ -1,6 +1,7 @@
 import type {
   CompletionRequest,
   CompletionScope,
+  ContextualIdentifier,
   ElementFrame,
   InsightSyntaxProvider,
   ListFrame,
@@ -40,7 +41,7 @@ import {
   type TokenNameResolver,
 } from "./parser-facade.js";
 import { CONTEXT, NOTHING, TypeSystem } from "./type-system.js";
-import { ATTRIBUTE_CAPABILITIES, OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
+import { OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 export interface AntlrAdapterInput {
   readonly source: string;
@@ -52,6 +53,7 @@ export interface AntlrAdapterInput {
   readonly syntaxErrors?: readonly AntlrSyntaxErrorLike[];
   readonly parseFailure?: AntlrParseFailureLike;
   readonly indexedIdentifiers?: ReadonlyMap<string, VisibleIdentifier>;
+  readonly contextualIdentifiers?: readonly ContextualIdentifier[];
   readonly contextIds?: readonly string[];
 }
 
@@ -298,6 +300,7 @@ function createCompletionScope(
     visibleContexts,
     visibleTypes,
     visibleIdentifiers,
+    contextualIdentifiers: input.contextualIdentifiers ?? [],
     frames: state.frames,
     operatorFrames: state.operatorFrames,
     lists: state.lists,
@@ -553,6 +556,10 @@ function processArchitectureItem(
   }
   const list = firstChildByRule(item, "namedList", ruleNames);
   if (list !== undefined) {
+    const listName = firstChildByRule(list, "listName", ruleNames);
+    if (listName !== undefined && ownerFrame !== undefined) {
+      ownerFrame.assignedAttributes.add(textOf(listName));
+    }
     processList(list, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames, ownerFrame);
     return;
   }
@@ -606,10 +613,20 @@ function processDeploymentActionObject(
     return false;
   }
   const inDeploymentList = state.lists.some((list) =>
-    typeSystem.attribute(list.ownerType, list.attribute)?.capabilities
-      ?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true
+    deploymentOperatorAllowedInList(
+      typeSystem,
+      ownerType,
+      typeSystem.attribute(list.ownerType, list.attribute)?.listElementType,
+      operator,
+    )
   );
-  if (!inDeploymentList && !typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
+  const inAnonymousList = deploymentOperatorAllowedInList(
+    typeSystem,
+    ownerType,
+    typeSystem.anonymousListAttribute(ownerType)?.listElementType,
+    operator,
+  );
+  if (!inDeploymentList && !inAnonymousList) {
     return false;
   }
   if (contains(declaration, cursorOffset, cursor)) {
@@ -810,10 +827,20 @@ function deploymentActionOverrideTypes(
     return [];
   }
   const inDeploymentList = state.lists.some((list) =>
-    typeSystem.attribute(list.ownerType, list.attribute)?.capabilities
-      ?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true
+    deploymentOperatorAllowedInList(
+      typeSystem,
+      ownerType,
+      typeSystem.attribute(list.ownerType, list.attribute)?.listElementType,
+      operator,
+    )
   );
-  if (!inDeploymentList && !typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
+  const inAnonymousList = deploymentOperatorAllowedInList(
+    typeSystem,
+    ownerType,
+    typeSystem.anonymousListAttribute(ownerType)?.listElementType,
+    operator,
+  );
+  if (!inDeploymentList && !inAnonymousList) {
     return [];
   }
   const targetText = textOf(target);
@@ -832,6 +859,19 @@ function deploymentActionOverrideTypes(
 function deploymentOperator(typeSystem: TypeSystem, ownerType: string, spelling: string): boolean {
   return typeSystem.operatorConstructorsFrom(ownerType)
     .filter((operator) => operator.spelling === spelling)
+    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
+}
+
+function deploymentOperatorAllowedInList(
+  typeSystem: TypeSystem,
+  ownerType: string,
+  expectedType: string | undefined,
+  spelling: string,
+): boolean {
+  return expectedType !== undefined && typeSystem.operatorConstructorsFrom(ownerType)
+    .filter((operator) => operator.spelling === spelling)
+    .filter((operator) => typeSystem.isAssignable(operator.ownerType, expectedType))
     .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
       || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
 }

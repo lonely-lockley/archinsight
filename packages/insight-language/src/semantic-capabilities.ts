@@ -19,6 +19,7 @@ export const OPERATOR_CAPABILITIES = Object.freeze({
 export const ATTRIBUTE_CAPABILITIES = Object.freeze({
   deploymentActions: "deployment-actions",
   deploymentProfileMembers: "deployment-profile-members",
+  referenceOnly: "reference-only",
   placementOwner: "placement-owner",
   infrastructureUses: "infrastructure-uses",
 } as const);

@@ -57,8 +57,25 @@ ATTRIBUTE links
 CONSTRUCTOR service
 --- lacks
 ATTRIBUTE _
+ATTRIBUTE runsOn
+ATTRIBUTE uses
 OPERATOR ->
 IDENTIFIER gg
+
+=== deployment block keeps deployment operators
+--- source
+context test
+
+system gg
+    deployment:
+        <caret>
+--- contains
+OPERATOR runsOn
+OPERATOR uses
+--- lacks
+ATTRIBUTE runsOn
+ATTRIBUTE uses
+OPERATOR ->
 
 === object body constructor prefix
 --- source

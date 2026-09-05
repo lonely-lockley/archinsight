@@ -21,6 +21,7 @@ import {
   InsightLanguageService,
   semanticHighlightInsight,
   type CompletionKind,
+  type ContextualIdentifier,
   type LanguageDiagnostic,
   type LanguageSnapshot,
   type LinkedElement,
@@ -540,6 +541,7 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
       cursorOffset: document.offsetAt(position),
       snapshot: current?.snapshot ?? coreLanguageSnapshot,
       indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
+      contextualIdentifiers: current === undefined ? [] : contextualIdentifiers(current.result),
       contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
     });
     return result.items.map((item) => {
@@ -1211,6 +1213,7 @@ class ArchinsightWorkbenchEditorSession {
       cursorOffset,
       snapshot: current?.snapshot ?? coreLanguageSnapshot,
       indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
+      contextualIdentifiers: current === undefined ? [] : contextualIdentifiers(current.result),
       contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
     });
     await this.panel.webview.postMessage({
@@ -1701,6 +1704,12 @@ function visibleIdentifiersForSource(result: LinkProjectResult, sourceName: stri
     identifiers.set(item.alias, { label: item.alias, type: target?.type, imported: true });
   }
   return identifiers;
+}
+
+function contextualIdentifiers(result: LinkProjectResult): readonly ContextualIdentifier[] {
+  return result.elements
+    .filter((element) => element.anonymous !== true && element.synthetic !== true)
+    .map((element) => ({ label: element.localId, type: element.type, contextId: element.context }));
 }
 
 function completionKind(item: { readonly kind: CompletionKind; readonly imported?: boolean }): vscode.CompletionItemKind {

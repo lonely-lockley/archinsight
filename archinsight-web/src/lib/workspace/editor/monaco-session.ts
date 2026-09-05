@@ -99,6 +99,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
           cursorOffset: offset,
           snapshot: ports.editorSymbols(),
           indexedIdentifiers: visibleIdentifiersForSource(snapshot, path),
+          contextualIdentifiers: snapshot.contextualIdentifiers,
           contextIds: snapshot.contextIds
         });
         const replacementStart = model.getPositionAt(result.replacementStartOffset);

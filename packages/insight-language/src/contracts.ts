@@ -397,6 +397,10 @@ export interface VisibleIdentifier {
   readonly imported?: boolean;
 }
 
+export interface ContextualIdentifier extends VisibleIdentifier {
+  readonly contextId: string;
+}
+
 export interface ListFrame {
   readonly indent: number;
   readonly ownerType: string;
@@ -418,6 +422,7 @@ export interface CompletionScope {
   readonly visibleContexts: ReadonlySet<string>;
   readonly visibleTypes: ReadonlySet<string>;
   readonly visibleIdentifiers: ReadonlyMap<string, VisibleIdentifier>;
+  readonly contextualIdentifiers: readonly ContextualIdentifier[];
   readonly frames: readonly ElementFrame[];
   readonly operatorFrames: readonly ElementFrame[];
   readonly lists: readonly ListFrame[];
@@ -437,6 +442,7 @@ export interface CompletionRequest {
   readonly cursorOffset: number;
   readonly snapshot: LanguageSnapshot;
   readonly indexedIdentifiers?: ReadonlyMap<string, VisibleIdentifier>;
+  readonly contextualIdentifiers?: readonly ContextualIdentifier[];
   readonly contextIds?: readonly string[];
 }
 

@@ -15,6 +15,7 @@ export function parseWithGeneratedInsightParser(request: CompletionRequest): Ant
     ...parsed,
     cursorOffset: request.cursorOffset,
     ...(request.indexedIdentifiers === undefined ? {} : { indexedIdentifiers: request.indexedIdentifiers }),
+    ...(request.contextualIdentifiers === undefined ? {} : { contextualIdentifiers: request.contextualIdentifiers }),
     ...(request.contextIds === undefined ? {} : { contextIds: request.contextIds }),
   };
 }

@@ -358,6 +358,7 @@ interface LinkingWorkspace {
   readonly deployedElementIds: Set<string>;
   readonly linkedElementsById: ReadonlyMap<string, ParsedElement>;
   readonly resolvedElementAttributes: Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>;
+  readonly computedElementSemanticAttributeNames: Map<string, Readonly<Record<string, string>>>;
   readonly deploymentContext: DeploymentExpansionContext;
   readonly operatorImplementations: OperatorImplementationRegistry;
 }
@@ -398,6 +399,7 @@ function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
   const deployedElementIds = new Set<string>();
   const linkedElementsById = new Map(elements.map((element) => [element.id, element]));
   const resolvedElementAttributes = new Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>();
+  const computedElementSemanticAttributeNames = new Map<string, Readonly<Record<string, string>>>();
   for (const element of elements) {
     resolvedElementAttributes.set(
       element.id,
@@ -440,6 +442,7 @@ function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
     deployedElementIds,
     linkedElementsById,
     resolvedElementAttributes,
+    computedElementSemanticAttributeNames,
     deploymentContext,
     operatorImplementations,
   };
@@ -452,6 +455,7 @@ function resolveDeploymentStage(workspace: LinkingWorkspace): void {
     deploymentContext,
     deployedElementIds,
     resolvedElementAttributes,
+    computedElementSemanticAttributeNames,
   } = workspace;
   for (const element of elements) {
     if (typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deploymentProfile)) {
@@ -481,6 +485,16 @@ function resolveDeploymentStage(workspace: LinkingWorkspace): void {
       element.type,
       ATTRIBUTE_CAPABILITIES.infrastructureUses,
     )?.name ?? USES_ATTRIBUTE;
+    const computedSemanticAttributeNames: Record<string, string> = {};
+    if (application.runsOn.length > 0) {
+      computedSemanticAttributeNames[ATTRIBUTE_CAPABILITIES.placementOwner] = placementAttribute;
+    }
+    if (application.uses.length > 0) {
+      computedSemanticAttributeNames[ATTRIBUTE_CAPABILITIES.infrastructureUses] = usesAttribute;
+    }
+    if (Object.keys(computedSemanticAttributeNames).length > 0) {
+      computedElementSemanticAttributeNames.set(element.id, computedSemanticAttributeNames);
+    }
     resolvedElementAttributes.set(
       element.id,
       mergeResolvedReferenceAttributes(resolvedElementAttributes.get(element.id) ?? {}, {
@@ -507,6 +521,7 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
     pendingProjections,
     deployedElementIds,
     resolvedElementAttributes,
+    computedElementSemanticAttributeNames,
     operatorImplementations,
   } = workspace;
   for (const document of documents) {
@@ -548,8 +563,8 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
         edgeAttributes: effectiveEdgeAttributes,
         typeSystem,
         graph: buildIndexedGraph(documents, workspace.elements, workspace.imports, linkedEdges, typeSystem),
-        from: linkedElementSnapshot(source, typeSystem, resolvedElementAttributes, deployedElementIds),
-        to: linkedElementSnapshot(target, typeSystem, resolvedElementAttributes, deployedElementIds),
+        from: linkedElementSnapshot(source, typeSystem, resolvedElementAttributes, deployedElementIds, computedElementSemanticAttributeNames),
+        to: linkedElementSnapshot(target, typeSystem, resolvedElementAttributes, deployedElementIds, computedElementSemanticAttributeNames),
       });
       diagnostics.push(...(materialized.diagnostics ?? []));
       if (materialized.edge === undefined) {
@@ -627,6 +642,7 @@ function completeLinkingPipeline(
     diagnostics,
     linkedEdges,
     resolvedElementAttributes,
+    computedElementSemanticAttributeNames,
     deployedElementIds,
     wireDeploymentCoverage,
     elementsByContextAndLocalId,
@@ -671,7 +687,7 @@ function completeLinkingPipeline(
     graph,
     contexts,
     elements: graphElements.map((element) =>
-      linkedElementSnapshot(element, typeSystem, resolvedElementAttributes, deployedElementIds)
+      linkedElementSnapshot(element, typeSystem, resolvedElementAttributes, deployedElementIds, computedElementSemanticAttributeNames)
     ),
     imports: imports.map((item) => ({
       sourceIdentity: item.sourceName,
@@ -698,12 +714,14 @@ function linkedElementSnapshot(
   typeSystem: TypeSystem,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
   deployedElementIds: ReadonlySet<string>,
+  computedElementSemanticAttributeNames: ReadonlyMap<string, Readonly<Record<string, string>>>,
 ): LinkedElement {
   const resolvedAttributes = resolvedElementAttributes.get(element.id) ?? {};
   const attributes = flattenAttributes(element.scalarAttributes, resolvedAttributes);
   const capabilities = typeSystem.capabilities(element.type);
-  const semanticAttributes = semanticAttributesFor(element.type, attributes, typeSystem);
-  const semanticAttributeNames = semanticAttributeNamesFor(element.type, typeSystem);
+  const computedSemanticAttributeNames = computedElementSemanticAttributeNames.get(element.id) ?? {};
+  const semanticAttributes = semanticAttributesFor(element.type, attributes, typeSystem, computedSemanticAttributeNames);
+  const semanticAttributeNames = semanticAttributeNamesFor(element.type, typeSystem, computedSemanticAttributeNames);
   return {
     id: element.id,
     context: element.context,
@@ -3734,6 +3752,7 @@ function semanticAttributesFor(
   type: string,
   attributes: Readonly<Record<string, readonly string[]>>,
   typeSystem: TypeSystem,
+  computedSemanticAttributeNames: Readonly<Record<string, string>> = {},
 ): Readonly<Record<string, readonly string[]>> {
   const semantic: Record<string, readonly string[]> = {};
   for (const attribute of typeSystem.attributes(type).values()) {
@@ -3745,16 +3764,26 @@ function semanticAttributesFor(
       semantic[capability] = [...(semantic[capability] ?? []), ...values];
     }
   }
+  for (const [capability, attributeName] of Object.entries(computedSemanticAttributeNames)) {
+    const values = attributes[attributeName];
+    if (values !== undefined) {
+      semantic[capability] = values;
+    }
+  }
   return semantic;
 }
 
 function semanticAttributeNamesFor(
   type: string,
   typeSystem: TypeSystem,
+  computedSemanticAttributeNames: Readonly<Record<string, string>> = {},
 ): Readonly<Record<string, string>> {
-  return Object.fromEntries([...typeSystem.attributes(type).values()].flatMap((attribute) =>
-    (attribute.capabilities ?? []).map((capability) => [capability, attribute.name] as const)
-  ));
+  return {
+    ...Object.fromEntries([...typeSystem.attributes(type).values()].flatMap((attribute) =>
+      (attribute.capabilities ?? []).map((capability) => [capability, attribute.name] as const)
+    )),
+    ...computedSemanticAttributeNames,
+  };
 }
 
 class RegisteredOperatorImplementation implements LinkOperatorImplementation {

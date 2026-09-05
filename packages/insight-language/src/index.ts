@@ -160,6 +160,7 @@ export type {
   CompletionRequest,
   CompletionResult,
   CompletionScope,
+  ContextualIdentifier,
   ConstructorDefinition,
   DuplicateLinkedEdgeGroup,
   DeploymentEnvironment,

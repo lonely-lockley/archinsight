@@ -66,6 +66,7 @@ const cases = [
   rejectsOperatorInvocationsOutsideEdgeLists,
   materializesResolvedElementAndEdgeAttributes,
   reportsUndeclaredArchitectureAttributes,
+  rejectsLegacyInfrastructureAttributesOnLogicalElements,
   reportsMissingRequiredArchitectureAttributes,
   reportsCoreServiceWithoutName,
   notesThatAttributeAnnotationIsDeprecated,
@@ -1885,6 +1886,34 @@ system source
   assert.equal(countDiagnostics(result, "ATTRIBUTE_NOT_DECLARED"), 1);
 }
 
+function rejectsLegacyInfrastructureAttributesOnLogicalElements() {
+  const result = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [
+      source("architecture.ai", `
+context shared
+
+storage database
+    name = Database
+
+system application
+    name = Application
+    runsOn:
+        database
+    uses:
+        database
+`),
+    ],
+  });
+
+  const undeclared = result.diagnostics
+    .filter((diagnostic) => diagnostic.code === "ATTRIBUTE_NOT_DECLARED")
+    .map((diagnostic) => diagnostic.message);
+  assert.equal(undeclared.length, 2, JSON.stringify(result.diagnostics));
+  assert(undeclared.some((message) => message.includes("'runsOn'")), undeclared.join(", "));
+  assert(undeclared.some((message) => message.includes("'uses'")), undeclared.join(", "));
+}
+
 function reportsMissingRequiredArchitectureAttributes() {
   const result = linkProject({
     snapshot: typedAttributeSnapshot({ operatorTarget: "System" }),
@@ -2167,6 +2196,13 @@ service backend
   assert.deepEqual(backend?.attributes.runsOn?.map((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0]), ["Kubernetes"]);
   assert.deepEqual(backend?.attributes.uses?.map((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0]), ["Application database"]);
   assert.deepEqual(backend?.attributes.appliesTo, ["eu/production"]);
+  assert.deepEqual(backend?.semanticAttributeNames, {
+    "deployment-actions": "deployment",
+    "infrastructure-uses": "uses",
+    "placement-owner": "runsOn",
+  });
+  assert.deepEqual(backend?.semanticAttributes?.["placement-owner"], backend?.attributes.runsOn);
+  assert.deepEqual(backend?.semanticAttributes?.["infrastructure-uses"], backend?.attributes.uses);
 }
 
 function reusesDeploymentInfrastructureWithoutOverrides() {
