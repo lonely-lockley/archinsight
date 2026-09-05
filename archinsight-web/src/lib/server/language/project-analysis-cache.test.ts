@@ -32,6 +32,62 @@ describe('project analysis cache', () => {
     });
   });
 
+  it('discards one project entry and rebuilds a forced analysis from a fresh session', async () => {
+    const cache = new ProjectAnalysisCache();
+    const key = 'owner:a\0project:p';
+    const sources = model('API');
+    await cache.analyze(key, sources, {}, env);
+
+    const refreshed = await cache.analyze(key, sources, {}, env, { forceFullAnalysis: true });
+    const reused = await cache.analyze(key, sources, {}, env);
+
+    expect(refreshed.mode).toBe('full');
+    expect(reused.mode).toBe('cache-hit');
+    expect(cache.size()).toBe(1);
+    expect(analysisMetricsSnapshot()).toMatchObject({
+      fullSnapshotBuilds: 2,
+      fullProjectLinks: 2,
+      cacheHits: 1,
+      cacheMisses: 2
+    });
+  });
+
+  it('fully links forced overlays and leaves them out of the stored project cache', async () => {
+    const cache = new ProjectAnalysisCache();
+    const key = 'owner:a\0project:p';
+    const sources = model('Stored API');
+    await cache.analyze(key, sources, {}, env);
+
+    const refreshed = await cache.analyze(key, sources, {
+      'main.ai': source('Unsaved API')
+    }, env, { forceFullAnalysis: true });
+
+    expect(refreshed.mode).toBe('overlay-full');
+    expect(refreshed.relinkedSources).toBe(1);
+    expect(elementName(refreshed.result)).toBe('Unsaved API');
+    expect(cache.size()).toBe(0);
+    expect(analysisMetricsSnapshot()).toMatchObject({
+      fullSnapshotBuilds: 2,
+      fullProjectLinks: 2,
+      incrementalSourceUpdates: 0
+    });
+  });
+
+  it('keeps other owner and project entries when one analysis is forced', async () => {
+    const cache = new ProjectAnalysisCache();
+    const refreshedKey = 'owner:a\0project:same';
+    const untouchedKey = 'owner:b\0project:same';
+    await cache.analyze(refreshedKey, model('Owner A'), {}, env);
+    await cache.analyze(untouchedKey, model('Owner B'), {}, env);
+
+    await cache.analyze(refreshedKey, model('Owner A'), {}, env, { forceFullAnalysis: true });
+    const untouched = await cache.analyze(untouchedKey, model('Owner B'), {}, env);
+
+    expect(untouched.mode).toBe('cache-hit');
+    expect(elementName(untouched.result)).toBe('Owner B');
+    expect(cache.size()).toBe(2);
+  });
+
   it('keeps browser overlays transient and out of the stored project state', async () => {
     const cache = new ProjectAnalysisCache();
     const sources = model('Stored API');

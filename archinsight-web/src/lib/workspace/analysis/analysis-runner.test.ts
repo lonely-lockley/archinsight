@@ -111,10 +111,21 @@ describe('analysis runner', () => {
 
     expect(subject.ports.linkProject).toHaveBeenCalledWith(
       'project', ['main.ai'], { 'saved.ai': 'saved', 'main.ai': 'changed' },
-      'query', 'no-filter', undefined, 'editor'
+      'query', 'no-filter', undefined, 'editor', undefined
     );
     expect(subject.ports.acceptProjectStructure).toHaveBeenCalled();
     expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', '<svg>server</svg>', 'digraph {}');
+  });
+
+  it('forwards a forced full-analysis request to the web API', async () => {
+    const subject = fixture();
+
+    await subject.runner.runLink(1, { forceFullAnalysis: true });
+
+    expect(subject.ports.linkProject).toHaveBeenCalledWith(
+      'project', ['main.ai'], { 'saved.ai': 'saved', 'main.ai': 'changed' },
+      'query', 'no-filter', undefined, 'editor', { forceFullAnalysis: true }
+    );
   });
 
   it('separates query failures from server failures', async () => {

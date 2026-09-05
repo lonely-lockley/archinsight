@@ -149,7 +149,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     linkedAnalysis: () => state().linkedAnalysis,
     clearLinkedAnalysis: () => patch({ linkedAnalysis: undefined }),
     closeDeploymentPicker: () => patch({ deploymentPickerOpen: false }),
-    runLink: (sequence) => analysisRunner.runLink(sequence),
+    runLink: (sequence, options) => analysisRunner.runLink(sequence, options),
     runCachedDiagram: (sequence, requestedProjectId, analysis) => (
       analysisRunner.runCachedDiagram(sequence, requestedProjectId, analysis)
     ),
@@ -183,6 +183,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     },
     persistWorkspace: () => fileController.persistWorkspace(),
     scheduleLink: (delay) => analysisController.scheduleLink(delay),
+    scheduleFullLink: () => analysisController.scheduleLink(0, { forceFullAnalysis: true }),
     scheduleDiagramUpdate: () => analysisController.scheduleDiagramUpdate(),
     deferEditorLayout: () => void tick().then(() => monacoSession.layout()),
     schedule: (task, delay) => window.setTimeout(task, delay),

@@ -193,6 +193,17 @@ describe('web API client', () => {
     }
   });
 
+  it('marks a manual refresh link as a forced full analysis', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(linkResponse()));
+
+    await linkProject('demo', ['model.ai'], {}, '', 'c2', undefined, 'playground', {
+      forceFullAnalysis: true
+    });
+
+    const [, init] = fetchMock.mock.lastCall!;
+    expect(JSON.parse(String(init?.body))).toMatchObject({ forceFullAnalysis: true });
+  });
+
   it('uses the same authentication error for read, write, and delete requests', async () => {
     fetchMock.mockResolvedValue(new Response('', { status: 401 }));
 

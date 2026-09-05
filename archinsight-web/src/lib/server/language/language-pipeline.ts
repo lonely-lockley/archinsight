@@ -94,7 +94,13 @@ export async function linkForProject(
   request: LinkRequest | null
 ): Promise<LinkResponse> {
   validateRequest(request, services.config.requestLimits);
-  const analysis = await analyzeStoredProject(services, ownerId, projectId, request?.overlays ?? {});
+  const analysis = await analyzeStoredProject(
+    services,
+    ownerId,
+    projectId,
+    request?.overlays ?? {},
+    request?.forceFullAnalysis === true
+  );
   return linkFromAnalysis(analysis, request, services.env);
 }
 
@@ -114,7 +120,13 @@ export async function linkForStoredSources(
   request: LinkRequest | null
 ): Promise<LinkResponse> {
   validateRequest(request, services.config.requestLimits);
-  const analysis = await services.analysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, services.env);
+  const analysis = await services.analysisCache.analyze(
+    cacheKey,
+    sources,
+    request?.overlays ?? {},
+    services.env,
+    { forceFullAnalysis: request?.forceFullAnalysis === true }
+  );
   return linkFromAnalysis(analysis, request, services.env);
 }
 
@@ -216,14 +228,16 @@ async function analyzeStoredProject(
   services: ApplicationServices,
   ownerId: string,
   projectId: string,
-  overlays: Readonly<Record<string, string>>
+  overlays: Readonly<Record<string, string>>,
+  forceFullAnalysis = false
 ): Promise<ProjectAnalysis> {
   const storedSources = await sourcesForProjectWithOverlays(services, ownerId, projectId, {});
   return services.analysisCache.analyze(
     `owner:${ownerId}\0project:${projectId}`,
     storedSources,
     overlays,
-    services.env
+    services.env,
+    { forceFullAnalysis }
   );
 }
 

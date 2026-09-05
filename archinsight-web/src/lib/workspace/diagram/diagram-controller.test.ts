@@ -29,6 +29,7 @@ function fixture(active: WorkspaceTab | undefined = tab()) {
     patchActiveTab: vi.fn((patch) => { if (current !== undefined) current = { ...current, ...patch }; }),
     persistWorkspace: vi.fn(),
     scheduleLink: vi.fn(),
+    scheduleFullLink: vi.fn(),
     scheduleDiagramUpdate: vi.fn(),
     deferEditorLayout: vi.fn(),
     schedule: vi.fn((task) => { const handle = ++nextHandle; scheduled.set(handle, task); return handle; }),
@@ -102,14 +103,16 @@ describe('diagram controller', () => {
     expect(subject.ports.deferEditorLayout).toHaveBeenCalledTimes(3);
   });
 
-  it('debounces refresh attempts through the cooldown and resets it', () => {
+  it('debounces forced full links through the refresh cooldown and resets it', () => {
     const subject = fixture();
     subject.controller.refresh();
     subject.controller.refresh();
-    expect(subject.ports.scheduleDiagramUpdate).toHaveBeenCalledOnce();
+    expect(subject.ports.scheduleFullLink).toHaveBeenCalledOnce();
+    expect(subject.ports.scheduleLink).not.toHaveBeenCalled();
+    expect(subject.ports.scheduleDiagramUpdate).not.toHaveBeenCalled();
     subject.runTimers();
     subject.controller.refresh();
-    expect(subject.ports.scheduleDiagramUpdate).toHaveBeenCalledTimes(2);
+    expect(subject.ports.scheduleFullLink).toHaveBeenCalledTimes(2);
     subject.controller.reset();
     expect(subject.ports.setRefreshDisabled).toHaveBeenLastCalledWith(false);
     subject.controller.dispose();

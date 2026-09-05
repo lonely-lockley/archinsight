@@ -42,6 +42,7 @@ export type DiagramControllerPorts = {
   patchActiveTab(patch: ToolbarPatch): void;
   persistWorkspace(): void;
   scheduleLink(delay?: number): void;
+  scheduleFullLink(): void;
   scheduleDiagramUpdate(): void;
   deferEditorLayout(): void;
   schedule(task: () => void, delay: number): number;
@@ -202,7 +203,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
       }
       ports.setRefreshDisabled(true);
       clearDot();
-      ports.scheduleDiagramUpdate();
+      ports.scheduleFullLink();
       cancelRefresh();
       refreshHandle = ports.schedule(() => {
         refreshHandle = undefined;

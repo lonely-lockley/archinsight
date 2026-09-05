@@ -109,6 +109,16 @@ describe('analysis controller', () => {
     expect(test.closeDeploymentPicker).toHaveBeenCalledTimes(2);
   });
 
+  it('carries an explicit full-analysis request to the scheduled link', () => {
+    const test = harness();
+
+    test.controller.scheduleLink(0, { forceFullAnalysis: true });
+
+    expect(test.runOnlyScheduled()).toBe(0);
+    expect(test.runLink).toHaveBeenCalledWith(1, { forceFullAnalysis: true });
+    expect(test.clearLinkedAnalysis).toHaveBeenCalledOnce();
+  });
+
   it('schedules a cached diagram with analysis and project snapshots', () => {
     const test = harness();
     const analysis = { contexts: [] } as unknown as LinkProjectResult;

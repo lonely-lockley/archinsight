@@ -77,6 +77,7 @@ export type LinkRequest = {
   query?: string | null;
   view?: BuiltinDiagramView | null;
   environment?: string | null;
+  forceFullAnalysis?: boolean;
 };
 
 export type ProjectStructureRequest = { overlays?: Record<string, string> | null };

@@ -85,7 +85,10 @@ export function parseLinkRequest(value: unknown): LinkRequest {
     overlays: optionalStringRecord(input.overlays, 'overlays'),
     query: nullableString(input.query, 'query'),
     view,
-    environment: nullableString(input.environment, 'environment')
+    environment: nullableString(input.environment, 'environment'),
+    ...(input.forceFullAnalysis === undefined
+      ? {}
+      : { forceFullAnalysis: boolean(input.forceFullAnalysis, 'forceFullAnalysis') })
   };
 }
 

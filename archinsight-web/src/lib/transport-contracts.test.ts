@@ -15,10 +15,19 @@ describe('shared transport contracts', () => {
       view: 'c2',
       environment: undefined
     });
+    expect(parseLinkRequest({ forceFullAnalysis: true })).toEqual({
+      openSourceIdentities: undefined,
+      overlays: undefined,
+      query: undefined,
+      view: undefined,
+      environment: undefined,
+      forceFullAnalysis: true
+    });
   });
 
   it('rejects malformed HTTP and webview payloads', () => {
     expect(() => parseLinkRequest({ view: 'unknown' })).toThrow(ContractValidationError);
+    expect(() => parseLinkRequest({ forceFullAnalysis: 'yes' })).toThrow(ContractValidationError);
     expect(() => parseWorkbenchWebviewToHostMessage({ command: 'complete', requestId: '1' }))
       .toThrow(ContractValidationError);
     expect(() => parseWorkbenchHostToWebviewMessage({ command: 'preview', state: { view: 'c1' } }))

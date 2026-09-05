@@ -111,6 +111,33 @@ system app
     expect(analysisMetricsSnapshot()).toMatchObject({ fullSnapshotBuilds: 1, fullProjectLinks: 1, cacheHits: 1 });
   });
 
+  it('forces a fresh project analysis when requested by manual refresh', async () => {
+    await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {},
+      query: 'MATCH (node:System) RETURN node'
+    }));
+    const refreshed = await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {
+        'main.ai': 'context demo\n\nsystem app\n    name = Refreshed App\n'
+      },
+      query: 'MATCH (node:System) RETURN node',
+      forceFullAnalysis: true
+    }));
+
+    expect(refreshed.status).toBe(200);
+    const refreshedBody = await refreshed.json();
+    expect(refreshedBody).toMatchObject({ analysis: { mode: 'overlay-full' } });
+    expect(refreshedBody.renders[0].dot).toContain('Refreshed App');
+    expect(analysisMetricsSnapshot()).toMatchObject({
+      fullSnapshotBuilds: 2,
+      fullProjectLinks: 2,
+      cacheHits: 0,
+      cacheMisses: 2
+    });
+  });
+
   it('reuses one linked revision when only the deployment environment changes', async () => {
     const first = await link(event('/api/projects/project-1/link', {
       openSourceIdentities: ['main.ai'],

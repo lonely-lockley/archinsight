@@ -19,6 +19,7 @@ import type { DiagramMode, WorkspaceTab } from '@archinsight/workbench/types';
 import { hasErrorDiagnostics } from '$lib/workspace-completion-snapshot';
 import { isProjectSourceTab } from '../editor/tab-persistence';
 import { errorMessage, isQueryErrorMessage } from '../messages/message-controller';
+import type { LinkRunOptions } from './analysis-controller';
 
 export type AnalysisRunnerState = {
   readonly projectId: string;
@@ -40,7 +41,8 @@ export type AnalysisRunnerPorts = {
     query: string,
     view: BuiltinDiagramView,
     environment: string | undefined,
-    surface: WorkspaceSurface
+    surface: WorkspaceSurface,
+    options?: LinkRunOptions
   ): Promise<LinkResponse>;
   renderInBrowser(renders: DotRender[]): Promise<SvgRenderResponse>;
   renderOnServer(projectId: string, renders: DotRender[], surface: WorkspaceSurface): Promise<SvgRenderResponse>;
@@ -64,7 +66,7 @@ export type AnalysisRunnerPorts = {
 };
 
 export type AnalysisRunner = {
-  runLink(sequence: number): Promise<void>;
+  runLink(sequence: number, options?: LinkRunOptions): Promise<void>;
   runCachedDiagram(sequence: number, projectId: string, analysis: LinkProjectResult): Promise<void>;
 };
 
@@ -154,7 +156,7 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
       acceptRenderedDiagrams(renders, rendered, sourceIdentities);
     },
 
-    async runLink(sequence) {
+    async runLink(sequence, options) {
       const state = ports.state();
       const overlays = overlaysForLink(state.tabs, state.overlays);
       const overlaySources = Object.entries(overlays).map(([sourceIdentity, content]) => ({
@@ -175,7 +177,8 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           state.query,
           builtinView(state.diagramMode),
           state.deploymentEnvironment,
-          state.surface
+          state.surface,
+          options
         );
         if (!ports.isCurrent(sequence, state.projectId)) return;
         ports.setLoading(false);

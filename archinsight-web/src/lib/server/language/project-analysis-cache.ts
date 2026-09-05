@@ -58,8 +58,12 @@ export class ProjectAnalysisCache {
     key: string,
     storedSources: ReadonlyMap<string, string>,
     overlays: Readonly<Record<string, string>>,
-    env?: EnvSource
+    env?: EnvSource,
+    options: { readonly forceFullAnalysis?: boolean } = {}
   ): Promise<ProjectAnalysis> {
+    if (options.forceFullAnalysis === true) {
+      return this.serialized(key, () => this.analyzeFresh(key, storedSources, overlays, env));
+    }
     const base = await this.serialized(key, () => this.analyzeStored(key, storedSources, env));
     return this.applyOverlays(base, overlays, env);
   }
@@ -85,6 +89,40 @@ export class ProjectAnalysisCache {
         this.pending.delete(key);
       }
     }
+  }
+
+  private analyzeFresh(
+    key: string,
+    storedSources: ReadonlyMap<string, string>,
+    overlays: Readonly<Record<string, string>>,
+    env?: EnvSource
+  ): ProjectAnalysis {
+    const started = performance.now();
+    const now = Date.now();
+    this.prune(this.config, now);
+    this.entries.delete(key);
+    const sources = normalizedSources(storedSources);
+    const overlayChanges = Object.entries(overlays)
+      .map(([sourceName, next]) => ({ sourceName: normalizeSourceName(sourceName), next }))
+      .filter(({ sourceName, next }) => sources.get(sourceName) !== next);
+    for (const change of overlayChanges) {
+      sources.set(change.sourceName, change.next);
+    }
+    const revision = sourceRevision(sources);
+    const mode = overlayChanges.length === 0 ? 'full' : 'overlay-full';
+    incrementAnalysisMetric('cacheMisses');
+    const entry = this.fullEntry(key, sources, revision, now, env, mode);
+    if (overlayChanges.length === 0 && entry.sourceBytes <= this.config.maxEntrySourceBytes) {
+      this.entries.set(key, entry);
+      touch(this.entries, key, entry);
+      this.prune(this.config, now);
+    }
+    observeAnalysis(env, 'language.analysis', {
+      mode,
+      sourceCount: sources.size,
+      durationMs: elapsed(started)
+    });
+    return analysis(entry, entry.session.analysis(), mode, mode === 'full' ? 0 : sources.size);
   }
 
   private analyzeStored(
@@ -150,14 +188,15 @@ export class ProjectAnalysisCache {
     sources: Map<string, string>,
     revision: string,
     now: number,
-    env?: EnvSource
+    env?: EnvSource,
+    mode: 'full' | 'overlay-full' = 'full'
   ): AnalysisEntry {
     const analysisStarted = performance.now();
     const session = service.createProjectAnalysisSession(projectSources(sources));
     const project = session.analysis();
     incrementAnalysisMetric('fullSnapshotBuilds');
     observeAnalysis(env, 'language.snapshot', {
-      mode: 'full',
+      mode,
       sourceCount: sources.size,
       definitionSourceCount: project.snapshotSources.length,
       durationMs: elapsed(analysisStarted)
@@ -165,7 +204,7 @@ export class ProjectAnalysisCache {
 
     incrementAnalysisMetric('fullProjectLinks');
     observeAnalysis(env, 'language.link', {
-      mode: 'full',
+      mode,
       sourceCount: sources.size,
       durationMs: elapsed(analysisStarted)
     });

@@ -205,11 +205,19 @@ export async function linkProject(
   query: string,
   view: BuiltinDiagramView,
   environment: string | undefined,
-  surface: WorkspaceSurface = 'editor'
+  surface: WorkspaceSurface = 'editor',
+  options: { readonly forceFullAnalysis?: boolean } = {}
 ): Promise<LinkResponse> {
   return postJson(
     surface === 'playground' ? '/api/playground/link' : `/api/projects/${encodeURIComponent(projectId)}/link`,
-    { openSourceIdentities, overlays, query, view, environment },
+    {
+      openSourceIdentities,
+      overlays,
+      query,
+      view,
+      environment,
+      ...(options.forceFullAnalysis === true ? { forceFullAnalysis: true } : {})
+    },
     parseLinkResponse
   );
 }

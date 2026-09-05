@@ -26,7 +26,7 @@ export type AnalysisControllerPorts = {
   linkedAnalysis(): LinkProjectResult | undefined;
   clearLinkedAnalysis(): void;
   closeDeploymentPicker(): void;
-  runLink(sequence: number): void | Promise<void>;
+  runLink(sequence: number, options?: LinkRunOptions): void | Promise<void>;
   runCachedDiagram(sequence: number, projectId: string, analysis: LinkProjectResult): void | Promise<void>;
   checkSyntax(sources: AnalysisSource[]): Promise<Diagnostic[]>;
   defaultSyntaxSources(): AnalysisSource[];
@@ -35,7 +35,7 @@ export type AnalysisControllerPorts = {
 };
 
 export type AnalysisController = {
-  scheduleLink(delay?: number): void;
+  scheduleLink(delay?: number, options?: LinkRunOptions): void;
   scheduleDiagramUpdate(): void;
   scheduleLiveSyntaxCheck(sources?: AnalysisSource[]): void;
   isCurrentLink(sequence: number, projectId?: string): boolean;
@@ -45,6 +45,10 @@ export type AnalysisController = {
   diagnosticsFor(tab: Pick<WorkspaceTab, 'sourceIdentity'>): Diagnostic[];
   reset(): void;
   dispose(): void;
+};
+
+export type LinkRunOptions = {
+  readonly forceFullAnalysis?: boolean;
 };
 
 export function createAnalysisController(ports: AnalysisControllerPorts): AnalysisController {
@@ -85,11 +89,13 @@ export function createAnalysisController(ports: AnalysisControllerPorts): Analys
     ports.writeDiagnostics({ local: {}, linker: {} });
   };
 
-  const scheduleLink = (delay = 500): void => {
+  const scheduleLink = (delay = 500, options?: LinkRunOptions): void => {
     ports.closeDeploymentPicker();
     ports.clearLinkedAnalysis();
     const sequence = ++linkSequence;
-    schedule(() => void ports.runLink(sequence), delay);
+    schedule(() => void (options === undefined
+      ? ports.runLink(sequence)
+      : ports.runLink(sequence, options)), delay);
   };
 
   return {
