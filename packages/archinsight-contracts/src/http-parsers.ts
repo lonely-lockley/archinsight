@@ -15,6 +15,7 @@ import type {
   LinkRequest,
   LinkResponse,
   PlaygroundPublication,
+  PlaygroundProjectListResponse,
   ProjectCreateRequest,
   ProjectListResponse,
   ProjectStructureRequest,
@@ -115,6 +116,19 @@ export function parsePublishPlaygroundRequest(value: unknown): PublishPlayground
 export function parseProjectListResponse(value: unknown): ProjectListResponse {
   const input = record(value, 'project list response');
   return { projects: array(input.projects, 'projects').map(parseProjectSummary) };
+}
+
+export function parsePlaygroundProjectListResponse(value: unknown): PlaygroundProjectListResponse {
+  const input = record(value, 'playground project list response');
+  return {
+    projects: array(input.projects, 'projects').map((value) => {
+      const project = record(value, 'playground project summary');
+      return {
+        id: string(project.id, 'project.id'),
+        name: string(project.name, 'project.name')
+      };
+    })
+  };
 }
 
 export function parseProjectSummary(value: unknown): ProjectSummaryResponse {

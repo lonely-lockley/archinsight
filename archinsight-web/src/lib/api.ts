@@ -13,6 +13,7 @@ import {
   parseLanguageSnapshotResponse,
   parseLinkResponse,
   parseNullablePlaygroundPublication,
+  parsePlaygroundProjectListResponse,
   parsePlaygroundPublication,
   parseProjectListResponse,
   parseProjectStructureResponse,
@@ -30,6 +31,7 @@ import {
   type FileTreeNode as SharedFileTreeNode,
   type FileTreeResponse as SharedFileTreeResponse,
   type LinkResponse as SharedLinkResponse,
+  type PlaygroundProjectListResponse as SharedPlaygroundProjectListResponse,
   type PlaygroundPublication as SharedPlaygroundPublication,
   type ProjectListResponse as SharedProjectListResponse,
   type ProjectStructureResponse,
@@ -55,7 +57,7 @@ export type LinkResponse = SharedLinkResponse;
 export type ProjectSymbols = LanguageSnapshot;
 
 export type ProjectSummaryResponse = SharedProjectSummaryResponse;
-export type ProjectListResponse = SharedProjectListResponse;
+export type ProjectListResponse = SharedProjectListResponse | SharedPlaygroundProjectListResponse;
 
 export type StructureDeclaration = ProjectStructureDeclaration;
 
@@ -98,7 +100,9 @@ export function routePath(path: string): string {
 }
 
 export async function fetchProjects(surface: WorkspaceSurface = 'editor'): Promise<ProjectListResponse> {
-  return getJson(surface === 'playground' ? '/api/playground' : '/api/projects', parseProjectListResponse);
+  return surface === 'playground'
+    ? getJson('/api/playground', parsePlaygroundProjectListResponse)
+    : getJson('/api/projects', parseProjectListResponse);
 }
 
 export async function createProject(name: string): Promise<ProjectSummaryResponse> {

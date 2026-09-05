@@ -42,10 +42,12 @@ describe('web API client', () => {
   it('selects editor and playground collection routes', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ projects: [] }))
-      .mockResolvedValueOnce(jsonResponse({ projects: [] }));
+      .mockResolvedValueOnce(jsonResponse({ projects: [{ id: 'published', name: 'Playground' }] }));
 
     await fetchProjects('editor');
-    await fetchProjects('playground');
+    await expect(fetchProjects('playground')).resolves.toEqual({
+      projects: [{ id: 'published', name: 'Playground' }]
+    });
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, expect.stringMatching(/\/api\/projects$/), {
       credentials: 'include'
