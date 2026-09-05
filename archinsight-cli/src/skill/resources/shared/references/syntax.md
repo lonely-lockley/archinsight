@@ -447,6 +447,12 @@ assignment wins. Slots are not additive, so one slot cannot show both
 `description` and `via` unless the language/renderer later gains a compound
 label feature.
 
+The `light` and `dark` sections define the normal theme. `externalLight` and
+`externalDark` override only the corresponding theme properties when a view
+marks an element external. These sections follow presentation inheritance, so
+a project-defined family can select its own external palette without using the
+built-in actor or system type names.
+
 ## Custom Types
 
 Projects can extend the language with typed vocabulary:

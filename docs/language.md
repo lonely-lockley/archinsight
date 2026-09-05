@@ -563,7 +563,7 @@ Several additions to the same type belong in one `extend type` declaration. Cons
 
 ## Presentations
 
-A presentation describes how values of a type are shown in diagrams. It connects model attributes to the textual parts of a rendered node or edge and provides visual properties for light themes, dark themes, and Graphviz output.
+A presentation describes how values of a type are shown in diagrams. It connects model attributes to the textual parts of a rendered node or edge and provides visual properties for light themes, dark themes, external elements, and Graphviz output.
 
 ```insight
 define presentation PublicApi
@@ -581,6 +581,12 @@ define presentation PublicApi
         stroke = "#2e2e2e"
         text = "#f4f4f4"
 
+    externalLight
+        fill = "#999999"
+
+    externalDark
+        fill = "#737c67"
+
     graphviz
         shape = box
         style = filled,rounded
@@ -594,10 +600,12 @@ The three built-in text fields contain attribute names:
 
 The selected attributes must belong to the presented type or one of its descendants. When a value does not provide an optional selected attribute, that part of the label remains empty.
 
-Presentation properties are grouped into three built-in sections:
+Presentation properties are grouped into five built-in sections:
 
 - `light` contains colors used with the light theme.
 - `dark` contains colors used with the dark theme.
+- `externalLight` overrides the light-theme properties when the selected view marks the element external.
+- `externalDark` overrides the dark-theme properties when the selected view marks the element external.
 - `graphviz` controls the shape and layout hints passed to diagram rendering.
 
 The language recognizes the following section properties. The descriptions follow the corresponding Graphviz attributes. `fill`, `stroke`, and `text` are Archinsight theme names mapped to Graphviz's `fillcolor`, `color`, and `fontcolor`. `visible` is handled by Archinsight before the DOT source is rendered.

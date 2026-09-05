@@ -65,5 +65,10 @@ assert.equal(builtinViewHasStage("deployment", "deployment-materialization"), tr
 assert.equal(builtinViewHasStage("deployment-container", "deployment-environment"), true);
 assert.equal(builtinViewHasStage("deployment-system", "deployment-system-rollup"), true);
 assert.equal(builtinViewHasStage("c2", "deployment-materialization"), false);
+assert.equal(builtinViewDefinition("deployment-system").deploymentRootType, "SystemElement");
+assert.equal(builtinViewDefinition("deployment-container").deploymentRootType, "SystemElement");
+assert(BUILTIN_VIEW_DEFINITIONS
+  .filter((definition) => !definition.stages.includes("deployment-seed-filter"))
+  .every((definition) => definition.deploymentRootType === undefined));
 
 console.log("built-in view catalogue contracts passed");

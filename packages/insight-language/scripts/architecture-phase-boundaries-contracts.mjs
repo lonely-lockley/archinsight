@@ -56,6 +56,20 @@ assert.equal(linker.includes("const operatorImplementations = new Map"), false,
   "operator implementations must be supplied by the immutable registry contract");
 assert.equal(/action\.operator\s*[!=]==?\s*["'](?:uses|runsOn)["']/.test(linker), false,
   "deployment behavior must be selected by semantic capability, not operator spelling");
+for (const builtInType of ["Wire", "Environment", "ComponentElement", "ContainerElement", "System", "Actor"]) {
+  assert.equal(linker.includes(`"${builtInType}"`), false,
+    `linker behavior must not dispatch on the built-in '${builtInType}' type name`);
+}
+assert.equal(queryEngine.includes('"SystemElement"'), false,
+  "deployment rollup types must come from the selected pipeline definition");
+assert.equal(linker.includes('slotOperator.targetType, "Environment"'), false,
+  "document aggregate slots must resolve from capabilities, not a built-in root name");
+assert.equal(/buildDeploymentAction(?:FromObject)?\([^\n]*["']Wire["']/.test(linker), false,
+  "nested deployment actions must retain their declared edge type");
+assert.equal(graphvizRenderer.includes('"ExternalActor"'), false,
+  "external presentation modifiers must come from the effective presentation");
+assert.equal(graphvizRenderer.includes('"ExternalSystem"'), false,
+  "external presentation modifiers must not dispatch on a built-in type name");
 assert(graphvizRenderer.includes('from "./render-identity.js"'));
 assert.equal(graphvizRenderer.includes("function safeId"), false,
   "render identities must not collapse punctuation through lossy replacement");

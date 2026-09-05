@@ -23,6 +23,7 @@ const cases = [
   keepsCustomExternalPredicateModelRelative,
   resolvesExplicitExternalityFromTypeCapability,
   rendersTheSameRelativeExternalityCarriedByQueryJson,
+  rendersExternalPaletteFromTheEffectivePresentation,
 ];
 
 let failures = 0;
@@ -158,6 +159,46 @@ function rendersTheSameRelativeExternalityCarriedByQueryJson() {
   assertExternal(graph, "shop/payments");
   assert.match(dot, /"shop\/payments" \[[^\n]*fillcolor="#737C67"/);
   assert.match(dot, /"shop\/storefront_service" \[[^\n]*fillcolor="#5A189A"/);
+}
+
+function rendersExternalPaletteFromTheEffectivePresentation() {
+  const result = linkedProject(
+    source("definitions.ai", `
+define type Landmark of BoundaryElement
+    constructor landmark
+
+    capability = "external-element"
+
+    required Text name
+
+define presentation Landmark
+    header = name
+
+    dark
+        fill = "#111111"
+
+    externalDark
+        fill = "#123456"
+        stroke = "#abcdef"
+
+    graphviz
+        shape = diamond
+`),
+    source("model.ai", `
+context map
+
+landmark remote
+    name = Remote landmark
+`),
+  );
+  const graph = selectGraph(result, { context: "map" }, "MATCH (element:Element) RETURN element");
+  const dot = renderGraphviz(result, graph, "dark");
+
+  assert.deepEqual(graph.externalElements, ["map/remote"]);
+  assert.match(dot, /"map\/remote" \[[^\n]*color="#abcdef"/);
+  assert.match(dot, /"map\/remote" \[[^\n]*fillcolor="#123456"/);
+  assert.match(dot, /"map\/remote" \[[^\n]*shape="diamond"/);
+  assert.doesNotMatch(dot, /"map\/remote" \[[^\n]*fillcolor="#737C67"/);
 }
 
 function focusedSplitProject() {

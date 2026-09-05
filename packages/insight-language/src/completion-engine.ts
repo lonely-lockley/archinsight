@@ -12,7 +12,7 @@ import { CONTEXT, EDGE, NOTHING, PROJECTION_TERM, TYPE_SLOT_REFERENCE, TypeSyste
 import { ATTRIBUTE_CAPABILITIES, OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
-const PRESENTATION_SECTIONS = ["light", "dark", "graphviz"];
+const PRESENTATION_SECTIONS = ["light", "dark", "externalLight", "externalDark", "graphviz"];
 const PROJECTION_ENDPOINTS = ["$from", "$to", "$this"];
 const PRESENTATION_SECTION_PROPERTIES = [
   "fill",

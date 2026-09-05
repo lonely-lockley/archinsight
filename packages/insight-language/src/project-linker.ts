@@ -54,11 +54,6 @@ import {
 } from "./semantic-capabilities.js";
 
 const ELEMENT_TYPE = "Element";
-const WIRE_TYPE = "Wire";
-const COMPONENT_ELEMENT_TYPE = "ComponentElement";
-const CONTAINER_ELEMENT_TYPE = "ContainerElement";
-const SYSTEM_TYPE = "System";
-const ACTOR_TYPE = "Actor";
 const APPLIES_TO_ATTRIBUTE = "appliesTo";
 const RUNS_ON_ATTRIBUTE = "runsOn";
 const USES_ATTRIBUTE = "uses";
@@ -573,7 +568,7 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
       linkedEdges.push(materialized.edge);
       const deploymentSource = deploymentViewLogicalEndpoint(edge.source, linkedElementsById, typeSystem);
       const deploymentTarget = deploymentViewLogicalEndpoint(target.id, linkedElementsById, typeSystem);
-      const coverage = typeSystem.isAssignable(edgeType, WIRE_TYPE)
+      const coverage = typeSystem.attributeWithCapability(edgeType, ATTRIBUTE_CAPABILITIES.deploymentActions) !== undefined
         && !typeSystem.typeHasCapability(edge.sourceType, TYPE_CAPABILITIES.deploymentElement)
         && deploymentSource !== undefined
         && deploymentTarget !== undefined
@@ -1629,7 +1624,7 @@ function collectSlotOperatorObject(
   }
   const slotAttribute = typeSystem.attribute(slotOperator.targetType, slotName);
   if (slotAttribute === undefined) {
-    if (!typeSystem.isAssignable(slotOperator.targetType, "Environment")) {
+    if (!typeSystem.typeHasCapability(slotOperator.targetType, TYPE_CAPABILITIES.environment)) {
       document.diagnostics.push({
         code: "ATTRIBUTE_NOT_DECLARED",
         message: `Slot '${slotName}' is not declared on type '${slotOperator.targetType}'`,
@@ -1974,21 +1969,27 @@ function collectReferenceAttributes(
     }
     const listNameNode = firstChild(list, "listName");
     const listName = listNameNode?.getText() ?? "";
-    if (typeSystem.operatorConstructorsFrom(owner.type)
+    const deploymentOwnerTypes = unique(typeSystem.operatorConstructorsFrom(owner.type)
       .filter((operator) => operator.spelling === edgeOperator)
-      .some((operator) => typeSystem.attribute(operator.ownerType, listName)
-        ?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true)) {
+      .filter((operator) => typeSystem.attribute(operator.ownerType, listName)
+        ?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true)
+      .map((operator) => operator.ownerType));
+    if (deploymentOwnerTypes.length > 0) {
       for (const listItem of children(list, "listBodyItem")) {
         const bodyItem = firstChild(listItem, "architectureBodyItem");
         const annotatedOperator = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedOperatorInvocation");
         const invocation = annotatedOperator === undefined ? undefined : firstChild(annotatedOperator, "operatorInvocation");
         if (invocation !== undefined) {
-          deploymentActions.push(buildDeploymentAction(invocation, owner, "Wire", document, typeSystem));
+          deploymentActions.push(buildDeploymentAction(invocation, owner, deploymentOwnerTypes[0]!, document, typeSystem));
           continue;
         }
         const annotatedObject = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedObjectDeclaration");
         const object = annotatedObject === undefined ? undefined : firstChild(annotatedObject, "objectDeclaration");
-        const action = object === undefined ? undefined : buildDeploymentActionFromObject(object, owner, "Wire", document, typeSystem);
+        const action = object === undefined
+          ? undefined
+          : deploymentOwnerTypes
+            .map((ownerType) => buildDeploymentActionFromObject(object, owner, ownerType, document, typeSystem))
+            .find((candidate) => candidate !== undefined);
         if (action !== undefined) {
           deploymentActions.push(action);
           continue;
@@ -1997,7 +1998,7 @@ function collectReferenceAttributes(
         if (value !== undefined) {
           document.diagnostics.push({
             code: "TYPE_MISMATCH",
-            message: "Wire deployment list expects operator invocations",
+            message: "Relationship deployment list expects operator invocations",
             sourceName: document.sourceName,
             ...position(value, document.sourceName),
           });
@@ -2534,7 +2535,13 @@ function deploymentAttributesForWire(
     context.effectiveDeploymentsByElementId.get(source.id) ?? [],
     context.effectiveDeploymentsByElementId.get(target.id) ?? [],
   );
-  const application = resolveDeploymentApplication(source, edge.deploymentActions, true, context, deployments);
+  const application = resolveDeploymentApplication(
+    source,
+    edge.deploymentActions.map((action) => ({ ...action, ownerType: edgeType })),
+    true,
+    context,
+    deployments,
+  );
   const usesAttribute = context.typeSystem.attributeWithCapability(
     edgeType,
     ATTRIBUTE_CAPABILITIES.infrastructureUses,
@@ -2585,7 +2592,10 @@ function applyDeploymentAction(
     context.elementsByContextAndLocalId,
     context.importsBySourceAndAlias,
   );
-  const operator = deploymentOperator(context.typeSystem, owner.type, action.operator, target?.type);
+  const operator = deploymentOperator(context.typeSystem, action.ownerType, action.operator, target?.type)
+    ?? (action.ownerType === owner.type
+      ? undefined
+      : deploymentOperator(context.typeSystem, owner.type, action.operator, target?.type));
   const isUse = operator !== undefined
     && context.typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse);
   const isPlacement = operator !== undefined
@@ -2595,7 +2605,7 @@ function applyDeploymentAction(
     if (wire) {
       context.diagnostics.push({
         code: "TYPE_MISMATCH",
-        message: "Wire deployment cannot use a deployment profile; use network infrastructure",
+        message: "Relationship deployment cannot use a deployment profile; use network infrastructure",
         sourceName: action.sourceName,
         ...diagnosticPosition(action),
       });
@@ -2617,7 +2627,7 @@ function applyDeploymentAction(
     if (!inherited) {
       context.diagnostics.push({
         code: "TYPE_MISMATCH",
-        message: "Wire deployment does not support 'runsOn'; use NetworkConnection infrastructure with 'uses'",
+        message: "Relationship deployment does not support placement; use network infrastructure with a deployment-use operator",
         sourceName: action.sourceName,
         ...diagnosticPosition(action),
       });
@@ -2630,7 +2640,7 @@ function applyDeploymentAction(
       if (!inherited) {
         context.diagnostics.push({
           code: "TYPE_MISMATCH",
-          message: `Wire deployment can use only network infrastructure, got '${item.element.type}'`,
+          message: `Relationship deployment can use only network infrastructure, got '${item.element.type}'`,
           sourceName: action.sourceName,
           ...diagnosticPosition(action),
         });
@@ -2657,7 +2667,7 @@ function applyDeploymentProfile(
   state: DeploymentApplicationState,
   context: DeploymentExpansionContext,
 ): void {
-  const operator = context.typeSystem.operatorConstructor(action.operator, owner.type, profile.type);
+  const operator = context.typeSystem.operatorConstructor(action.operator, action.ownerType, profile.type);
   if (operator === undefined) {
     context.diagnostics.push({
       code: "TYPE_MISMATCH",
@@ -2979,7 +2989,7 @@ function resolvedValueForDeploymentUse(use: DeploymentUse): ResolvedReferenceVal
 function mergeResolvedReferenceAttributes(
   base: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
   override: Readonly<Record<string, readonly ResolvedReferenceValue[]>>,
-  singleAttributes: ReadonlySet<string> = new Set([RUNS_ON_ATTRIBUTE]),
+  singleAttributes: ReadonlySet<string> = new Set(),
 ): Readonly<Record<string, readonly ResolvedReferenceValue[]>> {
   const result: Record<string, ResolvedReferenceValue[]> = Object.fromEntries(
     Object.entries(base).map(([name, values]) => [name, [...values]]),
@@ -4012,8 +4022,8 @@ function reportIncompleteWireDeployments(
       level: "WARNING",
       code: item.deploymentDefined ? "WIRE_DEPLOYMENT_NOT_PROJECTED" : "WIRE_MISSING_DEPLOYMENT",
       message: item.deploymentDefined
-        ? `Wire from '${source}' to '${target}' has deployment configuration but produces no physical projection`
-        : `Wire from '${source}' to '${target}' has no deployment configuration and is omitted from deployment views`,
+        ? `Relationship from '${source}' to '${target}' has deployment configuration but produces no physical projection`
+        : `Relationship from '${source}' to '${target}' has no deployment configuration and is omitted from deployment views`,
       sourceName: item.parsed.sourceName,
       line: declaration?.line ?? item.parsed.line,
       column: declaration?.column ?? item.parsed.column,
@@ -4064,7 +4074,7 @@ function deploymentViewLogicalEndpoint(
 ): string | undefined {
   let element = elementsById.get(elementId);
   while (element !== undefined) {
-    if (typeSystem.isAssignable(element.type, CONTAINER_ELEMENT_TYPE)
+    if (typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deploymentEndpoint)
         || elementTypeOrKindIsExplicitlyExternal(element.type, element.scalarAttributes.kind, typeSystem)) {
       return element.id;
     }
@@ -4082,17 +4092,10 @@ function elementDeploymentFamily(element: ParsedElement, typeSystem: TypeSystem)
       && element.deploymentActions.length === 0) {
     return undefined;
   }
-  if (typeSystem.isAssignable(element.type, COMPONENT_ELEMENT_TYPE)) {
-    return COMPONENT_ELEMENT_TYPE;
-  }
-  if (typeSystem.isAssignable(element.type, CONTAINER_ELEMENT_TYPE)) {
-    return CONTAINER_ELEMENT_TYPE;
-  }
-  if (typeSystem.isAssignable(element.type, ACTOR_TYPE)) {
-    return ACTOR_TYPE;
-  }
-  if (typeSystem.isAssignable(element.type, SYSTEM_TYPE)) {
-    return SYSTEM_TYPE;
+  const family = [element.type, ...typeSystem.baseTypes(element.type)]
+    .find((candidate) => typeSystem.declaresCapability(candidate, TYPE_CAPABILITIES.deploymentFamily));
+  if (family !== undefined) {
+    return family;
   }
   return typeSystem.isAssignable(element.type, ELEMENT_TYPE) ? element.type : undefined;
 }

@@ -1,4 +1,6 @@
 define type ContainerElement of Element
+    capability = "deployment-endpoint"
+    capability = "deployment-family"
 
 define type Container of ContainerElement
     constructor container

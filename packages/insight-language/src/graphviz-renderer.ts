@@ -189,7 +189,7 @@ function writeGroup(
 function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: string, indent: string): void {
   const basePresentation = presentation(result, element.type);
   const resolvedPresentation = graph.externalElements.includes(element.id)
-    ? externalizedPresentation(result, element, basePresentation)
+    ? externalizedPresentation(basePresentation, theme)
     : basePresentation;
   const properties = dotProperties(resolvedPresentation, theme, false);
   Object.assign(properties, section(resolvedPresentation, "graphviz"));
@@ -302,20 +302,15 @@ function presentation(result: LinkProjectResult, type: string): ResolvedPresenta
 }
 
 function externalizedPresentation(
-  result: LinkProjectResult,
-  element: LinkedElement,
   base: ResolvedPresentation,
+  theme: string,
 ): ResolvedPresentation {
-  const modifierType = element.type === "Actor" || element.baseTypes.includes("Actor")
-    ? "ExternalActor"
-    : "ExternalSystem";
-  const modifier = presentation(result, modifierType);
+  const modifier = section(base, theme === "dark" ? "externalDark" : "externalLight");
   return {
     ...base,
     sections: {
       ...base.sections,
-      light: { ...section(base, "light"), ...section(modifier, "light") },
-      dark: { ...section(base, "dark"), ...section(modifier, "dark") },
+      [theme]: { ...section(base, theme), ...modifier },
     },
   };
 }

@@ -601,6 +601,8 @@ ATTRIBUTE subtitle
 ATTRIBUTE body
 KEYWORD light
 KEYWORD dark
+KEYWORD externalLight
+KEYWORD externalDark
 KEYWORD graphviz
 --- lacks
 KEYWORD constructor

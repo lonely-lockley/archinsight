@@ -7,7 +7,7 @@ import type {
 import type { TypeSystem } from "./type-system.js";
 
 const PRESENTATION_FIELDS = new Set(["header", "subtitle", "body"]);
-const PRESENTATION_SECTIONS = new Set(["light", "dark", "graphviz"]);
+const PRESENTATION_SECTIONS = new Set(["light", "dark", "externalLight", "externalDark", "graphviz"]);
 const PRESENTATION_SECTION_PROPERTIES = new Set([
   "fill", "stroke", "text", "bgcolor", "shape", "style", "width",
   "height", "rankdir", "overlap", "newrank", "nodesep", "ranksep",

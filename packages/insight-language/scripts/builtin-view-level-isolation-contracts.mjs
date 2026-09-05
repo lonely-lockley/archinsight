@@ -108,6 +108,26 @@ assert.deepEqual(
   "a custom query with the same declared pipeline must not need a built-in view name",
 );
 
+const customContainerRollup = selectGraph(result, {
+  context: "app",
+  tab: "model.ai",
+  pipeline: {
+    boundary: null,
+    stages: ["deployment-system-rollup"],
+    deploymentRootType: "ContainerElement",
+  },
+}, views.c3);
+assert.deepEqual(Object.keys(customContainerRollup.elements).sort(), ["app/backend", "app/frontend"]);
+assert.deepEqual(edgeEndpoints(customContainerRollup), ["app/frontend->app/backend"]);
+assert.throws(() => selectGraph(result, {
+  context: "app",
+  tab: "model.ai",
+  pipeline: {
+    boundary: null,
+    stages: ["deployment-system-rollup"],
+  },
+}, views.c3), /explicit deploymentRootType/);
+
 const c3 = selectGraph(result, { context: "app", tab: "model.ai", view: "c3" }, views.c3);
 assert.deepEqual(Object.keys(c3.elements).sort(), ["app/api", "app/repository", "app/ui"]);
 assert.deepEqual(edgeEndpoints(c3), [

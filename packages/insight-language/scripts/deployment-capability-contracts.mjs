@@ -23,6 +23,9 @@ define operator AlternativeInfrastructureUse of Edge
     constructor connectedVia NetworkConnection
         on Wire
 
+    constructor connectedVia NetworkConnection
+        on RoutedDependency
+
     capability = "deployment-use"
 
 define operator AlternativePlacement of Edge
@@ -30,6 +33,24 @@ define operator AlternativePlacement of Edge
         on DeploymentProfile or Element
 
     capability = "deployment-placement"
+
+define operator RoutedDependency of Edge
+    constructor +> Element
+        on Element
+
+    List of Edge rollout
+        capability = "deployment-actions"
+
+define abstract type WorkloadFamily of BoundaryElement
+    capability = "deployment-family"
+
+    Text name
+
+define type PrimaryWorkload of WorkloadFamily
+    constructor primaryWorkload
+
+define type SecondaryWorkload of WorkloadFamily
+    constructor secondaryWorkload
 
 define type AppEnvironment of Environment
     Compute compute
@@ -70,18 +91,31 @@ system storefront
         deployment:
             deployedWith regional
         links:
-            -> api
-                deployment:
+            +> api
+                rollout:
                     connectedVia network
 
     service api
         name = API
         deployment:
             deployedWith regional
+
+primaryWorkload active
+    name = Active workload
+    deployment:
+        deployedWith regional
+
+secondaryWorkload standby
+    name = Standby workload
 `),
   ],
 });
 assertNoErrors(result.diagnostics);
+assert.equal(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("WIRE_DEPLOYMENT_")), false);
+assert(result.diagnostics.some((diagnostic) =>
+  diagnostic.code === "ELEMENT_MISSING_DEPLOYMENT"
+  && diagnostic.message.includes("'standby'")
+));
 assert.deepEqual(result.elements.find((element) => element.id === "shop/web")?.attributes.runsOn, ["cluster/k8s"]);
 const graph = selectGraph(
   result,

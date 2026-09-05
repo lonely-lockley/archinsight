@@ -161,8 +161,8 @@ export function selectGraph(
     filterDeploymentSeeds: removeDescendantProjectionsCapturedBySystemSeeds,
     materializeGroups: materializeGroupedView,
     applyEnvironment: (_result, graph) => applyDeploymentEnvironmentScope(execution, graph),
-    rollUpSystems: (_result, graph) => rollUpDeploymentSystems(execution, graph),
-    simplifyInfrastructure: (_result, graph) => simplifyDeploymentSystemInfrastructure(execution, graph),
+    rollUpSystems: (_result, graph, _scope, rootType) => rollUpDeploymentSystems(execution, graph, rootType),
+    simplifyInfrastructure: (_result, graph, rootType) => simplifyDeploymentSystemInfrastructure(execution, graph, rootType),
   });
 }
 
@@ -170,9 +170,10 @@ function removeDescendantProjectionsCapturedBySystemSeeds(
   result: LinkProjectResult,
   graph: RenderGraph,
   scope: QueryScope,
+  rootType: string,
 ): RenderGraph {
   const sourceSystems = new Set(result.elements
-    .filter((element) => element.sourceIdentity === scope.tab && elementHasType(element, "SystemElement"))
+    .filter((element) => element.sourceIdentity === scope.tab && elementHasType(element, rootType))
     .map((element) => element.id));
   const edges = graph.edges.filter((edge) => {
     const originSource = edge.edge.originSource ?? edge.edge.source;
@@ -538,10 +539,10 @@ function baseOccurrenceId(id: string): string {
   return separator < 0 ? id : id.slice(0, separator);
 }
 
-function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph): RenderGraph {
+function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph, rootType: string): RenderGraph {
   const { elementsById, parentByChild } = context;
   const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), "SystemElement"));
+    .find((candidate) => elementHasType(elementsById.get(candidate), rootType));
   const fold = (id: string): string => {
     const system = systemFor(id);
     if (system === undefined) {
@@ -597,7 +598,7 @@ function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph)
       elements[id] = element.id === id ? element : { ...element, id };
     }
   }
-  const openedSystems = openedTabBoundaries(context, "SystemElement");
+  const openedSystems = openedTabBoundaries(context, rootType);
   const externalElements = new Set(graph.externalElements.map(fold).filter((id) => referenced.has(id)));
   for (const id of referenced) {
     const system = systemFor(id);
@@ -617,7 +618,11 @@ function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph)
   };
 }
 
-function simplifyDeploymentSystemInfrastructure(context: EvaluationContext, graph: RenderGraph): RenderGraph {
+function simplifyDeploymentSystemInfrastructure(
+  context: EvaluationContext,
+  graph: RenderGraph,
+  rootType: string,
+): RenderGraph {
   const { result, elementsById, parentByChild } = context;
   const externalElements = new Set(graph.externalElements);
   const placementGroupOwners = new Set(graph.groups.map((group) => group.owner));
@@ -668,7 +673,7 @@ function simplifyDeploymentSystemInfrastructure(context: EvaluationContext, grap
   }
 
   const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), "SystemElement"));
+    .find((candidate) => elementHasType(elementsById.get(candidate), rootType));
   for (const source of Object.keys(graph.elements)) {
     if (retained.has(source) || (incoming.get(source)?.length ?? 0) > 0) {
       continue;

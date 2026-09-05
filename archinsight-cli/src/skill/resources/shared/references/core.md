@@ -189,6 +189,8 @@ Presentations define durable visual defaults for rendered diagrams:
 
 - `header`, `subtitle`, and `body` map model attributes into labels.
 - `light` and `dark` define theme-specific colors.
+- `externalLight` and `externalDark` declaratively override those colors when
+  a view marks an element external; derived project types inherit them.
 - `graphviz` carries renderer-specific layout/style hints.
 
 Use `define presentation X` once when creating a presentation for a new type.

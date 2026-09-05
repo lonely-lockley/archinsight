@@ -2423,7 +2423,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Wire deployment cannot use a deployment profile")));
+    && diagnostic.message.includes("Relationship deployment cannot use a deployment profile")));
 }
 
 function rejectsNonNetworkInfrastructureOnWires() {
@@ -2444,7 +2444,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Wire deployment can use only network infrastructure")));
+    && diagnostic.message.includes("Relationship deployment can use only network infrastructure")));
 }
 
 function skipsUnavailableWireNetworksPerDeployment() {

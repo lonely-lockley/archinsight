@@ -21,6 +21,7 @@ export type BuiltinViewStage =
 export interface QueryViewPipelineDefinition {
   readonly boundary: ViewBoundaryDefinition | null;
   readonly stages: readonly BuiltinViewStage[];
+  readonly deploymentRootType?: string;
 }
 
 export interface BuiltinViewDefinition {
@@ -37,6 +38,7 @@ export interface BuiltinViewDefinition {
   readonly lifecycle: BuiltinViewLifecycle;
   readonly boundary: ViewBoundaryDefinition | null;
   readonly stages: readonly BuiltinViewStage[];
+  readonly deploymentRootType?: string;
   readonly legacyPresetQueries: readonly {
     readonly version: number;
     readonly query: string;
@@ -88,5 +90,6 @@ export function queryViewPipeline(
   return {
     boundary: definition?.boundary ?? null,
     stages: definition?.stages ?? [],
+    ...(definition?.deploymentRootType === undefined ? {} : { deploymentRootType: definition.deploymentRootType }),
   };
 }

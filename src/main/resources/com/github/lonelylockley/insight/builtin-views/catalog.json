@@ -98,6 +98,7 @@
     "aliases": [],
     "lifecycle": "stable",
     "boundary": null,
+    "deploymentRootType": "SystemElement",
     "stages": [
       "deployment-seed-filter",
       "deployment-materialization",
@@ -118,6 +119,7 @@
     "aliases": [],
     "lifecycle": "stable",
     "boundary": null,
+    "deploymentRootType": "SystemElement",
     "stages": [
       "deployment-seed-filter",
       "deployment-materialization",
