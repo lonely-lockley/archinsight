@@ -65,7 +65,7 @@ deployment test
 
 The two deployments share the `eu` environment boundary and keep separate infrastructure instances. They are written as top-level declarations after the environment header, but the linker attaches them to that environment. A logical element can be mapped to either deployment through a profile, and different profiles can select different schemes from the same environment.
 
-The Deployment view renders the concrete `InfrastructureComponent` instances held by a scheme. The `Deployment` object organizes that inventory and remains outside the rendered graph, so projected relationships connect physical components instead of rolling up to the scheme itself.
+The Deployment view renders the concrete `InfrastructureComponent` instances held by a scheme. Their built-in presentation uses a dashed node boundary, inherited by project-defined infrastructure types unless their presentation overrides `graphviz.style`. The `Deployment` object organizes that inventory and remains outside the rendered graph, so projected relationships connect physical components instead of rolling up to the scheme itself.
 
 Projects usually define an environment subtype with the slots required by their deployment model:
 

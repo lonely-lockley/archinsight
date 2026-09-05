@@ -24,6 +24,7 @@ const cases = [
   skipsElementsWithInvisibleGraphvizPresentation,
   rendersSelectedContextAsClusterForWideDefaultQuery,
   rendersStorageWithDatabaseShape,
+  rendersInfrastructureDescendantsWithDashedBorders,
   rendersBrokersAsDashedBoxes,
   rendersSystemsServicesAndComponentsAsRoundedBoxes,
   rendersGroupOwnerClusterWhenOwnerIsNotReturned,
@@ -585,6 +586,34 @@ environment prod
 
   assert(dot.includes("Database"));
   assert(dot.includes("shape=\"cylinder\""));
+}
+
+function rendersInfrastructureDescendantsWithDashedBorders() {
+  const result = linkWithCoreDefinitions(
+    source("definitions.ai", `
+define type RuntimeNode of InfrastructureComponent
+    constructor runtimeNode
+
+extend type Environment
+    RuntimeNode runtime
+`),
+    source("source.ai", `
+context source
+
+environment prod
+    name = Production
+
+    runtime:
+        runtimeNode worker
+            name = Worker runtime
+`),
+  );
+  const projection = selectGraph(result, { context: "source" }, "MATCH (n:RuntimeNode) WHERE n.context = $context RETURN n");
+  const dot = renderGraphviz(result, projection, "light");
+
+  assertNoErrors(result);
+  const runtime = dot.split("\n").find((line) => line.includes('"source/worker" ['));
+  assert(runtime?.includes('style="filled,rounded,dashed"'), runtime);
 }
 
 function rendersBrokersAsDashedBoxes() {

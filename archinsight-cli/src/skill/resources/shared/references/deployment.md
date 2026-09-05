@@ -73,8 +73,10 @@ deployment schemes, and profiles may select `production from eu` and
 deployments.
 
 The built-in Deployment view renders concrete `InfrastructureComponent`
-instances. A `Deployment` object organizes the inventory and is not itself a
-physical node, so projected relationships do not roll up to that owner.
+instances. Their core presentation gives the nodes dashed borders, inherited
+by project-defined infrastructure types unless they override `graphviz.style`.
+A `Deployment` object organizes the inventory and is not itself a physical
+node, so projected relationships do not roll up to that owner.
 
 When one logical element resolves to several concrete compute placements,
 Deployment query output creates one visible occurrence per selected placement.

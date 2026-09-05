@@ -18,6 +18,10 @@ define type InfrastructureComponent of DeploymentElement
     List of PhysicalWire projection
     List of InfrastructureComponent _
 
+define presentation InfrastructureComponent
+    graphviz
+        style = filled,rounded,dashed
+
 define type ProjectionTerm
 
 define type DeploymentProfile of BoundaryElement
