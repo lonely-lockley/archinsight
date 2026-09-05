@@ -26,7 +26,7 @@ tasks.register('npmInstall', Exec) {
     }
     outputs.dir('node_modules')
     workingDir = projectDir
-    commandLine npmCommand, 'install'
+    commandLine npmCommand, 'install', '--prefer-offline', '--no-audit', '--no-fund'
 }
 
 tasks.register('npmBuild', Exec) {
@@ -34,6 +34,8 @@ tasks.register('npmBuild', Exec) {
     description = 'Builds the Archinsight CLI.'
     dependsOn 'npmInstall', 'generateVersion', rootProject.tasks.named('generateLanguageSources')
     inputs.dir('src')
+    inputs.file('scripts/generate-skill-resources.mjs')
+    inputs.dir('../packages/archinsight-graphviz/src')
     inputs.dir('../packages/insight-language/src')
     outputs.dir('build')
     workingDir = projectDir
@@ -81,7 +83,7 @@ tasks.register('npmCheck') {
     doLast {
         providers.exec {
             workingDir projectDir
-            commandLine npmCommand, 'run', 'test:skill'
+            commandLine npmCommand, 'run', 'verify'
         }.result.get()
     }
 }

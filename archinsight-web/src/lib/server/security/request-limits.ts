@@ -1,4 +1,7 @@
 import type { EnvSource } from '$lib/server/auth/auth-config';
+import { payloadTooLarge } from '$lib/server/errors/application-error';
+import { integerConfigValue } from '$lib/server/config/config-values';
+import { runtimeEnv } from '$lib/server/config/local-config';
 
 export type RequestLimits = {
   maxFileBytes: number;
@@ -12,13 +15,17 @@ export type RequestLimits = {
 const encoder = new TextEncoder();
 
 export function requestLimits(env: EnvSource | undefined): RequestLimits {
+  return parseRequestLimits(runtimeEnv(env));
+}
+
+export function parseRequestLimits(env: EnvSource): RequestLimits {
   return {
-    maxFileBytes: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_FILE_BYTES, 1_048_576),
-    maxOverlays: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_OVERLAYS, 100),
-    maxOverlayBytes: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_OVERLAY_BYTES, 1_048_576),
-    maxQueryChars: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_QUERY_CHARS, 20_000),
-    maxRenderCount: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_RENDER_COUNT, 16),
-    maxDotBytes: numberValue(env?.ARCHINSIGHT_LIMITS_MAX_DOT_BYTES, 1_048_576)
+    maxFileBytes: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_FILE_BYTES', 1_048_576, { min: 0 }),
+    maxOverlays: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_OVERLAYS', 100, { min: 0 }),
+    maxOverlayBytes: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_OVERLAY_BYTES', 1_048_576, { min: 0 }),
+    maxQueryChars: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_QUERY_CHARS', 20_000, { min: 0 }),
+    maxRenderCount: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_RENDER_COUNT', 16, { min: 0 }),
+    maxDotBytes: integerConfigValue(env, 'ARCHINSIGHT_LIMITS_MAX_DOT_BYTES', 1_048_576, { min: 0 })
   };
 }
 
@@ -32,26 +39,26 @@ export function validateOverlays(overlays: Record<string, string> | null | undef
     return;
   }
   if (entries.length > limits.maxOverlays) {
-    throw new Error(`Too many overlays: ${entries.length}`);
+    throw payloadTooLarge(`Too many overlays: ${entries.length}`);
   }
   let totalBytes = 0;
   for (const [sourceIdentity, content] of entries) {
     totalBytes += bytes(sourceIdentity) + bytes(content);
     if (totalBytes > limits.maxOverlayBytes) {
-      throw new Error('Overlay payload is too large');
+      throw payloadTooLarge('Overlay payload is too large');
     }
   }
 }
 
 export function validateQuery(query: string | null | undefined, limits: RequestLimits): void {
   if (query != null && query.length > limits.maxQueryChars) {
-    throw new Error('Query is too long');
+    throw payloadTooLarge('Query is too long');
   }
 }
 
 export function validateRenderCount(count: number, limits: RequestLimits): void {
   if (count > limits.maxRenderCount) {
-    throw new Error(`Too many diagrams to render: ${count}`);
+    throw payloadTooLarge(`Too many diagrams to render: ${count}`);
   }
 }
 
@@ -61,18 +68,10 @@ export function validateDot(dot: string | null | undefined, limits: RequestLimit
 
 function requireBytes(label: string, value: string | null | undefined, maxBytes: number): void {
   if (bytes(value) > maxBytes) {
-    throw new Error(`${label} is too large`);
+    throw payloadTooLarge(`${label} is too large`);
   }
 }
 
 function bytes(value: string | null | undefined): number {
   return value == null ? 0 : encoder.encode(value).byteLength;
-}
-
-function numberValue(value: string | undefined, fallback: number): number {
-  if (value == null || value.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
 }

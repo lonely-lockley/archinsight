@@ -12,6 +12,7 @@ const cases = [
   highlightsProjectionTermsByRuleContext,
   highlightsContextDeclarationWhileTyping,
   highlightsEnvironmentDeclarationAndImports,
+  highlightsAbstractTypeModifier,
   highlightsAttributeNamesWhenValueIsInvalid,
   highlightsAnnotationNameWithoutAnnotationValue,
 ];
@@ -110,6 +111,13 @@ import gateway from environment prod as prod_gateway
   assertToken(tokens, "prod", "variable", ["declaration"]);
   assertToken(tokens, "prod", "variable");
   assertToken(tokens, "prod_gateway", "variable", ["declaration"]);
+}
+
+function highlightsAbstractTypeModifier() {
+  const tokens = tokensByText("define abstract type ExtensionPoint of Element\n");
+
+  assertToken(tokens, "abstract", "keyword");
+  assertToken(tokens, "ExtensionPoint", "type", ["declaration"]);
 }
 
 function highlightsAttributeNamesWhenValueIsInvalid() {

@@ -8,6 +8,7 @@ import type {
   ResolvedPresentation,
   SourceLocation,
 } from "./contracts.js";
+import { renderIdentity } from "./render-identity.js";
 
 export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, theme = "light"): string {
   if (result.diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
@@ -126,6 +127,7 @@ function writeGroup(
 
   lines.push(`${indent}subgraph ${quoted(clusterId(group.owner))} {`);
   const contentIndent = `${indent}  `;
+  lines.push(`${contentIndent}id=${quoted(clusterId(group.owner))}`);
   const contextTheme = section(presentation(result, "Context"), theme);
   if (ownerElement !== undefined) {
     const ownerPresentation = presentation(result, ownerElement.type);
@@ -159,6 +161,7 @@ function writeGroup(
   lines.push("");
   if (clusterEdgeOwners.has(group.owner)) {
     writeStatement(lines, clusterAnchorId(group.owner), {
+      id: clusterAnchorId(group.owner),
       label: "\"\"",
       shape: "point",
       width: "0",
@@ -184,13 +187,14 @@ function writeGroup(
 }
 
 function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: string, indent: string): void {
+  const basePresentation = presentation(result, element.type);
   const resolvedPresentation = graph.externalElements.includes(element.id)
-    ? presentation(result, "ExternalSystem")
-    : presentation(result, element.type);
+    ? externalizedPresentation(basePresentation, theme)
+    : basePresentation;
   const properties = dotProperties(resolvedPresentation, theme, false);
   Object.assign(properties, section(resolvedPresentation, "graphviz"));
   applyAnnotations(properties, element.annotations ?? [], false);
-  properties.id = nodeId(element.id);
+  properties.id = nodeDomId(element.id);
   properties.tooltip = "Go to declaration";
   properties.URL = declarationUrl(element);
   properties.label = htmlLabel(
@@ -200,9 +204,9 @@ function writeElement(lines: string[], result: LinkProjectResult, graph: RenderG
     undefined,
     element.constructor,
   ) ?? "";
-  writeStatement(lines, nodeId(element.id), properties, indent);
+  writeStatement(lines, dotNodeId(element.id), properties, indent);
   if (element.note !== undefined) {
-    writeNote(lines, noteId(element.id), nodeId(element.id), element.note, noteUrl(element.noteSource, element), indent);
+    writeNote(lines, noteId(element.id), dotNodeId(element.id), element.note, noteUrl(element.noteSource, element), indent);
   }
 }
 
@@ -231,12 +235,12 @@ function writeEdge(
     properties.label = label;
   }
 
-  let source = nodeId(edge.source);
+  let source = dotNodeId(edge.source);
   if (groupByOwner.has(edge.source)) {
     source = clusterAnchorId(edge.source);
     properties.ltail = clusterId(edge.source);
   }
-  let target = nodeId(edge.target);
+  let target = dotNodeId(edge.target);
   if (groupByOwner.has(edge.target)) {
     target = clusterAnchorId(edge.target);
     properties.lhead = clusterId(edge.target);
@@ -246,6 +250,7 @@ function writeEdge(
 
 function writeNote(lines: string[], id: string, targetId: string, note: string, url: string, indent: string): void {
   writeStatement(lines, id, {
+    id,
     tooltip: "Go to declaration",
     URL: url,
     label: htmlLabel(undefined, undefined, undefined, wrapTextIfNotFormatted(note)) ?? "",
@@ -293,6 +298,20 @@ function presentation(result: LinkProjectResult, type: string): ResolvedPresenta
     name: "Element",
     assignments: {},
     sections: {},
+  };
+}
+
+function externalizedPresentation(
+  base: ResolvedPresentation,
+  theme: string,
+): ResolvedPresentation {
+  const modifier = section(base, theme === "dark" ? "externalDark" : "externalLight");
+  return {
+    ...base,
+    sections: {
+      ...base.sections,
+      [theme]: { ...section(base, theme), ...modifier },
+    },
   };
 }
 
@@ -426,26 +445,36 @@ function formatProperties(properties: Record<string, string>): string {
 }
 
 function edgeId(edge: RenderGraphEdge): string {
-  const source = safeId(edge.source);
-  const target = safeId(edge.target);
-  const operator = safeId(edge.edge.operator);
-  return `edge__${source}__${operator}__${target}`;
+  return renderIdentity("edge", [
+    edge.edge.id,
+    edge.source,
+    edge.target,
+    edge.edge.originSource ?? edge.edge.source,
+    edge.edge.originTarget ?? edge.edge.target,
+    edge.edge.operator,
+    edge.derived,
+    edge.projected,
+  ]);
 }
 
 function clusterId(owner: string): string {
-  return `cluster_${nodeId(owner)}`;
+  return `cluster_${renderIdentity("cluster", [owner])}`;
 }
 
 function clusterAnchorId(owner: string): string {
-  return `${nodeId(owner)}__cluster_anchor`;
+  return renderIdentity("cluster-anchor", [owner]);
 }
 
 function noteId(id: string): string {
-  return `${nodeId(id)}_note`;
+  return renderIdentity("note", [id]);
 }
 
-function nodeId(id: string): string {
-  return id.replace("/", "__");
+function dotNodeId(id: string): string {
+  return id;
+}
+
+function nodeDomId(id: string): string {
+  return renderIdentity("node", [id]);
 }
 
 function fallbackName(id: string): string {
@@ -491,8 +520,4 @@ function unquoted(value: string): string {
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function safeId(value: string): string {
-  return value.replace(/[^A-Za-z0-9_]/g, "_");
 }

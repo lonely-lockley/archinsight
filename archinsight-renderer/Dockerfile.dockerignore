@@ -1,0 +1,11 @@
+**
+!archinsight-renderer
+!archinsight-renderer/package.json
+!archinsight-renderer/package-lock.json
+!archinsight-renderer/src
+!archinsight-renderer/src/**
+!packages
+!packages/archinsight-graphviz
+!packages/archinsight-graphviz/package.json
+!packages/archinsight-graphviz/src
+!packages/archinsight-graphviz/src/**

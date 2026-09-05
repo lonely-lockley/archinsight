@@ -22,11 +22,10 @@ import { actionCatalog, canExecute, controlState } from '$lib/actions/action-mod
 import type { AppCapability } from '$lib/api';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { InMemoryRepositoryFileSystem } from '$lib/server/repository/in-memory-repository-file-system';
-import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import {
-  InMemoryPlaygroundPublicationStore,
-  setPlaygroundPublicationStore
+  InMemoryPlaygroundPublicationStore
 } from '$lib/server/publication/playground-publication-store';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const foreignOwnerId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -66,9 +65,7 @@ describe('playground security boundary', () => {
         files: { 'main.ai': 'context foreign_owner_secret' }
       }
     ]);
-    setRepositoryFileSystem(repository);
     publications = new InMemoryPlaygroundPublicationStore();
-    setPlaygroundPublicationStore(publications);
     await publications.publish('default', ownerId, 'published-project', ownerId);
   });
 
@@ -140,7 +137,7 @@ describe('playground security boundary', () => {
     for (const attempt of attempts) {
       const response = await attempt();
       expect(response.status).toBe(404);
-      await expect(response.json()).resolves.toEqual({ error: 'Not found' });
+      await expect(response.json()).resolves.toEqual({ error: 'Not found', code: 'NOT_FOUND' });
     }
 
     await expect(repository.read(foreignOwnerId, 'foreign-project', 'main.ai')).resolves.toMatchObject({
@@ -153,7 +150,7 @@ describe('playground security boundary', () => {
     const projectList = await projectsRoute.GET(editorEvent('/api/projects'));
     expect(projectList.status).toBe(200);
     const listed = await projectList.json() as { projects: Array<{ id: string }> };
-    expect(listed.projects.map((project) => project.id)).toEqual(['published-project', 'private-project']);
+    expect(listed.projects.map((project) => project.id).sort()).toEqual(['private-project', 'published-project']);
 
     const attempts: Array<() => Response | Promise<Response>> = [
       () => projectFilesRoute.GET(editorEvent('/api/projects/foreign-project/files', 'foreign-project')),
@@ -174,7 +171,7 @@ describe('playground security boundary', () => {
 
     for (const attempt of attempts) {
       const response = await attempt();
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(404);
     }
 
     await expect(repository.read(foreignOwnerId, 'foreign-project', 'main.ai')).resolves.toMatchObject({
@@ -237,6 +234,11 @@ function routeEvent(
     params: { projectId },
     request: { json: async () => body ?? null },
     url: new URL(url, 'http://localhost'),
-    platform: { env }
+    locals: {
+      services: createApplicationServices(env, {
+        repository,
+        publicationStore: publications
+      })
+    }
   } as never;
 }

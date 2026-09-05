@@ -22,11 +22,13 @@ export interface ProjectLinkerStateUpdate {
 
 export class ProjectLinkerState {
   private readonly snapshot: LinkProjectRequest["snapshot"];
+  private readonly operatorImplementations: LinkProjectRequest["operatorImplementations"];
   private readonly sourcesByName: Map<string, ProjectSource>;
   private currentResult: LinkProjectResult;
 
   constructor(request: LinkProjectRequest, existingResult?: LinkProjectResult) {
     this.snapshot = request.snapshot;
+    this.operatorImplementations = request.operatorImplementations;
     this.sourcesByName = new Map(request.sources.map((source) => [source.sourceName, source]));
     this.currentResult = existingResult ?? linkProject(this.request());
   }
@@ -81,6 +83,7 @@ export class ProjectLinkerState {
         const projectSource = this.sourcesByName.get(source);
         return projectSource === undefined ? [] : [projectSource];
       }),
+      ...(this.operatorImplementations === undefined ? {} : { operatorImplementations: this.operatorImplementations }),
     });
     mergeGraph(previous.graph, partialResult.graph);
     this.currentResult = mergeResults(previous, partialResult, relinkedSources, previous.graph);
@@ -100,6 +103,7 @@ export class ProjectLinkerState {
     return {
       snapshot: this.snapshot,
       sources: [...this.sourcesByName.values()],
+      ...(this.operatorImplementations === undefined ? {} : { operatorImplementations: this.operatorImplementations }),
     };
   }
 

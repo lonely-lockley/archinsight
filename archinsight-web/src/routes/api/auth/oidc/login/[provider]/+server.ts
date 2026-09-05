@@ -1,8 +1,12 @@
 import { startOidcLogin } from '$lib/server/auth/oidc-service';
-import { eventEnv } from '$lib/server/auth/svelte-event';
 
 export const GET = (event) =>
-  authResponse(() => startOidcLogin(event.params.provider, event.url.searchParams.get('returnTo'), event.cookies, eventEnv(event)));
+  authResponse(() => startOidcLogin(
+    event.params.provider,
+    event.url.searchParams.get('returnTo'),
+    event.cookies,
+    event.locals.services
+  ));
 
 function authResponse(handler: () => Response): Response {
   try {

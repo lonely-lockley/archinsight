@@ -7,10 +7,18 @@
   "scripts": {
     "dev": "node --watch src/server.mjs",
     "start": "node src/server.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:coverage": "c8 --all --src=src --include='src/**/*.mjs' --reporter=text --reporter=json-summary --reports-dir=coverage npm test",
+    "coverage:check": "node ../scripts/check-coverage.mjs renderer coverage/coverage-summary.json",
+    "verify": "npm run test:coverage && npm run coverage:check",
+    "check": "npm run verify"
   },
   "dependencies": {
+    "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
     "@resvg/resvg-js": "^2.6.2",
     "@viz-js/viz": "^3.28.0"
+  },
+  "devDependencies": {
+    "c8": "^12.0.0"
   }
 }

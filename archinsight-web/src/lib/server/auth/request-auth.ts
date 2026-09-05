@@ -1,17 +1,19 @@
 import type { Cookies } from '@sveltejs/kit';
-import { getAuthConfig, loginOptions, type EnvSource } from './auth-config';
+import { getAuthConfig, loginOptions } from './auth-config';
 import { verifyStandaloneToken } from './standalone-token';
 import { authenticateSsrSession, authenticateStandaloneClaims } from './userdata-store';
 import { capabilitiesFor } from './authorization';
 import { verifyGhostSessionSignature } from './ghost-session';
 import type { AuthenticatedUser, AuthUserResponse } from './types';
+import { unauthorized } from '$lib/server/errors/application-error';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 
-export async function currentUserResponse(cookies: Cookies, env: EnvSource | undefined): Promise<AuthUserResponse> {
-  const config = getAuthConfig(env);
+export async function currentUserResponse(cookies: Cookies, services: ApplicationServices): Promise<AuthUserResponse> {
+  const config = services.config.auth;
   const ghostSession = verifiedGhostSession(cookies, config.ghost);
   const user = config.ghost.enabled
-    ? await authenticateSsrSession(ghostSession, env, config.token.secret)
-    : await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), env);
+    ? await authenticateSsrSession(ghostSession, services, config.token.secret)
+    : await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), services);
   if (!user) {
     const options = loginOptions(config);
     return {
@@ -42,19 +44,14 @@ export async function currentUserResponse(cookies: Cookies, env: EnvSource | und
   };
 }
 
-export async function authenticateRequired(cookies: Cookies, env: EnvSource | undefined): Promise<AuthenticatedUser> {
-  const config = getAuthConfig(env);
+export async function authenticateRequired(cookies: Cookies, services: ApplicationServices): Promise<AuthenticatedUser> {
+  const config = services.config.auth;
   const ghostSession = verifiedGhostSession(cookies, config.ghost);
   const user = config.ghost.enabled
-    ? await authenticateSsrSession(ghostSession, env, config.token.secret)
-    : await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), env);
+    ? await authenticateSsrSession(ghostSession, services, config.token.secret)
+    : await authenticateStandaloneClaims(verifyStandaloneToken(cookies.get(config.tokenCookieName), config.token), services);
   if (!user) {
-    throw new Response(JSON.stringify({ error: 'Authentication required' }), {
-      status: 401,
-      headers: {
-        'content-type': 'application/json'
-      }
-    });
+    throw unauthorized('Authentication required');
   }
   return user;
 }

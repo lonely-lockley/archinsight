@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getRendererConfig } from './renderer-config';
 import { renderSvg } from './svg-renderer';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const renders = [{
   sourceIdentity: 'app.ai',
@@ -18,7 +19,7 @@ describe('external SVG renderer adapter', () => {
   it('does not call an external renderer or run Graphviz when disabled by default', async () => {
     const fetcher = vi.fn();
 
-    const response = await renderSvg(renders, {}, fetcher);
+    const response = await renderSvg(renders, createApplicationServices({ NODE_ENV: 'test' }), fetcher);
 
     expect(fetcher).not.toHaveBeenCalled();
     expect(response.svgs).toEqual([]);
@@ -41,7 +42,7 @@ describe('external SVG renderer adapter', () => {
       warnings: []
     }));
 
-    const response = await renderSvg(renders, enabledEnv, fetcher);
+    const response = await renderSvg(renders, createApplicationServices(enabledEnv), fetcher);
 
     expect(response.diagnostics).toEqual([]);
     expect(response.svgs).toHaveLength(1);
@@ -53,16 +54,16 @@ describe('external SVG renderer adapter', () => {
   });
 
   it('rejects oversized or mismatched renderer output', async () => {
-    const oversized = await renderSvg(renders, {
+    const oversized = await renderSvg(renders, createApplicationServices({
       ...enabledEnv,
       ARCHINSIGHT_RENDERER_MAX_SVG_BYTES: '8'
-    }, async () => jsonResponse({
+    }), async () => jsonResponse({
       svgs: [{ sourceIdentity: 'app.ai', diagram: 'query', svg: '<svg>too large</svg>' }]
     }));
     expect(oversized.svgs).toEqual([]);
     expect(oversized.diagnostics[0]).toMatchObject({ code: 'EXTERNAL_RENDERER_FAILED' });
 
-    const mismatched = await renderSvg(renders, enabledEnv, async () => jsonResponse({
+    const mismatched = await renderSvg(renders, createApplicationServices(enabledEnv), async () => jsonResponse({
       svgs: [{ sourceIdentity: 'private.ai', diagram: 'query', svg: '<svg/>' }]
     }));
     expect(mismatched.svgs).toEqual([]);

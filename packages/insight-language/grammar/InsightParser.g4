@@ -134,18 +134,20 @@ operatorBodyItem
     : operatorConstructorDeclaration
     | attributeDeclaration
     | implementationAssignment
+    | capabilityAssignment
     | commentLine
     | EOL
     ;
 
 defineTypeDeclaration
-    : DEFINE TYPE typeIdentifier (OF typeReference)? EOL
+    : DEFINE ABSTRACT? TYPE typeIdentifier (OF typeReference)? EOL
       (INDENT typeBodyItem* anonymousListAttributeDeclaration? trivia* DEDENT)?
     ;
 
 typeBodyItem
     : typeConstructorDeclaration
     | attributeDeclaration
+    | capabilityAssignment
     | commentLine
     | EOL
     ;
@@ -191,6 +193,10 @@ presentationPropertyIdentifier
 
 implementationAssignment
     : IMPLEMENTATION EQ textValue EOL
+    ;
+
+capabilityAssignment
+    : CAPABILITY EQ textValue EOL
     ;
 
 enumValueDeclaration
@@ -250,6 +256,7 @@ constructorName
 
 attributeDeclaration
     : REQUIRED? typeReference identifier EOL
+      (INDENT capabilityAssignment+ DEDENT)?
     ;
 
 anonymousListAttributeDeclaration

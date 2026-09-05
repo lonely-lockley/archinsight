@@ -6,20 +6,14 @@ import type {
   InsightSyntaxProvider,
   SyntaxContext,
 } from "./contracts.js";
-import { CharStream, Token } from "antlr4ng";
-import { InsightLexer } from "./generated/InsightLexer.js";
 import { lineContextAt, type LineContext } from "./line-context.js";
+import { tokenizeInsightSource, tokenName, tokenStart, tokenStop, tokenType } from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, PROJECTION_TERM, TYPE_SLOT_REFERENCE, TypeSystem } from "./type-system.js";
+import { ATTRIBUTE_CAPABILITIES, OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
-const PRESENTATION_SECTIONS = ["light", "dark", "graphviz"];
+const PRESENTATION_SECTIONS = ["light", "dark", "externalLight", "externalDark", "graphviz"];
 const PROJECTION_ENDPOINTS = ["$from", "$to", "$this"];
-const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
-const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
-const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
-const NETWORK_CONNECTION_TYPE = "NetworkConnection";
-const USES_OPERATOR = "uses";
-const RUNS_ON_OPERATOR = "runsOn";
 const PRESENTATION_SECTION_PROPERTIES = [
   "fill",
   "stroke",
@@ -60,7 +54,10 @@ export class CompletionEngine {
     const typeSystem = new TypeSystem(request.snapshot);
     const visibleTypes = new Set([...typeSystem.declaredTypes(), ...parsed.context.visibleTypes]);
 
-    const items = expectsContextReference(parsed.syntax)
+    const anonymousImportContexts = anonymousImportContextItems(line, typeSystem, parsed.context);
+    const items = anonymousImportContexts !== undefined
+      ? anonymousImportContexts
+      : expectsContextReference(parsed.syntax)
       ? contextReferenceItems(parsed.context)
       : parsed.context.mode === "ambiguous"
       ? ambiguousTopLevelItems(line, visibleTypes, typeSystem)
@@ -145,6 +142,7 @@ function definitionItems(
   if (line.hasOnlyIndentBeforeCursor) {
     return [
       keyword("define type "),
+      keyword("define abstract type "),
       keyword("define operator "),
       keyword("define enum of "),
       keyword("define presentation "),
@@ -154,7 +152,10 @@ function definitionItems(
     ];
   }
   if (syntax.previousToken?.type === "DEFINE") {
-    return [keyword("type "), keyword("operator "), keyword("enum of "), keyword("presentation ")];
+    return [keyword("type "), keyword("abstract type "), keyword("operator "), keyword("enum of "), keyword("presentation ")];
+  }
+  if (syntax.previousToken?.type === "ABSTRACT" && syntax.previousPreviousToken?.type === "DEFINE") {
+    return [keyword("type ")];
   }
   if (syntax.previousToken?.type === "EXTEND") {
     return [keyword("type "), keyword("enum of "), keyword("presentation ")];
@@ -439,6 +440,10 @@ function architectureItems(
   if (projectionItems !== undefined) {
     return projectionItems;
   }
+  const contextualListItems = contextualListReferenceItems(line, typeSystem, context);
+  if (contextualListItems !== undefined) {
+    return contextualListItems;
+  }
   const edgeList = currentEdgeList(typeSystem, context, line.indentLevel);
   if (!line.hasOnlyIndentBeforeCursor
     && currentOperator(context, line.indentLevel) === undefined
@@ -514,28 +519,134 @@ function deploymentDefinitionItems(
   context: CompletionScope,
 ): CompletionItem[] | undefined {
   const list = currentList(context, line.indentLevel);
-  if (list?.attribute !== DEPLOYMENT_LIST_ATTRIBUTE) {
+  const namedListAttribute = list === undefined ? undefined : typeSystem.attribute(list.ownerType, list.attribute);
+  const anonymousOwnerType = list === undefined ? ownerType(context, line.indentLevel) : undefined;
+  const anonymousListAttribute = anonymousOwnerType === undefined
+    ? undefined
+    : typeSystem.anonymousListAttribute(anonymousOwnerType);
+  const container = list !== undefined && namedListAttribute?.listElementType !== undefined
+    && deploymentOperatorSpellings(typeSystem, list.ownerType, namedListAttribute.listElementType).length > 0
+    ? { ownerType: list.ownerType, expectedType: namedListAttribute.listElementType, anonymous: false }
+    : anonymousOwnerType !== undefined && anonymousListAttribute?.listElementType !== undefined
+      && deploymentOperatorSpellings(typeSystem, anonymousOwnerType, anonymousListAttribute.listElementType).length > 0
+      ? { ownerType: anonymousOwnerType, expectedType: anonymousListAttribute.listElementType, anonymous: true }
+      : undefined;
+  if (container === undefined) {
     return undefined;
   }
   const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
   if (words.length === 0) {
-    return deploymentOperatorItems(typeSystem, list.ownerType);
+    const requiredAttributes = container.anonymous
+      ? [...typeSystem.attributes(container.ownerType).values()]
+        .filter((attribute) => attribute.required === true)
+        .filter((attribute) => !assignedAttributes(context, line.indentLevel).has(attribute.name))
+        .map((attribute) => attributeItem(typeSystem.isNestedAttribute(attribute) ? `${attribute.name}:` : `${attribute.name} = `))
+      : [];
+    return [
+      ...requiredAttributes,
+      ...deploymentOperatorItems(typeSystem, container.ownerType, container.expectedType),
+    ];
   }
-  if (words.length === 1 && deploymentOperatorSpellings(typeSystem, list.ownerType).includes(words[0] ?? "")) {
-    return deploymentTargetItems(typeSystem, context, list.ownerType, words[0] ?? "");
+  if (words.length === 1 && deploymentOperatorSpellings(
+    typeSystem,
+    container.ownerType,
+    container.expectedType,
+  ).includes(words[0] ?? "")) {
+    return deploymentTargetItems(
+      typeSystem,
+      context,
+      container.ownerType,
+      container.expectedType,
+      words[0] ?? "",
+    );
   }
   return [];
 }
 
-function deploymentOperatorItems(typeSystem: TypeSystem, ownerType: string): CompletionItem[] {
-  return deploymentOperatorSpellings(typeSystem, ownerType).map((operator) => operatorItem(`${operator} `));
+function contextualListReferenceItems(
+  line: LineContext,
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+): CompletionItem[] | undefined {
+  const list = currentList(context, line.indentLevel);
+  const attribute = list === undefined ? undefined : typeSystem.attribute(list.ownerType, list.attribute);
+  const expectedType = attribute === undefined ? undefined : referenceAttributeValueType(attribute);
+  if (expectedType === undefined) {
+    return undefined;
+  }
+  const candidates = context.contextualIdentifiers
+    .filter((identifier) => identifier.type !== undefined && typeSystem.isAssignable(identifier.type, expectedType));
+  const supportsContextualReferences = candidates.length > 0
+    || attribute?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.referenceOnly) === true;
+  if (!supportsContextualReferences) {
+    return undefined;
+  }
+  const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
+  if (words.length === 0) {
+    if (candidates.length === 0) {
+      return attribute?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.referenceOnly) === true ? [] : undefined;
+    }
+    const visible = visibleIdentifierItemsForType(typeSystem, context, expectedType);
+    const constructors = attribute?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.referenceOnly) === true
+      ? []
+      : typeSystem.constructorsForExpectedType(expectedType)
+        .map((constructor) => constructorItem(`${constructor.spelling} `));
+    return uniqueByInsertText([
+      ...visible,
+      ...candidates.map(identifierItem),
+      ...constructors,
+    ]);
+  }
+  if (words.length === 1) {
+    return [keyword("from ")];
+  }
+  if (words.length === 2 && words[1] === "from") {
+    return anonymousImportContextItems(line, typeSystem, context) ?? [];
+  }
+  return undefined;
 }
 
-function deploymentOperatorSpellings(typeSystem: TypeSystem, ownerType: string): string[] {
+function anonymousImportContextItems(
+  line: LineContext,
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+): CompletionItem[] | undefined {
+  const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
+  if (words.length !== 2 || words[1] !== "from") {
+    return undefined;
+  }
+  const list = currentList(context, line.indentLevel);
+  const attribute = list === undefined ? undefined : typeSystem.attribute(list.ownerType, list.attribute);
+  const expectedType = attribute === undefined ? undefined : referenceAttributeValueType(attribute);
+  if (expectedType === undefined) {
+    return undefined;
+  }
+  const matchingContexts = unique(context.contextualIdentifiers
+    .filter((identifier) => identifier.label === words[0])
+    .filter((identifier) => identifier.type !== undefined && typeSystem.isAssignable(identifier.type, expectedType))
+    .map((identifier) => identifier.contextId));
+  return (matchingContexts.length === 0 ? [...context.visibleContexts] : matchingContexts)
+    .map(identifierItem);
+}
+
+function deploymentOperatorItems(
+  typeSystem: TypeSystem,
+  ownerType: string,
+  expectedType: string,
+): CompletionItem[] {
+  return deploymentOperatorSpellings(typeSystem, ownerType, expectedType)
+    .map((operator) => operatorItem(`${operator} `));
+}
+
+function deploymentOperatorSpellings(
+  typeSystem: TypeSystem,
+  ownerType: string,
+  expectedType: string,
+): string[] {
   return unique(typeSystem.operatorConstructorsFrom(ownerType)
-    .filter((operator) => typeSystem.isAssignable(operator.ownerType, EDGE))
-    .filter((operator) => typeSystem.isAssignable(operator.targetType, DEPLOYMENT_PROFILE_TYPE)
-      || typeSystem.isAssignable(operator.targetType, INFRASTRUCTURE_COMPONENT_TYPE))
+    .filter((operator) => typeSystem.isAssignable(operator.ownerType, expectedType))
+    .filter((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement))
     .map((operator) => operator.spelling));
 }
 
@@ -543,43 +654,38 @@ function deploymentTargetItems(
   typeSystem: TypeSystem,
   context: CompletionScope,
   ownerType: string,
+  expectedType: string,
   operatorSpelling: string,
 ): CompletionItem[] {
   const targetTypes = typeSystem.operatorConstructorsFrom(ownerType)
     .filter((operator) => operator.spelling === operatorSpelling)
-    .filter((operator) => typeSystem.isAssignable(operator.ownerType, EDGE))
+    .filter((operator) => typeSystem.isAssignable(operator.ownerType, expectedType))
     .map((operator) => operator.targetType);
-  const operatorSpellings = new Set(deploymentOperatorSpellings(typeSystem, ownerType));
+  const operatorSpellings = new Set(deploymentOperatorSpellings(typeSystem, ownerType, expectedType));
   const identifiers = targetTypes.flatMap((targetType) =>
     valueItemsForExpectedType(typeSystem, context, targetType, {
       includeConstructors: false,
     })
   ).filter((item) => !operatorSpellings.has(item.label));
   const slots = targetTypes.flatMap((targetType) =>
-    deploymentSlotItems(typeSystem, ownerType, targetType, operatorSpelling)
+    deploymentSlotItems(typeSystem, targetType)
   );
   return uniqueByInsertText([...identifiers, ...slots]);
 }
 
 function deploymentSlotItems(
   typeSystem: TypeSystem,
-  ownerType: string,
   targetType: string,
-  operatorSpelling: string,
 ): CompletionItem[] {
-  if (!typeSystem.isAssignable(targetType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+  if (!typeSystem.typeHasCapability(targetType, TYPE_CAPABILITIES.infrastructure)) {
     return [];
   }
-  const expectedSlotType = operatorSpelling === USES_OPERATOR && typeSystem.isAssignable(ownerType, "Wire")
-    ? NETWORK_CONNECTION_TYPE
-    : INFRASTRUCTURE_COMPONENT_TYPE;
-  return unique([...typeSystem.declaredTypes()]
-    .filter((type) => typeSystem.isAssignable(type, "Environment"))
+  return unique(typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
     .flatMap((type) => [...typeSystem.attributes(type).values()])
     .filter((attribute) => attribute.name !== "_")
     .filter((attribute) => {
       const valueType = referenceAttributeValueType(attribute);
-      return valueType !== undefined && typeSystem.isAssignable(valueType, expectedSlotType);
+      return valueType !== undefined && typeSystem.isAssignable(valueType, targetType);
     })
     .map((attribute) => attribute.name))
     .map(identifierItem);
@@ -590,13 +696,16 @@ function identifierPositionItems(
   typeSystem: TypeSystem,
   context: CompletionScope,
 ): CompletionItem[] {
+  if (currentSingleReferenceSlotIsFilled(typeSystem, context, line.indentLevel)) {
+    return [];
+  }
   const result: CompletionItem[] = [];
   const implicitObjectType = currentImplicitObjectBodyType(typeSystem, context, line.indentLevel);
   const slotReferenceItems = currentSlotReferenceItems(typeSystem, context, line.indentLevel);
   const implicitObjectTypeSlotOperatorItems = implicitObjectType === undefined
     ? []
     : typeSlotOperatorItems(typeSystem, implicitObjectType);
-  if (slotReferenceItems.length > 0 && (implicitObjectType === undefined || implicitObjectTypeSlotOperatorItems.length === 0)) {
+  if (slotReferenceItems.length > 0 && implicitObjectType === undefined) {
     return slotReferenceItems;
   }
   result.push(...slotReferenceItems);
@@ -799,9 +908,25 @@ function currentImplicitObjectBodyType(
     return undefined;
   }
   const attribute = typeSystem.attribute(list.ownerType, list.attribute);
-  return attribute !== undefined && typeSystem.isObjectAttribute(attribute)
+  return attribute !== undefined
+    && typeSystem.isObjectAttribute(attribute)
+    && !isInfrastructureReferenceAttribute(attribute)
     ? attribute.type
     : undefined;
+}
+
+function currentSingleReferenceSlotIsFilled(
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+  indent: number,
+): boolean {
+  const frameIndent = nearestFrame(context, indent)?.frame.indent ?? -1;
+  return context.lists
+    .filter((list) => list.indent > frameIndent && list.indent < indent && list.hasDirectValue)
+    .some((list) => {
+      const attribute = typeSystem.attribute(list.ownerType, list.attribute);
+      return attribute !== undefined && attribute.list !== true && typeSystem.isObjectAttribute(attribute);
+    });
 }
 
 function currentCompletionOwnerType(
@@ -892,14 +1017,27 @@ function currentSlotReferenceItems(
   if (expectedType === undefined) {
     return [];
   }
+  const list = currentList(context, indent);
+  const attribute = list === undefined ? undefined : typeSystem.attribute(list.ownerType, list.attribute);
   return [
     ...typeSystem.enumValues(expectedType).map(enumValue),
     ...[...context.visibleIdentifiers.values()]
       .filter((identifier) => identifier.type !== undefined && typeSystem.isAssignable(identifier.type, expectedType))
       .map(identifierItem),
-    ...typeSystem.constructorsForExpectedType(expectedType)
-      .map((constructor) => constructorItem(`${constructor.spelling} `)),
+    ...(attribute !== undefined && isInfrastructureReferenceAttribute(attribute)
+      ? []
+      : typeSystem.constructorsForExpectedType(expectedType)
+        .map((constructor) => constructorItem(`${constructor.spelling} `))),
   ];
+}
+
+function isInfrastructureReferenceAttribute(
+  attribute: { readonly capabilities?: readonly string[] },
+): boolean {
+  return attribute.capabilities?.some((capability) =>
+    capability === ATTRIBUTE_CAPABILITIES.placementOwner
+      || capability === ATTRIBUTE_CAPABILITIES.infrastructureUses
+  ) === true;
 }
 
 function currentEdgeList(
@@ -1079,29 +1217,30 @@ function currentTokenType(
   replacementStartOffset: number,
   replacementEndOffset: number,
 ): string | undefined {
-  const lexer = new InsightLexer(CharStream.fromString(source));
-  lexer.removeErrorListeners();
-  while (true) {
-    const token = lexer.nextToken();
-    if (token.type === Token.EOF) {
+  const tokenization = tokenizeInsightSource(source);
+  for (const token of tokenization.tokens) {
+    const type = tokenType(token);
+    const start = tokenStart(token);
+    const stop = tokenStop(token);
+    const name = tokenName(tokenization.tokenName, type);
+    if (type === -1) {
       return undefined;
     }
-    if (token.start < 0 || token.stop < 0 || isTechnicalTokenType(token.type)) {
+    if (start < 0 || stop < 0 || isTechnicalTokenType(name)) {
       continue;
     }
-    const tokenStart = token.start;
-    const tokenEnd = token.stop + 1;
-    if (tokenStart < replacementEndOffset
-      && replacementStartOffset < tokenEnd
-      && tokenStart <= cursorOffset
-      && cursorOffset < tokenEnd) {
-      return InsightLexer.symbolicNames[token.type] ?? String(token.type);
+    const end = stop + 1;
+    if (start < replacementEndOffset
+      && replacementStartOffset < end
+      && start <= cursorOffset
+      && cursorOffset < end) {
+      return name;
     }
   }
+  return undefined;
 }
 
-function isTechnicalTokenType(type: number): boolean {
-  const name = InsightLexer.symbolicNames[type];
+function isTechnicalTokenType(name: string): boolean {
   return name === "EOL"
     || name === "INDENT"
     || name === "DEDENT"

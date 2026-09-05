@@ -1,12 +1,3 @@
-import {
-  BaseErrorListener,
-  CharStream,
-  CommonTokenStream,
-  RecognitionException,
-  Recognizer,
-  type ATNSimulator,
-  type Token,
-} from "antlr4ng";
 import type {
   AttributeDefinition,
   PresentationDefinition,
@@ -16,11 +7,11 @@ import type {
   OperatorDefinition,
   SourceLocation,
 } from "./contracts.js";
-import { InsightLexer } from "./generated/InsightLexer.js";
 import {
   AnonymousListAttributeDeclarationContext,
   AssignmentContext,
   AttributeDeclarationContext,
+  CapabilityAssignmentContext,
   DefineEnumDeclarationContext,
   DefineOperatorDeclarationContext,
   DefinePresentationDeclarationContext,
@@ -28,7 +19,6 @@ import {
   ExtendEnumDeclarationContext,
   ExtendPresentationDeclarationContext,
   ExtendTypeDeclarationContext,
-  InsightParser,
   OperatorConstructorDeclarationContext,
   PresentationAssignmentContext,
   PresentationSectionContext,
@@ -37,13 +27,23 @@ import {
   TypeReferenceContext,
   TypeUnionContext,
 } from "./generated/InsightParser.js";
+import {
+  firstChildByRule as firstChild,
+  parseInsightSource,
+  sourceLocationOf,
+  textOf,
+  type AntlrParseTreeLike,
+} from "./parser-facade.js";
+import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 import { coreSource, coreSources } from "./generated/core-source.js";
 
 interface MutableTypeDefinition {
   name: string;
   baseType?: string;
+  abstract?: boolean;
   attributes: AttributeDefinition[];
   declaration?: SourceLocation;
+  capabilities: string[];
 }
 
 const BUILTIN_TYPES = ["Element", "Edge", "Nothing", "List", "Text", "TypeSlotReference"] as const;
@@ -165,6 +165,7 @@ export function buildLanguageSnapshotResultFromSources(
       ...validateEnumExtensions(enumDeclarations, collected.flatMap((source) => source.enumExtensions)),
       ...validatePresentationExtensions(presentationDeclarations, presentationExtensions),
       ...validateConstructorCollisions(snapshots),
+      ...validateOperatorOverloadAmbiguities(snapshot),
       ...relocateSnapshotDiagnostics(validateLanguageSnapshot(snapshot), sourceReferences),
     ],
   };
@@ -313,9 +314,19 @@ function mergeTypeDefinition(
   return {
     name: existing.name,
     ...(next.baseType !== undefined ? { baseType: next.baseType } : existing.baseType === undefined ? {} : { baseType: existing.baseType }),
+    ...((next.abstract ?? existing.abstract) === true ? { abstract: true } : {}),
     ...(attributes.length === 0 ? {} : { attributes }),
+    ...mergeCapabilities(existing.capabilities, next.capabilities),
     ...(next.declaration !== undefined ? { declaration: next.declaration } : existing.declaration === undefined ? {} : { declaration: existing.declaration }),
   };
+}
+
+function mergeCapabilities(
+  existing: readonly string[] | undefined,
+  next: readonly string[] | undefined,
+): Pick<LanguageSnapshot["types"][number], "capabilities"> {
+  const capabilities = [...new Set([...(existing ?? []), ...(next ?? [])])];
+  return capabilities.length === 0 ? {} : { capabilities };
 }
 
 function mergeAttributes(
@@ -343,16 +354,8 @@ function collectLanguageSnapshotSource(
   const enumDeclarations: DeclarationReference[] = [];
   const enumExtensions: DeclarationReference[] = [];
   const presentationExtensions: DeclarationReference[] = [];
-  const lexer = new InsightLexer(CharStream.fromString(source));
-  lexer.removeErrorListeners();
-  lexer.addErrorListener(new SnapshotErrorListener(sourceName, diagnostics));
-
-  const tokenStream = new CommonTokenStream(lexer);
-  const parser = new InsightParser(tokenStream);
-  parser.removeErrorListeners();
-  parser.addErrorListener(new SnapshotErrorListener(sourceName, diagnostics));
-
-  const tree = parser.insight();
+  const parsed = parseInsightSource({ sourceName, source });
+  diagnostics.push(...parsed.diagnostics);
 
   const types = new Map<string, MutableTypeDefinition>();
   if (includeBuiltinTypes) {
@@ -363,19 +366,24 @@ function collectLanguageSnapshotSource(
   const enums: Array<LanguageSnapshot["enums"][number]> = [];
   const presentations: PresentationDefinition[] = [];
   const presentationExtensionDefinitions: PresentationDefinition[] = [];
-  const typeReferences = descendants(tree, "typeReference")
+  const typeReferences = parsed.syntax.descendants("typeReference")
     .map((reference) => typeReferenceDeclaration(reference as TypeReferenceContext, sourceName));
   const presentationDeclarations: DeclarationReference[] = [];
 
-  for (const declaration of descendants(tree, "declaration")) {
+  for (const declaration of parsed.syntax.descendants("declaration")) {
     const typeDeclaration = firstChild<DefineTypeDeclarationContext>(declaration, "defineTypeDeclaration");
     if (typeDeclaration !== undefined) {
-      const type = ensureType(types, text(typeDeclaration.typeIdentifier()));
+      const identifier = typeDeclaration.typeIdentifier();
+      if (identifier === null) {
+        continue;
+      }
+      const type = ensureType(types, text(identifier));
+      type.abstract = typeDeclaration.ABSTRACT() !== null;
       typeDeclarations.push({
         name: type.name,
-        ...position(typeDeclaration.typeIdentifier(), sourceName),
+        ...position(identifier, sourceName),
       });
-      type.declaration ??= position(typeDeclaration.typeIdentifier(), sourceName);
+      type.declaration ??= position(identifier, sourceName);
       const base = typeDeclaration.typeReference();
       if (base !== null) {
         type.baseType = typeReference(base).type;
@@ -394,6 +402,10 @@ function collectLanguageSnapshotSource(
         if (attribute !== null) {
           type.attributes.push(attributeDefinition(attribute));
         }
+        const capability = item.capabilityAssignment();
+        if (capability !== null) {
+          type.capabilities.push(capabilityValue(capability));
+        }
       }
       const anonymous = typeDeclaration.anonymousListAttributeDeclaration();
       if (anonymous !== null) {
@@ -408,10 +420,11 @@ function collectLanguageSnapshotSource(
       type.declaration ??= position(operatorDeclaration.typeIdentifier(), sourceName);
       type.baseType = typeReference(operatorDeclaration.typeReference()).type;
       const implementation = operatorImplementation(operatorDeclaration);
+      const capabilities = operatorCapabilities(operatorDeclaration);
       for (const item of operatorDeclaration.operatorBodyItem()) {
         const constructor = item.operatorConstructorDeclaration();
         if (constructor !== null) {
-          operators.push(...operatorDefinitions(constructor, type.name, implementation, sourceName));
+          operators.push(...operatorDefinitions(constructor, type.name, implementation, capabilities, sourceName));
         }
         const attribute = item.attributeDeclaration();
         if (attribute !== null) {
@@ -507,7 +520,9 @@ function collectLanguageSnapshotSource(
       types: [...types.values()].map((type) => ({
         name: type.name,
         ...(type.baseType === undefined ? {} : { baseType: type.baseType }),
+        ...(type.abstract === true ? { abstract: true } : {}),
         ...(type.attributes.length === 0 ? {} : { attributes: type.attributes }),
+        ...(type.capabilities.length === 0 ? {} : { capabilities: type.capabilities }),
         ...(type.declaration === undefined ? {} : { declaration: type.declaration }),
       })),
       constructors,
@@ -586,16 +601,18 @@ function ensureType(types: Map<string, MutableTypeDefinition>, name: string): Mu
   if (existing !== undefined) {
     return existing;
   }
-  const created: MutableTypeDefinition = { name, attributes: [] };
+  const created: MutableTypeDefinition = { name, attributes: [], capabilities: [] };
   types.set(name, created);
   return created;
 }
 
 function attributeDefinition(attribute: AttributeDeclarationContext): AttributeDefinition {
+  const capabilities = attribute.capabilityAssignment().map(capabilityValue);
   return {
     ...attributeType(attribute.typeReference()),
     name: text(attribute.identifier()),
     ...(attribute.REQUIRED() === null ? {} : { required: true }),
+    ...(capabilities.length === 0 ? {} : { capabilities }),
   };
 }
 
@@ -635,6 +652,7 @@ function operatorDefinitions(
   constructor: OperatorConstructorDeclarationContext,
   ownerType: string,
   implementation: string | undefined,
+  capabilities: readonly string[],
   sourceName: string,
 ): readonly OperatorDefinition[] {
   const unions = constructor.typeUnion();
@@ -651,6 +669,7 @@ function operatorDefinitions(
         ...(leftType === undefined ? {} : { leftType }),
         targetType,
         ...(implementation === undefined ? {} : { implementation }),
+        ...(capabilities.length === 0 ? {} : { capabilities }),
         source,
         ...defaultsProperty(defaults),
       });
@@ -659,9 +678,20 @@ function operatorDefinitions(
   return result;
 }
 
+function operatorCapabilities(operator: DefineOperatorDeclarationContext): readonly string[] {
+  return operator.operatorBodyItem().flatMap((item) => {
+    const capability = item.capabilityAssignment();
+    return capability === null ? [] : [capabilityValue(capability)];
+  });
+}
+
+function capabilityValue(capability: CapabilityAssignmentContext): string {
+  return implementationValue(capability.textValue());
+}
+
 function operatorImplementation(operator: DefineOperatorDeclarationContext): string | undefined {
   for (const item of operator.operatorBodyItem()) {
-    const implementation = firstChild<unknown>(item, "implementationAssignment");
+    const implementation = firstChild<AntlrParseTreeLike>(item, "implementationAssignment");
     if (implementation !== undefined) {
       const value = firstChild<TextValueContext>(implementation, "textValue");
       return value === undefined ? "" : implementationValue(value);
@@ -769,6 +799,7 @@ function validateRequiredConstructors(snapshot: LanguageSnapshot, diagnostics: L
   ]);
   for (const type of snapshot.types) {
     if (isBuiltinType(type.name)
+      || type.abstract === true
       || isAbstractBaseType(snapshot, type.name)
       || !requiresConstructor(snapshot, type.name)
       || constructedTypes.has(type.name)) {
@@ -781,18 +812,19 @@ function validateRequiredConstructors(snapshot: LanguageSnapshot, diagnostics: L
   }
 }
 
-const CONSTRUCTORLESS_EXTENSION_POINT_TYPES = new Set(["CodeElement"]);
-
 function requiresConstructor(snapshot: LanguageSnapshot, type: string): boolean {
-  if (CONSTRUCTORLESS_EXTENSION_POINT_TYPES.has(type)) {
-    return false;
-  }
-  if (type !== "Environment" && isAssignable(snapshot, type, "Environment")) {
+  if (snapshotTypeHasCapability(snapshot, type, TYPE_CAPABILITIES.documentAggregateRoot)) {
     return false;
   }
   return type === "Context"
     || (type !== "Element" && isAssignable(snapshot, type, "Element"))
     || (type !== "Edge" && isAssignable(snapshot, type, "Edge"));
+}
+
+function snapshotTypeHasCapability(snapshot: LanguageSnapshot, type: string, capability: string): boolean {
+  return inheritanceChain(snapshot, type).some((candidate) =>
+    snapshot.types.find((definition) => definition.name === candidate)?.capabilities?.includes(capability) === true
+  );
 }
 
 function isAbstractBaseType(snapshot: LanguageSnapshot, type: string): boolean {
@@ -858,6 +890,65 @@ function validateOperatorConstructorCollisions(
     }
   }
   return diagnostics;
+}
+
+function validateOperatorOverloadAmbiguities(snapshot: LanguageSnapshot): readonly LanguageDiagnostic[] {
+  const diagnostics: LanguageDiagnostic[] = [];
+  const bySpelling = groupByItems(snapshot.operators, (operator) => operator.spelling);
+  for (const [spelling, unsorted] of bySpelling) {
+    const operators = [...unsorted].sort((left, right) => operatorSignature(left).localeCompare(operatorSignature(right)));
+    for (let leftIndex = 0; leftIndex < operators.length; leftIndex++) {
+      for (let rightIndex = leftIndex + 1; rightIndex < operators.length; rightIndex++) {
+        const left = operators[leftIndex]!;
+        const right = operators[rightIndex]!;
+        if (sameOperatorDomain(left, right)
+          || !operatorDomainsOverlap(snapshot, left, right)
+          || operatorMoreSpecific(snapshot, left, right)
+          || operatorMoreSpecific(snapshot, right, left)) {
+          continue;
+        }
+        diagnostics.push({
+          code: "OPERATOR_OVERLOAD_AMBIGUOUS",
+          message: `Operator '${spelling}' has incomparable overloads '${operatorSignature(left)}' and '${operatorSignature(right)}'`,
+          ...snapshotDiagnosticLocation(right.source),
+        });
+      }
+    }
+  }
+  return diagnostics;
+}
+
+function operatorDomainsOverlap(
+  snapshot: LanguageSnapshot,
+  left: OperatorDefinition,
+  right: OperatorDefinition,
+): boolean {
+  const leftOperandsOverlap = left.leftType === undefined
+    || right.leftType === undefined
+    || isAssignable(snapshot, left.leftType, right.leftType)
+    || isAssignable(snapshot, right.leftType, left.leftType);
+  const targetsOverlap = isAssignable(snapshot, left.targetType, right.targetType)
+    || isAssignable(snapshot, right.targetType, left.targetType);
+  return leftOperandsOverlap && targetsOverlap;
+}
+
+function operatorMoreSpecific(
+  snapshot: LanguageSnapshot,
+  candidate: OperatorDefinition,
+  other: OperatorDefinition,
+): boolean {
+  const leftAtLeastAsSpecific = other.leftType === undefined
+    || (candidate.leftType !== undefined && isAssignable(snapshot, candidate.leftType, other.leftType));
+  const targetAtLeastAsSpecific = isAssignable(snapshot, candidate.targetType, other.targetType);
+  return leftAtLeastAsSpecific && targetAtLeastAsSpecific && !sameOperatorDomain(candidate, other);
+}
+
+function sameOperatorDomain(left: OperatorDefinition, right: OperatorDefinition): boolean {
+  return left.leftType === right.leftType && left.targetType === right.targetType;
+}
+
+function operatorSignature(operator: OperatorDefinition): string {
+  return `${operator.leftType ?? "*"} ${operator.spelling} ${operator.targetType} -> ${operator.ownerType}`;
 }
 
 function builtinTypeDeclarations(baseDeclarations: readonly DeclarationReference[]): readonly DeclarationReference[] {
@@ -1045,71 +1136,12 @@ function typeUnion(union: TypeUnionContext): readonly string[] {
   return union.typeReference().map((reference) => typeReference(reference).type);
 }
 
-function descendants(root: unknown, ruleName: string): unknown[] {
-  const result: unknown[] = [];
-  collectDescendants(root, ruleName, result);
-  return result;
-}
-
-function collectDescendants(root: unknown, ruleName: string, result: unknown[]): void {
-  if (rule(root) === ruleName) {
-    result.push(root);
-  }
-  for (let index = 0; index < childCount(root); index++) {
-    collectDescendants(child(root, index), ruleName, result);
-  }
-}
-
-function firstChild<T>(root: unknown, ruleName: string): T | undefined {
-  for (let index = 0; index < childCount(root); index++) {
-    const item = child(root, index);
-    if (rule(item) === ruleName) {
-      return item as T;
-    }
-  }
-  return undefined;
-}
-
-function rule(node: unknown): string | undefined {
-  if (typeof node !== "object" || node === null || !("ruleIndex" in node)) {
-    return undefined;
-  }
-  const index = (node as { readonly ruleIndex: number }).ruleIndex;
-  return InsightParser.ruleNames[index];
-}
-
-function childCount(node: unknown): number {
-  if (typeof node !== "object" || node === null || !("getChildCount" in node)) {
-    return 0;
-  }
-  return (node as { getChildCount(): number }).getChildCount();
-}
-
-function child(node: unknown, index: number): unknown {
-  return (node as { getChild(index: number): unknown }).getChild(index);
-}
-
-function text(node: { getText(): string } | null): string {
-  return node?.getText() ?? "";
+function text(node: AntlrParseTreeLike | null): string {
+  return node === null ? "" : textOf(node);
 }
 
 function position(node: unknown, sourceName: string): Omit<DeclarationReference, "name"> {
-  if (typeof node === "object" && node !== null && "start" in node) {
-    const item = node as {
-      readonly start?: TokenLike | null;
-      readonly stop?: TokenLike | null;
-    };
-    const token = item.start;
-    const stop = item.stop ?? item.start;
-    return {
-      sourceName,
-      line: token?.line ?? 1,
-      column: (token?.column ?? 0) + 1,
-      endLine: stop?.line ?? token?.line ?? 1,
-      endColumn: endColumn(stop ?? token),
-    };
-  }
-  return { sourceName, line: 1, column: 1 };
+  return sourceLocationOf(node as AntlrParseTreeLike | undefined, sourceName);
 }
 
 function diagnosticPosition(
@@ -1124,54 +1156,8 @@ function diagnosticPosition(
   };
 }
 
-interface TokenLike {
-  readonly line?: number;
-  readonly column?: number;
-  readonly text?: string | null;
-  readonly start?: number;
-  readonly stop?: number;
-}
-
-function endColumn(token: TokenLike | null | undefined): number {
-  if (token === undefined || token === null) {
-    return 2;
-  }
-  const textLength = token.text?.length
-    ?? (token.start !== undefined && token.stop !== undefined ? Math.max(1, token.stop - token.start + 1) : 1);
-  return (token.column ?? 0) + textLength + 1;
-}
-
 function formatDiagnostic(diagnostic: LanguageDiagnostic): string {
   return `${diagnostic.sourceName}:${diagnostic.line}:${diagnostic.column} ${diagnostic.code}: ${diagnostic.message}`;
-}
-
-class SnapshotErrorListener extends BaseErrorListener {
-  public constructor(
-    private readonly sourceName: string,
-    private readonly diagnostics: LanguageDiagnostic[],
-  ) {
-    super();
-  }
-
-  public override syntaxError<S extends Token, T extends ATNSimulator>(
-    _recognizer: Recognizer<T>,
-    offendingSymbol: S | null,
-    line: number,
-    column: number,
-    message: string,
-    _exception: RecognitionException | null,
-  ): void {
-    const end = endColumn(offendingSymbol);
-    this.diagnostics.push({
-      code: "SYNTAX_ERROR",
-      message,
-      sourceName: this.sourceName,
-      line,
-      column: column + 1,
-      endLine: offendingSymbol?.line ?? line,
-      endColumn: Math.max(column + 2, end),
-    });
-  }
 }
 
 export const coreLanguageSnapshot: LanguageSnapshot = buildLanguageSnapshotFromCoreSources(coreSources);

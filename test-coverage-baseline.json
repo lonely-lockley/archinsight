@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "test-coverage.v1",
+  "measuredAt": "2026-08-31",
+  "sourceRevision": "b34b1eb",
+  "policy": "No covered-to-total ratio may decrease for any enforced package metric.",
+  "packages": {
+    "language": {
+      "scope": "Compiled language runtime, excluding generated parser code and type-only contracts.",
+      "lines": { "covered": 12523, "total": 13566 },
+      "branches": { "covered": 3978, "total": 4635 },
+      "functions": { "covered": 726, "total": 756 },
+      "statements": { "covered": 12523, "total": 13566 }
+    },
+    "cli": {
+      "scope": "CLI sources mapped from the production bundle, excluding generated version metadata.",
+      "lines": { "covered": 6385, "total": 6703 },
+      "branches": { "covered": 266, "total": 345 },
+      "functions": { "covered": 96, "total": 110 },
+      "statements": { "covered": 6385, "total": 6703 }
+    },
+    "web": {
+      "scope": "Web application plus shared workbench TypeScript and Svelte sources, excluding tests, declarations, generated code, static themes, and declarative workspace DI wiring.",
+      "measurementNote": "The workspace runtime composition root is covered by smoke and lifecycle tests but excluded from ratios because its one adapter closure per controller port would make function coverage measure wiring volume rather than behavior.",
+      "lines": { "covered": 5333, "total": 9786 },
+      "branches": { "covered": 1506, "total": 1910 },
+      "functions": { "covered": 542, "total": 627 },
+      "statements": { "covered": 5333, "total": 9786 }
+    },
+    "editorSupport": {
+      "status": "100% threshold",
+      "scope": "Dependency-free completion metadata, semantic-token bit calculation, diagnostic identity, and recursive tree filtering.",
+      "reason": "The Node test runner enforces 100% line, branch, and function coverage directly; it does not emit Istanbul statement counters."
+    },
+    "graphviz": {
+      "status": "100% threshold",
+      "scope": "Dependency-free Graphviz result normalization shared by CLI, web, VS Code, and the isolated renderer.",
+      "reason": "The Node test runner enforces 100% line, branch, and function coverage directly; it does not emit Istanbul statement counters."
+    },
+    "renderer": {
+      "scope": "Renderer service modules, including the HTTP entry point.",
+      "lines": { "covered": 569, "total": 633 },
+      "branches": { "covered": 186, "total": 216 },
+      "functions": { "covered": 45, "total": 47 },
+      "statements": { "covered": 569, "total": 633 }
+    },
+    "vscode": {
+      "status": "100% threshold",
+      "scope": "Extracted diagram-session state machine, artifact/PNG lifecycle, SVG post-processing, and standalone preview document, plus manifest and architecture contracts.",
+      "reason": "The Node test runner enforces 100% line, branch, and function coverage for the extracted runtime modules. VSCode API adapters remain covered by build, type, manifest, and boundary checks until an extension-host harness is introduced."
+    }
+  }
+}

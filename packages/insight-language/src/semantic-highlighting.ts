@@ -1,10 +1,23 @@
-import type {
-  AntlrParseTreeLike,
-  AntlrTokenLike,
-  TokenNameResolver,
-} from "./antlr-adapter.js";
+import {
+  childrenOf,
+  firstChildByRule,
+  firstDescendantByRule,
+  firstTokenByName,
+  parseInsightSource,
+  ruleName,
+  terminalSymbol,
+  textOf,
+  tokenColumn,
+  tokenLine,
+  tokenName,
+  tokenStart,
+  tokenStop,
+  tokenType,
+  type AntlrParseTreeLike,
+  type AntlrTokenLike,
+  type TokenNameResolver,
+} from "./parser-facade.js";
 import type { LanguageSnapshot } from "./contracts.js";
-import { parseWithGeneratedInsightParser } from "./generated-provider.js";
 import { TypeSystem } from "./type-system.js";
 
 export const insightSemanticTokenTypes = [
@@ -49,6 +62,7 @@ const emptySnapshot: LanguageSnapshot = {
 
 const keywordTokens = new Set([
   "DEFINE",
+  "ABSTRACT",
   "EXTEND",
   "PRESENTATION",
   "TYPE",
@@ -83,16 +97,14 @@ export function semanticHighlightInsight(
   source: string,
   snapshot: LanguageSnapshot = emptySnapshot,
 ): readonly InsightSemanticToken[] {
-  const input = parseWithGeneratedInsightParser({
+  const input = parseInsightSource({
     sourceName: "semantic.ai",
     source,
-    cursorOffset: source.length,
-    snapshot,
   });
   const typeSystem = new TypeSystem(snapshot);
   const classifications = new Map<number, TokenClassification>();
-  if (input.tree !== undefined) {
-    classifyTree(input.tree, input.ruleNames, input.tokenName, typeSystem, classifications);
+  if (input.syntax.root !== undefined) {
+    classifyTree(input.syntax.root, input.syntax.ruleNames, input.syntax.tokenName, typeSystem, classifications);
   }
   const result: InsightSemanticToken[] = [];
   for (let index = 0; index < input.tokens.length; index++) {
@@ -130,6 +142,9 @@ function classifyTree(
   classifications: Map<number, TokenClassification>,
 ): void {
   switch (ruleName(tree, ruleNames)) {
+    case "defineTypeDeclaration":
+      markFirstChildRule(tree, "typeIdentifier", ruleNames, classifications, "type", ["declaration"]);
+      break;
     case "contextDeclaration":
       markFirstChildRule(tree, "contextDeclarationName", ruleNames, classifications, "variable", ["declaration"]);
       break;
@@ -358,125 +373,6 @@ function nextVisibleToken(
   return undefined;
 }
 
-function firstChildByRule(
-  tree: AntlrParseTreeLike,
-  targetRule: string,
-  ruleNames: readonly string[],
-): AntlrParseTreeLike | undefined {
-  return childrenOf(tree).find((child) => ruleName(child, ruleNames) === targetRule);
-}
-
-function firstDescendantByRule(
-  tree: AntlrParseTreeLike,
-  targetRule: string,
-  ruleNames: readonly string[],
-): AntlrParseTreeLike | undefined {
-  if (ruleName(tree, ruleNames) === targetRule) {
-    return tree;
-  }
-  for (const child of childrenOf(tree)) {
-    const result = firstDescendantByRule(child, targetRule, ruleNames);
-    if (result !== undefined) {
-      return result;
-    }
-  }
-  return undefined;
-}
-
-function firstTokenByName(
-  tree: AntlrParseTreeLike,
-  targetToken: string,
-  tokenNameResolver: TokenNameResolver,
-): AntlrTokenLike | undefined {
-  const symbol = terminalSymbol(tree);
-  if (symbol !== undefined) {
-    return tokenName(tokenNameResolver, tokenType(symbol)) === targetToken ? symbol : undefined;
-  }
-  for (const child of childrenOf(tree)) {
-    const result = firstTokenByName(child, targetToken, tokenNameResolver);
-    if (result !== undefined) {
-      return result;
-    }
-  }
-  return undefined;
-}
-
-function childrenOf(tree: AntlrParseTreeLike): AntlrParseTreeLike[] {
-  if (tree.children !== undefined) {
-    return tree.children.filter((child): child is AntlrParseTreeLike => child !== null);
-  }
-  const count = typeof tree.getChildCount === "function"
-    ? tree.getChildCount()
-    : tree.childCount ?? 0;
-  const result: AntlrParseTreeLike[] = [];
-  for (let index = 0; index < count; index++) {
-    const child = tree.getChild?.(index);
-    if (child !== undefined && child !== null) {
-      result.push(child);
-    }
-  }
-  return result;
-}
-
-function ruleName(tree: AntlrParseTreeLike, ruleNames: readonly string[]): string {
-  const index = typeof tree.getRuleIndex === "function" ? tree.getRuleIndex() : tree.ruleIndex;
-  if (index !== undefined && index >= 0 && index < ruleNames.length) {
-    return ruleNames[index] ?? "";
-  }
-  const constructorName = tree.constructor.name;
-  return constructorName.endsWith("Context")
-    ? lowerFirst(constructorName.slice(0, -"Context".length))
-    : constructorName;
-}
-
-function terminalSymbol(tree: AntlrParseTreeLike): AntlrTokenLike | undefined {
-  return (typeof tree.getSymbol === "function" ? tree.getSymbol() : tree.symbol) ?? undefined;
-}
-
-function textOf(tree: AntlrParseTreeLike): string {
-  if (typeof tree.getText === "function") {
-    return tree.getText();
-  }
-  const symbol = terminalSymbol(tree);
-  if (symbol !== undefined) {
-    return symbol.getText?.() ?? symbol.text ?? "";
-  }
-  return childrenOf(tree).map(textOf).join("");
-}
-
-function tokenType(token: AntlrTokenLike): number {
-  return token.getType?.() ?? token.type ?? token.tokenType ?? -1;
-}
-
-function tokenStart(token: AntlrTokenLike): number {
-  return token.getStartIndex?.() ?? token.startIndex ?? token.start ?? -1;
-}
-
-function tokenStop(token: AntlrTokenLike): number {
-  return token.getStopIndex?.() ?? token.stopIndex ?? token.stop ?? tokenStart(token);
-}
-
-function tokenLine(token: AntlrTokenLike | undefined): number {
-  return token?.getLine?.() ?? token?.line ?? 1;
-}
-
-function tokenColumn(token: AntlrTokenLike | undefined): number {
-  return token?.getCharPositionInLine?.() ?? token?.charPositionInLine ?? token?.column ?? 0;
-}
-
-function tokenName(resolver: TokenNameResolver, type: number): string {
-  if (type === -1) {
-    return "EOF";
-  }
-  if (typeof resolver === "function") {
-    return resolver(type);
-  }
-  if (typeof (resolver as ReadonlyMap<number, string>).get === "function") {
-    return (resolver as ReadonlyMap<number, string>).get(type) ?? String(type);
-  }
-  return (resolver as readonly string[])[type] ?? String(type);
-}
-
 function isTechnicalTokenName(token: string): boolean {
   return token === "EOF"
     || token === "EOL"
@@ -486,8 +382,4 @@ function isTechnicalTokenName(token: string): boolean {
     || token === "UNWRAP"
     || token === "WHITESPACE"
     || token === "VALUE_EOL";
-}
-
-function lowerFirst(value: string): string {
-  return value.length === 0 ? value : `${value[0]?.toLowerCase() ?? ""}${value.slice(1)}`;
 }

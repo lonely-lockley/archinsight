@@ -1,4 +1,5 @@
 import { instance, type Viz } from '@viz-js/viz';
+import { normalizeGraphvizSvgResult } from '@archinsight/graphviz';
 import type { DotRender, SvgRender } from './api';
 
 type RenderRequest = {
@@ -30,17 +31,15 @@ async function render(request: RenderRequest): Promise<void> {
     const svgs: SvgRender[] = [];
     const warnings: string[] = [];
     for (const item of request.renders) {
-      const result = viz.render(item.dot, { format: 'svg', engine: 'dot' });
+      const result = normalizeGraphvizSvgResult(viz.render(item.dot, { format: 'svg', engine: 'dot' }));
       if (result.status === 'failure') {
-        throw new Error(formatMessages(result.errors.map((error) => error.message)));
+        throw new Error(result.error);
       }
-      for (const warning of result.errors) {
-        warnings.push(warning.message);
-      }
+      warnings.push(...result.warnings);
       svgs.push({
         sourceIdentity: item.sourceIdentity,
         diagram: item.diagram,
-        svg: result.output
+        svg: result.svg
       });
     }
     post({ requestId: request.requestId, svgs, warnings });
@@ -50,10 +49,6 @@ async function render(request: RenderRequest): Promise<void> {
       error: error instanceof Error ? error.message : String(error)
     });
   }
-}
-
-function formatMessages(messages: string[]): string {
-  return messages.filter(Boolean).join('\n') || 'Graphviz render failed';
 }
 
 function post(response: RenderResponse): void {

@@ -3,77 +3,58 @@ import * as fs from "node:fs";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import {
+  completionDetail,
+  completionSortText,
+  diagnosticIdentity,
+  filterTreeByQuery,
+  semanticTokenModifierBits,
+} from "@archinsight/editor-support";
+import {
+  buildProjectStructure,
+  buildTypeHierarchy,
   coreLanguageSnapshot,
   coreSource,
   coreSources,
-  discoverDeploymentEnvironments,
+  filterTypeHierarchy,
   insightSemanticTokenModifiers,
   insightSemanticTokenTypes,
   InsightLanguageService,
-  renderGraphviz,
   semanticHighlightInsight,
-  selectGraph,
   type CompletionKind,
+  type ContextualIdentifier,
   type LanguageDiagnostic,
   type LanguageSnapshot,
   type LinkedElement,
-  type LinkedImport,
   type LinkProjectResult,
+  type ProjectStructureDeclaration,
+  type ProjectAnalysisSession,
   type ProjectSource,
-  type TypeDefinition,
+  type TypeHierarchyNode,
   type VisibleIdentifier,
 } from "@insight/language";
-import { BUILTIN_VIEW_QUERIES, type BuiltinDiagramView } from "./generated/builtin-view-queries.js";
+import {
+  parseControlsWebviewToHostMessage,
+  parsePreviewWebviewToHostMessage,
+  parseWorkbenchWebviewToHostMessage,
+  type WorkbenchHostToWebviewMessage,
+} from "@archinsight/contracts";
+import {
+  fileNameWithExtension,
+  type DiagramArtifactKind,
+  type DiagramSession,
+  type DiagramQueryState as SessionDiagramQueryState,
+} from "./diagram-session.js";
+import {
+  type DiagramRenderInput,
+  type DiagramView,
+  type PreviewState,
+} from "./diagram-rendering.js";
+import { createDiagramSession, saveBytes, viewQueries } from "./vscode-diagram-service.js";
+import { previewHtml } from "./preview-webview.js";
 
-type DiagramView = BuiltinDiagramView;
 type AgentSkillTarget = "generic" | "codex" | "claude";
 
-interface PreviewState {
-  readonly view: DiagramView;
-  readonly query: string;
-  readonly environment?: string;
-  readonly contextId: string;
-  readonly sourceName: string;
-  readonly fileName: string;
-  readonly source: string;
-  readonly svg?: string;
-  readonly dot?: string;
-  readonly error?: string;
-}
-
-interface DiagramQueryState {
-  readonly view: DiagramView;
-  readonly query: string;
-  readonly environment?: string;
-}
-
-type PreviewMessage =
-  | { readonly command: "ready" }
-  | { readonly command: "png"; readonly dataUrl: string };
-
-type ControlsMessage =
-  | { readonly command: "ready" }
-  | { readonly command: "render"; readonly view: DiagramView; readonly query: string }
-  | { readonly command: "clipboardRead"; readonly requestId: number }
-  | { readonly command: "clipboardWrite"; readonly text: string };
-
-type WorkbenchEditorMessage =
-  | { readonly command: "ready" }
-  | { readonly command: "sourceChanged"; readonly source: string }
-  | { readonly command: "render"; readonly view: DiagramView; readonly query: string }
-  | { readonly command: "selectDeploymentEnvironment" }
-  | { readonly command: "refresh" }
-  | { readonly command: "download"; readonly kind: "source" | "svg" | "png" | "dot" }
-  | { readonly command: "editQuery"; readonly view: DiagramView; readonly query: string }
-  | { readonly command: "png"; readonly dataUrl: string }
-  | { readonly command: "complete"; readonly requestId: number; readonly sourceName: string; readonly source: string; readonly cursorOffset: number }
-  | { readonly command: "clipboardRead"; readonly requestId: number }
-  | { readonly command: "clipboardWrite"; readonly text: string }
-  | { readonly command: "openDeclaration"; readonly declaration: { readonly source: string; readonly line: number; readonly column: number } };
-
-type WorkbenchEditorIncomingMessage =
-  | { readonly command: "reveal"; readonly line: number; readonly column: number }
-  | { readonly command: "clipboardText"; readonly requestId: number; readonly text: string };
+type DiagramQueryState = SessionDiagramQueryState<DiagramView>;
 
 interface LinkedProject {
   readonly root: vscode.Uri;
@@ -123,6 +104,16 @@ const semanticLegend = new vscode.SemanticTokensLegend([...semanticTokenTypes], 
 
 const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 const output = vscode.window.createOutputChannel("Archinsight");
+
+function validatedWebviewMessage<T>(parser: (value: unknown) => T, value: unknown, channel: string): T | undefined {
+  try {
+    return parser(value);
+  } catch (error) {
+    output.appendLine(`Ignored invalid ${channel} webview message: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
+}
+
 let activePreview: PreviewSession | undefined;
 let activeWorkbenchEditor: ArchinsightWorkbenchEditorSession | undefined;
 const archinsightEditorViewType = "archinsight.editor";
@@ -131,9 +122,6 @@ const coreSourceScheme = "archinsight-core";
 const coreSourceName = coreSources.some((source) => source.sourceName === "core.ai") ? "core.ai" : coreSources[0]?.sourceName ?? "core.ai";
 const coreSourceByName = new Map(coreSources.map((source) => [source.sourceName, source.source]));
 const coreSourceUri = vscode.Uri.from({ scheme: coreSourceScheme, path: `/${coreSourceName}` });
-
-const languageTypeNames = new Set(coreLanguageSnapshot.types.map((type) => type.name));
-const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("archinsight");
@@ -442,6 +430,8 @@ function isArchinsightEditorTab(tab: vscode.Tab): boolean {
 class ProjectModel {
   private readonly listeners = new Set<() => void>();
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private analysisSession: ProjectAnalysisSession | undefined;
+  private analysisRoot: string | undefined;
   current: LinkedProject | undefined;
 
   constructor(private readonly diagnostics: vscode.DiagnosticCollection) {
@@ -464,6 +454,8 @@ class ProjectModel {
   async refresh(reason: string): Promise<void> {
     const root = workspaceRoot();
     if (root === undefined) {
+      this.analysisSession = undefined;
+      this.analysisRoot = undefined;
       this.current = undefined;
       this.diagnostics.clear();
       this.fire();
@@ -471,23 +463,31 @@ class ProjectModel {
     }
     try {
       const sources = await readWorkspaceSources(root);
-      const snapshot = service.buildSnapshot(
-        sources.map((source) => ({ sourceName: source.sourceName, source: source.source })),
-        [coreLanguageSnapshot],
-      );
-      const result = service.link({ sources, snapshot: snapshot.snapshot });
+      const rootKey = root.toString();
+      let analysis;
+      let analysisMode;
+      if (this.analysisSession === undefined || this.analysisRoot !== rootKey) {
+        this.analysisSession = service.createProjectAnalysisSession(sources);
+        this.analysisRoot = rootKey;
+        analysis = this.analysisSession.analysis();
+        analysisMode = "full";
+      } else {
+        const update = this.analysisSession.update(sources);
+        analysis = update;
+        analysisMode = update.mode;
+      }
       const project: LinkedProject = {
         root,
         sources,
         sourceUris: sourceUris(root, sources),
-        snapshot: snapshot.snapshot,
-        result,
-        diagnostics: uniqueDiagnostics([...result.diagnostics, ...snapshot.diagnostics]),
-        tokenVocabulary: tokenVocabulary(snapshot.snapshot, sources),
+        snapshot: analysis.snapshotBuild.snapshot,
+        result: analysis.result,
+        diagnostics: analysis.diagnostics,
+        tokenVocabulary: tokenVocabulary(analysis.snapshotBuild.snapshot, sources),
       };
       this.current = project;
       this.updateDiagnostics(project);
-      output.appendLine(`Linker finished (${reason}): ${summary(project.diagnostics)}`);
+      output.appendLine(`Linker finished (${reason}, ${analysisMode}): ${summary(project.diagnostics)}`);
       this.fire();
     } catch (error) {
       output.appendLine(`Linker failed (${reason}): ${error instanceof Error ? error.message : String(error)}`);
@@ -497,7 +497,13 @@ class ProjectModel {
 
   private updateDiagnostics(project: LinkedProject): void {
     const grouped = new Map<string, vscode.Diagnostic[]>();
+    const seen = new Set<string>();
     for (const diagnostic of project.diagnostics) {
+      const identity = diagnosticIdentity({ ...diagnostic, source: diagnostic.sourceName });
+      if (seen.has(identity)) {
+        continue;
+      }
+      seen.add(identity);
       const uri = project.sourceUris.get(diagnostic.sourceName);
       if (uri === undefined) {
         continue;
@@ -535,6 +541,7 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
       cursorOffset: document.offsetAt(position),
       snapshot: current?.snapshot ?? coreLanguageSnapshot,
       indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
+      contextualIdentifiers: current === undefined ? [] : contextualIdentifiers(current.result),
       contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
     });
     return result.items.map((item) => {
@@ -545,7 +552,7 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
         document.positionAt(result.replacementEndOffset),
       );
       completion.detail = completionDetail(item);
-      completion.sortText = `${completionSortBucket(item.kind)}:${item.label}`;
+      completion.sortText = completionSortText(item);
       return completion;
     });
   }
@@ -626,7 +633,7 @@ class InsightSemanticTokensProvider implements vscode.DocumentSemanticTokensProv
         token.column,
         token.length,
         semanticTokenIndex(token.type),
-        semanticTokenModifierBits(token.modifiers),
+        semanticTokenModifierBits(token.modifiers, semanticTokenModifiers),
       );
     }
     const tokens = builder.build();
@@ -715,7 +722,11 @@ class ArchinsightStructureProvider implements vscode.TreeDataProvider<StructureN
     if (this.showIdentifiers) {
       roots.push({ label: "Declarations", icon: "symbol-variable", iconColor: "symbolIcon.variableForeground", kind: "root", children: declarationTree(current) });
     }
-    return filterStructureNodes(roots, this.filterQuery);
+    return filterTreeByQuery(roots, this.filterQuery, (node) => [
+      node.label,
+      node.description ?? "",
+      node.kind,
+    ].join(" "));
   }
 
   private syncFilterContexts(): void {
@@ -723,30 +734,6 @@ class ArchinsightStructureProvider implements vscode.TreeDataProvider<StructureN
     void vscode.commands.executeCommand("setContext", "archinsight.structure.showOperators", this.showOperators);
     void vscode.commands.executeCommand("setContext", "archinsight.structure.showIdentifiers", this.showIdentifiers);
   }
-}
-
-function filterStructureNodes(nodes: readonly StructureNode[], query: string): StructureNode[] {
-  const normalized = query.trim().toLocaleLowerCase();
-  if (normalized.length === 0) {
-    return [...nodes];
-  }
-  return nodes.flatMap((node) => filterStructureNode(node, normalized));
-}
-
-function filterStructureNode(node: StructureNode, query: string): StructureNode[] {
-  if (matchesStructureNode(node, query)) {
-    return [node];
-  }
-  const children = node.children.flatMap((child) => filterStructureNode(child, query));
-  return children.length === 0 ? [] : [{ ...node, children }];
-}
-
-function matchesStructureNode(node: StructureNode, query: string): boolean {
-  return [
-    node.label,
-    node.description ?? "",
-    node.kind,
-  ].some((value) => value.toLocaleLowerCase().includes(query));
 }
 
 class ArchinsightControlsProvider implements vscode.WebviewViewProvider {
@@ -768,7 +755,9 @@ class ArchinsightControlsProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist", "webview")],
     };
     view.webview.html = controlsHtml(view.webview, this.extensionUri);
-    view.webview.onDidReceiveMessage((message: ControlsMessage) => {
+    view.webview.onDidReceiveMessage((value: unknown) => {
+      const message = validatedWebviewMessage(parseControlsWebviewToHostMessage, value, "controls");
+      if (message === undefined) return;
       if (message.command === "ready") {
         void this.postState();
         return;
@@ -1001,18 +990,12 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
 }
 
 class ArchinsightWorkbenchEditorSession {
-  private state: PreviewState | undefined;
-  private view: DiagramView;
-  private query: string;
-  private environment: string | undefined;
+  private readonly diagram: DiagramSession<DiagramRenderInput, DiagramView, PreviewState>;
   private disposed = false;
   private applyingEdit = false;
-  private renderGeneration = 0;
   private lastSource: string | undefined;
   private webviewReady = false;
   private pendingReveal: vscode.Position | undefined;
-  private pngResolve: ((value: Uint8Array) => void) | undefined;
-  private pngReject: ((reason?: unknown) => void) | undefined;
 
   constructor(
     private readonly project: ProjectModel,
@@ -1024,21 +1007,33 @@ class ArchinsightWorkbenchEditorSession {
     private readonly virtualDocument?: VirtualWorkbenchDocument,
     initialState?: DiagramQueryState,
   ) {
-    this.view = initialState?.view ?? "c1";
-    this.query = initialState?.query ?? viewQueries.c1;
-    this.environment = initialState?.environment;
+    this.diagram = createDiagramSession(initialState ?? { view: "c1", query: viewQueries.c1 }, {
+      publishPreview: async (state) => {
+        this.panel.title = this.panelTitle(state.fileName);
+        await this.postPreview(state);
+      },
+      publishQuery: async (state) => {
+        await this.panel.webview.postMessage({ command: "query", ...state });
+      },
+      onQueryChanged: async (state) => {
+        await this.controls.sync(state.view, state.query);
+      },
+      requestPng: async (svg) => {
+        await this.panel.webview.postMessage({ command: "exportPng", svg });
+      },
+    }, (message) => output.appendLine(message));
   }
 
   currentView(): DiagramView {
-    return this.view;
+    return this.diagram.queryState().view;
   }
 
   currentQuery(): string {
-    return this.query;
+    return this.diagram.queryState().query;
   }
 
   currentEnvironment(): string | undefined {
-    return this.environment;
+    return this.diagram.queryState().environment;
   }
 
   isActive(): boolean {
@@ -1060,7 +1055,9 @@ class ArchinsightWorkbenchEditorSession {
       localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, "dist", "webview")],
     };
     this.panel.webview.html = workbenchEditorHtml(this.panel.webview, this.extensionUri);
-    this.panel.webview.onDidReceiveMessage((message: WorkbenchEditorMessage) => {
+    this.panel.webview.onDidReceiveMessage((value: unknown) => {
+      const message = validatedWebviewMessage(parseWorkbenchWebviewToHostMessage, value, "workbench");
+      if (message === undefined) return;
       void this.handleMessage(message);
     });
     await this.project.refresh("custom-editor");
@@ -1068,6 +1065,7 @@ class ArchinsightWorkbenchEditorSession {
 
   dispose(): void {
     this.disposed = true;
+    this.diagram.dispose("Editor closed");
   }
 
   async refreshFromProject(current: LinkedProject | undefined): Promise<void> {
@@ -1083,63 +1081,33 @@ class ArchinsightWorkbenchEditorSession {
     if (current === undefined) {
       return;
     }
-    if (this.view === "deployment-container") {
-      const selection = await chooseDeploymentEnvironment(current, sourceName, this.environment, false);
-      this.environment = selection.cancelled ? undefined : selection.environment;
-    }
-    const hasErrors = current.diagnostics.some((diagnostic) => (diagnostic.level ?? "ERROR") === "ERROR");
-    if (hasErrors) {
-      this.state = {
-        view: this.view,
-        query: this.query,
-        ...(this.environment === undefined ? {} : { environment: this.environment }),
-        contextId: "-",
-        sourceName,
-        fileName: this.fileName(),
-        source,
-        error: "Fix linker errors before rendering a diagram.",
-      };
-      this.panel.title = this.panelTitle(this.state.fileName);
-      await this.postPreview(this.state);
-      return;
-    }
-    const generation = ++this.renderGeneration;
-    const state = await previewState(current, sourceName, source, this.fileName(), this.view, this.query, this.environment);
-    if (generation !== this.renderGeneration || this.disposed) {
-      return;
-    }
-    this.state = state;
-    this.panel.title = this.panelTitle(state.fileName);
-    await this.postPreview(state);
+    await this.diagram.refresh({
+      current,
+      sourceName,
+      source,
+      fileName: this.fileName(),
+      blockOnLinkerErrors: true,
+    });
   }
 
   async render(
     view: DiagramView,
     query = viewQueries[view],
     forceEnvironmentPicker = false,
-    requestedEnvironment: string | undefined = this.environment,
+    requestedEnvironment: string | undefined = this.currentEnvironment(),
   ): Promise<void> {
-    if (view === "deployment-container" && this.project.current !== undefined) {
-      const selection = await chooseDeploymentEnvironment(
-        this.project.current,
-        this.sourceName(this.project.current),
-        requestedEnvironment,
-        forceEnvironmentPicker,
-      );
-      if (selection.cancelled) {
-        await this.panel.webview.postMessage({ command: "query", view: this.view, query: this.query, environment: this.environment });
-        return;
-      }
-      this.environment = selection.environment;
-    }
-    this.view = view;
-    this.query = query;
-    await this.controls.sync(this.view, this.query);
-    await this.refreshFromProject(this.project.current);
-    await this.panel.webview.postMessage({ command: "query", view: this.view, query: this.query, environment: this.environment });
+    const current = this.project.current;
+    const sourceName = this.sourceName(current);
+    await this.diagram.render(current === undefined ? undefined : {
+      current,
+      sourceName,
+      source: this.sourceText(current, sourceName),
+      fileName: this.fileName(),
+      blockOnLinkerErrors: true,
+    }, { view, query, forceEnvironmentPicker, requestedEnvironment });
   }
 
-  private async handleMessage(message: WorkbenchEditorMessage): Promise<void> {
+  private async handleMessage(message: ReturnType<typeof parseWorkbenchWebviewToHostMessage>): Promise<void> {
     if (message.command === "ready") {
       this.webviewReady = true;
       await this.postSource();
@@ -1171,13 +1139,12 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     if (message.command === "editQuery") {
-      this.view = message.view;
-      this.query = message.query;
-      await this.controls.focus(this.view, this.query);
+      this.diagram.setQueryState(message.view, message.query);
+      await this.controls.focus(message.view, message.query);
       return;
     }
     if (message.command === "png") {
-      this.resolvePng(message.dataUrl);
+      this.diagram.resolvePng(message.dataUrl);
       return;
     }
     if (message.command === "complete") {
@@ -1199,15 +1166,16 @@ class ArchinsightWorkbenchEditorSession {
 
   private async postSource(): Promise<void> {
     const sourceName = this.sourceName(this.project.current);
+    const queryState = this.diagram.queryState();
     this.lastSource = this.sourceText(this.project.current, sourceName);
     await this.panel.webview.postMessage({
       command: "source",
       source: this.lastSource,
       sourceName,
       fileName: this.fileName(),
-      view: this.view,
-      query: this.query,
-      environment: this.environment,
+      view: queryState.view,
+      query: queryState.query,
+      environment: queryState.environment,
       queries: viewQueries,
       diagnostics: this.project.current?.diagnostics ?? [],
       symbols: this.project.current?.snapshot ?? coreLanguageSnapshot,
@@ -1234,7 +1202,7 @@ class ArchinsightWorkbenchEditorSession {
       command: "clipboardText",
       requestId,
       text,
-    } satisfies WorkbenchEditorIncomingMessage);
+    } satisfies WorkbenchHostToWebviewMessage);
   }
 
   private async complete(requestId: number, sourceName: string, source: string, cursorOffset: number): Promise<void> {
@@ -1245,6 +1213,7 @@ class ArchinsightWorkbenchEditorSession {
       cursorOffset,
       snapshot: current?.snapshot ?? coreLanguageSnapshot,
       indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
+      contextualIdentifiers: current === undefined ? [] : contextualIdentifiers(current.result),
       contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
     });
     await this.panel.webview.postMessage({
@@ -1266,7 +1235,7 @@ class ArchinsightWorkbenchEditorSession {
     if (current === undefined) {
       return;
     }
-    const queryState = { view: this.view, query: this.query, environment: this.environment };
+    const queryState = this.diagram.queryState();
     if (coreSourceByName.has(declaration.source)) {
       await this.openLocation(new vscode.Location(coreSourceUriFor(declaration.source), locationRange({ line: declaration.line, column: declaration.column })), queryState);
       return;
@@ -1294,7 +1263,7 @@ class ArchinsightWorkbenchEditorSession {
       command: "reveal",
       line: position.line + 1,
       column: position.character + 1,
-    } satisfies WorkbenchEditorIncomingMessage);
+    } satisfies WorkbenchHostToWebviewMessage);
   }
 
   private async replaceDocument(source: string): Promise<void> {
@@ -1312,58 +1281,13 @@ class ArchinsightWorkbenchEditorSession {
     }
   }
 
-  async download(kind: "source" | "svg" | "png" | "dot"): Promise<void> {
-    const state = this.state;
-    if (kind === "source") {
-      await saveBytes(fileNameWithExtension(this.fileName(), ".ai"), Buffer.from(this.sourceText(this.project.current, this.sourceName(this.project.current)), "utf8"));
-      return;
-    }
-    if (state === undefined) {
-      void vscode.window.showWarningMessage("No rendered diagram is available.");
-      return;
-    }
-    if (kind === "svg") {
-      if (state.svg === undefined) {
-        void vscode.window.showWarningMessage("No rendered SVG is available.");
-        return;
-      }
-      await saveBytes(fileNameWithExtension(state.fileName, ".svg"), Buffer.from(state.svg, "utf8"));
-      return;
-    }
-    if (kind === "dot") {
-      if (state.dot === undefined) {
-        void vscode.window.showWarningMessage("No rendered DOT is available.");
-        return;
-      }
-      await saveBytes(fileNameWithExtension(state.fileName, ".dot"), Buffer.from(state.dot, "utf8"));
-      return;
-    }
-    if (state.svg === undefined) {
-      void vscode.window.showWarningMessage("No rendered diagram is available.");
-      return;
-    }
-    await saveBytes(fileNameWithExtension(state.fileName, ".png"), await this.exportPng(state.svg));
-  }
-
-  private async exportPng(svg: string): Promise<Uint8Array> {
-    this.pngReject?.(new Error("PNG export was superseded"));
-    const result = new Promise<Uint8Array>((resolve, reject) => {
-      this.pngResolve = resolve;
-      this.pngReject = reject;
-    });
-    await this.panel.webview.postMessage({ command: "exportPng", svg });
-    return result;
-  }
-
-  private resolvePng(dataUrl: string): void {
-    const data = /^data:image\/png;base64,(.+)$/.exec(dataUrl)?.[1];
-    if (data === undefined) {
-      this.pngReject?.(new Error("PNG export failed"));
-    } else {
-      this.pngResolve?.(Buffer.from(data, "base64"));
-    }
-    this.pngResolve = undefined;
-    this.pngReject = undefined;
+  async download(kind: DiagramArtifactKind): Promise<void> {
+    const current = this.project.current;
+    const sourceName = this.sourceName(current);
+    await this.diagram.download(kind, kind === "source" ? {
+      fileName: this.fileName(),
+      source: this.sourceText(current, sourceName),
+    } : undefined);
   }
 
   private isReadOnly(): boolean {
@@ -1403,48 +1327,6 @@ class ArchinsightWorkbenchEditorSession {
   private uri(): vscode.Uri {
     return this.virtualDocument?.uri ?? this.document?.uri ?? coreSourceUri;
   }
-}
-
-interface DeploymentEnvironmentSelection {
-  readonly environment?: string;
-  readonly cancelled: boolean;
-}
-
-async function chooseDeploymentEnvironment(
-  current: LinkedProject,
-  sourceName: string,
-  selected: string | undefined,
-  forcePicker: boolean,
-): Promise<DeploymentEnvironmentSelection> {
-  const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
-  const environments = discoverDeploymentEnvironments(current.result, { context: context?.id, tab: sourceName });
-  if (environments.length === 0) {
-    if (forcePicker) {
-      void vscode.window.showInformationMessage("No deployment environments are relevant to this source.");
-    }
-    return { cancelled: false };
-  }
-  if (environments.length === 1) {
-    return { environment: environments[0]!.id, cancelled: false };
-  }
-  if (!forcePicker && selected !== undefined && environments.some((environment) => environment.id === selected)) {
-    return { environment: selected, cancelled: false };
-  }
-  const picked = await vscode.window.showQuickPick(
-    environments.map((environment) => ({
-      label: environment.id,
-      description: environment.name === undefined || environment.name === environment.id ? undefined : environment.name,
-      environment,
-    })),
-    {
-      title: "D2 Deployment Environment",
-      placeHolder: "Select the environment to open at container level",
-      matchOnDescription: true,
-    },
-  );
-  return picked === undefined
-    ? { cancelled: true }
-    : { environment: picked.environment.id, cancelled: false };
 }
 
 async function previewView(
@@ -1501,39 +1383,38 @@ async function previewDiagram(
 
 class PreviewSession {
   private panel: vscode.WebviewPanel | undefined;
-  private state: PreviewState | undefined;
-  private pngResolve: ((value: Uint8Array) => void) | undefined;
-  private pngReject: ((reason?: unknown) => void) | undefined;
-  private renderGeneration = 0;
-  private environment: string | undefined;
+  private readonly diagram: DiagramSession<DiagramRenderInput, DiagramView, PreviewState>;
 
   constructor(
     private current: LinkedProject,
     private active: vscode.TextDocument,
     private sourceName: string,
   ) {
+    this.diagram = createDiagramSession({ view: "c1", query: viewQueries.c1 }, {
+      publishPreview: async (state) => {
+        if (this.panel !== undefined) {
+          this.panel.title = `Archinsight: ${state.contextId}`;
+          await this.postState(state);
+        }
+      },
+      requestPng: async (svg) => {
+        if (this.panel === undefined) {
+          throw new Error("Preview is not open");
+        }
+        await this.panel.webview.postMessage({ command: "exportPng", svg });
+      },
+    }, (message) => output.appendLine(message));
   }
 
   async show(initialView: DiagramView, initialQuery: string): Promise<void> {
-    if (initialView === "deployment-container") {
-      const selection = await chooseDeploymentEnvironment(this.current, this.sourceName, this.environment, false);
-      if (selection.cancelled) {
-        return;
-      }
-      this.environment = selection.environment;
+    const status = await this.diagram.render(this.renderInput(), { view: initialView, query: initialQuery });
+    const state = this.diagram.previewState();
+    if (status !== "rendered" || state === undefined) {
+      return;
     }
-    this.state = await previewState(
-      this.current,
-      this.sourceName,
-      this.sourceText(),
-      path.basename(this.active.uri.fsPath),
-      initialView,
-      initialQuery,
-      this.environment,
-    );
     this.panel = vscode.window.createWebviewPanel(
       "archinsightPreview",
-      `Archinsight: ${this.state.contextId}`,
+      `Archinsight: ${state.contextId}`,
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
       { enableScripts: true, retainContextWhenHidden: true },
     );
@@ -1542,61 +1423,40 @@ class PreviewSession {
       if (activePreview === this) {
         activePreview = undefined;
       }
-      this.pngReject?.(new Error("Preview closed"));
+      this.diagram.dispose("Preview closed");
     });
     this.panel.onDidChangeViewState((event) => {
       if (event.webviewPanel.visible) {
         activePreview = this;
       }
     });
-    this.panel.webview.onDidReceiveMessage((message: PreviewMessage) => {
+    this.panel.webview.onDidReceiveMessage((value: unknown) => {
+      const message = validatedWebviewMessage(parsePreviewWebviewToHostMessage, value, "preview");
+      if (message === undefined) return;
       if (message.command === "ready") {
         void this.postState();
         return;
       }
       if (message.command === "png") {
-        this.resolvePng(message.dataUrl);
+        this.diagram.resolvePng(message.dataUrl);
       }
     });
-    this.panel.webview.html = previewHtml(this.panel.webview);
+    this.panel.webview.html = previewHtml();
   }
 
   async render(view: DiagramView, query = viewQueries[view], forceEnvironmentPicker = false): Promise<void> {
     if (this.panel === undefined) {
       return;
     }
-    if (view === "deployment-container") {
-      const selection = await chooseDeploymentEnvironment(this.current, this.sourceName, this.environment, forceEnvironmentPicker);
-      if (selection.cancelled) {
-        return;
-      }
-      this.environment = selection.environment;
-    }
-    const generation = ++this.renderGeneration;
-    const state = await previewState(
-      this.current,
-      this.sourceName,
-      this.sourceText(),
-      path.basename(this.active.uri.fsPath),
-      view,
-      query,
-      this.environment,
-    );
-    if (generation !== this.renderGeneration) {
-      return;
-    }
-    this.state = state;
-    this.panel.title = `Archinsight: ${state.contextId}`;
-    await this.postState();
+    await this.diagram.render(this.renderInput(), { view, query, forceEnvironmentPicker });
   }
 
   async refreshFromProject(current: LinkedProject | undefined): Promise<void> {
-    const state = this.state;
-    if (current === undefined || state === undefined || this.panel === undefined) {
+    if (current === undefined || this.diagram.previewState() === undefined || this.panel === undefined) {
       return;
     }
     this.current = current;
-    await this.render(state.view, state.query);
+    await this.diagram.refresh(this.renderInput());
   }
 
   async setActiveDocument(document: vscode.TextDocument): Promise<void> {
@@ -1607,16 +1467,15 @@ class PreviewSession {
     if (sourceName === this.sourceName) {
       return;
     }
-    const state = this.state;
     this.active = document;
     this.sourceName = sourceName;
-    if (state !== undefined) {
-      await this.render(state.view, state.query);
+    if (this.diagram.previewState() !== undefined) {
+      await this.diagram.refresh(this.renderInput());
     }
   }
 
   async editQuery(): Promise<void> {
-    const state = this.state;
+    const state = this.diagram.previewState();
     if (state === undefined) {
       return;
     }
@@ -1631,157 +1490,29 @@ class PreviewSession {
     }
   }
 
-  async download(kind: "source" | "svg" | "png" | "dot"): Promise<void> {
-    const state = this.state;
-    if (state === undefined) {
-      return;
-    }
-    if (kind === "source") {
-      await saveBytes(fileNameWithExtension(state.fileName, ".ai"), Buffer.from(state.source, "utf8"));
-      return;
-    }
-    if (kind === "svg") {
-      if (state.svg === undefined) {
-        void vscode.window.showWarningMessage("No rendered SVG is available.");
-        return;
-      }
-      await saveBytes(fileNameWithExtension(state.fileName, ".svg"), Buffer.from(state.svg, "utf8"));
-      return;
-    }
-    if (kind === "dot") {
-      if (state.dot === undefined) {
-        void vscode.window.showWarningMessage("No rendered DOT is available.");
-        return;
-      }
-      await saveBytes(fileNameWithExtension(state.fileName, ".dot"), Buffer.from(state.dot, "utf8"));
-      return;
-    }
-    if (state.svg === undefined || this.panel === undefined) {
-      void vscode.window.showWarningMessage("No rendered diagram is available.");
-      return;
-    }
-    await saveBytes(fileNameWithExtension(state.fileName, ".png"), await this.exportPng(state.svg));
+  async download(kind: DiagramArtifactKind): Promise<void> {
+    await this.diagram.download(kind);
   }
 
-  private async postState(): Promise<void> {
-    if (this.panel !== undefined && this.state !== undefined) {
-      await this.panel.webview.postMessage({ command: "preview", state: this.state });
+  private async postState(state = this.diagram.previewState()): Promise<void> {
+    if (this.panel !== undefined && state !== undefined) {
+      await this.panel.webview.postMessage({ command: "preview", state });
     }
-  }
-
-  private async exportPng(svg: string): Promise<Uint8Array> {
-    if (this.panel === undefined) {
-      throw new Error("Preview is not open");
-    }
-    this.pngReject?.(new Error("PNG export was superseded"));
-    const result = new Promise<Uint8Array>((resolve, reject) => {
-      this.pngResolve = resolve;
-      this.pngReject = reject;
-    });
-    await this.panel.webview.postMessage({ command: "exportPng", svg });
-    return result;
-  }
-
-  private resolvePng(dataUrl: string): void {
-    const data = /^data:image\/png;base64,(.+)$/.exec(dataUrl)?.[1];
-    if (data === undefined) {
-      this.pngReject?.(new Error("PNG export failed"));
-    } else {
-      this.pngResolve?.(Buffer.from(data, "base64"));
-    }
-    this.pngResolve = undefined;
-    this.pngReject = undefined;
   }
 
   private sourceText(): string {
     return this.current.sources.find((item) => item.sourceName === this.sourceName)?.source ?? this.active.getText();
   }
-}
 
-async function previewState(
-  current: LinkedProject,
-  sourceName: string,
-  source: string,
-  fileName: string,
-  view: DiagramView,
-  query: string,
-  environment?: string,
-): Promise<PreviewState> {
-  const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
-  try {
-    if (view === "deployment-container" && environment === undefined) {
-      const available = discoverDeploymentEnvironments(current.result, { context: context?.id, tab: sourceName });
-      throw new Error(available.length === 0
-        ? "No deployment environments are relevant to this source."
-        : "Select an environment for the D2 view.");
-    }
-    const graph = selectGraph(current.result, {
-      context: context?.id,
-      tab: sourceName,
-      view,
-      ...(environment === undefined ? {} : { environment }),
-    }, query);
-    const dot = renderGraphviz(current.result, graph, vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark ? "dark" : "light");
-    const svg = await renderSvg(dot);
-    output.appendLine("Render finished: diagram rendered successfully");
+  private renderInput(): DiagramRenderInput {
     return {
-      view,
-      query,
-      ...(environment === undefined ? {} : { environment }),
-      contextId: context?.id ?? "-",
-      sourceName,
-      fileName,
-      source,
-      dot,
-      svg,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    output.appendLine(`Render failed: ${message}`);
-    return {
-      view,
-      query,
-      ...(environment === undefined ? {} : { environment }),
-      contextId: context?.id ?? "-",
-      sourceName,
-      fileName,
-      source,
-      error: message,
+      current: this.current,
+      sourceName: this.sourceName,
+      source: this.sourceText(),
+      fileName: path.basename(this.active.uri.fsPath),
+      blockOnLinkerErrors: false,
     };
   }
-}
-
-async function renderSvg(dot: string): Promise<string> {
-  const { instance } = await import("@viz-js/viz");
-  const viz = await instance();
-  const result = viz.render(dot, { format: "svg", engine: "dot" });
-  if (result.status === "failure") {
-    throw new Error(result.errors.map((error) => error.message).filter(Boolean).join("\n") || "Graphviz render failed");
-  }
-  return makeGraphvizBackgroundsTransparent(result.output);
-}
-
-function makeGraphvizBackgroundsTransparent(svg: string): string {
-  return svg.replace(/<g\b[^>]*\bclass="(graph|cluster)"[^>]*>[\s\S]*?<polygon\b[^>]*>/g, (match, groupClass: string) => {
-    const polygonStart = match.lastIndexOf("<polygon");
-    if (polygonStart < 0) {
-      return match;
-    }
-    const beforePolygon = match.slice(0, polygonStart);
-    const polygon = match.slice(polygonStart);
-    const transparentPolygon = groupClass === "graph"
-      ? setSvgAttribute(setSvgAttribute(polygon, "fill", "transparent"), "stroke", "transparent")
-      : setSvgAttribute(polygon, "fill", "transparent");
-    return `${beforePolygon}${transparentPolygon}`;
-  });
-}
-
-function setSvgAttribute(tag: string, name: string, value: string): string {
-  const attribute = new RegExp(`\\s${name}=(["']).*?\\1`);
-  if (attribute.test(tag)) {
-    return tag.replace(attribute, ` ${name}="${value}"`);
-  }
-  return tag.replace(/\/?>$/, (end) => ` ${name}="${value}"${end}`);
 }
 
 function controlsHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
@@ -1800,105 +1531,6 @@ function controlsHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string
   <body>
     <div id="app"></div>
     <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
-  </body>
-</html>`;
-}
-
-function previewHtml(webview: vscode.Webview): string {
-  const nonce = webviewNonce();
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
-    <style>
-      body {
-        min-width: 0;
-        height: 100vh;
-        margin: 0;
-        background: var(--vscode-editor-background);
-        color: var(--vscode-editor-foreground);
-        font-family: var(--vscode-font-family);
-      }
-
-      .preview {
-        width: 100%;
-        height: 100%;
-        min-width: 0;
-        min-height: 0;
-        box-sizing: border-box;
-        overflow: auto;
-        padding: 16px;
-      }
-
-      .preview svg {
-        max-width: 100%;
-        height: auto;
-        display: block;
-        margin: 0 auto;
-      }
-
-      .error {
-        margin: 16px;
-        padding: 12px;
-        border: 1px solid var(--vscode-inputValidation-errorBorder);
-        border-radius: 4px;
-        background: var(--vscode-inputValidation-errorBackground);
-        color: var(--vscode-inputValidation-errorForeground);
-        white-space: pre-wrap;
-      }
-    </style>
-  </head>
-  <body>
-    <main id="preview" class="preview"></main>
-    <script nonce="${nonce}">
-      const vscode = acquireVsCodeApi();
-      const preview = document.getElementById("preview");
-      let state;
-
-      window.addEventListener("message", (event) => {
-        if (event.data?.command === "preview") {
-          state = event.data.state;
-          render();
-          return;
-        }
-        if (event.data?.command === "exportPng") {
-          void exportPng(event.data.svg);
-        }
-      });
-
-      function render() {
-        if (state?.error !== undefined) {
-          preview.innerHTML = "";
-          const error = document.createElement("section");
-          error.className = "error";
-          error.textContent = state.error;
-          preview.append(error);
-          return;
-        }
-        preview.innerHTML = state?.svg ?? "";
-      }
-
-      async function exportPng(svg) {
-        const image = new Image();
-        const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-        await new Promise((resolve, reject) => {
-          image.onload = resolve;
-          image.onerror = reject;
-          image.src = url;
-        });
-        const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth || 1;
-        canvas.height = image.naturalHeight || 1;
-        const context = canvas.getContext("2d");
-        context.drawImage(image, 0, 0);
-        URL.revokeObjectURL(url);
-        const dataUrl = canvas.toDataURL("image/png");
-        vscode.postMessage({ command: "png", dataUrl });
-      }
-
-      vscode.postMessage({ command: "ready" });
-    </script>
   </body>
 </html>`;
 }
@@ -1939,27 +1571,8 @@ function workbenchEditorHtml(webview: vscode.Webview, extensionUri: vscode.Uri):
   return workbenchEditorBundleHtml(webview, extensionUri);
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
 function webviewNonce(): string {
   return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join("");
-}
-
-function fileNameWithExtension(fileName: string, extension: string): string {
-  return fileName.replace(/\.ai$/i, "") + extension;
-}
-
-async function saveBytes(fileName: string, content: Uint8Array): Promise<void> {
-  const uri = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(fileName) });
-  if (uri === undefined) {
-    return;
-  }
-  await vscode.workspace.fs.writeFile(uri, content);
 }
 
 async function downloadActiveSource(): Promise<void> {
@@ -2093,6 +1706,12 @@ function visibleIdentifiersForSource(result: LinkProjectResult, sourceName: stri
   return identifiers;
 }
 
+function contextualIdentifiers(result: LinkProjectResult): readonly ContextualIdentifier[] {
+  return result.elements
+    .filter((element) => element.anonymous !== true && element.synthetic !== true)
+    .map((element) => ({ label: element.localId, type: element.type, contextId: element.context }));
+}
+
 function completionKind(item: { readonly kind: CompletionKind; readonly imported?: boolean }): vscode.CompletionItemKind {
   switch (item.kind) {
     case "KEYWORD":
@@ -2118,33 +1737,6 @@ function completionKind(item: { readonly kind: CompletionKind; readonly imported
   }
 }
 
-function completionDetail(item: { readonly kind: CompletionKind; readonly imported?: boolean }): string {
-  return item.kind === "IDENTIFIER" && item.imported === true ? "imported identifier" : item.kind;
-}
-
-function completionSortBucket(kind: CompletionKind): string {
-  switch (kind) {
-    case "KEYWORD":
-      return "0";
-    case "CONSTRUCTOR":
-      return "1";
-    case "OPERATOR":
-      return "2";
-    case "ATTRIBUTE":
-      return "3";
-    case "IDENTIFIER":
-      return "4";
-    case "ENUM_VALUE":
-      return "5";
-    case "TYPE":
-      return "6";
-    case "ANNOTATION":
-      return "7";
-    case "NEWLINE":
-      return "8";
-  }
-}
-
 function tokenVocabulary(_snapshot: LanguageSnapshot, _sources: readonly ProjectSource[]): InsightTokenVocabulary {
   return {};
 }
@@ -2160,10 +1752,6 @@ function semanticSnapshotKey(snapshot: LanguageSnapshot): string {
 
 function semanticTokenIndex(type: SemanticTokenType): number {
   return semanticTokenTypes.indexOf(type);
-}
-
-function semanticTokenModifierBits(modifiers: readonly SemanticTokenModifier[] | undefined): number {
-  return (modifiers ?? []).reduce((bits, modifier) => bits | (1 << semanticTokenModifiers.indexOf(modifier)), 0);
 }
 
 function documentSymbolsForSource(project: LinkedProject, sourceName: string): vscode.DocumentSymbol[] {
@@ -2206,124 +1794,57 @@ function typeTree(
   includeLanguageTypes: boolean,
   includeOperators: boolean,
 ): StructureNode[] {
-  const snapshot = project.snapshot;
-  const allTypes = [...snapshot.types];
-  const allTypesByName = new Map(allTypes.map((type) => [type.name, type]));
-  const operatorTypes = new Set(snapshot.operators.map((operator) => operator.ownerType));
-  const types = allTypes
-    .filter((type) => {
-      if (!languageTypeNames.has(type.name)) {
-        return true;
-      }
-      return isOperatorType(type, allTypesByName, operatorTypes)
-        ? includeOperators
-        : includeLanguageTypes;
-    })
-    .sort((left, right) => left.name.localeCompare(right.name));
-  const knownTypes = new Set(types.map((type) => type.name));
-  const childrenByBase = new Map<string, TypeDefinition[]>();
-  for (const type of types) {
-    if (type.baseType === undefined || !knownTypes.has(type.baseType)) {
-      continue;
-    }
-    const children = childrenByBase.get(type.baseType) ?? [];
-    children.push(type);
-    childrenByBase.set(type.baseType, children);
-  }
-  return types
-    .filter((type) => type.baseType === undefined || !knownTypes.has(type.baseType))
-    .map((type) => typeNode(project, type, childrenByBase, allTypesByName, operatorTypes));
+  return filterTypeHierarchy(buildTypeHierarchy(project.snapshot), {
+    includeLanguageTypes,
+    includeOperators,
+  }).map((type) => typeNode(project, type));
 }
 
 function typeNode(
   project: LinkedProject,
-  type: TypeDefinition,
-  childrenByBase: ReadonlyMap<string, readonly TypeDefinition[]>,
-  allTypesByName: ReadonlyMap<string, TypeDefinition>,
-  operatorTypes: ReadonlySet<string>,
+  type: TypeHierarchyNode,
 ): StructureNode {
-  const operator = isOperatorType(type, allTypesByName, operatorTypes);
   return {
-    label: type.name,
-    description: type.baseType === undefined ? undefined : `extends ${type.baseType}`,
-    icon: operator ? "symbol-operator" : "symbol-class",
-    iconColor: operator ? "symbolIcon.operatorForeground" : "symbolIcon.classForeground",
+    label: type.id,
+    description: type.extends === undefined ? undefined : `extends ${type.extends}`,
+    icon: type.operator ? "symbol-operator" : "symbol-class",
+    iconColor: type.operator ? "symbolIcon.operatorForeground" : "symbolIcon.classForeground",
     kind: "type",
-    location: location(project, type.declaration),
-    children: (childrenByBase.get(type.name) ?? []).map((child) => typeNode(project, child, childrenByBase, allTypesByName, operatorTypes)),
+    location: projectStructureLocation(project, type.declaration),
+    children: type.children.map((child) => typeNode(project, child)),
   };
 }
 
-function isOperatorType(
-  type: TypeDefinition,
-  typeByName: ReadonlyMap<string, TypeDefinition>,
-  operatorTypes: ReadonlySet<string>,
-): boolean {
-  let current: TypeDefinition | undefined = type;
-  while (current !== undefined) {
-    if (operatorTypes.has(current.name)) {
-      return true;
-    }
-    current = current.baseType === undefined ? undefined : typeByName.get(current.baseType);
-  }
-  return false;
-}
-
 function declarationTree(project: LinkedProject): StructureNode[] {
-  const childrenByParent = new Map<string, LinkedElement[]>();
-  for (const element of project.result.elements) {
-    if (element.anonymous || element.parent === undefined) {
-      continue;
-    }
-    const children = childrenByParent.get(element.parent) ?? [];
-    children.push(element);
-    childrenByParent.set(element.parent, children);
-  }
-  const importsBySource = new Map<string, LinkedImport[]>();
-  for (const item of project.result.imports) {
-    const imports = importsBySource.get(item.sourceIdentity) ?? [];
-    imports.push(item);
-    importsBySource.set(item.sourceIdentity, imports);
-  }
-  const elementsById = new Map(project.result.elements.map((element) => [element.id, element]));
-  return project.result.contexts.map((context) => ({
-    label: context.id,
-    description: context.type,
-    icon: "symbol-namespace",
-    iconColor: "symbolIcon.namespaceForeground",
-    kind: "context",
-    location: location(project, context.declaration),
-    children: [
-      ...(importsBySource.get(context.sourceIdentity) ?? []).map((item) => ({
-        label: item.alias,
-        description: `import ${elementsById.get(item.target)?.type ?? ""}`.trim(),
-        icon: "symbol-reference",
-        iconColor: "symbolIcon.referenceForeground",
-        kind: "import" as const,
-        location: location(project, item.declaration),
-        children: [],
-      })),
-      ...project.result.elements
-        .filter((element) => element.context === context.id && element.parent === undefined && !element.anonymous)
-        .map((element) => declarationNode(project, element, childrenByParent)),
-    ],
-  }));
+  return buildProjectStructure(project.result).contexts.map((context) => declarationNode(project, context));
 }
 
 function declarationNode(
   project: LinkedProject,
-  element: LinkedElement,
-  childrenByParent: ReadonlyMap<string, readonly LinkedElement[]>,
+  declaration: ProjectStructureDeclaration,
 ): StructureNode {
+  const context = declaration.kind === "context";
+  const imported = declaration.kind === "import";
   return {
-    label: element.localId,
-    description: element.type,
-    icon: "symbol-variable",
-    iconColor: "symbolIcon.variableForeground",
-    kind: "element",
-    location: location(project, element.declaration),
-    children: (childrenByParent.get(element.id) ?? []).map((child) => declarationNode(project, child, childrenByParent)),
+    label: declaration.id,
+    description: imported ? `import ${declaration.type ?? ""}`.trim() : declaration.type,
+    icon: context ? "symbol-namespace" : imported ? "symbol-reference" : "symbol-variable",
+    iconColor: context
+      ? "symbolIcon.namespaceForeground"
+      : imported ? "symbolIcon.referenceForeground" : "symbolIcon.variableForeground",
+    kind: declaration.kind,
+    location: projectStructureLocation(project, declaration),
+    children: declaration.children.map((child) => declarationNode(project, child)),
   };
+}
+
+function projectStructureLocation(
+  project: LinkedProject,
+  source: { readonly source: string; readonly line: number; readonly column: number } | undefined,
+): vscode.Location | undefined {
+  return source === undefined
+    ? undefined
+    : location(project, { sourceName: source.source, line: source.line, column: source.column });
 }
 
 function location(project: LinkedProject, source: { readonly sourceName: string; readonly line: number; readonly column: number } | undefined): vscode.Location | undefined {
@@ -2388,33 +1909,6 @@ function summary(diagnostics: readonly LanguageDiagnostic[]): string {
 
 function hasErrors(diagnostics: readonly LanguageDiagnostic[]): boolean {
   return diagnostics.some((diagnostic) => (diagnostic.level ?? "ERROR") === "ERROR");
-}
-
-function uniqueDiagnostics(diagnostics: readonly LanguageDiagnostic[]): readonly LanguageDiagnostic[] {
-  const result: LanguageDiagnostic[] = [];
-  const seen = new Set<string>();
-  for (const diagnostic of diagnostics) {
-    const key = diagnosticKey(diagnostic);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    result.push(diagnostic);
-  }
-  return result;
-}
-
-function diagnosticKey(diagnostic: LanguageDiagnostic): string {
-  return [
-    diagnostic.sourceName,
-    diagnostic.level ?? "",
-    diagnostic.code,
-    diagnostic.message,
-    diagnostic.line,
-    diagnostic.column,
-    diagnostic.endLine ?? "",
-    diagnostic.endColumn ?? "",
-  ].join("\0");
 }
 
 function letters(): string[] {

@@ -38,6 +38,7 @@ tokens {
 }
 
 DEFINE      : 'define';
+ABSTRACT    : 'abstract';
 EXTEND      : 'extend';
 PRESENTATION: 'presentation';
 TYPE        : 'type';
@@ -59,6 +60,7 @@ FIXED       : 'fixed';
 IN          : 'in';
 IMPLEMENTATION
             : 'implementation';
+CAPABILITY  : 'capability';
 
 PROJECTION_FROM
     : '$from'

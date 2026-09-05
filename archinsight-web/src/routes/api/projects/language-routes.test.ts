@@ -5,9 +5,9 @@ import { POST as link } from './[projectId]/link/+server';
 import { POST as renderSvg } from './[projectId]/render/svg/+server';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { InMemoryRepositoryFileSystem } from '$lib/server/repository/in-memory-repository-file-system';
-import { setRepositoryFileSystem } from '$lib/server/repository/repository-file-system';
 import { analysisMetricsSnapshot, resetAnalysisMetrics } from '$lib/server/language/analysis-observability';
-import { resetProjectAnalysisCache } from '$lib/server/language/project-analysis-cache';
+import { ProjectAnalysisCache } from '$lib/server/language/project-analysis-cache';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const ownerId = '5913933c-2268-41e1-a558-622dc11f675a';
 const env = {
@@ -17,13 +17,15 @@ const env = {
   ARCHINSIGHT_AUTH_TOKEN_SECRET: 'standalone-token-test-secret',
   ARCHINSIGHT_AUTH_COOKIE_SECURE: 'false'
 };
+let repository: InMemoryRepositoryFileSystem;
+let analysisCache: ProjectAnalysisCache;
 
 describe('language API routes', () => {
   beforeEach(() => {
-    resetProjectAnalysisCache();
     resetAnalysisMetrics();
-    const fs = new InMemoryRepositoryFileSystem();
-    fs.setProjects(ownerId, [
+    analysisCache = new ProjectAnalysisCache();
+    repository = new InMemoryRepositoryFileSystem();
+    repository.setProjects(ownerId, [
       {
         id: 'project-1',
         name: 'Project 1',
@@ -37,7 +39,6 @@ system app
         }
       }
     ]);
-    setRepositoryFileSystem(fs);
   });
 
   it('returns project symbols from the TypeScript language service', async () => {
@@ -108,6 +109,33 @@ system app
     expect(second.status).toBe(200);
     await expect(second.json()).resolves.toMatchObject({ analysis: { mode: 'cache-hit' } });
     expect(analysisMetricsSnapshot()).toMatchObject({ fullSnapshotBuilds: 1, fullProjectLinks: 1, cacheHits: 1 });
+  });
+
+  it('forces a fresh project analysis when requested by manual refresh', async () => {
+    await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {},
+      query: 'MATCH (node:System) RETURN node'
+    }));
+    const refreshed = await link(event('/api/projects/project-1/link', {
+      openSourceIdentities: ['main.ai'],
+      overlays: {
+        'main.ai': 'context demo\n\nsystem app\n    name = Refreshed App\n'
+      },
+      query: 'MATCH (node:System) RETURN node',
+      forceFullAnalysis: true
+    }));
+
+    expect(refreshed.status).toBe(200);
+    const refreshedBody = await refreshed.json();
+    expect(refreshedBody).toMatchObject({ analysis: { mode: 'overlay-full' } });
+    expect(refreshedBody.renders[0].dot).toContain('Refreshed App');
+    expect(analysisMetricsSnapshot()).toMatchObject({
+      fullSnapshotBuilds: 2,
+      fullProjectLinks: 2,
+      cacheHits: 0,
+      cacheMisses: 2
+    });
   });
 
   it('reuses one linked revision when only the deployment environment changes', async () => {
@@ -228,8 +256,8 @@ cloudEnvironment do
       )
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Query is too long' });
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: 'Query is too long', code: 'PAYLOAD_TOO_LARGE' });
   });
 
   it('rejects overlay payloads over the configured byte limit', async () => {
@@ -247,8 +275,8 @@ cloudEnvironment do
       )
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Overlay payload is too large' });
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: 'Overlay payload is too large', code: 'PAYLOAD_TOO_LARGE' });
   });
 
   it('rejects server-side SVG rendering over the configured render count limit', async () => {
@@ -264,8 +292,8 @@ cloudEnvironment do
       )
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: 'Too many diagrams to render: 1' });
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: 'Too many diagrams to render: 1', code: 'PAYLOAD_TOO_LARGE' });
   });
 });
 
@@ -297,7 +325,12 @@ function event(
     },
     fetch: fetcher,
     url: new URL(url, 'http://localhost'),
-    platform: { env: { ...env, ...envOverride } }
+    locals: {
+      services: createApplicationServices(
+        { ...env, ...envOverride },
+        { repository, analysisCache }
+      )
+    }
   } as never;
 }
 

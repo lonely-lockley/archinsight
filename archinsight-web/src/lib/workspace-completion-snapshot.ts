@@ -1,5 +1,5 @@
 import type { ProjectStructure } from './api';
-import type { VisibleIdentifier } from '@insight/language';
+import type { ContextualIdentifier, VisibleIdentifier } from '@insight/language';
 
 type WorkspaceCompletionIdentifier = {
   label: string;
@@ -11,6 +11,7 @@ export type WorkspaceCompletionSnapshot = {
   schemaVersion: 'workspace-completion-snapshot.v1';
   revision: number;
   contextIds: readonly string[];
+  contextualIdentifiers: readonly ContextualIdentifier[];
   identifiersBySource: Readonly<Record<string, readonly WorkspaceCompletionIdentifier[]>>;
 };
 
@@ -18,6 +19,7 @@ export const emptyWorkspaceCompletionSnapshot: WorkspaceCompletionSnapshot = {
   schemaVersion: 'workspace-completion-snapshot.v1',
   revision: 0,
   contextIds: [],
+  contextualIdentifiers: [],
   identifiersBySource: {}
 };
 
@@ -29,6 +31,7 @@ export function completionSnapshotFromProjectStructure(
     schemaVersion: 'workspace-completion-snapshot.v1',
     revision,
     contextIds: uniqueSorted(structure.contexts.map((context) => context.id)),
+    contextualIdentifiers: contextualIdentifiersFrom(structure),
     identifiersBySource: importedIdentifiersBySource(structure)
   };
 }
@@ -49,6 +52,22 @@ export function hasErrorDiagnostics(diagnostics: readonly { level: string }[]): 
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))].sort();
+}
+
+function contextualIdentifiersFrom(structure: ProjectStructure): ContextualIdentifier[] {
+  return structure.contexts.flatMap((context) => collectContextualIdentifiers(context.children, context.id));
+}
+
+function collectContextualIdentifiers(
+  declarations: ProjectStructure['contexts'][number]['children'],
+  contextId: string
+): ContextualIdentifier[] {
+  return declarations.flatMap((declaration) => [
+    ...(declaration.kind === 'element' && declaration.type !== undefined
+      ? [{ label: declaration.id, type: declaration.type, contextId }]
+      : []),
+    ...collectContextualIdentifiers(declaration.children, contextId)
+  ]);
 }
 
 function importedIdentifiersBySource(

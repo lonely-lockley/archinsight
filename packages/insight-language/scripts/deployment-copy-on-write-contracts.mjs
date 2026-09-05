@@ -4,6 +4,7 @@ import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
   linkProject,
+  parseSyntheticLinkedLocalId,
   selectGraph,
 } from "../build/runtime/index.js";
 
@@ -100,7 +101,7 @@ assertNoErrors(result);
 
 const clonesByName = new Map(
   result.elements
-    .filter((element) => element.localId.startsWith("_deployment_"))
+    .filter((element) => parseSyntheticLinkedLocalId(element.localId)?.kind === "deployment-clone")
     .map((element) => [element.attributes.name?.[0], element]),
 );
 const gateway = requiredClone(clonesByName, "Dedicated ingress");

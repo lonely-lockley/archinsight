@@ -1,13 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { repositoryFileSystem } from './repository-file-system';
-
-const database = vi.hoisted(() => ({
-  connect: vi.fn()
-}));
-
-vi.mock('$lib/server/database/postgres-database', () => ({
-  postgresDatabase: database.connect
-}));
+import { LazyPostgresRepositoryFileSystem } from './repository-file-system';
 
 describe('repositoryFileSystem', () => {
   it('retries lazy Postgres initialization after a failure', async () => {
@@ -16,18 +8,15 @@ describe('repositoryFileSystem', () => {
       query,
       transaction: vi.fn()
     };
-    database.connect.mockReset()
+    const connect = vi.fn()
       .mockRejectedValueOnce(new Error('database unavailable'))
       .mockResolvedValue(recoveredDatabase);
-    const fileSystem = repositoryFileSystem({
-      ARCHINSIGHT_REPOSITORY_BACKEND: 'postgres',
-      ARCHINSIGHT_DATABASE_URL: 'postgres://repository-recovery-test/database'
-    });
+    const fileSystem = new LazyPostgresRepositoryFileSystem(connect);
 
     await expect(fileSystem.projects('owner')).rejects.toThrow('database unavailable');
     await expect(fileSystem.projects('owner')).resolves.toEqual([]);
 
-    expect(database.connect).toHaveBeenCalledTimes(2);
+    expect(connect).toHaveBeenCalledTimes(2);
     expect(query).toHaveBeenCalledTimes(1);
   });
 });

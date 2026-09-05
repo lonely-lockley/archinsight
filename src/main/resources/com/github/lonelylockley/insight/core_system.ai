@@ -4,6 +4,8 @@ define type Actor of SystemElement
     constructor actor
         kind = internal
 
+    capability = "deployment-family"
+
     required Text name
     required Text kind
     Text technology
@@ -13,6 +15,8 @@ define type Actor of SystemElement
 define type System of SystemElement
     constructor system
         kind = internal
+
+    capability = "deployment-family"
 
     required Text name
     required Text kind

@@ -85,7 +85,7 @@ deployment production
 
 The environment is the root scope for concrete deployments and infrastructure. Its identifier provides the namespace used when logical architecture refers to deployments from that environment. An environment source has exactly one `environment <id>` header. Top-level `deployment` declarations that follow are attached to that environment, and one source may contain several of them. A second environment requires another source file.
 
-A project can define a specialized descendant of the built-in `Environment` type to declare organization-specific infrastructure slots. When there is one such subtype, the linker uses it for environment roots. When several subtypes exist, the named slots filled by the environment and its deployments identify the compatible schema; if they do not identify one subtype unambiguously, the root keeps the base `Environment` type and incompatible attributes are reported normally. A project-wide `extend type Environment` applies one slot contract to every environment, while `define type ApplicationEnvironment of Environment` creates an isolated schema. Both forms are valid, but they have different scope.
+A project can define a specialized descendant of the built-in `Environment` type to declare organization-specific infrastructure slots. When there is one such subtype, the linker uses it for environment roots. When several subtypes exist, the named slots filled by the environment and its deployments identify the compatible schema; if they do not identify one subtype unambiguously, the linker reports `DOCUMENT_AGGREGATE_SCHEMA_AMBIGUOUS` instead of silently choosing a schema. A project-wide `extend type Environment` applies one slot contract to every environment, while `define type ApplicationEnvironment of Environment` creates an isolated schema. Both forms are valid, but they have different scope.
 
 A source uses one root form. Context sources describe logical ownership and dependencies, while environment sources describe the physical inventory into which that architecture can be deployed. The linker combines both kinds of source into the same project model, allowing deployment profiles and projections to connect logical elements with concrete infrastructure.
 
@@ -113,7 +113,7 @@ Type names begin with an uppercase letter. They identify schema concepts such as
 A type can serve as an abstract base for a family of more specific types. An abstract type declares their shared attributes and inheritance position while leaving construction to its descendants:
 
 ```insight
-define type Api of Service
+define abstract type Api of Service
     required Text owner
     required Text protocol
 
@@ -126,11 +126,23 @@ define type InternalApi of Api
     constructor internalApi
 ```
 
-`Api` has no constructor, so architecture sources have no direct syntax for creating an `Api` instance. Its two descendants provide concrete constructors and inherit the common `owner` and `protocol` contract. Code completion and the linker can still use `Api` as an expected type: both `PublicApi` and `InternalApi` are assignable to it.
+`abstract` explicitly records that `Api` is an extension point rather than a
+directly constructible graph type. Its two descendants provide concrete
+constructors and inherit the common `owner` and `protocol` contract. Code
+completion and the linker can still use `Api` as an expected type: both
+`PublicApi` and `InternalApi` are assignable to it.
 
 Abstract types keep a framework hierarchy expressive without introducing generic instances into the model. They are useful for grouping related elements, defining shared child slots, collecting attributes used by queries, and attaching a presentation inherited by every concrete descendant. The built-in framework uses this pattern for types such as `SystemElement`, `ContainerElement`, and `BoundaryElement`.
 
-For graph types derived from `Element` or `Edge`, a type with descendants may omit its constructor and act as their abstract base. A leaf graph type represents a construct that can appear directly in a model and must declare at least one constructor. The built-in `CodeElement` is a constructorless extension point whose concrete descendants are supplied by project definitions. Schema and value types outside the graph hierarchy may also exist without constructors when they are used only as type-level contracts.
+For graph types derived from `Element` or `Edge`, use `define abstract type` when
+the type intentionally has no constructor. A type with descendants is also
+recognized as an abstract base for compatibility, but explicit abstractness is
+stable when a framework and its descendants are distributed in separate
+snapshots. A concrete leaf graph type must declare at least one constructor.
+The built-in `CodeElement` is explicitly abstract and its concrete descendants
+are supplied by project definitions. Schema and value types outside the graph
+hierarchy may still exist without constructors when they are used only as
+type-level contracts.
 
 ## Constructors
 
@@ -445,6 +457,52 @@ service storefront
 
 Operator attributes describe the relationship created by an invocation. Required attributes are validated in the same way as attributes on ordinary elements. Operator inheritance can refine a general relationship family into synchronous, asynchronous, physical, or domain-specific connections while keeping shared attributes and presentation rules.
 
+### Semantic capabilities
+
+Runtime behavior that is independent of the displayed vocabulary is declared with capabilities. A capability can be attached to a type, an operator, or an attribute:
+
+```insight
+define operator HostedBy of Edge
+    constructor hostedBy InfrastructureComponent
+        on Element
+
+    capability = "deployment-placement"
+
+extend type Element
+    InfrastructureComponent host
+        capability = "placement-owner"
+```
+
+The runtime resolves the capability from the language snapshot. It does not require the operator to be called `runsOn` or the attribute to be called `host`. Built-in deployment definitions use the same mechanism as project definitions. Capabilities are stable semantic protocol identifiers; user-facing constructor and attribute names remain free to follow the project's vocabulary.
+
+The `environment` source form is backed by a reusable document aggregate
+contract. A type with `document-aggregate-root` defines the source root. Its
+anonymous list declares which sibling object family the source accepts, and a
+sibling type opts into that role with `document-aggregate-member`. Named
+object slots on the root may then be filled as named groups inside any member:
+
+```insight
+define type CatalogEntry of BoundaryElement
+    constructor catalogEntry
+    required Text title
+
+define type CatalogSection of BoundaryElement
+    constructor catalogSection
+    capability = "document-aggregate-member"
+    List of CatalogEntry _
+
+define type CatalogDocument of BoundaryElement
+    capability = "document-aggregate-root"
+    CatalogEntry featured
+    List of CatalogSection _
+```
+
+Linking and completion resolve this structure from the capabilities and typed
+slots, not from the names `Environment`, `Deployment`, or their constructors.
+The built-in environment/deployment vocabulary is one instance of the same
+contract. When two aggregate-root schemas match the groups used by a source,
+the linker reports the ambiguity explicitly.
+
 The type context determines where an operator is available. In the example above, `calls` produces a `Wire`, so it can appear in a list whose element type accepts `Wire`. The source and target must also satisfy the types declared by the constructor. An operator name may have several typed constructor variants when the same operation applies to different owners or targets. Together, these constraints let custom operators participate in completion, linking, queries, and rendering without special syntax rules for each operator name.
 
 ### TypeScript implementations
@@ -469,7 +527,23 @@ Every operator needs an effective runtime implementation. Insight supplies defau
 
 This mechanism is the language's extension point for behavior backed by arbitrary TypeScript code. The TypeScript code lives in the application and follows the operator implementation contract; the Insight source invokes it through its registered identifier. The result exposed to the linker remains constrained by that contract even though the implementation itself is application code.
 
-Projects cannot currently provide their own TypeScript operator implementations. A project-defined operator can use the generic behavior for `Edge` or `Element`, while custom execution requires adding and registering an implementation in the Archinsight application code.
+Embedding applications can provide TypeScript implementations through `InsightLanguageService`:
+
+```typescript
+const registry = coreOperatorImplementationRegistry.with("@acme/audited-edge", {
+  apiVersion: "insight.operator.v1",
+  invoke(input) {
+    return { edges: input.invocation.edge === undefined ? [] : [input.invocation.edge] };
+  },
+});
+
+const service = new InsightLanguageService({
+  snapshot,
+  operatorImplementations: registry,
+});
+```
+
+Registries are immutable: `with` returns a new registry, and an incremental linker state and all of its forks retain the registry with which they were created. Unknown implementation IDs produce deterministic linker diagnostics.
 
 ## Extending a type
 
@@ -489,7 +563,7 @@ Several additions to the same type belong in one `extend type` declaration. Cons
 
 ## Presentations
 
-A presentation describes how values of a type are shown in diagrams. It connects model attributes to the textual parts of a rendered node or edge and provides visual properties for light themes, dark themes, and Graphviz output.
+A presentation describes how values of a type are shown in diagrams. It connects model attributes to the textual parts of a rendered node or edge and provides visual properties for light themes, dark themes, external elements, and Graphviz output.
 
 ```insight
 define presentation PublicApi
@@ -507,6 +581,12 @@ define presentation PublicApi
         stroke = "#2e2e2e"
         text = "#f4f4f4"
 
+    externalLight
+        fill = "#999999"
+
+    externalDark
+        fill = "#737c67"
+
     graphviz
         shape = box
         style = filled,rounded
@@ -520,10 +600,12 @@ The three built-in text fields contain attribute names:
 
 The selected attributes must belong to the presented type or one of its descendants. When a value does not provide an optional selected attribute, that part of the label remains empty.
 
-Presentation properties are grouped into three built-in sections:
+Presentation properties are grouped into five built-in sections:
 
 - `light` contains colors used with the light theme.
 - `dark` contains colors used with the dark theme.
+- `externalLight` overrides the light-theme properties when the selected view marks the element external.
+- `externalDark` overrides the dark-theme properties when the selected view marks the element external.
 - `graphviz` controls the shape and layout hints passed to diagram rendering.
 
 The language recognizes the following section properties. The descriptions follow the corresponding Graphviz attributes. `fill`, `stroke`, and `text` are Archinsight theme names mapped to Graphviz's `fillcolor`, `color`, and `fontcolor`. `visible` is handled by Archinsight before the DOT source is rendered.

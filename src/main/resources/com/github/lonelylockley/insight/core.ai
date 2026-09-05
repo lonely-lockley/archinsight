@@ -22,6 +22,16 @@ define presentation Element
         stroke = "#2e2e2e"
         text = "#f4f4f4"
 
+    externalLight
+        fill = "#999999"
+        stroke = "#f4f4f4"
+        text = "#f4f4f4"
+
+    externalDark
+        fill = "#737C67"
+        stroke = "#2e2e2e"
+        text = "#f4f4f4"
+
     graphviz
         shape = box
         style = filled,rounded

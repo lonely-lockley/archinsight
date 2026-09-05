@@ -1,0 +1,13 @@
+{
+  "name": "@archinsight/contracts",
+  "version": "3.0.3",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@insight/language": "file:../insight-language"
+  }
+}

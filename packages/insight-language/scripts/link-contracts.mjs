@@ -3,6 +3,7 @@ import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
   linkProject,
+  isSyntheticLinkedLocalId,
   mergeLanguageSnapshots,
   ProjectLinkerState,
 } from "../build/runtime/index.js";
@@ -41,6 +42,7 @@ const cases = [
   linksCoreWirePresentationFields,
   allowsTypedReferenceValuesInSingleSlots,
   resolvesCoreInfrastructureRunsOnReferences,
+  rejectsNestedAttributesAfterSingleReferenceValues,
   rejectsReferencesToAnonymousInstances,
   allowsTypedReferenceValuesFromExplicitContexts,
   validatesTypedReferenceSlotCardinalityAndType,
@@ -64,6 +66,7 @@ const cases = [
   rejectsOperatorInvocationsOutsideEdgeLists,
   materializesResolvedElementAndEdgeAttributes,
   reportsUndeclaredArchitectureAttributes,
+  rejectsLegacyInfrastructureAttributesOnLogicalElements,
   reportsMissingRequiredArchitectureAttributes,
   reportsCoreServiceWithoutName,
   notesThatAttributeAnnotationIsDeprecated,
@@ -1147,6 +1150,42 @@ deployment production
   assert.deepEqual(gateway?.attributes.runsOn, [compute?.id]);
 }
 
+function rejectsNestedAttributesAfterSingleReferenceValues() {
+  const definitions = buildLanguageSnapshotResultFromSources([
+    source("custom.ai", `
+define type CustomNode of BoundaryElement
+    constructor customNode
+
+    required Text name
+    CustomNode parent
+`),
+  ], [coreLanguageSnapshot]);
+  assertNoErrors(definitions);
+  const sourceText = `
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    parent:
+        root
+        parent:
+            missing
+`;
+  const result = linkProject({
+    snapshot: definitions.snapshot,
+    sources: [source("architecture.ai", sourceText)],
+  });
+
+  const errors = result.diagnostics.filter((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR");
+  assert.equal(errors.length, 1, JSON.stringify(errors, null, 2));
+  assert.equal(errors[0]?.code, "TYPE_MISMATCH");
+  assert.equal(errors[0]?.message, "Attribute 'parent' on type 'CustomNode' cannot contain a nested attribute");
+  assert.equal(tokenAt(sourceText, errors[0]?.line ?? 1, errors[0]?.column ?? 1), "parent");
+}
+
 function rejectsReferencesToAnonymousInstances() {
   const snapshot = buildLanguageSnapshotResultFromSources([
     source("framework.ai", `
@@ -1366,7 +1405,7 @@ system source
 
   assertNoErrors(result);
   assert.equal(members.length, 1);
-  assert(members[0]?.id.startsWith("shared/_anonymous_"));
+  assert(members[0] !== undefined && isSyntheticLinkedLocalId(members[0].localId));
   assert.equal(members[0]?.anonymous, true);
   assert.deepEqual(result.elements.find((element) => element.id === "shared/source")?.attributes.lead, [members[0]?.id]);
 }
@@ -1847,6 +1886,34 @@ system source
   assert.equal(countDiagnostics(result, "ATTRIBUTE_NOT_DECLARED"), 1);
 }
 
+function rejectsLegacyInfrastructureAttributesOnLogicalElements() {
+  const result = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [
+      source("architecture.ai", `
+context shared
+
+storage database
+    name = Database
+
+system application
+    name = Application
+    runsOn:
+        database
+    uses:
+        database
+`),
+    ],
+  });
+
+  const undeclared = result.diagnostics
+    .filter((diagnostic) => diagnostic.code === "ATTRIBUTE_NOT_DECLARED")
+    .map((diagnostic) => diagnostic.message);
+  assert.equal(undeclared.length, 2, JSON.stringify(result.diagnostics));
+  assert(undeclared.some((message) => message.includes("'runsOn'")), undeclared.join(", "));
+  assert(undeclared.some((message) => message.includes("'uses'")), undeclared.join(", "));
+}
+
 function reportsMissingRequiredArchitectureAttributes() {
   const result = linkProject({
     snapshot: typedAttributeSnapshot({ operatorTarget: "System" }),
@@ -2129,6 +2196,13 @@ service backend
   assert.deepEqual(backend?.attributes.runsOn?.map((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0]), ["Kubernetes"]);
   assert.deepEqual(backend?.attributes.uses?.map((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0]), ["Application database"]);
   assert.deepEqual(backend?.attributes.appliesTo, ["eu/production"]);
+  assert.deepEqual(backend?.semanticAttributeNames, {
+    "deployment-actions": "deployment",
+    "infrastructure-uses": "uses",
+    "placement-owner": "runsOn",
+  });
+  assert.deepEqual(backend?.semanticAttributes?.["placement-owner"], backend?.attributes.runsOn);
+  assert.deepEqual(backend?.semanticAttributes?.["infrastructure-uses"], backend?.attributes.uses);
 }
 
 function reusesDeploymentInfrastructureWithoutOverrides() {
@@ -2155,7 +2229,7 @@ service backend
       && edge.target === database?.id
       && edge.projected === true));
   }
-  assert(!result.elements.some((element) => element.localId.startsWith("_deployment_")));
+  assert(!result.elements.some((element) => element.synthetic === true));
 }
 
 function overridesClonedDeploymentUsesLocally() {
@@ -2274,7 +2348,7 @@ service backend
   const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
   const network = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Cluster network");
   assert.deepEqual(edge?.attributes.uses, [network?.id]);
-  assert(!result.elements.some((element) => element.localId.startsWith("_deployment_")));
+  assert(!result.elements.some((element) => element.synthetic === true));
 }
 
 function inheritsDeploymentTargetsForComponentWires() {
@@ -2349,7 +2423,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Wire deployment cannot use 'DeploymentProfile'")));
+    && diagnostic.message.includes("Relationship deployment cannot use a deployment profile")));
 }
 
 function rejectsNonNetworkInfrastructureOnWires() {
@@ -2370,7 +2444,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Wire deployment can use only 'NetworkConnection'")));
+    && diagnostic.message.includes("Relationship deployment can use only network infrastructure")));
 }
 
 function skipsUnavailableWireNetworksPerDeployment() {
@@ -3555,6 +3629,8 @@ extend type Wire
 define operator OriginalLink of PhysicalWire
     constructor originalLink ProjectionTerm
         on ProjectionTerm
+
+    capability = "preserve-logical-edge"
 
 define operator ConnectTo of PhysicalWire
     constructor connectTo Element

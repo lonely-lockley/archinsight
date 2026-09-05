@@ -1,6 +1,6 @@
 import type { Cookies } from '@sveltejs/kit';
 import { bearerTokenMatches } from './bearer-token';
-import { getAuthConfig, type EnvSource } from './auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import { issueStandaloneToken } from './standalone-token';
 import { upsertUserdataProfile } from './userdata-store';
 import type { AuthUserResponse, UserdataProfile } from './types';
@@ -21,9 +21,9 @@ export async function issueStandaloneSession(
   authorization: string | null,
   request: StandaloneTokenRequest | null,
   cookies: Cookies,
-  env: EnvSource | undefined
+  services: ApplicationServices
 ): Promise<Response> {
-  const config = getAuthConfig(env);
+  const config = services.config.auth;
   if (config.ghost.enabled) {
     return jsonError('Standalone token endpoint is unavailable in Ghost mode', 404);
   }
@@ -37,7 +37,7 @@ export async function issueStandaloneSession(
     return jsonError('Standalone token request is required', 400);
   }
 
-  const user = await upsertUserdataProfile(profileFromStandaloneRequest(request), env);
+  const user = await upsertUserdataProfile(profileFromStandaloneRequest(request), services);
   const token = issueStandaloneToken(user, config.token);
   cookies.delete(config.ghost.ssrCookieName, { path: '/' });
   cookies.delete(`${config.ghost.ssrCookieName}.sig`, { path: '/' });

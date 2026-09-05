@@ -26,6 +26,9 @@ export type WorkspaceTabState = {
   ui?: WorkspaceTabUiState;
   query?: string;
   queryPreset?: boolean;
+  presetId?: string;
+  presetVersion?: number;
+  customizedQuery?: string;
   diagramMode?: string;
   deploymentEnvironment?: string;
   queryVisible?: boolean;

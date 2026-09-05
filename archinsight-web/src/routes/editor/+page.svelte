@@ -1,5 +1,5 @@
 <script lang="ts">
-  import EditorPage from '../+page.svelte';
+  import WorkspacePage from '$lib/workspace/WorkspacePage.svelte';
 </script>
 
-<EditorPage surface="editor" />
+<WorkspacePage surface="editor" />

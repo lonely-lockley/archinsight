@@ -39,6 +39,22 @@ test('rejects work when all worker and queue slots are occupied', async () => {
   await Promise.all([first, second]);
 });
 
+test('releases capacity and drains queued work after a task fails', async () => {
+  const queue = new RenderQueue(1, 1);
+  const gate = deferred();
+  const first = queue.run(async () => {
+    await gate.promise;
+    throw new Error('render failed');
+  });
+  const second = queue.run(() => 'recovered');
+
+  gate.resolve();
+  await assert.rejects(first, /render failed/);
+  assert.equal(await second, 'recovered');
+  assert.equal(queue.active, 0);
+  assert.equal(queue.queued, 0);
+});
+
 function deferred() {
   let resolve;
   const promise = new Promise((resolver) => {

@@ -1,5 +1,5 @@
 import { symbols } from '$lib/server/language/language-pipeline';
-import { env, jsonEndpoint, pathParam } from '../../route-utils';
+import { jsonEndpoint, pathParam, services } from '../../route-utils';
 
 export const GET = (event) =>
-  jsonEndpoint(event, () => symbols(event.cookies, env(event), pathParam(event, 'projectId')));
+  jsonEndpoint(event, () => symbols(event.cookies, services(event), pathParam(event, 'projectId')));

@@ -1,5 +1,15 @@
 export { CompletionEngine } from "./completion-engine.js";
 export {
+  BUILTIN_VIEW_DEFINITIONS,
+  BUILTIN_VIEW_IDS,
+  BUILTIN_VIEW_QUERIES,
+  builtinViewDefinition,
+  builtinViewHasStage,
+  isBuiltinDiagramView,
+  queryViewPipeline,
+  resolveBuiltinView,
+} from "./builtin-views.js";
+export {
   AntlrInsightSyntaxProvider,
   createParsedInsightFile,
   createSyntaxContext,
@@ -8,6 +18,34 @@ export {
   createGeneratedInsightSyntaxProvider,
   parseWithGeneratedInsightParser,
 } from "./generated-provider.js";
+export {
+  ParsedSyntaxModel,
+  childrenOf,
+  descendantsByRule,
+  directChildrenByRule,
+  directTerminalTokens,
+  firstChildByRule,
+  firstDescendantByRule,
+  firstTokenByName,
+  firstTokenTextByName,
+  parseInsightSource,
+  ruleName,
+  sourceLocationOf,
+  sourceRangeOf,
+  startToken,
+  stopToken,
+  terminalSymbol,
+  textOf,
+  tokenizeInsightSource,
+  tokenColumn,
+  tokenIndex,
+  tokenLine,
+  tokenName,
+  tokenStart,
+  tokenStop,
+  tokenText,
+  tokenType,
+} from "./parser-facade.js";
 export {
   buildLanguageSnapshotResultFromSources,
   buildLanguageSnapshotFromSources,
@@ -32,19 +70,72 @@ export { lineContextAt } from "./line-context.js";
 export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
+export { ProjectAnalysisSession } from "./project-analysis-session.js";
+export {
+  CORE_EDGE_IMPLEMENTATION,
+  CORE_ELEMENT_IMPLEMENTATION,
+  ImmutableOperatorImplementationRegistry,
+  coreOperatorImplementationRegistry,
+  createOperatorImplementationRegistry,
+} from "./operator-implementation-registry.js";
+export {
+  buildProjectStructure,
+  buildTypeHierarchy,
+  filterProjectStructure,
+  filterTypeHierarchy,
+} from "./project-structure.js";
 export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraphs } from "./query-engine.js";
+export { analyzeQuery, parseQuery } from "./query-syntax.js";
+export type { ParsedQuery, QueryAnalysis } from "./query-syntax.js";
 export { renderGraphviz } from "./graphviz-renderer.js";
+export { parseRenderIdentity, renderIdentity } from "./render-identity.js";
+export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
+export {
+  isSyntheticLinkedLocalId,
+  parseSyntheticLinkedLocalId,
+  syntheticLinkedLocalId,
+} from "./linked-identity.js";
+export type { SyntheticLinkedIdentity } from "./linked-identity.js";
 export { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
+export {
+  ATTRIBUTE_CAPABILITIES,
+  OPERATOR_CAPABILITIES,
+  TYPE_CAPABILITIES,
+} from "./semantic-capabilities.js";
+export type {
+  ProjectAnalysis,
+  ProjectAnalysisUpdate,
+  ProjectAnalysisUpdateMode,
+} from "./project-analysis-session.js";
+export type {
+  BuiltinDiagramView,
+  BuiltinViewAlias,
+  BuiltinViewDefinition,
+  BuiltinViewEnvironmentPolicy,
+  BuiltinViewLifecycle,
+  BuiltinViewStage,
+  QueryViewPipelineDefinition,
+  ViewBoundaryDefinition,
+  ViewBoundaryScope,
+} from "./builtin-views.js";
 export type {
   AntlrAdapterInput,
   AntlrParseFunction,
+} from "./antlr-adapter.js";
+export type {
   AntlrParseFailureLike,
   AntlrParseTreeLike,
   AntlrSyntaxErrorLike,
   AntlrTokenLike,
+  InsightTokenization,
+  ParsedSource,
+  ParsedSourceRole,
+  ParseInsightSourceRequest,
+  SourceAnalysisMetadata,
+  SourceRange,
   TokenNameResolver,
-} from "./antlr-adapter.js";
+} from "./parser-facade.js";
 export type {
   InsightLineLexerState,
   InsightLineToken,
@@ -64,12 +155,12 @@ export type {
 } from "./language-service.js";
 export type {
   AttributeDefinition,
-  BuiltinDiagramView,
   CompletionItem,
   CompletionKind,
   CompletionRequest,
   CompletionResult,
   CompletionScope,
+  ContextualIdentifier,
   ConstructorDefinition,
   DuplicateLinkedEdgeGroup,
   DeploymentEnvironment,
@@ -83,12 +174,18 @@ export type {
   LinkedAnnotation,
   LinkedContext,
   LinkedEdge,
+  LinkedEdgeId,
   LinkedElement,
   LinkedImport,
   LinkProjectRequest,
   LinkProjectResult,
   ListFrame,
   OperatorDefinition,
+  OperatorImplementationApiVersion,
+  OperatorImplementationRegistry,
+  OperatorImplementationV1,
+  OperatorInvocationInputV1,
+  OperatorInvocationResultV1,
   ParsedInsightFile,
   PresentationDefinition,
   ProjectSource,
@@ -127,3 +224,10 @@ export type {
   ProjectLinkerStateUpdate,
   ProjectSourceReplacement,
 } from "./project-linker-state.js";
+export type {
+  ProjectStructure,
+  ProjectStructureDeclaration,
+  ProjectStructureLocation,
+  TypeHierarchyNode,
+  TypeHierarchyVisibility,
+} from "./project-structure.js";

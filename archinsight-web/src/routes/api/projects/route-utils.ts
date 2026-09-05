@@ -1,5 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
-import { eventEnv } from '$lib/server/auth/svelte-event';
+import { ApplicationError, invalidRequest } from '$lib/server/errors/application-error';
+import { ContractValidationError, type ContractParser } from '@archinsight/contracts';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 
 type Handler<T> = (event: RequestEvent) => T | Promise<T>;
 
@@ -7,7 +9,7 @@ export async function jsonEndpoint<T>(event: RequestEvent, handler: Handler<T>):
   try {
     return json(await handler(event));
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(event, error);
   }
 }
 
@@ -16,22 +18,54 @@ export async function emptyEndpoint(event: RequestEvent, handler: Handler<void>)
     await handler(event);
     return new Response(null, { status: 204 });
   } catch (error) {
-    return errorResponse(error);
+    return errorResponse(event, error);
   }
 }
 
-export function env(event: RequestEvent) {
-  return eventEnv(event);
+export function services(event: RequestEvent): ApplicationServices {
+  return event.locals.services;
 }
 
 export function pathParam(event: RequestEvent, name: string): string {
   return (event.params as Record<string, string | undefined>)[name] ?? '';
 }
 
-function errorResponse(error: unknown): Response {
+export async function requestJson<T>(event: RequestEvent, parser: ContractParser<T>): Promise<T> {
+  let value: unknown;
+  try {
+    value = await event.request.json();
+  } catch (error) {
+    throw invalidRequest('Request body must be valid JSON', { cause: error });
+  }
+  try {
+    return parser(value);
+  } catch (error) {
+    if (error instanceof ContractValidationError) {
+      throw invalidRequest(error.message, { cause: error });
+    }
+    throw error;
+  }
+}
+
+function errorResponse(event: RequestEvent, error: unknown): Response {
   if (error instanceof Response) {
     return error;
   }
-  const message = error instanceof Error ? error.message : 'Bad request';
-  return json({ error: message }, { status: 400 });
+  if (error instanceof ApplicationError) {
+    return json({ error: error.publicMessage, code: error.code }, { status: error.status });
+  }
+  const correlationId = requestId(event);
+  console.error(`[${correlationId}] Unexpected API failure`, error);
+  return json(
+    { error: 'Internal server error', code: 'INTERNAL_ERROR', correlationId },
+    { status: 500, headers: { 'x-request-id': correlationId } }
+  );
+}
+
+function requestId(event: RequestEvent): string {
+  const supplied = event.request.headers?.get('x-request-id')?.trim();
+  if (supplied != null && /^[a-zA-Z0-9._:-]{1,100}$/u.test(supplied)) {
+    return supplied;
+  }
+  return crypto.randomUUID();
 }

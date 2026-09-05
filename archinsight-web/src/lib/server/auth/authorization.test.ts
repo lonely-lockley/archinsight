@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { authorize, capabilitiesFor, requireOwner } from './authorization';
 import type { AuthenticatedUser } from './types';
+import { ApplicationError } from '$lib/server/errors/application-error';
 
 const user: AuthenticatedUser = {
   id: 'user-1',
@@ -26,6 +27,6 @@ describe('RBAC authorization', () => {
 
   it('does not let an administrative capability bypass ownership', () => {
     expect(() => requireOwner({ ...user, roles: ['user', 'playground_admin'] }, 'someone-else'))
-      .toThrow(Response);
+      .toThrow(ApplicationError);
   });
 });

@@ -2,6 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
-    "outDir": "build/runtime"
+    "outDir": "build/runtime",
+    "sourceMap": true,
+    "inlineSources": true
   }
 }

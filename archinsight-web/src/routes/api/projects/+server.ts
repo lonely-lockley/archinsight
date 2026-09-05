@@ -1,8 +1,9 @@
 import { createProject, projects } from '$lib/server/repository/project-file-service';
 import type { ProjectCreateRequest } from '$lib/server/repository/types';
-import { env, jsonEndpoint } from './route-utils';
+import { parseProjectCreateRequest } from '@archinsight/contracts';
+import { jsonEndpoint, requestJson, services } from './route-utils';
 
-export const GET = (event) => jsonEndpoint(event, () => projects(event.cookies, env(event)));
+export const GET = (event) => jsonEndpoint(event, () => projects(event.cookies, services(event)));
 export const POST = (event) => jsonEndpoint(event, async () =>
-  createProject(event.cookies, env(event), (await event.request.json()) as ProjectCreateRequest | null)
+  createProject(event.cookies, services(event), await requestJson<ProjectCreateRequest>(event, parseProjectCreateRequest))
 );

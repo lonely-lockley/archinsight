@@ -21,7 +21,9 @@ const cases = [
   treatsEveryOpenedBoundaryAsInternal,
   preservesFocusAcrossSplitImportedAndExtendedSources,
   keepsCustomExternalPredicateModelRelative,
+  resolvesExplicitExternalityFromTypeCapability,
   rendersTheSameRelativeExternalityCarriedByQueryJson,
+  rendersExternalPaletteFromTheEffectivePresentation,
 ];
 
 let failures = 0;
@@ -119,13 +121,84 @@ function keepsCustomExternalPredicateModelRelative() {
   assert.equal(custom.elements["shop/payments"], undefined);
 }
 
+function resolvesExplicitExternalityFromTypeCapability() {
+  const result = linkedProject(
+    source("definitions.ai", `
+define type PartnerSystem of System
+    constructor partner
+        kind = internal
+
+    capability = "external-element"
+`),
+    source("model.ai", `
+context shop
+
+partner vendor
+    name = Vendor
+
+system explicitly_marked
+    name = Explicitly marked
+    kind = external
+`),
+  );
+  const graph = selectGraph(result, { context: "shop" }, `
+    MATCH (element:SystemElement)
+    WHERE element IS External
+    RETURN element
+  `);
+
+  assert.deepEqual(Object.keys(graph.elements).sort(), ["shop/explicitly_marked", "shop/vendor"]);
+  assert.deepEqual([...graph.externalElements].sort(), ["shop/explicitly_marked", "shop/vendor"]);
+  assert.equal(result.elements.find((element) => element.id === "shop/vendor")?.attributes.kind?.[0], "internal");
+}
+
 function rendersTheSameRelativeExternalityCarriedByQueryJson() {
   const result = focusedSplitProject();
   const graph = selectBuiltin(result, "c2", "storefront.ai");
   const dot = renderGraphviz(result, graph, "dark");
   assertExternal(graph, "shop/payments");
-  assert.match(dot, /"shop__payments" \[[^\n]*fillcolor="#737C67"/);
-  assert.match(dot, /"shop__storefront_service" \[[^\n]*fillcolor="#5A189A"/);
+  assert.match(dot, /"shop\/payments" \[[^\n]*fillcolor="#737C67"/);
+  assert.match(dot, /"shop\/storefront_service" \[[^\n]*fillcolor="#5A189A"/);
+}
+
+function rendersExternalPaletteFromTheEffectivePresentation() {
+  const result = linkedProject(
+    source("definitions.ai", `
+define type Landmark of BoundaryElement
+    constructor landmark
+
+    capability = "external-element"
+
+    required Text name
+
+define presentation Landmark
+    header = name
+
+    dark
+        fill = "#111111"
+
+    externalDark
+        fill = "#123456"
+        stroke = "#abcdef"
+
+    graphviz
+        shape = diamond
+`),
+    source("model.ai", `
+context map
+
+landmark remote
+    name = Remote landmark
+`),
+  );
+  const graph = selectGraph(result, { context: "map" }, "MATCH (element:Element) RETURN element");
+  const dot = renderGraphviz(result, graph, "dark");
+
+  assert.deepEqual(graph.externalElements, ["map/remote"]);
+  assert.match(dot, /"map\/remote" \[[^\n]*color="#abcdef"/);
+  assert.match(dot, /"map\/remote" \[[^\n]*fillcolor="#123456"/);
+  assert.match(dot, /"map\/remote" \[[^\n]*shape="diamond"/);
+  assert.doesNotMatch(dot, /"map\/remote" \[[^\n]*fillcolor="#737C67"/);
 }
 
 function focusedSplitProject() {

@@ -19,7 +19,7 @@ const cases = [
   capturesOperatorImplementations,
   reportsNotDeclaredTypesInDefinitionsAndPresentations,
   reportsMissingConstructorsForInstantiableTypes,
-  allowsConstructorlessCodeElementExtensionPoint,
+  allowsExplicitAbstractExtensionPointsAcrossSnapshots,
   allowsDataTypesWithoutConstructors,
   allowsEnumValuesWithoutAttributes,
   rejectsEnumExtensionsWithoutDefinition,
@@ -288,17 +288,28 @@ define operator Wire of Edge
   assert.equal(countDiagnostics(result, "TYPE_CONSTRUCTOR_MISSING", "Wire"), 1);
 }
 
-function allowsConstructorlessCodeElementExtensionPoint() {
-  const result = buildLanguageSnapshotResultFromSources([
+function allowsExplicitAbstractExtensionPointsAcrossSnapshots() {
+  const base = buildLanguageSnapshotResultFromSources([
     {
-      sourceName: "core_code.ai",
+      sourceName: "library.ai",
       source: `
-define type CodeElement of Element
+define abstract type ExtensionPoint of Element
 `,
     },
   ]);
+  const project = buildLanguageSnapshotResultFromSources([
+    {
+      sourceName: "project.ai",
+      source: `
+define type Concrete of ExtensionPoint
+    constructor concrete
+`,
+    },
+  ], [base.snapshot]);
 
-  assert.equal(countDiagnostics(result, "TYPE_CONSTRUCTOR_MISSING", "CodeElement"), 0);
+  assert.equal(countDiagnostics(base, "TYPE_CONSTRUCTOR_MISSING", "ExtensionPoint"), 0);
+  assert.equal(base.snapshot.types.find((type) => type.name === "ExtensionPoint")?.abstract, true);
+  assert.equal(countDiagnostics(project, "TYPE_CONSTRUCTOR_MISSING"), 0);
 }
 
 function allowsDataTypesWithoutConstructors() {

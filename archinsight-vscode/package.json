@@ -3,6 +3,7 @@
   "displayName": "Archinsight",
   "description": "Native VSCode support for Insight architecture models.",
   "version": "3.0.10",
+  "type": "module",
   "license": "Apache-2.0",
   "publisher": "archinsight",
   "icon": "assets/icon.png",
@@ -311,12 +312,12 @@
   },
   "scripts": {
     "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs",
-    "prepare:web": "npm --prefix ../archinsight-web run sync:svelte-kit",
-    "build:webview": "npm run prepare:web && vite build --config vite.webview.config.mts",
+    "build:webview": "vite build --config vite.webview.config.mts",
     "build:extension": "esbuild src/extension.ts --bundle --platform=node --format=cjs --outfile=dist/extension.cjs --external:vscode --external:@viz-js/viz",
     "build": "npm run build:webview && npm run build:extension",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "check": "npm run typecheck && npm run build",
+    "test": "node --experimental-test-coverage --test-coverage-include=src/diagram-session.ts --test-coverage-include=src/diagram-svg.ts --test-coverage-include=src/preview-webview.ts --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/*.test.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
     "package": "npm run check && vsce package --out dist/archinsight-vscode-${npm_package_version}.vsix",
     "publish:marketplace": "npm run check && vsce publish"
   },
@@ -324,6 +325,10 @@
     "@viz-js/viz": "^3.28.0"
   },
   "devDependencies": {
+    "@archinsight/contracts": "file:../packages/archinsight-contracts",
+    "@archinsight/editor-support": "file:../packages/archinsight-editor-support",
+    "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
+    "@archinsight/workbench": "file:../packages/archinsight-workbench",
     "@insight/language": "file:../packages/insight-language",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/node": "^24.0.0",

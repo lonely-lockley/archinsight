@@ -1,8 +1,16 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
-  import type { CompletionKind } from '@insight/language';
-  import WorkspaceEditor from '../../../archinsight-web/src/lib/WorkspaceEditor.svelte';
+  import type { BuiltinDiagramView } from '@insight/language';
+  import { completionDetail, completionSortText } from '@archinsight/editor-support';
+  import {
+    parseWorkbenchHostToWebviewMessage,
+    type WebviewCompletionItem,
+    type WebviewDiagnostic,
+    type WebviewPreviewState,
+    type WorkbenchWebviewToHostMessage
+  } from '@archinsight/contracts';
+  import WorkspaceEditor from '@archinsight/workbench/workspace-editor';
   import {
     createInsightSemanticTokensProvider,
     createInsightTokenVocabulary,
@@ -10,24 +18,20 @@
     refreshInsightTokenVocabulary,
     type InsightSemanticTokensProvider,
     type InsightTokenVocabulary
-  } from '../../../archinsight-web/src/lib/insight-monaco-language';
+  } from '@archinsight/workbench/monaco';
   import {
     defaultDiagramMode,
     defaultQuery,
+    diagramModeDefinition,
     diagramModeForQuery,
     queryForDiagramMode
-  } from '../../../archinsight-web/src/lib/diagram-query-presets';
-  import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '../../../archinsight-web/src/lib/workspace-types';
+  } from '@archinsight/workbench/presets';
+  import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '@archinsight/workbench/types';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
 
-  type DiagramView = 'c1' | 'c2' | 'c3' | 'c4' | 'deployment' | 'deployment-system' | 'deployment-container' | 'no-filter';
+  type DiagramView = BuiltinDiagramView;
 
-  type CompletionItem = {
-    label: string;
-    insertText?: string;
-    kind: CompletionKind;
-    imported?: boolean;
-  };
+  type CompletionItem = WebviewCompletionItem;
 
   type CompletionResponse = {
     items: CompletionItem[];
@@ -35,52 +39,11 @@
     replacementEndOffset: number;
   };
 
-  type IncomingMessage =
-    | {
-      command: 'source';
-      source: string;
-      sourceName: string;
-      fileName: string;
-      view: DiagramView;
-      query: string;
-      environment?: string;
-      diagnostics?: Diagnostic[];
-      symbols?: unknown;
-      readOnly?: boolean;
-    }
-    | { command: 'query'; view: DiagramView; query: string; environment?: string }
-    | { command: 'preview'; state: PreviewState }
-    | { command: 'diagnostics'; diagnostics: Diagnostic[] }
-    | { command: 'completionResult'; requestId: number; items: CompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
-    | { command: 'clipboardText'; requestId: number; text: string }
-    | { command: 'exportPng'; svg: string }
-    | { command: 'reveal'; line: number; column: number };
-
-  type Diagnostic = {
-    sourceName: string;
-    line?: number;
-    column?: number;
-    endLine?: number;
-    endColumn?: number;
-    level?: string;
-    code?: string;
-    message: string;
-  };
-
-  type PreviewState = {
-    view: DiagramView;
-    query: string;
-    environment?: string;
-    sourceName: string;
-    fileName: string;
-    source: string;
-    svg?: string;
-    dot?: string;
-    error?: string;
-  };
+  type Diagnostic = WebviewDiagnostic;
+  type PreviewState = WebviewPreviewState;
 
   type VscodeApi = {
-    postMessage(message: unknown): void;
+    postMessage(message: WorkbenchWebviewToHostMessage): void;
   };
 
   declare const acquireVsCodeApi: () => VscodeApi;
@@ -235,8 +198,8 @@
             insertText: item.insertText ?? item.label,
             kind: completionItemKind(monacoInstance, item),
             range,
-            sortText: `${completionSortBucket(item.kind)}:${item.label}`,
-            detail: completionItemDetail(item)
+            sortText: completionSortText(item),
+            detail: completionDetail(item)
           }))
         };
       }
@@ -256,8 +219,13 @@
     return result;
   }
 
-  function handleMessage(event: MessageEvent<IncomingMessage>): void {
-    const message = event.data;
+  function handleMessage(event: MessageEvent<unknown>): void {
+    let message;
+    try {
+      message = parseWorkbenchHostToWebviewMessage(event.data);
+    } catch {
+      return;
+    }
     if (message.command === 'source') {
       sourceName = message.sourceName;
       fileName = message.fileName;
@@ -543,7 +511,7 @@
   }
 
   function selectDiagramMode(mode: DiagramMode): void {
-    if (mode === 'deployment-container') {
+    if (diagramModeDefinition(mode).environment === 'single-relevant') {
       vscode.postMessage({ command: 'selectDeploymentEnvironment' });
       return;
     }
@@ -730,33 +698,6 @@
         return monacoInstance.languages.CompletionItemKind.Function;
       case 'NEWLINE':
         return monacoInstance.languages.CompletionItemKind.Snippet;
-    }
-  }
-
-  function completionItemDetail(item: CompletionItem): string {
-    return item.kind === 'IDENTIFIER' && item.imported === true ? 'imported identifier' : item.kind;
-  }
-
-  function completionSortBucket(kind: CompletionKind): string {
-    switch (kind) {
-      case 'KEYWORD':
-        return '1';
-      case 'CONSTRUCTOR':
-        return '2';
-      case 'OPERATOR':
-        return '3';
-      case 'ATTRIBUTE':
-        return '4';
-      case 'IDENTIFIER':
-        return '5';
-      case 'ENUM_VALUE':
-        return '6';
-      case 'TYPE':
-        return '7';
-      case 'ANNOTATION':
-        return '8';
-      case 'NEWLINE':
-        return '8';
     }
   }
 

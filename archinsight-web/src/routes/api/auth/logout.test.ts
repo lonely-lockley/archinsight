@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { issueStandaloneToken } from '$lib/server/auth/standalone-token';
 import { getAuthConfig } from '$lib/server/auth/auth-config';
+import { createApplicationServices } from '$lib/server/config/application-services';
 
 const revocation = vi.hoisted(() => ({
   revokeSsrSession: vi.fn(),
@@ -36,12 +37,12 @@ describe('logout session revocation', () => {
     revocation.revokeSsrSession.mockResolvedValue(true);
     const jar = cookies(ghostCookies('ghost-session'));
 
-    const response = await logout({ cookies: jar, platform: { env: ghostConfig } } as never);
+    const response = await logout({ cookies: jar, locals: { services: createApplicationServices(ghostConfig) } } as never);
 
     expect(response.status).toBe(200);
     expect(revocation.revokeSsrSession).toHaveBeenCalledWith(
       'ghost-session',
-      expect.objectContaining(ghostConfig),
+      expect.objectContaining({ env: expect.objectContaining(ghostConfig) }),
       'logout-test-token-secret'
     );
     expect(revocation.revokeUserSessions).not.toHaveBeenCalled();
@@ -61,7 +62,7 @@ describe('logout session revocation', () => {
       [config.tokenCookieName]: token
     });
 
-    const response = await logout({ cookies: jar, platform: { env: ghostConfig } } as never);
+    const response = await logout({ cookies: jar, locals: { services: createApplicationServices(ghostConfig) } } as never);
 
     expect(response.status).toBe(200);
     expect(revocation.revokeSsrSession).toHaveBeenCalledOnce();
@@ -73,18 +74,24 @@ describe('logout session revocation', () => {
     const token = issueStandaloneToken({ id: userId, tokenVersion: 3 }, config.token);
     const jar = cookies({ [config.tokenCookieName]: token });
 
-    const response = await logout({ cookies: jar, platform: { env: baseConfig } } as never);
+    const response = await logout({ cookies: jar, locals: { services: createApplicationServices(baseConfig) } } as never);
 
     expect(response.status).toBe(200);
     expect(revocation.revokeSsrSession).not.toHaveBeenCalled();
-    expect(revocation.revokeUserSessions).toHaveBeenCalledWith(userId, expect.objectContaining(baseConfig));
+    expect(revocation.revokeUserSessions).toHaveBeenCalledWith(
+      userId,
+      expect.objectContaining({ env: expect.objectContaining(baseConfig) })
+    );
   });
 
   it('deletes browser cookies even if server-side revocation fails', async () => {
     revocation.revokeSsrSession.mockRejectedValue(new Error('database unavailable'));
     const jar = cookies(ghostCookies('ghost-session'));
 
-    await expect(logout({ cookies: jar, platform: { env: ghostConfig } } as never)).rejects.toThrow('database unavailable');
+    await expect(logout({
+      cookies: jar,
+      locals: { services: createApplicationServices(ghostConfig) }
+    } as never)).rejects.toThrow('database unavailable');
     expect(jar.deleteCalls.map((call) => call.name)).toEqual([
       'archinsight-session',
       'ghost-members-ssr',

@@ -7,7 +7,8 @@ const packageDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const requiredSources = [
   'src/generated/InsightLexer.ts',
   'src/generated/InsightParser.ts',
-  'src/generated/core-source.ts'
+  'src/generated/core-source.ts',
+  'src/generated/builtin-view-catalog.ts'
 ];
 
 if (process.env.ARCHINSIGHT_LANGUAGE_SOURCES_READY === 'true') {

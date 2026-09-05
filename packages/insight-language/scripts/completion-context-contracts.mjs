@@ -28,7 +28,10 @@ const cases = [
   edgeListOperatorsCompleteAfterNestedObjectAttribute,
   wireAttributesCompleteAfterNestedObjectAttribute,
   projectionRulesCompleteTextualOperatorsTermsAndAttributes,
+  contextualReferenceListsAndAnonymousOperatorsUseDeclarations,
+  deploymentProfilesCompleteDeclaredActionsAndContextualMembers,
   deploymentBlocksCompleteProfilesAndInfrastructureSlots,
+  filledSingleReferenceSlotsDoNotSuggestNestedAttributes,
   objectBodyDoesNotSuggestAssignedScalarAttributes,
   identifierDeclarationsHaveNoCandidates,
   archinsightExampleCompletionDoesNotLeakTextWordsAtLineEnds,
@@ -671,6 +674,363 @@ system application
     assert(wireOverrideBody.has(expected), `${expected} missing from ${[...wireOverrideBody].join(", ")}`);
   }
   assert(!wireOverrideBody.has("appliesTo"), [...wireOverrideBody].join(", "));
+}
+
+function deploymentProfilesCompleteDeclaredActionsAndContextualMembers() {
+  const snapshot = deploymentProfileSnapshot();
+  const contextualIdentifiers = [
+    { label: "production", type: "Deployment", contextId: "eu" },
+    { label: "production", type: "Deployment", contextId: "sa" },
+    { label: "test", type: "Deployment", contextId: "eu" },
+    { label: "unrelated", type: "System", contextId: "other" },
+  ];
+  const options = { snapshot, contextualIdentifiers, contextIds: ["eu", "sa", "other"] };
+
+  const newProfileBody = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile regional
+    __CURSOR__
+`, options));
+  for (const expected of ["appliesTo", "uses", "runsOn"]) {
+    assert(newProfileBody.has(expected), `${expected} missing from ${[...newProfileBody].join(", ")}`);
+  }
+  assert(!newProfileBody.has("deployment"), [...newProfileBody].join(", "));
+
+  const actionBody = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile regional
+    appliesTo:
+        production from eu
+    __CURSOR__
+`, options));
+  assert.deepEqual([...actionBody].sort(), ["runsOn", "uses"]);
+
+  const memberIds = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile regional
+    appliesTo:
+        __CURSOR__
+`, options));
+  assert.deepEqual([...memberIds].sort(), ["production", "test"]);
+
+  const fromKeyword = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile regional
+    appliesTo:
+        production __CURSOR__
+`, options));
+  assert.deepEqual([...fromKeyword], ["from"]);
+
+  const memberContexts = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile regional
+    appliesTo:
+        production from __CURSOR__
+`, options));
+  assert.deepEqual([...memberContexts].sort(), ["eu", "sa"]);
+
+  const useTargets = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile regional
+    appliesTo:
+        production from eu
+    uses __CURSOR__
+`, options));
+  assert.deepEqual([...useTargets].sort(), [
+    "broker",
+    "compute",
+    "database",
+    "internalNetwork",
+    "publicGateway",
+    "regional",
+  ]);
+
+  const placementTargets = itemLabels(completeAtMarker(`
+context app
+
+deploymentProfile regional
+    appliesTo:
+        production from eu
+    runsOn __CURSOR__
+`, options));
+  assert.deepEqual([...placementTargets].sort(), [
+    "broker",
+    "compute",
+    "database",
+    "internalNetwork",
+    "publicGateway",
+  ]);
+}
+
+function contextualReferenceListsAndAnonymousOperatorsUseDeclarations() {
+  const definitions = buildLanguageSnapshotResultFromSources([
+    source("declarative_reference_completion.ai", `
+define type ReleaseTarget of BoundaryElement
+    constructor releaseTarget
+
+define operator HostAssignment of Edge
+    constructor assignHost InfrastructureComponent
+        on RolloutPolicy
+
+    capability = "deployment-placement"
+
+define type RolloutPolicy of BoundaryElement
+    constructor rolloutPolicy
+
+    required List of ReleaseTarget members
+        capability = "reference-only"
+    List of ReleaseTarget drafts
+    List of HostAssignment _
+
+define type PolicyGroup of BoundaryElement
+    constructor policyGroup
+
+    List of RolloutPolicy _
+
+define type ReleaseCollection of BoundaryElement
+    constructor releaseCollection
+
+    List of ReleaseTarget _
+
+define type RolloutEnvironment of Environment
+    Compute host
+`),
+  ], [coreLanguageSnapshot]);
+  assert.deepEqual(definitions.diagnostics, []);
+
+  const contextualIdentifiers = [
+    { label: "releaseA", type: "ReleaseTarget", contextId: "eu" },
+    { label: "releaseA", type: "ReleaseTarget", contextId: "sa" },
+    { label: "releaseB", type: "ReleaseTarget", contextId: "eu" },
+    { label: "wrongType", type: "System", contextId: "eu" },
+  ];
+  const options = {
+    snapshot: definitions.snapshot,
+    contextualIdentifiers,
+    contextIds: ["eu", "sa"],
+  };
+
+  const bodyItems = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    __CURSOR__
+`, options));
+  assert.deepEqual([...bodyItems].sort(), ["assignHost", "members"]);
+
+  const referenceItems = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    members:
+        __CURSOR__
+`, options));
+  assert.deepEqual([...referenceItems].sort(), ["releaseA", "releaseB"]);
+
+  const nestedReferenceItems = itemLabels(completeAtMarker(`
+context app
+
+policyGroup group
+    rolloutPolicy current
+        members:
+            __CURSOR__
+`, options));
+  assert.deepEqual([...nestedReferenceItems].sort(), ["releaseA", "releaseB"]);
+
+  const emptyReferenceItems = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    members:
+        __CURSOR__
+`, { snapshot: definitions.snapshot }));
+  assert.deepEqual([...emptyReferenceItems], []);
+
+  const ordinaryListItems = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    drafts:
+        __CURSOR__
+`, options));
+  assert.deepEqual([...ordinaryListItems].sort(), ["releaseA", "releaseB", "releaseTarget"]);
+
+  const nonEdgeContainerItems = itemLabels(completeAtMarker(`
+context app
+
+releaseCollection releases
+    __CURSOR__
+`, options));
+  assert(nonEdgeContainerItems.has("releaseTarget"), [...nonEdgeContainerItems].join(", "));
+  for (const forbidden of ["assignHost", "runsOn", "uses"]) {
+    assert(!nonEdgeContainerItems.has(forbidden), `${forbidden} leaked into ${[...nonEdgeContainerItems].join(", ")}`);
+  }
+
+  const fromKeyword = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    members:
+        releaseA __CURSOR__
+`, options));
+  assert.deepEqual([...fromKeyword], ["from"]);
+
+  const contexts = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    members:
+        releaseA from __CURSOR__
+`, options));
+  assert.deepEqual([...contexts].sort(), ["eu", "sa"]);
+
+  const operatorTargets = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    members:
+        releaseA from eu
+    assignHost __CURSOR__
+`, options));
+  assert.deepEqual([...operatorTargets], ["host"]);
+
+  const operatorBody = itemLabels(completeAtMarker(`
+context app
+
+rolloutPolicy current
+    members:
+        releaseA from eu
+    assignHost host
+        __CURSOR__
+`, options));
+  for (const expected of ["address", "components", "description", "name", "runsOn", "technology"]) {
+    assert(operatorBody.has(expected), `${expected} missing from ${[...operatorBody].join(", ")}`);
+  }
+  assert(!operatorBody.has("members"), [...operatorBody].join(", "));
+}
+
+function filledSingleReferenceSlotsDoNotSuggestNestedAttributes() {
+  const definitions = buildLanguageSnapshotResultFromSources([
+    source("custom.ai", `
+define type CustomNode of BoundaryElement
+    constructor customNode
+
+    required Text name
+    CustomNode parent
+    List of CustomNode peers
+
+define type CompletionEnvironment of Environment
+    ServiceProvider csp
+    Compute compute
+
+define type ServiceProvider of InfrastructureComponent
+    constructor serviceProvider
+`),
+  ], [coreLanguageSnapshot]);
+  assert.deepEqual(definitions.diagnostics, []);
+
+  const filledSingleSlotLabels = itemLabels(completeAtMarker(`
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    parent:
+        root
+        __CURSOR__
+`, { snapshot: definitions.snapshot }));
+  assert.deepEqual(
+    [...filledSingleSlotLabels],
+    [],
+    `filled single reference slot leaked: ${[...filledSingleSlotLabels].join(", ")}`,
+  );
+
+  const invalidNestedSlotLabels = itemLabels(completeAtMarker(`
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    parent:
+        root
+        parent:
+            __CURSOR__
+`, { snapshot: definitions.snapshot }));
+  assert.deepEqual(
+    [...invalidNestedSlotLabels],
+    [],
+    `invalid nested reference slot leaked: ${[...invalidNestedSlotLabels].join(", ")}`,
+  );
+
+  const listSlotLabels = itemLabels(completeAtMarker(`
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    peers:
+        root
+        __CURSOR__
+`, { snapshot: definitions.snapshot }));
+
+  assert(listSlotLabels.has("root"), `list reference slot lost candidates: ${[...listSlotLabels].join(", ")}`);
+  assert(!listSlotLabels.has("parent"), `list reference slot leaked object attributes: ${[...listSlotLabels].join(", ")}`);
+
+  const infrastructureSlotLabels = itemLabels(completeAtMarker(`
+environment example
+    name = Example
+
+deployment production
+    csp:
+        serviceProvider csp
+            name = Provider
+
+    compute:
+        compute compute
+            name = Kubernetes
+            runsOn:
+                csp
+                __CURSOR__
+`, { snapshot: definitions.snapshot }));
+  assert.deepEqual(
+    [...infrastructureSlotLabels],
+    [],
+    `filled infrastructure reference slot leaked: ${[...infrastructureSlotLabels].join(", ")}`,
+  );
+
+  const infrastructureValueCompletion = completeAtMarker(`
+environment example
+    name = Example
+
+deployment production
+    csp:
+        serviceProvider csp
+            name = Provider
+
+    compute:
+        compute compute
+            name = Kubernetes
+            runsOn:
+                __CURSOR__csp
+`, { snapshot: definitions.snapshot });
+  const infrastructureValueLabels = itemLabels(infrastructureValueCompletion);
+  assert.deepEqual(
+    [...infrastructureValueLabels].sort(),
+    ["compute", "csp"],
+    `reference value completion candidates changed; rules: ${infrastructureValueCompletion.ruleStack.join(" > ")}`,
+  );
 }
 
 function assertProjectionCompletion(line, { snapshot, includes, excludes }) {

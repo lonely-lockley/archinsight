@@ -62,6 +62,16 @@ export class TypeSystem {
       .filter((constructor) => this.isAssignable(constructor.ownerType, expectedType));
   }
 
+  constructorsForSpelling(spelling: string): readonly ConstructorDefinition[] {
+    return this.constructorsBySpelling.get(spelling) ?? [];
+  }
+
+  constructorsDeclaredBy(type: string): readonly ConstructorDefinition[] {
+    return [...this.constructorsBySpelling.values()]
+      .flat()
+      .filter((constructor) => constructor.ownerType === type);
+  }
+
   findConstructor(spelling: string, expectedType = NOTHING): ConstructorDefinition | undefined {
     const candidates = this.constructorsBySpelling.get(spelling) ?? [];
     if (expectedType === NOTHING) {
@@ -89,6 +99,33 @@ export class TypeSystem {
 
   attribute(ownerType: string, name: string): AttributeDefinition | undefined {
     return this.attributes(ownerType).get(name);
+  }
+
+  attributeWithCapability(ownerType: string, capability: string): AttributeDefinition | undefined {
+    return [...this.attributes(ownerType).values()]
+      .find((attribute) => attribute.capabilities?.includes(capability) === true);
+  }
+
+  typeHasCapability(type: string, capability: string): boolean {
+    return this.inheritanceChain(type)
+      .some((candidate) => this.types.get(candidate)?.capabilities?.includes(capability) === true);
+  }
+
+  capabilities(type: string): readonly string[] {
+    return [...new Set(this.inheritanceChain(type)
+      .flatMap((candidate) => this.types.get(candidate)?.capabilities ?? []))];
+  }
+
+  declaresCapability(type: string, capability: string): boolean {
+    return this.types.get(type)?.capabilities?.includes(capability) === true;
+  }
+
+  typesWithCapability(capability: string): readonly string[] {
+    return [...this.types.keys()].filter((type) => this.typeHasCapability(type, capability));
+  }
+
+  operatorHasCapability(operator: OperatorDefinition, capability: string): boolean {
+    return operator.capabilities?.includes(capability) === true;
   }
 
   anonymousListAttribute(ownerType: string): AttributeDefinition | undefined {
@@ -134,10 +171,10 @@ export class TypeSystem {
   }
 
   operatorConstructor(spelling: string, ownerType: string, targetType: string): OperatorDefinition | undefined {
-    return this.operatorsBySpelling
-      .get(spelling)
-      ?.find((operator) => (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))
+    const candidates = (this.operatorsBySpelling.get(spelling) ?? [])
+      .filter((operator) => (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))
         && this.isAssignable(targetType, operator.targetType));
+    return this.uniqueMostSpecificOperator(candidates);
   }
 
   relationOperatorConstructors(expectedType?: string): readonly OperatorDefinition[] {
@@ -147,16 +184,18 @@ export class TypeSystem {
   }
 
   relationOperatorConstructor(spelling: string): OperatorDefinition | undefined {
-    return this.relationOperatorConstructors()
-      .find((operator) => operator.spelling === spelling);
+    return this.uniqueMostSpecificOperator(
+      this.relationOperatorConstructors().filter((operator) => operator.spelling === spelling),
+    );
   }
 
   slotOperatorConstructor(spelling: string, ownerType: string, expectedType: string): OperatorDefinition | undefined {
-    return this.operatorsBySpelling
-      .get(spelling)
-      ?.find((operator) => this.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE)
+    return this.uniqueMostSpecificOperator(
+      (this.operatorsBySpelling.get(spelling) ?? [])
+        .filter((operator) => this.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE)
         && this.isAssignable(operator.ownerType, expectedType)
-        && (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType)));
+        && (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))),
+    );
   }
 
   private inheritanceChain(type: string): string[] {
@@ -169,6 +208,22 @@ export class TypeSystem {
       current = this.types.get(current)?.baseType;
     }
     return result;
+  }
+
+  private operatorMoreSpecific(candidate: OperatorDefinition, other: OperatorDefinition): boolean {
+    const leftAtLeastAsSpecific = other.leftType === undefined
+      || (candidate.leftType !== undefined && this.isAssignable(candidate.leftType, other.leftType));
+    const targetAtLeastAsSpecific = this.isAssignable(candidate.targetType, other.targetType);
+    const strictlyMoreSpecific = candidate.leftType !== other.leftType
+      || candidate.targetType !== other.targetType;
+    return leftAtLeastAsSpecific && targetAtLeastAsSpecific && strictlyMoreSpecific;
+  }
+
+  private uniqueMostSpecificOperator(candidates: readonly OperatorDefinition[]): OperatorDefinition | undefined {
+    const mostSpecific = candidates.filter((candidate) => !candidates.some((other) =>
+      other !== candidate && this.operatorMoreSpecific(other, candidate)
+    ));
+    return mostSpecific.length === 1 ? mostSpecific[0] : undefined;
   }
 }
 

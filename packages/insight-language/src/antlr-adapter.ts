@@ -1,6 +1,7 @@
 import type {
   CompletionRequest,
   CompletionScope,
+  ContextualIdentifier,
   ElementFrame,
   InsightSyntaxProvider,
   ListFrame,
@@ -9,62 +10,38 @@ import type {
   TokenInfo,
   VisibleIdentifier,
 } from "./contracts.js";
+import {
+  aggregateGroupAttribute,
+  isDocumentAggregateMember,
+  resolveDocumentAggregateRoot,
+} from "./document-aggregate.js";
+import {
+  childrenOf,
+  directChildrenByRule,
+  firstChildByRule,
+  firstDescendantByRule,
+  firstTokenTextByName,
+  ruleName,
+  startToken,
+  stopToken,
+  terminalSymbol,
+  textOf,
+  tokenColumn,
+  tokenIndex,
+  tokenLine,
+  tokenName,
+  tokenStart,
+  tokenStop,
+  tokenText,
+  tokenType,
+  type AntlrParseFailureLike,
+  type AntlrParseTreeLike,
+  type AntlrSyntaxErrorLike,
+  type AntlrTokenLike,
+  type TokenNameResolver,
+} from "./parser-facade.js";
 import { CONTEXT, NOTHING, TypeSystem } from "./type-system.js";
-
-const DEPLOYMENT_LIST_ATTRIBUTE = "deployment";
-const DEPLOYMENT_PROFILE_TYPE = "DeploymentProfile";
-const INFRASTRUCTURE_COMPONENT_TYPE = "InfrastructureComponent";
-const USES_OPERATOR = "uses";
-const RUNS_ON_OPERATOR = "runsOn";
-
-export interface AntlrTokenLike {
-  readonly type?: number;
-  readonly tokenType?: number;
-  readonly text?: string;
-  readonly start?: number;
-  readonly stop?: number;
-  readonly startIndex?: number;
-  readonly stopIndex?: number;
-  readonly tokenIndex?: number;
-  readonly line?: number;
-  readonly column?: number;
-  readonly charPositionInLine?: number;
-  getType?(): number;
-  getText?(): string;
-  getStartIndex?(): number;
-  getStopIndex?(): number;
-  getTokenIndex?(): number;
-  getLine?(): number;
-  getCharPositionInLine?(): number;
-}
-
-export interface AntlrParseTreeLike {
-  readonly children?: readonly (AntlrParseTreeLike | null)[];
-  readonly childCount?: number;
-  readonly ruleIndex?: number;
-  readonly start?: AntlrTokenLike | null;
-  readonly stop?: AntlrTokenLike | null;
-  readonly symbol?: AntlrTokenLike | null;
-  getChild?(index: number): AntlrParseTreeLike | null;
-  getChildCount?(): number;
-  getRuleIndex?(): number;
-  getStart?(): AntlrTokenLike | null;
-  getStop?(): AntlrTokenLike | null;
-  getSymbol?(): AntlrTokenLike | null;
-  getText?(): string;
-}
-
-export interface AntlrSyntaxErrorLike {
-  readonly offset?: number;
-  readonly line: number;
-  readonly column: number;
-  readonly message?: string;
-  readonly expectedTokenTypes: readonly number[];
-}
-
-export interface AntlrParseFailureLike {
-  readonly message: string;
-}
+import { OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 export interface AntlrAdapterInput {
   readonly source: string;
@@ -76,10 +53,9 @@ export interface AntlrAdapterInput {
   readonly syntaxErrors?: readonly AntlrSyntaxErrorLike[];
   readonly parseFailure?: AntlrParseFailureLike;
   readonly indexedIdentifiers?: ReadonlyMap<string, VisibleIdentifier>;
+  readonly contextualIdentifiers?: readonly ContextualIdentifier[];
   readonly contextIds?: readonly string[];
 }
-
-export type TokenNameResolver = readonly string[] | ReadonlyMap<number, string> | ((type: number) => string);
 
 export type AntlrParseFunction = (request: CompletionRequest) => AntlrAdapterInput;
 
@@ -262,11 +238,15 @@ function createCompletionScope(
       state.contextId = textOf(environmentName);
     }
     let environmentFrame: MutableElementFrame | undefined;
+    let documentAggregateType: string | undefined;
     if (environmentDeclaration !== undefined && startsBefore(environmentDeclaration, cursorOffset)) {
-      const baseEnvironmentType = typeSystem.findConstructor("environment", "Environment")?.ownerType;
-      const environmentType = baseEnvironmentType === undefined
-        ? undefined
-        : completionEnvironmentDeclarationType(typeSystem, baseEnvironmentType, environmentDeclaration, input.ruleNames);
+      documentAggregateType = completionDocumentAggregateType(
+        typeSystem,
+        environmentDeclaration,
+        environmentFile,
+        input.ruleNames,
+      );
+      const environmentType = documentAggregateType;
       if (environmentName !== undefined && environmentType !== undefined) {
         state.visibleIdentifiers.set(textOf(environmentName), {
           label: textOf(environmentName),
@@ -289,7 +269,7 @@ function createCompletionScope(
       processArchitectureItem(item, CONTEXT, undefined, cursorOffset, cursor, typeSystem, state, input.ruleNames);
     }
     if (environmentFile !== undefined) {
-      const environmentType = environmentFrame?.type ?? typeSystem.findConstructor("environment", "Environment")?.ownerType;
+      const environmentType = environmentFrame?.type ?? documentAggregateType;
       for (const item of directChildrenByRule(environmentFile, "architectureTopLevelItem", input.ruleNames)) {
         processArchitectureItem(
           item,
@@ -320,6 +300,7 @@ function createCompletionScope(
     visibleContexts,
     visibleTypes,
     visibleIdentifiers,
+    contextualIdentifiers: input.contextualIdentifiers ?? [],
     frames: state.frames,
     operatorFrames: state.operatorFrames,
     lists: state.lists,
@@ -367,7 +348,7 @@ function processLineFallbackScope(
     if (declaration.constructor === "context") {
       state.contextId = declaration.identifier;
     }
-    const frame = mutableFrame(indent, resolvedType);
+    const frame = mutableFrame(indent, resolvedType, undefined, parent);
     stack.push(frame);
     state.visibleIdentifiers.set(declaration.identifier, { label: declaration.identifier, type: resolvedType, imported: false });
   }
@@ -376,30 +357,47 @@ function processLineFallbackScope(
   }
 }
 
-function completionEnvironmentDeclarationType(
+function completionDocumentAggregateType(
   typeSystem: TypeSystem,
-  baseType: string,
   declaration: AntlrParseTreeLike,
+  environmentFile: AntlrParseTreeLike | undefined,
   ruleNames: readonly string[],
-): string {
-  const projectEnvironmentTypes = typeSystem.descendantTypes(baseType)
-    .filter((type) => !typeSystem.constructorsForExpectedType(type).some((constructor) => constructor.ownerType === type));
-  const capabilityNames = completionEnvironmentCapabilityNames(declaration, ruleNames);
-  if (capabilityNames.size > 0) {
-    const matchingTypes = projectEnvironmentTypes.filter((type) =>
-      [...capabilityNames].every((name) => typeSystem.attribute(type, name) !== undefined)
-    );
-    if (matchingTypes.length === 1) {
-      return matchingTypes[0]!;
-    }
-  }
-  return projectEnvironmentTypes.length === 1 ? projectEnvironmentTypes[0]! : baseType;
+): string | undefined {
+  const groupNames = completionAggregateGroupNames(declaration, environmentFile, typeSystem, ruleNames);
+  return resolveDocumentAggregateRoot(typeSystem, groupNames)?.type;
 }
 
-function completionEnvironmentCapabilityNames(
+function completionAggregateGroupNames(
   declaration: AntlrParseTreeLike,
+  environmentFile: AntlrParseTreeLike | undefined,
+  typeSystem: TypeSystem,
   ruleNames: readonly string[],
 ): ReadonlySet<string> {
+  const result = completionNamedListNames(declaration, ruleNames);
+  if (environmentFile !== undefined) {
+    for (const item of directChildrenByRule(environmentFile, "architectureTopLevelItem", ruleNames)) {
+      const object = firstDescendantByRule(item, "objectDeclaration", ruleNames);
+      if (object === undefined) {
+        continue;
+      }
+      const constructorName = firstChildByRule(object, "elementConstructor", ruleNames);
+      if (constructorName === undefined || !typeSystem.constructorsForSpelling(textOf(constructorName))
+        .some((constructor) => isDocumentAggregateMember(typeSystem, constructor.ownerType))) {
+        continue;
+      }
+      const body = firstChildByRule(object, "objectBody", ruleNames);
+      if (body !== undefined) {
+        collectNamedListNamesFromBody(body, result, ruleNames);
+      }
+    }
+  }
+  return result;
+}
+
+function completionNamedListNames(
+  declaration: AntlrParseTreeLike,
+  ruleNames: readonly string[],
+): Set<string> {
   const result = new Set<string>();
   const body = firstChildByRule(declaration, "objectBody", ruleNames);
   if (body !== undefined) {
@@ -558,6 +556,10 @@ function processArchitectureItem(
   }
   const list = firstChildByRule(item, "namedList", ruleNames);
   if (list !== undefined) {
+    const listName = firstChildByRule(list, "listName", ruleNames);
+    if (listName !== undefined && ownerFrame !== undefined) {
+      ownerFrame.assignedAttributes.add(textOf(listName));
+    }
     processList(list, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames, ownerFrame);
     return;
   }
@@ -607,11 +609,24 @@ function processDeploymentActionObject(
   const operatorNode = firstChildByRule(declaration, "namedPrefixOperatorInvocation", ruleNames)
     ?? firstChildByRule(declaration, "elementConstructor", ruleNames);
   const operator = operatorNode === undefined ? undefined : textOf(operatorNode);
-  if (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR) {
+  if (operator === undefined || !deploymentOperator(typeSystem, ownerType, operator)) {
     return false;
   }
-  const inDeploymentList = state.lists.some((list) => list.attribute === DEPLOYMENT_LIST_ATTRIBUTE);
-  if (!inDeploymentList && !typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+  const inDeploymentList = state.lists.some((list) =>
+    deploymentOperatorAllowedInList(
+      typeSystem,
+      ownerType,
+      typeSystem.attribute(list.ownerType, list.attribute)?.listElementType,
+      operator,
+    )
+  );
+  const inAnonymousList = deploymentOperatorAllowedInList(
+    typeSystem,
+    ownerType,
+    typeSystem.anonymousListAttribute(ownerType)?.listElementType,
+    operator,
+  );
+  if (!inDeploymentList && !inAnonymousList) {
     return false;
   }
   if (contains(declaration, cursorOffset, cursor)) {
@@ -651,11 +666,17 @@ function processList(
     return;
   }
   const attribute = textOf(listName);
-  const attributeDefinition = typeSystem.attribute(ownerType, attribute);
+  const rootType = ownerFrame?.parentType;
+  const aggregateAttribute = aggregateGroupAttribute(typeSystem, rootType, ownerType, attribute);
+  const attributeOwnerType = aggregateAttribute === undefined ? ownerType : rootType!;
+  const attributeDefinition = typeSystem.attribute(attributeOwnerType, attribute);
   const expectedType = attributeDefinition === undefined ? undefined : typeSystem.nestedElementType(attributeDefinition);
   if ((contains(list, cursorOffset, cursor) || isIndentedUnderListHeader(list, cursor))
     && cursor.line > tokenLine(startToken(list))) {
-    state.lists.unshift({ indent: indentLevel(list), ownerType, attribute });
+    const hasDirectValue = directChildrenByRule(list, "listBodyItem", ruleNames)
+      .some((item) => startsBefore(item, cursorOffset)
+        && firstChildByRule(item, "listValue", ruleNames) !== undefined);
+    state.lists.unshift({ indent: indentLevel(list), ownerType: attributeOwnerType, attribute, hasDirectValue });
   }
   for (const listItem of directChildrenByRule(list, "listBodyItem", ruleNames)) {
     const item = firstChildByRule(listItem, "architectureBodyItem", ruleNames);
@@ -706,7 +727,7 @@ function processElementDeclaration(
     : typeSystem.findConstructor(textOf(constructor), parentType)?.ownerType ?? expectedListElementType;
   if (identifier !== undefined
     && resolvedType !== undefined
-    && firstTokenTextByName(identifier, "ANONYMOUS_ATTRIBUTE", ruleNames, state.tokenName) === undefined) {
+    && firstTokenTextByName(identifier, "ANONYMOUS_ATTRIBUTE", state.tokenName) === undefined) {
     state.visibleIdentifiers.set(textOf(identifier), { label: textOf(identifier), type: resolvedType, imported: false });
   }
   if ((!contains(declaration, cursorOffset, cursor)
@@ -714,7 +735,7 @@ function processElementDeclaration(
     || resolvedType === undefined) {
     return;
   }
-  const frame = mutableFrame(indentLevel(declaration), resolvedType);
+  const frame = mutableFrame(indentLevel(declaration), resolvedType, undefined, parentType);
   state.frames.unshift(frame);
   const body = firstChildByRule(declaration, "objectBody", ruleNames);
   if (body !== undefined) {
@@ -802,23 +823,57 @@ function deploymentActionOverrideTypes(
   typeSystem: TypeSystem,
   state: FileContextState,
 ): readonly string[] {
-  if (target === undefined || (operator !== USES_OPERATOR && operator !== RUNS_ON_OPERATOR)) {
+  if (target === undefined || !deploymentOperator(typeSystem, ownerType, operator)) {
     return [];
   }
-  const inDeploymentList = state.lists.some((list) => list.attribute === DEPLOYMENT_LIST_ATTRIBUTE);
-  if (!inDeploymentList && !typeSystem.isAssignable(ownerType, DEPLOYMENT_PROFILE_TYPE)) {
+  const inDeploymentList = state.lists.some((list) =>
+    deploymentOperatorAllowedInList(
+      typeSystem,
+      ownerType,
+      typeSystem.attribute(list.ownerType, list.attribute)?.listElementType,
+      operator,
+    )
+  );
+  const inAnonymousList = deploymentOperatorAllowedInList(
+    typeSystem,
+    ownerType,
+    typeSystem.anonymousListAttribute(ownerType)?.listElementType,
+    operator,
+  );
+  if (!inDeploymentList && !inAnonymousList) {
     return [];
   }
   const targetText = textOf(target);
   const identifierType = state.visibleIdentifiers.get(targetText)?.type;
-  if (identifierType !== undefined && typeSystem.isAssignable(identifierType, INFRASTRUCTURE_COMPONENT_TYPE)) {
+  if (identifierType !== undefined && typeSystem.typeHasCapability(identifierType, TYPE_CAPABILITIES.infrastructure)) {
     return [identifierType];
   }
   if (identifierType !== undefined) {
     return [];
   }
-  return unique(typeSlotAttributeTypes(typeSystem, "Environment", targetText)
-    .filter((type) => typeSystem.isAssignable(type, INFRASTRUCTURE_COMPONENT_TYPE)));
+  return unique(typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
+    .flatMap((environmentType) => typeSlotAttributeTypes(typeSystem, environmentType, targetText))
+    .filter((type) => typeSystem.typeHasCapability(type, TYPE_CAPABILITIES.infrastructure)));
+}
+
+function deploymentOperator(typeSystem: TypeSystem, ownerType: string, spelling: string): boolean {
+  return typeSystem.operatorConstructorsFrom(ownerType)
+    .filter((operator) => operator.spelling === spelling)
+    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
+}
+
+function deploymentOperatorAllowedInList(
+  typeSystem: TypeSystem,
+  ownerType: string,
+  expectedType: string | undefined,
+  spelling: string,
+): boolean {
+  return expectedType !== undefined && typeSystem.operatorConstructorsFrom(ownerType)
+    .filter((operator) => operator.spelling === spelling)
+    .filter((operator) => typeSystem.isAssignable(operator.ownerType, expectedType))
+    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
 }
 
 function typeSlotAttributeTypes(
@@ -1041,58 +1096,6 @@ function activeChildText(
   return undefined;
 }
 
-function firstDescendantByRule(
-  tree: AntlrParseTreeLike,
-  targetRule: string,
-  ruleNames: readonly string[],
-): AntlrParseTreeLike | undefined {
-  if (ruleName(tree, ruleNames) === targetRule) {
-    return tree;
-  }
-  for (const child of childrenOf(tree)) {
-    const result = firstDescendantByRule(child, targetRule, ruleNames);
-    if (result !== undefined) {
-      return result;
-    }
-  }
-  return undefined;
-}
-
-function firstChildByRule(
-  tree: AntlrParseTreeLike,
-  targetRule: string,
-  ruleNames: readonly string[],
-): AntlrParseTreeLike | undefined {
-  return childrenOf(tree).find((child) => ruleName(child, ruleNames) === targetRule);
-}
-
-function directChildrenByRule(
-  tree: AntlrParseTreeLike,
-  targetRule: string,
-  ruleNames: readonly string[],
-): AntlrParseTreeLike[] {
-  return childrenOf(tree).filter((child) => ruleName(child, ruleNames) === targetRule);
-}
-
-function firstTokenTextByName(
-  tree: AntlrParseTreeLike,
-  tokenRule: string,
-  ruleNames: readonly string[],
-  tokenNameResolver: TokenNameResolver,
-): string | undefined {
-  const symbol = terminalSymbol(tree);
-  if (symbol !== undefined && tokenName(tokenNameResolver, tokenType(symbol)) === tokenRule) {
-    return tokenText(symbol);
-  }
-  for (const child of childrenOf(tree)) {
-    const result = firstTokenTextByName(child, tokenRule, ruleNames, tokenNameResolver);
-    if (result !== undefined) {
-      return result;
-    }
-  }
-  return undefined;
-}
-
 function contains(tree: AntlrParseTreeLike, cursorOffset: number, cursor: CursorPosition): boolean {
   const start = startToken(tree);
   const stop = stopToken(tree);
@@ -1122,100 +1125,8 @@ function startsBefore(tree: AntlrParseTreeLike, cursorOffset: number): boolean {
   return start !== undefined && tokenStart(start) >= 0 && tokenStart(start) < cursorOffset;
 }
 
-function childrenOf(tree: AntlrParseTreeLike): AntlrParseTreeLike[] {
-  if (tree.children !== undefined) {
-    return tree.children.filter((child): child is AntlrParseTreeLike => child !== null);
-  }
-  const count = typeof tree.getChildCount === "function"
-    ? tree.getChildCount()
-    : tree.childCount ?? 0;
-  const result: AntlrParseTreeLike[] = [];
-  for (let index = 0; index < count; index++) {
-    const child = tree.getChild?.(index);
-    if (child !== undefined && child !== null) {
-      result.push(child);
-    }
-  }
-  return result;
-}
-
 function isRuleNode(tree: AntlrParseTreeLike): boolean {
   return startToken(tree) !== undefined && terminalSymbol(tree) === undefined;
-}
-
-function ruleName(tree: AntlrParseTreeLike, ruleNames: readonly string[]): string {
-  const index = typeof tree.getRuleIndex === "function" ? tree.getRuleIndex() : tree.ruleIndex;
-  if (index !== undefined && index >= 0 && index < ruleNames.length) {
-    return ruleNames[index] ?? "";
-  }
-  const constructorName = tree.constructor.name;
-  return constructorName.endsWith("Context")
-    ? lowerFirst(constructorName.slice(0, -"Context".length))
-    : constructorName;
-}
-
-function textOf(tree: AntlrParseTreeLike): string {
-  if (typeof tree.getText === "function") {
-    return tree.getText();
-  }
-  const symbol = terminalSymbol(tree);
-  if (symbol !== undefined) {
-    return tokenText(symbol);
-  }
-  return childrenOf(tree).map(textOf).join("");
-}
-
-function startToken(tree: AntlrParseTreeLike): AntlrTokenLike | undefined {
-  return (typeof tree.getStart === "function" ? tree.getStart() : tree.start) ?? undefined;
-}
-
-function stopToken(tree: AntlrParseTreeLike): AntlrTokenLike | undefined {
-  return (typeof tree.getStop === "function" ? tree.getStop() : tree.stop) ?? undefined;
-}
-
-function terminalSymbol(tree: AntlrParseTreeLike): AntlrTokenLike | undefined {
-  return (typeof tree.getSymbol === "function" ? tree.getSymbol() : tree.symbol) ?? undefined;
-}
-
-function tokenType(token: AntlrTokenLike): number {
-  return token.getType?.() ?? token.type ?? token.tokenType ?? -1;
-}
-
-function tokenText(token: AntlrTokenLike): string {
-  return token.getText?.() ?? token.text ?? "";
-}
-
-function tokenStart(token: AntlrTokenLike): number {
-  return token.getStartIndex?.() ?? token.startIndex ?? token.start ?? -1;
-}
-
-function tokenStop(token: AntlrTokenLike): number {
-  return token.getStopIndex?.() ?? token.stopIndex ?? token.stop ?? tokenStart(token);
-}
-
-function tokenIndex(token: AntlrTokenLike | undefined): number | undefined {
-  return token?.getTokenIndex?.() ?? token?.tokenIndex;
-}
-
-function tokenLine(token: AntlrTokenLike | undefined): number {
-  return token?.getLine?.() ?? token?.line ?? 1;
-}
-
-function tokenColumn(token: AntlrTokenLike | undefined): number {
-  return token?.getCharPositionInLine?.() ?? token?.charPositionInLine ?? token?.column ?? 0;
-}
-
-function tokenName(resolver: TokenNameResolver, type: number): string {
-  if (type === -1) {
-    return "EOF";
-  }
-  if (typeof resolver === "function") {
-    return resolver(type);
-  }
-  if (typeof (resolver as ReadonlyMap<number, string>).get === "function") {
-    return (resolver as ReadonlyMap<number, string>).get(type) ?? String(type);
-  }
-  return (resolver as readonly string[])[type] ?? String(type);
 }
 
 function tokenNameFromText(token: AntlrTokenLike): string {
@@ -1364,17 +1275,19 @@ function cursorPosition(source: string, offset: number): CursorPosition {
   return { line, column };
 }
 
-function mutableFrame(indent: number, type: string, completionTypes?: readonly string[]): MutableElementFrame {
+function mutableFrame(
+  indent: number,
+  type: string,
+  completionTypes?: readonly string[],
+  parentType?: string,
+): MutableElementFrame {
   return {
     indent,
     type,
+    ...(parentType === undefined ? {} : { parentType }),
     ...(completionTypes === undefined || completionTypes.length === 0 ? {} : { completionTypes }),
     assignedAttributes: new Set(),
   };
-}
-
-function lowerFirst(text: string): string {
-  return text.length === 0 ? text : text[0]!.toLowerCase() + text.slice(1);
 }
 
 function optionalProperty<K extends string, V>(key: K, value: V | undefined): Record<K, V> | object {

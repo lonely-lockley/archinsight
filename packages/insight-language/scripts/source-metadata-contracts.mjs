@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import {
   coreLanguageSnapshot,
   linkProject,
+  parseInsightSource,
 } from "../build/runtime/index.js";
 
 const cases = [
   coreTypesCarryDeclarationMetadata,
+  abstractTypesContributeToTheLanguageSnapshot,
   linkedEntitiesCarryDeclarationMetadata,
 ];
 
@@ -30,7 +32,7 @@ function coreTypesCarryDeclarationMetadata() {
   const service = coreLanguageSnapshot.types.find((item) => item.name === "Service");
   assert(service?.declaration !== undefined, "Missing Service type declaration");
   assert.equal(service.declaration.sourceName, "core_container.ai");
-  assert.equal(service.declaration.line, 12);
+  assert.equal(service.declaration.line, 14);
   assert.equal(service.declaration.column, 13);
 
   const wire = coreLanguageSnapshot.types.find((item) => item.name === "Wire");
@@ -38,6 +40,17 @@ function coreTypesCarryDeclarationMetadata() {
   assert.equal(wire.declaration.sourceName, "core_operator.ai");
   assert.equal(wire.declaration.line, 7);
   assert.equal(wire.declaration.column, 17);
+}
+
+function abstractTypesContributeToTheLanguageSnapshot() {
+  const parsed = parseInsightSource({
+    sourceName: "extension-point.ai",
+    source: "define abstract type ExtensionPoint of Element\n",
+  });
+
+  assert.equal(parsed.metadata.role, "definitions");
+  assert.equal(parsed.metadata.contributesToSnapshot, true);
+  assert.equal(parsed.metadata.reliable, true);
 }
 
 function linkedEntitiesCarryDeclarationMetadata() {

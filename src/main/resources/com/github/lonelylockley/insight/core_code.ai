@@ -1,1 +1,1 @@
-define type CodeElement of Element
+define abstract type CodeElement of Element

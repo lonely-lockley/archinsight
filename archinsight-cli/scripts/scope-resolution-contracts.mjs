@@ -44,6 +44,12 @@ MATCH (element:Element)
 WHERE element.sourceIdentity = $tab
 RETURN element
 `);
+  write("literal.aiq", `
+# $tab in a comment is not a scope dependency
+MATCH (system:SystemElement)
+WHERE system.name = '$tab'
+RETURN system
+`);
 
   const c1FromSource = graph("query", root, "-s", "alpha-details.ai", "-v", "c1", "--format", "json");
   assert.equal(c1FromSource.context, "alpha");
@@ -77,6 +83,9 @@ RETURN element
   );
   assert.equal(customQueryOverridesView.context, "alpha");
   assert(customQueryOverridesView.elements["alpha/application"]);
+
+  const lexicalTabReferences = graph("query", root, "-q", "literal.aiq", "--format", "json");
+  assert.equal(Object.keys(lexicalTabReferences.elements).length, 0);
 
   const singleSource = graph("query", path.join(root, "alpha.ai"), "-v", "c2", "--format", "json");
   assert.equal(singleSource.context, "alpha");

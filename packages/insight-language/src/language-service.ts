@@ -6,6 +6,7 @@ import type {
   LanguageSnapshot,
   LinkProjectRequest,
   LinkProjectResult,
+  OperatorImplementationRegistry,
   ProjectSource,
   QueryScope,
   RenderGraph,
@@ -15,11 +16,14 @@ import { createGeneratedInsightSyntaxProvider } from "./generated-provider.js";
 import { renderGraphviz } from "./graphviz-renderer.js";
 import { linkProject } from "./project-linker.js";
 import { ProjectLinkerState, type ProjectLinkerStateUpdate, type ProjectSourceReplacement } from "./project-linker-state.js";
+import { ProjectAnalysisSession } from "./project-analysis-session.js";
 import { selectGraph } from "./query-engine.js";
+import { coreOperatorImplementationRegistry } from "./operator-implementation-registry.js";
 
 export interface InsightLanguageServiceOptions {
   readonly snapshot?: LanguageSnapshot;
   readonly syntaxProvider?: InsightSyntaxProvider;
+  readonly operatorImplementations?: OperatorImplementationRegistry;
 }
 
 export interface ServiceLinkRequest {
@@ -46,10 +50,12 @@ export interface ServiceRenderResult {
 export class InsightLanguageService {
   private readonly defaultSnapshot: LanguageSnapshot;
   private readonly completionEngine: CompletionEngine;
+  private readonly operatorImplementations: OperatorImplementationRegistry;
 
   constructor(options: InsightLanguageServiceOptions = {}) {
     this.defaultSnapshot = options.snapshot ?? coreLanguageSnapshot;
     this.completionEngine = new CompletionEngine(options.syntaxProvider ?? createGeneratedInsightSyntaxProvider());
+    this.operatorImplementations = options.operatorImplementations ?? coreOperatorImplementationRegistry;
   }
 
   snapshot(): LanguageSnapshot {
@@ -61,6 +67,10 @@ export class InsightLanguageService {
     baseSnapshots: readonly LanguageSnapshot[] = [],
   ): ReturnType<typeof buildLanguageSnapshotResultFromSources> {
     return buildLanguageSnapshotResultFromSources(sources, baseSnapshots);
+  }
+
+  createProjectAnalysisSession(sources: readonly ProjectSource[]): ProjectAnalysisSession {
+    return ProjectAnalysisSession.create(sources, [this.defaultSnapshot]);
   }
 
   complete(request: ServiceCompletionRequest): CompletionResult {
@@ -119,6 +129,7 @@ export class InsightLanguageService {
     return {
       snapshot: request.snapshot ?? this.defaultSnapshot,
       sources: request.sources,
+      operatorImplementations: this.operatorImplementations,
     };
   }
 }

@@ -3,9 +3,17 @@ FROM node:22-alpine AS dependencies
 WORKDIR /workspace
 COPY packages/insight-language/package*.json ./packages/insight-language/
 COPY packages/insight-language/src ./packages/insight-language/src
+COPY packages/archinsight-contracts/package*.json ./packages/archinsight-contracts/
+COPY packages/archinsight-contracts/src ./packages/archinsight-contracts/src
+COPY packages/archinsight-editor-support/package*.json ./packages/archinsight-editor-support/
+COPY packages/archinsight-editor-support/src ./packages/archinsight-editor-support/src
+COPY packages/archinsight-graphviz/package*.json ./packages/archinsight-graphviz/
+COPY packages/archinsight-graphviz/src ./packages/archinsight-graphviz/src
+COPY packages/archinsight-workbench/package*.json ./packages/archinsight-workbench/
+COPY packages/archinsight-workbench/src ./packages/archinsight-workbench/src
 COPY archinsight-web/package*.json ./archinsight-web/
 RUN cd archinsight-web \
-    && npm ci --omit=dev \
+    && npm ci --omit=dev --prefer-offline --no-audit --no-fund \
     && npm cache clean --force
 
 FROM node:22-alpine
@@ -24,6 +32,10 @@ ENV NODE_ENV=production \
 WORKDIR /workspace/archinsight-web
 COPY --from=dependencies --chown=node:node /workspace/archinsight-web/node_modules ./node_modules
 COPY --from=dependencies --chown=node:node /workspace/packages/insight-language ../packages/insight-language
+COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-contracts ../packages/archinsight-contracts
+COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-editor-support ../packages/archinsight-editor-support
+COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-graphviz ../packages/archinsight-graphviz
+COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-workbench ../packages/archinsight-workbench
 COPY --chown=node:node archinsight-web/package.json ./package.json
 COPY --chown=node:node archinsight-web/build ./build
 

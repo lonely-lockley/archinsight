@@ -1,0 +1,143 @@
+[
+  {
+    "id": "no-filter",
+    "presetVersion": 1,
+    "order": 0,
+    "label": "No filter",
+    "shortLabel": "All",
+    "sourceRequired": false,
+    "contextRequired": true,
+    "environment": "none",
+    "aliases": ["default"],
+    "lifecycle": "stable",
+    "boundary": null,
+    "stages": []
+  },
+  {
+    "id": "c1",
+    "presetVersion": 1,
+    "order": 1,
+    "label": "C1 System landscape",
+    "shortLabel": "C1",
+    "sourceRequired": false,
+    "contextRequired": true,
+    "environment": "none",
+    "aliases": [],
+    "lifecycle": "stable",
+    "boundary": {
+      "scope": "context",
+      "boundaryType": "SystemElement",
+      "visibleType": "SystemElement"
+    },
+    "stages": ["logical-boundary"]
+  },
+  {
+    "id": "c2",
+    "presetVersion": 1,
+    "order": 2,
+    "label": "C2 Containers",
+    "shortLabel": "C2",
+    "sourceRequired": true,
+    "contextRequired": true,
+    "environment": "none",
+    "aliases": [],
+    "lifecycle": "stable",
+    "boundary": {
+      "scope": "tab",
+      "boundaryType": "SystemElement",
+      "visibleType": "ContainerElement"
+    },
+    "stages": ["logical-boundary"]
+  },
+  {
+    "id": "c3",
+    "presetVersion": 1,
+    "order": 3,
+    "label": "C3 Components",
+    "shortLabel": "C3",
+    "sourceRequired": true,
+    "contextRequired": true,
+    "environment": "none",
+    "aliases": [],
+    "lifecycle": "stable",
+    "boundary": {
+      "scope": "tab",
+      "boundaryType": "ContainerElement",
+      "visibleType": "ComponentElement"
+    },
+    "stages": ["logical-boundary"]
+  },
+  {
+    "id": "c4",
+    "presetVersion": 1,
+    "order": 4,
+    "label": "C4 Code",
+    "shortLabel": "C4",
+    "sourceRequired": true,
+    "contextRequired": true,
+    "environment": "none",
+    "aliases": [],
+    "lifecycle": "stable",
+    "boundary": {
+      "scope": "tab",
+      "boundaryType": "ComponentElement",
+      "visibleType": "CodeElement"
+    },
+    "stages": ["logical-boundary"]
+  },
+  {
+    "id": "deployment-system",
+    "presetVersion": 3,
+    "legacyPresetVersions": [1, 2],
+    "order": 5,
+    "label": "D1 System deployment",
+    "shortLabel": "D1",
+    "sourceRequired": true,
+    "contextRequired": true,
+    "environment": "none",
+    "aliases": [],
+    "lifecycle": "stable",
+    "boundary": null,
+    "deploymentRootType": "SystemElement",
+    "stages": [
+      "deployment-seed-filter",
+      "deployment-materialization",
+      "deployment-system-rollup",
+      "deployment-infrastructure-simplification"
+    ]
+  },
+  {
+    "id": "deployment-container",
+    "presetVersion": 3,
+    "legacyPresetVersions": [1, 2],
+    "order": 6,
+    "label": "D2 Container deployment",
+    "shortLabel": "D2",
+    "sourceRequired": true,
+    "contextRequired": true,
+    "environment": "single-relevant",
+    "aliases": [],
+    "lifecycle": "stable",
+    "boundary": null,
+    "deploymentRootType": "SystemElement",
+    "stages": [
+      "deployment-seed-filter",
+      "deployment-materialization",
+      "deployment-environment"
+    ]
+  },
+  {
+    "id": "deployment",
+    "presetVersion": 1,
+    "order": 7,
+    "label": "Deployment (legacy)",
+    "shortLabel": "Deployment",
+    "sourceRequired": true,
+    "contextRequired": true,
+    "environment": "none",
+    "aliases": [],
+    "lifecycle": "legacy",
+    "boundary": null,
+    "stages": ["deployment-materialization"]
+  }
+]

@@ -1,4 +1,5 @@
 define type ComponentElement of Element
+    capability = "deployment-family"
 
 define type Component of ComponentElement
     constructor component

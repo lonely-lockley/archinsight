@@ -25,11 +25,16 @@
   },
   "scripts": {
     "generate:version": "node scripts/generate-version.mjs",
-    "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs && npm run generate:version",
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=build/index.js --external:@viz-js/viz",
-    "test:skill": "node scripts/skill-contracts.mjs && node scripts/relationship-direction-skill-contracts.mjs && node scripts/text-type-skill-contracts.mjs && node scripts/view-externality-skill-contracts.mjs && node scripts/analysis-skill-contracts.mjs",
-    "test:cli": "node scripts/scope-resolution-contracts.mjs && node scripts/environment-list-contracts.mjs && node scripts/deployment-view-contracts.mjs",
-    "check": "npm run build && npm run test:skill && npm run test:cli",
+    "generate:skill-resources": "node scripts/generate-skill-resources.mjs",
+    "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs && npm run generate:version && npm run generate:skill-resources",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --sourcemap --outfile=build/index.js --external:@viz-js/viz",
+    "test:skill": "node scripts/run-test-suite.mjs skill",
+    "test:cli": "node scripts/run-test-suite.mjs cli",
+    "test": "node scripts/run-test-suite.mjs all",
+    "test:coverage": "c8 --all --src=build --include='build/index.js' --reporter=text --reporter=json-summary --reports-dir=coverage npm test && node ../scripts/filter-coverage-summary.mjs coverage/coverage-summary.json coverage/coverage-summary.json --include=/archinsight-cli/src/ --exclude=/src/generated/ --exclude=/src/version.ts",
+    "coverage:check": "node ../scripts/check-coverage.mjs cli coverage/coverage-summary.json",
+    "verify": "npm run test:coverage && npm run coverage:check",
+    "check": "npm run build && npm run verify",
     "pack:dry": "npm pack --dry-run",
     "publish:npm": "npm publish --access public --tag next"
   },
@@ -38,9 +43,11 @@
     "archy": "^1.0.0"
   },
   "devDependencies": {
+    "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
     "@insight/language": "file:../packages/insight-language",
     "@types/archy": "^0.0.36",
     "@types/node": "^24.0.0",
+    "c8": "^12.0.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.0.0"
   }

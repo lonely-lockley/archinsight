@@ -1,38 +1,39 @@
 import {
+  buildProjectStructure,
   coreLanguageSnapshot,
+  filterProjectStructure,
   InsightLanguageService,
-  type LanguageBuildResult,
+  isBuiltinDiagramView,
   type LanguageDiagnostic,
-  type LinkedElement,
-  type LinkedImport,
   type LinkProjectResult
 } from '@insight/language';
 import type { Cookies } from '@sveltejs/kit';
 import type { EnvSource } from '$lib/server/auth/auth-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
 import { requireUserId, sourcesForProjectWithOverlays } from '$lib/server/repository/project-file-service';
 import { requestLimits, validateOverlays, validateQuery } from '$lib/server/security/request-limits';
 import { requireRuntimeProfile } from '$lib/server/config/runtime-profile';
+import { invalidRequest } from '$lib/server/errors/application-error';
 import { incrementAnalysisMetric, observeAnalysis } from './analysis-observability';
-import { ProjectAnalysisCache, projectAnalysisCache, type ProjectAnalysis } from './project-analysis-cache';
+import { ProjectAnalysisCache, type ProjectAnalysis } from './project-analysis-cache';
 import type {
   DiagnosticDto,
   LinkRequest,
   LinkResponse,
   ProjectStructureRequest,
-  ProjectStructureResponse,
-  StructureDeclarationDto
+  ProjectStructureResponse
 } from './types';
 
 const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 
-export async function symbols(cookies: Cookies, env: EnvSource | undefined, projectId: string) {
-  requireRuntimeProfile(env, 'editor');
-  const ownerId = await requireUserId(cookies, env);
-  return symbolsForProject(env, ownerId, projectId);
+export async function symbols(cookies: Cookies, services: ApplicationServices, projectId: string) {
+  requireRuntimeProfile(services.config.runtimeProfile, 'editor');
+  const ownerId = await requireUserId(cookies, services);
+  return symbolsForProject(services, ownerId, projectId);
 }
 
-export async function symbolsForProject(env: EnvSource | undefined, ownerId: string, projectId: string) {
-  const analysis = await analyzeStoredProject(env, ownerId, projectId, {});
+export async function symbolsForProject(services: ApplicationServices, ownerId: string, projectId: string) {
+  const analysis = await analyzeStoredProject(services, ownerId, projectId, {});
   return analysis.snapshotBuild.snapshot;
 }
 
@@ -43,25 +44,25 @@ export async function symbolsForSources(sources: ReadonlyMap<string, string>) {
 
 export async function structure(
   cookies: Cookies,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   projectId: string,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  requireRuntimeProfile(env, 'editor');
-  validateRequest(request, env);
-  const ownerId = await requireUserId(cookies, env);
-  return structureForProject(env, ownerId, projectId, request);
+  requireRuntimeProfile(services.config.runtimeProfile, 'editor');
+  validateRequest(request, services.config.requestLimits);
+  const ownerId = await requireUserId(cookies, services);
+  return structureForProject(services, ownerId, projectId, request);
 }
 
 export async function structureForProject(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   ownerId: string,
   projectId: string,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  validateRequest(request, env);
-  const analysis = await analyzeStoredProject(env, ownerId, projectId, request?.overlays ?? {});
-  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await analyzeStoredProject(services, ownerId, projectId, request?.overlays ?? {});
+  return projectStructure(analysis.result);
 }
 
 export async function structureForSources(
@@ -69,32 +70,38 @@ export async function structureForSources(
   sources: ReadonlyMap<string, string>,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  validateRequest(request, env);
+  validateRequest(request, requestLimits(env));
   const analysis = await transientAnalysis(sources, request?.overlays ?? {}, env);
-  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
+  return projectStructure(analysis.result);
 }
 
 export async function link(
   cookies: Cookies,
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   projectId: string,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  requireRuntimeProfile(env, 'editor');
-  validateRequest(request, env);
-  const ownerId = await requireUserId(cookies, env);
-  return linkForProject(env, ownerId, projectId, request);
+  requireRuntimeProfile(services.config.runtimeProfile, 'editor');
+  validateRequest(request, services.config.requestLimits);
+  const ownerId = await requireUserId(cookies, services);
+  return linkForProject(services, ownerId, projectId, request);
 }
 
 export async function linkForProject(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   ownerId: string,
   projectId: string,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  validateRequest(request, env);
-  const analysis = await analyzeStoredProject(env, ownerId, projectId, request?.overlays ?? {});
-  return linkFromAnalysis(analysis, request, env);
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await analyzeStoredProject(
+    services,
+    ownerId,
+    projectId,
+    request?.overlays ?? {},
+    request?.forceFullAnalysis === true
+  );
+  return linkFromAnalysis(analysis, request, services.env);
 }
 
 export async function linkForSources(
@@ -102,55 +109,60 @@ export async function linkForSources(
   sources: ReadonlyMap<string, string>,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  validateRequest(request, env);
+  validateRequest(request, requestLimits(env));
   return linkFromAnalysis(await transientAnalysis(sources, request?.overlays ?? {}, env), request, env);
 }
 
 export async function linkForStoredSources(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   cacheKey: string,
   sources: ReadonlyMap<string, string>,
   request: LinkRequest | null
 ): Promise<LinkResponse> {
-  validateRequest(request, env);
-  const analysis = await projectAnalysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, env);
-  return linkFromAnalysis(analysis, request, env);
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await services.analysisCache.analyze(
+    cacheKey,
+    sources,
+    request?.overlays ?? {},
+    services.env,
+    { forceFullAnalysis: request?.forceFullAnalysis === true }
+  );
+  return linkFromAnalysis(analysis, request, services.env);
 }
 
 export async function structureForStoredSources(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   cacheKey: string,
   sources: ReadonlyMap<string, string>,
   request: ProjectStructureRequest | null
 ): Promise<ProjectStructureResponse> {
-  validateRequest(request, env);
-  const analysis = await projectAnalysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, env);
-  return projectStructure(withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild));
+  validateRequest(request, services.config.requestLimits);
+  const analysis = await services.analysisCache.analyze(cacheKey, sources, request?.overlays ?? {}, services.env);
+  return projectStructure(analysis.result);
 }
 
 export async function symbolsForStoredSources(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   cacheKey: string,
   sources: ReadonlyMap<string, string>
 ) {
-  return (await projectAnalysisCache.analyze(cacheKey, sources, {}, env)).snapshotBuild.snapshot;
+  return (await services.analysisCache.analyze(cacheKey, sources, {}, services.env)).snapshotBuild.snapshot;
 }
 
 function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null, env: EnvSource | undefined): LinkResponse {
-  const resultWithSnapshotDiagnostics = withSnapshotDiagnostics(analysis.result, analysis.snapshotBuild);
-  const diagnostics = resultWithSnapshotDiagnostics.diagnostics.map(diagnostic);
+  const diagnostics = analysis.result.diagnostics.map(diagnostic);
   const renderStarted = performance.now();
   const renders = diagnostics.some((item) => item.level === 'ERROR')
     ? []
-    : renderPaths(request, resultWithSnapshotDiagnostics).flatMap((sourceIdentity) => {
-      const context = resultWithSnapshotDiagnostics.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
+    : renderPaths(request, analysis.result).flatMap((sourceIdentity) => {
+      const context = analysis.result.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
       try {
         return [
           {
             sourceIdentity,
             diagram: 'query',
             dot: service.render({
-              result: resultWithSnapshotDiagnostics,
+              result: analysis.result,
               scope: {
                 context: context?.id,
                 tab: sourceIdentity,
@@ -182,53 +194,51 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
     },
     symbols: analysis.snapshotBuild.snapshot,
     linkedModel: {
-      ...resultWithSnapshotDiagnostics,
+      ...analysis.result,
       graph: {
-        nodes: resultWithSnapshotDiagnostics.graph.nodes(),
-        relations: resultWithSnapshotDiagnostics.graph.relations()
+        nodes: analysis.result.graph.nodes(),
+        relations: analysis.result.graph.relations()
       }
     },
     diagnostics,
     renders,
-    structure: projectStructure(resultWithSnapshotDiagnostics)
+    structure: projectStructure(analysis.result)
   };
 }
 
-function withSnapshotDiagnostics(result: LinkProjectResult, projectSnapshot: LanguageBuildResult): LinkProjectResult {
-  return {
-    ...result,
-    diagnostics: [...projectSnapshot.diagnostics, ...result.diagnostics]
-  };
-}
-
-function validateRequest(request: LinkRequest | ProjectStructureRequest | null, env: EnvSource | undefined): void {
-  validateQuery('query' in (request ?? {}) ? (request as LinkRequest).query : null, requestLimits(env));
-  validateOverlays(request?.overlays, requestLimits(env));
-  if ('view' in (request ?? {}) && !isBuiltinDiagramView((request as LinkRequest).view)) {
-    throw new Error('Invalid built-in diagram view');
+function validateRequest(
+  request: LinkRequest | ProjectStructureRequest | null,
+  limits: ReturnType<typeof requestLimits>
+): void {
+  validateQuery('query' in (request ?? {}) ? (request as LinkRequest).query : null, limits);
+  validateOverlays(request?.overlays, limits);
+  const view = 'view' in (request ?? {}) ? (request as LinkRequest).view : undefined;
+  if (view != null && !isBuiltinDiagramView(view)) {
+    throw invalidRequest('Invalid built-in diagram view');
   }
   if ('environment' in (request ?? {})) {
     const environment = (request as LinkRequest).environment;
     if (environment != null && (typeof environment !== 'string' || environment.length > 256)) {
-      throw new Error('Invalid deployment environment');
+      throw invalidRequest('Invalid deployment environment');
     }
   }
 }
 
-function isBuiltinDiagramView(value: LinkRequest['view']): boolean {
-  return value == null || value === 'no-filter' || value === 'c1' || value === 'c2'
-    || value === 'c3' || value === 'c4' || value === 'deployment'
-    || value === 'deployment-system' || value === 'deployment-container';
-}
-
 async function analyzeStoredProject(
-  env: EnvSource | undefined,
+  services: ApplicationServices,
   ownerId: string,
   projectId: string,
-  overlays: Readonly<Record<string, string>>
+  overlays: Readonly<Record<string, string>>,
+  forceFullAnalysis = false
 ): Promise<ProjectAnalysis> {
-  const storedSources = await sourcesForProjectWithOverlays(env, ownerId, projectId, {});
-  return projectAnalysisCache.analyze(`owner:${ownerId}\0project:${projectId}`, storedSources, overlays, env);
+  const storedSources = await sourcesForProjectWithOverlays(services, ownerId, projectId, {});
+  return services.analysisCache.analyze(
+    `owner:${ownerId}\0project:${projectId}`,
+    storedSources,
+    overlays,
+    services.env,
+    { forceFullAnalysis }
+  );
 }
 
 async function transientAnalysis(
@@ -249,75 +259,7 @@ function renderPaths(request: LinkRequest | null, result: LinkProjectResult): st
 }
 
 function projectStructure(result: LinkProjectResult): ProjectStructureResponse {
-  const childrenByParent = new Map<string, LinkedElement[]>();
-  for (const element of result.elements) {
-    if (element.anonymous) {
-      continue;
-    }
-    if (!element.parent) {
-      continue;
-    }
-    const children = childrenByParent.get(element.parent) ?? [];
-    children.push(element);
-    childrenByParent.set(element.parent, children);
-  }
-  const importsBySource = new Map<string, LinkedImport[]>();
-  for (const item of result.imports) {
-    const imports = importsBySource.get(item.sourceIdentity) ?? [];
-    imports.push(item);
-    importsBySource.set(item.sourceIdentity, imports);
-  }
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-
-  return {
-    schemaVersion: 'project-structure.v1',
-    contexts: result.contexts.filter((context) => context.synthetic !== true).map((context) => ({
-      id: context.id,
-      kind: 'context',
-      constructor: context.type,
-      type: context.type,
-      source: context.declaration?.sourceName ?? context.sourceIdentity,
-      line: context.declaration?.line ?? 1,
-      column: context.declaration?.column ?? 1,
-      children: [
-        ...(importsBySource.get(context.sourceIdentity) ?? []).map((item) => importDeclaration(item, elementsById)),
-        ...children(
-          result.elements.filter((element) => element.context === context.id && element.parent == null && !element.anonymous),
-          childrenByParent
-        )
-      ]
-    }))
-  };
-}
-
-function children(elements: LinkedElement[], childrenByParent: Map<string, LinkedElement[]>): StructureDeclarationDto[] {
-  return elements.map((element) => ({
-    id: element.localId,
-    kind: 'element',
-    constructor: element.constructor,
-    type: element.type,
-    source: element.declaration?.sourceName ?? element.sourceIdentity,
-    line: element.declaration?.line ?? 1,
-    column: element.declaration?.column ?? 1,
-    children: children(childrenByParent.get(element.id) ?? [], childrenByParent)
-  }));
-}
-
-function importDeclaration(
-  item: LinkedImport,
-  elementsById: ReadonlyMap<string, LinkedElement>
-): StructureDeclarationDto {
-  const imported = elementsById.get(item.target);
-  return {
-    id: item.alias,
-    kind: 'import',
-    constructor: 'import',
-    ...(imported?.type === undefined ? {} : { type: imported.type }),
-    source: item.declaration?.sourceName ?? item.sourceIdentity,
-    line: item.declaration?.line ?? 1,
-    column: item.declaration?.column ?? 1,
-    children: []
-  };
+  return filterProjectStructure(buildProjectStructure(result), { includeSyntheticContexts: false });
 }
 
 function diagnostic(item: LanguageDiagnostic): DiagnosticDto {

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
+import { connect } from 'node:net';
 
 const port = 33080;
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -78,6 +79,10 @@ test('serves health, svg render, and png render endpoints', async (t) => {
     const slowBodyResponse = await slowBody;
     assert.equal(slowBodyResponse.status, 408);
     assert.match(slowBodyResponse.body.error, /request body timed out/);
+
+    await abortRequestBody();
+    const healthAfterAbort = await fetch(`${baseUrl}/health`);
+    assert.equal(healthAfterAbort.status, 200);
 
     const missing = await fetch(`${baseUrl}/render/svg`);
     assert.equal(missing.status, 404);
@@ -171,5 +176,25 @@ function postSlowBody() {
     });
     request.once('error', reject);
     request.write('{');
+  });
+}
+
+function abortRequestBody() {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, '127.0.0.1');
+    socket.once('error', reject);
+    socket.once('connect', () => {
+      socket.write([
+        'POST /render/svg HTTP/1.1',
+        `Host: 127.0.0.1:${port}`,
+        `Authorization: Bearer ${rendererToken}`,
+        'Content-Type: application/json',
+        'Content-Length: 100',
+        '',
+        '{'
+      ].join('\r\n'));
+      setTimeout(() => socket.destroy(), 10);
+    });
+    socket.once('close', resolve);
   });
 }

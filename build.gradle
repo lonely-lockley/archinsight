@@ -5,7 +5,11 @@ plugins {
 def artifactVersions = gradle.ext.archinsightVersions
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
 def npmArtifacts = [
+    contracts: [dir: file('packages/archinsight-contracts'), versionKey: 'contracts', license: false],
+    editorSupport: [dir: file('packages/archinsight-editor-support'), versionKey: 'editorSupport', license: false],
+    graphviz : [dir: file('packages/archinsight-graphviz'), versionKey: 'graphviz', license: false],
     language: [dir: file('packages/insight-language'), versionKey: 'language', license: false],
+    workbench: [dir: file('packages/archinsight-workbench'), versionKey: 'workbench', license: false],
     web     : [dir: file('archinsight-web'), versionKey: 'web', license: false],
     renderer: [dir: file('archinsight-renderer'), versionKey: 'renderer', license: false],
     cli     : [dir: file('archinsight-cli'), versionKey: 'cli', license: true],
@@ -21,19 +25,6 @@ def generatedPaths = [
     file('packages/insight-language/build'),
     file('packages/insight-language/src/generated')
 ]
-def updatePackageJsonVersion = { File packageJsonFile, String version ->
-    def original = packageJsonFile.text
-    def matcher = java.util.regex.Pattern
-        .compile('(?m)^(\\s*"version"\\s*:\\s*")[^"]+(")')
-        .matcher(original)
-    if (!matcher.find()) {
-        throw new GradleException("Could not find top-level version in ${packageJsonFile}")
-    }
-    def replacement = java.util.regex.Matcher.quoteReplacement("${matcher.group(1)}${version}${matcher.group(2)}")
-    def updated = matcher.replaceFirst(replacement)
-    packageJsonFile.text = updated
-}
-
 allprojects {
     group = 'com.github.lonelylockley.archinsight'
     version = artifactVersions.find { entry ->
@@ -45,28 +36,63 @@ tasks.register('syncPackageVersions') {
     group = 'build'
     description = 'Synchronizes package.json and package-lock.json versions from settings.gradle.'
     inputs.properties(artifactVersions)
+    inputs.file('scripts/sync-package-versions.mjs')
     inputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
     outputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
     outputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package-lock.json').toFile() })
 
     doLast {
-        npmArtifacts.each { name, artifact ->
-            def version = artifactVersions[artifact.versionKey]
-            def packageJsonFile = new File(artifact.dir, 'package.json')
-
-            if (!packageJsonFile.exists()) {
-                throw new GradleException("Missing ${packageJsonFile}")
-            }
-
-            updatePackageJsonVersion(packageJsonFile, version)
-            if (new File(artifact.dir, 'package-lock.json').exists()) {
-                providers.exec {
-                    workingDir artifact.dir
-                    commandLine npmCommand, 'install', '--package-lock-only', '--ignore-scripts'
-                }.result.get()
-            }
-        }
+        def plan = npmArtifacts.collect { name, artifact -> [
+            directory: rootProject.relativePath(artifact.dir),
+            version: artifactVersions[artifact.versionKey]
+        ] }
+        providers.exec {
+            workingDir rootProject.projectDir
+            commandLine 'node', 'scripts/sync-package-versions.mjs', groovy.json.JsonOutput.toJson(plan)
+        }.result.get()
     }
+}
+
+tasks.register('testPackageVersionSync', Exec) {
+    group = 'verification'
+    description = 'Tests deterministic offline npm package version synchronization.'
+    inputs.file('scripts/sync-package-versions.mjs')
+    inputs.file('scripts/package-version-sync.test.mjs')
+    commandLine 'node', '--test', 'scripts/package-version-sync.test.mjs'
+}
+
+tasks.register('testGraphvizContracts', Exec) {
+    group = 'verification'
+    description = 'Tests the shared Graphviz result contract and runtime boundaries.'
+    inputs.dir('packages/archinsight-graphviz/src')
+    inputs.dir('packages/archinsight-graphviz/test')
+    inputs.file('scripts/graphviz-boundaries.test.mjs')
+    commandLine 'node',
+        '--experimental-test-coverage',
+        '--test-coverage-include=packages/archinsight-graphviz/src/**/*.js',
+        '--test-coverage-lines=100',
+        '--test-coverage-branches=100',
+        '--test-coverage-functions=100',
+        '--test',
+        'packages/archinsight-graphviz/test/*.test.mjs',
+        'scripts/graphviz-boundaries.test.mjs'
+}
+
+tasks.register('testEditorSupportContracts', Exec) {
+    group = 'verification'
+    description = 'Tests presentation-neutral editor metadata and tree semantics.'
+    inputs.dir('packages/archinsight-editor-support/src')
+    inputs.dir('packages/archinsight-editor-support/test')
+    inputs.file('scripts/editor-package-boundaries.test.mjs')
+    commandLine 'node',
+        '--experimental-test-coverage',
+        '--test-coverage-include=packages/archinsight-editor-support/src/**/*.js',
+        '--test-coverage-lines=100',
+        '--test-coverage-branches=100',
+        '--test-coverage-functions=100',
+        '--test',
+        'packages/archinsight-editor-support/test/*.test.mjs',
+        'scripts/editor-package-boundaries.test.mjs'
 }
 
 tasks.register('copyLicenses') {
@@ -98,7 +124,7 @@ tasks.register('languageNpmInstall', Exec) {
     inputs.file('packages/insight-language/package-lock.json')
     outputs.dir('packages/insight-language/node_modules')
     workingDir = file('packages/insight-language')
-    commandLine npmCommand, 'install'
+    commandLine npmCommand, 'install', '--prefer-offline', '--no-audit', '--no-fund'
 }
 
 tasks.register('generateLanguageSources', Exec) {
@@ -107,6 +133,7 @@ tasks.register('generateLanguageSources', Exec) {
     dependsOn 'languageNpmInstall'
     inputs.dir('packages/insight-language/grammar')
     inputs.dir('packages/insight-language/scripts')
+    inputs.dir('src/main/resources/com/github/lonelylockley/insight')
     outputs.dir('packages/insight-language/src/generated')
     workingDir = file('packages/insight-language')
     commandLine npmCommand, 'run', 'generate:grammar'
@@ -114,18 +141,30 @@ tasks.register('generateLanguageSources', Exec) {
 
 tasks.register('languageNpmTest', Exec) {
     group = 'verification'
-    description = 'Runs shared language runtime and contract tests.'
+    description = 'Runs shared language type checks, contracts, and coverage regression checks.'
     dependsOn 'languageNpmInstall', 'generateLanguageSources'
     inputs.dir('packages/insight-language/src')
     inputs.dir('packages/insight-language/scripts')
     inputs.dir('packages/insight-language/grammar')
     inputs.file('packages/insight-language/package.json')
+    inputs.file('test-coverage-baseline.json')
+    inputs.dir('scripts')
     if (file('packages/insight-language/package-lock.json').exists()) {
         inputs.file('packages/insight-language/package-lock.json')
     }
     workingDir = file('packages/insight-language')
     environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
-    commandLine npmCommand, 'run', 'test:runtime'
+    commandLine npmCommand, 'run', 'check'
+}
+
+def coverageSummary = tasks.register('coverageSummary', Exec) {
+    group = 'verification'
+    description = 'Prints consolidated package coverage after all test suites complete.'
+    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts'
+    inputs.file('test-coverage-baseline.json')
+    inputs.file('scripts/print-coverage-summary.mjs')
+    workingDir = rootProject.projectDir
+    commandLine 'node', 'scripts/print-coverage-summary.mjs'
 }
 
 tasks.register('cleanGenerated') {
@@ -157,7 +196,7 @@ tasks.register('dockerPush') {
 }
 
 tasks.named('check') {
-    dependsOn 'languageNpmTest'
+    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts', 'testPackageVersionSync'
 }
 
 gradle.projectsEvaluated {
@@ -182,6 +221,12 @@ gradle.projectsEvaluated {
         tasks.named('check') {
             dependsOn taskPath
         }
+        coverageSummary.configure {
+            dependsOn taskPath
+        }
+    }
+    tasks.named('check') {
+        dependsOn coverageSummary
     }
     def releaseCheckTasks = [
         ':archinsight-cli:releaseCheck',

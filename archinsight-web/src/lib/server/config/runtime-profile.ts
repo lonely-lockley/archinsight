@@ -1,21 +1,19 @@
 import { runtimeEnv, type EnvSource } from './local-config';
+import { enumConfigValue } from './config-values';
+import { notFound } from '$lib/server/errors/application-error';
 
 export type RuntimeProfile = 'all' | 'editor' | 'playground';
 
 export function runtimeProfile(env?: EnvSource): RuntimeProfile {
-  const value = (runtimeEnv(env).ARCHINSIGHT_RUNTIME_PROFILE ?? 'all').trim().toLowerCase();
-  if (value === 'all' || value === 'editor' || value === 'playground') {
-    return value;
-  }
-  throw new Error('ARCHINSIGHT_RUNTIME_PROFILE must be all, editor, or playground');
+  return parseRuntimeProfile(runtimeEnv(env));
 }
 
-export function requireRuntimeProfile(env: EnvSource | undefined, required: Exclude<RuntimeProfile, 'all'>): void {
-  const actual = runtimeProfile(env);
+export function parseRuntimeProfile(env: EnvSource): RuntimeProfile {
+  return enumConfigValue(env, 'ARCHINSIGHT_RUNTIME_PROFILE', ['all', 'editor', 'playground'], 'all');
+}
+
+export function requireRuntimeProfile(actual: RuntimeProfile, required: Exclude<RuntimeProfile, 'all'>): void {
   if (actual !== 'all' && actual !== required) {
-    throw new Response(JSON.stringify({ error: 'Not found' }), {
-      status: 404,
-      headers: { 'content-type': 'application/json' }
-    });
+    throw notFound('Not found');
   }
 }

@@ -1,5 +1,11 @@
 import type { EnvSource } from '$lib/server/auth/auth-config';
 import { runtimeEnv } from '$lib/server/config/local-config';
+import {
+  booleanConfigValue,
+  configValue,
+  integerConfigValue,
+  optionalConfigValue
+} from '$lib/server/config/config-values';
 
 export type DatabaseConfig = {
   enabled: boolean;
@@ -15,39 +21,20 @@ export type DatabaseConfig = {
 };
 
 export function getDatabaseConfig(env?: EnvSource): DatabaseConfig {
-  const source = runtimeEnv(env);
+  return parseDatabaseConfig(runtimeEnv(env));
+}
+
+export function parseDatabaseConfig(source: EnvSource): DatabaseConfig {
   return {
-    enabled: booleanValue(source.ARCHINSIGHT_DATABASE_ENABLED, false),
-    connectionString: optionalValue(source.ARCHINSIGHT_DATABASE_URL),
-    host: source.ARCHINSIGHT_DATABASE_HOST ?? 'localhost',
-    port: numberValue(source.ARCHINSIGHT_DATABASE_PORT, 5432),
-    database: optionalValue(source.ARCHINSIGHT_DATABASE_NAME),
-    user: optionalValue(source.ARCHINSIGHT_DATABASE_USER),
-    password: optionalValue(source.ARCHINSIGHT_DATABASE_PASSWORD),
-    ssl: booleanValue(source.ARCHINSIGHT_DATABASE_SSL, false),
-    maxConnections: numberValue(source.ARCHINSIGHT_DATABASE_MAX_CONNECTIONS, 10),
-    migrationsEnabled: booleanValue(source.ARCHINSIGHT_DATABASE_MIGRATIONS_ENABLED, true)
+    enabled: booleanConfigValue(source, 'ARCHINSIGHT_DATABASE_ENABLED', false),
+    connectionString: optionalConfigValue(source, 'ARCHINSIGHT_DATABASE_URL'),
+    host: configValue(source, 'ARCHINSIGHT_DATABASE_HOST', 'localhost'),
+    port: integerConfigValue(source, 'ARCHINSIGHT_DATABASE_PORT', 5432, { min: 1, max: 65_535 }),
+    database: optionalConfigValue(source, 'ARCHINSIGHT_DATABASE_NAME'),
+    user: optionalConfigValue(source, 'ARCHINSIGHT_DATABASE_USER'),
+    password: optionalConfigValue(source, 'ARCHINSIGHT_DATABASE_PASSWORD', { preserveWhitespace: true }),
+    ssl: booleanConfigValue(source, 'ARCHINSIGHT_DATABASE_SSL', false),
+    maxConnections: integerConfigValue(source, 'ARCHINSIGHT_DATABASE_MAX_CONNECTIONS', 10, { min: 1 }),
+    migrationsEnabled: booleanConfigValue(source, 'ARCHINSIGHT_DATABASE_MIGRATIONS_ENABLED', true)
   };
-}
-
-function optionalValue(value: string | undefined): string | null {
-  if (!value || value.trim() === '' || value === '__unset__') {
-    return null;
-  }
-  return value;
-}
-
-function booleanValue(value: string | undefined, fallback: boolean): boolean {
-  if (value == null || value.trim() === '') {
-    return fallback;
-  }
-  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
-}
-
-function numberValue(value: string | undefined, fallback: number): number {
-  if (value == null || value.trim() === '') {
-    return fallback;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
 }

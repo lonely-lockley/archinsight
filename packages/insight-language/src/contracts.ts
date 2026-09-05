@@ -10,6 +10,9 @@ export type CompletionKind =
   | "NEWLINE";
 
 import type { IndexedGraph } from "./indexed-graph.js";
+import type { BuiltinDiagramView, QueryViewPipelineDefinition } from "./builtin-views.js";
+
+export type LinkedEdgeId = string;
 
 export interface CompletionItem {
   readonly label: string;
@@ -50,6 +53,7 @@ export interface AttributeDefinition {
   readonly listElementType?: string;
   readonly required?: boolean;
   readonly list?: boolean;
+  readonly capabilities?: readonly string[];
 }
 
 export type ProjectionTermKind = "from" | "to" | "this" | "attribute" | "slot";
@@ -76,8 +80,10 @@ export interface ProjectionRuleDefinition {
 export interface TypeDefinition {
   readonly name: string;
   readonly baseType?: string;
+  readonly abstract?: boolean;
   readonly attributes?: readonly AttributeDefinition[];
   readonly declaration?: SourceLocation;
+  readonly capabilities?: readonly string[];
 }
 
 export interface ConstructorDefinition {
@@ -95,6 +101,7 @@ export interface OperatorDefinition {
   readonly implementation?: string;
   readonly defaults?: Readonly<Record<string, string>>;
   readonly source?: SourceLocation;
+  readonly capabilities?: readonly string[];
 }
 
 export interface EnumDefinition {
@@ -155,6 +162,7 @@ export interface ProjectSource {
 export interface LinkProjectRequest {
   readonly snapshot: LanguageSnapshot;
   readonly sources: readonly ProjectSource[];
+  readonly operatorImplementations?: OperatorImplementationRegistry;
 }
 
 export interface LinkedContext {
@@ -163,6 +171,7 @@ export interface LinkedContext {
   readonly sourceIdentity: string;
   readonly synthetic?: boolean;
   readonly declaration?: SourceLocation;
+  readonly capabilities?: readonly string[];
   readonly attributes: Readonly<Record<string, readonly string[]>>;
 }
 
@@ -178,7 +187,10 @@ export interface LinkedElement {
   readonly synthetic?: boolean;
   readonly parent?: string;
   readonly baseTypes: readonly string[];
+  readonly capabilities?: readonly string[];
   readonly attributes: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributes?: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributeNames?: Readonly<Record<string, string>>;
   readonly deployed?: boolean;
   readonly listAttributes?: readonly string[];
   readonly referenceAttributes?: readonly string[];
@@ -197,6 +209,7 @@ export interface LinkedImport {
 }
 
 export interface LinkedEdge {
+  readonly id: LinkedEdgeId;
   readonly source: string;
   readonly target: string;
   readonly originSource?: string;
@@ -208,6 +221,8 @@ export interface LinkedEdge {
   readonly sourceIdentity: string;
   readonly declaration?: SourceLocation;
   readonly attributes: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributes?: Readonly<Record<string, readonly string[]>>;
+  readonly semanticAttributeNames?: Readonly<Record<string, string>>;
   readonly listAttributes?: readonly string[];
   readonly referenceAttributes?: readonly string[];
   readonly note?: string;
@@ -239,6 +254,10 @@ export interface OperatorImplementationV1 {
   invoke(input: OperatorInvocationInputV1): OperatorInvocationResultV1;
 }
 
+export interface OperatorImplementationRegistry {
+  resolve(id: string): OperatorImplementationV1 | undefined;
+}
+
 export interface OperatorInvocationInputV1 {
   readonly execution: OperatorExecutionV1;
   readonly invocation: OperatorInvocationV1;
@@ -263,6 +282,7 @@ export interface OperatorInvocationV1 {
   readonly from?: LinkedElement;
   readonly to?: LinkedElement;
   readonly target?: LinkedElement;
+  readonly edge?: LinkedEdge;
   readonly attributes: Readonly<Record<string, readonly string[]>>;
   readonly annotations?: readonly LinkedAnnotation[];
 }
@@ -336,16 +356,6 @@ export interface LinkProjectResult {
   readonly presentations: Readonly<Record<string, ResolvedPresentation>>;
 }
 
-export type BuiltinDiagramView =
-  | "no-filter"
-  | "c1"
-  | "c2"
-  | "c3"
-  | "c4"
-  | "deployment"
-  | "deployment-system"
-  | "deployment-container";
-
 export interface DeploymentEnvironment {
   readonly id: string;
   readonly name?: string;
@@ -355,6 +365,7 @@ export interface QueryScope {
   readonly context?: string;
   readonly tab?: string;
   readonly view?: BuiltinDiagramView;
+  readonly pipeline?: QueryViewPipelineDefinition;
   readonly environment?: string;
 }
 
@@ -386,15 +397,21 @@ export interface VisibleIdentifier {
   readonly imported?: boolean;
 }
 
+export interface ContextualIdentifier extends VisibleIdentifier {
+  readonly contextId: string;
+}
+
 export interface ListFrame {
   readonly indent: number;
   readonly ownerType: string;
   readonly attribute: string;
+  readonly hasDirectValue?: boolean;
 }
 
 export interface ElementFrame {
   readonly indent: number;
   readonly type: string;
+  readonly parentType?: string;
   readonly completionTypes?: readonly string[];
   readonly assignedAttributes: ReadonlySet<string>;
 }
@@ -405,6 +422,7 @@ export interface CompletionScope {
   readonly visibleContexts: ReadonlySet<string>;
   readonly visibleTypes: ReadonlySet<string>;
   readonly visibleIdentifiers: ReadonlyMap<string, VisibleIdentifier>;
+  readonly contextualIdentifiers: readonly ContextualIdentifier[];
   readonly frames: readonly ElementFrame[];
   readonly operatorFrames: readonly ElementFrame[];
   readonly lists: readonly ListFrame[];
@@ -424,6 +442,7 @@ export interface CompletionRequest {
   readonly cursorOffset: number;
   readonly snapshot: LanguageSnapshot;
   readonly indexedIdentifiers?: ReadonlyMap<string, VisibleIdentifier>;
+  readonly contextualIdentifiers?: readonly ContextualIdentifier[];
   readonly contextIds?: readonly string[];
 }
 

@@ -52,6 +52,18 @@ server.listen(port, host, () => {
   console.log(`archinsight renderer listening on ${host}:${port}`);
 });
 
+process.once('SIGTERM', shutdown);
+process.once('SIGINT', shutdown);
+
+function shutdown() {
+  server.close((error) => {
+    if (error) {
+      console.error(error);
+      process.exitCode = 1;
+    }
+  });
+}
+
 async function handleRender(mode, request, response) {
   try {
     // Body parsing and payload validation happen before a scarce render slot is acquired.

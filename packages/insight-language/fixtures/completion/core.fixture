@@ -4,6 +4,7 @@
 --- contains
 KEYWORD context
 KEYWORD define type
+KEYWORD define abstract type
 KEYWORD define operator
 KEYWORD define enum of
 KEYWORD define presentation
@@ -14,6 +15,15 @@ KEYWORD extend presentation
 KEYWORD import
 CONSTRUCTOR actor
 CONSTRUCTOR system
+
+=== abstract type modifier
+--- source
+define abstract <caret>
+--- contains
+KEYWORD type
+--- lacks
+KEYWORD operator
+KEYWORD presentation
 
 === context declaration name is identifier declaration
 --- source
@@ -47,8 +57,25 @@ ATTRIBUTE links
 CONSTRUCTOR service
 --- lacks
 ATTRIBUTE _
+ATTRIBUTE runsOn
+ATTRIBUTE uses
 OPERATOR ->
 IDENTIFIER gg
+
+=== deployment block keeps deployment operators
+--- source
+context test
+
+system gg
+    deployment:
+        <caret>
+--- contains
+OPERATOR runsOn
+OPERATOR uses
+--- lacks
+ATTRIBUTE runsOn
+ATTRIBUTE uses
+OPERATOR ->
 
 === object body constructor prefix
 --- source
@@ -471,9 +498,10 @@ environment digitalocean
 --- contains
 IDENTIFIER europe
 CONSTRUCTOR region
+ATTRIBUTE name
 --- lacks
 IDENTIFIER digitalocean
-ATTRIBUTE name
+ATTRIBUTE primaryRegion
 
 === extend constructor candidates
 --- source
@@ -573,6 +601,8 @@ ATTRIBUTE subtitle
 ATTRIBUTE body
 KEYWORD light
 KEYWORD dark
+KEYWORD externalLight
+KEYWORD externalDark
 KEYWORD graphviz
 --- lacks
 KEYWORD constructor

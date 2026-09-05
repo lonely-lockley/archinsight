@@ -1,3 +1,5 @@
+// @vitest-environment happy-dom
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const workerState = vi.hoisted(() => ({

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   buildLanguageSnapshotResultFromSources,
+  builtinViewDefinition,
   coreLanguageSnapshot,
   linkProject,
   selectGraph,
@@ -91,6 +92,41 @@ assert.deepEqual(Object.keys(c2.elements).sort(), ["app/backend", "app/frontend"
 assert.deepEqual(edgeEndpoints(c2), ["app/frontend->app/backend"]);
 assert.equal(c2.externalElements.length, 0);
 assert(c2.edges.every((edge) => edge.source !== edge.target), "C2 must not expose component-level links as container self-loops");
+
+const c2Definition = builtinViewDefinition("c2");
+const customC2 = selectGraph(result, {
+  context: "app",
+  tab: "backend_components.ai",
+  pipeline: {
+    boundary: c2Definition.boundary,
+    stages: c2Definition.stages,
+  },
+}, views.c2);
+assert.deepEqual(
+  graphSignature(customC2),
+  graphSignature(c2),
+  "a custom query with the same declared pipeline must not need a built-in view name",
+);
+
+const customContainerRollup = selectGraph(result, {
+  context: "app",
+  tab: "model.ai",
+  pipeline: {
+    boundary: null,
+    stages: ["deployment-system-rollup"],
+    deploymentRootType: "ContainerElement",
+  },
+}, views.c3);
+assert.deepEqual(Object.keys(customContainerRollup.elements).sort(), ["app/backend", "app/frontend"]);
+assert.deepEqual(edgeEndpoints(customContainerRollup), ["app/frontend->app/backend"]);
+assert.throws(() => selectGraph(result, {
+  context: "app",
+  tab: "model.ai",
+  pipeline: {
+    boundary: null,
+    stages: ["deployment-system-rollup"],
+  },
+}, views.c3), /explicit deploymentRootType/);
 
 const c3 = selectGraph(result, { context: "app", tab: "model.ai", view: "c3" }, views.c3);
 assert.deepEqual(Object.keys(c3.elements).sort(), ["app/api", "app/repository", "app/ui"]);

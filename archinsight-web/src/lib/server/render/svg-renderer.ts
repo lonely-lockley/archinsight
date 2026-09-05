@@ -1,7 +1,7 @@
 import type { DiagnosticDto, DotRenderDto, SvgRenderDto, SvgRenderResponse } from '$lib/server/language/types';
-import type { EnvSource } from '$lib/server/auth/auth-config';
-import { requestLimits, validateDot, validateRenderCount } from '$lib/server/security/request-limits';
-import { getRendererConfig, rendererSvgUrl, type RendererConfig } from './renderer-config';
+import type { ApplicationServices } from '$lib/server/config/application-services';
+import { validateDot, validateRenderCount } from '$lib/server/security/request-limits';
+import { rendererSvgUrl, type RendererConfig } from './renderer-config';
 import { incrementAnalysisMetric, observeAnalysis } from '$lib/server/language/analysis-observability';
 
 type RendererResponse = {
@@ -16,11 +16,11 @@ const defaultFetch: typeof fetch = (...args) => fetch(...args);
 
 export async function renderSvg(
   renders: DotRenderDto[] | null | undefined,
-  env?: EnvSource,
+  services: ApplicationServices,
   fetcher: typeof fetch = defaultFetch
 ): Promise<SvgRenderResponse> {
   const requested = renders ?? [];
-  const limits = requestLimits(env);
+  const limits = services.config.requestLimits;
   validateRenderCount(requested.length, limits);
   for (const item of requested) {
     validateDot(item.dot, limits);
@@ -29,7 +29,7 @@ export async function renderSvg(
     return { diagnostics: [], svgs: [] };
   }
 
-  const config = getRendererConfig(env);
+  const config = services.config.renderer;
   if (!config.enabled) {
     return renderFailure(requested, 'EXTERNAL_RENDERER_DISABLED', 'External renderer fallback is disabled');
   }
@@ -58,7 +58,7 @@ export async function renderSvg(
       throw new Error('External renderer returned a non-JSON response');
     }
     const result = validateRendererResponse(JSON.parse(body) as RendererResponse, requested, config);
-    observeAnalysis(env, 'graphviz.render', {
+    observeAnalysis(services.env, 'graphviz.render', {
       mode: 'external',
       renderCount: requested.length,
       success: true,
@@ -69,7 +69,7 @@ export async function renderSvg(
     const message = error instanceof Error && error.name === 'AbortError'
       ? `External renderer timed out after ${config.timeoutMs} ms`
       : error instanceof Error ? error.message : String(error);
-    observeAnalysis(env, 'graphviz.render', {
+    observeAnalysis(services.env, 'graphviz.render', {
       mode: 'external',
       renderCount: requested.length,
       success: false,

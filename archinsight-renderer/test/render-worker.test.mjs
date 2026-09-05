@@ -49,6 +49,18 @@ test('worker rejects a huge fixed-size canvas before Resvg rasterization', async
   }), /PNG (dimensions|pixel count) are too large/);
 });
 
+test('worker reports Graphviz failures without crashing the worker process', async () => {
+  await assert.rejects(render({
+    mode: 'svg',
+    renders: [{
+      sourceIdentity: 'invalid.ai',
+      diagram: 'query',
+      dot: 'digraph {'
+    }],
+    limits
+  }), /syntax error|Graphviz render failed/i);
+});
+
 function render(workerData) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(workerPath, { workerData });

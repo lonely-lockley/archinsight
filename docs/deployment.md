@@ -65,7 +65,7 @@ deployment test
 
 The two deployments share the `eu` environment boundary and keep separate infrastructure instances. They are written as top-level declarations after the environment header, but the linker attaches them to that environment. A logical element can be mapped to either deployment through a profile, and different profiles can select different schemes from the same environment.
 
-The Deployment view renders the concrete `InfrastructureComponent` instances held by a scheme. The `Deployment` object organizes that inventory and remains outside the rendered graph, so projected relationships connect physical components instead of rolling up to the scheme itself.
+The Deployment view renders the concrete `InfrastructureComponent` instances held by a scheme. Their built-in presentation uses a dashed node boundary, inherited by project-defined infrastructure types unless their presentation overrides `graphviz.style`. The `Deployment` object organizes that inventory and remains outside the rendered graph, so projected relationships connect physical components instead of rolling up to the scheme itself.
 
 Projects usually define an environment subtype with the slots required by their deployment model:
 
@@ -280,6 +280,11 @@ deploymentProfile regional_service
 ```
 
 Every selected deployment must provide compatible values for `compute` and `events`. A missing slot or a value of the wrong type produces an error at the profile action that cannot be resolved.
+
+Listing the same concrete deployment more than once in one profile produces a
+`DEPLOYMENT_PROFILE_MEMBER_DUPLICATE` warning on every repeated entry after the
+first. References are compared after resolution, so an alias and an inline
+`production from eu` reference to the same deployment are duplicates too.
 
 Several profiles can be applied to one logical element when their `appliesTo` sets are disjoint. Two profiles that select the same concrete deployment contradict one another for that element, and Archinsight reports an error. Different deployment schemes inside the same environment remain valid when they refer to different deployment IDs, such as `production from eu` and `test from eu`.
 

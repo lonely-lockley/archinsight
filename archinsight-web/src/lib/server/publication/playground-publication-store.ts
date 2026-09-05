@@ -1,23 +1,17 @@
-import { getDatabaseConfig } from '$lib/server/database/database-config';
-import { postgresDatabase } from '$lib/server/database/postgres-database';
 import type { Queryable, TransactionalDatabase } from '$lib/server/database/types';
-import type { EnvSource } from '$lib/server/auth/auth-config';
 import type { PlaygroundPublication, PlaygroundPublicationStore } from './types';
+import { forbidden } from '$lib/server/errors/application-error';
+import type { ApplicationConfig } from '$lib/server/config/application-config';
 
 const defaultSlot = 'default';
-let inMemoryStore: PlaygroundPublicationStore | undefined;
-const postgresStores = new Map<string, Promise<PlaygroundPublicationStore>>();
 
-export function playgroundPublicationStore(env?: EnvSource): PlaygroundPublicationStore {
-  if (!getDatabaseConfig(env).enabled) {
-    inMemoryStore ??= new InMemoryPlaygroundPublicationStore();
-    return inMemoryStore;
-  }
-  return new LazyPostgresPlaygroundPublicationStore(env);
-}
-
-export function setPlaygroundPublicationStore(store: PlaygroundPublicationStore): void {
-  inMemoryStore = store;
+export function createPlaygroundPublicationStore(
+  config: ApplicationConfig,
+  database: () => Promise<TransactionalDatabase>
+): PlaygroundPublicationStore {
+  return config.database.enabled
+    ? new LazyPostgresPlaygroundPublicationStore(database)
+    : new InMemoryPlaygroundPublicationStore();
 }
 
 export class InMemoryPlaygroundPublicationStore implements PlaygroundPublicationStore {
@@ -39,8 +33,10 @@ export class InMemoryPlaygroundPublicationStore implements PlaygroundPublication
   }
 }
 
-class LazyPostgresPlaygroundPublicationStore implements PlaygroundPublicationStore {
-  constructor(private readonly env: EnvSource | undefined) {}
+export class LazyPostgresPlaygroundPublicationStore implements PlaygroundPublicationStore {
+  private storePromise: Promise<PlaygroundPublicationStore> | undefined;
+
+  constructor(private readonly database: () => Promise<TransactionalDatabase>) {}
 
   async current(slot = defaultSlot) {
     return (await this.store()).current(slot);
@@ -55,16 +51,13 @@ class LazyPostgresPlaygroundPublicationStore implements PlaygroundPublicationSto
   }
 
   private store(): Promise<PlaygroundPublicationStore> {
-    const key = JSON.stringify(this.env ?? {});
-    let store = postgresStores.get(key);
+    let store = this.storePromise;
     if (!store) {
-      store = postgresDatabase(this.env).then((database) => new PostgresPlaygroundPublicationStore(database));
-      postgresStores.set(key, store);
+      store = this.database().then((database) => new PostgresPlaygroundPublicationStore(database));
+      this.storePromise = store;
       const pending = store;
       void pending.catch(() => {
-        if (postgresStores.get(key) === pending) {
-          postgresStores.delete(key);
-        }
+        if (this.storePromise === pending) this.storePromise = undefined;
       });
     }
     return store;
@@ -144,11 +137,4 @@ async function selectPublication(client: Queryable, slot: string): Promise<Playg
 
 function timestamp(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
-}
-
-function forbidden(message: string): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status: 403,
-    headers: { 'content-type': 'application/json' }
-  });
 }
