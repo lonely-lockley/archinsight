@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import 'monaco-editor';
   import type { WorkspaceSurface } from '$lib/actions/action-model';
   import WorkspaceShell from '$lib/workspace/shell/WorkspaceShell.svelte';
   import { createWorkspaceRuntime } from '$lib/workspace/shell/workspace-runtime';

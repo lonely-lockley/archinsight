@@ -1185,6 +1185,18 @@ function collectNamedList(
             addAttributeValue(owner.attributes, listName, elementReference(element));
           }
         }
+        continue;
+      }
+
+      const nestedList = firstChild(bodyItem, "namedList");
+      if (nestedList !== undefined && owner !== undefined) {
+        const nestedName = firstChild(nestedList, "listName");
+        document.diagnostics.push({
+          code: "TYPE_MISMATCH",
+          message: `Attribute '${listName}' on type '${ownerType}' cannot contain a nested attribute`,
+          sourceName: document.sourceName,
+          ...position(nestedName ?? nestedList, document.sourceName),
+        });
       }
     }
   }

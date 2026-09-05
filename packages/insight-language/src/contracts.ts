@@ -401,6 +401,7 @@ export interface ListFrame {
   readonly indent: number;
   readonly ownerType: string;
   readonly attribute: string;
+  readonly hasDirectValue?: boolean;
 }
 
 export interface ElementFrame {

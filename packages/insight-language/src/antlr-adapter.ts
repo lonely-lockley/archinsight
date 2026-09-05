@@ -656,7 +656,10 @@ function processList(
   const expectedType = attributeDefinition === undefined ? undefined : typeSystem.nestedElementType(attributeDefinition);
   if ((contains(list, cursorOffset, cursor) || isIndentedUnderListHeader(list, cursor))
     && cursor.line > tokenLine(startToken(list))) {
-    state.lists.unshift({ indent: indentLevel(list), ownerType: attributeOwnerType, attribute });
+    const hasDirectValue = directChildrenByRule(list, "listBodyItem", ruleNames)
+      .some((item) => startsBefore(item, cursorOffset)
+        && firstChildByRule(item, "listValue", ruleNames) !== undefined);
+    state.lists.unshift({ indent: indentLevel(list), ownerType: attributeOwnerType, attribute, hasDirectValue });
   }
   for (const listItem of directChildrenByRule(list, "listBodyItem", ruleNames)) {
     const item = firstChildByRule(listItem, "architectureBodyItem", ruleNames);

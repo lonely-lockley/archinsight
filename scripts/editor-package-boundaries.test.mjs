@@ -54,3 +54,18 @@ test('editor hosts use shared pure semantics and retain only enum adapters', asy
   assert.match(webviewHost, /function completionItemKind/);
   assert.match(browserHost, /function completionItemKind/);
 });
+
+test('the web workspace loads one deduplicated Monaco runtime', async () => {
+  const page = await readFile('archinsight-web/src/lib/workspace/WorkspacePage.svelte', 'utf8');
+  const session = await readFile('archinsight-web/src/lib/workspace/editor/monaco-session.ts', 'utf8');
+  const queryEditor = await readFile('packages/archinsight-workbench/src/QueryEditorPanel.svelte', 'utf8');
+  const viteConfig = await readFile('archinsight-web/vite.config.ts', 'utf8');
+
+  assert.doesNotMatch(page, /import\s+['"]monaco-editor['"]/,
+    'page composition must not eagerly register Monaco extensions');
+  assert.match(session, /await import\('monaco-editor'\)/);
+  assert.match(queryEditor, /await import\('monaco-editor'\)/);
+  assert.match(viteConfig, /preserveSymlinks:\s*false/);
+  assert.match(viteConfig, /dedupe:\s*sharedRuntimeDependencies/);
+  assert.match(viteConfig, /sharedRuntimeDependencies[\s\S]*['"]monaco-editor['"]/);
+});

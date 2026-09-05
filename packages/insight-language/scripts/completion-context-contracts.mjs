@@ -29,6 +29,7 @@ const cases = [
   wireAttributesCompleteAfterNestedObjectAttribute,
   projectionRulesCompleteTextualOperatorsTermsAndAttributes,
   deploymentBlocksCompleteProfilesAndInfrastructureSlots,
+  filledSingleReferenceSlotsDoNotSuggestNestedAttributes,
   objectBodyDoesNotSuggestAssignedScalarAttributes,
   identifierDeclarationsHaveNoCandidates,
   archinsightExampleCompletionDoesNotLeakTextWordsAtLineEnds,
@@ -671,6 +672,124 @@ system application
     assert(wireOverrideBody.has(expected), `${expected} missing from ${[...wireOverrideBody].join(", ")}`);
   }
   assert(!wireOverrideBody.has("appliesTo"), [...wireOverrideBody].join(", "));
+}
+
+function filledSingleReferenceSlotsDoNotSuggestNestedAttributes() {
+  const definitions = buildLanguageSnapshotResultFromSources([
+    source("custom.ai", `
+define type CustomNode of BoundaryElement
+    constructor customNode
+
+    required Text name
+    CustomNode parent
+    List of CustomNode peers
+
+define type CompletionEnvironment of Environment
+    ServiceProvider csp
+    Compute compute
+
+define type ServiceProvider of InfrastructureComponent
+    constructor serviceProvider
+`),
+  ], [coreLanguageSnapshot]);
+  assert.deepEqual(definitions.diagnostics, []);
+
+  const filledSingleSlotLabels = itemLabels(completeAtMarker(`
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    parent:
+        root
+        __CURSOR__
+`, { snapshot: definitions.snapshot }));
+  assert.deepEqual(
+    [...filledSingleSlotLabels],
+    [],
+    `filled single reference slot leaked: ${[...filledSingleSlotLabels].join(", ")}`,
+  );
+
+  const invalidNestedSlotLabels = itemLabels(completeAtMarker(`
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    parent:
+        root
+        parent:
+            __CURSOR__
+`, { snapshot: definitions.snapshot }));
+  assert.deepEqual(
+    [...invalidNestedSlotLabels],
+    [],
+    `invalid nested reference slot leaked: ${[...invalidNestedSlotLabels].join(", ")}`,
+  );
+
+  const listSlotLabels = itemLabels(completeAtMarker(`
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    peers:
+        root
+        __CURSOR__
+`, { snapshot: definitions.snapshot }));
+
+  assert(listSlotLabels.has("root"), `list reference slot lost candidates: ${[...listSlotLabels].join(", ")}`);
+  assert(!listSlotLabels.has("parent"), `list reference slot leaked object attributes: ${[...listSlotLabels].join(", ")}`);
+
+  const infrastructureSlotLabels = itemLabels(completeAtMarker(`
+environment example
+    name = Example
+
+deployment production
+    csp:
+        serviceProvider csp
+            name = Provider
+
+    compute:
+        compute compute
+            name = Kubernetes
+            runsOn:
+                csp
+                __CURSOR__
+`, { snapshot: definitions.snapshot }));
+  assert.deepEqual(
+    [...infrastructureSlotLabels],
+    [],
+    `filled infrastructure reference slot leaked: ${[...infrastructureSlotLabels].join(", ")}`,
+  );
+
+  const infrastructureValueCompletion = completeAtMarker(`
+environment example
+    name = Example
+
+deployment production
+    csp:
+        serviceProvider csp
+            name = Provider
+
+    compute:
+        compute compute
+            name = Kubernetes
+            runsOn:
+                __CURSOR__csp
+`, { snapshot: definitions.snapshot });
+  const infrastructureValueLabels = itemLabels(infrastructureValueCompletion);
+  assert.deepEqual(
+    [...infrastructureValueLabels].sort(),
+    ["compute", "csp"],
+    `reference value completion candidates changed; rules: ${infrastructureValueCompletion.ruleStack.join(" > ")}`,
+  );
 }
 
 function assertProjectionCompletion(line, { snapshot, includes, excludes }) {

@@ -42,6 +42,7 @@ const cases = [
   linksCoreWirePresentationFields,
   allowsTypedReferenceValuesInSingleSlots,
   resolvesCoreInfrastructureRunsOnReferences,
+  rejectsNestedAttributesAfterSingleReferenceValues,
   rejectsReferencesToAnonymousInstances,
   allowsTypedReferenceValuesFromExplicitContexts,
   validatesTypedReferenceSlotCardinalityAndType,
@@ -1146,6 +1147,42 @@ deployment production
   assert.equal(compute?.type, "Compute");
   assert.equal(gateway?.type, "InfrastructureComponent");
   assert.deepEqual(gateway?.attributes.runsOn, [compute?.id]);
+}
+
+function rejectsNestedAttributesAfterSingleReferenceValues() {
+  const definitions = buildLanguageSnapshotResultFromSources([
+    source("custom.ai", `
+define type CustomNode of BoundaryElement
+    constructor customNode
+
+    required Text name
+    CustomNode parent
+`),
+  ], [coreLanguageSnapshot]);
+  assertNoErrors(definitions);
+  const sourceText = `
+context custom
+
+customNode root
+    name = Root
+
+customNode child
+    name = Child
+    parent:
+        root
+        parent:
+            missing
+`;
+  const result = linkProject({
+    snapshot: definitions.snapshot,
+    sources: [source("architecture.ai", sourceText)],
+  });
+
+  const errors = result.diagnostics.filter((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR");
+  assert.equal(errors.length, 1, JSON.stringify(errors, null, 2));
+  assert.equal(errors[0]?.code, "TYPE_MISMATCH");
+  assert.equal(errors[0]?.message, "Attribute 'parent' on type 'CustomNode' cannot contain a nested attribute");
+  assert.equal(tokenAt(sourceText, errors[0]?.line ?? 1, errors[0]?.column ?? 1), "parent");
 }
 
 function rejectsReferencesToAnonymousInstances() {

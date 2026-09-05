@@ -594,6 +594,9 @@ function identifierPositionItems(
   typeSystem: TypeSystem,
   context: CompletionScope,
 ): CompletionItem[] {
+  if (currentSingleReferenceSlotIsFilled(typeSystem, context, line.indentLevel)) {
+    return [];
+  }
   const result: CompletionItem[] = [];
   const implicitObjectType = currentImplicitObjectBodyType(typeSystem, context, line.indentLevel);
   const slotReferenceItems = currentSlotReferenceItems(typeSystem, context, line.indentLevel);
@@ -803,9 +806,25 @@ function currentImplicitObjectBodyType(
     return undefined;
   }
   const attribute = typeSystem.attribute(list.ownerType, list.attribute);
-  return attribute !== undefined && typeSystem.isObjectAttribute(attribute)
+  return attribute !== undefined
+    && typeSystem.isObjectAttribute(attribute)
+    && !isInfrastructureReferenceAttribute(attribute)
     ? attribute.type
     : undefined;
+}
+
+function currentSingleReferenceSlotIsFilled(
+  typeSystem: TypeSystem,
+  context: CompletionScope,
+  indent: number,
+): boolean {
+  const frameIndent = nearestFrame(context, indent)?.frame.indent ?? -1;
+  return context.lists
+    .filter((list) => list.indent > frameIndent && list.indent < indent && list.hasDirectValue)
+    .some((list) => {
+      const attribute = typeSystem.attribute(list.ownerType, list.attribute);
+      return attribute !== undefined && attribute.list !== true && typeSystem.isObjectAttribute(attribute);
+    });
 }
 
 function currentCompletionOwnerType(
@@ -896,14 +915,27 @@ function currentSlotReferenceItems(
   if (expectedType === undefined) {
     return [];
   }
+  const list = currentList(context, indent);
+  const attribute = list === undefined ? undefined : typeSystem.attribute(list.ownerType, list.attribute);
   return [
     ...typeSystem.enumValues(expectedType).map(enumValue),
     ...[...context.visibleIdentifiers.values()]
       .filter((identifier) => identifier.type !== undefined && typeSystem.isAssignable(identifier.type, expectedType))
       .map(identifierItem),
-    ...typeSystem.constructorsForExpectedType(expectedType)
-      .map((constructor) => constructorItem(`${constructor.spelling} `)),
+    ...(attribute !== undefined && isInfrastructureReferenceAttribute(attribute)
+      ? []
+      : typeSystem.constructorsForExpectedType(expectedType)
+        .map((constructor) => constructorItem(`${constructor.spelling} `))),
   ];
+}
+
+function isInfrastructureReferenceAttribute(
+  attribute: { readonly capabilities?: readonly string[] },
+): boolean {
+  return attribute.capabilities?.some((capability) =>
+    capability === ATTRIBUTE_CAPABILITIES.placementOwner
+      || capability === ATTRIBUTE_CAPABILITIES.infrastructureUses
+  ) === true;
 }
 
 function currentEdgeList(

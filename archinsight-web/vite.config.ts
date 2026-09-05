@@ -6,23 +6,22 @@ const webSources = fileURLToPath(new URL('./src', import.meta.url));
 const workbenchSources = fileURLToPath(
   new URL('../packages/archinsight-workbench/src', import.meta.url)
 );
+const sharedRuntimeDependencies = [
+  'svelte',
+  'monaco-editor',
+  '@insight/language',
+  '@archinsight/contracts',
+  '@archinsight/editor-support'
+];
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   plugins: [sveltekit()],
   resolve: {
     conditions: ['browser'],
-    // V8 ignores node_modules coverage. Resolve the linked workbench to its physical sources in
-    // tests, while keeping peer-dependency lookup stable for normal application builds.
-    preserveSymlinks: mode !== 'test',
-    dedupe: mode === 'test'
-      ? [
-          'svelte',
-          'monaco-editor',
-          '@insight/language',
-          '@archinsight/contracts',
-          '@archinsight/editor-support'
-        ]
-      : []
+    // Resolve the linked workbench to its physical sources and keep browser singletons canonical.
+    // Separate symlink and physical module ids can register Monaco extensions more than once.
+    preserveSymlinks: false,
+    dedupe: sharedRuntimeDependencies
   },
   test: {
     coverage: {
@@ -48,4 +47,4 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173
   }
-}));
+});
