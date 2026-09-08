@@ -1,3 +1,5 @@
+import { resolveBuiltinView } from '@insight/language';
+import { isQueryFile, queryFileName } from '@archinsight/workbench/project-queries';
 import type { AnalysisController } from '$lib/workspace/analysis/analysis-controller';
 import type { MonacoSession } from '$lib/workspace/editor/monaco-session';
 import type { TabController } from '$lib/workspace/editor/tab-controller';
@@ -43,6 +45,9 @@ export function createWorkspaceFileEffects(ports: WorkspaceFileEffectsPorts): Wo
     const tab = transition.previousTab;
     const targetId = transition.targetId;
     if (tab === undefined || targetId === undefined) return;
+    if (isQueryFile(path)) {
+      ports.tabController.patch(targetId, { diagramMode: resolveBuiltinView(queryFileName(path), true)?.id ?? 'default' });
+    }
     ports.monaco().retargetModel(tab.id, targetId);
     ports.analysis().removeDiagnostics([tab.sourceIdentity]);
     ports.monaco().syncActiveTab();

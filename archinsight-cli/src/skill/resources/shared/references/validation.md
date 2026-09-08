@@ -52,10 +52,13 @@ archinsight render . -s <source.ai> -v deployment-container --environment <envir
 Run a custom query from a file:
 
 ```shell
-archinsight query . -s <source.ai> -q query.aiq -f text
-archinsight query . -s <source.ai> -q query.aiq -f json
-archinsight render . -s <source.ai> -q query.aiq -f svg -o diagram.svg
+archinsight query . -s <source.ai> -q views/<name>.aiq -f text
+archinsight query . -s <source.ai> -q views/<name>.aiq -f json
+archinsight render . -s <source.ai> -q views/<name>.aiq -f svg -o diagram.svg
 ```
+
+Pass the `.aiq` path explicitly even when its basename overrides a standard
+view in the web workspace. CLI `--view` does not discover project query files.
 
 Use three validation layers:
 

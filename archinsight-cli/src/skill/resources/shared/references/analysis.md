@@ -49,6 +49,13 @@ the Insight query and which result was computed from its output.
 6. Report the scope: context, selected source when `$tab` is used, query or
    built-in view, and whether derived or projected edges were included.
 
+When the custom query represents a reusable project view requested by the user,
+save it as `views/<descriptive-name>.aiq` unless the user specifies another
+path. Read `references/custom-views.md`, avoid duplicate basenames, and
+use a reserved built-in basename only for an intentional standard-view
+override. Keep a one-off investigative query temporary when it is not a project
+artifact.
+
 ## Inventory a Context
 
 The built-in unfiltered view is the simplest broad logical export:

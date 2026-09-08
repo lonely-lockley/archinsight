@@ -1,3 +1,4 @@
+import { createProjectQueryController } from '$lib/workspace/diagram/project-query-controller';
 import { tick } from 'svelte';
 import { defaultDiagramMode, defaultQuery } from '@archinsight/workbench/presets';
 import { createAnalysisController, type AnalysisController } from '$lib/workspace/analysis/analysis-controller';
@@ -199,7 +200,24 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     addPointerUp: (listener) => window.addEventListener('pointerup', listener),
     removePointerUp: (listener) => window.removeEventListener('pointerup', listener)
   });
+  const queryController = createProjectQueryController({
+    projectId,
+    tree: () => state().tree,
+    tabs: () => state().tabs,
+    activeTab,
+    analysis: () => state().linkedAnalysis,
+    fetchFile: (id, path) => api.fetchFile(id, path, host.surface()),
+    patchTab: (id, change) => tabController.patch(id, change),
+    persist: () => fileController.persistWorkspace(),
+    refreshWidgets: () => monacoSession.refreshQueryScope(),
+    scheduleDiagram: () => {
+      const analysis = state().linkedAnalysis;
+      if (analysis !== undefined) diagramController.reconcileDeploymentEnvironment(analysis);
+      analysisController.scheduleDiagramUpdate();
+    }
+  });
   monacoSession = createMonacoSession({
+    queryScope: { state: queryController.widgetState, select: queryController.selectScope },
     editorHost: host.editorHost,
     tabs: () => state().tabs,
     activeTab,
@@ -227,6 +245,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     refreshTokenVocabulary: monacoSession.refreshTokenVocabulary
   });
   analysisRunner = createAnalysisRunner({
+    resolveQuery: queryController.resolve,
     state: () => ({
       projectId: projectId(),
       surface: host.surface(),
@@ -246,7 +265,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     updateLinkerDiagnostics: (diagnostics, sources) => analysisController.updateLinkerDiagnostics(diagnostics, sources),
     setLoading: (analysisLoading) => patch({ analysisLoading }),
     acceptProjectSymbols: (projectSymbols) => patch({ projectSymbols }),
-    acceptLinkedAnalysis: (linkedAnalysis) => patch({ linkedAnalysis }),
+    acceptLinkedAnalysis: (linkedAnalysis) => { patch({ linkedAnalysis }); monacoSession.refreshQueryScope(); },
     reconcileDeploymentEnvironment: (analysis) => diagramController.reconcileDeploymentEnvironment(analysis),
     refreshEditorSymbols: editorSynchronization.refreshEditorSymbols,
     acceptProjectStructure: editorSynchronization.acceptProjectStructure,
@@ -369,6 +388,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
   });
 
   const controllers = {
+    query: queryController,
     auth: authController,
     action: actionController,
     diagram: diagramController,

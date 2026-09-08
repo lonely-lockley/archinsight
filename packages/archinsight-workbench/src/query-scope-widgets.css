@@ -1,0 +1,33 @@
+.monaco-editor .query-scope-chip {
+  color: var(--vscode-editorInlayHint-foreground, #abb6c7);
+  background: var(--vscode-editorInlayHint-background, #2b3440);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.query-scope-picker {
+  box-sizing: border-box;
+  width: 310px;
+  padding: 8px;
+  color: #dce3ec;
+  background: #20262f;
+  border: 1px solid #526174;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px #0006;
+  font: 12px system-ui, sans-serif;
+}
+.query-scope-picker input, .query-scope-picker button {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font: inherit;
+  text-align: left;
+}
+.query-scope-picker input { border-color: #526174; margin-bottom: 5px; }
+.query-scope-options { max-height: 220px; overflow: auto; }
+.query-scope-picker button { overflow-wrap: anywhere; cursor: pointer; }
+.query-scope-picker button:hover, .query-scope-picker button[aria-selected=true] { background: #344354; }
+.query-scope-picker :focus-visible { outline: 2px solid #80b8ee; outline-offset: -2px; }

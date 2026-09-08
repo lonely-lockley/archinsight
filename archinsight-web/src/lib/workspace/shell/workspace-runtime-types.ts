@@ -1,3 +1,4 @@
+import type { createProjectQueryController } from '../diagram/project-query-controller';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { AuthController } from '$lib/workspace/auth/auth-controller';
 import type { DiagramController } from '$lib/workspace/diagram/diagram-controller';
@@ -19,6 +20,7 @@ export type WorkspaceRuntimeHost = {
 };
 
 export type WorkspaceRuntimeControllers = {
+  query: ReturnType<typeof createProjectQueryController>;
   auth: AuthController;
   action: WorkspaceActionController;
   diagram: DiagramController;

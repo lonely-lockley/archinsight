@@ -39,10 +39,6 @@ export interface BuiltinViewDefinition {
   readonly boundary: ViewBoundaryDefinition | null;
   readonly stages: readonly BuiltinViewStage[];
   readonly deploymentRootType?: string;
-  readonly legacyPresetQueries: readonly {
-    readonly version: number;
-    readonly query: string;
-  }[];
 }
 
 export const BUILTIN_VIEW_DEFINITIONS: readonly BuiltinViewDefinition[] = GENERATED_BUILTIN_VIEW_DEFINITIONS;

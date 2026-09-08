@@ -20,7 +20,10 @@ examples/builtin-views/deployment.aiq
 ```
 
 Before inventing a query from scratch, open the nearest built-in query, copy it
-to the project, and make the smallest change.
+to `views/<name>.aiq` in the project, and make the smallest change. Use another
+directory only when the user requests it. Read `references/custom-views.md`
+before choosing the filename: a reserved basename overrides a standard web
+view, while a descriptive new name creates an additional custom view.
 
 Choose `deployment-system.aiq` for a D1 overview and
 `deployment-container.aiq` for D2 detail in one environment. Start from the
@@ -28,9 +31,9 @@ legacy `deployment.aiq` only when the intended result is one container-level
 graph across every relevant environment.
 
 ```shell
-archinsight query . -s <source.ai> -q queries/custom.aiq -f text
-archinsight query . -s <source.ai> -q queries/custom.aiq -f json
-archinsight render . -s <source.ai> -q queries/custom.aiq -f svg -o custom.svg
+archinsight query . -s <source.ai> -q views/custom.aiq -f text
+archinsight query . -s <source.ai> -q views/custom.aiq -f json
+archinsight render . -s <source.ai> -q views/custom.aiq -f svg -o custom.svg
 ```
 
 Use `references/queries.md` for syntax details. Use this file for common
@@ -62,6 +65,7 @@ When the graph is right but the picture is noisy:
 
 - narrow `-s <source.ai>` to the file that owns the view;
 - copy the nearest `examples/builtin-views/*.aiq` query;
+- save it under `views/` unless the user requested another location;
 - filter to the layer, flow, or relationship class the user asked for;
 - change `GROUP BY` to cluster by parent, runtime placement, or another useful
   attribute.

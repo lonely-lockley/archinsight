@@ -12,6 +12,11 @@
   export let diagramMode: DiagramMode;
   export let query: string;
   export let queryVisible = false;
+  export let queryDocument = false;
+  export let projectQueries: readonly { readonly name: string; readonly paths: readonly string[]; readonly view?: string }[] = [];
+  export let selectedQuery: string | undefined = undefined;
+  export let onSelectProjectQuery: (name: string) => void = () => {};
+  export let onOpenQueryFile: ((path: string) => void) | undefined = undefined;
   export let queryPanelHeight = 118;
   export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
   export let deploymentEnvironment: string | undefined = undefined;
@@ -54,6 +59,11 @@
       {diagramMode}
       {query}
       {queryVisible}
+      {queryDocument}
+      {projectQueries}
+      {selectedQuery}
+      {onSelectProjectQuery}
+      {onOpenQueryFile}
       {queryPanelHeight}
       {deploymentEnvironments}
       {deploymentEnvironment}

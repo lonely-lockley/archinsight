@@ -207,10 +207,10 @@ export async function linkProject(
   openSourceIdentities: string[],
   overlays: Record<string, string>,
   query: string,
-  view: BuiltinDiagramView,
+  view: BuiltinDiagramView | undefined,
   environment: string | undefined,
   surface: WorkspaceSurface = 'editor',
-  options: { readonly forceFullAnalysis?: boolean } = {}
+  options: { readonly forceFullAnalysis?: boolean; readonly querySource?: string; readonly queryContext?: string } = {}
 ): Promise<LinkResponse> {
   return postJson(
     surface === 'playground' ? '/api/playground/link' : `/api/projects/${encodeURIComponent(projectId)}/link`,
@@ -220,6 +220,8 @@ export async function linkProject(
       query,
       view,
       environment,
+      querySource: options.querySource,
+      queryContext: options.queryContext,
       ...(options.forceFullAnalysis === true ? { forceFullAnalysis: true } : {})
     },
     parseLinkResponse

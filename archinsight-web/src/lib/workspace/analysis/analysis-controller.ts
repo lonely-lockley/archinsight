@@ -36,7 +36,7 @@ export type AnalysisControllerPorts = {
 
 export type AnalysisController = {
   scheduleLink(delay?: number, options?: LinkRunOptions): void;
-  scheduleDiagramUpdate(): void;
+  scheduleDiagramUpdate(delay?: number): void;
   scheduleLiveSyntaxCheck(sources?: AnalysisSource[]): void;
   isCurrentLink(sequence: number, projectId?: string): boolean;
   updateLinkerDiagnostics(diagnostics: Diagnostic[], preflightSources?: string[]): void;
@@ -49,6 +49,8 @@ export type AnalysisController = {
 
 export type LinkRunOptions = {
   readonly forceFullAnalysis?: boolean;
+  readonly querySource?: string;
+  readonly queryContext?: string;
 };
 
 export function createAnalysisController(ports: AnalysisControllerPorts): AnalysisController {
@@ -101,7 +103,7 @@ export function createAnalysisController(ports: AnalysisControllerPorts): Analys
   return {
     scheduleLink,
 
-    scheduleDiagramUpdate() {
+    scheduleDiagramUpdate(delay = 0) {
       const analysis = ports.linkedAnalysis();
       if (analysis === undefined) {
         scheduleLink();
@@ -109,7 +111,7 @@ export function createAnalysisController(ports: AnalysisControllerPorts): Analys
       }
       const sequence = ++linkSequence;
       const projectId = ports.currentProjectId();
-      schedule(() => void ports.runCachedDiagram(sequence, projectId, analysis), 0);
+      schedule(() => void ports.runCachedDiagram(sequence, projectId, analysis), delay);
     },
 
     scheduleLiveSyntaxCheck(sources = ports.defaultSyntaxSources()) {

@@ -136,7 +136,7 @@ Restart a Codex or Claude session after generating its native skill so the new s
 
 ## Web viewer
 
-The SvelteKit web viewer presents linked projects in a browser using the same language core and editor components. It provides an authenticated owner-scoped application and an anonymous read-only playground containing one explicitly published project.
+The SvelteKit web viewer presents linked projects in a browser using the same language core and editor components. It supports project-owned `.aiq` custom views, including filename-based overrides of built-in queries. It provides an authenticated owner-scoped application and an anonymous read-only playground containing one explicitly published project.
 
 ## Repository
 

@@ -7,10 +7,10 @@ diagram.
 ## CLI Shape
 
 ```shell
-archinsight query . -s <source.ai> -q query.aiq -f text
+archinsight query . -s <source.ai> -q views/dependencies.aiq -f text
 archinsight query . -s <source.ai> -v deployment-system --format json
 archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
-archinsight render . -s <source.ai> -q query.aiq -f svg -o diagram.svg
+archinsight render . -s <source.ai> -q views/dependencies.aiq -f svg -o diagram.svg
 ```
 
 The scope variables are:
@@ -34,8 +34,33 @@ Path handling:
 Prefer paths relative to the project root:
 
 ```shell
-archinsight query path/to/project -s models/storefront.ai -q queries/c2.aiq -f text
+archinsight query path/to/project -s models/storefront.ai -q views/c2.aiq -f text
 ```
+
+## Project Custom Views
+
+Agents may create and maintain reusable `.aiq` queries as project files. Read
+`references/custom-views.md` before doing so. By default, create
+`views/<descriptive-name>.aiq`; use another location only when the user specifies
+it.
+
+The web workspace discovers queries by basename across the whole project. A
+descriptive new basename creates a custom view. A reserved basename such as
+`c2.aiq` or `deployment-system.aiq` overrides that standard web view and keeps
+its built-in post-selection pipeline. Use a reserved name only when the user
+intends a project-wide override. Check all existing `.aiq` basenames first,
+because duplicate names conflict even across different directories.
+
+CLI execution always requires the path:
+
+```shell
+archinsight query . -s models/storefront.ai -q views/dependencies.aiq --format json
+archinsight render . -s models/storefront.ai -q views/dependencies.aiq --format svg --out dependencies.svg
+```
+
+The CLI does not activate a project override through `--view`. `-v c2` uses the
+CLI's bundled C2 query; `-q views/c2.aiq` runs the file independently and
+without the C2 pipeline. Do not pass `--view` together with `--query`.
 
 ## Query Shape
 
@@ -267,8 +292,10 @@ endpoint to its system, C3 to its container or service, and C4 to its component.
 marker.
 
 A custom query file supplies its own selection and grouping contract and
-overrides `--view`. To customize C1-C4 boundary behavior, copy the nearest
-bundled built-in `.aiq` file and modify its predicates or grouping explicitly.
+overrides `--view`. To customize a web C1-C4 view while retaining its boundary
+behavior, copy the corresponding bundled built-in `.aiq` file to the reserved
+`views/<name>.aiq` path and modify its predicates or grouping. Running that file
+through CLI `--query` does not apply the built-in post-selection pipeline.
 
 Each edge contains its selected category and two endpoint pairs:
 
@@ -397,4 +424,7 @@ the filter or grouping deliberately.
 - Return every node and relationship alias needed for rendering.
 - Add `GROUP BY` deliberately for diagrams with clusters.
 - Validate query files with `archinsight query` before rendering.
-- Keep custom queries in `.aiq` files when they are reused.
+- Keep reusable custom queries in `views/<descriptive-name>.aiq` unless the user
+  specifies another path.
+- Copy `examples/builtin-views/<name>.aiq` before overriding a standard view;
+  do not recreate a built-in query from memory.

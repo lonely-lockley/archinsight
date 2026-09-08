@@ -70,5 +70,6 @@ describe('tab persistence', () => {
     expect(isProjectSourceTab(tab({ projectSource: false }))).toBe(false);
     expect(isProjectSourceTab(tab())).toBe(true);
     expect(virtualSourceIdentity('Untitled 1/unsafe.ai')).toBe('__unsaved__/Untitled-1-unsafe-ai.ai');
+    expect(virtualSourceIdentity('Untitled 1/unsafe.ai', 'query')).toBe('__unsaved__/Untitled-1-unsafe-ai.aiq');
   });
 });

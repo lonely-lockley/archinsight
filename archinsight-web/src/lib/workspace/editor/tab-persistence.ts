@@ -1,3 +1,4 @@
+import { isQueryFile } from '@archinsight/workbench/project-queries';
 import { diagramModeDefinition, resolveStoredDiagramQuery } from '@archinsight/workbench/presets';
 import type { WorkspaceTabState } from '$lib/storage';
 import type { EditorViewMode, WorkspaceTab } from '@archinsight/workbench/types';
@@ -10,6 +11,8 @@ const minDiagramScale = 0.25;
 const maxDiagramScale = 3;
 const minEditorSplitRatio = 20;
 const maxEditorSplitRatio = 80;
+
+export type UnsavedDocumentKind = 'model' | 'query';
 
 export function workspaceTabState(tab: WorkspaceTab): WorkspaceTabState {
   const persistedQuery = tab.queryPreset
@@ -24,6 +27,9 @@ export function workspaceTabState(tab: WorkspaceTab): WorkspaceTabState {
     title: tab.title,
     diagramMode: tab.diagramMode,
     ...persistedQuery,
+    queryView: tab.queryView,
+    querySource: tab.querySource,
+    queryContext: tab.queryContext,
     deploymentEnvironment: tab.deploymentEnvironment,
     queryVisible: tab.queryVisible,
     queryPanelHeight: tab.queryPanelHeight,
@@ -43,6 +49,9 @@ export function tabToolbarState(
   | 'diagramMode'
   | 'query'
   | 'queryPreset'
+  | 'queryView'
+  | 'querySource'
+  | 'queryContext'
   | 'deploymentEnvironment'
   | 'queryVisible'
   | 'queryPanelHeight'
@@ -53,6 +62,9 @@ export function tabToolbarState(
 > {
   return {
     ...resolveStoredDiagramQuery(tab),
+    queryView: tab?.queryView,
+    querySource: tab?.querySource,
+    queryContext: tab?.queryContext,
     deploymentEnvironment: tab?.deploymentEnvironment,
     queryVisible: tab?.queryVisible ?? false,
     queryPanelHeight: normalizeQueryPanelHeight(tab?.queryPanelHeight),
@@ -64,11 +76,11 @@ export function tabToolbarState(
 }
 
 export function isProjectSourceTab(tab: WorkspaceTab): boolean {
-  return tab.projectSource !== false;
+  return tab.projectSource !== false && !isQueryFile(tab.sourceIdentity);
 }
 
-export function virtualSourceIdentity(id: string): string {
-  return `__unsaved__/${id.replace(/[^A-Za-z0-9_-]/g, '-')}.ai`;
+export function virtualSourceIdentity(id: string, kind: UnsavedDocumentKind = 'model'): string {
+  return `__unsaved__/${id.replace(/[^A-Za-z0-9_-]/g, '-')}.${kind === 'query' ? 'aiq' : 'ai'}`;
 }
 
 function normalizeViewMode(value: string | undefined): EditorViewMode | undefined {

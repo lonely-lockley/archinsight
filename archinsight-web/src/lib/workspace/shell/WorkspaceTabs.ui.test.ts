@@ -35,7 +35,8 @@ describe('WorkspaceTabs', () => {
       props: {
         tabs: [
           tab({ local: true }),
-          tab({ id: 'core.ai', sourceIdentity: 'core.ai', title: 'core.ai', readOnly: true })
+          tab({ id: 'core.ai', sourceIdentity: 'core.ai', title: 'core.ai', readOnly: true }),
+          tab({ id: 'impact.aiq', sourceIdentity: 'impact.aiq', title: 'impact.aiq' })
         ],
         activeTabId: 'core.ai',
         errorSourceIdentities: new Set(['main.ai']),
@@ -48,12 +49,13 @@ describe('WorkspaceTabs', () => {
     const tabs = target.querySelector<HTMLElement>('.tabs');
     const items = [...target.querySelectorAll<HTMLElement>('.tab')];
     expect(tabs?.style.paddingRight).toBe('44px');
-    expect(items).toHaveLength(2);
+    expect(items).toHaveLength(3);
     expect(items[0]?.classList.contains('error-tab')).toBe(true);
     expect(items[0]?.querySelector('.dirty')?.textContent).toBe('•');
     expect(items[1]?.classList.contains('active')).toBe(true);
     expect(items[1]?.querySelector('.tab-title-text')?.textContent).toBe('[r] core.ai');
     expect(items[1]?.querySelector('button[aria-label="Close core.ai"]')).not.toBeNull();
+    expect(target.querySelector('.tree-icon')).toBeNull();
 
     await unmount(component);
     target.remove();

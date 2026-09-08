@@ -2,52 +2,7 @@
   import type * as Monaco from 'monaco-editor';
   import type { DiagramMode } from './workspace-types';
 
-  let queryLanguageRegistered = false;
-
-  function registerQueryLanguage(monaco: typeof Monaco): void {
-    if (queryLanguageRegistered) {
-      return;
-    }
-    queryLanguageRegistered = true;
-    if (!monaco.languages.getLanguages().some((language) => language.id === 'archinsight-query')) {
-      monaco.languages.register({ id: 'archinsight-query' });
-    }
-    monaco.languages.setMonarchTokensProvider('archinsight-query', {
-      ignoreCase: true,
-      keywords: [
-        'MATCH',
-        'OPTIONAL',
-        'WHERE',
-        'RETURN',
-        'GROUP',
-        'BY',
-        'AND',
-        'OR',
-        'NOT',
-        'CONTAINS',
-        'TRUE',
-        'FALSE',
-        'NULL',
-        'AS'
-      ],
-      tokenizer: {
-        root: [
-          [/--.*$/, 'comment'],
-          [/"([^"\\]|\\.)*$/, 'string.invalid'],
-          [/'([^'\\]|\\.)*$/, 'string.invalid'],
-          [/"([^"\\]|\\.)*"/, 'string'],
-          [/'([^'\\]|\\.)*'/, 'string'],
-          [/\$[A-Za-z_][\w]*/, 'variable.predefined'],
-          [/:[A-Za-z_][\w]*/, 'type.identifier'],
-          [/[A-Za-z_][\w]*/, { cases: { '@keywords': 'keyword', '@default': 'identifier' } }],
-          [/\d+/, 'number'],
-          [/[{}()[\],.;]/, 'delimiter'],
-          [/[-=<>!]+/, 'operator'],
-          [/\s+/, 'white']
-        ]
-      }
-    });
-  }
+  import { registerQueryLanguage } from './query-monaco';
 </script>
 
 <script lang="ts">
@@ -57,6 +12,11 @@
   export let diagramMode: DiagramMode;
   export let query: string;
   export let queryVisible = false;
+  export let queryDocument = false;
+  export let projectQueries: readonly { readonly name: string; readonly paths: readonly string[]; readonly view?: string }[] = [];
+  export let selectedQuery: string | undefined = undefined;
+  export let onSelectProjectQuery: (name: string) => void = () => {};
+  export let onOpenQueryFile: ((path: string) => void) | undefined = undefined;
   export let queryPanelHeight = 118;
   export let onSelectDiagramMode: (mode: DiagramMode) => void;
   export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
@@ -70,9 +30,10 @@
 
   const minQueryPanelHeight = 80;
   const maxQueryPanelHeight = 360;
-  const viewControls = BUILTIN_VIEW_DEFINITIONS
-    .filter((definition) => definition.lifecycle === 'stable')
+  $: viewControls = BUILTIN_VIEW_DEFINITIONS
+    .filter((definition) => definition.lifecycle === 'stable' && (!queryDocument || (definition.environment === 'single-relevant' && definition.id === diagramMode)))
     .map((definition) => ({ definition, mode: diagramModeForDefinition(definition) }));
+  $: customViews = queryDocument ? [] : projectQueries.filter((query) => query.view === undefined);
 
   let monaco: typeof Monaco | undefined;
   let queryHost: HTMLDivElement;
@@ -84,12 +45,14 @@
   let deploymentPickerHost: HTMLDivElement;
   let deploymentEnvironmentSet = '';
   let deploymentPickerWasOpen = false;
+  let customViewPickerHost: HTMLDivElement;
+  let customViewPickerOpen = false;
 
   $: normalizedQueryPanelHeight = clampQueryPanelHeight(queryPanelHeight);
-  $: queryEditorStyle = queryVisible
+  $: queryEditorStyle = queryVisible && !queryDocument
     ? `grid-template-rows: 36px ${normalizedQueryPanelHeight}px 6px;`
     : 'grid-template-rows: 36px;';
-  $: if (queryVisible) {
+  $: if (queryVisible && !queryDocument) {
     void ensureQueryEditor();
   } else {
     disposeQueryEditor();
@@ -136,18 +99,39 @@
       && !deploymentPickerHost?.contains(event.target)) {
       onCloseDeploymentPicker();
     }
+    if (customViewPickerOpen
+      && event.target instanceof Node
+      && !customViewPickerHost?.contains(event.target)) {
+      customViewPickerOpen = false;
+    }
   }
 
   function handleWindowKeydown(event: KeyboardEvent): void {
-    if (deploymentPickerOpen && event.key === 'Escape') {
+    if ((deploymentPickerOpen || customViewPickerOpen) && event.key === 'Escape') {
       event.preventDefault();
-      onCloseDeploymentPicker();
+      if (deploymentPickerOpen) onCloseDeploymentPicker();
+      customViewPickerOpen = false;
     }
+  }
+
+  function toggleCustomViewPicker(): void {
+    customViewPickerOpen = !customViewPickerOpen;
+    if (customViewPickerOpen && deploymentPickerOpen) onCloseDeploymentPicker();
+  }
+
+  function selectProjectQuery(name: string): void {
+    customViewPickerOpen = false;
+    onSelectProjectQuery(name);
+  }
+
+  function openProjectQuery(path: string): void {
+    customViewPickerOpen = false;
+    onOpenQueryFile?.(path);
   }
 
   async function ensureQueryEditor(): Promise<void> {
     await tick();
-    if (!queryVisible || queryHost === undefined || queryEditor !== undefined) {
+    if (!queryVisible || queryDocument || queryHost === undefined || queryEditor !== undefined) {
       return;
     }
     monaco = await import('monaco-editor');
@@ -219,11 +203,11 @@
   <header class="toolbar">
     <slot name="leading-actions"></slot>
 
-    <div class="diagram-modes tool-group" aria-label="View query preset">
+    <div class:has-custom-views={customViews.length > 0} class="diagram-modes tool-group" aria-label="View query preset">
       {#each viewControls as control (control.definition.id)}
         {#if control.definition.environment === 'single-relevant'}
           <div class="deployment-picker-host" bind:this={deploymentPickerHost}>
-            <button aria-expanded={deploymentPickerOpen} aria-haspopup="listbox" aria-label={`${control.definition.label} view`} class:active-mode={diagramMode === control.mode} class="has-tooltip" data-tooltip={control.definition.label} type="button" on:click={() => onSelectDiagramMode(control.mode)}>
+            <button aria-expanded={deploymentPickerOpen} aria-haspopup="listbox" aria-label={`${control.definition.label} view`} class:active-mode={selectedQuery === undefined && diagramMode === control.mode} class="has-tooltip" data-tooltip={control.definition.label} type="button" on:click={() => onSelectDiagramMode(control.mode)}>
               <span aria-hidden="true">{control.definition.shortLabel}</span>
             </button>
             {#if deploymentPickerOpen}
@@ -257,25 +241,74 @@
             {/if}
           </div>
         {:else}
-          <button aria-label={`${control.definition.label} view`} class:active-mode={diagramMode === control.mode} class="has-tooltip" data-tooltip={control.definition.label} type="button" on:click={() => onSelectDiagramMode(control.mode)}>
+          <button aria-label={`${control.definition.label} view`} class:active-mode={selectedQuery === undefined && diagramMode === control.mode} class="has-tooltip" data-tooltip={control.definition.label} type="button" on:click={() => onSelectDiagramMode(control.mode)}>
             <span aria-hidden="true">{control.definition.shortLabel}</span>
           </button>
         {/if}
       {/each}
+      {#if customViews.length > 0}
+        <div class="custom-view-picker-host" bind:this={customViewPickerHost}>
+          <button
+            aria-expanded={customViewPickerOpen}
+            aria-haspopup="listbox"
+            aria-label="Custom view"
+            class:active-mode={selectedQuery !== undefined}
+            class="custom-view-trigger"
+            type="button"
+            on:click={toggleCustomViewPicker}
+          >
+            <span>{customViews.some((query) => query.name === selectedQuery) ? selectedQuery : 'Custom'}</span>
+            <i class="codicon codicon-chevron-down" aria-hidden="true"></i>
+          </button>
+          {#if customViewPickerOpen}
+            <div class="custom-view-picker" role="listbox" aria-label="Project views">
+              {#each customViews as projectQuery (projectQuery.name)}
+                <div class:selected={projectQuery.name === selectedQuery} class="custom-view-option">
+                  <button
+                    aria-selected={projectQuery.name === selectedQuery}
+                    class="custom-view-choice"
+                    role="option"
+                    type="button"
+                    on:click={() => selectProjectQuery(projectQuery.name)}
+                  >
+                    <span>{projectQuery.name}</span>
+                    {#if projectQuery.paths.length > 1}<small>conflict</small>{/if}
+                  </button>
+                  {#if onOpenQueryFile !== undefined}
+                    <button
+                      aria-label={`Go to ${projectQuery.name} query file`}
+                      class="custom-view-open has-tooltip"
+                      data-tooltip={projectQuery.paths.length === 1 ? 'Go to query file' : 'Query name is ambiguous'}
+                      disabled={projectQuery.paths.length !== 1}
+                      type="button"
+                      on:click={() => openProjectQuery(projectQuery.paths[0]!)}
+                    >
+                      <i class="codicon codicon-go-to-file" aria-hidden="true"></i>
+                    </button>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
 
+    {#if !queryDocument}
     <div class="query-actions tool-group" aria-label="Query actions">
       <button aria-label="Edit query" class:active-tool={queryVisible} class="icon-button has-tooltip" data-tooltip="Edit query" type="button" on:click={onToggleQuery}>
         <span aria-hidden="true" class="query-icon"></span>
       </button>
     </div>
 
+    {/if}
+
     <slot name="diagram-actions"></slot>
     <slot name="view-actions"></slot>
     <slot name="refresh-actions"></slot>
   </header>
 
-  {#if queryVisible}
+  {#if queryVisible && !queryDocument}
     <section class="query-panel" aria-label="Graph query">
       <div bind:this={queryHost} class="query-monaco"></div>
     </section>
@@ -429,6 +462,110 @@
     color: var(--archinsight-control-active-fg, #ffffff);
   }
 
+  .custom-view-picker-host {
+    position: relative;
+    align-self: stretch;
+    border-left: 1px solid var(--archinsight-border, #3a3a3a);
+  }
+
+  .diagram-modes .custom-view-trigger {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 88px;
+    border-radius: 0 3px 3px 0;
+  }
+
+  .custom-view-trigger > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .custom-view-trigger .codicon {
+    flex: 0 0 auto;
+    margin-left: auto;
+    font-size: 12px;
+  }
+
+  .custom-view-picker {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 80;
+    min-width: 220px;
+    padding: 4px;
+    border: 1px solid var(--archinsight-border, #454545);
+    border-radius: 4px;
+    background: var(--archinsight-toolbar-bg, #242424);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
+  }
+
+  .custom-view-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    min-height: 32px;
+    border-radius: 3px;
+  }
+
+  .custom-view-option:hover,
+  .custom-view-option.selected {
+    background: var(--archinsight-control-hover-bg, #343434);
+  }
+
+  .custom-view-option.selected {
+    background: var(--archinsight-control-active-bg, #354436);
+  }
+
+  .diagram-modes .custom-view-option button {
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 32px;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .diagram-modes .custom-view-choice {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    justify-content: space-between;
+    overflow: hidden;
+    padding: 0 8px;
+    text-align: left;
+  }
+
+  .custom-view-choice > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .custom-view-choice small {
+    color: var(--archinsight-muted, #a8a8a8);
+    font-size: 10px;
+  }
+
+  .diagram-modes .custom-view-open {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border-left: 1px solid var(--archinsight-border, #454545);
+  }
+
+  .diagram-modes .custom-view-open:hover,
+  .diagram-modes .custom-view-open:focus-visible {
+    background: rgb(255 255 255 / 8%);
+    outline: none;
+  }
+
+  .diagram-modes .custom-view-open:disabled {
+    color: var(--archinsight-muted, #666666);
+    cursor: default;
+  }
+
   .deployment-picker-host {
     position: relative;
     align-self: stretch;
@@ -438,6 +575,10 @@
   .deployment-picker-host > button {
     height: 26px;
     border-radius: 0 3px 3px 0;
+  }
+
+  .diagram-modes.has-custom-views .deployment-picker-host > button {
+    border-radius: 0;
   }
 
   .environment-picker {

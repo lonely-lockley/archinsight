@@ -10,7 +10,7 @@ Archinsight is a toolkit for describing software architecture as code. Models wr
 - [Built-in Archinsight Types](built-in-types.md) explains the graph foundations, the system, container, and component hierarchy, deployment types, and built-in relationships.
 - [Structuring an Insight Project](project-structure.md) covers source roles, context boundaries, imports, visibility, aliases, and object extensions.
 - [Building and Linking an Insight Project](project-processing.md) follows sources through parsing, linking, diagnostics, introspection, graph selection, DOT generation, and image rendering.
-- [Querying the Architecture Graph](graph-queries.md) describes the semantic graph, the Cypher-like query subset, scope variables, filtering, rollups, projections, and grouping.
+- [Querying the Architecture Graph](graph-queries.md) describes the semantic graph, saved `.aiq` custom views, built-in overrides, CLI execution, scope variables, filtering, rollups, projections, and grouping.
 - [C1: System Context](c1-system.md) explains context boundaries, system-level relationships, actors, and the built-in C1 entities and attributes.
 - [C2: Containers and Services](c2-containers.md) describes container-level modeling, relationship rollup, deployment connections, and the built-in C2 attributes.
 - [C3: Components](c3-components.md) covers component responsibilities, relationship ownership, rollup to C2 and C1, and the built-in C3 attributes.

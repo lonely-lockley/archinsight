@@ -1,7 +1,8 @@
 # Archinsight Agent Guide
 
-Use this guide when creating, analyzing, or repairing Insight `.ai` models, or
-when importing an existing architecture description into Insight.
+Use this guide when creating, analyzing, or repairing Insight `.ai` models and
+`.aiq` custom views, or when importing an existing architecture description
+into Insight.
 
 Insight is its own typed architecture-as-code language. Do not infer its syntax
 from YAML, Mermaid, PlantUML, Structurizr, or C4 DSL.
@@ -60,7 +61,7 @@ architecture.
 
 ## Workflow
 
-1. Read the existing `.ai` files before editing.
+1. Read the existing `.ai` and `.aiq` files before editing.
 2. Preserve indentation and the project's existing naming style.
 3. Model architecture from the outside inward: context, external actors/systems,
    systems, containers/services, components, project-defined code when needed,
@@ -73,10 +74,12 @@ architecture.
    to wires, and make pub/sub dependencies consumer-owned.
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
-7. Prefer small, focused files connected by `context`, `import`, and `extend`.
-8. Keep definition, context, and environment sources in separate files.
-9. Validate every Insight change with `archinsight link . --format text`.
-10. For C2, C3, C4, Deployment, or query changes, inspect the selected graph with
+7. Save reusable custom views as `.aiq`. Unless the user specifies another
+   location, create `views/` and write `views/<descriptive-name>.aiq`.
+8. Prefer small, focused files connected by `context`, `import`, and `extend`.
+9. Keep definition, context, and environment sources in separate files.
+10. Validate every Insight change with `archinsight link . --format text`.
+11. For C2, C3, C4, Deployment, or query changes, inspect the selected graph with
     `archinsight query ... --format json` before rendering.
 
 ## Reference routing
@@ -110,6 +113,8 @@ architecture.
   constructors, attributes, presentations, or projections.
 - Read `references/queries.md` before writing queries or interpreting query
   JSON.
+- Read `references/custom-views.md` before creating a saved `.aiq` view or
+  overriding a built-in query.
 - Read `references/query-recipes.md` when a view hides expected content,
   returns unexpected content, or needs customization.
 - Read `references/validation.md` before validating semantic or rendered

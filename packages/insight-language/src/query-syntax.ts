@@ -77,11 +77,24 @@ export function analyzeQuery(query: string): QueryAnalysis {
 type QueryToken =
   | { readonly kind: "identifier"; readonly text: string }
   | { readonly kind: "string"; readonly text: string }
-  | { readonly kind: "variable"; readonly text: string }
+  | { readonly kind: "variable"; readonly text: string; readonly startOffset: number; readonly endOffset: number }
   | { readonly kind: "symbol"; readonly text: string }
   | { readonly kind: "eof"; readonly text: "" };
 
-function tokenizeQuery(source: string): readonly QueryToken[] {
+export interface QueryVariableOccurrence {
+  readonly name: string;
+  readonly startOffset: number;
+  readonly endOffset: number;
+}
+
+/** Token ranges remain available while a query is incomplete or invalid. */
+export function queryVariableOccurrences(source: string): readonly QueryVariableOccurrence[] {
+  return tokenizeQuery(source, true).flatMap((token) => token.kind === "variable"
+    ? [{ name: token.text, startOffset: token.startOffset, endOffset: token.endOffset }]
+    : []);
+}
+
+function tokenizeQuery(source: string, recover = false): readonly QueryToken[] {
   const tokens: QueryToken[] = [];
   for (let index = 0; index < source.length;) {
     const char = source[index] ?? "";
@@ -108,12 +121,13 @@ function tokenizeQuery(source: string): readonly QueryToken[] {
       const start = index + 1;
       index++;
       if (!/[A-Za-z_]/.test(source[index] ?? "")) {
+        if (recover) continue;
         throw new Error(`Unsupported query variable near '${source.slice(index - 1)}'`);
       }
       while (/[A-Za-z0-9_]/.test(source[index] ?? "")) {
         index++;
       }
-      tokens.push({ kind: "variable", text: source.slice(start, index) });
+      tokens.push({ kind: "variable", text: source.slice(start, index), startOffset: start - 1, endOffset: index });
       continue;
     }
     if (char === "'") {
@@ -122,6 +136,7 @@ function tokenizeQuery(source: string): readonly QueryToken[] {
         index++;
       }
       if (index >= source.length) {
+        if (recover) break;
         throw new Error("Unterminated string literal in query");
       }
       tokens.push({ kind: "string", text: source.slice(start, index) });
@@ -139,6 +154,7 @@ function tokenizeQuery(source: string): readonly QueryToken[] {
       index++;
       continue;
     }
+    if (recover) { index++; continue; }
     throw new Error(`Unsupported query token '${char}'`);
   }
   tokens.push({ kind: "eof", text: "" });

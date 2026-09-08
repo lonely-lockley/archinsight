@@ -66,7 +66,7 @@ export function resolveStoredDiagramQuery(state: StoredDiagramQueryState | undef
       ? presetQueryState(storedMode ?? defaultDiagramMode)
       : customQueryState(storedMode ?? defaultDiagramMode, state.query ?? queryForDiagramMode(storedMode ?? defaultDiagramMode));
   }
-  const recognizedMode = state?.query === undefined ? undefined : legacyPresetModeForStoredQuery(state.query);
+  const recognizedMode = state?.query === undefined ? undefined : diagramModeForQuery(state.query);
   const diagramMode = storedMode ?? recognizedMode ?? defaultDiagramMode;
   const queryPreset = state?.query === undefined || recognizedMode !== undefined;
   return {
@@ -74,20 +74,6 @@ export function resolveStoredDiagramQuery(state: StoredDiagramQueryState | undef
     query: queryPreset ? queryForDiagramMode(diagramMode) : state?.query ?? queryForDiagramMode(diagramMode),
     queryPreset
   };
-}
-
-function legacyPresetModeForStoredQuery(value: string): DiagramMode | undefined {
-  const current = diagramModeForQuery(value);
-  if (current !== undefined) {
-    return current;
-  }
-  const normalized = normalizeQuery(value);
-  for (const definition of BUILTIN_VIEW_DEFINITIONS) {
-    if (definition.legacyPresetQueries.some(({ query }) => normalizeQuery(query) === normalized)) {
-      return diagramModeForDefinition(definition);
-    }
-  }
-  return undefined;
 }
 
 function presetQueryState(diagramMode: DiagramMode): DiagramQueryPresetState {

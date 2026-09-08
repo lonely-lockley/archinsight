@@ -1,3 +1,4 @@
+import { isQueryFile } from '@archinsight/workbench/project-queries';
 import {
   discoverDeploymentEnvironments,
   type DeploymentEnvironment,
@@ -19,6 +20,7 @@ type ToolbarPatch = Partial<Pick<WorkspaceTab,
   | 'diagramMode'
   | 'query'
   | 'queryPreset'
+  | 'queryView'
   | 'deploymentEnvironment'
   | 'queryVisible'
   | 'queryPanelHeight'
@@ -89,10 +91,10 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
     if (analysis === undefined || tab === undefined || tab.projectSource === false) {
       return [];
     }
-    const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === tab.sourceIdentity);
+    const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === (isQueryFile(tab.sourceIdentity) ? tab.querySource : tab.sourceIdentity));
     return discoverDeploymentEnvironments(analysis, {
       context: context?.id,
-      tab: tab.sourceIdentity
+      tab: isQueryFile(tab.sourceIdentity) ? tab.querySource : tab.sourceIdentity
     });
   };
 
@@ -103,6 +105,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
       diagramMode: 'deployment-container',
       query: queryForDiagramMode('deployment-container'),
       queryPreset: true,
+      queryView: undefined,
       deploymentEnvironment: environment,
       dot: undefined
     });
@@ -128,6 +131,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
         query: value,
         diagramMode: tab?.diagramMode ?? 'default',
         queryPreset: false,
+        queryView: undefined,
         dot: undefined
       });
       ports.scheduleDiagramUpdate();
@@ -142,6 +146,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
             diagramMode: mode,
             query: queryForDiagramMode(mode),
             queryPreset: true,
+            queryView: undefined,
             dot: undefined
           });
           ports.scheduleLink(0);
@@ -161,6 +166,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
         diagramMode: mode,
         query: queryForDiagramMode(mode),
         queryPreset: true,
+        queryView: undefined,
         dot: undefined
       });
       ports.scheduleDiagramUpdate();

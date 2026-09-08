@@ -80,6 +80,8 @@ export type LinkRequest = {
   view?: BuiltinDiagramView | null;
   environment?: string | null;
   forceFullAnalysis?: boolean;
+  querySource?: string | null;
+  queryContext?: string | null;
 };
 
 export type ProjectStructureRequest = { overlays?: Record<string, string> | null };

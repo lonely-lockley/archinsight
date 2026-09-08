@@ -58,6 +58,124 @@ Archinsight queries are not fully compatible with Cypher. The current language s
 
 The current grammar has no mutation clauses, aggregation functions, variable-length paths, subqueries, ordering, pagination, or general Cypher expression language. `RETURN` selects previously bound aliases rather than computing arbitrary projections.
 
+## Saved queries and custom views
+
+Create a file with the `.aiq` extension to keep a reusable query with the
+project. The recommended location is `views/`:
+
+```text
+views/
+    dependencies.aiq
+    external-integrations.aiq
+```
+
+The directory is a project convention, not part of query identity. The web
+workspace discovers query files recursively and identifies each query only by
+its filename without `.aiq`. `views/dependencies.aiq` therefore creates the
+custom view `dependencies`. Names and the `.aiq` extension are case-sensitive.
+Files may live elsewhere when the project has a different convention.
+
+Names that do not belong to a built-in view appear in the **Custom view**
+selector. Select the view to run it for a model tab, or open the `.aiq` file to
+edit the query and choose its preview scope. A descriptive lowercase name such
+as `dependencies.aiq` or `async-flows.aiq` is preferable to a generic name such
+as `query.aiq`.
+
+In the web editor, create a tab, switch its document type to **Query**, and save
+it as `views/<name>.aiq`. The file appears in the project tree and custom-view
+selector after it is saved.
+
+### Override a built-in view
+
+The following filenames are reserved and replace the query of the corresponding
+built-in view throughout the project:
+
+| Filename | View |
+| --- | --- |
+| `no-filter.aiq` | All / No filter |
+| `c1.aiq` | C1 |
+| `c2.aiq` | C2 |
+| `c3.aiq` | C3 |
+| `c4.aiq` | C4 |
+| `deployment-system.aiq` | D1 |
+| `deployment-container.aiq` | D2 |
+| `deployment.aiq` | Legacy Deployment |
+
+An override retains its built-in boundary, grouping/materialization, deployment,
+and environment pipeline. It replaces the query text, not the complete view
+configuration. For example, `views/c2.aiq` changes what the C2 button selects
+while retaining C2 boundary handling. Start from the current built-in source,
+change the smallest necessary predicate or grouping clause, and keep the
+reserved filename:
+
+```shell
+mkdir -p views
+cp <skill-path>/examples/builtin-views/c2.aiq views/c2.aiq
+```
+
+Other names, such as `views/impact.aiq`, execute as custom views without a
+built-in pipeline. Display labels and aliases such as `D1` and `default` are not
+reserved filenames.
+
+Two files with the same query name, even in different directories, produce a
+conflict when that view is used. Archinsight does not pick a file by directory
+or traversal order. Renaming or deleting a reserved query restores the built-in
+query; a selected custom view whose file is missing reports an error.
+
+Open a query from the project tree or use **Open query file** on a view that
+uses one. In the main `.aiq` editor, `$tab` and `$context` have noneditable inline
+selectors for the preview source and context. Click a selector to search its
+choices, or use **Choose query source or context** in Monaco's command palette
+(Ctrl/Cmd+Alt+Enter at the variable). Arrow keys navigate the choices, Enter
+selects, and Escape closes the list. Variables in comments and string literals
+have no selector.
+
+Opening a query from a model tab initially uses that model as its preview
+source. Choosing a source infers its context. Choosing a different context
+clears an incompatible source selection; a query that also uses `$tab` then
+requires a source. All occurrences of each variable share the same selection.
+Preview choices are saved in workspace state and are not inserted into `.aiq`
+text. The query editor panel on `.ai` tabs keeps deriving scope from its own
+model tab and has no inline selectors.
+
+Query edits affect every tab using that query, including edits not yet saved.
+The active preview updates after a short typing delay; other affected diagrams
+are invalidated and rebuilt when opened, each with its own model scope. Editing
+query text directly in an `.ai` tab's query panel creates that tab's local
+customization, as before. Selecting a view again restores the file-backed or
+built-in query.
+
+### Run a saved query from the CLI
+
+The CLI does not discover project query files or override built-in views by
+filename. Pass the file explicitly with `--query` / `-q`; relative paths are
+resolved from the project directory:
+
+```shell
+archinsight query . -s models/storefront.ai -q views/dependencies.aiq --format json
+archinsight render . -s models/storefront.ai -q views/dependencies.aiq --format svg --out dependencies.svg
+```
+
+Use `--source` when the query contains `$tab`. That source also supplies
+`$context`. A query that needs `$context` but not `$tab` can instead use an
+explicit context:
+
+```shell
+archinsight query . -c ecommerce -q views/external-integrations.aiq --format json
+```
+
+`--query` takes precedence over `--view`, so pass one or the other. In
+particular, `archinsight query ... -v c2` runs the built-in query bundled with
+that CLI version; it does not look for `views/c2.aiq`. Running
+`-q views/c2.aiq` executes the file as a standalone query and does not attach
+the C2 post-selection pipeline. The web workspace does attach that pipeline
+when the same filename overrides its C2 button, so pipeline-sensitive output
+such as folded boundary endpoints can differ.
+
+Inspect JSON before rendering and commit reusable `.aiq` files with the model.
+Renaming a custom query changes its view name. Renaming or deleting a reserved
+override restores the built-in query in the web workspace.
+
 ## Built-in scope variables
 
 Query text is reusable because the caller supplies a scope separately. Built-in variables expose the relevant parts of that scope to `WHERE` expressions and pattern properties.
@@ -80,7 +198,7 @@ without rewriting the query text.
 
 ### `$tab`
 
-`$tab` is the second built-in query variable. It represents the currently selected tab:
+`$tab` is the second built-in query variable. It represents the selected model source (the model tab, or the source chosen for an `.aiq` preview):
 
 ```cypher
 MATCH (element:Element)
@@ -262,13 +380,15 @@ overrides `--view`, so built-in boundary handling is not applied after the
 custom query:
 
 ```shell
-archinsight query . -s storefront.ai -q dependencies.aiq --format json
+archinsight query . -s storefront.ai -q views/dependencies.aiq --format json
 ```
 
 The CLI obtains `$context` from `storefront.ai` and supplies `$tab` from the same
 source. The query still evaluates `IS External` against the explicit model
-marker. To reproduce C2 folding or externality in a custom view, start from the
-built-in C2 query and keep the required selection and grouping clauses.
+marker. To customize C2 while retaining its boundary folding and relative
+externality, override the web view with `views/c2.aiq`. A standalone CLI query
+can reuse the built-in query's selection and grouping clauses, but it does not
+run the C2 post-selection pipeline.
 
 ### 4. Follow outgoing relationships
 
@@ -410,7 +530,7 @@ The CLI can return the selected render graph directly:
 ```shell
 archinsight query . -s <source.ai> -v deployment-system --format json
 archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
-archinsight query . -s <source.ai> -q query.aiq --format json
+archinsight query . -s <source.ai> -q views/<name>.aiq --format json
 ```
 
 For source-scoped commands, the selected file supplies both `$tab` and its
