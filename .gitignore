@@ -47,5 +47,9 @@ Thumbs.db
 .env.*
 local/
 
-# Project-local examples
+# Project-local examples, except the maintained Archinsight example
 examples/
+!/examples/
+!/examples/archinsight/
+!/examples/archinsight/**/*.ai
+!/examples/archinsight/**/*.aiq

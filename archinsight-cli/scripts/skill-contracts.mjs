@@ -96,6 +96,8 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("references/analysis.md"));
   assert(content.includes("references/cli.md"));
   assert(content.includes("references/c4-code.md"));
+  assert(content.includes("references/custom-views.md"));
+  assert(content.includes("views/<descriptive-name>.aiq"));
   assert.equal(occurrences(content, "references/deployment-projections.md"), 1);
   assert(content.includes("Infer and reuse an existing C4 Code vocabulary from the repository"));
   assert.match(content, /Ask the\s+user about entity kinds only when creating the Code layer or extending that\s+vocabulary/);
@@ -114,6 +116,24 @@ function verifySharedFiles(output) {
   assert(cli.includes("D1 spans every environment relevant to the selected source"));
   assert(cli.includes("archinsight environments . -s <source.ai> --format json"));
   assert(cli.includes("deployment-environments.v1"));
+  const customViews = readFileSync(path.join(output, "references", "custom-views.md"), "utf8");
+  assert.match(customViews, /Unless the user specifies another\s+path, create them under `views\/`/);
+  assert(customViews.includes("directories do not namespace query names"));
+  for (const name of [
+    "no-filter",
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "deployment-system",
+    "deployment-container",
+    "deployment",
+  ]) {
+    assert(customViews.includes(`\`${name}.aiq\` |`), `custom view docs omit reserved name '${name}.aiq'`);
+  }
+  assert(customViews.includes("-q views/dependencies.aiq"));
+  assert.match(customViews, /`-v c2` runs the\s+built-in C2 query/);
+  assert.match(customViews, /without C2's\s+post-selection pipeline/);
   for (const name of readdirSync(path.join(output, "references"))) {
     if (!name.endsWith(".md")) {
       continue;

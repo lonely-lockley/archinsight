@@ -11,8 +11,8 @@ It embeds `@insight/language` directly and does not call the web app.
 ```shell
 archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
-archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
-archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json] [-o file]
+archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f dot|svg|json] [-o file]
 archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
 archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 ```
@@ -61,6 +61,39 @@ D1 selects every environment relevant to the source and does not accept
 `--environment`. D2 selects one environment. The CLI chooses it automatically
 when exactly one is relevant and otherwise lists the available environments and
 requires `--environment <id>`.
+
+## Custom Query Files
+
+Keep reusable project queries in `.aiq` files. Place them under `views/` with a
+descriptive name unless you intentionally choose another location:
+
+```text
+views/
+    dependencies.aiq
+    c2.aiq
+```
+
+Run a custom query or render its result by passing the file explicitly:
+
+```shell
+archinsight query . -s models/storefront.ai -q views/dependencies.aiq --format json
+archinsight render . -s models/storefront.ai -q views/dependencies.aiq --format svg --out dependencies.svg
+```
+
+Use `--context` instead of `--source` when the query needs `$context` but does
+not use `$tab`. Relative query paths are resolved from `project-dir`.
+
+The web workspace discovers `.aiq` files recursively by basename. A name such
+as `dependencies.aiq` creates a custom view. Reserved filenames `no-filter.aiq`,
+`c1.aiq`, `c2.aiq`, `c3.aiq`, `c4.aiq`, `deployment-system.aiq`,
+`deployment-container.aiq`, and `deployment.aiq` override the corresponding
+web view. Directories do not affect identity or precedence, so duplicate
+basenames conflict.
+
+CLI execution is explicit: it does not discover these files and does not apply
+filename-based overrides. `-q views/c2.aiq` runs that file as a standalone
+query, while `-v c2` runs the C2 query bundled with the CLI. Because `--query`
+takes precedence over `--view`, do not combine them.
 
 ## Environment Discovery
 
@@ -147,6 +180,7 @@ The generic target writes a runtime-neutral guide:
         core.md
         analysis.md
         queries.md
+        custom-views.md
         query-recipes.md
         validation.md
     .core/

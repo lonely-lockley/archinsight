@@ -95,9 +95,19 @@ context-wide C1 or `no-filter` query without a source, pass
 present, they must resolve to the same context; the context does not override
 the source.
 
-A custom query file overrides `--view`. Pass `--source` when it uses
-`$tab`; the same source also supplies `$context`. A query that uses only
-`$context` may use an explicit `--context` without a source.
+A custom query file takes precedence over `--view`. Pass it by project-relative
+path and omit `--view`:
+
+```shell
+archinsight query . -s <source.ai> -q views/<name>.aiq --format json
+archinsight render . -s <source.ai> -q views/<name>.aiq --format svg --out diagram.svg
+```
+
+Pass `--source` when the query uses `$tab`; the same source also supplies
+`$context`. A query that uses only `$context` may use an explicit `--context`
+without a source. The CLI does not discover `.aiq` files or activate a web
+built-in override by basename. Read `references/custom-views.md` before adding
+a reusable project query.
 
 D1 spans every environment relevant to the selected source and rejects
 `--environment`. D2 selects the only relevant environment automatically. If

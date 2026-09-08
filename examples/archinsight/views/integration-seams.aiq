@@ -1,0 +1,7 @@
+MATCH (source:Component)-[dependency:REFERENCES]->(target:Element)
+WHERE source.context = $context
+  AND source.parent <> target.parent
+MATCH (boundary:Element)
+WHERE boundary = source OR boundary = target
+GROUP BY boundary.parent
+RETURN boundary, dependency, target
