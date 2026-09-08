@@ -1,3 +1,6 @@
+import { isQueryFile } from '@archinsight/workbench/project-queries';
+import { emptyDiagramSvg } from '../diagram/diagram-controller';
+import { ProjectQuerySyntaxError, type ResolvedProjectQuery } from '../diagram/project-query-controller';
 import {
   IndexedGraph,
   InsightLanguageService,
@@ -34,12 +37,13 @@ export type AnalysisRunnerState = {
 
 export type AnalysisRunnerPorts = {
   state(): AnalysisRunnerState;
+  resolveQuery?(tab: WorkspaceTab, analysis?: LinkProjectResult): Promise<ResolvedProjectQuery>;
   linkProject(
     projectId: string,
     openSourceIdentities: string[],
     overlays: Record<string, string>,
     query: string,
-    view: BuiltinDiagramView,
+    view: BuiltinDiagramView | undefined,
     environment: string | undefined,
     surface: WorkspaceSurface,
     options?: LinkRunOptions
@@ -109,28 +113,35 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
     return true;
   };
 
-  return {
+  const runner: AnalysisRunner = {
     async runCachedDiagram(sequence, projectId, analysis) {
       const state = ports.state();
       const sourceIdentities = renderSourceIdentities(state.tabs, state.activeTab);
       const renders: DotRender[] = [];
       try {
         for (const sourceIdentity of sourceIdentities) {
-          const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
+          const tab = state.tabs.find((item) => item.sourceIdentity === sourceIdentity)!;
+          const resolved = await ports.resolveQuery?.(tab, analysis);
+          if (!ports.isCurrent(sequence, projectId)) return;
+          if (resolved?.waiting !== undefined) {
+            ports.acceptDiagram(sourceIdentity, emptyDiagramSvg(resolved.waiting), undefined);
+            continue;
+          }
+          const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === (resolved?.source ?? sourceIdentity));
           renders.push({
             sourceIdentity,
             diagram: 'query',
             dot: languageService.render({
               result: analysis,
               scope: {
-                context: context?.id,
-                tab: sourceIdentity,
-                view: builtinView(state.diagramMode),
-                ...(state.deploymentEnvironment === undefined
+                context: resolved?.context ?? context?.id,
+                tab: resolved === undefined ? sourceIdentity : resolved.source,
+                view: resolved === undefined ? builtinView(state.diagramMode) : resolved.view,
+                ...((resolved === undefined ? state.deploymentEnvironment : tab.deploymentEnvironment) === undefined
                   ? {}
-                  : { environment: state.deploymentEnvironment })
+                  : { environment: resolved === undefined ? state.deploymentEnvironment : tab.deploymentEnvironment })
               },
-              query: state.query,
+              query: resolved?.query ?? state.query,
               theme: 'dark'
             }).dot
           });
@@ -139,8 +150,10 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         if (!ports.isCurrent(sequence, projectId)) return;
         ports.clearDots(sourceIdentities);
         const message = errorMessage(error);
-        if (isQueryErrorMessage(message)) {
-          ports.queryError(message, state.query);
+        if (error instanceof ProjectQuerySyntaxError) {
+          ports.queryError(message, error.query);
+        } else if (isQueryErrorMessage(message)) {
+          ports.queryError(message, state.activeTab !== undefined && isQueryFile(state.activeTab.sourceIdentity) ? state.activeTab.content : state.query);
         } else {
           ports.error(`Render error: ${message}`);
         }
@@ -169,16 +182,25 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
       ports.updateLocalDiagnostics(parsedSources, syntaxDiagnostics);
       const sourceIdentities = renderSourceIdentities(state.tabs, state.activeTab);
 
+      let resolved: ResolvedProjectQuery | undefined;
+      let deferredQuery = false;
       try {
+        if (ports.resolveQuery !== undefined && state.activeTab !== undefined && state.activeTab.projectSource !== false) {
+          try {
+            resolved = await ports.resolveQuery(state.activeTab);
+            deferredQuery = resolved.waiting !== undefined;
+          } catch { deferredQuery = true; }
+        }
+        if (!ports.isCurrent(sequence, state.projectId)) return;
         const link = await ports.linkProject(
           state.projectId,
-          sourceIdentities,
+          deferredQuery ? [] : sourceIdentities,
           overlays,
-          state.query,
-          builtinView(state.diagramMode),
+          resolved?.query ?? state.query,
+          resolved === undefined ? builtinView(state.diagramMode) : resolved.view,
           state.deploymentEnvironment,
           state.surface,
-          options
+          resolved === undefined ? options : { ...options, querySource: resolved.source, queryContext: resolved.context }
         );
         if (!ports.isCurrent(sequence, state.projectId)) return;
         ports.setLoading(false);
@@ -193,6 +215,10 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         ports.updateLinkerDiagnostics(link.diagnostics, parsedSources);
         if (!linkHasErrors) ports.acceptProjectStructure(link.structure);
         ports.cycleSummary('Linker finished', link.diagnostics);
+        if (!linkHasErrors && deferredQuery && linkedAnalysis !== undefined) {
+          await runner.runCachedDiagram(sequence, state.projectId, linkedAnalysis);
+          return;
+        }
         if (linkHasErrors || link.renders.length === 0) {
           ports.clearDots(sourceIdentities);
           return;
@@ -208,20 +234,21 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         const message = errorMessage(error);
         if (isQueryErrorMessage(message)) {
           ports.clearDots(sourceIdentities);
-          ports.queryError(message, state.query);
+          ports.queryError(message, state.activeTab !== undefined && isQueryFile(state.activeTab.sourceIdentity) ? state.activeTab.content : state.query);
           return;
         }
         ports.error(`Server error: ${message}`);
       }
     }
   };
+  return runner;
 }
 
 export function overlaysForLink(
   tabs: readonly WorkspaceTab[],
   overlays: Readonly<Record<string, string>>
 ): Record<string, string> {
-  const result = { ...overlays };
+  const result = Object.fromEntries(Object.entries(overlays).filter(([path]) => !isQueryFile(path)));
   for (const tab of tabs) {
     if (tab.filePath === undefined && isProjectSourceTab(tab)) {
       result[tab.sourceIdentity] = tab.content;
@@ -235,7 +262,7 @@ export function renderSourceIdentities(
   activeTab: WorkspaceTab | undefined
 ): string[] {
   const linkableTabs = tabs.filter(isProjectSourceTab);
-  return activeTab === undefined || !isProjectSourceTab(activeTab)
+  return activeTab === undefined || activeTab.projectSource === false
     ? linkableTabs.map((tab) => tab.sourceIdentity)
     : [activeTab.sourceIdentity];
 }

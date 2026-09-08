@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import { discoverProjectQueries, isQueryFile } from '@archinsight/workbench/project-queries';
   import AuthMenu from '$lib/AuthMenu.svelte';
   import ProjectNavigationPanel from '$lib/ProjectNavigationPanel.svelte';
   import WorkspaceEditor from '@archinsight/workbench/workspace-editor';
@@ -31,6 +32,7 @@
   let messagesPanel: HTMLElement;
   let lastAutoScrolledMessagesSignature = '';
 
+  $: projectQueries = discoverProjectQueries(view.state.tree);
   $: sidebarVisible = view.state.projectUi.sidebarVisible;
   $: workspaceStyle = `grid-template-columns: ${sidebarVisible ? clamp(view.state.projectUi.sidebarWidth, minSidebarWidth, 720) : collapsedSidebarWidth}px minmax(0, 1fr);`;
   $: workAreaStyle = view.state.projectUi.messagesVisible
@@ -105,6 +107,11 @@
       svg={view.activeTab?.svg}
       diagramMode={view.activeTab?.diagramMode ?? defaultDiagramMode}
       query={view.activeTab?.query ?? defaultQuery}
+      queryDocument={isQueryFile(view.activeTab?.sourceIdentity ?? '')}
+      {projectQueries}
+      selectedQuery={view.activeTab?.queryView}
+      onSelectProjectQuery={controllers.query.selectQuery}
+      onOpenQueryFile={(path) => void controllers.file.openFile(path)}
       deploymentEnvironments={view.activeDeploymentEnvironments}
       deploymentEnvironment={view.activeTab?.deploymentEnvironment}
       deploymentPickerOpen={view.state.deploymentPickerOpen}
@@ -152,6 +159,10 @@
         canDownloadDot={view.activeTab?.dot !== undefined}
         newFileState={view.newTabState}
         saveState={view.saveState}
+        unsavedDocumentKind={view.activeTab !== undefined && view.activeTab.filePath === undefined && view.activeTab.readOnly !== true
+          ? isQueryFile(view.activeTab.sourceIdentity) ? 'query' : 'model'
+          : undefined}
+        onSelectDocumentKind={controllers.file.selectActiveDocumentKind}
       />
     </WorkspaceEditor>
   </section>

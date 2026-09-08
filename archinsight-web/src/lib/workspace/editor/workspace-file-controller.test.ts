@@ -34,7 +34,7 @@ function fixture(initialTabs: WorkspaceTab[] = []) {
     startLanguageWorker: vi.fn(), setupEditor: vi.fn(async () => undefined),
     checkSyntax: vi.fn(async () => []), syncActiveTab: vi.fn(), ensureModel: vi.fn(),
     removeModel: vi.fn(), retargetModel: vi.fn(), reveal: vi.fn(),
-    refreshTokenVocabulary: vi.fn(), refreshMarkers: vi.fn(), layout: vi.fn(),
+    refreshTokenVocabulary: vi.fn(), refreshMarkers: vi.fn(), layout: vi.fn(), refreshQueryScope: vi.fn(),
     reset: vi.fn(), dispose: vi.fn()
   };
   const analysis: AnalysisController = {
@@ -92,6 +92,46 @@ function fixture(initialTabs: WorkspaceTab[] = []) {
   };
 }
 
+describe('query files', () => {
+  it('opens a query with the previous model source, without parsing it as Insight', async () => {
+    const subject = fixture([tab('shop.ai')]);
+    await subject.controller.openFile('nested/c2.aiq');
+    expect(subject.ports.activeTab()).toMatchObject({ sourceIdentity: 'nested/c2.aiq', querySource: 'shop.ai', diagramMode: 'c2' });
+    expect(subject.analysis.scheduleLiveSyntaxCheck).not.toHaveBeenCalled();
+    expect(subject.ports.writeWorkspace).toHaveBeenLastCalledWith('project', expect.objectContaining({ tabs: expect.arrayContaining([expect.objectContaining({ filePath: 'nested/c2.aiq' })]) }));
+  });
+  it('does not expose an unsaved model identity as the query preview source', async () => {
+    const subject = fixture([tab('untitled:1', {
+      filePath: undefined,
+      sourceIdentity: '__unsaved__/untitled-1.ai'
+    })]);
+    await subject.controller.openFile('impact.aiq');
+    expect(subject.ports.activeTab()).toMatchObject({ sourceIdentity: 'impact.aiq' });
+    expect(subject.ports.activeTab()?.querySource).toBeUndefined();
+  });
+  it('keeps the query association when navigating from its preview to a model declaration', async () => {
+    const query = tab('impact.aiq', { content: 'MATCH (n) RETURN n' });
+    const subject = fixture([query]);
+    await subject.controller.goToDeclaration({ source: 'shop.ai', line: 1, column: 0 });
+    expect(subject.ports.activeTab()).toMatchObject({ filePath: 'shop.ai', queryView: 'impact', queryPreset: true });
+  });
+  it('updates query document mode when a saved file is renamed to a deployment override', async () => {
+    const subject = fixture([tab('impact.aiq')]);
+    await subject.controller.acceptFileEffect({ kind: 'file-renamed', sourcePath: 'impact.aiq', path: 'deployment-container.aiq' });
+    expect(subject.ports.activeTab()).toMatchObject({ filePath: 'deployment-container.aiq', diagramMode: 'deployment-container' });
+  });
+  it('invalidates every consumer on unsaved query changes without relinking models', () => {
+    const query = tab('c2.aiq');
+    const subject = fixture([query, tab('one.ai', { diagramMode: 'c2', dot: 'one' }), tab('two.ai', { diagramMode: 'c2', dot: 'two' }), tab('three.ai', { diagramMode: 'c3', dot: 'three' })]);
+    subject.controller.contentChanged(query, 'draft');
+    expect(subject.ports.tabs().map((item) => item.dot)).toEqual([undefined, undefined, undefined, 'three']);
+    expect(subject.analysis.scheduleDiagramUpdate).toHaveBeenCalledWith(350);
+    expect(subject.analysis.scheduleLink).not.toHaveBeenCalled();
+    expect(subject.analysis.scheduleLiveSyntaxCheck).not.toHaveBeenCalled();
+    expect(subject.ports.writeLocalSource).toHaveBeenCalledWith('project', 'c2.aiq', 'draft');
+  });
+});
+
 describe('workspace file controller', () => {
   it('accepts editor changes into overlays, storage, analysis, and workspace state', () => {
     const main = tab('main.ai');
@@ -140,6 +180,36 @@ describe('workspace file controller', () => {
     await subject.controller.newFile();
     expect(subject.tabs().map((item) => item.id)).toEqual(['untitled:4', 'untitled:5']);
     expect(subject.monaco.ensureModel).toHaveBeenCalledWith('untitled:4', 'draft');
+  });
+
+  it('switches an unsaved tab between model and query documents', async () => {
+    const subject = fixture();
+    await subject.controller.newFile();
+
+    subject.controller.selectActiveDocumentKind('query');
+    expect(subject.tabs()[0]).toMatchObject({
+      sourceIdentity: '__unsaved__/untitled-1.aiq',
+      diagramMode: 'default',
+      diagnostics: [],
+      dot: undefined
+    });
+    expect(subject.monaco.syncActiveTab).toHaveBeenCalled();
+    expect(subject.analysis.scheduleLink).toHaveBeenCalled();
+
+    await subject.controller.saveActiveTab();
+    expect(subject.ports.openFileDialog).toHaveBeenCalledWith(expect.objectContaining({
+      mode: 'save', fileName: 'untitled.aiq', tabId: 'untitled:1'
+    }));
+
+    subject.controller.selectActiveDocumentKind('model');
+    expect(subject.tabs()[0]?.sourceIdentity).toBe('__unsaved__/untitled-1.ai');
+  });
+
+  it('does not change the document kind of a saved tab', () => {
+    const subject = fixture([tab('main.ai')]);
+    subject.controller.selectActiveDocumentKind('query');
+    expect(subject.tabs()[0]?.sourceIdentity).toBe('main.ai');
+    expect(subject.analysis.scheduleLink).not.toHaveBeenCalled();
   });
 
   it('opens core declarations read-only and reveals the requested location', async () => {

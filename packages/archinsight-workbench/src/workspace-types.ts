@@ -32,6 +32,10 @@ export type WorkspaceTab = {
   diagramMode: DiagramMode;
   query: string;
   queryPreset: boolean;
+  /** Named project query; built-in overrides are resolved from diagramMode. */
+  queryView?: string;
+  querySource?: string;
+  queryContext?: string;
   deploymentEnvironment?: string;
   queryVisible: boolean;
   diagramScale: number;

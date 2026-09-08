@@ -88,7 +88,6 @@
   {
     "id": "deployment-system",
     "presetVersion": 3,
-    "legacyPresetVersions": [1, 2],
     "order": 5,
     "label": "D1 System deployment",
     "shortLabel": "D1",
@@ -109,7 +108,6 @@
   {
     "id": "deployment-container",
     "presetVersion": 3,
-    "legacyPresetVersions": [1, 2],
     "order": 6,
     "label": "D2 Container deployment",
     "shortLabel": "D2",

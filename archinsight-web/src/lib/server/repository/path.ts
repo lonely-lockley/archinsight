@@ -4,7 +4,7 @@ const SOURCE_FILE_EXTENSION = '.ai';
 
 export function normalizeFileName(path: string | null | undefined): string {
   const normalized = normalizePath(path, 'file');
-  return normalized.endsWith(SOURCE_FILE_EXTENSION) ? normalized : `${normalized}${SOURCE_FILE_EXTENSION}`;
+  return (normalized.endsWith(SOURCE_FILE_EXTENSION) || normalized.endsWith('.aiq')) ? normalized : `${normalized}${SOURCE_FILE_EXTENSION}`;
 }
 
 export function normalizeDirectoryPath(path: string | null | undefined): string {

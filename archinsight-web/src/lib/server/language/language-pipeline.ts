@@ -155,7 +155,7 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
   const renders = diagnostics.some((item) => item.level === 'ERROR')
     ? []
     : renderPaths(request, analysis.result).flatMap((sourceIdentity) => {
-      const context = analysis.result.contexts.find((candidate) => candidate.sourceIdentity === sourceIdentity);
+      const context = analysis.result.contexts.find((candidate) => candidate.sourceIdentity === (request?.querySource ?? sourceIdentity));
       try {
         return [
           {
@@ -164,8 +164,8 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
             dot: service.render({
               result: analysis.result,
               scope: {
-                context: context?.id,
-                tab: sourceIdentity,
+                context: request?.queryContext ?? context?.id,
+                tab: request?.querySource ?? sourceIdentity,
                 ...(request?.view == null ? {} : { view: request.view }),
                 ...(request?.environment == null ? {} : { environment: request.environment })
               },

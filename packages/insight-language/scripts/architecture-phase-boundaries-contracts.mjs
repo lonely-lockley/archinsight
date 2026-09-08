@@ -91,10 +91,8 @@ assert(cliProjectRuntime.includes("analyzeQuery(query)"),
   "CLI scope requirements must come from parsed query metadata");
 assert.equal(cliProjectRuntime.includes("function queryUsesVariable"), false,
   "CLI scope requirements must not scan raw query text");
-assert(diagramQueryPresets.includes("legacyPresetQueries"),
-  "legacy preset migrations must consume explicit catalogue history");
-assert.equal(diagramQueryPresets.includes("deploymentLegacyQueries"), false,
-  "legacy presets must not be synthesized by editing the latest query");
+assert.equal(diagramQueryPresets.includes("legacyPresetQueries"), false,
+  "built-in query history must not be shipped as runtime presets");
 assert(tabPersistence.includes("presetId") && tabPersistence.includes("presetVersion")
   && tabPersistence.includes("customizedQuery"),
   "persisted tabs must distinguish identified presets from customized queries");

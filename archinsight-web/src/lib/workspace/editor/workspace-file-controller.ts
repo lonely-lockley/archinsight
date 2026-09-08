@@ -1,3 +1,5 @@
+import { resolveBuiltinView } from '@insight/language';
+import { isQueryFile, selectedQueryName, queryFileName } from '@archinsight/workbench/project-queries';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { WorkspaceTabState } from '$lib/storage';
 import type { ProjectUiState, SourceLocation, TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
@@ -17,10 +19,11 @@ import {
   isProjectSourceTab,
   tabToolbarState,
   virtualSourceIdentity,
+  type UnsavedDocumentKind,
   workspaceTabState
 } from './tab-persistence';
 
-export type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryPreset'>;
+export type DiagramQueryState = Pick<WorkspaceTab, 'diagramMode' | 'query' | 'queryPreset' | 'queryView'>;
 
 export type WorkspaceFileControllerPorts = {
   surface(): WorkspaceSurface;
@@ -80,6 +83,7 @@ export type WorkspaceFileController = {
   goToDeclaration(declaration: SourceLocation): Promise<void>;
   openCoreSource(sourceIdentity?: string, queryState?: DiagramQueryState): Promise<void>;
   newFile(): Promise<void>;
+  selectActiveDocumentKind(kind: UnsavedDocumentKind): void;
   restoreLocalTab(tab: WorkspaceTabState): void;
   activateTab(id: string, loadGuard?: ProjectLoadGuard): Promise<void>;
   closeTab(id: string): void;
@@ -100,7 +104,7 @@ export function createWorkspaceFileController(
 
   const persistWorkspace = (): void => {
     if (ports.activeProjectId() === undefined) return;
-    const persistentTabs = ports.tabs().filter(isProjectSourceTab);
+    const persistentTabs = ports.tabs().filter((tab) => tab.projectSource !== false);
     const activeTabId = ports.activeTabId();
     ports.writeWorkspace(ports.storageProjectId(), {
       tabs: persistentTabs.map(workspaceTabState),
@@ -115,8 +119,9 @@ export function createWorkspaceFileController(
     const tab = ports.activeTab();
     return tab === undefined ? undefined : {
       diagramMode: tab.diagramMode,
-      query: tab.query,
-      queryPreset: tab.queryPreset
+      query: isQueryFile(tab.sourceIdentity) ? tab.content : tab.query,
+      queryPreset: isQueryFile(tab.sourceIdentity) || tab.queryPreset,
+      queryView: isQueryFile(tab.sourceIdentity) ? queryFileName(tab.sourceIdentity) : tab.queryView
     };
   };
 
@@ -127,6 +132,7 @@ export function createWorkspaceFileController(
       diagramMode: next.diagramMode,
       query: next.query,
       queryPreset: next.queryPreset,
+      queryView: next.queryView,
       dot: undefined
     });
     persistWorkspace();
@@ -172,6 +178,7 @@ export function createWorkspaceFileController(
     if (ports.hasLocalSource(storageProjectId, path)) {
       ports.setOverlays({ ...ports.overlays(), [path]: content });
     }
+    const previousTab = ports.activeTab();
     monaco().ensureModel(path, content);
     ports.tabController.append({
       title: path.split('/').at(-1) ?? path,
@@ -182,12 +189,18 @@ export function createWorkspaceFileController(
       sourceIdentity: path,
       diagnostics: [],
       local: localContent !== undefined,
-      ...tabToolbarState({ ...restored, ...queryState })
+      ...tabToolbarState({ ...restored, ...queryState }),
+      ...(isQueryFile(path) ? { diagramMode: resolveBuiltinView(queryFileName(path), true)?.id ?? 'default' as const } : {}),
+      ...(isQueryFile(path)
+        && restored === undefined
+        && previousTab?.filePath !== undefined
+        && isProjectSourceTab(previousTab)
+        ? { querySource: previousTab.sourceIdentity } : {})
     });
     ports.refreshEditorTokenVocabulary();
     persistWorkspace();
     if (activate) await activateTab(path);
-    if (render) {
+    if (render && !isQueryFile(path)) {
       analysis().scheduleLiveSyntaxCheck([{ sourceIdentity: path, content }]);
       if (localContent === undefined) analysis().scheduleDiagramUpdate();
       else analysis().scheduleLink();
@@ -228,7 +241,7 @@ export function createWorkspaceFileController(
     const closingActiveTab = ports.activeTabId() === id;
     const overlays = ports.overlays();
     const removesSemanticInput = tab !== undefined
-      && isProjectSourceTab(tab)
+      && tab.projectSource !== false
       && (tab.filePath === undefined || Object.hasOwn(overlays, tab.filePath));
     if (tab?.filePath !== undefined) {
       ports.removeLocalSource(ports.storageProjectId(), tab.filePath);
@@ -303,6 +316,15 @@ export function createWorkspaceFileController(
         ports.setOverlays({ ...ports.overlays(), [tab.filePath]: content });
         ports.writeLocalSource(ports.storageProjectId(), tab.filePath, content);
       }
+      if (isQueryFile(tab.sourceIdentity)) {
+        const name = queryFileName(tab.sourceIdentity);
+        for (const affected of ports.tabs()) {
+          if (selectedQueryName(affected) === name) ports.tabController.patch(affected.id, { dot: undefined });
+        }
+        analysis().scheduleDiagramUpdate(350);
+        persistWorkspace();
+        return;
+      }
       analysis().scheduleLink();
       persistWorkspace();
       ports.refreshEditorTokenVocabulary({ repaint: false });
@@ -343,6 +365,27 @@ export function createWorkspaceFileController(
       await activateTab(id);
     },
 
+    selectActiveDocumentKind(kind) {
+      const tab = ports.activeTab();
+      if (tab === undefined || tab.filePath !== undefined || tab.readOnly === true) return;
+      const queryDocument = isQueryFile(tab.sourceIdentity);
+      if ((kind === 'query') === queryDocument) return;
+      const sourceIdentity = virtualSourceIdentity(tab.id, kind);
+      analysis().removeDiagnostics([tab.sourceIdentity]);
+      ports.tabController.patch(tab.id, {
+        sourceIdentity,
+        diagnostics: [],
+        dot: undefined,
+        ...(kind === 'query'
+          ? { diagramMode: resolveBuiltinView(queryFileName(sourceIdentity), true)?.id ?? 'default' as const }
+          : {})
+      });
+      ports.refreshEditorTokenVocabulary();
+      monaco().syncActiveTab();
+      persistWorkspace();
+      analysis().scheduleLink();
+    },
+
     restoreLocalTab(tab) {
       const id = ports.tabController.uniqueId(tab.id);
       const sourceIdentity = tab.sourceIdentity ?? virtualSourceIdentity(id);
@@ -359,7 +402,9 @@ export function createWorkspaceFileController(
       });
       untitledCounter = Math.max(untitledCounter, nextUntitledCounter(id, tab.title));
       ports.refreshEditorTokenVocabulary();
-      analysis().scheduleLiveSyntaxCheck([{ sourceIdentity, content: tab.content ?? '' }]);
+      if (!isQueryFile(sourceIdentity)) {
+        analysis().scheduleLiveSyntaxCheck([{ sourceIdentity, content: tab.content ?? '' }]);
+      }
     },
 
     activateTab,
@@ -380,7 +425,7 @@ export function createWorkspaceFileController(
           target: 'file',
           title: 'Save file',
           directory: '',
-          fileName: defaultDialogFileName(tab.title, 'untitled'),
+          fileName: defaultDialogFileName(tab.title, isQueryFile(tab.sourceIdentity) ? 'untitled.aiq' : 'untitled'),
           tabId: tab.id,
           content: tab.content
         });

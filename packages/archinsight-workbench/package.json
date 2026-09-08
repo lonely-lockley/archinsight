@@ -12,6 +12,9 @@
     "./presets": "./src/diagram-query-presets.ts",
     "./svg-sanitizer": "./src/svg-sanitizer.ts",
     "./empty-workspace": "./src/empty-workspace-strategy.ts",
+    "./project-queries": "./src/project-queries.ts",
+    "./query-monaco": "./src/query-monaco.ts",
+    "./query-scope-widgets": "./src/query-scope-widgets.ts",
     "./types": "./src/workspace-types.ts"
   },
   "dependencies": {

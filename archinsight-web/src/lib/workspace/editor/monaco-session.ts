@@ -1,3 +1,6 @@
+import { isQueryFile } from '@archinsight/workbench/project-queries';
+import { queryLanguageId, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
+import { createQueryScopeWidgets, type QueryScopeWidgetPorts } from '@archinsight/workbench/query-scope-widgets';
 import {
   CompletionEngine,
   createGeneratedInsightSyntaxProvider,
@@ -33,6 +36,7 @@ import type { SourceLocation, WorkspaceTab } from '@archinsight/workbench/types'
 type AnalysisSource = { readonly sourceIdentity: string; readonly content: string };
 
 export type MonacoSessionPorts = {
+  queryScope?: QueryScopeWidgetPorts;
   editorHost(): HTMLDivElement;
   tabs(): WorkspaceTab[];
   activeTab(): WorkspaceTab | undefined;
@@ -56,12 +60,14 @@ export type MonacoSession = {
   reveal(location: SourceLocation): void;
   refreshTokenVocabulary(options?: { readonly repaint?: boolean }): void;
   refreshMarkers(): void;
+  refreshQueryScope(): void;
   layout(): void;
   reset(): void;
   dispose(): void;
 };
 
 export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
+  let queryScopeWidgets: ReturnType<typeof createQueryScopeWidgets> | undefined;
   let monaco: typeof Monaco | undefined;
   let editor: Monaco.editor.IStandaloneCodeEditor | undefined;
   let completionEngine: CompletionEngine | undefined;
@@ -144,7 +150,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
     if (monaco === undefined) {
       return undefined;
     }
-    const model = monaco.editor.createModel(content, 'insight', monaco.Uri.parse(`insight://tab/${id}`));
+    const model = monaco.editor.createModel(content, isQueryFile(id) ? queryLanguageId : 'insight', monaco.Uri.parse(`insight://tab/${id}`));
     editorModels.set(id, model);
     return model;
   };
@@ -208,6 +214,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
       completionEngine = new CompletionEngine(createGeneratedInsightSyntaxProvider());
       tokenVocabulary = createInsightTokenVocabulary(ports.editorSymbols());
       monaco.languages.register({ id: 'insight' });
+      registerQueryLanguage(monaco);
       monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
       semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
       monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);
@@ -243,9 +250,11 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
         }
         ports.contentChanged(tab, editor.getValue());
       });
+      if (ports.queryScope !== undefined) queryScopeWidgets = createQueryScopeWidgets(monaco, editor, ports.queryScope);
     },
 
     checkSyntax(sources) {
+      sources = sources.filter((source) => !isQueryFile(source.sourceIdentity));
       if (sources.length === 0 || languageWorker === undefined) {
         return Promise.resolve([]);
       }
@@ -274,12 +283,14 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
         return;
       }
       const model = ensureModel(tab.id, tab.content);
+      if (model !== undefined && monaco !== undefined) monaco.editor.setModelLanguage(model, isQueryFile(tab.sourceIdentity) ? queryLanguageId : 'insight');
       if (model === undefined) {
         return;
       }
       if (ports.editorTabId() === tab.id && editor.getModel() === model) {
         editor.updateOptions({ readOnly: tab.readOnly === true });
         applyMarkers(ports.activeTabId());
+        queryScopeWidgets?.refresh();
         return;
       }
       suppressEditorChange = true;
@@ -341,8 +352,9 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
       if (options.repaint === false || monaco === undefined) {
         return;
       }
-      for (const model of editorModels.values()) {
-        monaco.editor.setModelLanguage(model, 'insight');
+      for (const [id, model] of editorModels) {
+        const sourceIdentity = ports.tabs().find((tab) => tab.id === id)?.sourceIdentity ?? id;
+        monaco.editor.setModelLanguage(model, isQueryFile(sourceIdentity) ? queryLanguageId : 'insight');
       }
       semanticTokensProvider?.refresh();
       editor?.render(true);
@@ -354,6 +366,8 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
       }
     },
 
+    refreshQueryScope() { queryScopeWidgets?.refresh(); },
+
     layout() {
       editor?.layout();
     },
@@ -361,6 +375,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
     reset,
 
     dispose() {
+      queryScopeWidgets?.dispose();
       reset();
       languageWorker?.terminate();
       languageWorker = undefined;

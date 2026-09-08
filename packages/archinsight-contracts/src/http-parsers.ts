@@ -85,6 +85,8 @@ export function parseLinkRequest(value: unknown): LinkRequest {
     openSourceIdentities: input.openSourceIdentities == null ? input.openSourceIdentities : stringArray(input.openSourceIdentities, 'openSourceIdentities'),
     overlays: optionalStringRecord(input.overlays, 'overlays'),
     query: nullableString(input.query, 'query'),
+    querySource: nullableString(input.querySource, 'querySource'),
+    queryContext: nullableString(input.queryContext, 'queryContext'),
     view,
     environment: nullableString(input.environment, 'environment'),
     ...(input.forceFullAnalysis === undefined

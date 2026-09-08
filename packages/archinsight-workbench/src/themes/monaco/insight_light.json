@@ -7,6 +7,46 @@
       "token": ""
     },
     {
+      "foreground": "d73a49",
+      "token": "keyword.aiq"
+    },
+    {
+      "foreground": "6f42c1",
+      "token": "type.aiq"
+    },
+    {
+      "foreground": "e36209",
+      "token": "variable.aiq"
+    },
+    {
+      "foreground": "24292e",
+      "token": "identifier.aiq"
+    },
+    {
+      "foreground": "24292e",
+      "token": "delimiter.aiq"
+    },
+    {
+      "foreground": "24292e",
+      "token": "operator.aiq"
+    },
+    {
+      "foreground": "032f62",
+      "token": "string.aiq"
+    },
+    {
+      "foreground": "005cc5",
+      "token": "number.aiq"
+    },
+    {
+      "foreground": "6a737d",
+      "token": "comment.aiq"
+    },
+    {
+      "foreground": "b31d28",
+      "token": "invalid.aiq"
+    },
+    {
       "foreground": "6a737d",
       "token": "comment"
     },

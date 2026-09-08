@@ -41,6 +41,7 @@ export type WorkspaceShellView = {
 };
 
 export type WorkspaceShellControllers = {
+  query: WorkspaceRuntime['controllers']['query'];
   auth: AuthController;
   action: WorkspaceActionController;
   diagram: DiagramController;

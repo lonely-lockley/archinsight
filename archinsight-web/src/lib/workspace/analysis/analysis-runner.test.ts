@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ProjectQuerySyntaxError } from '../diagram/project-query-controller';
+import { InsightLanguageService, coreLanguageSnapshot } from '@insight/language';
 import type { LinkResponse } from '$lib/api';
 import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
@@ -143,6 +145,69 @@ describe('analysis runner', () => {
     }));
     await subject.runner.runLink(1);
     expect(subject.ports.clearDots).toHaveBeenCalledWith(['main.ai']);
+    expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('file-backed query execution', () => {
+  const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
+  const model = service.link({ sources: [
+    { sourceName: 'one.ai', source: 'context one\n\nsystem first\n    name = First\n' },
+    { sourceName: 'two.ai', source: 'context two\n\nsystem second\n    name = Second\n' }
+  ] });
+
+  it('excludes aiq overlays from model linking but can target a query preview', () => {
+    const query = tab('q.aiq', { content: 'invalid query' });
+    expect(overlaysForLink([query], { 'q.aiq': 'draft', 'one.ai': 'model' })).toEqual({ 'one.ai': 'model' });
+    expect(renderSourceIdentities([query, tab('one.ai')], query)).toEqual(['q.aiq']);
+    expect(renderSourceIdentities([query, tab('one.ai')], undefined)).toEqual(['one.ai']);
+  });
+
+  it('renders each consumer using its own query and source, including a separate aiq preview', async () => {
+    const subject = fixture();
+    const active = tab('q.aiq');
+    subject.ports.state = () => ({ projectId: 'project', surface: 'editor', tabs: [active], activeTab: active, overlays: {}, query: 'wrong', diagramMode: 'c2', deploymentEnvironment: undefined });
+    subject.ports.resolveQuery = vi.fn(async () => ({ query: 'MATCH (n:Element) WHERE n.sourceIdentity = $tab RETURN n', view: undefined, source: 'two.ai', context: 'two' }));
+    vi.mocked(subject.ports.renderInBrowser).mockImplementation(async (renders) => ({ diagnostics: [], svgs: renders.map((render) => ({ ...render, svg: '<svg/>' })) }));
+    await subject.runner.runCachedDiagram(1, 'project', model);
+    const renders = vi.mocked(subject.ports.renderInBrowser).mock.calls[0][0];
+    expect(renders[0].sourceIdentity).toBe('q.aiq');
+    expect(renders[0].dot).toContain('Second');
+    expect(renders[0].dot).not.toContain('First');
+    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('q.aiq', '<svg/>', renders[0].dot);
+    expect(subject.ports.linkProject).not.toHaveBeenCalled();
+  });
+
+  it('passes preview scope and a raw-query view through the backend link request', async () => {
+    const subject = fixture();
+    subject.ports.resolveQuery = vi.fn(async () => ({ query: 'custom', view: undefined, source: 'two.ai', context: 'two' }));
+    await subject.runner.runLink(1);
+    expect(subject.ports.linkProject).toHaveBeenCalledWith('project', ['main.ai'], { 'saved.ai': 'saved', 'main.ai': 'changed' }, 'custom', undefined, undefined, 'editor', { querySource: 'two.ai', queryContext: 'two' });
+  });
+
+  it('loads the model before prompting for a missing preview scope', async () => {
+    const subject = fixture();
+    subject.ports.resolveQuery = vi.fn(async () => ({ query: 'custom', view: undefined, waiting: 'Select query scope' }));
+    vi.mocked(subject.ports.linkProject).mockResolvedValue(linkResponse({ renders: [] }));
+    await subject.runner.runLink(1);
+    expect(vi.mocked(subject.ports.linkProject).mock.calls[0][1]).toEqual([]);
+    expect(subject.ports.acceptLinkedAnalysis).toHaveBeenCalled();
+    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', expect.stringContaining('Select query scope'), undefined);
+    expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
+  });
+
+  it('keeps model analysis available when a query is incomplete and rejects late resolutions', async () => {
+    const subject = fixture();
+    subject.ports.resolveQuery = vi.fn(async () => { throw new ProjectQuerySyntaxError('query', new Error('Unsupported MATCH clause')); });
+    vi.mocked(subject.ports.linkProject).mockResolvedValue(linkResponse({ renders: [] }));
+    await subject.runner.runLink(1);
+    expect(subject.ports.acceptLinkedAnalysis).toHaveBeenCalled();
+    expect(subject.ports.queryError).toHaveBeenCalledWith('Unsupported MATCH clause', 'query');
+    expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
+    subject.ports.resolveQuery = vi.fn(async () => ({ query: 'MATCH (n) RETURN n', view: undefined }));
+    vi.mocked(subject.ports.isCurrent).mockReturnValue(false);
+    await subject.runner.runCachedDiagram(2, 'project', model);
     expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
   });
 });

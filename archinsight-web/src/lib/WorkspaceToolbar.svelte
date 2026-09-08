@@ -13,6 +13,8 @@
   export let canDownloadDot = false;
   export let newFileState: ControlState = { hidden: false, disabled: false };
   export let saveState: ControlState = { hidden: false, disabled: false };
+  export let unsavedDocumentKind: 'model' | 'query' | undefined = undefined;
+  export let onSelectDocumentKind: (kind: 'model' | 'query') => void = () => {};
 
   let downloadOpen = false;
 
@@ -51,33 +53,69 @@
   onDestroy(removeDownloadMenuListeners);
 </script>
 
-<div class="file-actions" aria-label="File actions">
-  {#if !newFileState.hidden}
-    <button aria-label="New" class="icon-button has-tooltip" data-tooltip={newFileState.reason ?? 'New'} disabled={newFileState.disabled} type="button" on:click={onNewFile}>
-      <span aria-hidden="true" class="codicon codicon-new-file"></span>
-    </button>
-  {/if}
-  {#if !saveState.hidden}
-    <button aria-label="Save" class="icon-button has-tooltip" data-tooltip={saveState.reason ?? 'Save'} disabled={saveState.disabled} type="button" on:click={onSave}>
-      <span aria-hidden="true" class="codicon codicon-save"></span>
-    </button>
-  {/if}
-  <div class="download-action">
-    <button aria-expanded={downloadOpen} aria-haspopup="menu" aria-label="Download" class="icon-button has-tooltip" data-tooltip="Download" type="button" on:click={toggleDownloadMenu}>
-      <span aria-hidden="true" class="codicon codicon-cloud-download"></span>
-    </button>
-    {#if downloadOpen}
-      <div class="download-menu" role="menu" tabindex="-1" on:click|stopPropagation on:keydown|stopPropagation>
-        <button role="menuitem" type="button" on:click={() => download(onDownloadSource)}>download source</button>
-        <button disabled={!canDownloadSvg} role="menuitem" type="button" on:click={() => download(onDownloadSvg)}>download diagram as svg</button>
-        <button disabled={!canDownloadPng} role="menuitem" type="button" on:click={() => download(onDownloadPng)}>download diagram as png</button>
-        <button disabled={!canDownloadDot} role="menuitem" type="button" on:click={() => download(onDownloadDot)}>download diagram as DOT</button>
-      </div>
+<div class="workspace-toolbar">
+  <div class="file-actions" aria-label="File actions">
+    {#if !newFileState.hidden}
+      <button aria-label="New" class="icon-button has-tooltip" data-tooltip={newFileState.reason ?? 'New'} disabled={newFileState.disabled} type="button" on:click={onNewFile}>
+        <span aria-hidden="true" class="codicon codicon-new-file"></span>
+      </button>
     {/if}
+    {#if !saveState.hidden}
+      <button aria-label="Save" class="icon-button has-tooltip" data-tooltip={saveState.reason ?? 'Save'} disabled={saveState.disabled} type="button" on:click={onSave}>
+        <span aria-hidden="true" class="codicon codicon-save"></span>
+      </button>
+    {/if}
+    <div class="download-action">
+      <button aria-expanded={downloadOpen} aria-haspopup="menu" aria-label="Download" class="icon-button has-tooltip" data-tooltip="Download" type="button" on:click={toggleDownloadMenu}>
+        <span aria-hidden="true" class="codicon codicon-cloud-download"></span>
+      </button>
+      {#if downloadOpen}
+        <div class="download-menu" role="menu" tabindex="-1" on:click|stopPropagation on:keydown|stopPropagation>
+          <button role="menuitem" type="button" on:click={() => download(onDownloadSource)}>download source</button>
+          <button disabled={!canDownloadSvg} role="menuitem" type="button" on:click={() => download(onDownloadSvg)}>download diagram as svg</button>
+          <button disabled={!canDownloadPng} role="menuitem" type="button" on:click={() => download(onDownloadPng)}>download diagram as png</button>
+          <button disabled={!canDownloadDot} role="menuitem" type="button" on:click={() => download(onDownloadDot)}>download diagram as DOT</button>
+        </div>
+      {/if}
+    </div>
   </div>
+
+  {#if unsavedDocumentKind !== undefined}
+    <div class="document-kind-switch" role="group" aria-label="Document type">
+      <button
+        aria-label="Model (.ai)"
+        aria-pressed={unsavedDocumentKind === 'model'}
+        class:active={unsavedDocumentKind === 'model'}
+        class="has-tooltip"
+        data-tooltip="Model (.ai)"
+        type="button"
+        on:click={() => onSelectDocumentKind('model')}
+      >
+        <span aria-hidden="true" class="codicon codicon-type-hierarchy"></span>
+      </button>
+      <button
+        aria-label="Query (.aiq)"
+        aria-pressed={unsavedDocumentKind === 'query'}
+        class:active={unsavedDocumentKind === 'query'}
+        class="has-tooltip"
+        data-tooltip="Query (.aiq)"
+        type="button"
+        on:click={() => onSelectDocumentKind('query')}
+      >
+        <span aria-hidden="true" class="codicon codicon-filter-filled"></span>
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
+  .workspace-toolbar {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
+
   .file-actions {
     display: inline-flex;
     align-items: center;
@@ -214,4 +252,62 @@
   .download-menu button:disabled:hover {
     background: transparent;
   }
+
+  .document-kind-switch {
+    display: inline-flex;
+    height: 28px;
+    border: 1px solid #3a3a3a;
+    border-radius: 4px;
+    background: #202020;
+  }
+
+  .document-kind-switch button {
+    display: inline-grid;
+    width: 32px;
+    height: 100%;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: #b8b8b8;
+    font: inherit;
+    font-size: 11px;
+  }
+
+  .document-kind-switch button + button {
+    border-left: 1px solid #3a3a3a;
+  }
+
+  .document-kind-switch button:first-child {
+    border-radius: 3px 0 0 3px;
+  }
+
+  .document-kind-switch button:last-child {
+    border-radius: 0 3px 3px 0;
+  }
+
+  .document-kind-switch button:hover,
+  .document-kind-switch button:focus-visible {
+    background: #343434;
+    color: #ffffff;
+    outline: none;
+  }
+
+  .document-kind-switch button.active {
+    background: #36511f;
+    color: #ffffff;
+  }
+
+  .document-kind-switch .codicon {
+    font-size: 15px;
+  }
+
+  .codicon-type-hierarchy::before {
+    content: "\ebb9";
+  }
+
+  .codicon-filter-filled::before {
+    content: "\ebce";
+  }
+
 </style>

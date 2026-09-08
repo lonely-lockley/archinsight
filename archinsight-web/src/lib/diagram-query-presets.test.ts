@@ -23,26 +23,6 @@ describe('stored diagram query presets', () => {
     }
   });
 
-  it.each(['deployment-system', 'deployment-container'] as const)(
-    'upgrades a saved built-in %s query when the preset changes',
-    (diagramMode) => {
-      const current = queryForDiagramMode(diagramMode);
-      const historical = diagramModeDefinition(diagramMode).legacyPresetQueries;
-      expect(historical.map(({ version }) => version)).toEqual([1, 2]);
-
-      for (const { query } of historical) {
-        expect(resolveStoredDiagramQuery({
-          diagramMode,
-          query
-        })).toEqual({
-          diagramMode,
-          query: current,
-          queryPreset: true
-        });
-      }
-    }
-  );
-
   it('preserves a legacy custom query that predates the preset marker', () => {
     const query = 'MATCH (node:SystemElement) WHERE node.sourceIdentity = $tab RETURN node';
 
