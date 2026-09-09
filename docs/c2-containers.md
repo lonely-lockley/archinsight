@@ -135,7 +135,7 @@ All `Element` descendants receive the built-in deployment attributes, so they ar
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `deployment` | `List of Edge` | No | Deployment actions, commonly the selection of a `DeploymentProfile` through `uses`. |
+| `deployment` | `List of DeploymentAction` | No | Deployment actions, commonly the selection of a `DeploymentProfile` through `uses`. |
 | `runsOn` | `InfrastructureComponent` | No | Infrastructure that hosts the deployed element. |
 | `uses` | `List of InfrastructureComponent` | No | Storage, brokers, network resources, or other infrastructure required by the element. |
 
@@ -148,7 +148,7 @@ The C2 level uses the same `Wire` family as C1. The declaration owner is always 
 | `technology` | `Text` | No | `->`, `~>` | Protocol, transport, or integration technology. |
 | `description` | `Text` | No | `->`, `~>` | Purpose of the interaction. |
 | `model` | `WireModel` | Yes, provided by constructor | `->`, `~>` | Enum value identifying the relationship as `sync` or `async` for queries. The built-in constructor supplies it. |
-| `deployment` | `List of Edge` | No | `->`, `~>` | Deployment actions that describe the physical realization of the wire. |
+| `deployment` | `List of DeploymentAction` | No | `->`, `~>` | Deployment actions that describe the physical realization of the wire. |
 | `uses` | `List of NetworkConnection` | No | `->`, `~>` | Network capabilities used by the deployed relationship. |
 | `call` | `Text` | No | `->` | Operation or interface invoked by a synchronous interaction. |
 | `via` | `Text` | No | `~>` | Topic, channel, queue, or route used by an asynchronous interaction. |

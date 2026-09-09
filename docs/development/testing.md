@@ -7,17 +7,24 @@ the internet, developer credentials, or a particular execution order.
 
 ## Authoritative checks
 
-The complete release verification entrypoint is:
+The default full verification entrypoint for development changes is:
 
 ```shell
-./gradlew clean dist
+./gradlew clean check
 ```
 
-`dist` depends on the root `check`, and the root check depends on every package
-check. Test tasks deliberately remain part of every `clean dist` invocation;
-distribution artifacts must never be produced from type/build checks alone.
-Use `./gradlew check` when only verification is needed without rebuilding all
-distribution and container artifacts.
+The root `check` depends on every package check, including tests, type checks,
+and coverage gates. Builds needed by those checks still run, but verification
+does not package release tarballs or VSIX files, or build container images.
+Use focused package checks while iterating and `./gradlew clean check` for the
+final full verification. `./gradlew check` is also available when a clean
+rebuild is not needed.
+
+Use `./gradlew clean dist` when distribution artifacts are requested or when
+validating changes to packaging or release infrastructure. `dist` depends on
+the root `check`, builds the distribution artifacts, and runs release checks.
+Test tasks must remain part of every `dist` invocation; distribution artifacts
+must never be produced from type/build checks alone.
 
 After the package checks finish, Gradle prints one consolidated coverage table
 with the current percentage and percentage-point delta from the committed

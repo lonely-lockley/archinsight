@@ -240,9 +240,10 @@ Edge
 ├── Wire
 │   ├── SyncWire
 │   └── AsyncWire
-├── DeploymentProfileUse
-├── InfrastructureUse
-├── InfrastructurePlacement
+├── DeploymentAction
+│   ├── DeploymentProfileUse
+│   ├── InfrastructureUse
+│   └── InfrastructurePlacement
 └── PhysicalWire
     ├── ConnectTo
     ├── ReplicateFrom
@@ -269,7 +270,14 @@ service order_fulfillment
 
 `PhysicalWire` is the base for relationships produced by deployment projection. `ConnectTo` represents a physical connection, `ReplicateFrom` represents replication, and `OriginalLink` preserves the logical relationship inside an expanded physical path. These edge types let a deployment view show how one logical wire is realized through gateways, brokers, storage, and network components.
 
-The deployment capability operators also have typed declarations in the edge family. `DeploymentProfileUse` associates an element with a deployment profile through `uses`. `InfrastructureUse` records infrastructure or network capabilities required by an element, profile, or logical wire. `InfrastructurePlacement` places an element or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
+`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates an element with a deployment profile through `uses`. `InfrastructureUse` records infrastructure or network capabilities required by an element, profile, or logical wire. `InfrastructurePlacement` places an element or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
+
+Core lists accept these families separately: `links` expects `Wire`,
+`projection` expects `PhysicalWire`, and `deployment` expects `DeploymentAction`.
+The anonymous list in `DeploymentProfile` also expects `DeploymentAction`.
+Custom operators inherit the appropriate family to participate in these lists;
+their constructor owner and target constraints still apply. A project can
+explicitly declare `List of Edge` when it needs to mix families.
 
 ### Ownership and direction
 

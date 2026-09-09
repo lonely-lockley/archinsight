@@ -10,13 +10,13 @@ import {
 } from "../build/runtime/index.js";
 
 const definitions = buildLanguageSnapshotResultFromSources([source("custom-deployment.ai", `
-define operator AlternativeProfileUse of Edge
+define operator AlternativeProfileUse of DeploymentAction
     constructor deployedWith DeploymentProfile
         on Element
 
     capability = "deployment-use"
 
-define operator AlternativeInfrastructureUse of Edge
+define operator AlternativeInfrastructureUse of DeploymentAction
     constructor connectedVia InfrastructureComponent
         on Element
 
@@ -28,7 +28,7 @@ define operator AlternativeInfrastructureUse of Edge
 
     capability = "deployment-use"
 
-define operator AlternativePlacement of Edge
+define operator AlternativePlacement of DeploymentAction
     constructor hostedBy InfrastructureComponent
         on DeploymentProfile or Element
 
@@ -40,6 +40,9 @@ define operator RoutedDependency of Edge
 
     List of Edge rollout
         capability = "deployment-actions"
+
+extend type Service
+    List of Edge links
 
 define abstract type WorkloadFamily of BoundaryElement
     capability = "deployment-family"

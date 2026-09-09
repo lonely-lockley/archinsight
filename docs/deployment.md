@@ -345,6 +345,7 @@ Wire coverage is checked only after the project contains at least one deployment
 | `Broker` | `broker` | Wire-capable message broker or event infrastructure. |
 | `NetworkConnection` | `networkConnection` | Network capability that can carry and project a logical wire. |
 | `DeploymentProfile` | `deploymentProfile` | Reusable placement and infrastructure selection for concrete deployments. |
+| `DeploymentAction` | — | Abstract base for deployment operators such as `uses` and `runsOn`. |
 | `ProjectionTerm` | — | Supporting value used to describe endpoints inside an infrastructure projection. |
 
 ### `Environment` attributes
@@ -390,6 +391,7 @@ Project-specific environment subtypes add the named infrastructure slots filled 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `appliesTo` | `List of Deployment` | Yes | Concrete deployment schemes selected by the profile. |
+| `_` | `List of DeploymentAction` | No | Deployment operator invocations owned by the profile. |
 
 The `runsOn` and `uses` lines in a profile are typed operator invocations. They resolve infrastructure slots from every deployment listed in `appliesTo` and contribute the resulting placement and dependencies to elements using the profile.
 
@@ -397,10 +399,10 @@ The `runsOn` and `uses` lines in a profile are typed operator invocations. They 
 
 | Owner | Name | Type | Required | Meaning |
 | --- | --- | --- | --- | --- |
-| `Element` | `deployment` | `List of Edge` | No | Deployment actions, including selection of a profile through `uses`. |
+| `Element` | `deployment` | `List of DeploymentAction` | No | Deployment actions, including selection of a profile through `uses`. |
 | `Element` | `runsOn` | `InfrastructureComponent` | No | Resolved runtime placement. |
 | `Element` | `uses` | `List of InfrastructureComponent` | No | Resolved supporting infrastructure. |
-| `Wire` | `deployment` | `List of Edge` | No | Deployment actions attached to the logical relationship. |
+| `Wire` | `deployment` | `List of DeploymentAction` | No | Deployment actions attached to the logical relationship. |
 | `Wire` | `uses` | `List of NetworkConnection` | No | Network connections carrying the wire through deployment infrastructure. |
 
 ## Validating the deployment view

@@ -497,8 +497,8 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
 
   assertProjectionCompletion("__CURSOR__", {
     snapshot,
-    includes: ["source", "target"],
-    excludes: ["$from", "connectTo"],
+    includes: ["source", "target", "connectTo", "replicateFrom"],
+    excludes: ["$from", "->"],
   });
   assertProjectionCompletion("source __CURSOR__", {
     snapshot,
@@ -523,8 +523,8 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
 
   assertProjectionCompletion("__CURSOR__source $from connectTo target cdn", {
     snapshot,
-    includes: ["source", "target"],
-    excludes: ["$from", "connectTo"],
+    includes: ["source", "target", "connectTo", "replicateFrom"],
+    excludes: ["$from", "->"],
   });
   assertProjectionCompletion("source __CURSOR__$from connectTo target cdn", {
     snapshot,
@@ -608,7 +608,7 @@ system application
 `, { snapshot, contextIds: ["eu"] }));
   assert(elementBody.has("uses"), [...elementBody].join(", "));
   assert(elementBody.has("runsOn"), [...elementBody].join(", "));
-  assert(!elementBody.has("->"), [...elementBody].join(", "));
+  assert.deepEqual([...elementBody].sort(), ["@deprecated", "@planned", "runsOn", "uses"]);
 
   const elementTarget = itemLabels(completeAtMarker(`
 context app
@@ -750,7 +750,7 @@ deploymentProfile regional
   for (const expected of ["appliesTo", "uses", "runsOn"]) {
     assert(newProfileBody.has(expected), `${expected} missing from ${[...newProfileBody].join(", ")}`);
   }
-  assert(!newProfileBody.has("deployment"), [...newProfileBody].join(", "));
+  assert.deepEqual([...newProfileBody].sort(), ["@deprecated", "@planned", "appliesTo", "deployment", "runsOn", "uses"]);
 
   const actionBody = itemLabels(completeAtMarker(`
 context app
@@ -760,7 +760,7 @@ deploymentProfile regional
         production from eu
     __CURSOR__
 `, options));
-  assert.deepEqual([...actionBody].sort(), ["runsOn", "uses"]);
+  assert.deepEqual([...actionBody].sort(), ["@deprecated", "@planned", "deployment", "runsOn", "uses"]);
 
   const memberIds = itemLabels(completeAtMarker(`
 context app
@@ -877,7 +877,7 @@ context app
 rolloutPolicy current
     __CURSOR__
 `, options));
-  assert.deepEqual([...bodyItems].sort(), ["assignHost", "members"]);
+  assert.deepEqual([...bodyItems].sort(), ["@deprecated", "@planned", "assignHost", "deployment", "drafts", "members"]);
 
   const referenceItems = itemLabels(completeAtMarker(`
 context app

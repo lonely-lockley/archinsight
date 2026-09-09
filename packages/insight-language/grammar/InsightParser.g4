@@ -81,8 +81,8 @@ namedList
     ;
 
 listBodyItem
-    : architectureBodyItem
-    | listValue
+    : listValue
+    | architectureBodyItem
     ;
 
 listValue
@@ -94,7 +94,7 @@ annotatedOperatorInvocation
     ;
 
 operatorInvocation
-    : operatorIdentifier identifierReference anonymousImportDeclaration? note? EOL objectBody?
+    : operatorIdentifier identifierReference? anonymousImportDeclaration? note? EOL objectBody?
     ;
 
 anonymousImportDeclaration

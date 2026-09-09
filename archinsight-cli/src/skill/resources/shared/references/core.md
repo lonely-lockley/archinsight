@@ -141,7 +141,7 @@ define operator Wire of Edge
     Text description
     required WireModel model
 
-    List of Edge deployment
+    List of DeploymentAction deployment
     List of NetworkConnection uses
 
 define operator SyncWire of Wire
@@ -163,6 +163,13 @@ Interpretation:
 
 - `->` creates a synchronous `SyncWire`.
 - `~>` creates an asynchronous `AsyncWire`.
+- Core `links` lists accept `Wire`, `projection` lists accept `PhysicalWire`,
+  and `deployment` lists accept `DeploymentAction`. The anonymous list in
+  `DeploymentProfile` also accepts `DeploymentAction`.
+- Custom deployment operators must derive from `DeploymentAction` or one of
+  its subtypes and declare their deployment capability. Deriving directly
+  from `Edge` is suitable for an explicitly mixed `List of Edge`, but does
+  not make the operator eligible for core deployment lists.
 - `technology`, `description`, `model`, `deployment`, and `uses` are
   common wire attributes.
 - `call` is singular and belongs to `->`.

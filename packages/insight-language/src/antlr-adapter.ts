@@ -40,7 +40,8 @@ import {
   type AntlrTokenLike,
   type TokenNameResolver,
 } from "./parser-facade.js";
-import { CONTEXT, NOTHING, TypeSystem } from "./type-system.js";
+import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
+import { isOperatorInvocation, readOperatorInvocation } from "./operator-invocation.js";
 import { OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 
 export interface AntlrAdapterInput {
@@ -603,7 +604,9 @@ function processArchitectureItem(
     ? undefined
     : firstChildByRule(annotatedObject, "objectDeclaration", ruleNames);
   if (objectDeclaration !== undefined) {
-    if (processDeploymentActionObject(objectDeclaration, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames)) {
+    const expectedType = expectedListElementType ?? typeSystem.anonymousListAttribute(ownerType)?.listElementType;
+    if (expectedType !== undefined && isOperatorInvocation(objectDeclaration, ruleNames, typeSystem, expectedType)) {
+      processOperator(objectDeclaration, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames, expectedType);
       return;
     }
     processElementDeclaration(
@@ -628,62 +631,9 @@ function processArchitectureItem(
     ? undefined
     : firstChildByRule(annotatedOperator, "operatorInvocation", ruleNames);
   if (operatorInvocation !== undefined) {
-    processOperator(operatorInvocation, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames);
+    processOperator(operatorInvocation, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames,
+      expectedListElementType ?? typeSystem.anonymousListAttribute(ownerType)?.listElementType);
   }
-}
-
-function processDeploymentActionObject(
-  declaration: AntlrParseTreeLike,
-  ownerType: string,
-  cursorOffset: number,
-  cursor: CursorPosition,
-  typeSystem: TypeSystem,
-  state: FileContextState,
-  ruleNames: readonly string[],
-): boolean {
-  const operatorNode = firstChildByRule(declaration, "namedPrefixOperatorInvocation", ruleNames)
-    ?? firstChildByRule(declaration, "elementConstructor", ruleNames);
-  const operator = operatorNode === undefined ? undefined : textOf(operatorNode);
-  if (operator === undefined || !deploymentOperator(typeSystem, ownerType, operator)) {
-    return false;
-  }
-  const inDeploymentList = state.lists.some((list) =>
-    deploymentOperatorAllowedInList(
-      typeSystem,
-      ownerType,
-      typeSystem.attribute(list.ownerType, list.attribute)?.listElementType,
-      operator,
-    )
-  );
-  const inAnonymousList = deploymentOperatorAllowedInList(
-    typeSystem,
-    ownerType,
-    typeSystem.anonymousListAttribute(ownerType)?.listElementType,
-    operator,
-  );
-  if (!inDeploymentList && !inAnonymousList) {
-    return false;
-  }
-  if (contains(declaration, cursorOffset, cursor)) {
-    state.currentOperatorSpelling = operator;
-  }
-  if (!contains(declaration, cursorOffset, cursor)) {
-    return true;
-  }
-  const target = firstChildByRule(declaration, "namedPrefixOperatorInvocation", ruleNames) === undefined
-    ? firstChildByRule(declaration, "identifierDeclaration", ruleNames)
-    : firstChildByRule(declaration, "elementConstructor", ruleNames);
-  const completionTypes = deploymentActionOverrideTypes(operator, target, ownerType, typeSystem, state);
-  if (completionTypes.length === 0) {
-    return true;
-  }
-  const frame = mutableFrame(indentLevel(declaration), completionTypes[0]!, completionTypes);
-  state.operatorFrames.unshift(frame);
-  const body = firstChildByRule(declaration, "objectBody", ruleNames);
-  if (body !== undefined) {
-    processBody(body, frame.type, undefined, cursorOffset, cursor, typeSystem, state, ruleNames, frame);
-  }
-  return true;
 }
 
 function processList(
@@ -714,6 +664,11 @@ function processList(
     state.lists.unshift({ indent: indentLevel(list), ownerType: attributeOwnerType, attribute, hasDirectValue });
   }
   for (const listItem of directChildrenByRule(list, "listBodyItem", ruleNames)) {
+    const value = firstChildByRule(listItem, "listValue", ruleNames);
+    if (value !== undefined && expectedType !== undefined && isOperatorInvocation(value, ruleNames, typeSystem, expectedType)) {
+      processOperator(value, ownerType, cursorOffset, cursor, typeSystem, state, ruleNames, expectedType);
+      continue;
+    }
     const item = firstChildByRule(listItem, "architectureBodyItem", ruleNames);
     if (item === undefined) {
       continue;
@@ -822,11 +777,13 @@ function processOperator(
   typeSystem: TypeSystem,
   state: FileContextState,
   ruleNames: readonly string[],
+  expectedType?: string,
 ): void {
   if (!startsBefore(invocation, cursorOffset)) {
     return;
   }
-  const operatorNode = firstChildByRule(invocation, "operatorIdentifier", ruleNames);
+  const syntax = readOperatorInvocation(invocation, ruleNames);
+  const operatorNode = syntax?.operator;
   const operator = operatorNode === undefined ? undefined : textOf(operatorNode);
   if (operator === undefined) {
     return;
@@ -834,12 +791,22 @@ function processOperator(
   if (contains(invocation, cursorOffset, cursor)) {
     state.currentOperatorSpelling = operator;
   }
-  const target = firstChildByRule(invocation, "identifierReference", ruleNames);
-  const targetType = target === undefined
-    ? ownerType
-    : state.visibleIdentifiers.get(textOf(target))?.type ?? ownerType;
-  const edgeType = typeSystem.operatorConstructor(operator, ownerType, targetType)?.ownerType;
-  const completionTypes = deploymentActionOverrideTypes(operator, target, ownerType, typeSystem, state);
+  const target = syntax?.target;
+  const targetType = target === undefined ? undefined : syntax?.prefix
+    ? typeSystem.findConstructor(textOf(target))?.ownerType
+    : state.visibleIdentifiers.get(textOf(target))?.type;
+  const edgeType = targetType === undefined ? undefined
+    : typeSystem.operatorConstructor(operator, ownerType, targetType, expectedType)?.ownerType;
+  if (syntax?.prefix && edgeType !== undefined && !typeSystem.isAssignable(edgeType, EDGE)) {
+    const identifier = firstChildByRule(invocation, "identifierDeclaration", ruleNames);
+    if (identifier !== undefined && textOf(identifier) !== "_") {
+      state.visibleIdentifiers.set(textOf(identifier), { label: textOf(identifier), type: edgeType, imported: false });
+    }
+  }
+  const overrideTypes = deploymentActionOverrideTypes(operator, target, ownerType, expectedType, typeSystem, state);
+  const completionTypes = overrideTypes.length > 0 ? overrideTypes : edgeType !== undefined ? [edgeType]
+    : unique(typeSystem.operatorConstructorsFrom(ownerType, expectedType)
+      .filter((candidate) => candidate.spelling === operator).map((candidate) => candidate.ownerType));
   if (!contains(invocation, cursorOffset, cursor) || (edgeType === undefined && completionTypes.length === 0)) {
     return;
   }
@@ -855,60 +822,25 @@ function deploymentActionOverrideTypes(
   operator: string,
   target: AntlrParseTreeLike | undefined,
   ownerType: string,
+  expectedType: string | undefined,
   typeSystem: TypeSystem,
   state: FileContextState,
 ): readonly string[] {
-  if (target === undefined || !deploymentOperator(typeSystem, ownerType, operator)) {
-    return [];
-  }
-  const inDeploymentList = state.lists.some((list) =>
-    deploymentOperatorAllowedInList(
-      typeSystem,
-      ownerType,
-      typeSystem.attribute(list.ownerType, list.attribute)?.listElementType,
-      operator,
-    )
-  );
-  const inAnonymousList = deploymentOperatorAllowedInList(
-    typeSystem,
-    ownerType,
-    typeSystem.anonymousListAttribute(ownerType)?.listElementType,
-    operator,
-  );
-  if (!inDeploymentList && !inAnonymousList) {
+  if (target === undefined) {
     return [];
   }
   const targetText = textOf(target);
   const identifierType = state.visibleIdentifiers.get(targetText)?.type;
-  if (identifierType !== undefined && typeSystem.typeHasCapability(identifierType, TYPE_CAPABILITIES.infrastructure)) {
-    return [identifierType];
-  }
-  if (identifierType !== undefined) {
-    return [];
-  }
-  return unique(typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
-    .flatMap((environmentType) => typeSlotAttributeTypes(typeSystem, environmentType, targetText))
-    .filter((type) => typeSystem.typeHasCapability(type, TYPE_CAPABILITIES.infrastructure)));
-}
-
-function deploymentOperator(typeSystem: TypeSystem, ownerType: string, spelling: string): boolean {
-  return typeSystem.operatorConstructorsFrom(ownerType)
-    .filter((operator) => operator.spelling === spelling)
-    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
-      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
-}
-
-function deploymentOperatorAllowedInList(
-  typeSystem: TypeSystem,
-  ownerType: string,
-  expectedType: string | undefined,
-  spelling: string,
-): boolean {
-  return expectedType !== undefined && typeSystem.operatorConstructorsFrom(ownerType)
-    .filter((operator) => operator.spelling === spelling)
-    .filter((operator) => typeSystem.isAssignable(operator.ownerType, expectedType))
-    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
-      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
+  const targetTypes = identifierType === undefined
+    ? typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
+      .flatMap((environmentType) => typeSlotAttributeTypes(typeSystem, environmentType, targetText))
+    : [identifierType];
+  return unique(targetTypes.filter((type) => {
+    if (!typeSystem.typeHasCapability(type, TYPE_CAPABILITIES.infrastructure)) return false;
+    const selected = typeSystem.operatorConstructor(operator, ownerType, type, expectedType);
+    return selected !== undefined && (typeSystem.operatorHasCapability(selected, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(selected, OPERATOR_CAPABILITIES.deploymentPlacement));
+  }));
 }
 
 function typeSlotAttributeTypes(
