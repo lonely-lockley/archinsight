@@ -102,7 +102,7 @@ The built-in C3 vocabulary contains an abstract family type and one concrete com
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `deployment` | `List of Edge` | No | Deployment actions associated with the component. |
+| `deployment` | `List of DeploymentAction` | No | Deployment actions associated with the component. |
 | `runsOn` | `InfrastructureComponent` | No | Infrastructure that hosts the component when it has a distinct placement. |
 | `uses` | `List of InfrastructureComponent` | No | Infrastructure required specifically by the component. |
 
@@ -115,7 +115,7 @@ C3 uses the same `Wire` family as C1 and C2. The component containing the wire o
 | `technology` | `Text` | No | `->`, `~>` | Protocol, library, transport, or integration technology. |
 | `description` | `Text` | No | `->`, `~>` | Purpose of the component interaction. |
 | `model` | `WireModel` | Yes, provided by constructor | `->`, `~>` | Enum value identifying the relationship as `sync` or `async` for queries. The built-in constructor supplies it. |
-| `deployment` | `List of Edge` | No | `->`, `~>` | Deployment actions describing the physical realization of the wire. |
+| `deployment` | `List of DeploymentAction` | No | `->`, `~>` | Deployment actions describing the physical realization of the wire. |
 | `uses` | `List of NetworkConnection` | No | `->`, `~>` | Network capabilities used by the deployed relationship. |
 | `call` | `Text` | No | `->` | Operation or interface invoked by a synchronous interaction. |
 | `via` | `Text` | No | `~>` | Topic, channel, queue, or route used by an asynchronous interaction. |

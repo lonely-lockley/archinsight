@@ -2423,7 +2423,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Relationship deployment cannot use a deployment profile")));
+    && diagnostic.message === "Operator 'uses' cannot be applied from 'SyncWire' to 'DeploymentProfile'"), JSON.stringify(result.diagnostics));
 }
 
 function rejectsNonNetworkInfrastructureOnWires() {
@@ -2444,7 +2444,7 @@ service backend
 `);
 
   assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Relationship deployment can use only network infrastructure")));
+    && diagnostic.message === "Operator 'uses' cannot be applied from 'SyncWire' to 'Storage'"), JSON.stringify(result.diagnostics));
 }
 
 function skipsUnavailableWireNetworksPerDeployment() {
@@ -2616,7 +2616,7 @@ service backend
 
   assert(result.diagnostics.some((diagnostic) =>
     diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message.includes("Deployment list expects operator")
+    && diagnostic.message === "Attribute 'deployment' on type 'Service' cannot contain a nested attribute"
   ));
 }
 

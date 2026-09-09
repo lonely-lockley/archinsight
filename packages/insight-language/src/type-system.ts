@@ -177,10 +177,17 @@ export class TypeSystem {
     return this.inheritanceChain(type).slice(1);
   }
 
-  operatorConstructorsFrom(ownerType: string): readonly OperatorDefinition[] {
+  commonBaseType(types: readonly string[]): string | undefined {
+    const first = types[0];
+    return first === undefined ? undefined : this.inheritanceChain(first)
+      .find((candidate) => types.every((type) => this.isAssignable(type, candidate)));
+  }
+
+  operatorConstructorsFrom(ownerType: string, expectedType?: string): readonly OperatorDefinition[] {
     return [...this.operatorsBySpelling.values()]
       .flat()
-      .filter((operator) => operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType));
+      .filter((operator) => (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))
+        && (expectedType === undefined || this.isAssignable(operator.ownerType, expectedType)));
   }
 
   slotDomainTypes(): ReadonlySet<string> {
@@ -190,10 +197,9 @@ export class TypeSystem {
       .map((operator) => operator.targetType));
   }
 
-  operatorConstructor(spelling: string, ownerType: string, targetType: string): OperatorDefinition | undefined {
-    const candidates = (this.operatorsBySpelling.get(spelling) ?? [])
-      .filter((operator) => (operator.leftType === undefined || this.isAssignable(ownerType, operator.leftType))
-        && this.isAssignable(targetType, operator.targetType));
+  operatorConstructor(spelling: string, ownerType: string, targetType: string, expectedType?: string): OperatorDefinition | undefined {
+    const candidates = this.operatorConstructorsFrom(ownerType, expectedType)
+      .filter((operator) => operator.spelling === spelling && this.isAssignable(targetType, operator.targetType));
     return this.uniqueMostSpecificOperator(candidates);
   }
 

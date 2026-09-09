@@ -433,32 +433,28 @@ function architectureItems(
   typeSystem: TypeSystem,
   context: CompletionScope,
 ): CompletionItem[] {
-  const deploymentItems = deploymentDefinitionItems(line, typeSystem, context);
-  if (deploymentItems !== undefined) {
-    return deploymentItems;
-  }
-  const projectionItems = projectionDefinitionItems(line, syntax, typeSystem, context);
-  if (projectionItems !== undefined) {
-    return projectionItems;
-  }
-  const contextualListItems = contextualListReferenceItems(line, typeSystem, context);
-  if (contextualListItems !== undefined) {
-    return contextualListItems;
-  }
-  const edgeList = currentEdgeList(typeSystem, context, line.indentLevel);
+  const operatorList = currentOperatorList(typeSystem, context, line.indentLevel);
+  const edgeList = operatorList !== undefined && typeSystem.isAssignable(operatorList.expectedType, EDGE) ? operatorList : undefined;
+  const previousOperator = operatorList !== undefined && syntax.previousToken !== undefined
+    && line.contentBeforeCursor.trim() === syntax.previousToken.text
+    && operatorAllowedInList(typeSystem, operatorList, syntax.previousToken.text)
+    ? syntax.previousToken.text
+    : undefined;
   if (!line.hasOnlyIndentBeforeCursor
-    && currentOperator(context, line.indentLevel) === undefined
-    && isOperatorTargetPosition(syntax)) {
-    const operator = context.currentOperatorSpelling
+    && operatorList !== undefined
+    && (isOperatorTargetPosition(syntax)
+      || previousOperator !== undefined)) {
+    const operator = previousOperator ?? context.currentOperatorSpelling
       ?? (syntax.previousToken?.type === "OPERATOR_IDENTIFIER" ? syntax.previousToken.text : undefined);
-    if (edgeList === undefined || operator === undefined || !operatorAllowedInEdgeList(typeSystem, edgeList, operator)) {
+    if (operator === undefined || !operatorAllowedInList(typeSystem, operatorList, operator)) {
       return [];
     }
-    return [...context.visibleIdentifiers.values()]
-      .filter((identifier) => identifier.type === undefined
-        || typeSystem.operatorConstructor(operator, edgeList.ownerType, identifier.type) !== undefined)
-      .map(identifierItem);
+    return operatorTargetItems(typeSystem, context, operatorList.ownerType, operatorList.expectedType, operator);
   }
+  const projectionItems = projectionDefinitionItems(line, syntax, typeSystem, context);
+  if (projectionItems !== undefined && (edgeList === undefined || !line.hasOnlyIndentBeforeCursor)) return projectionItems;
+  const contextualListItems = contextualListReferenceItems(line, typeSystem, context);
+  if (contextualListItems !== undefined && (operatorList === undefined || !line.hasOnlyIndentBeforeCursor)) return contextualListItems;
   if (syntax.lineBreakIndentDelta !== undefined) {
     return [newline(line.indentLevel + syntax.lineBreakIndentDelta)];
   }
@@ -488,7 +484,7 @@ function architectureItems(
   }
   if (line.hasOnlyIndentBeforeCursor
     && nearestFrame(context, line.indentLevel) !== undefined
-    && !(currentOperator(context, line.indentLevel) === undefined && edgeList !== undefined)) {
+    && operatorList === undefined) {
     return identifierPositionItems(line, typeSystem, context);
   }
   if (expectsIdentifierDeclaration(syntax, typeSystem, context, line)) {
@@ -500,66 +496,15 @@ function architectureItems(
   if (isAssignmentValuePosition(syntax)) {
     return [];
   }
-  if (currentOperator(context, line.indentLevel) === undefined && edgeList !== undefined) {
-    const operators = typeSystem.operatorConstructorsFrom(edgeList.ownerType)
-      .filter((operator) => typeSystem.isAssignable(operator.ownerType, edgeList.expectedType))
+  if (operatorList !== undefined) {
+    const operators = typeSystem.operatorConstructorsFrom(operatorList.ownerType, operatorList.expectedType)
       .map((operator) => operatorItem(`${operator.spelling} `));
     return line.hasOnlyIndentBeforeCursor
-      ? [...annotationItems(), ...operators]
+      ? [...annotationItems(), ...(operatorList.anonymous ? identifierPositionItems(line, typeSystem, context) : currentSlotReferenceItems(typeSystem, context, line.indentLevel)), ...operators, ...(projectionItems ?? []), ...(contextualListItems ?? [])]
       : operators;
   }
   if (expectsIdentifier(syntax) || line.hasOnlyIndentBeforeCursor) {
     return identifierPositionItems(line, typeSystem, context);
-  }
-  return [];
-}
-
-function deploymentDefinitionItems(
-  line: LineContext,
-  typeSystem: TypeSystem,
-  context: CompletionScope,
-): CompletionItem[] | undefined {
-  const list = currentList(context, line.indentLevel);
-  const namedListAttribute = list === undefined ? undefined : typeSystem.attribute(list.ownerType, list.attribute);
-  const anonymousOwnerType = list === undefined ? ownerType(context, line.indentLevel) : undefined;
-  const anonymousListAttribute = anonymousOwnerType === undefined
-    ? undefined
-    : typeSystem.anonymousListAttribute(anonymousOwnerType);
-  const container = list !== undefined && namedListAttribute?.listElementType !== undefined
-    && deploymentOperatorSpellings(typeSystem, list.ownerType, namedListAttribute.listElementType).length > 0
-    ? { ownerType: list.ownerType, expectedType: namedListAttribute.listElementType, anonymous: false }
-    : anonymousOwnerType !== undefined && anonymousListAttribute?.listElementType !== undefined
-      && deploymentOperatorSpellings(typeSystem, anonymousOwnerType, anonymousListAttribute.listElementType).length > 0
-      ? { ownerType: anonymousOwnerType, expectedType: anonymousListAttribute.listElementType, anonymous: true }
-      : undefined;
-  if (container === undefined) {
-    return undefined;
-  }
-  const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
-  if (words.length === 0) {
-    const requiredAttributes = container.anonymous
-      ? [...typeSystem.attributes(container.ownerType).values()]
-        .filter((attribute) => attribute.required === true)
-        .filter((attribute) => !assignedAttributes(context, line.indentLevel).has(attribute.name))
-        .map((attribute) => attributeItem(typeSystem.isNestedAttribute(attribute) ? `${attribute.name}:` : `${attribute.name} = `))
-      : [];
-    return [
-      ...requiredAttributes,
-      ...deploymentOperatorItems(typeSystem, container.ownerType, container.expectedType),
-    ];
-  }
-  if (words.length === 1 && deploymentOperatorSpellings(
-    typeSystem,
-    container.ownerType,
-    container.expectedType,
-  ).includes(words[0] ?? "")) {
-    return deploymentTargetItems(
-      typeSystem,
-      context,
-      container.ownerType,
-      container.expectedType,
-      words[0] ?? "",
-    );
   }
   return [];
 }
@@ -630,48 +575,30 @@ function anonymousImportContextItems(
     .map(identifierItem);
 }
 
-function deploymentOperatorItems(
-  typeSystem: TypeSystem,
-  ownerType: string,
-  expectedType: string,
-): CompletionItem[] {
-  return deploymentOperatorSpellings(typeSystem, ownerType, expectedType)
-    .map((operator) => operatorItem(`${operator} `));
-}
-
-function deploymentOperatorSpellings(
-  typeSystem: TypeSystem,
-  ownerType: string,
-  expectedType: string,
-): string[] {
-  return unique(typeSystem.operatorConstructorsFrom(ownerType)
-    .filter((operator) => typeSystem.isAssignable(operator.ownerType, expectedType))
-    .filter((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
-      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement))
-    .map((operator) => operator.spelling));
-}
-
-function deploymentTargetItems(
+function operatorTargetItems(
   typeSystem: TypeSystem,
   context: CompletionScope,
   ownerType: string,
   expectedType: string,
   operatorSpelling: string,
 ): CompletionItem[] {
-  const targetTypes = typeSystem.operatorConstructorsFrom(ownerType)
-    .filter((operator) => operator.spelling === operatorSpelling)
-    .filter((operator) => typeSystem.isAssignable(operator.ownerType, expectedType))
-    .map((operator) => operator.targetType);
-  const operatorSpellings = new Set(deploymentOperatorSpellings(typeSystem, ownerType, expectedType));
-  const identifiers = targetTypes.flatMap((targetType) =>
-    valueItemsForExpectedType(typeSystem, context, targetType, {
-      includeConstructors: false,
-    })
-  ).filter((item) => !operatorSpellings.has(item.label));
-  const slots = targetTypes.flatMap((targetType) =>
-    deploymentSlotItems(typeSystem, targetType)
-  );
-  return uniqueByInsertText([...identifiers, ...slots]);
+  const operators = typeSystem.operatorConstructorsFrom(ownerType, expectedType)
+    .filter((operator) => operator.spelling === operatorSpelling);
+  const identifiers = operators.flatMap((operator) => typeSystem.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE)
+    ? directReferenceTypeSlotOperator(typeSystem, operator)
+      ? visibleIdentifierItemsForType(typeSystem, context, operator.targetType)
+      : slotAttributeItemsForType(typeSystem, operator.targetType)
+    : valueItemsForExpectedType(typeSystem, context, operator.targetType, {
+      includeConstructors: !typeSystem.isAssignable(operator.ownerType, EDGE),
+    }));
+  const slots = operators
+    .filter((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
+      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement))
+    .flatMap((operator) => deploymentSlotItems(typeSystem, operator.targetType));
+  const unresolved = operators.some((operator) => !typeSystem.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE))
+    ? [...context.visibleIdentifiers.values()].filter((identifier) => identifier.type === undefined).map(identifierItem)
+    : [];
+  return uniqueByInsertText([...identifiers, ...slots, ...unresolved]);
 }
 
 function deploymentSlotItems(
@@ -953,12 +880,13 @@ function prefixOperatorItems(
   }
   return typeSystem.operatorConstructorsFrom(owner)
     .filter((operator) => !typeSystem.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE))
+    .filter((operator) => expectedElementTypes.some((expectedType) => typeSystem.isAssignable(operator.ownerType, expectedType)))
     .filter((operator) => expectedElementTypes.some((expectedType) => typeSystem.isAssignable(operator.targetType, expectedType)))
     .map((operator) => operatorItem(`${operator.spelling} `));
 }
 
 function typeSlotOperatorsForOwner(typeSystem: TypeSystem, owner: string) {
-  return typeSystem.operatorConstructorsFrom(owner)
+  return typeSystem.operatorConstructorsFrom(owner, typeSystem.anonymousListAttribute(owner)?.listElementType)
     .filter((operator) => typeSystem.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE));
 }
 
@@ -1041,32 +969,26 @@ function isInfrastructureReferenceAttribute(
   ) === true;
 }
 
-function currentEdgeList(
+function currentOperatorList(
   typeSystem: TypeSystem,
   context: CompletionScope,
   indent: number,
-): { readonly ownerType: string; readonly expectedType: string } | undefined {
-  if (currentOperator(context, indent) !== undefined) {
-    return undefined;
-  }
+): { readonly ownerType: string; readonly expectedType: string; readonly anonymous: boolean } | undefined {
   const list = currentList(context, indent);
-  if (list === undefined) {
-    return undefined;
-  }
-  const expectedType = typeSystem.attribute(list.ownerType, list.attribute)?.listElementType;
-  return expectedType !== undefined && typeSystem.isAssignable(expectedType, EDGE)
-    ? { ownerType: list.ownerType, expectedType }
+  const listOwnerType = list?.ownerType ?? currentCompletionOwnerType(typeSystem, context, indent);
+  const expectedType = typeSystem.attribute(listOwnerType, list?.attribute ?? "_")?.listElementType;
+  return expectedType !== undefined && typeSystem.operatorConstructorsForExpectedType(expectedType).length > 0
+    ? { ownerType: listOwnerType, expectedType, anonymous: list === undefined }
     : undefined;
 }
 
-function operatorAllowedInEdgeList(
+function operatorAllowedInList(
   typeSystem: TypeSystem,
   edgeList: { readonly ownerType: string; readonly expectedType: string },
   operator: string,
 ): boolean {
-  return typeSystem.operatorConstructorsFrom(edgeList.ownerType)
-    .filter((constructor) => constructor.spelling === operator)
-    .some((constructor) => typeSystem.isAssignable(constructor.ownerType, edgeList.expectedType));
+  return typeSystem.operatorConstructorsFrom(edgeList.ownerType, edgeList.expectedType)
+    .some((constructor) => constructor.spelling === operator);
 }
 
 function ownerType(context: CompletionScope, indent: number): string {

@@ -92,5 +92,6 @@ affected stage:
 
 Use small fixtures that prove the general rule, plus existing real models as
 regression coverage. Follow [`testing.md`](testing.md) for suite discovery,
-negative testing, coverage gates, and the required `./gradlew clean dist`
-integration path.
+negative testing, coverage gates, and the required `./gradlew clean check`
+integration path. Use `./gradlew clean dist` when distribution artifacts or
+packaging validation are needed.

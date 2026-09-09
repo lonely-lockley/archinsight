@@ -9,18 +9,20 @@ define operator Wire of Edge
     Text description
     required WireModel model
 
-    List of Edge deployment
+    List of DeploymentAction deployment
         capability = "deployment-actions"
     List of NetworkConnection uses
         capability = "infrastructure-uses"
 
-define operator DeploymentProfileUse of Edge
+define abstract type DeploymentAction of Edge
+
+define operator DeploymentProfileUse of DeploymentAction
     constructor uses DeploymentProfile
         on Element
 
     capability = "deployment-use"
 
-define operator InfrastructureUse of Edge
+define operator InfrastructureUse of DeploymentAction
     constructor uses InfrastructureComponent
         on DeploymentProfile or Element
 
@@ -29,7 +31,7 @@ define operator InfrastructureUse of Edge
 
     capability = "deployment-use"
 
-define operator InfrastructurePlacement of Edge
+define operator InfrastructurePlacement of DeploymentAction
     constructor runsOn InfrastructureComponent
         on DeploymentProfile or Element
 

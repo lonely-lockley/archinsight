@@ -2,7 +2,7 @@ define type DeploymentElement of BoundaryElement
     capability = "deployment-element"
 
 extend type Element
-    List of Edge deployment
+    List of DeploymentAction deployment
         capability = "deployment-actions"
 
 define type InfrastructureComponent of DeploymentElement
@@ -32,7 +32,7 @@ define type DeploymentProfile of BoundaryElement
     required List of Deployment appliesTo
         capability = "deployment-profile-members"
         capability = "reference-only"
-    List of Edge _
+    List of DeploymentAction _
 
 define type Storage of InfrastructureComponent
     constructor storage

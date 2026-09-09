@@ -82,7 +82,7 @@ Avoid whole-page DOM snapshots. Assert visible behavior and stable contracts.
 All UI tests must run through the package `check` task and therefore through:
 
 ```text
-./gradlew clean dist
+./gradlew clean check
 ```
 
 Coverage may not fall below the exact counters in
@@ -107,4 +107,5 @@ reactivity styles.
 
 Before moving sensitive behavior, add characterization tests. After each
 extraction, run focused tests and the coverage gate. At completed milestones,
-run `./gradlew clean dist`.
+run `./gradlew clean check`. Use `./gradlew clean dist` when distribution
+artifacts or packaging validation are needed.

@@ -18,7 +18,8 @@ import {
   type TokenNameResolver,
 } from "./parser-facade.js";
 import type { LanguageSnapshot } from "./contracts.js";
-import { TypeSystem } from "./type-system.js";
+import { CONTEXT, TypeSystem } from "./type-system.js";
+import { isOperatorInvocation, readOperatorInvocation } from "./operator-invocation.js";
 
 export const insightSemanticTokenTypes = [
   "keyword",
@@ -140,6 +141,8 @@ function classifyTree(
   tokenNameResolver: TokenNameResolver,
   typeSystem: TypeSystem,
   classifications: Map<number, TokenClassification>,
+  ownerType = CONTEXT,
+  expectedType?: string,
 ): void {
   switch (ruleName(tree, ruleNames)) {
     case "defineTypeDeclaration":
@@ -165,14 +168,17 @@ function classifyTree(
       markFirstChildRule(tree, "extensionTargetReference", ruleNames, classifications, "variable");
       break;
     case "operatorInvocation":
-      markFirstChildRule(tree, "operatorIdentifier", ruleNames, classifications, "operator");
-      markFirstChildRule(tree, "identifierReference", ruleNames, classifications, "variable");
+      classifyInvocation(tree, ruleNames, classifications);
       break;
     case "namedList":
       markFirstChildRule(tree, "listName", ruleNames, classifications, "property", ["declaration"]);
       break;
     case "listValue":
-      markFirstChildRule(tree, "identifierReference", ruleNames, classifications, "variable");
+      if (isOperatorInvocation(tree, ruleNames, typeSystem, expectedType)) {
+        classifyInvocation(tree, ruleNames, classifications);
+      } else {
+        markFirstChildRule(tree, "identifierReference", ruleNames, classifications, "variable");
+      }
       break;
     case "typeConstructorDeclaration":
       markFirstChildRule(tree, "constructorName", ruleNames, classifications, "function", ["declaration"]);
@@ -211,9 +217,34 @@ function classifyTree(
       break;
   }
 
-  for (const child of childrenOf(tree)) {
-    classifyTree(child, ruleNames, tokenNameResolver, typeSystem, classifications);
+  const kind = ruleName(tree, ruleNames);
+  if (kind === "namedList") {
+    const name = firstChildByRule(tree, "listName", ruleNames);
+    const attribute = name === undefined ? undefined : typeSystem.attribute(ownerType, textOf(name));
+    expectedType = attribute === undefined ? undefined : typeSystem.nestedElementType(attribute);
+  } else if (kind === "objectDeclaration" || kind === "operatorInvocation") {
+    const invocation = readOperatorInvocation(tree, ruleNames);
+    const constructor = firstChildByRule(tree, "elementConstructor", ruleNames);
+    const constructedType = constructor === undefined ? undefined : typeSystem.findConstructor(textOf(constructor), expectedType)?.ownerType;
+    const operatorTypes = invocation === undefined ? [] : [...new Set(typeSystem.operatorConstructorsFrom(ownerType, expectedType)
+      .filter((operator) => operator.spelling === textOf(invocation.operator)).map((operator) => operator.ownerType))];
+    ownerType = operatorTypes.length === 1 ? operatorTypes[0]! : constructedType ?? ownerType;
+    expectedType = typeSystem.anonymousListAttribute(ownerType)?.listElementType;
   }
+  for (const child of childrenOf(tree)) {
+    classifyTree(child, ruleNames, tokenNameResolver, typeSystem, classifications, ownerType, expectedType);
+  }
+}
+
+function classifyInvocation(
+  tree: AntlrParseTreeLike,
+  ruleNames: readonly string[],
+  classifications: Map<number, TokenClassification>,
+): void {
+  const invocation = readOperatorInvocation(tree, ruleNames);
+  if (invocation === undefined) return;
+  markFirstTerminal(invocation.operator, classifications, "operator");
+  if (invocation.target !== undefined) markFirstTerminal(invocation.target, classifications, "variable");
 }
 
 function classifyObjectDeclaration(
@@ -232,8 +263,7 @@ function classifyObjectDeclaration(
 
   const constructor = firstChildByRule(tree, "elementConstructor", ruleNames);
   if (constructor !== undefined && typeSystem.hasOperatorConstructor(textOf(constructor))) {
-    markFirstTerminal(constructor, classifications, "operator");
-    markFirstChildRule(tree, "identifierDeclaration", ruleNames, classifications, "variable");
+    classifyInvocation(tree, ruleNames, classifications);
     return;
   }
 

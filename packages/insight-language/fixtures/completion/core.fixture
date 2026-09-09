@@ -62,7 +62,7 @@ ATTRIBUTE uses
 OPERATOR ->
 IDENTIFIER gg
 
-=== deployment block keeps deployment operators
+=== deployment block offers only operators compatible with DeploymentAction
 --- source
 context test
 
@@ -76,6 +76,11 @@ OPERATOR uses
 ATTRIBUTE runsOn
 ATTRIBUTE uses
 OPERATOR ->
+OPERATOR ~>
+OPERATOR connectTo
+OPERATOR replicateFrom
+KEYWORD source
+KEYWORD target
 
 === object body constructor prefix
 --- source

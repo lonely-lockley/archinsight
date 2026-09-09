@@ -128,7 +128,7 @@ The built-in synchronous `->` and asynchronous `~>` operators create `Wire` rela
 | `technology` | `Text` | No | `->`, `~>` | Protocol, transport, or integration technology when it is useful at this level. |
 | `description` | `Text` | No | `->`, `~>` | Human-readable meaning of the interaction. |
 | `model` | `WireModel` | Yes, provided by constructor | `->`, `~>` | Enum value identifying the relationship as `sync` or `async` for queries. The built-in constructor supplies it. |
-| `deployment` | `List of Edge` | No | `->`, `~>` | Deployment-specific relationships associated with the logical wire. |
+| `deployment` | `List of DeploymentAction` | No | `->`, `~>` | Deployment actions associated with the logical wire. |
 | `uses` | `List of NetworkConnection` | No | `->`, `~>` | Network capabilities used when the relationship is projected onto infrastructure. |
 | `call` | `Text` | No | `->` | Operation or interface invoked by a synchronous interaction. |
 | `via` | `Text` | No | `~>` | Topic, channel, queue, or route used by an asynchronous interaction. |

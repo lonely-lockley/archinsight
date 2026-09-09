@@ -27,6 +27,7 @@ import {
 } from "./document-aggregate.js";
 import { IndexedGraph } from "./indexed-graph.js";
 import { linkedEdgeId } from "./linked-edge-id.js";
+import { isOperatorInvocation, operatorInvocationDiagnostic, readOperatorInvocation } from "./operator-invocation.js";
 import { syntheticLinkedLocalId } from "./linked-identity.js";
 import { buildIndexedGraph } from "./linked-project-index.js";
 import { buildPresentationIndex } from "./presentation-resolver.js";
@@ -134,6 +135,7 @@ interface ParsedEdge {
   readonly sourceName: string;
   readonly source: string;
   readonly sourceType: string;
+  readonly expectedType?: string;
   readonly operator: string;
   readonly targetId: string;
   readonly targetLine: number;
@@ -167,6 +169,7 @@ interface ParsedDeploymentAction {
   readonly sourceName: string;
   readonly ownerId: string;
   readonly ownerType: string;
+  readonly expectedType: string;
   readonly operator: string;
   readonly targetId: string;
   readonly targetContext?: string;
@@ -217,9 +220,19 @@ interface MutableParsedDocument {
   readonly imports: ParsedImport[];
   readonly elements: ParsedElement[];
   readonly edges: ParsedEdge[];
+  readonly pendingInvocations: PendingListInvocation[];
   readonly extensions: ParsedExtension[];
   readonly diagnostics: LanguageDiagnostic[];
   readonly operatorImplementations: OperatorImplementationRegistry;
+}
+
+interface PendingListInvocation {
+  readonly node: RuleNode;
+  readonly owner: ParsedElement;
+  readonly ownerType: string;
+  readonly expectedType: string;
+  readonly annotations: readonly LinkedAnnotation[];
+  readonly deploymentActions: ParsedDeploymentAction[];
 }
 
 export interface ResolvedImport {
@@ -378,7 +391,9 @@ function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
   for (const element of documents.flatMap((document) => document.elements)) {
     indexElement(element, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
   }
+  collectPendingOperatorInvocations(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
   applyExtensions(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId, diagnostics);
+  collectPendingOperatorInvocations(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
   diagnostics.unshift(...documents.flatMap((document) => document.diagnostics));
   const elements = documents.flatMap((document) => document.elements);
   reportDuplicateElements(elementsByContextAndLocalId, diagnostics);
@@ -525,7 +540,7 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
       if (target === undefined) {
         continue;
       }
-      const operator = typeSystem.operatorConstructor(edge.operator, edge.sourceType, target.type);
+      const operator = typeSystem.operatorConstructor(edge.operator, edge.sourceType, target.type, edge.expectedType);
       if (operator === undefined) {
         const knownOperator = typeSystem.hasOperatorConstructor(edge.operator);
         diagnostics.push({
@@ -747,7 +762,7 @@ function parseDocument(
   source: string,
   typeSystem: TypeSystem,
   operatorImplementations: OperatorImplementationRegistry,
-): ParsedDocument {
+): MutableParsedDocument {
   const parsed = parseInsightSource({ sourceName, source });
   const diagnostics = [...parsed.diagnostics];
   const architecture = parsed.syntax.firstDescendant<RuleNode>("architectureFile");
@@ -774,6 +789,7 @@ function parseDocument(
     imports: [],
     elements: [],
     edges: [],
+    pendingInvocations: [],
     extensions: [],
     diagnostics,
     operatorImplementations,
@@ -1009,6 +1025,15 @@ function collectBodyItem(
   typeSystem: TypeSystem,
   expectedObjectType?: string,
 ): void {
+  const expectedType = expectedObjectType ?? typeSystem.anonymousListAttribute(ownerType)?.listElementType;
+  const annotatedInvocation = firstChild(item, "annotatedOperatorInvocation") ?? firstChild(item, "annotatedObjectDeclaration");
+  const invocationNode = annotatedInvocation === undefined ? undefined
+    : firstChild(annotatedInvocation, "operatorInvocation") ?? firstChild(annotatedInvocation, "objectDeclaration");
+  if (owner !== undefined && expectedType !== undefined && invocationNode !== undefined
+      && isOperatorInvocation(invocationNode, InsightParser.ruleNames, typeSystem, expectedType)
+      && collectListInvocation(invocationNode, owner, ownerType, expectedType, "_", annotations(annotatedInvocation!, document), document, typeSystem)) {
+    return;
+  }
   const assignment = firstChild(item, "assignment");
   if (assignment !== undefined) {
     if (owner !== undefined) {
@@ -1039,13 +1064,6 @@ function collectBodyItem(
   const annotatedObject = firstChild(item, "annotatedObjectDeclaration");
   if (annotatedObject !== undefined) {
     const object = firstChild(annotatedObject, "objectDeclaration");
-    if (object !== undefined && owner !== undefined && typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
-      const action = buildDeploymentActionFromObject(object, owner, owner.type, document, typeSystem);
-      if (action !== undefined) {
-        owner.deploymentActions.push(action);
-        return;
-      }
-    }
     if (object !== undefined) {
       const element = collectObject(
         object,
@@ -1065,11 +1083,6 @@ function collectBodyItem(
 
   const annotatedOperator = firstChild(item, "annotatedOperatorInvocation");
   if (annotatedOperator !== undefined && owner !== undefined) {
-    const invocation = firstChild(annotatedOperator, "operatorInvocation");
-    if (invocation !== undefined && typeSystem.typeHasCapability(ownerType, TYPE_CAPABILITIES.deploymentProfile)) {
-      collectDeploymentAction(invocation, owner, owner.type, document, typeSystem);
-      return;
-    }
     document.diagnostics.push({
       code: "TYPE_MISMATCH",
       message: "Operator invocation expects an Edge list",
@@ -1109,6 +1122,105 @@ function collectExtension(extension: RuleNode, document: MutableParsedDocument):
   });
 }
 
+function collectListInvocation(
+  node: RuleNode,
+  owner: ParsedElement,
+  ownerType: string,
+  expectedType: string,
+  attribute: string,
+  annotations: readonly LinkedAnnotation[],
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+  deploymentActions = owner.deploymentActions,
+  referenceAttributes = owner.attributes,
+): boolean {
+  if (!isOperatorInvocation(node, InsightParser.ruleNames, typeSystem, expectedType)) return false;
+  const invocation = readOperatorInvocation(node, InsightParser.ruleNames)!;
+  const diagnostic = operatorInvocationDiagnostic(invocation, ownerType, expectedType, typeSystem, document.sourceName);
+  if (diagnostic !== undefined) {
+    document.diagnostics.push(diagnostic);
+    return true;
+  }
+  if (typeSystem.isAssignable(expectedType, EDGE)) {
+    document.pendingInvocations.push({ node, owner, ownerType, expectedType, annotations, deploymentActions });
+  } else {
+    const element = collectObject(node, ownerType, owner, document, typeSystem, annotations, expectedType);
+    if (element !== undefined) addAttributeValue(referenceAttributes, attribute, elementReference(element));
+  }
+  return true;
+}
+
+// Resolve the same invocation after declarations and imports are available.
+// Its selected constructor determines execution and the type of its body.
+function collectPendingOperatorInvocations(
+  documents: readonly MutableParsedDocument[],
+  typeSystem: TypeSystem,
+  elementsByContextAndLocalId: Map<string, ParsedElement[]>,
+  sourceElementsBySourceAndLocalId: Map<string, ParsedElement>,
+): void {
+  let allowUnresolved = false;
+  while (documents.some((document) => document.pendingInvocations.length > 0)) {
+    const imports = new Map(resolveImports(documents, elementsByContextAndLocalId, [])
+      .map((item) => [`${item.sourceName}\0${item.alias}`, item]));
+    let progressed = false;
+    for (const document of documents) {
+      const pending = document.pendingInvocations.splice(0);
+      const elementCount = document.elements.length;
+      for (const item of pending) {
+        const invocation = readOperatorInvocation(item.node, InsightParser.ruleNames)!;
+        const targetContext = invocation.anonymousImport === undefined ? undefined
+          : firstChild(invocation.anonymousImport, "contextReference")?.getText();
+        const target = lookupElementReference(invocation.target!.getText(), targetContext, document.sourceName,
+          document.context.id, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, imports);
+        if (target === undefined && !allowUnresolved) {
+          document.pendingInvocations.push(item);
+          continue;
+        }
+        progressed = true;
+        const spelling = invocation.operator.getText();
+        const operator = target === undefined ? undefined
+          : typeSystem.operatorConstructor(spelling, item.ownerType, target.type, item.expectedType);
+        const candidates = operator === undefined
+          ? typeSystem.operatorConstructorsFrom(item.ownerType, item.expectedType).filter((candidate) => candidate.spelling === spelling)
+          : [operator];
+        const deployment = candidates.length > 0 && candidates.every((candidate) =>
+          typeSystem.operatorHasCapability(candidate, OPERATOR_CAPABILITIES.deploymentUse)
+            || typeSystem.operatorHasCapability(candidate, OPERATOR_CAPABILITIES.deploymentPlacement));
+        if (deployment) {
+          const action = buildDeploymentAction(item.node, item.owner, item.ownerType, item.expectedType, document, typeSystem);
+          if (action !== undefined) {
+            const next = item.deploymentActions.findIndex((previous) => previous.sourceName === action.sourceName
+              && (previous.line > action.line || previous.line === action.line && previous.column > action.column));
+            item.deploymentActions.splice(next < 0 ? item.deploymentActions.length : next, 0, action);
+          }
+        } else {
+          collectOperatorInvocation(item.node, item.owner, document, typeSystem, item.annotations,
+            item.expectedType, operator?.ownerType, item.ownerType);
+        }
+      }
+      for (const element of document.elements.slice(elementCount)) {
+        indexElement(element, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
+      }
+    }
+    allowUnresolved = !progressed;
+  }
+}
+
+function listItemDeclaration(item: RuleNode): RuleNode | undefined {
+  const body = firstChild(item, "architectureBodyItem");
+  const annotated = body === undefined ? undefined
+    : firstChild(body, "annotatedOperatorInvocation") ?? firstChild(body, "annotatedObjectDeclaration");
+  return firstChild(item, "listValue") ?? (annotated === undefined ? undefined
+    : firstChild(annotated, "operatorInvocation") ?? firstChild(annotated, "objectDeclaration"));
+}
+
+function listItemAnnotations(item: RuleNode, document: MutableParsedDocument): readonly LinkedAnnotation[] {
+  const body = firstChild(item, "architectureBodyItem");
+  const annotated = body === undefined ? undefined
+    : firstChild(body, "annotatedOperatorInvocation") ?? firstChild(body, "annotatedObjectDeclaration");
+  return annotated === undefined ? [] : annotations(annotated, document);
+}
+
 function collectNamedList(
   list: RuleNode,
   ownerType: string,
@@ -1118,11 +1230,6 @@ function collectNamedList(
 ): void {
   const listNameNode = firstChild(list, "listName");
   const listName = listNameNode?.getText() ?? "";
-  if (owner !== undefined
-      && typeSystem.attribute(ownerType, listName)?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true) {
-    collectDeploymentList(list, owner, owner.type, document, typeSystem);
-    return;
-  }
   if (collectImplicitObjectAttribute(list, listName, listNameNode, ownerType, owner, document, typeSystem)) {
     return;
   }
@@ -1142,6 +1249,13 @@ function collectNamedList(
     owner.referenceAttributePositions[listName] = position(listNameNode, document.sourceName);
   }
   for (const item of children(list, "listBodyItem")) {
+    const invocationNode = listItemDeclaration(item);
+    const expectedType = typeSystem.attribute(ownerType, listName)?.listElementType;
+    if (owner !== undefined && invocationNode !== undefined && expectedType !== undefined
+        && isOperatorInvocation(invocationNode, InsightParser.ruleNames, typeSystem, expectedType)
+        && collectListInvocation(invocationNode, owner, ownerType, expectedType, listName, listItemAnnotations(item, document), document, typeSystem)) {
+      continue;
+    }
     const value = firstChild(item, "listValue");
     if (value !== undefined && owner !== undefined) {
       addAttributeValue(owner.attributes, listName, referenceValue(value, document.sourceName));
@@ -1506,8 +1620,9 @@ function collectObject(
   annotations: readonly LinkedAnnotation[] = [],
   expectedType = expectedNestedType(typeSystem, parentType),
 ): ParsedElement | undefined {
-  const constructor = firstChild(object, "elementConstructor")?.getText() ?? "";
-  const identifierDeclaration = firstChild(object, "identifierDeclaration");
+  const syntax = readOperatorInvocation(object, InsightParser.ruleNames);
+  const constructor = firstChild(object, "elementConstructor")?.getText() ?? syntax?.operator.getText() ?? "";
+  const identifierDeclaration = firstChild(object, "identifierDeclaration") ?? syntax?.target;
   const declaredId = identifierDeclaration?.getText() ?? "";
   if (constructor.length === 0 || declaredId.length === 0) {
     return undefined;
@@ -1629,7 +1744,7 @@ function collectSlotOperatorObject(
         code: "ATTRIBUTE_NOT_DECLARED",
         message: `Slot '${slotName}' is not declared on type '${slotOperator.targetType}'`,
         sourceName: document.sourceName,
-        ...position(firstChild(object, "identifierDeclaration"), document.sourceName),
+        ...position(readOperatorInvocation(object, InsightParser.ruleNames)?.target, document.sourceName),
       });
       return undefined;
     }
@@ -1645,7 +1760,7 @@ function collectSlotOperatorObject(
     `slot:${constructor}:${slotName}`,
     parent?.id,
   );
-  const identifierDeclaration = firstChild(object, "identifierDeclaration");
+  const identifierDeclaration = readOperatorInvocation(object, InsightParser.ruleNames)?.target;
   const element: ParsedElement = {
     id: `${document.context.id}/${localId}`,
     context: document.context.id,
@@ -1705,8 +1820,15 @@ function collectOperatorInvocation(
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
   annotations: readonly LinkedAnnotation[] = [],
+  expectedType = EDGE,
+  resultType?: string,
+  ownerType = owner.type,
 ): void {
-  const targetReference = firstChild(invocation, "identifierReference");
+  const syntax = readOperatorInvocation(invocation, InsightParser.ruleNames);
+  const targetReference = syntax?.target;
+  if (targetReference === undefined) {
+    return;
+  }
   const targetId = targetReference?.getText() ?? "";
   const targetPosition = position(targetReference, document.sourceName);
   const anonymousImport = firstChild(invocation, "anonymousImportDeclaration");
@@ -1717,14 +1839,15 @@ function collectOperatorInvocation(
   const assignedScalarAttributes = new Set<string>();
   const deploymentActions: ParsedDeploymentAction[] = [];
   const body = firstChild(invocation, "objectBody");
-  const edgeOperator = firstChild(invocation, "operatorIdentifier")?.getText() ?? "";
+  const edgeOperator = syntax!.operator.getText();
   if (body !== undefined) {
-    collectReferenceAttributes(body, owner, edgeOperator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, deploymentActions, document, typeSystem);
+    collectReferenceAttributes(body, owner, edgeOperator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, deploymentActions, document, typeSystem, resultType);
   }
   document.edges.push({
     sourceName: document.sourceName,
     source: owner.id,
-    sourceType: owner.type,
+    sourceType: ownerType,
+    expectedType,
     operator: edgeOperator,
     targetId,
     targetLine: targetPosition.line,
@@ -1744,67 +1867,19 @@ function collectOperatorInvocation(
   });
 }
 
-function collectDeploymentList(
-  list: RuleNode,
-  owner: ParsedElement,
-  ownerType: string,
-  document: MutableParsedDocument,
-  typeSystem: TypeSystem,
-): void {
-  for (const item of children(list, "listBodyItem")) {
-    const value = firstChild(item, "listValue");
-    if (value !== undefined) {
-      document.diagnostics.push({
-        code: "TYPE_MISMATCH",
-        message: "Deployment list expects operator invocations such as 'uses <profile-or-infra>' or 'runsOn <infra>'",
-        sourceName: document.sourceName,
-        ...position(value, document.sourceName),
-      });
-      continue;
-    }
-    const bodyItem = firstChild(item, "architectureBodyItem");
-    const annotatedOperator = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedOperatorInvocation");
-    const invocation = annotatedOperator === undefined ? undefined : firstChild(annotatedOperator, "operatorInvocation");
-    if (invocation !== undefined) {
-      collectDeploymentAction(invocation, owner, ownerType, document, typeSystem);
-      continue;
-    }
-    const annotatedObject = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedObjectDeclaration");
-    const object = annotatedObject === undefined ? undefined : firstChild(annotatedObject, "objectDeclaration");
-    const action = object === undefined ? undefined : buildDeploymentActionFromObject(object, owner, ownerType, document, typeSystem);
-    if (action !== undefined) {
-      owner.deploymentActions.push(action);
-      continue;
-    }
-    if (bodyItem !== undefined && firstChild(bodyItem, "trivia") === undefined) {
-      document.diagnostics.push({
-        code: "TYPE_MISMATCH",
-        message: "Deployment list expects operator invocations",
-        sourceName: document.sourceName,
-        ...position(bodyItem, document.sourceName),
-      });
-    }
-  }
-}
-
-function collectDeploymentAction(
-  invocation: RuleNode,
-  owner: ParsedElement,
-  ownerType: string,
-  document: MutableParsedDocument,
-  typeSystem: TypeSystem,
-): void {
-  owner.deploymentActions.push(buildDeploymentAction(invocation, owner, ownerType, document, typeSystem));
-}
-
 function buildDeploymentAction(
   invocation: RuleNode,
   owner: ParsedElement,
   ownerType: string,
+  expectedType: string,
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
-): ParsedDeploymentAction {
-  const targetReference = firstChild(invocation, "identifierReference");
+): ParsedDeploymentAction | undefined {
+  const syntax = readOperatorInvocation(invocation, InsightParser.ruleNames);
+  const targetReference = syntax?.target;
+  if (targetReference === undefined) {
+    return;
+  }
   const targetPosition = position(targetReference, document.sourceName);
   const anonymousImport = firstChild(invocation, "anonymousImportDeclaration");
   const attributes: Record<string, ParsedAttributeValue[]> = {};
@@ -1813,7 +1888,7 @@ function buildDeploymentAction(
   const scalarAttributePositions: Record<string, SourcePosition> = {};
   const assignedScalarAttributes = new Set<string>();
   const body = firstChild(invocation, "objectBody");
-  const operator = firstChild(invocation, "operatorIdentifier")?.getText() ?? "";
+  const operator = syntax!.operator.getText();
   if (body !== undefined) {
     collectDeploymentActionAttributes(body, owner, operator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, document, typeSystem);
   }
@@ -1821,6 +1896,7 @@ function buildDeploymentAction(
     sourceName: document.sourceName,
     ownerId: owner.id,
     ownerType,
+    expectedType,
     operator,
     targetId: targetReference?.getText() ?? "",
     ...(anonymousImport === undefined ? {} : { targetContext: firstChild(anonymousImport, "contextReference")?.getText() ?? "" }),
@@ -1837,74 +1913,18 @@ function buildDeploymentAction(
   };
 }
 
-function buildDeploymentActionFromObject(
-  object: RuleNode,
-  owner: ParsedElement,
-  ownerType: string,
-  document: MutableParsedDocument,
-  typeSystem: TypeSystem,
-): ParsedDeploymentAction | undefined {
-  const prefixOperatorNode = firstChild(object, "namedPrefixOperatorInvocation");
-  const prefixedOperator = prefixOperatorNode?.getText();
-  const operatorNode = prefixedOperator === undefined
-    ? firstChild(object, "elementConstructor")
-    : prefixOperatorNode;
-  const operator = operatorNode?.getText() ?? "";
-  if (!operatorHasDeploymentCapability(typeSystem, ownerType, operator)) {
-    return undefined;
-  }
-  const targetReference = prefixedOperator === undefined
-    ? firstChild(object, "identifierDeclaration")
-    : firstChild(object, "elementConstructor");
-  const targetPosition = position(targetReference, document.sourceName);
-  const attributes: Record<string, ParsedAttributeValue[]> = {};
-  const referenceAttributePositions: Record<string, SourcePosition> = {};
-  const scalarAttributes: Record<string, string> = {};
-  const scalarAttributePositions: Record<string, SourcePosition> = {};
-  const assignedScalarAttributes = new Set<string>();
-  const body = firstChild(object, "objectBody");
-  if (body !== undefined) {
-    collectDeploymentActionAttributes(body, owner, operator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, document, typeSystem);
-  }
-  return {
-    sourceName: document.sourceName,
-    ownerId: owner.id,
-    ownerType,
-    operator,
-    targetId: targetReference?.getText() ?? "",
-    targetLine: targetPosition.line,
-    targetColumn: targetPosition.column,
-    ...(targetPosition.endLine === undefined ? {} : { targetEndLine: targetPosition.endLine }),
-    ...(targetPosition.endColumn === undefined ? {} : { targetEndColumn: targetPosition.endColumn }),
-    attributes,
-    referenceAttributePositions,
-    scalarAttributes,
-    scalarAttributePositions,
-    assignedScalarAttributes,
-    ...position(object, document.sourceName),
-  };
-}
-
-function operatorHasDeploymentCapability(
+function deploymentOperatorCandidates(
   typeSystem: TypeSystem,
   ownerType: string,
   spelling: string,
-): boolean {
-  return typeSystem.operatorConstructorsFrom(ownerType)
-    .filter((operator) => operator.spelling === spelling)
-    .some((operator) => typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse)
-      || typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
-}
-
-function deploymentOperator(
-  typeSystem: TypeSystem,
-  ownerType: string,
-  spelling: string,
-  targetType?: string,
-): OperatorDefinition | undefined {
-  return targetType === undefined
-    ? typeSystem.operatorConstructorsFrom(ownerType).find((operator) => operator.spelling === spelling)
-    : typeSystem.operatorConstructor(spelling, ownerType, targetType);
+  expectedType: string,
+  targetTypes: readonly string[],
+): readonly OperatorDefinition[] {
+  if (targetTypes.length === 0) {
+    return typeSystem.operatorConstructorsFrom(ownerType, expectedType).filter((operator) => operator.spelling === spelling);
+  }
+  const selected = targetTypes.map((type) => typeSystem.operatorConstructor(spelling, ownerType, type, expectedType));
+  return selected.every((operator): operator is OperatorDefinition => operator !== undefined) ? unique(selected) : [];
 }
 
 function collectDeploymentActionAttributes(
@@ -1956,6 +1976,7 @@ function collectReferenceAttributes(
   deploymentActions: ParsedDeploymentAction[],
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
+  resultType?: string,
 ): void {
   for (const item of children(body, "architectureBodyItem")) {
     const assignment = firstChild(item, "assignment");
@@ -1969,48 +1990,29 @@ function collectReferenceAttributes(
     }
     const listNameNode = firstChild(list, "listName");
     const listName = listNameNode?.getText() ?? "";
-    const deploymentOwnerTypes = unique(typeSystem.operatorConstructorsFrom(owner.type)
+    const attributeOwnerTypes = resultType === undefined ? unique(typeSystem.operatorConstructorsFrom(owner.type)
       .filter((operator) => operator.spelling === edgeOperator)
-      .filter((operator) => typeSystem.attribute(operator.ownerType, listName)
-        ?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.deploymentActions) === true)
-      .map((operator) => operator.ownerType));
-    if (deploymentOwnerTypes.length > 0) {
-      for (const listItem of children(list, "listBodyItem")) {
-        const bodyItem = firstChild(listItem, "architectureBodyItem");
-        const annotatedOperator = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedOperatorInvocation");
-        const invocation = annotatedOperator === undefined ? undefined : firstChild(annotatedOperator, "operatorInvocation");
-        if (invocation !== undefined) {
-          deploymentActions.push(buildDeploymentAction(invocation, owner, deploymentOwnerTypes[0]!, document, typeSystem));
-          continue;
-        }
-        const annotatedObject = bodyItem === undefined ? undefined : firstChild(bodyItem, "annotatedObjectDeclaration");
-        const object = annotatedObject === undefined ? undefined : firstChild(annotatedObject, "objectDeclaration");
-        const action = object === undefined
-          ? undefined
-          : deploymentOwnerTypes
-            .map((ownerType) => buildDeploymentActionFromObject(object, owner, ownerType, document, typeSystem))
-            .find((candidate) => candidate !== undefined);
-        if (action !== undefined) {
-          deploymentActions.push(action);
-          continue;
-        }
-        const value = firstChild(listItem, "listValue");
-        if (value !== undefined) {
-          document.diagnostics.push({
-            code: "TYPE_MISMATCH",
-            message: "Relationship deployment list expects operator invocations",
-            sourceName: document.sourceName,
-            ...position(value, document.sourceName),
-          });
-        }
-      }
-      continue;
-    }
-    if (collectImplicitReferenceObjectAttribute(list, listName, listNameNode, owner, edgeOperator, attributes, referenceAttributePositions, document, typeSystem)) {
+      .map((operator) => operator.ownerType)
+      .filter((type) => typeSystem.attribute(type, listName) !== undefined)) : [resultType];
+    if (collectImplicitReferenceObjectAttribute(list, listName, listNameNode, owner, edgeOperator, attributes, referenceAttributePositions, document, typeSystem, resultType)) {
       continue;
     }
     referenceAttributePositions[listName] = position(listNameNode, document.sourceName);
     for (const listItem of children(list, "listBodyItem")) {
+      const node = listItemDeclaration(listItem);
+      if (node !== undefined) {
+        const candidates = attributeOwnerTypes.filter((type) => {
+          const expectedType = typeSystem.attribute(type, listName)?.listElementType;
+          return expectedType !== undefined && isOperatorInvocation(node, InsightParser.ruleNames, typeSystem, expectedType);
+        });
+        const invocationOwner = typeSystem.commonBaseType(candidates);
+        const expectedType = invocationOwner === undefined ? undefined : typeSystem.attribute(invocationOwner, listName)?.listElementType;
+        if (invocationOwner !== undefined && expectedType !== undefined
+            && collectListInvocation(node, owner, invocationOwner, expectedType, listName, listItemAnnotations(listItem, document), document, typeSystem, deploymentActions, attributes)) {
+          continue;
+        }
+      }
+
       const value = firstChild(listItem, "listValue");
       if (value !== undefined) {
         addAttributeValue(attributes, listName, referenceValue(value, document.sourceName));
@@ -2041,6 +2043,7 @@ function collectImplicitReferenceObjectAttribute(
   referenceAttributePositions: Record<string, SourcePosition>,
   document: MutableParsedDocument,
   typeSystem: TypeSystem,
+  resultType?: string,
 ): boolean {
   if (attributeName.length === 0 || namedListHasDirectValue(list)) {
     return false;
@@ -2048,6 +2051,7 @@ function collectImplicitReferenceObjectAttribute(
   const attributeTypes = unique([
     ...typeSystem.operatorConstructorsFrom(owner.type)
       .filter((operator) => operator.spelling === edgeOperator)
+      .filter((operator) => resultType === undefined || operator.ownerType === resultType)
       .flatMap((operator) => {
         const attribute = typeSystem.attribute(operator.ownerType, attributeName);
         return attribute !== undefined && attribute.list !== true && typeSystem.isObjectAttribute(attribute)
@@ -2592,14 +2596,14 @@ function applyDeploymentAction(
     context.elementsByContextAndLocalId,
     context.importsBySourceAndAlias,
   );
-  const operator = deploymentOperator(context.typeSystem, action.ownerType, action.operator, target?.type)
-    ?? (action.ownerType === owner.type
-      ? undefined
-      : deploymentOperator(context.typeSystem, owner.type, action.operator, target?.type));
-  const isUse = operator !== undefined
-    && context.typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse);
-  const isPlacement = operator !== undefined
-    && context.typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement);
+  const targetTypes = target !== undefined ? [target.type] : unique(resolutionDeployments
+    .flatMap((deployment) => deploymentSlotValues(deployment, action.targetId, context))
+    .flatMap((value) => value.element === undefined ? [] : [value.element.type]));
+  const candidates = deploymentOperatorCandidates(context.typeSystem, action.ownerType, action.operator, action.expectedType, targetTypes);
+  const isUse = candidates.length > 0
+    && candidates.every((operator) => context.typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentUse));
+  const isPlacement = candidates.length > 0
+    && candidates.every((operator) => context.typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentPlacement));
   if (isUse && target !== undefined
       && context.typeSystem.typeHasCapability(target.type, TYPE_CAPABILITIES.deploymentProfile)) {
     if (wire) {
@@ -2617,7 +2621,9 @@ function applyDeploymentAction(
   if (!isUse && !isPlacement) {
     context.diagnostics.push({
       code: "TYPE_MISMATCH",
-      message: `Operator '${action.operator}' does not declare a deployment capability`,
+      message: targetTypes.length > 0
+        ? `Operator '${action.operator}' cannot be applied from '${action.ownerType}' to '${targetTypes.join("' or '")}'`
+        : `Operator '${action.operator}' has incompatible deployment capabilities`,
       sourceName: action.sourceName,
       ...diagnosticPosition(action),
     });
@@ -4446,12 +4452,13 @@ function position(node: unknown, _sourceName: string): SourcePosition {
 }
 
 function operatorInvocationHeaderPosition(invocation: RuleNode, sourceName: string): SourcePosition {
-  const start = position(firstChild(invocation, "operatorIdentifier") ?? invocation, sourceName);
+  const syntax = readOperatorInvocation(invocation, InsightParser.ruleNames);
+  const start = position(syntax?.operator ?? invocation, sourceName);
   const end = position(
     firstChild(invocation, "note")
-      ?? firstChild(invocation, "anonymousImportDeclaration")
-      ?? firstChild(invocation, "identifierReference")
-      ?? firstChild(invocation, "operatorIdentifier")
+      ?? syntax?.anonymousImport
+      ?? syntax?.target
+      ?? syntax?.operator
       ?? invocation,
     sourceName,
   );

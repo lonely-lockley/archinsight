@@ -29,9 +29,10 @@ const registry = coreOperatorImplementationRegistry.with(customImplementationId,
 assert.equal(coreOperatorImplementationRegistry.resolve(customImplementationId), undefined,
   "extending a registry must not mutate the shared core registry");
 
+for (const spelling of ["@>", "auditLink"]) {
 const snapshot = buildLanguageSnapshotResultFromSources([source("audited-wire.ai", `
 define operator AuditedWire of Wire
-    constructor @> Element
+    constructor ${spelling} Element
         on Element
         model = sync
 
@@ -44,7 +45,7 @@ context shared
 system caller
     name = Caller
     links:
-        @> target
+        ${spelling} target
 
 system target
     name = Target
@@ -64,6 +65,7 @@ assertNoErrors(update.result);
 assert.deepEqual(update.result.edges[0]?.attributes.audited, ["true"],
   "forked incremental states must retain the same immutable registry");
 assert.deepEqual(state.result().elements.find((element) => element.id === "shared/caller")?.attributes.name, ["Caller"]);
+}
 
 console.log("operator implementation registry contracts passed");
 
