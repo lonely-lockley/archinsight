@@ -31,7 +31,7 @@ const types = new TypeSystem(snapshot);
 for (const [owner, attribute, expected] of [
   ["System", "links", "Wire"], ["Service", "links", "Wire"],
   ["InfrastructureComponent", "projection", "PhysicalWire"],
-  ["Element", "deployment", "DeploymentAction"], ["Wire", "deployment", "DeploymentAction"],
+  ["System", "deployment", "DeploymentAction"], ["ContainerElement", "deployment", "DeploymentAction"], ["Wire", "deployment", "DeploymentAction"],
   ["DeploymentProfile", "_", "DeploymentAction"], ["System", "actions", "Edge"],
 ]) {
   assert.equal(types.attribute(owner, attribute)?.listElementType, expected);

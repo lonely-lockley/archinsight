@@ -49,6 +49,9 @@ define abstract type WorkloadFamily of BoundaryElement
 
     Text name
 
+    List of DeploymentAction deployment
+        capability = "deployment-actions"
+
 define type PrimaryWorkload of WorkloadFamily
     constructor primaryWorkload
 

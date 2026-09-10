@@ -56,7 +56,7 @@ C4 query.
 `core_deployment.ai` provides common infrastructure inventory types:
 
 - `InfrastructureComponent`: optional `name`, `technology`,
-  `description`, plus deployment references.
+  `description`, a `runsOn:` infrastructure reference, and projection rules.
 - `Storage` / constructor `storage`: for databases, buckets, volumes, and
   other stateful stores.
 - `Broker` / constructor `broker`: a `NetworkConnection` specialization
@@ -78,6 +78,10 @@ names used by an environment's deployments.
 Each environment source has one `environment <id>` header. Top-level
 `deployment` declarations following that header are owned by the environment,
 and each deployment fills the chosen slot contract with concrete instances.
+
+The named `deployment` action list belongs to `System`, `ContainerElement`,
+`Wire`, and their descendants. Components and code deploy as part of their
+container. Deployment profiles declare actions directly in their body.
 
 The `runsOn` attribute on `InfrastructureComponent` points to one named
 infrastructure instance. The target cannot be anonymous. By contrast,

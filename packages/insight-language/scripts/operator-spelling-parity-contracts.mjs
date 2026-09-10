@@ -139,7 +139,7 @@ define operator OtherSlot of TypeSlotReference
       [{ code: "IDENTIFIER_REQUIRED", message: "Target identifier is required" }]);
     const edited = header + indent + operator + " ";
     const labels = completion.complete({ ...model, source: edited, cursorOffset: edited.length, snapshot: built.snapshot }).items.map(({ label }) => label);
-    assert.deepEqual(labels.sort(), ["deployment", "primary", "secondary"]);
+    assert.deepEqual(labels.sort(), ["primary", "secondary"]);
     const tokens = semanticHighlightInsight(model.source, built.snapshot);
     assert.equal(tokens.find(({ line, column }) => line === header.split("\n").length - 1 && column === indent.length)?.type, "operator");
     const invalid = source(model.sourceName, header + indent + operator + " absent\n");

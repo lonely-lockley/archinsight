@@ -750,7 +750,7 @@ deploymentProfile regional
   for (const expected of ["appliesTo", "uses", "runsOn"]) {
     assert(newProfileBody.has(expected), `${expected} missing from ${[...newProfileBody].join(", ")}`);
   }
-  assert.deepEqual([...newProfileBody].sort(), ["@deprecated", "@planned", "appliesTo", "deployment", "runsOn", "uses"]);
+  assert.deepEqual([...newProfileBody].sort(), ["@deprecated", "@planned", "appliesTo", "runsOn", "uses"]);
 
   const actionBody = itemLabels(completeAtMarker(`
 context app
@@ -760,7 +760,7 @@ deploymentProfile regional
         production from eu
     __CURSOR__
 `, options));
-  assert.deepEqual([...actionBody].sort(), ["@deprecated", "@planned", "deployment", "runsOn", "uses"]);
+  assert.deepEqual([...actionBody].sort(), ["@deprecated", "@planned", "runsOn", "uses"]);
 
   const memberIds = itemLabels(completeAtMarker(`
 context app
@@ -803,7 +803,6 @@ deploymentProfile regional
     "database",
     "internalNetwork",
     "publicGateway",
-    "regional",
   ]);
 
   const placementTargets = itemLabels(completeAtMarker(`
@@ -877,7 +876,7 @@ context app
 rolloutPolicy current
     __CURSOR__
 `, options));
-  assert.deepEqual([...bodyItems].sort(), ["@deprecated", "@planned", "assignHost", "deployment", "drafts", "members"]);
+  assert.deepEqual([...bodyItems].sort(), ["@deprecated", "@planned", "assignHost", "drafts", "members"]);
 
   const referenceItems = itemLabels(completeAtMarker(`
 context app

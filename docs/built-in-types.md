@@ -183,7 +183,7 @@ service catalog
 
 ### Deployment
 
-`DeploymentElement` is the abstract boundary-level base for deployment concepts. The deployment library also extends every `Element` with attributes for deployment references, runtime placement, and infrastructure usage. Logical systems, containers, services, and components can therefore be connected to their physical realization without changing their logical type.
+`DeploymentElement` is the abstract boundary-level base for deployment concepts. The deployment library adds a `deployment` action list to `System` and `ContainerElement`, inherited by their descendants (including containers and services). `Wire` has its own deployment action list for network usage. Components and code elements are deployed as part of their containing container. Actors, profiles, environments, and infrastructure do not have this named list.
 
 `Environment` represents a deployment scope such as a region, account, cluster estate, or operational environment. It has a name and optional region and owns deployment elements. Projects commonly derive an organization-specific environment type and add typed infrastructure slots such as compute, storage, gateways, or brokers.
 
@@ -270,7 +270,7 @@ service order_fulfillment
 
 `PhysicalWire` is the base for relationships produced by deployment projection. `ConnectTo` represents a physical connection, `ReplicateFrom` represents replication, and `OriginalLink` preserves the logical relationship inside an expanded physical path. These edge types let a deployment view show how one logical wire is realized through gateways, brokers, storage, and network components.
 
-`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates an element with a deployment profile through `uses`. `InfrastructureUse` records infrastructure or network capabilities required by an element, profile, or logical wire. `InfrastructurePlacement` places an element or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
+`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates a system or container with a deployment profile through `uses`. `InfrastructureUse` records infrastructure required by a system, container, or profile; on a logical wire, it accepts only `NetworkConnection` targets. `InfrastructurePlacement` places a system, container, or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
 
 Core lists accept these families separately: `links` expects `Wire`,
 `projection` expects `PhysicalWire`, and `deployment` expects `DeploymentAction`.
