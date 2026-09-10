@@ -222,6 +222,14 @@ systems in C1. Once a dependency is expressed at C2, remove an equivalent C1
 wire so the most precise declaration remains authoritative and the rollup does
 not compete with a broad duplicate.
 
+## Deployment Boundary
+
+`ContainerElement` declares the `deployment` action list inherited by containers
+and services. Use `uses <profile>`, `runsOn <infrastructure>`, or
+`uses <infrastructure>` inside that list. `System` declares the list separately;
+components and code deploy as part of the container and have no core placement
+actions of their own. Read [Deployment](deployment.md) for profiles and paths.
+
 ## What Not To Put In C2
 
 - Components, classes, handlers, repositories, or UI widgets.

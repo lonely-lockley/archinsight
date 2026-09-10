@@ -99,3 +99,5 @@ archinsight render . -s <code-source.ai> -v c4 -f svg -o code.svg
 Use the self-contained `examples/c4-code` project when the syntax for a code
 framework or model is unclear. Deployment is a separate view family selected
 with `--view deployment-system` or `--view deployment-container`; never use C4 as an alias for Deployment.
+Code elements deploy with their containing container and cannot own a built-in
+`deployment` action list or core `runsOn` / `uses` actions.

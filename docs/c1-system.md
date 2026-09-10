@@ -117,7 +117,10 @@ The context identifier is written after the `context` keyword and provides its s
 | `technology` | `Text` | No | Main technology or platform when it is meaningful at system level. |
 | `description` | `Text` | No | Describes the system's responsibility and place in the architecture. |
 | `links` | `List of Wire` | No | Outgoing high-level dependencies owned by the system. |
+| `deployment` | `List of DeploymentAction` | No | Profile selection, runtime placement, and infrastructure usage actions. |
 | `_` | `List of Container` | No | Anonymous list of the system's containers and services, shown on C2 and more detailed views. |
+
+`deployment` belongs to `System`, not the shared `SystemElement` base. Actors have no placement action list, but their wires can select network infrastructure. See [Deployment](deployment.md) for the allowed actions.
 
 ## C1 relationship attributes
 

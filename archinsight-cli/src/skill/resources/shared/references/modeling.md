@@ -128,6 +128,12 @@ deployment modeling while peripheral systems stay pragmatic in C2. Starting
 cheap is acceptable, but upgrading mixed C2 infrastructure into explicit
 deployment modeling is a migration, not just an extra attribute.
 
+Attach core deployment actions to systems and containers, including services.
+Components and code deploy as part of the container; represent independently
+deployed responsibilities as separate C2 units. Profiles declare their
+infrastructure actions directly in the body, while wires select network paths
+in their own `deployment:` list.
+
 ## Eventing
 
 Use `~>` for asynchronous relationships. Model one async wire per meaningful

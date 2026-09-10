@@ -131,13 +131,13 @@ The C2 vocabulary contains one abstract type and two concrete types at the same 
 
 ### Deployment attributes inherited by C2 elements
 
-All `Element` descendants receive the built-in deployment attributes, so they are available on both containers and services.
+`ContainerElement` declares the `deployment` action list, inherited by `Container`, `Service`, and project-defined descendants. `System` declares the same list separately. Components and code deploy as part of the container and have no built-in deployment action list.
 
 | Name | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `deployment` | `List of DeploymentAction` | No | Deployment actions, commonly the selection of a `DeploymentProfile` through `uses`. |
-| `runsOn` | `InfrastructureComponent` | No | Infrastructure that hosts the deployed element. |
-| `uses` | `List of InfrastructureComponent` | No | Storage, brokers, network resources, or other infrastructure required by the element. |
+
+Write `runsOn <infrastructure>` and `uses <infrastructure-or-profile>` as actions inside `deployment:`. After linking, queries can read the resolved `runsOn` and `uses` infrastructure references; these computed values are not separately declared source attributes on containers or services.
 
 ### C2 relationship attributes
 

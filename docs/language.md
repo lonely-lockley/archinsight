@@ -466,8 +466,8 @@ completion candidates.
 
 The named `deployment` list is available on `System`, `ContainerElement`,
 `Wire`, and their descendants. Core `runsOn` and infrastructure `uses` actions
-accept systems, containers, and deployment profiles; profile `uses` accepts
-only systems and containers. Wires can use network connections. Profiles
+accept systems, containers, and deployment profiles as owners. Only systems
+and containers can select a profile through `uses <profile>`. Wires can use network connections. Profiles
 declare actions directly in their anonymous body. The separate `runsOn:`
 reference attribute on infrastructure remains available.
 

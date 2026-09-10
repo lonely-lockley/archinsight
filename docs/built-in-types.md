@@ -212,7 +212,7 @@ The core library provides several specialized infrastructure types:
 - `NetworkConnection` represents infrastructure that can project a logical relationship into a physical route. The base type remains hidden from the default rendered diagram.
 - `Broker` specializes `NetworkConnection` for message brokers and event infrastructure, adds an optional address, and is visible when its projection places it on a physical path. Project-specific broker types should derive from `Broker`.
 
-`DeploymentProfile` maps logical elements to one or more concrete deployments through its required `appliesTo` list. Reusable `runsOn` and `uses` invocations describe the environment capabilities required by the mapped element. The profile supplies deployment instructions and is hidden by its default presentation.
+`DeploymentProfile` maps systems and containers to one or more concrete deployments through its required `appliesTo` list. Reusable `runsOn` and `uses` invocations describe the environment capabilities required by the mapped element. The profile supplies deployment instructions and is hidden by its default presentation.
 
 `ProjectionTerm`, `SourceProjectionTerm`, and `TargetProjectionTerm` describe the steps used to turn a logical dependency into a physical path. They can refer to the logical endpoints, the current infrastructure component, its attributes, or a slot supplied by the environment. These terms guide projection and are not rendered as architecture elements.
 

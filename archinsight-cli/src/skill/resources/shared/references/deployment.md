@@ -54,7 +54,7 @@ There are four distinct concepts:
    `production`.
 2. A concrete `Deployment` fills infrastructure slots defined by the
    environment type.
-3. A context-owned `DeploymentProfile` maps logical elements to concrete
+3. A context-owned `DeploymentProfile` maps systems and containers to concrete
    deployments with `appliesTo` and supplies reusable `runsOn` / `uses`
    actions.
 4. A logical wire uses only a `NetworkConnection` slot. The linker resolves
@@ -194,13 +194,16 @@ deploymentProfile test_service
 ```
 
 `appliesTo` is required and contains `Deployment` references, not environment
-references. The full identity is the pair of environment context and deployment
-id. Therefore `production from eu` and `test from eu` are different targets.
+references. `Environment` and `Context` are distinct roots. A deployment is
+identified by its environment namespace and deployment id. Therefore `production from eu` and `test from eu` are different targets.
 Repeating the same resolved deployment in one profile produces a
 `DEPLOYMENT_PROFILE_MEMBER_DUPLICATE` warning on the repeated entry, including
 when an alias and an inline reference resolve to the same target.
 
-Apply profiles only to logical elements:
+Write profile actions directly in the profile body. A profile has no named
+`deployment:` block and cannot select another profile through `uses`.
+
+Apply profiles only to systems and containers (including services):
 
 ```insight
 service checkout
@@ -208,6 +211,17 @@ service checkout
     deployment:
         uses production_service
 ```
+
+The named `deployment` list is declared on `System` and `ContainerElement`
+and inherited by their descendants. `Wire` has its own list for network usage.
+`Element` and `SystemElement` do not declare this list; actors, components, code,
+profiles, environments, and infrastructure do not inherit it.
+
+Systems and containers can also write `runsOn <infrastructure>` or
+`uses <infrastructure>` inside `deployment:` to address concrete visible
+instances. The linker exposes the resulting `runsOn` and `uses` references to
+queries; those computed values are not separate source attributes on logical
+elements. Infrastructure retains its distinct `runsOn:` reference attribute.
 
 Several profiles may be applied to one element only when their concrete
 deployment sets are disjoint. Applying two profiles that both contain
@@ -257,9 +271,13 @@ This makes public exposure deployment-specific. A logical user-to-service link
 can project through `publicGateway` in production and have no physical ingress
 path in test without creating a fake wire profile.
 
-Components inherit effective deployments from their nearest deployed logical
-ancestor, normally a container or service. Put profiles on independently
-deployable C2 elements unless a C3 component truly has distinct placement.
+Components and code use the effective deployment scope of their containing
+container or service. They cannot own core deployment actions. Model an
+independently deployed responsibility as a separate C2 container or service.
+For older models, move component or code deployment blocks to the container;
+move profile actions from a named `deployment:` block into the profile body.
+Custom vocabularies may explicitly declare their own action lists and
+compatible custom operators.
 
 Deployment completeness checks become active only after the project starts
 using the corresponding feature. Once a deployment-relevant wire has a `deployment`

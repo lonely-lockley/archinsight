@@ -292,6 +292,15 @@ C2 and, when it crosses system boundaries, to its owning systems at C1. Remove
 equivalent broader wires after the C3 relationship becomes the authoritative
 declaration. Keep a broader wire only when it describes a different interaction.
 
+## Deployment Boundary
+
+Components and code deploy as part of their containing container or service.
+They have no built-in `deployment` action list and cannot own core `runsOn` or
+`uses` actions. Move placement and profile selection to the container. Model
+an independently deployed responsibility as a separate C2 container or service.
+Component wires retain their own `deployment:` list for network paths; an
+internal relationship within one container needs no physical projection.
+
 ## Common C3 Mistakes
 
 - Writing C3 components under a `system` instead of under a container/service

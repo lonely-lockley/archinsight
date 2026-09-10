@@ -81,7 +81,12 @@ and each deployment fills the chosen slot contract with concrete instances.
 
 The named `deployment` action list belongs to `System`, `ContainerElement`,
 `Wire`, and their descendants. Components and code deploy as part of their
-container. Deployment profiles declare actions directly in their body.
+container. Actors, components, code, profiles, environments, and infrastructure
+do not inherit this list from `Element`. Deployment profiles declare actions
+directly in their body and cannot select another profile through `uses`.
+`runsOn` and infrastructure `uses` accept systems, containers, and profiles;
+`uses <profile>` accepts only systems and containers. Wire actions accept only
+`uses` of `NetworkConnection` descendants.
 
 The `runsOn` attribute on `InfrastructureComponent` points to one named
 infrastructure instance. The target cannot be anonymous. By contrast,
