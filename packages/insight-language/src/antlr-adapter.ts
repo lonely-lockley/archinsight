@@ -56,6 +56,7 @@ export interface AntlrAdapterInput {
   readonly indexedIdentifiers?: ReadonlyMap<string, VisibleIdentifier>;
   readonly contextualIdentifiers?: readonly ContextualIdentifier[];
   readonly contextIds?: readonly string[];
+  readonly rootTypes?: ReadonlyMap<string, string>;
 }
 
 export type AntlrParseFunction = (request: CompletionRequest) => AntlrAdapterInput;
@@ -201,11 +202,12 @@ function createCompletionScope(
 ): CompletionScope {
   const typeSystem = new TypeSystem(snapshot);
   const visibleIdentifiers = new Map(input.indexedIdentifiers ?? []);
-  const visibleContexts = new Set(input.contextIds ?? []);
+  const rootTypes = new Map(input.rootTypes ?? []);
+  const visibleContexts = new Set([...(input.contextIds ?? []), ...rootTypes.keys()]);
   const visibleTypes = new Set<string>();
   collectImportAliases(input.tokens, input.tokenName, visibleIdentifiers);
   collectElementDeclarations(input.tokens, input.tokenName, typeSystem, visibleIdentifiers);
-  collectContextDeclarations(input.tokens, input.tokenName, visibleContexts);
+  collectContextDeclarations(input.tokens, input.tokenName, visibleContexts, rootTypes, typeSystem);
   collectTypeDeclarations(input.tokens, input.tokenName, visibleTypes);
 
   const state: FileContextState = {
@@ -249,6 +251,7 @@ function createCompletionScope(
       );
       const environmentType = documentAggregateType;
       if (environmentName !== undefined && environmentType !== undefined) {
+        rootTypes.set(textOf(environmentName), environmentType);
         state.visibleIdentifiers.set(textOf(environmentName), {
           label: textOf(environmentName),
           type: environmentType,
@@ -305,6 +308,7 @@ function createCompletionScope(
     mode: inferCompletionMode(syntax, input.tree, input.ruleNames, state),
     ...(state.contextId === undefined ? {} : { contextId: state.contextId }),
     visibleContexts,
+    rootTypes,
     visibleTypes,
     visibleIdentifiers,
     contextualIdentifiers: input.contextualIdentifiers ?? [],
@@ -500,6 +504,8 @@ function collectContextDeclarations(
   tokens: readonly AntlrTokenLike[],
   tokenNameResolver: TokenNameResolver,
   contexts: Set<string>,
+  rootTypes: Map<string, string>,
+  typeSystem: TypeSystem,
 ): void {
   for (let index = 0; index + 1 < tokens.length; index++) {
     const token = tokens[index];
@@ -511,6 +517,10 @@ function collectContextDeclarations(
       continue;
     }
     contexts.add(tokenText(id));
+    const type = tokenName(tokenNameResolver, tokenType(token)) === "CONTEXT"
+      ? CONTEXT
+      : typeSystem.findConstructor(tokenText(token), NOTHING)?.ownerType;
+    if (type !== undefined) rootTypes.set(tokenText(id), type);
   }
 }
 

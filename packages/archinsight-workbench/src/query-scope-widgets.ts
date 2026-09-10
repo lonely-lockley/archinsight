@@ -3,7 +3,7 @@ import { queryVariableOccurrences } from '@insight/language';
 import './query-scope-widgets.css';
 
 export type QueryScopeVariable = 'tab' | 'context';
-export type QueryScopeChoice = { readonly value: string; readonly label: string };
+export type QueryScopeChoice = { readonly value: string; readonly label: string; readonly typeName?: string };
 export type QueryScopeWidgetState = {
   readonly enabled: boolean;
   readonly tab?: string;
@@ -52,10 +52,23 @@ export function createQueryScopeWidgets(
     list.setAttribute('aria-label', variable === 'tab' ? 'Source files' : 'Contexts');
     const renderOptions = (): void => {
       list.replaceChildren();
-      for (const choice of choices.filter((item) => item.label.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase()))) {
+      const search = filter.value.toLocaleLowerCase();
+      for (const choice of choices.filter((item) => `${item.label} ${item.typeName ?? ''}`.toLocaleLowerCase().includes(search))) {
         const option = document.createElement('button');
         option.type = 'button';
-        option.textContent = choice.label;
+        const label = document.createElement('span');
+        label.className = 'query-scope-option-label';
+        label.textContent = choice.label;
+        label.title = choice.label;
+        option.append(label);
+        if (choice.typeName !== undefined) {
+          const type = document.createElement('span');
+          type.className = 'query-scope-option-type';
+          type.textContent = choice.typeName;
+          type.title = choice.typeName;
+          option.append(type);
+          option.setAttribute('aria-label', `${choice.label}, ${choice.typeName}`);
+        }
         option.setAttribute('role', 'option');
         option.setAttribute('aria-selected', String(choice.value === state[variable]));
         option.addEventListener('click', () => {
@@ -65,7 +78,12 @@ export function createQueryScopeWidgets(
         });
         list.append(option);
       }
-      if (list.childElementCount === 0) list.textContent = 'No matching choices';
+      if (list.childElementCount === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'query-scope-empty';
+        empty.textContent = 'No matching choices';
+        list.append(empty);
+      }
     };
     filter.addEventListener('input', renderOptions);
     renderOptions();

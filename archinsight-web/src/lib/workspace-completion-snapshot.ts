@@ -16,6 +16,7 @@ export type WorkspaceCompletionSnapshot = {
   schemaVersion: 'workspace-completion-snapshot.v1';
   revision: number;
   contextIds: readonly string[];
+  rootTypes: Readonly<Record<string, string>>;
   contextualIdentifiers: readonly ContextualIdentifier[];
   identifiersBySource: Readonly<Record<string, readonly WorkspaceCompletionIdentifier[]>>;
 };
@@ -24,6 +25,7 @@ export const emptyWorkspaceCompletionSnapshot: WorkspaceCompletionSnapshot = {
   schemaVersion: 'workspace-completion-snapshot.v1',
   revision: 0,
   contextIds: [],
+  rootTypes: {},
   contextualIdentifiers: [],
   identifiersBySource: {}
 };
@@ -36,6 +38,9 @@ export function completionSnapshotFromProjectStructure(
     schemaVersion: 'workspace-completion-snapshot.v1',
     revision,
     contextIds: uniqueSorted(structure.contexts.map((context) => context.id)),
+    rootTypes: Object.fromEntries(structure.contexts
+      .filter((root) => root.type !== undefined)
+      .map((root) => [root.id, root.type!])),
     contextualIdentifiers: contextualIdentifiersFrom(structure),
     identifiersBySource: importedIdentifiersBySource(structure)
   };

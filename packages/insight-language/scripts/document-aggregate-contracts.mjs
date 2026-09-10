@@ -71,6 +71,7 @@ catalogSection release
   const section = result.elements.find((element) => element.localId === "release");
   const entry = result.elements.find((element) => element.type === "CatalogEntry");
   assert.equal(root?.type, "CatalogDocument");
+  assert.equal(result.contexts.find((context) => context.id === fixture.id)?.type, "CatalogDocument");
   assert.equal(section?.type, "CatalogSection");
   assert.equal(section?.parent, root?.id);
   assert.equal(entry?.parent, section?.id);

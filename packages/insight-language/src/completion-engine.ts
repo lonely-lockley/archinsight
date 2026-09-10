@@ -1,4 +1,5 @@
 import type {
+  AttributeDefinition,
   CompletionItem,
   CompletionRequest,
   CompletionResult,
@@ -118,9 +119,9 @@ function definitionItems(
     if (presentationName === undefined) {
       return [];
     }
-    return [...typeSystem.attributes(presentationName).keys()]
-      .filter((name) => name !== "_")
-      .map(identifierItem);
+    return [...typeSystem.attributes(presentationName).values()]
+      .filter((attribute) => attribute.name !== "_")
+      .map((attribute) => identifierItem({ label: attribute.name, type: attributeTypeName(attribute) }));
   }
   if (expectsPresentationSectionProperty(line, syntax)) {
     return PRESENTATION_SECTION_PROPERTIES.map((property) => attributeItem(`${property} = `));
@@ -321,7 +322,8 @@ function consumeRelationTerm(words: readonly string[], start: number): RelationT
 }
 
 function projectionOperatorItems(typeSystem: TypeSystem, expectedType?: string): CompletionItem[] {
-  return projectionOperatorSpellings(typeSystem, expectedType).map((operator) => operatorItem(`${operator} `));
+  return typeSystem.relationOperatorConstructors(expectedType)
+    .map((operator) => operatorItem(`${operator.spelling} `, operator.ownerType));
 }
 
 function projectionOperatorSpellings(typeSystem: TypeSystem, expectedType?: string): string[] {
@@ -329,11 +331,10 @@ function projectionOperatorSpellings(typeSystem: TypeSystem, expectedType?: stri
 }
 
 function projectionRelationAttributeItems(typeSystem: TypeSystem, expectedType?: string): CompletionItem[] {
-  const attributes = unique(typeSystem.relationOperatorConstructors(expectedType)
+  const attributes = typeSystem.relationOperatorConstructors(expectedType)
     .flatMap((operator) => [...typeSystem.attributes(operator.ownerType).values()])
-    .filter((attribute) => attribute.list !== true)
-    .map((attribute) => attribute.name));
-  return attributes.map((name) => attributeItem(`${name} = `));
+    .filter((attribute) => attribute.list !== true);
+  return attributes.map((attribute) => attributeItem(`${attribute.name} = `, attributeTypeName(attribute)));
 }
 
 function projectionTermItems(
@@ -343,9 +344,7 @@ function projectionTermItems(
 ): CompletionItem[] {
   const attributeItems = typeSlotTargetTypes.length === 0
     ? []
-    : unique(typeSlotTargetTypes.flatMap((targetType) => projectionSlotAttributeItemsForType(typeSystem, targetType))
-      .map((item) => item.label))
-      .map(attributeItem);
+    : uniqueByInsertText(typeSlotTargetTypes.flatMap((targetType) => projectionSlotAttributeItemsForType(typeSystem, targetType)));
   return [
     ...PROJECTION_ENDPOINTS.map((endpoint) => variableItem(`${endpoint} `)),
     ...attributeItems,
@@ -367,7 +366,7 @@ function projectionSlotAttributeItemsForType(
       const valueType = referenceAttributeValueType(attribute);
       return valueType !== undefined && typeSystem.isAssignable(valueType, "Element");
     })
-    .map((attribute) => attributeItem(attribute.name));
+    .map((attribute) => attributeItem(attribute.name, attributeTypeName(attribute)));
 }
 
 function valueItemsForExpectedType(
@@ -381,12 +380,12 @@ function valueItemsForExpectedType(
   } = {},
 ): CompletionItem[] {
   const result: CompletionItem[] = [
-    ...typeSystem.enumValues(expectedType).map(enumValue),
+    ...typeSystem.enumValues(expectedType).map((value) => enumValue(value, expectedType)),
     ...visibleIdentifierItemsForType(typeSystem, context, expectedType),
   ];
   if (options.includeConstructors !== false) {
     result.push(...typeSystem.constructorsForExpectedType(expectedType)
-      .map((constructor) => constructorItem(`${constructor.spelling} `)));
+      .map((constructor) => constructorItem(`${constructor.spelling} `, constructor.ownerType)));
   }
   if (expectedType === PROJECTION_TERM) {
     result.push(...projectionTermItems(typeSystem, context, options.typeSlotTargetTypes ?? []));
@@ -461,7 +460,7 @@ function architectureItems(
   if (expectsExtensionConstructor(syntax)) {
     return currentExpectedElementType(typeSystem, context, line.indentLevel)
       .flatMap((expectedType) => typeSystem.constructorsForExpectedType(expectedType))
-      .map((constructor) => constructorItem(`${constructor.spelling} `));
+      .map((constructor) => constructorItem(`${constructor.spelling} `, constructor.ownerType));
   }
   if (expectsExtensionTargetReference(syntax)) {
     const spelling = syntax.activeExtensionConstructor ?? syntax.previousToken?.text;
@@ -476,7 +475,7 @@ function architectureItems(
       .map(identifierItem);
   }
   if (expectsContextReference(syntax)) {
-    return [...context.visibleContexts].map(identifierItem);
+    return [...context.visibleContexts].map((label) => rootReferenceItem(label, context));
   }
   const typeSlotTargetItems = currentTypeSlotOperatorTargetItems(typeSystem, context, line, syntax);
   if (typeSlotTargetItems !== undefined) {
@@ -498,7 +497,7 @@ function architectureItems(
   }
   if (operatorList !== undefined) {
     const operators = typeSystem.operatorConstructorsFrom(operatorList.ownerType, operatorList.expectedType)
-      .map((operator) => operatorItem(`${operator.spelling} `));
+      .map((operator) => operatorItem(`${operator.spelling} `, operator.ownerType));
     return line.hasOnlyIndentBeforeCursor
       ? [...annotationItems(), ...(operatorList.anonymous ? identifierPositionItems(line, typeSystem, context) : currentSlotReferenceItems(typeSystem, context, line.indentLevel)), ...operators, ...(projectionItems ?? []), ...(contextualListItems ?? [])]
       : operators;
@@ -536,7 +535,7 @@ function contextualListReferenceItems(
     const constructors = attribute?.capabilities?.includes(ATTRIBUTE_CAPABILITIES.referenceOnly) === true
       ? []
       : typeSystem.constructorsForExpectedType(expectedType)
-        .map((constructor) => constructorItem(`${constructor.spelling} `));
+        .map((constructor) => constructorItem(`${constructor.spelling} `, constructor.ownerType));
     return uniqueByInsertText([
       ...visible,
       ...candidates.map(identifierItem),
@@ -572,7 +571,7 @@ function anonymousImportContextItems(
     .filter((identifier) => identifier.type !== undefined && typeSystem.isAssignable(identifier.type, expectedType))
     .map((identifier) => identifier.contextId));
   return (matchingContexts.length === 0 ? [...context.visibleContexts] : matchingContexts)
-    .map(identifierItem);
+    .map((label) => rootReferenceItem(label, context));
 }
 
 function operatorTargetItems(
@@ -608,15 +607,14 @@ function deploymentSlotItems(
   if (!typeSystem.typeHasCapability(targetType, TYPE_CAPABILITIES.infrastructure)) {
     return [];
   }
-  return unique(typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
+  return uniqueByInsertText(typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)
     .flatMap((type) => [...typeSystem.attributes(type).values()])
     .filter((attribute) => attribute.name !== "_")
     .filter((attribute) => {
       const valueType = referenceAttributeValueType(attribute);
       return valueType !== undefined && typeSystem.isAssignable(valueType, targetType);
     })
-    .map((attribute) => attribute.name))
-    .map(identifierItem);
+    .map((attribute) => identifierItem({ label: attribute.name, type: attributeTypeName(attribute) })));
 }
 
 function identifierPositionItems(
@@ -649,7 +647,12 @@ function identifierPositionItems(
       .flatMap((type) => [...typeSystem.attributes(type).entries()]));
     for (const attribute of attributes.values()) {
       if (attribute.name !== "_" && !assigned.has(attribute.name)) {
-        result.push(attributeItem(typeSystem.isNestedAttribute(attribute) ? `${attribute.name}:` : `${attribute.name} = `));
+        result.push(attributeItem(
+          typeSystem.isNestedAttribute(attribute)
+            ? `${attribute.name}:${newline(line.indentLevel + 1).insertText}`
+            : `${attribute.name} = `,
+          attributeTypeName(attribute),
+        ));
       }
     }
     result.push(...(implicitObjectType === currentOwnerType
@@ -667,7 +670,7 @@ function identifierPositionItems(
     result.push(keyword("extend "));
   }
   for (const constructor of extensionConstructors) {
-    result.push(constructorItem(`${constructor.spelling} `));
+    result.push(constructorItem(`${constructor.spelling} `, constructor.ownerType));
   }
   if (line.indentLevel === 0 && context.contextId !== undefined) {
     result.push(keyword("import "));
@@ -699,8 +702,13 @@ function currentTypeSlotOperatorTargetItems(
     : slotAttributeItemsForType(typeSystem, operator.targetType));
 }
 
+function rootReferenceItem(label: string, context: CompletionScope): CompletionItem {
+  const type = context.rootTypes?.get(label);
+  return identifierItem({ label, ...(type === undefined ? {} : { type }) });
+}
+
 function contextReferenceItems(context: CompletionScope): CompletionItem[] {
-  return [...context.visibleContexts].map(identifierItem);
+  return [...context.visibleContexts].map((label) => rootReferenceItem(label, context));
 }
 
 function expectsTypeReference(syntax: SyntaxContext): boolean {
@@ -867,7 +875,7 @@ function currentCompletionOwnerType(
 
 function typeSlotOperatorItems(typeSystem: TypeSystem, owner: string): CompletionItem[] {
   return typeSlotOperatorsForOwner(typeSystem, owner)
-    .map((operator) => operatorItem(`${operator.spelling} `));
+    .map((operator) => operatorItem(`${operator.spelling} `, operator.ownerType));
 }
 
 function prefixOperatorItems(
@@ -882,7 +890,7 @@ function prefixOperatorItems(
     .filter((operator) => !typeSystem.isAssignable(operator.ownerType, TYPE_SLOT_REFERENCE))
     .filter((operator) => expectedElementTypes.some((expectedType) => typeSystem.isAssignable(operator.ownerType, expectedType)))
     .filter((operator) => expectedElementTypes.some((expectedType) => typeSystem.isAssignable(operator.targetType, expectedType)))
-    .map((operator) => operatorItem(`${operator.spelling} `));
+    .map((operator) => operatorItem(`${operator.spelling} `, operator.ownerType));
 }
 
 function typeSlotOperatorsForOwner(typeSystem: TypeSystem, owner: string) {
@@ -930,7 +938,7 @@ function slotAttributeItemsForType(
         && valueType !== "Text"
         && typeSystem.enumValues(valueType).length === 0;
     })
-    .map((attribute) => attributeItem(attribute.name));
+    .map((attribute) => attributeItem(attribute.name, attributeTypeName(attribute)));
 }
 
 function referenceAttributeValueType(attribute: { readonly type: string; readonly list?: boolean; readonly listElementType?: string }): string | undefined {
@@ -949,14 +957,14 @@ function currentSlotReferenceItems(
   const list = currentList(context, indent);
   const attribute = list === undefined ? undefined : typeSystem.attribute(list.ownerType, list.attribute);
   return [
-    ...typeSystem.enumValues(expectedType).map(enumValue),
+    ...typeSystem.enumValues(expectedType).map((value) => enumValue(value, expectedType)),
     ...[...context.visibleIdentifiers.values()]
       .filter((identifier) => identifier.type !== undefined && typeSystem.isAssignable(identifier.type, expectedType))
       .map(identifierItem),
     ...(attribute !== undefined && isInfrastructureReferenceAttribute(attribute)
       ? []
       : typeSystem.constructorsForExpectedType(expectedType)
-        .map((constructor) => constructorItem(`${constructor.spelling} `))),
+        .map((constructor) => constructorItem(`${constructor.spelling} `, constructor.ownerType))),
   ];
 }
 
@@ -1086,7 +1094,7 @@ function type(text: string, typeSystem: TypeSystem): CompletionItem {
   const label = text.trimEnd();
   const definition = typeSystem.definition(label);
   if (definition === undefined) {
-    return { label, insertText: text, kind: "TYPE" };
+    return { label, insertText: text, kind: "TYPE", typeName: label };
   }
   const constructors = [...new Map([
     ...typeSystem.constructorsForExpectedType(label),
@@ -1101,6 +1109,7 @@ function type(text: string, typeSystem: TypeSystem): CompletionItem {
     label,
     insertText: text,
     kind: "TYPE",
+    typeName: label,
     documentation: {
       header: label,
       type: {
@@ -1112,22 +1121,26 @@ function type(text: string, typeSystem: TypeSystem): CompletionItem {
   };
 }
 
-function constructorItem(text: string): CompletionItem {
-  return { label: text.trimEnd(), insertText: text, kind: "CONSTRUCTOR" };
+function constructorItem(text: string, typeName: string): CompletionItem {
+  return { label: text.trimEnd(), insertText: text, kind: "CONSTRUCTOR", typeName };
 }
 
-function operatorItem(text: string): CompletionItem {
-  return { label: text.trimEnd(), insertText: text, kind: "OPERATOR" };
+function operatorItem(text: string, typeName: string): CompletionItem {
+  return { label: text.trimEnd(), insertText: text, kind: "OPERATOR", typeName };
 }
 
 function variableItem(text: string): CompletionItem {
   return { label: text.trimEnd(), insertText: text, kind: "KEYWORD" };
 }
 
-function attributeItem(text: string): CompletionItem {
+function attributeTypeName(attribute: AttributeDefinition): string {
+  return attribute.list === true ? `List of ${attribute.listElementType ?? attribute.type}` : attribute.type;
+}
+
+function attributeItem(text: string, typeName?: string): CompletionItem {
   const separator = text.indexOf(":") >= 0 ? text.indexOf(":") : text.indexOf("=");
   const label = separator < 0 ? text.trimEnd() : text.slice(0, separator).trimEnd();
-  return { label, insertText: text, kind: "ATTRIBUTE" };
+  return { label, insertText: text, kind: "ATTRIBUTE", ...(typeName === undefined ? {} : { typeName }) };
 }
 
 function identifierItem(identifier: string | VisibleIdentifier): CompletionItem {
@@ -1136,6 +1149,7 @@ function identifierItem(identifier: string | VisibleIdentifier): CompletionItem 
     label,
     insertText: label,
     kind: "IDENTIFIER",
+    ...(typeof identifier !== "string" && identifier.type !== undefined ? { typeName: identifier.type } : {}),
     ...(typeof identifier !== "string" && identifier.imported === true ? { imported: true } : {}),
     ...(typeof identifier !== "string" && identifier.documentation !== undefined
       ? { documentation: identifier.documentation }
@@ -1143,8 +1157,8 @@ function identifierItem(identifier: string | VisibleIdentifier): CompletionItem 
   };
 }
 
-function enumValue(text: string): CompletionItem {
-  return { label: text, insertText: text, kind: "ENUM_VALUE" };
+function enumValue(text: string, typeName: string): CompletionItem {
+  return { label: text, insertText: text, kind: "ENUM_VALUE", typeName };
 }
 
 function annotation(text: string): CompletionItem {

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as Monaco from 'monaco-editor';
 import { createQueryScopeWidgets, type QueryScopeWidgetState } from '@archinsight/workbench/query-scope-widgets';
 import { registerQueryLanguage } from '@archinsight/workbench/query-monaco';
+import { readFileSync } from 'node:fs';
 
 const cleanups: Array<() => void> = [];
 afterEach(() => { cleanups.splice(0).forEach((cleanup) => cleanup()); document.body.replaceChildren(); });
@@ -39,6 +40,50 @@ function fixture() {
 }
 
 describe('query scope decorations', () => {
+  it('places the picker above the Monaco minimap', () => {
+    const subject = fixture();
+    const styles = document.createElement('style');
+    styles.textContent = [
+      '../../../packages/archinsight-workbench/src/query-scope-widgets.css',
+      '../../node_modules/monaco-editor/esm/vs/editor/browser/viewParts/minimap/minimap.css'
+    ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8')).join('\n');
+    const editor = document.createElement('div');
+    editor.className = 'monaco-editor';
+    const minimap = document.createElement('div');
+    minimap.className = 'minimap';
+    editor.append(minimap);
+    document.body.append(styles, editor);
+    subject.events.action();
+    const picker = document.querySelector<HTMLElement>('.query-scope-picker')!;
+    editor.append(picker);
+    expect(Number(getComputedStyle(picker).zIndex)).toBeGreaterThan(Number(getComputedStyle(minimap).zIndex));
+  });
+
+  it.each(['tab', 'context'] as const)('shows and searches semantic types in the %s picker without changing its value', (variable) => {
+    const subject = fixture();
+    const text = subject.content();
+    const choices = [
+      { value: 'commerce', label: 'Commerce', typeName: 'Context' },
+      { value: 'eu', label: 'Europe', typeName: 'RegionCatalog' },
+      { value: 'untyped', label: 'Unknown' }
+    ];
+    subject.setState(variable === 'tab' ? { sources: choices, tab: 'eu' } : { contexts: choices, context: 'eu' });
+    subject.setPosition(text.indexOf(`$${variable}`) + 1);
+    subject.events.action();
+    const options = [...document.querySelectorAll('[role=option]')];
+    expect(options.map((option) => option.querySelector('.query-scope-option-label')?.textContent)).toEqual(['Commerce', 'Europe', 'Unknown']);
+    expect(options.map((option) => option.querySelector('.query-scope-option-type')?.textContent)).toEqual(['Context', 'RegionCatalog', undefined]);
+    expect(options.map((option) => option.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false']);
+    expect(options[1].getAttribute('aria-label')).toBe('Europe, RegionCatalog');
+    const search = document.querySelector('input')!;
+    search.value = 'regioncatalog';
+    search.dispatchEvent(new Event('input'));
+    expect(document.querySelectorAll('[role=option]')).toHaveLength(1);
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(subject.select).toHaveBeenCalledWith(variable, 'eu');
+    expect(subject.content()).toBe(text);
+  });
+
   it('decorates every real occurrence without altering the text and clears on model switch', () => {
     const subject = fixture();
     const text = subject.content();

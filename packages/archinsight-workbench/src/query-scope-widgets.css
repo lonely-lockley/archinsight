@@ -5,29 +5,81 @@
   cursor: pointer;
 }
 .query-scope-picker {
+  /* Monaco positions this widget; match the toolbar menus above editor layers. */
+  z-index: 80;
   box-sizing: border-box;
   width: 310px;
-  padding: 8px;
-  color: #dce3ec;
-  background: #20262f;
-  border: 1px solid #526174;
-  border-radius: 6px;
-  box-shadow: 0 4px 16px #0006;
-  font: 12px system-ui, sans-serif;
+  padding: 4px;
+  border: 1px solid var(--archinsight-border, #454545);
+  border-radius: 4px;
+  background: var(--archinsight-toolbar-bg, #242424);
+  color: var(--archinsight-foreground, #eeeeee);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
+  font-family: var(--vscode-font-family, var(--lumo-font-family, sans-serif));
+  font-size: 11px;
+  font-weight: 500;
+  line-height: normal;
+  letter-spacing: 0;
 }
-.query-scope-picker input, .query-scope-picker button {
+.query-scope-picker input,
+.query-scope-picker button {
   box-sizing: border-box;
   width: 100%;
-  padding: 7px;
   color: inherit;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 3px;
   font: inherit;
   text-align: left;
 }
-.query-scope-picker input { border-color: #526174; margin-bottom: 5px; }
-.query-scope-options { max-height: 220px; overflow: auto; }
-.query-scope-picker button { overflow-wrap: anywhere; cursor: pointer; }
-.query-scope-picker button:hover, .query-scope-picker button[aria-selected=true] { background: #344354; }
-.query-scope-picker :focus-visible { outline: 2px solid #80b8ee; outline-offset: -2px; }
+.query-scope-picker input {
+  height: 30px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--archinsight-border, #454545);
+  border-radius: 4px;
+  background: var(--archinsight-input-bg, #1f1f1f);
+  font-size: 12px;
+  font-weight: 400;
+}
+.query-scope-options { max-height: 260px; overflow-y: auto; }
+.query-scope-picker button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.query-scope-option-label,
+.query-scope-option-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.query-scope-option-type {
+  flex-shrink: 0;
+  max-width: 55%;
+  color: var(--archinsight-muted, #a8a8a8);
+  font-size: 10px;
+  text-align: right;
+}
+.query-scope-picker button:hover,
+.query-scope-picker button:focus-visible {
+  background: var(--archinsight-control-hover-bg, #343434);
+}
+.query-scope-picker button[aria-selected=true] {
+  background: var(--archinsight-control-active-bg, #354436);
+}
+.query-scope-picker :focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #80b8ee);
+  outline-offset: -1px;
+}
+.query-scope-empty {
+  padding: 10px 8px;
+  color: var(--archinsight-muted, #a8a8a8);
+  font-size: 12px;
+  font-weight: 400;
+}

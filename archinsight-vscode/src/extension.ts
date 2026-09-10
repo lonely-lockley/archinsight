@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import {
   completionDetail,
+  completionDisplayLabel,
   completionDocumentationMarkdown,
   completionSortText,
   diagnosticIdentity,
@@ -545,10 +546,12 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
       indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
       contextualIdentifiers: current === undefined ? [] : contextualIdentifiers(current.result),
       contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
+      rootTypes: new Map(current?.result.contexts.map((root) => [root.id, root.type]) ?? []),
     });
     return result.items.map((item) => {
-      const completion = new vscode.CompletionItem(item.label, completionKind(item));
+      const completion = new vscode.CompletionItem(completionDisplayLabel(item), completionKind(item));
       completion.insertText = item.insertText;
+      completion.keepWhitespace = true;
       completion.range = new vscode.Range(
         document.positionAt(result.replacementStartOffset),
         document.positionAt(result.replacementEndOffset),
@@ -1221,6 +1224,7 @@ class ArchinsightWorkbenchEditorSession {
       indexedIdentifiers: current === undefined ? new Map() : visibleIdentifiersForSource(current.result, sourceName),
       contextualIdentifiers: current === undefined ? [] : contextualIdentifiers(current.result),
       contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
+      rootTypes: new Map(current?.result.contexts.map((root) => [root.id, root.type]) ?? []),
     });
     await this.panel.webview.postMessage({
       command: "completionResult",
@@ -1231,6 +1235,7 @@ class ArchinsightWorkbenchEditorSession {
         label: item.label,
         insertText: item.insertText,
         kind: item.kind,
+        typeName: item.typeName,
         imported: item.imported,
         documentation: item.documentation,
       })),

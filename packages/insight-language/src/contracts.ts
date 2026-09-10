@@ -36,6 +36,7 @@ export interface CompletionItem {
   readonly label: string;
   readonly insertText: string;
   readonly kind: CompletionKind;
+  readonly typeName?: string;
   readonly imported?: boolean;
   readonly documentation?: CompletionDocumentation;
 }
@@ -440,6 +441,7 @@ export interface CompletionScope {
   readonly mode: "ambiguous" | "definition" | "architecture";
   readonly contextId?: string;
   readonly visibleContexts: ReadonlySet<string>;
+  readonly rootTypes?: ReadonlyMap<string, string>;
   readonly visibleTypes: ReadonlySet<string>;
   readonly visibleIdentifiers: ReadonlyMap<string, VisibleIdentifier>;
   readonly contextualIdentifiers: readonly ContextualIdentifier[];
@@ -464,6 +466,7 @@ export interface CompletionRequest {
   readonly indexedIdentifiers?: ReadonlyMap<string, VisibleIdentifier>;
   readonly contextualIdentifiers?: readonly ContextualIdentifier[];
   readonly contextIds?: readonly string[];
+  readonly rootTypes?: ReadonlyMap<string, string>;
 }
 
 export interface InsightSyntaxProvider {

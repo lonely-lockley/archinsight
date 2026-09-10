@@ -3,7 +3,7 @@ import { queryForDiagramMode } from '@archinsight/workbench/presets';
 import { discoverProjectQueries, projectFilePaths, resolveProjectQuery } from '@archinsight/workbench/project-queries';
 import { createProjectQueryController } from './project-query-controller';
 import type { WorkspaceTab, TreeNode } from '@archinsight/workbench/types';
-import type { LinkProjectResult } from '@insight/language';
+import { buildLanguageSnapshotResultFromSources, coreLanguageSnapshot, linkProject, type LinkProjectResult } from '@insight/language';
 
 const tab = (path: string, extra: Partial<WorkspaceTab> = {}): WorkspaceTab => ({
   id: path, filePath: path, sourceIdentity: path, title: path, content: 'MATCH (n:Element) RETURN n',
@@ -21,7 +21,7 @@ function fixture(active = tab('q.aiq'), files = tree('shop.ai', 'other.ai', 'q.a
   let tabs = [active];
   let projectId = 'one';
   const ports = {
-    projectId: () => projectId, tree: () => files, tabs: () => tabs, activeTab: () => tabs[0], analysis: () => analysis,
+    projectId: () => projectId, tree: () => files, tabs: () => tabs, activeTab: () => tabs[0], analysis: vi.fn((): LinkProjectResult | undefined => analysis),
     fetchFile: vi.fn(async () => ({ content: 'MATCH (n:Element) RETURN n' })),
     patchTab: vi.fn((id: string, patch: Partial<WorkspaceTab>) => { tabs = tabs.map((item) => item.id === id ? { ...item, ...patch } : item); }),
     persist: vi.fn(), refreshWidgets: vi.fn(), scheduleDiagram: vi.fn()
@@ -50,6 +50,33 @@ describe('project query discovery', () => {
 });
 
 describe('project query execution', () => {
+  it('shows actual context and environment types for scope and source choices', () => {
+    const sources = [
+      { sourceName: 'definitions.ai', source: 'define type RegionCatalog of Environment\n    Text caption\n' },
+      { sourceName: 'logical.ai', source: 'context commerce\n    name = Commerce\n' },
+      { sourceName: 'infra.ai', source: 'environment eu\n    name = Europe\n' }
+    ];
+    const { snapshot } = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
+    const linked = linkProject({ snapshot, sources });
+    const subject = fixture(tab('q.aiq'), tree('logical.ai', 'infra.ai', 'definitions.ai', 'unknown.ai', 'q.aiq'));
+    subject.ports.analysis.mockReturnValue(linked);
+    expect(subject.controller.widgetState().contexts).toEqual([
+      { value: 'commerce', label: 'commerce', typeName: 'Context' },
+      { value: 'eu', label: 'eu', typeName: 'RegionCatalog' }
+    ]);
+    expect(subject.controller.widgetState().sources).toEqual([
+      { value: 'definitions.ai', label: 'definitions.ai' },
+      { value: 'infra.ai', label: 'infra.ai', typeName: 'RegionCatalog' },
+      { value: 'logical.ai', label: 'logical.ai', typeName: 'Context' },
+      { value: 'unknown.ai', label: 'unknown.ai' }
+    ]);
+    subject.controller.selectScope('context', 'eu');
+    expect(subject.ports.tabs()[0].queryContext).toBe('eu');
+    subject.ports.analysis.mockReturnValue(undefined);
+    expect(subject.controller.widgetState().contexts).toEqual([]);
+    expect(subject.controller.widgetState().sources.every((choice) => choice.typeName === undefined)).toBe(true);
+  });
+
   it('resolves an unopened override and retains its built-in pipeline and caller scope', async () => {
     const active = tab('shop.ai');
     const subject = fixture(active, tree('shop.ai', 'nested/c2.aiq'));

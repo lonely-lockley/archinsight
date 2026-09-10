@@ -61,6 +61,7 @@ const USES_ATTRIBUTE = "uses";
 
 export interface ParsedDocument {
   readonly sourceName: string;
+  readonly documentRoot?: ParsedElement;
   readonly context: ParsedContext;
   readonly imports: readonly ParsedImport[];
   readonly elements: readonly ParsedElement[];
@@ -216,6 +217,7 @@ interface ParsedExtension {
 
 interface MutableParsedDocument {
   readonly sourceName: string;
+  documentRoot?: ParsedElement;
   readonly context: ParsedContext;
   readonly imports: ParsedImport[];
   readonly elements: ParsedElement[];
@@ -681,17 +683,20 @@ function completeLinkingPipeline(
       diagnostics,
     );
   }
-  const contexts: LinkedContext[] = documents.map((document) => ({
-    id: document.context.id,
-    type: document.context.type,
-    sourceIdentity: document.sourceName,
-    ...(document.context.synthetic ? { synthetic: true } : {}),
-    declaration: sourceLocation(document.sourceName, document.context),
-    ...(typeSystem.capabilities(document.context.type).length === 0
-      ? {}
-      : { capabilities: typeSystem.capabilities(document.context.type) }),
-    attributes: flattenAttributes(document.context.scalarAttributes, {}),
-  }));
+  const contexts: LinkedContext[] = documents.map((document) => {
+    const root = document.documentRoot ?? document.context;
+    return {
+      id: document.context.id,
+      type: root.type,
+      sourceIdentity: document.sourceName,
+      ...(document.context.synthetic ? { synthetic: true } : {}),
+      declaration: sourceLocation(document.sourceName, root),
+      ...(typeSystem.capabilities(root.type).length === 0
+        ? {}
+        : { capabilities: typeSystem.capabilities(root.type) }),
+      attributes: flattenAttributes(root.scalarAttributes, {}),
+    };
+  });
   return {
     diagnostics,
     graph,
@@ -807,6 +812,7 @@ function parseDocument(
   const environmentRoot = environmentDeclaration === undefined
     ? undefined
     : collectEnvironmentDeclaration(environmentDeclaration, environmentFile, document, typeSystem);
+  if (environmentRoot !== undefined) document.documentRoot = environmentRoot;
   if (environmentFile !== undefined) {
     for (const item of children(environmentFile, "architectureTopLevelItem")) {
       collectTopLevelItem(item, document, typeSystem, environmentRoot);

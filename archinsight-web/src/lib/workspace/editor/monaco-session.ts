@@ -110,7 +110,8 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
           snapshot: ports.editorSymbols(),
           indexedIdentifiers: visibleIdentifiersForSource(snapshot, path),
           contextualIdentifiers: snapshot.contextualIdentifiers,
-          contextIds: snapshot.contextIds
+          contextIds: snapshot.contextIds,
+          rootTypes: new Map(Object.entries(snapshot.rootTypes))
         });
         const replacementStart = model.getPositionAt(result.replacementStartOffset);
         const replacementEnd = model.getPositionAt(result.replacementEndOffset);
@@ -127,6 +128,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
               label: completionDisplayLabel(item),
               kind: completionItemKind(runtime, item),
               insertText: item.insertText,
+              insertTextRules: runtime.languages.CompletionItemInsertTextRule.KeepWhitespace,
               range,
               sortText: completionSortText(item),
               ...(documentation === undefined
