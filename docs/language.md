@@ -464,6 +464,20 @@ Core lists distinguish three families derived from `Edge`: `links` accepts
 which operators are valid in each position. These same type rules determine
 completion candidates.
 
+The named `deployment` list is available on `System`, `ContainerElement`,
+`Wire`, and their descendants. Core `runsOn` and infrastructure `uses` actions
+accept systems, containers, and deployment profiles as owners. Only systems
+and containers can select a profile through `uses <profile>`. Wires can use network connections. Profiles
+declare actions directly in their anonymous body. The separate `runsOn:`
+reference attribute on infrastructure remains available.
+
+Previously, `deployment` was inherited from `Element`. Move component or code
+deployment actions to the containing container. Remove named deployment blocks
+from actors, environments, infrastructure, and profiles; profile actions belong
+directly in the profile body. Custom deployable types can inherit `System` or
+`ContainerElement`, or explicitly declare their own action list and compatible
+custom operators.
+
 Custom deployment operators used in core lists must derive from
 `DeploymentAction` (or one of its subtypes) and declare the appropriate
 capability. Migrate an existing deployment operator declared `of Edge` by

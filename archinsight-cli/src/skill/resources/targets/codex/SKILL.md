@@ -81,8 +81,9 @@ architecture.
    runtime placement, regions, brokers, gateways, storage, or deployment.
 5. At that point, decide per system whether pragmatic mixed C2 or explicit
    deployment modeling is appropriate. For explicit deployment, attach
-   placement/storage to elements, attach path infrastructure that needs `$to`
-   to wires, and make pub/sub dependencies consumer-owned.
+   placement/storage to systems and containers (including services); components
+   and code deploy with their container. Attach path infrastructure that needs
+   `$to` to wires, and make pub/sub dependencies consumer-owned.
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
 7. Save reusable custom views as `.aiq`. Unless the user specifies another

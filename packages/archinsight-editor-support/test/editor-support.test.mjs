@@ -16,10 +16,10 @@ test('completion metadata has one stable ordering and imported detail policy', (
   assert.deepEqual(kinds.map(completionSortBucket), ['0', '1', '2', '3', '4', '5', '6', '7', '8']);
   assert.equal(completionSortText({ kind: 'TYPE', label: 'System' }), '6:System');
   assert.equal(completionDetail({ kind: 'IDENTIFIER', imported: true }), 'imported identifier');
-  assert.equal(completionDetail({ kind: 'IDENTIFIER' }), 'IDENTIFIER');
+  assert.equal(completionDetail({ kind: 'IDENTIFIER' }), 'identifier');
   assert.deepEqual(completionDisplayLabel({ kind: 'IDENTIFIER', label: 'backend' }), {
     label: 'backend',
-    description: 'IDENTIFIER'
+    description: 'identifier'
   });
 });
 
@@ -99,4 +99,17 @@ test('diagnostic identity includes every meaningful position and message field',
   };
   assert.notEqual(diagnosticIdentity(complete), diagnosticIdentity({ ...complete, endColumn: 6 }));
   assert.equal(diagnosticIdentity({ source: 'model.ai', code: 'E1', message: 'broken' }), 'model.ai\u0000\u0000E1\u0000broken\u0000\u0000\u0000\u0000');
+});
+
+
+test('completion rows display semantic types for local and imported candidates', () => {
+  for (const kind of ['IDENTIFIER', 'CONSTRUCTOR', 'OPERATOR', 'ATTRIBUTE', 'ENUM_VALUE', 'TYPE']) {
+    for (const imported of [false, true]) {
+      assert.deepEqual(completionDisplayLabel({ kind, label: 'entry', typeName: 'CustomEntry', imported }), {
+        label: 'entry', description: 'CustomEntry'
+      });
+    }
+  }
+  assert.equal(completionDetail({ kind: 'ATTRIBUTE', typeName: 'List of CustomEntry' }), 'List of CustomEntry');
+  assert.equal(completionDetail({ kind: 'ENUM_VALUE' }), 'enum value');
 });

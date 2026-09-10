@@ -183,7 +183,7 @@ service catalog
 
 ### Deployment
 
-`DeploymentElement` is the abstract boundary-level base for deployment concepts. The deployment library also extends every `Element` with attributes for deployment references, runtime placement, and infrastructure usage. Logical systems, containers, services, and components can therefore be connected to their physical realization without changing their logical type.
+`DeploymentElement` is the abstract boundary-level base for deployment concepts. The deployment library adds a `deployment` action list to `System` and `ContainerElement`, inherited by their descendants (including containers and services). `Wire` has its own deployment action list for network usage. Components and code elements are deployed as part of their containing container. Actors, profiles, environments, and infrastructure do not have this named list.
 
 `Environment` represents a deployment scope such as a region, account, cluster estate, or operational environment. It has a name and optional region and owns deployment elements. Projects commonly derive an organization-specific environment type and add typed infrastructure slots such as compute, storage, gateways, or brokers.
 
@@ -212,7 +212,7 @@ The core library provides several specialized infrastructure types:
 - `NetworkConnection` represents infrastructure that can project a logical relationship into a physical route. The base type remains hidden from the default rendered diagram.
 - `Broker` specializes `NetworkConnection` for message brokers and event infrastructure, adds an optional address, and is visible when its projection places it on a physical path. Project-specific broker types should derive from `Broker`.
 
-`DeploymentProfile` maps logical elements to one or more concrete deployments through its required `appliesTo` list. Reusable `runsOn` and `uses` invocations describe the environment capabilities required by the mapped element. The profile supplies deployment instructions and is hidden by its default presentation.
+`DeploymentProfile` maps systems and containers to one or more concrete deployments through its required `appliesTo` list. Reusable `runsOn` and `uses` invocations describe the environment capabilities required by the mapped element. The profile supplies deployment instructions and is hidden by its default presentation.
 
 `ProjectionTerm`, `SourceProjectionTerm`, and `TargetProjectionTerm` describe the steps used to turn a logical dependency into a physical path. They can refer to the logical endpoints, the current infrastructure component, its attributes, or a slot supplied by the environment. These terms guide projection and are not rendered as architecture elements.
 
@@ -270,7 +270,7 @@ service order_fulfillment
 
 `PhysicalWire` is the base for relationships produced by deployment projection. `ConnectTo` represents a physical connection, `ReplicateFrom` represents replication, and `OriginalLink` preserves the logical relationship inside an expanded physical path. These edge types let a deployment view show how one logical wire is realized through gateways, brokers, storage, and network components.
 
-`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates an element with a deployment profile through `uses`. `InfrastructureUse` records infrastructure or network capabilities required by an element, profile, or logical wire. `InfrastructurePlacement` places an element or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
+`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates a system or container with a deployment profile through `uses`. `InfrastructureUse` records infrastructure required by a system, container, or profile; on a logical wire, it accepts only `NetworkConnection` targets. `InfrastructurePlacement` places a system, container, or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
 
 Core lists accept these families separately: `links` expects `Wire`,
 `projection` expects `PhysicalWire`, and `deployment` expects `DeploymentAction`.

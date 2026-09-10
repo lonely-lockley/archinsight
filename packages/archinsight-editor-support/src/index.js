@@ -11,7 +11,7 @@ const completionBuckets = Object.freeze({
 });
 
 export function completionDetail(item) {
-  return item.kind === 'IDENTIFIER' && item.imported === true ? 'imported identifier' : item.kind;
+  return item.typeName ?? (item.kind === 'IDENTIFIER' && item.imported === true ? 'imported identifier' : item.kind.toLowerCase().replaceAll('_', ' '));
 }
 
 export function completionDisplayLabel(item) {

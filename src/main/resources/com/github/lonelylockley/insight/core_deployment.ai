@@ -1,7 +1,11 @@
 define type DeploymentElement of BoundaryElement
     capability = "deployment-element"
 
-extend type Element
+extend type System
+    List of DeploymentAction deployment
+        capability = "deployment-actions"
+
+extend type ContainerElement
     List of DeploymentAction deployment
         capability = "deployment-actions"
 

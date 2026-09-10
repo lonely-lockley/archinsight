@@ -74,7 +74,7 @@ The default query deliberately relies only on the `CodeElement` marker, source s
 
 A C4 model should explain implementation structure rather than reproduce every declaration from the source tree. Add code elements when they reveal responsibilities, stable interfaces, important dependencies, or boundaries that are difficult to see at C3. Generated inventories of every class and function usually obscure those relationships and become expensive to maintain.
 
-Code modeling is optional. A project can stop at C3 and still use Deployment diagrams independently. Deployment remains a physical projection of the logical model and is not the fourth C4 level.
+Code modeling is optional. A project can stop at C3 and still use Deployment diagrams independently. Deployment remains a physical projection of the logical model and is not the fourth C4 level. Code elements deploy with their containing container; they have no built-in `deployment` action list or independent core `runsOn` / `uses` actions.
 
 ## Validation
 

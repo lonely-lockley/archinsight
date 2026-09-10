@@ -37,16 +37,22 @@ export type ProjectQueryControllerPorts = {
 };
 
 export function createProjectQueryController(ports: ProjectQueryControllerPorts) {
-  const querySources = (): readonly QueryScopeChoice[] => projectFilePaths(ports.tree())
-    .filter((path) => path.endsWith('.ai'))
-    .sort()
-    .map((path) => ({ value: path, label: path }));
+  const querySources = (): readonly QueryScopeChoice[] => {
+    const rootTypes = new Map(ports.analysis()?.contexts
+      .filter((root) => root.synthetic !== true)
+      .map((root) => [root.sourceIdentity, root.type]));
+    return projectFilePaths(ports.tree())
+      .filter((path) => path.endsWith('.ai'))
+      .sort()
+      .map((path) => scopeChoice(path, rootTypes.get(path)));
+  };
 
   const availableContexts = (): readonly QueryScopeChoice[] => {
     const contexts = ports.analysis()?.contexts.filter((context) => context.synthetic !== true) ?? [];
-    return [...new Set(contexts.map((context) => context.id))]
+    const rootTypes = new Map(contexts.map((context) => [context.id, context.type]));
+    return [...rootTypes.keys()]
       .sort()
-      .map((id) => ({ value: id, label: id }));
+      .map((id) => scopeChoice(id, rootTypes.get(id)));
   };
 
   const widgetState = (): QueryScopeWidgetState => {
@@ -131,4 +137,8 @@ export function createProjectQueryController(ports: ProjectQueryControllerPorts)
       return { query, view, source, context, waiting };
     }
   };
+}
+
+function scopeChoice(value: string, typeName: string | undefined): QueryScopeChoice {
+  return { value, label: value, ...(typeName === undefined ? {} : { typeName }) };
 }

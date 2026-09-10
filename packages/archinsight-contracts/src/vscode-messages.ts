@@ -27,6 +27,7 @@ export type WebviewCompletionItem = {
   label: string;
   insertText?: string;
   kind: CompletionKind;
+  typeName?: string;
   imported?: boolean;
   documentation?: CompletionDocumentation;
 };
@@ -215,6 +216,7 @@ function completionItems(value: unknown): WebviewCompletionItem[] {
     return {
       label: string(input.label, `${itemLabel}.label`),
       kind,
+      ...(input.typeName === undefined ? {} : { typeName: string(input.typeName, `${itemLabel}.typeName`) }),
       ...(input.insertText === undefined ? {} : { insertText: string(input.insertText, `${itemLabel}.insertText`) }),
       ...(input.imported === undefined ? {} : { imported: boolean(input.imported, `${itemLabel}.imported`) }),
       ...(input.documentation === undefined

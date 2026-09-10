@@ -202,6 +202,7 @@
             return {
               label: completionDisplayLabel(item),
               insertText: item.insertText ?? item.label,
+              insertTextRules: monacoInstance.languages.CompletionItemInsertTextRule.KeepWhitespace,
               kind: completionItemKind(monacoInstance, item),
               range,
               sortText: completionSortText(item),

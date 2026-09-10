@@ -1,6 +1,6 @@
 # Deployment
 
-A deployment model projects the logical architecture onto physical infrastructure. Systems, containers, components, and wires retain their logical meaning, while the deployment layer shows where the selected elements run, which infrastructure they use, and how their relationships pass through the physical world.
+A deployment model projects the logical architecture onto physical infrastructure. Systems and containers define the logical deployment units. Components and code remain inside their containing container; wires describe the physical paths between logical endpoints.
 
 The goal is a readable physical explanation of the logical model. A deployment diagram focuses on a deployable element and the infrastructure immediately relevant to it. Transit networks, replication meshes, provider internals, and every possible deployment variation would quickly turn the model into a complete infrastructure topology. Details of that depth are usually better recorded in `description`, `technology`, `via`, notes, or project-specific attributes on the relevant element or relationship.
 
@@ -265,7 +265,7 @@ deploymentProfile production_service
     uses events
 ```
 
-The profile belongs to the logical context because it describes a deployment variant of that context's systems, containers, or components. The concrete infrastructure remains owned by the environment.
+The profile belongs to the logical context because it describes a deployment variant of that context's systems and containers, including services. The concrete infrastructure remains owned by the environment.
 
 One profile may apply to several concrete deployments when they share the required slot contract:
 
@@ -290,9 +290,9 @@ Several profiles can be applied to one logical element when their `appliesTo` se
 
 `appliesTo` accepts `Deployment` values. Pointing it at an `Environment` directly is a type error because the environment may contain several deployment schemes.
 
-## Placing containers and services
+## Placing systems, containers, and services
 
-A logical element selects a profile inside its `deployment` block:
+A system or container selects a profile inside its `deployment` block:
 
 ```insight
 service backend
@@ -305,7 +305,11 @@ The profile contributes its concrete deployment set, `runsOn` placement, and `us
 
 When a selected Deployment graph contains an element placed on several concrete compute resources, query output represents grouped logical endpoints with ids such as `shop/backend@@eu/kubernetes`. Their `projectedFrom` attribute points to the logical element. Projected paths connect the occurrence in each placement, while the linked logical model continues to use `shop/backend`. A graph whose logical elements all have one placement keeps their ordinary ids.
 
-The same form is available to every `Element`, including systems and components. Containers and services are the usual placement boundary because they normally represent deployable runtime units. A component can select its own profile when it has deployment behavior that genuinely differs from its parent container.
+The named `deployment` action list is declared on `System` and `ContainerElement` and inherited by their descendants, including `ExternalSystem`, `Container`, and `Service`. It is not declared on `Element` or `SystemElement`: actors, components, code, profiles, environments, and infrastructure do not inherit it. Components and code use the deployment scope of their containing container. Model an independently deployed responsibility as a separate container or service.
+
+Inside this list, `uses <profile>` selects a deployment profile, while `runsOn <infrastructure>` and `uses <infrastructure>` can address concrete visible infrastructure directly. Profile bodies accept the infrastructure actions directly in their anonymous list; a profile has no named `deployment:` block and cannot apply another profile through `uses`. Infrastructure keeps its separate `runsOn:` reference attribute.
+
+For older models, move component or code deployment blocks to the containing container and move actions out of a profile's named block into its body. Project-defined deployment vocabularies can explicitly declare their own action lists and compatible custom operators; extending `Element` alone does not grant the core deployment actions.
 
 The linker begins checking deployment coverage for a modeling level after at least one comparable element at that level has a `deployment` block. It then warns when another element at that level has no deployment, or when a deployment block resolves to no `runsOn` or `uses` infrastructure. This keeps projects that have not started deployment modeling quiet while exposing gaps once a physical model is being maintained. External actors and systems can enter the view through projected wires and do not need artificial placement merely to appear as an endpoint.
 
@@ -399,11 +403,11 @@ The `runsOn` and `uses` lines in a profile are typed operator invocations. They 
 
 | Owner | Name | Type | Required | Meaning |
 | --- | --- | --- | --- | --- |
-| `Element` | `deployment` | `List of DeploymentAction` | No | Deployment actions, including selection of a profile through `uses`. |
-| `Element` | `runsOn` | `InfrastructureComponent` | No | Resolved runtime placement. |
-| `Element` | `uses` | `List of InfrastructureComponent` | No | Resolved supporting infrastructure. |
+| `System`, `ContainerElement` | `deployment` | `List of DeploymentAction` | No | Deployment actions, including selection of a profile through `uses`; inherited by descendants. |
 | `Wire` | `deployment` | `List of DeploymentAction` | No | Deployment actions attached to the logical relationship. |
 | `Wire` | `uses` | `List of NetworkConnection` | No | Network connections carrying the wire through deployment infrastructure. |
+
+The linker exposes resolved `runsOn` and `uses` values on placed systems and containers for queries. These values can contain several infrastructure references after applying profiles. They are computed results, not additional source attributes declared on `Element`; write placement and infrastructure actions inside `deployment:`. The infrastructure `runsOn` and wire `uses` rows above describe actual typed source attributes.
 
 ## Validating the deployment view
 

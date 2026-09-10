@@ -118,12 +118,12 @@ deploymentProfile production_service
         production from eu
 ```
 
-Attach deployment details to systems, containers, services, components, or links
-only when they clarify real runtime paths. Prefer attaching deployment to C2
-containers/services when possible because C2 is usually the most representative
-logical runtime boundary.
+Attach placement and infrastructure usage to systems or containers, including
+services. Components and code deploy as part of their container and cannot own
+core deployment actions. Attach network paths to the logical wires that use
+them; those wires may be owned by components or actors too.
 
-deployment files often focus one deployment slice. The rendered scope is
+Deployment files often focus one deployment slice. The rendered scope is
 defined by the query, projection selectors, and selected source file.
 
 ## Layering Rules

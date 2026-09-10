@@ -177,17 +177,19 @@ Use single quotes for string literals.
 `CONTAINS` is case-sensitive. For scalar text it performs substring matching;
 for a list property it tests membership. Match the stored spelling exactly.
 
-Attribute cardinality comes from the Insight type system, not from the JSON
-representation. Use `CONTAINS` for list-valued attributes such as `uses`.
-`runsOn` is declared as a scalar typed reference. When it has one resolved
-target, it resolves to one graph node: compare it with another bound node, or
+Attribute cardinality comes from the Insight type system and linked reference
+metadata, not from the JSON representation. Use `CONTAINS` for declared lists
+such as `Wire.uses`. Infrastructure `runsOn` is a declared scalar reference;
+on systems and containers, `runsOn` and `uses` are computed deployment results,
+not declared source attributes. A single resolved reference resolves to one
+graph node: compare it with another bound node, or
 test its qualified id with `node.runsOn IN ['eu/cluster']`.
 `node.runsOn CONTAINS 'eu/cluster'` does not match a scalar reference because
 that value is neither scalar text nor a list.
 
-A logical element materialized through several deployments can have several
-resolved `runsOn` targets. In that case bind a candidate infrastructure node
-and use `candidate IN node.runsOn`.
+Deployment results may contain several infrastructure targets. Bind a candidate
+infrastructure node and use `candidate IN node.runsOn` or
+`candidate IN node.uses`; these forms also work with a single target.
 
 Query JSON serializes attribute values as arrays for a stable transport shape.
 The linked element or edge also exposes `listAttributes` and

@@ -73,9 +73,9 @@ Code modeling is optional. Components remain complete C3 elements when no `CodeE
 
 ## Components and deployment
 
-Components inherit the deployment attributes available to every `Element`. This allows a component to refer to infrastructure when its deployment behavior genuinely differs from the rest of its container.
+Components and their code are deployed as part of the containing container or service. `ComponentElement`, `Component`, and `CodeElement` do not declare a built-in `deployment` action list, and core `runsOn` / `uses` actions do not accept them as owners.
 
-Most deployment descriptions begin at C2 because a container or service is normally the deployed runtime unit. Its components share that placement. Component-level deployment information is useful for exceptions such as a separately hosted module, a component with its own infrastructure dependency, or a model in which the component represents an independently placed workload.
+Place deployment actions and profiles on the system or container. If a responsibility runs independently, model it as a separate C2 container or service. Move any component deployment block from an older model to its containing container.
 
 Component wires can also carry deployment information. The component containing the wire remains its logical source, and deployment projection describes the physical path around that relationship without changing its C3 direction.
 
@@ -97,14 +97,6 @@ The built-in C3 vocabulary contains an abstract family type and one concrete com
 | `responsibility` | `Text` | No | Concise statement of the behavior owned by the component. It is used as the body of the built-in component presentation. |
 | `description` | `Text` | No | Additional explanation that does not fit in the concise responsibility. |
 | `links` | `List of Wire` | No | Outgoing relationships owned by the component. Each arrow starts at this component and points to the referenced target. |
-
-### Deployment attributes inherited by components
-
-| Name | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `deployment` | `List of DeploymentAction` | No | Deployment actions associated with the component. |
-| `runsOn` | `InfrastructureComponent` | No | Infrastructure that hosts the component when it has a distinct placement. |
-| `uses` | `List of InfrastructureComponent` | No | Infrastructure required specifically by the component. |
 
 ### C3 relationship attributes
 

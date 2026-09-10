@@ -18,13 +18,13 @@ define abstract type DeploymentAction of Edge
 
 define operator DeploymentProfileUse of DeploymentAction
     constructor uses DeploymentProfile
-        on Element
+        on System or ContainerElement
 
     capability = "deployment-use"
 
 define operator InfrastructureUse of DeploymentAction
     constructor uses InfrastructureComponent
-        on DeploymentProfile or Element
+        on DeploymentProfile or System or ContainerElement
 
     constructor uses NetworkConnection
         on Wire
@@ -33,7 +33,7 @@ define operator InfrastructureUse of DeploymentAction
 
 define operator InfrastructurePlacement of DeploymentAction
     constructor runsOn InfrastructureComponent
-        on DeploymentProfile or Element
+        on DeploymentProfile or System or ContainerElement
 
     capability = "deployment-placement"
 

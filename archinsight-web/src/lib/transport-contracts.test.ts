@@ -41,6 +41,12 @@ describe('shared transport contracts', () => {
     })).toThrow(ContractValidationError);
   });
 
+  it('rejects non-text completion types', () => {
+    expect(() => parseWorkbenchHostToWebviewMessage({
+      command: 'completionResult', requestId: 1, items: [{ label: 'entry', kind: 'IDENTIFIER', typeName: 42 }]
+    })).toThrow(ContractValidationError);
+  });
+
   it('accepts a complete declaration navigation message', () => {
     expect(parseWorkbenchWebviewToHostMessage({
       command: 'openDeclaration',
@@ -58,6 +64,7 @@ describe('shared transport contracts', () => {
       items: [{
         label: 'Application',
         kind: 'TYPE',
+        typeName: 'Application',
         documentation: {
           header: 'Application',
           type: {
@@ -69,6 +76,7 @@ describe('shared transport contracts', () => {
       }]
     })).toMatchObject({
       items: [{
+        typeName: 'Application',
         documentation: {
           type: {
             constructors: [{ spelling: 'service', ownerType: 'ServiceApplication' }]

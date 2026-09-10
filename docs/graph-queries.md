@@ -468,14 +468,14 @@ RETURN component, container
 
 These patterns select nodes connected through typed model attributes even when the attribute itself is not represented as an authored `REFERENCES` edge.
 
-Attribute cardinality comes from the Insight type system. Use `CONTAINS` for a list-valued attribute such as `uses`. `runsOn` is declared as a scalar typed reference. When it has one resolved target, it resolves to one graph node and can be compared with another bound node or tested against a qualified id:
+Attribute cardinality comes from the Insight type system and linked reference metadata. `Wire.uses` is a declared list; infrastructure `runsOn` is a declared scalar reference. On systems and containers, `runsOn` and `uses` are computed deployment results, not declared source attributes. A single resolved reference can be compared with a bound node or tested against a qualified id:
 
 ```cypher
-WHERE node.uses CONTAINS 'eu/vault'
+WHERE node.uses IN ['eu/vault']
 WHERE node.runsOn IN ['eu/cluster']
 ```
 
-`node.runsOn CONTAINS 'eu/cluster'` does not match a scalar reference because that value is neither scalar text nor a list. A logical element materialized through several deployments can have several resolved `runsOn` targets; bind an infrastructure node and use `candidate IN node.runsOn` for that case. Query JSON represents attribute values as arrays for a stable transport shape, but this does not change their language-level cardinality. Automated consumers can inspect `listAttributes` and `referenceAttributes` on linked elements and edges.
+`node.runsOn CONTAINS 'eu/cluster'` does not match a scalar reference because that value is neither scalar text nor a list. For several resolved targets, bind an infrastructure node and use `candidate IN node.runsOn` or `candidate IN node.uses`; these forms also work with a single target. Use `CONTAINS` for declared lists such as `Wire.uses`. Query JSON represents attribute values as arrays for a stable transport shape, but this does not change their language-level cardinality. Automated consumers can inspect `listAttributes` and `referenceAttributes` on linked elements and edges.
 
 ### 8. Include derived and projected paths
 

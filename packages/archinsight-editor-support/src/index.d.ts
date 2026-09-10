@@ -11,6 +11,7 @@ export type EditorCompletionKind =
 
 export interface EditorCompletionItem {
   readonly kind: EditorCompletionKind;
+  readonly typeName?: string;
   readonly label: string;
   readonly imported?: boolean;
 }
@@ -29,9 +30,9 @@ export interface EditorCompletionDocumentation {
   };
 }
 
-export declare function completionDetail(item: Pick<EditorCompletionItem, "kind" | "imported">): string;
+export declare function completionDetail(item: Pick<EditorCompletionItem, "kind" | "imported" | "typeName">): string;
 export declare function completionDisplayLabel(
-  item: Pick<EditorCompletionItem, "kind" | "label" | "imported">
+  item: Pick<EditorCompletionItem, "kind" | "label" | "imported" | "typeName">
 ): { readonly label: string; readonly description: string };
 export declare function completionSortBucket(kind: EditorCompletionKind): string;
 export declare function completionSortText(item: Pick<EditorCompletionItem, "kind" | "label">): string;

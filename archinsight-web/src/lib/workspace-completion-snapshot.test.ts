@@ -104,6 +104,7 @@ describe('workspace completion snapshot', () => {
 
     const snapshot = completionSnapshotFromProjectStructure(structure, 7);
 
+    expect(snapshot.rootTypes).toEqual({ eu: 'Environment', app: 'Context' });
     expect(snapshot.contextualIdentifiers).toEqual([
       { label: 'production', type: 'Deployment', contextId: 'eu' },
       {
