@@ -1,8 +1,8 @@
 # Insight Query Reference
 
 Insight diagram queries use a small Cypher-style subset evaluated in memory.
-Use queries to select which linked model elements and relationships appear in a
-diagram.
+Use plain `RETURN` to select a graph for a diagram and `RETURN TABLE` to produce
+an analytical report.
 
 ## CLI Shape
 
@@ -11,6 +11,7 @@ archinsight query . -s <source.ai> -q views/dependencies.aiq -f text
 archinsight query . -s <source.ai> -v deployment-system --format json
 archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
 archinsight render . -s <source.ai> -q views/dependencies.aiq -f svg -o diagram.svg
+archinsight query . -q reports/impact.aiq --param 'element="context/service"' -f json
 ```
 
 The scope variables are:
@@ -74,8 +75,37 @@ GROUP BY ...
 RETURN ...
 ```
 
-`MATCH` clauses come first. `GROUP BY` is optional and appears before
-`RETURN`. `RETURN` must list the aliases that should be rendered.
+Graph queries use `MATCH ... [GROUP BY ...] RETURN alias, ...`. Table queries
+may compose `MATCH`, `OPTIONAL MATCH`, `WITH`, and `UNWIND`, ending in
+`RETURN TABLE`. They support `DISTINCT`, `ORDER BY`, `SKIP`, `LIMIT`, numeric,
+boolean, null and list values, and named parameters.
+
+```cypher
+MATCH (service:Service)
+WHERE service.context = $context
+RETURN TABLE elementId(service) AS service, service.type AS type
+ORDER BY service
+```
+
+Computed columns require `AS`; a bound alias can retain its name. Aggregates:
+`count`, `collect`, `min`, `max`, `sum`, `avg`. Path/scalar functions:
+`nodes`, `relationships`, `length`, `elementId`, `startNode`, `endNode`,
+`coalesce`, `size`, `annotations`, `originId`, and explicit conversions.
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (to:Element)
+WHERE elementId(to) = $to
+MATCH p = shortestPath((from)-[:REFERENCES*1..]->(to))
+RETURN TABLE length(p) AS hops, p.steps AS steps
+```
+
+All-path enumeration requires a finite maximum such as `*1..8`. Endpoint-only
+`RETURN TABLE DISTINCT` reachability can use `*1..` because it traverses with a
+visited set instead of materializing alternate paths. Incoming and undirected
+arrows are supported. `{withDerived}` includes derived relations;
+projected relations are not available for variable-length traversal.
 
 ## Node Patterns
 

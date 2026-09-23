@@ -100,3 +100,26 @@ it('does not open a second query editor or change view selection when editing an
   await unmount(component);
   target.remove();
 });
+
+it('edits discovered user parameters as typed JSON values', async () => {
+  const target = document.createElement('div');
+  document.body.append(target);
+  const change = vi.fn();
+  const component = mount(QueryEditorPanel, { target, props: {
+    diagramMode: 'default',
+    query: 'MATCH (n:Element) WHERE elementId(n) = $element RETURN TABLE elementId(n) AS id LIMIT $limit',
+    queryDocument: true,
+    queryParameters: { element: 'shop/api' },
+    onQueryParameterChange: change,
+    onSelectDiagramMode: vi.fn(), onToggleQuery: vi.fn(), onQueryChange: vi.fn(), onQueryPanelHeightChange: vi.fn()
+  } });
+  const element = target.querySelector<HTMLInputElement>('[aria-label="Parameter element"]')!;
+  const limit = target.querySelector<HTMLInputElement>('[aria-label="Parameter limit"]')!;
+  expect(element.value).toBe('"shop/api"');
+  limit.value = '25';
+  limit.dispatchEvent(new Event('change'));
+  await tick();
+  expect(change).toHaveBeenCalledWith('limit', 25);
+  await unmount(component);
+  target.remove();
+});

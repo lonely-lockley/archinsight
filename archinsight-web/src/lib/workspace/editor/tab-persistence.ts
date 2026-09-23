@@ -30,6 +30,7 @@ export function workspaceTabState(tab: WorkspaceTab): WorkspaceTabState {
     queryView: tab.queryView,
     querySource: tab.querySource,
     queryContext: tab.queryContext,
+    queryParameters: tab.queryParameters,
     deploymentEnvironment: tab.deploymentEnvironment,
     queryVisible: tab.queryVisible,
     queryPanelHeight: tab.queryPanelHeight,
@@ -52,6 +53,7 @@ export function tabToolbarState(
   | 'queryView'
   | 'querySource'
   | 'queryContext'
+  | 'queryParameters'
   | 'deploymentEnvironment'
   | 'queryVisible'
   | 'queryPanelHeight'
@@ -65,6 +67,7 @@ export function tabToolbarState(
     queryView: tab?.queryView,
     querySource: tab?.querySource,
     queryContext: tab?.queryContext,
+    queryParameters: tab?.queryParameters as WorkspaceTab['queryParameters'],
     deploymentEnvironment: tab?.deploymentEnvironment,
     queryVisible: tab?.queryVisible ?? false,
     queryPanelHeight: normalizeQueryPanelHeight(tab?.queryPanelHeight),

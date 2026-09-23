@@ -56,7 +56,255 @@ Archinsight queries are not fully compatible with Cypher. The current language s
 - one `GROUP BY` expression;
 - `RETURN` of bound aliases.
 
-The current grammar has no mutation clauses, aggregation functions, variable-length paths, subqueries, ordering, pagination, or general Cypher expression language. `RETURN` selects previously bound aliases rather than computing arbitrary projections.
+The language has no mutation clauses or subqueries. Plain `RETURN` selects bound aliases for a graph result. `RETURN TABLE` enables computed projections, aggregation, paths, ordering, and pagination for analytical reports.
+
+## Table reports and analytics
+
+Use `RETURN TABLE` when the answer is rows rather than a diagram. Every computed
+column needs an `AS` name; a bound alias can keep its name. Table queries support
+`WITH`, `UNWIND`, `DISTINCT`, `ORDER BY`, `SKIP`, `LIMIT`, list literals,
+parameters, comparisons, and `IS NULL`. Aggregates are `count`, `collect`,
+`min`, `max`, `sum`, and `avg`. Scalar functions include `elementId`, `size`,
+`coalesce`, `nodes`, `relationships`, `length`, `startNode`, `endNode`,
+`annotations`, `originId`, and the `toInteger`/`toFloat`/`toBoolean`/`toString`
+conversions.
+
+```cypher
+MATCH (service:Service)
+WHERE service.context = $context
+RETURN TABLE elementId(service) AS service,
+             service.type AS type,
+             service.technology AS technology
+ORDER BY service
+```
+
+The CLI returns the versioned `aiq-table.v1` JSON envelope by default. `csv`
+contains only the column header and rows; `text` is intended for reading in a
+terminal. The web workspace and VS Code workbench show the same result as a
+table in place of the diagram, with JSON and CSV downloads. Required user
+parameters appear above the result when editing a saved `.aiq`. `$context` and
+`$tab` continue to use the query scope selectors.
+
+JSON preserves cell types and distinguishes null from an empty string. CSV
+encodes null as an empty field and lists/records/paths as JSON text inside one
+cell, so use JSON when that distinction matters. CSV uses CRLF records and
+standard quote doubling, but it does not neutralize spreadsheet formulas.
+
+```shell
+archinsight query . -s models/storefront.ai -q reports/inventory.aiq --format json
+archinsight query . -s models/storefront.ai -q reports/inventory.aiq --format csv --out inventory.csv
+archinsight query . -q reports/path.aiq --param 'from="sales/api"' --param 'to="billing/api"'
+archinsight query . -q reports/topics.aiq --params report-params.json
+```
+
+In VS Code, open a saved `.aiq` and use the play button in the editor title or
+run **Archinsight: Run AIQ Query** from the Command Palette. If no Insight
+workbench is open, choose the `.ai` source that supplies `$tab` and the current
+context. Required parameters then appear above the result. The web editor uses
+the same flow when a `.aiq` tab is opened. A table report replaces the diagram
+area; it can be paged locally and downloaded as the same JSON or CSV contract
+used by the CLI. AIQ completion remains available while the query is incomplete.
+
+Parameter values are JSON null, boolean, finite number, string, or lists of
+those values. `--param name=<json>` can be repeated. `--params` reads one JSON
+object relative to the current working directory. Missing, unused, duplicated,
+or attempts to set reserved `$context`/`$tab` parameters are errors.
+
+Variable paths use relationship trails, so a single query-visible relationship
+does not repeat within one path. Nodes may repeat. Enumerating paths must have
+a finite maximum. An endpoint-only `RETURN TABLE DISTINCT` reachability query
+and `shortestPath` may omit the maximum:
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+RETURN TABLE DISTINCT elementId(to) AS target
+ORDER BY target
+```
+
+The endpoint-only form uses a visited traversal and does not enumerate alternate
+routes. Bind a named path and set a finite maximum when route evidence is needed:
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (to:Element)
+WHERE elementId(to) = $to
+MATCH p = shortestPath((from)-[:REFERENCES*1..]->(to))
+RETURN TABLE elementId(from) AS source,
+             elementId(to) AS target,
+             length(p) AS hops,
+             p.steps AS steps
+```
+
+Use `<-` for impact analysis when authored dependencies point from consumer to
+provider. Each path step preserves the stored relationship direction. Derived
+relationships can be included with `{withDerived}`. Projected relationships are
+rejected for variable-length traversal because their query-visible endpoints do
+not define one stable logical traversal graph.
+
+## Solving common questions
+
+The following recipes are starting points for people. Keep them in `reports/`;
+use `views/` for graph-returning queries.
+
+### Direct dependencies
+
+Question: “Which elements does this service depend on?”
+
+```cypher
+MATCH (service:Service)-[dependency:REFERENCES]->(provider:Element)
+WHERE elementId(service) = $service
+RETURN TABLE DISTINCT elementId(provider) AS provider,
+                      dependency.type AS relationshipType,
+                      originId(dependency) AS origin
+ORDER BY provider
+```
+
+Run with `--param 'service="context/service"'`. Parallel relationships remain
+separate when their type or origin differs.
+
+```shell
+archinsight query . -q reports/direct-dependencies.aiq \
+  --param 'service="shop/checkout"' --format text
+```
+
+A typical row contains `shop/catalog`, `SyncWire`, and the authored relationship
+id. JSON is the best format when provenance will be processed by another tool.
+
+### Change impact
+
+Question: “What can be affected if B changes?”
+
+```cypher
+MATCH (changed:Element)
+WHERE elementId(changed) = $element
+MATCH p = (changed)<-[:REFERENCES*1..8]-(dependent:Element)
+RETURN TABLE elementId(dependent) AS dependent,
+             min(length(p)) AS distance,
+             collect(p.steps) AS evidence
+ORDER BY dependent
+```
+
+Run with `--param 'element="context/B"'`. The result is potential impact in the
+declared model, not an outage probability or execution trace. Depth 8 is part of
+the question; raise it deliberately if the architecture is deeper.
+
+```shell
+archinsight query . -q reports/impact.aiq \
+  --param 'element="shop/catalog"' --format csv
+```
+
+For a direct checkout dependency, the first columns are
+`shop/checkout,1`. Evidence remains a structured list in JSON and is encoded as
+JSON text inside one CSV cell.
+
+### Kafka topics and consumers
+
+Question: “Which Kafka topics exist, and who produces or consumes them?”
+
+```cypher
+MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+WHERE event IS AsyncWire AND event.technology CONTAINS $technology
+UNWIND event.via AS topic
+WITH DISTINCT topic, elementId(producer) AS producer, elementId(consumer) AS consumer
+RETURN TABLE topic,
+             collect(DISTINCT producer) AS producers,
+             collect(DISTINCT consumer) AS consumers,
+             count(DISTINCT consumer) AS consumerCount
+ORDER BY topic
+```
+
+Run with `--param 'technology="Kafka"'`. `via`, the edge type, and technology
+are model data; the query engine has no Kafka-specific command.
+
+```shell
+archinsight query . -q reports/kafka-topics.aiq \
+  --param 'technology="Kafka"' --format json
+```
+
+For one checkout consumer, a row can contain `orders.created`,
+`["shop/catalog"]`, `["shop/checkout"]`, and `1`. A topic with no modeled wire
+cannot be discovered.
+
+### No incoming dependencies
+
+```cypher
+MATCH (service:Service)
+WHERE service.context = $context
+OPTIONAL MATCH (service)<-[incoming:REFERENCES]-(consumer:Element)
+WITH service, incoming
+WHERE incoming IS NULL
+RETURN TABLE elementId(service) AS service
+ORDER BY service
+```
+
+An empty result is successful and means no matching service survived the
+condition. It does not mean linking or query execution failed.
+
+```shell
+archinsight query . -c shop -q reports/no-incoming-dependencies.aiq --format text
+```
+
+The output is one service id per row. Swap the arrow to find elements with no
+outgoing dependency instead.
+
+### Counts by type
+
+```cypher
+MATCH (element:Element)
+WHERE element.context = $context
+RETURN TABLE element.type AS type, count(*) AS total
+ORDER BY type
+```
+
+```shell
+archinsight query . -c shop -q reports/type-summary.aiq --format csv
+```
+
+The table has `type,total`, for example `Service,12`. Counts describe the
+selected semantic graph and can include derived query-visible objects only when
+the query asks for them.
+
+### Paths, alternatives, and cycles
+
+Use the shortest-path report when one explanation is enough:
+
+```shell
+archinsight query . -q reports/shortest-path.aiq \
+  --param 'from="shop/checkout"' --param 'to="shop/catalog"' --format json
+```
+
+The result includes source, target, hop count, nodes, and ordered steps. Replace
+`shortestPath((from)-[:REFERENCES*1..]->(to))` with a finite pattern such as
+`(from)-[:REFERENCES*1..8]->(to)` to enumerate alternatives. A cycle query binds
+the same element at both endpoints and uses a minimum of 1. Both operations use
+relationship trails, so a relationship cannot repeat within one returned path;
+always state the maximum depth when interpreting alternatives or cycles.
+
+### Annotations
+
+Annotations are ordinary typed data rather than a special report mode:
+
+```cypher
+MATCH (element:Element)
+WHERE element.context = $context
+UNWIND annotations(element) AS annotation
+RETURN TABLE elementId(element) AS element,
+             annotation.name AS annotation,
+             annotation.value AS value
+ORDER BY element, annotation
+```
+
+Save this as `reports/annotations.aiq` and run
+`archinsight query . -c shop -q reports/annotations.aiq --format json`.
+Elements without annotations produce no rows; keep JSON when annotation values
+or source metadata need to retain their types.
+
+AIQ completion in the web and native VS Code editors suggests clauses, aliases,
+model types and attributes, functions, selectors, and parameters even while a
+query is incomplete.
 
 ## Saved queries and custom views
 
@@ -226,7 +474,7 @@ MATCH (service:Service)
 RETURN service
 ```
 
-Type labels include inherited Insight types. The general `Element`, `Context`, `SourceIdentity`, and `Type` labels select the corresponding semantic node kinds.
+Element type labels include inherited Insight types. The general `Element`, `Context`, `SourceIdentity`, and `Type` labels select the corresponding semantic node kinds. Type-definition nodes use only the `Type` label; inspect their `type` and `baseTypes` properties when querying the type hierarchy.
 
 Element nodes expose these built-in properties:
 

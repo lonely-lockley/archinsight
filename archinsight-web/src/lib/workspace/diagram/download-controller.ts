@@ -1,8 +1,9 @@
 import type { WorkspaceTab } from '@archinsight/workbench/types';
+import { formatQueryTableCsv } from '@insight/language';
 import { errorMessage } from '../messages/message-controller';
 import {
   fileNameWithExtension,
-  type DiagramDownloadExtension
+  type DownloadExtension
 } from './download';
 
 export type DownloadControllerPorts = {
@@ -20,10 +21,12 @@ export type DownloadController = {
   svg(): void;
   png(): Promise<void>;
   dot(): void;
+  csv(): void;
+  json(): void;
 };
 
 export function createDownloadController(ports: DownloadControllerPorts): DownloadController {
-  const fileName = (tab: WorkspaceTab, extension: DiagramDownloadExtension): string => (
+  const fileName = (tab: WorkspaceTab, extension: DownloadExtension): string => (
     fileNameWithExtension(tab.title, extension)
   );
 
@@ -62,6 +65,20 @@ export function createDownloadController(ports: DownloadControllerPorts): Downlo
       const tab = ports.activeTab();
       if (tab?.dot !== undefined) {
         ports.downloadText(fileName(tab, '.dot'), tab.dot, 'text/vnd.graphviz;charset=utf-8');
+      }
+    },
+
+    csv() {
+      const tab = ports.activeTab();
+      if (tab?.queryResult !== undefined) {
+        ports.downloadText(fileName(tab, '.csv'), formatQueryTableCsv(tab.queryResult), 'text/csv;charset=utf-8');
+      }
+    },
+
+    json() {
+      const tab = ports.activeTab();
+      if (tab?.queryResult !== undefined) {
+        ports.downloadText(fileName(tab, '.json'), `${JSON.stringify(tab.queryResult, null, 2)}\n`, 'application/json;charset=utf-8');
       }
     }
   };

@@ -22,9 +22,9 @@
   }
 </script>
 
-<section bind:this={panel} class:hidden-panel={hidden} class="messages-panel" aria-label="Parser and linker messages">
+<section bind:this={panel} class:hidden-panel={hidden} class="messages-panel" aria-label="Output messages">
   {#if messages.length === 0}
-    <div class="messages-empty">No parser or linker messages</div>
+    <div class="messages-empty">No output messages</div>
   {:else}
     {#each messages as message (message.id)}
       <div class:msg-error={messageClass(message) === 'error'} class:msg-warning={messageClass(message) === 'warning'} class:msg-note={messageClass(message) === 'note'} class="message-row">

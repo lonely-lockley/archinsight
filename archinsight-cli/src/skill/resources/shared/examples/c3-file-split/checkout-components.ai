@@ -1,0 +1,34 @@
+context commerce
+
+import payment_provider from context commerce
+
+extend service checkout_api
+    component checkout_controller
+        name = Checkout controller
+        technology = REST controller
+        responsibility = Accepts checkout requests and returns order status
+        links:
+            -> checkout_service
+
+    component checkout_service
+        name = Checkout service
+        technology = Kotlin
+        responsibility = Coordinates pricing, payment authorization, and order creation
+        links:
+            -> payment_gateway
+            -> order_repository
+
+    component payment_gateway
+        name = Payment gateway
+        technology = HTTP client
+        responsibility = Translates internal payment commands to provider API calls
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
+                description = Authorizes customer payment
+
+    component order_repository
+        name = Order repository
+        technology = SQL
+        responsibility = Persists order state and checkout audit records

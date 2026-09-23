@@ -1,0 +1,33 @@
+context commerce
+
+import checkout_api from context commerce
+
+extend container web_app
+    component route_shell
+        name = Route shell
+        technology = SvelteKit routing
+        responsibility = Owns route loading, authenticated layout, and page composition
+        links:
+            -> checkout_page
+            -> session_store
+
+    component checkout_page
+        name = Checkout page
+        technology = Svelte
+        responsibility = Collects checkout input and presents order progress
+        links:
+            -> api_client
+
+    component session_store
+        name = Session store
+        technology = Browser storage
+        responsibility = Keeps current user and session state for client-side decisions
+
+    component api_client
+        name = API client
+        technology = Fetch, JSON
+        responsibility = Wraps backend API calls and maps transport errors to UI state
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                call = POST /checkout

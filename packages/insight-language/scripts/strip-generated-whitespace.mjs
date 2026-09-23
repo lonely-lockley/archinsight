@@ -5,6 +5,8 @@ const root = new URL("..", import.meta.url);
 const files = [
   "src/generated/InsightLexer.ts",
   "src/generated/InsightParser.ts",
+  "src/generated/AiqLexer.ts",
+  "src/generated/AiqParser.ts",
 ];
 
 for (const file of files) {

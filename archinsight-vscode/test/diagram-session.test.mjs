@@ -69,6 +69,24 @@ test('refresh reuses explicitly updated query state without emitting query-chang
   assert.equal(harness.previews.at(-1).query, 'refreshed');
 });
 
+test('query parameters survive refresh and participate in query state changes', async () => {
+  const harness = createHarness();
+  const session = harness.session();
+  const input = { fileName: 'main.ai', source: 'source' };
+
+  await session.render(input, { view: 'c1', query: 'report', parameters: { element: 'one/a' } });
+  assert.deepEqual(session.queryState().parameters, { element: 'one/a' });
+  await session.render(input, { view: 'c1', query: 'report', parameters: { element: 'one/b' } });
+  assert.equal(harness.queryChanges.length, 2);
+  session.setQueryState('c2', 'other');
+  await session.refresh(input);
+  assert.deepEqual(session.queryState(), { view: 'c2', query: 'other', parameters: { element: 'one/b' } });
+
+  const unavailable = createHarness().session();
+  await unavailable.render(undefined, { view: 'c1', query: 'report', parameters: { limit: 2 } });
+  assert.deepEqual(unavailable.queryState().parameters, { limit: 2 });
+});
+
 test('newer renders and disposal suppress stale asynchronous results', async () => {
   let finishSlow;
   const slow = new Promise((resolve) => {
@@ -84,6 +102,17 @@ test('newer renders and disposal suppress stale asynchronous results', async () 
   finishSlow();
   assert.equal(await first, 'stale');
   assert.deepEqual(harness.previews.map((state) => state.query), ['fast']);
+
+  let finishCancelled;
+  const cancelledSlow = new Promise((resolve) => { finishCancelled = resolve; });
+  const cancelledHarness = createHarness({ slow: cancelledSlow });
+  const cancelledSession = cancelledHarness.session();
+  const cancelledRender = cancelledSession.render(input, { view: 'c1', query: 'slow' });
+  await new Promise((resolve) => setImmediate(resolve));
+  cancelledSession.cancel();
+  finishCancelled();
+  assert.equal(await cancelledRender, 'stale');
+  assert.deepEqual(cancelledHarness.previews, []);
 
   let finishDisposed;
   const disposedSlow = new Promise((resolve) => {
@@ -123,22 +152,47 @@ test('downloads source, SVG, DOT, and webview-produced PNG through shared behavi
   assert.equal(Buffer.from(harness.saved[3].content).toString('utf8'), 'png');
 });
 
+test('downloads table results as CSV and JSON', async () => {
+  const queryResult = {
+    schemaVersion: 'aiq-table.v1',
+    kind: 'table',
+    columns: [{ name: 'service', type: 'string', nullable: false }],
+    rows: [['shop,api']],
+    metadata: {
+      context: null, source: null, executionComplete: true, rowCount: 1,
+      skip: 0, limit: null, pathScopes: [], warnings: [],
+    },
+  };
+  const harness = createHarness({ queryResult });
+  const session = harness.session();
+  await session.render({ fileName: 'report.aiq', source: 'RETURN TABLE service' }, { view: 'c1', query: 'query' });
+
+  assert.equal(await session.download('csv'), true);
+  assert.equal(await session.download('json'), true);
+  assert.deepEqual(harness.saved.map(({ fileName }) => fileName), ['report.csv', 'report.json']);
+  assert.equal(Buffer.from(harness.saved[0].content).toString('utf8'), 'service\r\n"shop,api"\r\n');
+  assert.equal(Buffer.from(harness.saved[1].content).toString('utf8'), `${JSON.stringify(queryResult, null, 2)}\n`);
+});
+
 test('reports unavailable artifacts and rejects failed or superseded PNG requests', async () => {
   const harness = createHarness({ omitArtifacts: true });
   const session = harness.session();
 
   assert.equal(await session.download('source'), false);
   assert.equal(await session.download('svg'), false);
-  assert.deepEqual(harness.warnings, ['No rendered diagram is available.']);
+  assert.equal(await session.download('csv'), false);
+  assert.deepEqual(harness.warnings, ['No rendered diagram is available.', 'No table result is available.']);
 
   await session.render({ fileName: 'main.ai', source: 'source' }, { view: 'c1', query: 'query' });
   assert.equal(await session.download('svg'), false);
   assert.equal(await session.download('dot'), false);
   assert.equal(await session.download('png'), false);
-  assert.deepEqual(harness.warnings.slice(1), [
+  assert.equal(await session.download('json'), false);
+  assert.deepEqual(harness.warnings.slice(2), [
     'No rendered SVG is available.',
     'No rendered DOT is available.',
     'No rendered diagram is available.',
+    'No table result is available.',
   ]);
 
   const pngHarness = createHarness();
@@ -165,6 +219,7 @@ test('reports unavailable artifacts and rejects failed or superseded PNG request
 test('normalizes artifact file extensions', () => {
   assert.equal(fileNameWithExtension('model.ai', '.svg'), 'model.svg');
   assert.equal(fileNameWithExtension('MODEL.AI', '.dot'), 'MODEL.dot');
+  assert.equal(fileNameWithExtension('report.aiq', '.csv'), 'report.csv');
   assert.equal(fileNameWithExtension('model', '.png'), 'model.png');
 });
 
@@ -233,6 +288,7 @@ function createHarness(options = {}) {
           ...state,
           fileName: input.fileName,
           source: input.source,
+          ...(options.queryResult === undefined ? {} : { queryResult: options.queryResult }),
           ...(options.omitArtifacts ? {} : {
             svg: `<svg>${state.query}</svg>`,
             dot: `digraph { "${state.query}" }`,

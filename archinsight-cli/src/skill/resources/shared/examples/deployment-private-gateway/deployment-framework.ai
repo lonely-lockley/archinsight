@@ -1,0 +1,10 @@
+define type PrivateGateway of NetworkConnection
+    constructor privateGateway
+
+define type DirectNetwork of NetworkConnection
+    constructor directNetwork
+
+define type PrivateGatewayEnvironment of Environment
+    Compute compute
+    DirectNetwork network
+    PrivateGateway privateGateway

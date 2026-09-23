@@ -1,0 +1,6 @@
+MATCH (changed:Element)
+WHERE elementId(changed) = $element
+MATCH p = (changed)<-[:REFERENCES*1..8]-(dependent:Element)
+RETURN TABLE elementId(dependent) AS dependent,
+             min(length(p)) AS distance
+ORDER BY dependent

@@ -147,12 +147,14 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     schedule: (task, delay) => window.setTimeout(task, delay),
     cancel: (handle) => window.clearTimeout(handle),
     currentProjectId: projectId,
+    activeTabId: () => state().activeTabId,
     linkedAnalysis: () => state().linkedAnalysis,
     clearLinkedAnalysis: () => patch({ linkedAnalysis: undefined }),
+    invalidateRenderedQueries: () => tabController.invalidateRenderedQueries(),
     closeDeploymentPicker: () => patch({ deploymentPickerOpen: false }),
     runLink: (sequence, options) => analysisRunner.runLink(sequence, options),
-    runCachedDiagram: (sequence, requestedProjectId, analysis) => (
-      analysisRunner.runCachedDiagram(sequence, requestedProjectId, analysis)
+    runCachedDiagram: (sequence, requestedProjectId, analysis, expectedTabId) => (
+      analysisRunner.runCachedDiagram(sequence, requestedProjectId, analysis, true, expectedTabId)
     ),
     checkSyntax: (sources) => monacoSession.checkSyntax(sources),
     defaultSyntaxSources: () => state().tabs.filter(isProjectSourceTab).map((tab) => ({
@@ -226,6 +228,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     selectEditorTab: (id) => tabController.selectEditor(id),
     editorSymbols: () => state().editorSymbols,
     completionSnapshot: () => state().workspaceCompletionSnapshot,
+    linkedAnalysis: () => state().linkedAnalysis,
     diagnosticsFor: (tab) => analysisController.diagnosticsFor(tab),
     contentChanged: (tab, content) => fileController.contentChanged(tab, content)
   });
@@ -271,6 +274,9 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     acceptProjectStructure: editorSynchronization.acceptProjectStructure,
     clearDots: (sourceIdentities) => tabController.clearDots(sourceIdentities),
     acceptDiagram: (sourceIdentity, svg, dot) => tabController.patchBySourceIdentity(sourceIdentity, { svg, dot }),
+    acceptQueryResult: (sourceIdentity, queryResult) => tabController.patchBySourceIdentity(sourceIdentity, { queryResult }),
+    now: () => Date.now(),
+    queryFinished: messageController.queryFinished,
     cycleSummary: messageController.cycleSummary,
     queryError: messageController.queryError,
     error: messageController.error,
@@ -389,6 +395,12 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
 
   const controllers = {
     query: queryController,
+    analysis: {
+      cancelCurrent() {
+        analysisController.cancelCurrent();
+        patch({ analysisLoading: false });
+      }
+    },
     auth: authController,
     action: actionController,
     diagram: diagramController,

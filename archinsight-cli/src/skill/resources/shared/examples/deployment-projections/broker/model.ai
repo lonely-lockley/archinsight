@@ -1,0 +1,26 @@
+context broker_example
+
+deploymentProfile service_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+
+system commerce
+    name = Commerce
+
+    service publisher
+        name = Order publisher
+        deployment:
+            uses service_profile
+
+    service consumer
+        name = Fulfillment consumer
+        deployment:
+            uses service_profile
+        links:
+            ~> publisher
+                via = orders.created
+                technology = Kafka
+                description = Consumes order-created events
+                deployment:
+                    uses events

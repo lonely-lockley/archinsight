@@ -1,0 +1,23 @@
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public edge
+            gateway:
+                infrastructureComponent edge_gateway
+                    name = Edge gateway
+            loadBalancer:
+                infrastructureComponent load_balancer
+                    name = Load balancer
+            projection:
+                source $from originalLink target gateway
+                target gateway connectTo target loadBalancer
+                    technology = HTTPS
+                target loadBalancer connectTo target $to
+                    technology = HTTP

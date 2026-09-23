@@ -127,15 +127,14 @@ architecture.
   or broad file changes.
 - Read `references/core.md` and `.core/*.ai` before assuming built-in types,
   constructors, attributes, presentations, or projections.
-- Read `references/queries.md` before writing queries or interpreting query
-  JSON.
+- Read `references/queries.md` before writing graph views or `RETURN TABLE`
+  reports, supplying parameters, or interpreting query JSON/CSV.
 - Read `references/custom-views.md` before creating a saved `.aiq` view or
   overriding a built-in query.
 - Read `references/query-recipes.md` when a view hides expected content,
   returns unexpected content, or needs customization.
 - Read `references/validation.md` before validating semantic or rendered
   results.
-- Read `references/analysis.md` for read-only architecture analysis,
-  dependency questions, impact exploration, and the boundary between Insight
-  queries and analysis of their JSON output.
+- Read `references/analysis.md` for inventories, dependency impact, paths,
+  topics, missing relationships, aggregation, and resource-bounded reports.
 - Use `examples/layered-architecture.ai` as a compact valid model.

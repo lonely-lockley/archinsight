@@ -1,11 +1,13 @@
 import { isQueryFile } from '@archinsight/workbench/project-queries';
-import { queryLanguageId, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
+import { queryLanguageId, registerQueryLanguage, registerQueryCompletionProvider } from '@archinsight/workbench/query-monaco';
 import { createQueryScopeWidgets, type QueryScopeWidgetPorts } from '@archinsight/workbench/query-scope-widgets';
 import {
   CompletionEngine,
+  completeAiq,
   createGeneratedInsightSyntaxProvider,
   type CompletionKind,
-  type LanguageSnapshot
+  type LanguageSnapshot,
+  type LinkProjectResult
 } from '@insight/language';
 import {
   completionDisplayLabel,
@@ -45,6 +47,7 @@ export type MonacoSessionPorts = {
   selectEditorTab(id: string | undefined): void;
   editorSymbols(): LanguageSnapshot;
   completionSnapshot(): WorkspaceCompletionSnapshot;
+  linkedAnalysis(): LinkProjectResult | undefined;
   diagnosticsFor(tab: WorkspaceTab): Diagnostic[];
   contentChanged(tab: WorkspaceTab, content: string): void;
 };
@@ -217,6 +220,13 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
       tokenVocabulary = createInsightTokenVocabulary(ports.editorSymbols());
       monaco.languages.register({ id: 'insight' });
       registerQueryLanguage(monaco);
+      registerQueryCompletionProvider(monaco, (source, cursorOffset) => completeAiq({
+        source,
+        cursorOffset,
+        snapshot: ports.editorSymbols(),
+        analysis: ports.linkedAnalysis(),
+        parameters: Object.keys(ports.activeTab()?.queryParameters ?? {})
+      }));
       monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
       semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
       monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);

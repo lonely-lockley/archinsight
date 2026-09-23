@@ -1,0 +1,4 @@
+context external
+
+external system payment
+    name = Payment Provider

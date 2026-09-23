@@ -1,0 +1,12 @@
+{
+  "scopeName": "source.archinsight-query",
+  "patterns": [
+    { "name": "comment.line.number-sign.aiq", "match": "#.*$" },
+    { "name": "string.quoted.single.aiq", "begin": "'", "end": "'", "patterns": [{ "name": "constant.character.escape.aiq", "match": "\\\\." }] },
+    { "name": "variable.parameter.aiq", "match": "\\$[A-Za-z_][A-Za-z0-9_]*" },
+    { "name": "keyword.control.aiq", "match": "(?i)\\b(MATCH|OPTIONAL|ROLLUP|WHERE|RETURN|TABLE|GROUP|BY|WITH|UNWIND|AS|DISTINCT|ORDER|SKIP|LIMIT|ASC|DESC|AND|OR|NOT|CONTAINS|IN|IS|NULL|TRUE|FALSE|shortestPath)\\b" },
+    { "name": "constant.numeric.aiq", "match": "-?\\b[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\\b" },
+    { "name": "keyword.operator.aiq", "match": "<>|<=|>=|->|<-|[-=<>*|]" },
+    { "name": "entity.name.type.aiq", "match": "(?<=:)\\s*[A-Za-z_][A-Za-z0-9_]*" }
+  ]
+}

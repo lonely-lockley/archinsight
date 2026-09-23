@@ -41,6 +41,7 @@ function fixture(initialTabs: WorkspaceTab[] = []) {
     scheduleLink: vi.fn(), scheduleDiagramUpdate: vi.fn(), scheduleLiveSyntaxCheck: vi.fn(),
     isCurrentLink: vi.fn(() => true), updateLinkerDiagnostics: vi.fn(),
     updateLocalDiagnostics: vi.fn(), removeDiagnostics: vi.fn(), diagnosticsFor: vi.fn(() => []),
+    cancelCurrent: vi.fn(),
     reset: vi.fn(), dispose: vi.fn()
   };
   const ports: WorkspaceFileControllerPorts = {
@@ -133,6 +134,27 @@ describe('query files', () => {
 });
 
 describe('workspace file controller', () => {
+  it('reuses cached graph and table results when switching tabs', async () => {
+    const tableResult = {
+      schemaVersion: 'aiq-table.v1' as const,
+      kind: 'table' as const,
+      columns: [], rows: [],
+      metadata: { context: null, source: null, executionComplete: true as const, rowCount: 0, skip: 0, limit: null, pathScopes: [], warnings: [] }
+    };
+    const subject = fixture([
+      tab('graph.ai', { dot: 'digraph {}' }),
+      tab('table.aiq', { dot: undefined, queryResult: tableResult }),
+      tab('missing.ai', { dot: undefined })
+    ]);
+
+    await subject.controller.activateTab('table.aiq');
+    await subject.controller.activateTab('graph.ai');
+    expect(subject.analysis.scheduleDiagramUpdate).not.toHaveBeenCalled();
+
+    await subject.controller.activateTab('missing.ai');
+    expect(subject.analysis.scheduleDiagramUpdate).toHaveBeenCalledOnce();
+  });
+
   it('accepts editor changes into overlays, storage, analysis, and workspace state', () => {
     const main = tab('main.ai');
     const subject = fixture([main]);

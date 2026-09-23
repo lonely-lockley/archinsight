@@ -1,0 +1,49 @@
+context shop
+    name = Shop Platform
+
+external actor shopper
+    name = Shopper
+    technology = Browser
+    description = Browses products and places orders
+    links:
+        -> storefront
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+    description = Authorizes card payments
+
+system storefront
+    name = Storefront
+    technology = Web application
+    description = Customer-facing commerce experience
+
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Renders product pages and checkout screens
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                description = Starts checkout and shows order status
+
+    service checkout_api
+        name = Checkout API
+        technology = Node.js, PostgreSQL
+        description = Prices carts, creates orders, and coordinates payment
+        links:
+            -> payment_provider
+                technology = HTTPS, JSON
+                description = Requests payment authorization
+
+        component order_controller
+            name = Order controller
+            technology = REST
+            responsibility = Accepts checkout requests and returns order status
+            links:
+                -> payment_client
+
+        component payment_client
+            name = Payment client
+            technology = HTTP client
+            responsibility = Calls the payment provider and normalizes errors

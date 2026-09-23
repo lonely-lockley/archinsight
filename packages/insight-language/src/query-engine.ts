@@ -16,14 +16,24 @@ import {
   type ViewBoundaryDefinition,
 } from "./builtin-views.js";
 import {
+  AiqQueryError,
+  analyzeQuery,
+  isEndpointReachabilityClause,
   parseQuery,
   type Expression,
   type MatchClause,
   type NodePattern,
-  type ParsedQuery,
+  type ParsedGraphQuery,
   type QueryPattern,
+  type QuerySourceRange,
   type QueryValue,
   type RelationshipPattern,
+  type ParsedTableQuery,
+  type PaginationExpression,
+  type TableExpression,
+  type TableMatchClause,
+  type TableProjection,
+  type TableValueExpression,
   type ValueExpression,
 } from "./query-syntax.js";
 import {
@@ -32,13 +42,92 @@ import {
 } from "./query-execution-context.js";
 import { runQueryViewPipeline } from "./query-view-pipeline.js";
 import { ATTRIBUTE_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
+import { aiqFunction } from "./query-function-catalog.js";
 
 export const DEFAULT_QUERY = "MATCH (n:Element {context: $context}) RETURN n";
 
 interface Row {
   readonly nodes: Readonly<Record<string, QueryNode>>;
   readonly relationships: Readonly<Record<string, QueryRelationship>>;
+  readonly values: Readonly<Record<string, RuntimeValue>>;
 }
+
+interface AggregateState {
+  readonly expression: Extract<TableValueExpression, { readonly kind: "function" }>;
+  readonly seen?: Set<string>;
+  count: number;
+  sum: number;
+  selected: RuntimeValue;
+  collected?: RuntimeValue[];
+  valueType?: "number" | "string";
+}
+
+interface ProjectionGroup {
+  readonly representative?: Row;
+  readonly aggregates: readonly AggregateState[];
+}
+
+export type QueryParameterValue = null | boolean | number | string | readonly QueryParameterValue[];
+
+export interface QueryColumn {
+  readonly name: string;
+  readonly type: "string" | "number" | "boolean" | "list" | "node" | "relationship" | "path" | "record" | "any";
+  readonly nullable: boolean;
+  readonly itemType?: QueryColumn["type"];
+}
+
+export type QueryCell = null | boolean | number | string | readonly QueryCell[] | Readonly<Record<string, unknown>>;
+
+export interface QueryResultMetadata {
+  readonly context: string | null;
+  readonly source: string | null;
+  readonly executionComplete: true;
+  readonly rowCount: number;
+  readonly skip: number;
+  readonly limit: number | null;
+  readonly pathScopes: readonly Readonly<Record<string, unknown>>[];
+  readonly warnings: readonly string[];
+}
+
+export interface QueryTableResult {
+  readonly schemaVersion: "aiq-table.v1";
+  readonly kind: "table";
+  readonly columns: readonly QueryColumn[];
+  readonly rows: readonly (readonly QueryCell[])[];
+  readonly metadata: QueryResultMetadata;
+}
+
+export type QueryResult =
+  | { readonly kind: "graph"; readonly graph: RenderGraph }
+  | QueryTableResult;
+
+export interface QueryExecutionLimits {
+  readonly maxExpansions: number;
+  readonly maxRows: number;
+  readonly maxValues: number;
+  readonly maxOutputBytes: number;
+  readonly timeoutMs: number;
+}
+
+export interface QueryExecutionOptions {
+  readonly limits?: Partial<QueryExecutionLimits>;
+  readonly signal?: AbortSignal;
+}
+
+export const DEFAULT_QUERY_EXECUTION_LIMITS: QueryExecutionLimits = Object.freeze({
+  maxExpansions: 1_000_000,
+  maxRows: 100_000,
+  maxValues: 1_000_000,
+  maxOutputBytes: 32 * 1024 * 1024,
+  timeoutMs: 10_000,
+});
+
+interface RuntimeRecord {
+  readonly [key: string]: RuntimeValue;
+}
+
+type RuntimeValue = null | boolean | number | string | QueryNode | QueryRelationship | QueryPath
+  | readonly RuntimeValue[] | RuntimeRecord;
 
 interface RollupEndpoint {
   readonly id: string;
@@ -48,7 +137,20 @@ interface RollupEndpoint {
 interface EvaluationContext extends QueryExecutionContext {
   readonly nodes: readonly QueryNode[];
   readonly nodeById: ReadonlyMap<string, QueryNode>;
+  readonly nodesByLabel: ReadonlyMap<string, readonly QueryNode[]>;
   readonly relationships: readonly QueryRelationship[];
+  readonly relationshipsBySource: ReadonlyMap<string, readonly QueryRelationship[]>;
+  readonly relationshipsByTarget: ReadonlyMap<string, readonly QueryRelationship[]>;
+  readonly relationshipsByEndpoint: ReadonlyMap<string, readonly QueryRelationship[]>;
+  readonly budget: QueryBudget;
+}
+
+interface QueryBudget {
+  readonly limits: QueryExecutionLimits;
+  readonly deadline: number;
+  readonly signal?: AbortSignal;
+  expansions: number;
+  values: number;
 }
 
 interface QueryRelationship {
@@ -64,6 +166,21 @@ interface QueryRelationship {
   readonly projected: boolean;
 }
 
+interface QueryPathStep {
+  readonly index: number;
+  readonly from: string;
+  readonly to: string;
+  readonly relationshipId: string;
+  readonly direction: "forward" | "reverse";
+}
+
+interface QueryPath {
+  readonly kind: "path";
+  readonly nodes: readonly QueryNode[];
+  readonly relationships: readonly QueryRelationship[];
+  readonly steps: readonly QueryPathStep[];
+}
+
 type QueryNode =
   | { readonly kind: "element"; readonly id: string; readonly element: LinkedElement }
   | { readonly kind: "context"; readonly id: string; readonly context: string; readonly sourceIdentity: string; readonly attributes: Readonly<Record<string, readonly string[]>> }
@@ -74,14 +191,35 @@ export function selectGraph(
   result: LinkProjectResult,
   scope: QueryScope,
   query: string | undefined,
+  options: QueryExecutionOptions = {},
+): RenderGraph {
+  try {
+    return selectGraphInternal(result, scope, query, options);
+  } catch (cause) {
+    throw normalizeAiqError(cause);
+  }
+}
+
+function selectGraphInternal(
+  result: LinkProjectResult,
+  scope: QueryScope,
+  query: string | undefined,
+  options: QueryExecutionOptions,
 ): RenderGraph {
   const parsed = parseQuery(query === undefined || query.trim() === "" ? DEFAULT_QUERY : query);
-  const execution = evaluationContext(createQueryExecutionContext(result, scope));
+  if (parsed.kind !== "graph") {
+    throw new Error("selectGraph requires a graph RETURN; use executeQuery for RETURN TABLE");
+  }
+  const execution = evaluationContext(
+    createQueryExecutionContext(result, scope),
+    createQueryBudget(normalizedLimits(options.limits), options.signal),
+  );
   const rows = evaluate(execution, parsed);
   const selectedElements = new Map<string, LinkedElement>();
   const selectedEdges: RenderGraphEdge[] = [];
   const selectedEdgeIdentities = new Map<LinkedEdge, Set<string>>();
   const returnedRelationshipPatterns = relationshipPatternsReturnedBy(parsed);
+  const returnsPath = parsed.matches.some((match) => match.pattern.path !== undefined && parsed.returns.includes(match.pattern.path.alias));
   const selectedStructuralRelationships = new Set<string>();
   const groups = new Map<string, RenderGraphGroup>();
   const nodeById = execution.nodeById;
@@ -117,6 +255,31 @@ export function selectGraph(
           selectedStructuralRelationships.add(alias);
         }
       }
+      const path = row.values[alias];
+      if (isQueryPath(path)) {
+        const unsupported = path.relationships.find((relationship) => relationship.kind !== "REFERENCES");
+        if (unsupported !== undefined) {
+          throw new AiqQueryError(
+            "AIQ_UNRENDERABLE_PATH",
+            `Graph RETURN cannot render a path over ${unsupported.kind}; use RETURN TABLE for structural paths`,
+          );
+        }
+        for (const pathNode of path.nodes) {
+          const element = linkedElementForNode(pathNode);
+          if (element !== undefined) selectedElements.set(pathNode.id, element);
+        }
+        for (const pathEdge of path.relationships) {
+          if (pathEdge.edge !== undefined) {
+            addSelectedEdge(selectedEdges, {
+              edge: contextualLinkedEdge(pathEdge),
+              source: pathEdge.source,
+              target: pathEdge.target,
+              derived: pathEdge.derived,
+              projected: pathEdge.projected,
+            }, pathEdge.edge, selectedEdgeIdentities);
+          }
+        }
+      }
     }
     if (parsed.groupBy !== undefined) {
       collectGroup(groups, row, parsed.groupBy, scope);
@@ -135,7 +298,7 @@ export function selectGraph(
 
   const completedEdges = selectedEdges.length > 0
     ? selectedEdges
-    : hasAuthoritativeEdgeSelection(returnedRelationshipPatterns, selectedStructuralRelationships)
+    : returnsPath || hasAuthoritativeEdgeSelection(returnedRelationshipPatterns, selectedStructuralRelationships)
       ? []
       : result.edges
         .filter((edge) => edge.projected !== true && selectedElements.has(edge.source) && selectedElements.has(edge.target))
@@ -164,6 +327,80 @@ export function selectGraph(
     rollUpSystems: (_result, graph, _scope, rootType) => rollUpDeploymentSystems(execution, graph, rootType),
     simplifyInfrastructure: (_result, graph, rootType) => simplifyDeploymentSystemInfrastructure(execution, graph, rootType),
   });
+}
+
+export function executeQuery(
+  result: LinkProjectResult,
+  scope: QueryScope,
+  query: string | undefined,
+  parameters: Readonly<Record<string, QueryParameterValue>> = {},
+  options: QueryExecutionOptions = {},
+): QueryResult {
+  try {
+    const source = query === undefined || query.trim() === "" ? DEFAULT_QUERY : query;
+    const parsed = parseQuery(source);
+    if (parsed.kind === "graph") {
+      if (Object.keys(parameters).length > 0) {
+        throw new AiqQueryError("AIQ_PARAMETER", "Graph queries do not accept user parameters");
+      }
+      const limits = normalizedLimits(options.limits);
+      const graphResult: QueryResult = { kind: "graph", graph: selectGraph(result, scope, source, options) };
+      assertOutputBudget(graphResult, limits);
+      return graphResult;
+    }
+    validateQueryParameters(source, scope, parameters);
+    const limits = normalizedLimits(options.limits);
+    const table = executeTableQuery(evaluationContext(
+      createQueryExecutionContext(result, scope),
+      createQueryBudget(limits, options.signal),
+    ), parsed, parameters);
+    assertOutputBudget(table, limits);
+    return table;
+  } catch (cause) {
+    throw normalizeAiqError(cause);
+  }
+}
+
+function normalizeAiqError(cause: unknown): AiqQueryError {
+  if (cause instanceof AiqQueryError) return cause;
+  const message = cause instanceof Error ? cause.message : String(cause);
+  const stable = /^(AIQ_[A-Z_]+):\s*(.*)$/s.exec(message);
+  if (stable !== null) return new AiqQueryError(stable[1]!, stable[2]!);
+  const code = /parameter|\$context|\$tab/i.test(message) ? "AIQ_PARAMETER"
+    : /requires|expected|numeric|number|string|boolean|list|homogeneous|comparison/i.test(message) ? "AIQ_TYPE_ERROR"
+    : /RETURN TABLE|graph RETURN|result/i.test(message) ? "AIQ_RESULT_KIND"
+    : "AIQ_EVALUATION";
+  return new AiqQueryError(code, message);
+}
+
+function validateQueryParameters(
+  source: string,
+  scope: QueryScope,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): void {
+  const references = analyzeTableParameterNames(source);
+  const userReferences = references.filter((name) => name !== "context" && name !== "tab");
+  const supplied = Object.keys(parameters);
+  for (const reserved of ["context", "tab"]) {
+    if (Object.hasOwn(parameters, reserved)) throw new Error(`Parameter $${reserved} is reserved for query scope`);
+  }
+  const missing = userReferences.filter((name) => !Object.hasOwn(parameters, name));
+  if (missing.length > 0) throw new Error(`Missing query parameter${missing.length === 1 ? "" : "s"}: ${missing.map((name) => `$${name}`).join(", ")}`);
+  const unused = supplied.filter((name) => !userReferences.includes(name));
+  if (unused.length > 0) throw new Error(`Unused query parameter${unused.length === 1 ? "" : "s"}: ${unused.map((name) => `$${name}`).join(", ")}`);
+  if (references.includes("context") && scope.context === undefined) throw new Error("Query requires $context scope");
+  if (references.includes("tab") && scope.tab === undefined) throw new Error("Query requires $tab scope");
+  for (const [name, value] of Object.entries(parameters)) validateParameterValue(name, value);
+}
+
+function analyzeTableParameterNames(source: string): readonly string[] {
+  const analysis = analyzeQuery(source);
+  return analysis.referencedVariables;
+}
+
+function validateParameterValue(name: string, value: QueryParameterValue): void {
+  if (typeof value === "number" && !Number.isFinite(value)) throw new Error(`Parameter $${name} must be a finite number`);
+  if (Array.isArray(value)) value.forEach((item) => validateParameterValue(name, item));
 }
 
 function removeDescendantProjectionsCapturedBySystemSeeds(
@@ -272,7 +509,7 @@ export function discoverDeploymentEnvironments(
     .sort((left, right) => (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id));
 }
 
-function relationshipPatternsReturnedBy(query: ParsedQuery): ReadonlyMap<string, RelationshipPattern> {
+function relationshipPatternsReturnedBy(query: ParsedGraphQuery): ReadonlyMap<string, RelationshipPattern> {
   const returned = new Set(query.returns);
   return new Map(query.matches.flatMap((match) => {
     const relationship = match.pattern.relationship;
@@ -847,7 +1084,7 @@ function logicalRelationshipCarrier(current: RenderGraphEdge, candidate: RenderG
     : current;
 }
 
-function internalElements(result: LinkProjectResult, rows: readonly Row[], query: ParsedQuery): ReadonlySet<string> {
+function internalElements(result: LinkProjectResult, rows: readonly Row[], query: ParsedGraphQuery): ReadonlySet<string> {
   const aliases = new Set(query.matches.flatMap((match) =>
     match.optional ? [] : patternNodeAliases(match.pattern)
   ));
@@ -1046,22 +1283,1013 @@ function explicitlyExternal(element: LinkedElement): boolean {
   return linkedElementIsExplicitlyExternal(element);
 }
 
-function evaluationContext(base: QueryExecutionContext): EvaluationContext {
+function evaluationContext(
+  base: QueryExecutionContext,
+  budget = createQueryBudget(DEFAULT_QUERY_EXECUTION_LIMITS),
+): EvaluationContext {
   const nodes = queryNodes(base);
+  const relationships = queryRelationships(base, budget);
   return {
     ...base,
     nodes,
     nodeById: new Map(nodes.map((node) => [node.id, node])),
-    relationships: queryRelationships(base),
+    nodesByLabel: indexNodesByLabel(nodes),
+    relationships,
+    relationshipsBySource: indexRelationships(relationships, (relationship) => relationship.source),
+    relationshipsByTarget: indexRelationships(relationships, (relationship) => relationship.target),
+    relationshipsByEndpoint: indexRelationshipEndpoints(relationships),
+    budget,
   };
 }
 
-function evaluate(context: EvaluationContext, query: ParsedQuery): readonly Row[] {
-  let rows: readonly Row[] = [{ nodes: {}, relationships: {} }];
+function indexNodesByLabel(nodes: readonly QueryNode[]): ReadonlyMap<string, readonly QueryNode[]> {
+  const result = new Map<string, QueryNode[]>();
+  for (const node of nodes) {
+    for (const label of labels(node)) {
+      const indexed = result.get(label) ?? [];
+      indexed.push(node);
+      result.set(label, indexed);
+    }
+  }
+  return result;
+}
+
+function candidateNodes(context: EvaluationContext, pattern: NodePattern): readonly QueryNode[] {
+  return pattern.label === undefined ? context.nodes : context.nodesByLabel.get(pattern.label) ?? [];
+}
+
+function indexRelationshipEndpoints(
+  relationships: readonly QueryRelationship[],
+): ReadonlyMap<string, readonly QueryRelationship[]> {
+  const result = new Map<string, QueryRelationship[]>();
+  for (const relationship of relationships) {
+    for (const endpoint of new Set([relationship.source, relationship.target])) {
+      const indexed = result.get(endpoint) ?? [];
+      indexed.push(relationship);
+      result.set(endpoint, indexed);
+    }
+  }
+  return result;
+}
+
+function indexRelationships(
+  relationships: readonly QueryRelationship[],
+  key: (relationship: QueryRelationship) => string,
+): ReadonlyMap<string, readonly QueryRelationship[]> {
+  const result = new Map<string, QueryRelationship[]>();
+  for (const relationship of relationships) {
+    const indexed = result.get(key(relationship)) ?? [];
+    indexed.push(relationship);
+    result.set(key(relationship), indexed);
+  }
+  return result;
+}
+
+function normalizedLimits(overrides: Partial<QueryExecutionLimits> | undefined): QueryExecutionLimits {
+  const limits = { ...DEFAULT_QUERY_EXECUTION_LIMITS, ...overrides };
+  for (const [name, value] of Object.entries(limits)) {
+    if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`Query execution limit '${name}' must be a positive integer`);
+  }
+  return limits;
+}
+
+function createQueryBudget(limits: QueryExecutionLimits, signal?: AbortSignal): QueryBudget {
+  return {
+    limits,
+    deadline: Date.now() + limits.timeoutMs,
+    ...(signal === undefined ? {} : { signal }),
+    expansions: 0,
+    values: 0,
+  };
+}
+
+function chargeExpansion(context: EvaluationContext, count = 1): void {
+  context.budget.expansions += count;
+  checkQueryBudget(context);
+  if (context.budget.expansions > context.budget.limits.maxExpansions) {
+    throw new Error(`AIQ_BUDGET_EXCEEDED: query exceeded maxExpansions=${context.budget.limits.maxExpansions}`);
+  }
+}
+
+function chargeValues(context: EvaluationContext, count: number): void {
+  context.budget.values += count;
+  checkQueryBudget(context);
+  if (context.budget.values > context.budget.limits.maxValues) {
+    throw new Error(`AIQ_BUDGET_EXCEEDED: query exceeded maxValues=${context.budget.limits.maxValues}`);
+  }
+}
+
+function assertRows(context: EvaluationContext, rows: readonly Row[]): void {
+  checkQueryBudget(context);
+  if (rows.length > context.budget.limits.maxRows) {
+    throw new Error(`AIQ_BUDGET_EXCEEDED: query exceeded maxRows=${context.budget.limits.maxRows}`);
+  }
+}
+
+function appendRow(context: EvaluationContext, rows: Row[], row: Row): void {
+  rows.push(row);
+  assertRows(context, rows);
+}
+
+function appendRows(context: EvaluationContext, rows: Row[], additions: readonly Row[]): void {
+  for (const row of additions) appendRow(context, rows, row);
+}
+
+function checkQueryBudget(context: EvaluationContext): void {
+  if (context.budget.signal?.aborted === true) throw new Error("AIQ_CANCELLED: query execution was cancelled");
+  if (Date.now() > context.budget.deadline) {
+    throw new Error(`AIQ_BUDGET_EXCEEDED: query exceeded timeoutMs=${context.budget.limits.timeoutMs}`);
+  }
+}
+
+function assertOutputBudget(value: QueryResult, limits: QueryExecutionLimits): void {
+  const bytes = new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  if (bytes > limits.maxOutputBytes) {
+    throw new Error(`AIQ_OUTPUT_TOO_LARGE: serialized result exceeds maxOutputBytes=${limits.maxOutputBytes}`);
+  }
+}
+
+function executeTableQuery(
+  context: EvaluationContext,
+  query: ParsedTableQuery,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): QueryTableResult {
+  let rows: readonly Row[] = [{ nodes: {}, relationships: {}, values: {} }];
+  for (let clauseIndex = 0; clauseIndex < query.clauses.length; clauseIndex++) {
+    const input = query.clauses[clauseIndex]!;
+    if (input.kind === "match") {
+      rows = isEndpointReachabilityClause(query, clauseIndex)
+        ? endpointReachabilityRows(context, rows, input.clause, parameters)
+        : tableMatchRows(context, rows, input.clause, parameters);
+    } else if (input.kind === "unwind") {
+      const unwound: Row[] = [];
+      for (const row of rows) {
+        const value = evaluateTableValue(row, input.expression, context, parameters);
+        const values = value === null ? [] : Array.isArray(value) ? value : [value];
+        chargeValues(context, values.length);
+        for (const item of values) appendRow(context, unwound, bindRuntimeValue(row, input.alias, item));
+      }
+      rows = unwound;
+    } else {
+      rows = applyTableProjection(rows, input.clause.projection, context, parameters);
+      if (input.clause.where !== undefined) {
+        rows = rows.filter((row) => evaluateTablePredicate(row, input.clause.where!, context, parameters));
+      }
+      if (input.clause.orderBy.length > 0) chargeValues(context, rows.length);
+      rows = applyTableOrder(rows, input.clause.orderBy);
+      rows = applyTablePagination(rows, input.clause.skip, input.clause.limit, parameters);
+    }
+    assertRows(context, rows);
+  }
+  rows = applyTableProjection(rows, query.projection, context, parameters);
+  if (query.orderBy.length > 0) chargeValues(context, rows.length);
+  rows = applyTableOrder(rows, query.orderBy);
+  const skip = resolvePagination(query.skip, parameters, 0);
+  const limit = query.limit === undefined ? undefined : resolvePagination(query.limit, parameters, 0);
+  rows = rows.slice(skip, limit === undefined ? undefined : skip + limit);
+  assertRows(context, rows);
+
+  const names = query.projection.items.map((item) => requiredProjectionAlias(item.alias));
+  const rawRows = rows.map((row) => names.map((name) => runtimeBinding(row, name)));
+  const columns = names.map((name, index): QueryColumn => columnFor(
+    name,
+    rawRows.map((row) => row[index] ?? null),
+    query.projection.items[index]!.expression,
+  ));
+  return {
+    schemaVersion: "aiq-table.v1",
+    kind: "table",
+    columns,
+    rows: rawRows.map((row) => row.map(serializeRuntimeValue)),
+    metadata: {
+      context: context.scope.context ?? null,
+      source: context.scope.tab ?? null,
+      executionComplete: true,
+      rowCount: rows.length,
+      skip,
+      limit: limit ?? null,
+      pathScopes: query.clauses.flatMap((input) => input.kind === "match" && input.clause.pattern.path !== undefined
+        ? [{
+            operation: input.clause.pattern.path.mode,
+            min: input.clause.pattern.path.min,
+            max: input.clause.pattern.path.max ?? null,
+            direction: input.clause.pattern.direction ?? "outgoing",
+            relationshipType: input.clause.pattern.relationship?.type ?? null,
+            selectors: [...(input.clause.pattern.relationship?.selectors ?? [])].sort(),
+          }]
+        : []),
+      warnings: context.result.diagnostics
+        .filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE")
+        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`),
+    },
+  };
+}
+
+function endpointReachabilityRows(
+  context: EvaluationContext,
+  inputRows: readonly Row[],
+  clause: TableMatchClause,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly Row[] {
+  try {
+    const pattern = materializePatternParameters(clause.pattern, context.scope, parameters);
+    const definition = pattern.path!;
+    const relationship = pattern.relationship!;
+    const right = pattern.right!;
+    const maximum = definition.max ?? Number.POSITIVE_INFINITY;
+    const results: Row[] = [];
+    const emitted = new Set<string>();
+    for (const row of inputRows) {
+      const boundLeft = row.nodes[pattern.left.alias];
+      const boundRight = row.nodes[right.alias];
+      if ((boundLeft === undefined && hasRuntimeBinding(row, pattern.left.alias))
+          || (boundRight === undefined && hasRuntimeBinding(row, right.alias))) continue;
+      const starts = (boundLeft === undefined ? candidateNodes(context, pattern.left) : [boundLeft])
+        .filter((node) => matchesNode(node, pattern.left, context))
+        .sort((left, next) => left.id.localeCompare(next.id));
+      for (const start of starts) {
+        const emit = (node: QueryNode): void => {
+          if (emitted.has(node.id) || !matchesPathTarget(node, boundRight, right, context)) return;
+          emitted.add(node.id);
+          appendRow(context, results, {
+            nodes: { ...row.nodes, [pattern.left.alias]: start, [right.alias]: node },
+            relationships: row.relationships,
+            values: row.values,
+          });
+        };
+        if (definition.min === 0) emit(start);
+        const queue: { readonly node: QueryNode; readonly depth: number }[] = [{ node: start, depth: 0 }];
+        const visitedDepth = new Map<string, number>([[start.id, 0]]);
+        for (let index = 0; index < queue.length; index++) {
+          const state = queue[index]!;
+          if (state.depth >= maximum) continue;
+          for (const transition of pathTransitions(context, state.node, relationship, pattern.direction)) {
+            const nextDepth = state.depth + 1;
+            if (nextDepth >= definition.min) emit(transition.node);
+            const previousDepth = visitedDepth.get(transition.node.id);
+            if (previousDepth !== undefined && previousDepth <= nextDepth) continue;
+            visitedDepth.set(transition.node.id, nextDepth);
+            chargeValues(context, 1);
+            queue.push({ node: transition.node, depth: nextDepth });
+          }
+        }
+      }
+    }
+    return results;
+  } catch (cause) {
+    throw queryErrorAt(cause, clause.range);
+  }
+}
+
+function tableMatchRows(
+  context: EvaluationContext,
+  inputRows: readonly Row[],
+  clause: TableMatchClause,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly Row[] {
+  try {
+    return tableMatchRowsInternal(context, inputRows, clause, parameters);
+  } catch (cause) {
+    throw queryErrorAt(cause, clause.range);
+  }
+}
+
+function tableMatchRowsInternal(
+  context: EvaluationContext,
+  inputRows: readonly Row[],
+  clause: TableMatchClause,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly Row[] {
+  const pattern = materializePatternParameters(clause.pattern, context.scope, parameters);
+  const match: MatchClause = {
+    optional: false,
+    rollup: clause.rollup,
+    pattern,
+  };
+  const filter = (rows: readonly Row[]): readonly Row[] => clause.where === undefined
+    ? rows
+    : rows.filter((row) => evaluateTablePredicate(row, clause.where!, context, parameters));
+  const matchedRows = (rows: readonly Row[]): readonly Row[] => {
+    const anchoredRows = rows.flatMap((row) => anchorPatternRow(row, pattern, clause.where, context, parameters));
+    if (pattern.path?.mode !== "shortest" || clause.where === undefined) return filter(matchRows(context, anchoredRows, match));
+    const exhaustivePattern: QueryPattern = {
+      ...pattern,
+      path: { ...pattern.path, mode: "all", max: pattern.path.max ?? Math.max(0, context.nodes.length - 1) },
+    };
+    const candidates = filter(pathMatchRows(context, anchoredRows, exhaustivePattern, undefined));
+    const shortest = new Map<string, { row: Row; length: number }>();
+    for (const candidate of candidates) {
+      const path = candidate.values[pattern.path.alias];
+      if (!isQueryPath(path)) continue;
+      const endpoint = pattern.right === undefined ? "" : candidate.nodes[pattern.right.alias]?.id ?? "";
+      const start = candidate.nodes[pattern.left.alias]?.id ?? "";
+      const key = `${start}\0${endpoint}`;
+      const previous = shortest.get(key);
+      if (previous === undefined || path.relationships.length < previous.length) {
+        shortest.set(key, { row: candidate, length: path.relationships.length });
+      }
+    }
+    return [...shortest.values()].map((item) => item.row);
+  };
+  if (!clause.optional) {
+    if (pattern.path?.mode !== "shortest" || clause.where === undefined) return matchedRows(inputRows);
+    const results: Row[] = [];
+    for (const row of inputRows) appendRows(context, results, matchedRows([row]));
+    return results;
+  }
+  const results: Row[] = [];
+  for (const row of inputRows) {
+    const matched = matchedRows([row]);
+    appendRows(context, results, matched.length > 0 ? matched : [bindMissingPatternAliases(row, pattern)]);
+  }
+  return results;
+}
+
+function anchorPatternRow(
+  row: Row,
+  pattern: QueryPattern,
+  where: TableExpression | undefined,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly Row[] {
+  if (where === undefined) return [row];
+  const aliases = new Set([pattern.left.alias, pattern.right?.alias].filter((alias): alias is string => alias !== undefined));
+  let next = row;
+  for (const [alias, id] of elementIdAnchors(where, parameters)) {
+    if (!aliases.has(alias) || hasRuntimeBinding(next, alias)) continue;
+    const node = context.nodeById.get(id);
+    if (node === undefined) return [];
+    next = bindRuntimeValue(next, alias, node);
+  }
+  return [next];
+}
+
+function elementIdAnchors(
+  expression: TableExpression,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly (readonly [alias: string, id: string])[] {
+  if (expression.kind === "and") {
+    return [...elementIdAnchors(expression.left, parameters), ...elementIdAnchors(expression.right, parameters)];
+  }
+  if (expression.kind !== "compare" || expression.operator !== "eq") return [];
+  const direct = elementIdAnchor(expression.left, expression.right, parameters);
+  const reversed = elementIdAnchor(expression.right, expression.left, parameters);
+  return direct === undefined ? reversed === undefined ? [] : [reversed] : [direct];
+}
+
+function elementIdAnchor(
+  candidate: TableValueExpression,
+  value: TableValueExpression,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly [alias: string, id: string] | undefined {
+  if (candidate.kind !== "function" || candidate.name.toLowerCase() !== "elementid"
+      || candidate.arguments.length !== 1 || candidate.arguments[0]?.kind !== "binding") return undefined;
+  const resolved = value.kind === "literal" ? value.value
+    : value.kind === "parameter" ? parameters[value.name]
+    : undefined;
+  return typeof resolved === "string" ? [candidate.arguments[0].alias, resolved] : undefined;
+}
+
+function materializePatternParameters(
+  pattern: QueryPattern,
+  scope: QueryScope,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): QueryPattern {
+  const resolve = (value: QueryValue): QueryValue => {
+    if (value.kind === "literal") return value;
+    const resolved = value.name === "context" ? scope.context
+      : value.name === "tab" ? scope.tab
+      : parameters[value.name];
+    if (resolved === undefined || resolved === null || Array.isArray(resolved)) {
+      throw new Error(`Pattern property parameter $${value.name} must be a scalar value`);
+    }
+    return { kind: "literal", value: String(resolved) };
+  };
+  const node = (value: NodePattern): NodePattern => ({
+    ...value,
+    properties: Object.fromEntries(Object.entries(value.properties).map(([name, item]) => [name, resolve(item)])),
+  });
+  return {
+    ...pattern,
+    left: node(pattern.left),
+    ...(pattern.right === undefined ? {} : { right: node(pattern.right) }),
+    ...(pattern.relationship === undefined ? {} : {
+      relationship: {
+        ...pattern.relationship,
+        properties: Object.fromEntries(Object.entries(pattern.relationship.properties).map(([name, item]) => [name, resolve(item)])),
+      },
+    }),
+  };
+}
+
+function bindMissingPatternAliases(row: Row, pattern: QueryPattern): Row {
+  let next = row;
+  for (const alias of [pattern.left.alias, pattern.relationship?.alias, pattern.right?.alias, pattern.path?.alias]) {
+    if (alias !== undefined && runtimeBinding(next, alias) === null) next = bindRuntimeValue(next, alias, null);
+  }
+  return next;
+}
+
+function bindRuntimeValue(row: Row, alias: string, value: RuntimeValue): Row {
+  const nodes = { ...row.nodes };
+  const relationships = { ...row.relationships };
+  const values = { ...row.values };
+  delete nodes[alias];
+  delete relationships[alias];
+  delete values[alias];
+  if (isQueryNode(value)) nodes[alias] = value;
+  else if (isQueryRelationship(value)) relationships[alias] = value;
+  else values[alias] = value;
+  return { nodes, relationships, values };
+}
+
+function runtimeBinding(row: Row, alias: string): RuntimeValue {
+  return row.nodes[alias] ?? row.relationships[alias] ?? row.values[alias] ?? null;
+}
+
+function hasRuntimeBinding(row: Row, alias: string): boolean {
+  return Object.hasOwn(row.nodes, alias) || Object.hasOwn(row.relationships, alias) || Object.hasOwn(row.values, alias);
+}
+
+function applyTableProjection(
+  rows: readonly Row[],
+  projection: TableProjection,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly Row[] {
+  const aggregateItems = projection.items.filter((item) => isAggregateExpression(item.expression));
+  for (const item of projection.items) {
+    if (!isAggregateExpression(item.expression) && containsAggregate(item.expression)) {
+      throw new Error("Aggregate functions must be the complete projection expression");
+    }
+  }
+  let projected: Row[];
+  if (aggregateItems.length === 0) {
+    projected = rows.map((row) => projectTableRow(row, projection, context, parameters));
+  } else {
+    const keys = projection.items.filter((item) => !isAggregateExpression(item.expression));
+    const aggregateExpressions = aggregateItems.map((item) => item.expression as Extract<TableValueExpression, { readonly kind: "function" }>);
+    const groups = new Map<string, ProjectionGroup>();
+    for (const row of rows) {
+      const key = runtimeKey(keys.map((item) => evaluateTableValue(row, item.expression, context, parameters)));
+      const group = groups.get(key) ?? {
+        representative: row,
+        aggregates: aggregateExpressions.map(createAggregateState),
+      };
+      updateAggregateStates(group.aggregates, row, context, parameters);
+      groups.set(key, group);
+    }
+    if (rows.length === 0 && keys.length === 0) {
+      groups.set("[]", { aggregates: aggregateExpressions.map(createAggregateState) });
+    }
+    projected = [...groups.values()].map((group) => {
+      let result: Row = { nodes: {}, relationships: {}, values: {} };
+      let aggregateIndex = 0;
+      for (const item of projection.items) {
+        const alias = requiredProjectionAlias(item.alias);
+        const value = isAggregateExpression(item.expression)
+          ? aggregateResult(group.aggregates[aggregateIndex++]!)
+          : evaluateTableValue(requiredRow(group.representative), item.expression, context, parameters);
+        result = bindRuntimeValue(result, alias, value);
+      }
+      return result;
+    });
+  }
+  if (!projection.distinct) return projected;
+  const seen = new Set<string>();
+  return projected.filter((row) => {
+    const key = runtimeKey(projection.items.map((item) => runtimeBinding(row, requiredProjectionAlias(item.alias))));
+    if (seen.has(key)) return false;
+    seen.add(key);
+    chargeValues(context, 1);
+    return true;
+  });
+}
+
+function projectTableRow(
+  row: Row,
+  projection: TableProjection,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): Row {
+  return projection.items.reduce<Row>((result, item) => bindRuntimeValue(
+    result,
+    requiredProjectionAlias(item.alias),
+    evaluateTableValue(row, item.expression, context, parameters),
+  ), { nodes: {}, relationships: {}, values: {} });
+}
+
+function isAggregateExpression(expression: TableValueExpression): boolean {
+  return expression.kind === "function" && aiqFunction(expression.name)?.kind === "aggregate";
+}
+
+function containsAggregate(expression: TableValueExpression): boolean {
+  if (isAggregateExpression(expression)) return true;
+  if (expression.kind === "property") return containsAggregate(expression.target);
+  if (expression.kind === "list") return expression.values.some(containsAggregate);
+  if (expression.kind === "function") return expression.arguments.some(containsAggregate);
+  if (expression.kind === "quantifier") return containsAggregate(expression.source);
+  if (expression.kind === "listComprehension") return containsAggregate(expression.source) || containsAggregate(expression.projection);
+  return false;
+}
+
+function createAggregateState(
+  expression: Extract<TableValueExpression, { readonly kind: "function" }>,
+): AggregateState {
+  const name = expression.name.toLowerCase();
+  return {
+    expression,
+    ...(expression.distinct ? { seen: new Set<string>() } : {}),
+    count: 0,
+    sum: 0,
+    selected: null,
+    ...(name === "collect" ? { collected: [] } : {}),
+  };
+}
+
+function updateAggregateStates(
+  states: readonly AggregateState[],
+  row: Row,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): void {
+  for (const state of states) {
+    updateAggregateState(state, row, context, parameters);
+  }
+}
+
+function updateAggregateState(
+  state: AggregateState,
+  row: Row,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): void {
+  try {
+    updateAggregateStateInternal(state, row, context, parameters);
+  } catch (cause) {
+    throw queryErrorAt(cause, state.expression.range);
+  }
+}
+
+function updateAggregateStateInternal(
+  state: AggregateState,
+  row: Row,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): void {
+  const expression = state.expression;
+  const value: RuntimeValue = expression.star
+    ? true
+    : expression.arguments[0] === undefined
+      ? null
+      : evaluateTableValue(row, expression.arguments[0], context, parameters);
+  if (value === null) return;
+  if (state.seen !== undefined) {
+    const key = runtimeKey(value);
+    if (state.seen.has(key)) return;
+    state.seen.add(key);
+    chargeValues(context, 1);
+  }
+  const name = expression.name.toLowerCase();
+  state.count += 1;
+  if (name === "collect") {
+    state.collected!.push(value);
+    chargeValues(context, 1);
+    return;
+  }
+  if (name === "sum" || name === "avg") {
+    if (typeof value !== "number") throw new Error(`${expression.name} requires numeric values`);
+    state.sum += value;
+    if (!Number.isFinite(state.sum)) throw new Error(`${expression.name} result is outside the finite numeric range`);
+    return;
+  }
+  if (name === "count") return;
+  if (typeof value !== "number" && typeof value !== "string") {
+    throw new Error(`${expression.name} requires homogeneous number or string values`);
+  }
+  const valueType: "number" | "string" = typeof value === "number" ? "number" : "string";
+  if (state.valueType !== undefined && state.valueType !== valueType) {
+    throw new Error(`${expression.name} requires homogeneous number or string values`);
+  }
+  state.valueType = valueType;
+  if (state.selected === null || compareOrdered(value, state.selected) * (name === "min" ? 1 : -1) < 0) {
+    state.selected = value;
+  }
+}
+
+function aggregateResult(state: AggregateState): RuntimeValue {
+  const name = state.expression.name.toLowerCase();
+  if (name === "count") return state.count;
+  if (name === "collect") return state.collected!;
+  if (name === "sum") return state.sum;
+  if (name === "avg") return state.count === 0 ? null : state.sum / state.count;
+  return state.selected;
+}
+
+function applyTableOrder(rows: readonly Row[], orderBy: readonly { readonly alias: string; readonly direction: "asc" | "desc" }[]): readonly Row[] {
+  if (orderBy.length === 0) return rows;
+  for (const item of orderBy) {
+    if (rows.length > 0 && runtimeBinding(rows[0]!, item.alias) === null && !Object.hasOwn(rows[0]!.values, item.alias)) {
+      throw new Error(`ORDER BY references unknown output alias '${item.alias}'`);
+    }
+  }
+  return rows.map((row, index) => ({ row, index })).sort((left, right) => {
+    for (const item of orderBy) {
+      const comparison = compareForSort(runtimeBinding(left.row, item.alias), runtimeBinding(right.row, item.alias), item.direction);
+      if (comparison !== 0) return comparison;
+    }
+    return left.index - right.index;
+  }).map((item) => item.row);
+}
+
+function compareForSort(left: RuntimeValue, right: RuntimeValue, direction: "asc" | "desc"): number {
+  if (left === null || right === null) {
+    if (left === right) return 0;
+    const nullOrder = left === null ? 1 : -1;
+    return direction === "asc" ? nullOrder : -nullOrder;
+  }
+  const comparison = compareOrdered(left, right);
+  return direction === "asc" ? comparison : -comparison;
+}
+
+function compareOrdered(left: RuntimeValue, right: RuntimeValue): number {
+  if ((typeof left !== "number" || typeof right !== "number")
+      && (typeof left !== "string" || typeof right !== "string")) {
+    throw new Error("Ordered comparison requires two numbers or two strings");
+  }
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function applyTablePagination(
+  rows: readonly Row[],
+  skip: PaginationExpression | undefined,
+  limit: PaginationExpression | undefined,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly Row[] {
+  const offset = resolvePagination(skip, parameters, 0);
+  const count = limit === undefined ? undefined : resolvePagination(limit, parameters, 0);
+  return rows.slice(offset, count === undefined ? undefined : offset + count);
+}
+
+function resolvePagination(
+  expression: PaginationExpression | undefined,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+  fallback: number,
+): number {
+  if (expression === undefined) return fallback;
+  const value = expression.kind === "number" ? expression.value : parameters[expression.name];
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error("SKIP and LIMIT require non-negative safe integers");
+  }
+  return value;
+}
+
+function evaluateTablePredicate(
+  row: Row,
+  expression: TableExpression,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): boolean {
+  try {
+    return evaluateTablePredicateInternal(row, expression, context, parameters);
+  } catch (cause) {
+    throw queryErrorAt(cause, expression.range);
+  }
+}
+
+function evaluateTablePredicateInternal(
+  row: Row,
+  expression: TableExpression,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): boolean {
+  if (expression.kind === "and") {
+    return evaluateTablePredicate(row, expression.left, context, parameters)
+      && evaluateTablePredicate(row, expression.right, context, parameters);
+  }
+  if (expression.kind === "or") {
+    return evaluateTablePredicate(row, expression.left, context, parameters)
+      || evaluateTablePredicate(row, expression.right, context, parameters);
+  }
+  if (expression.kind === "not") return !evaluateTablePredicate(row, expression.expression, context, parameters);
+  if (expression.kind === "truthy") return evaluateTableValue(row, expression.expression, context, parameters) === true;
+  const left = evaluateTableValue(row, expression.left, context, parameters);
+  if (expression.kind === "is") {
+    if (expression.target.toLowerCase() === "null") return left === null;
+    return tableValueMatchesType(left, expression.target, context);
+  }
+  const right = evaluateTableValue(row, expression.right, context, parameters);
+  if (expression.kind === "in") {
+    return Array.isArray(right)
+      ? right.some((value) => equalRuntimeValues(left, value))
+      : equalRuntimeValues(left, right);
+  }
+  if (left === null || right === null) return false;
+  if (expression.operator === "eq") return equalRuntimeValues(left, right);
+  if (expression.operator === "ne") return !equalRuntimeValues(left, right);
+  if (expression.operator === "contains") {
+    if (typeof left === "string" && typeof right === "string") return left.includes(right);
+    if (Array.isArray(left)) return left.some((value) => equalRuntimeValues(value, right));
+    return false;
+  }
+  const comparison = compareOrdered(left, right);
+  return expression.operator === "lt" ? comparison < 0
+    : expression.operator === "lte" ? comparison <= 0
+    : expression.operator === "gt" ? comparison > 0
+    : comparison >= 0;
+}
+
+function evaluateTableValue(
+  row: Row,
+  expression: TableValueExpression,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): RuntimeValue {
+  try {
+    return evaluateTableValueInternal(row, expression, context, parameters);
+  } catch (cause) {
+    throw queryErrorAt(cause, expression.range);
+  }
+}
+
+function evaluateTableValueInternal(
+  row: Row,
+  expression: TableValueExpression,
+  context: EvaluationContext,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): RuntimeValue {
+  if (expression.kind === "literal") return expression.value;
+  if (expression.kind === "parameter") {
+    if (expression.name === "context") return context.scope.context ?? null;
+    if (expression.name === "tab") return context.scope.tab ?? null;
+    return parameterAsRuntime(parameters[expression.name] ?? null);
+  }
+  if (expression.kind === "binding") return runtimeBinding(row, expression.alias);
+  if (expression.kind === "property") {
+    const target = evaluateTableValue(row, expression.target, context, parameters);
+    return runtimeProperty(target, expression.property);
+  }
+  if (expression.kind === "list") {
+    const values = expression.values.map((value) => evaluateTableValue(row, value, context, parameters));
+    chargeValues(context, values.length);
+    return values;
+  }
+  if (expression.kind === "function") {
+    if (isAggregateExpression(expression)) throw new Error(`Aggregate ${expression.name} is only valid as a projection item`);
+    const values = expression.arguments.map((value) => evaluateTableValue(row, value, context, parameters));
+    return evaluateTableFunction(expression.name, values, context);
+  }
+  if (expression.kind === "quantifier") {
+    const source = evaluateTableValue(row, expression.source, context, parameters);
+    if (source === null) return null;
+    if (!Array.isArray(source)) throw new Error(`${expression.name} requires a list`);
+    chargeValues(context, source.length);
+    const results = source.map((value) => expression.predicate === undefined
+      ? Boolean(value)
+      : evaluateTablePredicate(bindRuntimeValue(row, expression.alias, value), expression.predicate, context, parameters));
+    const name = expression.name.toLowerCase();
+    if (name === "all") return results.every(Boolean);
+    if (name === "any") return results.some(Boolean);
+    throw new Error(`Unknown quantifier function '${expression.name}'`);
+  }
+  const source = evaluateTableValue(row, expression.source, context, parameters);
+  if (source === null) return [];
+  if (!Array.isArray(source)) throw new Error("List comprehension requires a list");
+  const result = source.flatMap((value) => {
+    const nested = bindRuntimeValue(row, expression.alias, value);
+    if (expression.predicate !== undefined && !evaluateTablePredicate(nested, expression.predicate, context, parameters)) return [];
+    return [evaluateTableValue(nested, expression.projection, context, parameters)];
+  });
+  chargeValues(context, result.length);
+  return result;
+}
+
+function queryErrorAt(cause: unknown, range: QuerySourceRange | undefined): AiqQueryError {
+  if (cause instanceof AiqQueryError) return cause;
+  const normalized = normalizeAiqError(cause);
+  return range === undefined ? normalized : new AiqQueryError(normalized.code, normalized.detail, range);
+}
+
+function parameterAsRuntime(value: QueryParameterValue): RuntimeValue {
+  return Array.isArray(value) ? value.map(parameterAsRuntime) : value as Exclude<QueryParameterValue, readonly QueryParameterValue[]>;
+}
+
+function runtimeProperty(value: RuntimeValue, name: string): RuntimeValue {
+  if (value === null) return null;
+  if (isQueryPath(value)) {
+    if (name === "steps") return value.steps.map((step) => ({ ...step }));
+    if (name === "nodes") return value.nodes;
+    if (name === "relationships") return value.relationships;
+    if (name === "length") return value.relationships.length;
+    return null;
+  }
+  if (isQueryNode(value)) return propertyValue(value, name) ?? null;
+  if (isQueryRelationship(value)) return edgePropertyValue(value, name) ?? null;
+  if (Array.isArray(value)) return name === "length" || name === "size" ? value.length : null;
+  if (typeof value === "object") return (value as RuntimeRecord)[name] ?? null;
+  return null;
+}
+
+function evaluateTableFunction(name: string, values: readonly RuntimeValue[], context: EvaluationContext): RuntimeValue {
+  switch (name.toLowerCase()) {
+    case "elementid": {
+      const value = values[0];
+      return isQueryNode(value) ? value.id : isQueryRelationship(value) ? queryRelationshipIdentity(value) : null;
+    }
+    case "nodes": return isQueryPath(values[0]) ? values[0].nodes : null;
+    case "relationships": return isQueryPath(values[0]) ? values[0].relationships : null;
+    case "length": return isQueryPath(values[0]) ? values[0].relationships.length : null;
+    case "size": {
+      const value = values[0];
+      return typeof value === "string" || Array.isArray(value) ? value.length : null;
+    }
+    case "coalesce": return values.find((value) => value !== null) ?? null;
+    case "tointeger": return convertToInteger(values[0] ?? null);
+    case "tofloat": return convertToFloat(values[0] ?? null);
+    case "toboolean": return convertToBoolean(values[0] ?? null);
+    case "tostring": return convertToString(values[0] ?? null);
+    case "annotations": {
+      const value = values[0];
+      const annotations = isQueryNode(value)
+        ? value.kind === "element" ? value.element.annotations : undefined
+        : isQueryRelationship(value) ? value.edge?.annotations : undefined;
+      return (annotations ?? []).map((annotation) => ({
+        name: annotation.name,
+        value: annotation.value ?? null,
+        ...(annotation.source === undefined ? {} : { source: annotation.source as unknown as RuntimeValue }),
+      }));
+    }
+    case "startnode": {
+      const value = values[0];
+      return isQueryRelationship(value) ? context.nodeById.get(value.source) ?? null : null;
+    }
+    case "endnode": {
+      const value = values[0];
+      return isQueryRelationship(value) ? context.nodeById.get(value.target) ?? null : null;
+    }
+    case "originid": {
+      const value = values[0];
+      return isQueryRelationship(value) ? value.edge?.id ?? null : null;
+    }
+    default: throw new Error(`Unknown AIQ function '${name}'`);
+  }
+}
+
+function convertToInteger(value: RuntimeValue): RuntimeValue {
+  if (typeof value === "number") return Number.isSafeInteger(value) ? value : null;
+  if (typeof value !== "string" || !/^[+-]?\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function convertToFloat(value: RuntimeValue): RuntimeValue {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function convertToBoolean(value: RuntimeValue): RuntimeValue {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return null;
+  return value.toLowerCase() === "true" ? true : value.toLowerCase() === "false" ? false : null;
+}
+
+function convertToString(value: RuntimeValue): RuntimeValue {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : null;
+}
+
+function tableValueMatchesType(value: RuntimeValue, target: string, context: EvaluationContext): boolean {
+  if (isQueryNode(value)) return matchesTypePredicate(value, target);
+  if (isQueryRelationship(value)) {
+    const type = value.edge?.type ?? value.type ?? value.kind;
+    const typeNode = context.nodes.find((node) => node.kind === "type" && node.type === type);
+    return type === target || value.kind === target || (typeNode !== undefined && labels(typeNode).has(target));
+  }
+  return false;
+}
+
+function equalRuntimeValues(left: RuntimeValue, right: RuntimeValue): boolean {
+  return runtimeKey(left) === runtimeKey(right);
+}
+
+function runtimeKey(value: RuntimeValue | readonly RuntimeValue[]): string {
+  return JSON.stringify(serializeRuntimeValue(value as RuntimeValue));
+}
+
+function isQueryRelationship(value: unknown): value is QueryRelationship {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    && "source" in value && "target" in value && "derived" in value && "projected" in value;
+}
+
+function isQueryPath(value: unknown): value is QueryPath {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    && "kind" in value && value.kind === "path" && "steps" in value && "relationships" in value;
+}
+
+function requiredProjectionAlias(alias: string | undefined): string {
+  if (alias === undefined) throw new Error("Table projection expression requires AS name");
+  return alias;
+}
+
+function requiredRow(row: Row | undefined): Row {
+  if (row === undefined) throw new Error("Non-aggregate projection cannot be evaluated on an empty group");
+  return row;
+}
+
+function serializeRuntimeValue(value: RuntimeValue): QueryCell {
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.map(serializeRuntimeValue);
+  if (isQueryPath(value)) {
+    return {
+      kind: "path",
+      length: value.relationships.length,
+      nodes: value.nodes.map(serializeRuntimeValue),
+      relationships: value.relationships.map(serializeRuntimeValue),
+      steps: value.steps,
+    };
+  }
+  if (isQueryNode(value)) {
+    if (value.kind === "element") {
+      return {
+        kind: "node",
+        nodeKind: value.kind,
+        id: value.id,
+        type: value.element.type,
+        labels: [...labels(value)],
+        attributes: value.element.attributes,
+        source: value.element.declaration ?? null,
+      };
+    }
+    return { kind: "node", nodeKind: value.kind, id: value.id, labels: [...labels(value)] };
+  }
+  if (isQueryRelationship(value)) {
+    return {
+      kind: "relationship",
+      id: queryRelationshipIdentity(value),
+      originId: value.edge?.id ?? null,
+      relationshipKind: value.kind,
+      type: value.edge?.type ?? value.type ?? value.kind,
+      source: value.source,
+      target: value.target,
+      derived: value.derived,
+      projected: value.projected,
+      attributes: value.edge?.attributes ?? {},
+      sourceLocation: value.edge?.declaration ?? null,
+    };
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, serializeRuntimeValue(item)]));
+}
+
+function queryRelationshipIdentity(value: QueryRelationship): string {
+  const origin = value.edge?.id ?? `${value.kind}:${value.source}:${value.target}`;
+  return `${origin}:${value.source}:${value.target}:${value.derived ? "d" : "a"}:${value.projected ? "p" : "l"}`;
+}
+
+function columnFor(name: string, values: readonly RuntimeValue[], expression: TableValueExpression): QueryColumn {
+  const present = values.filter((value) => value !== null);
+  const types = new Set(present.map(runtimeColumnType));
+  const type = types.size === 1 ? [...types][0]! : types.size === 0 ? staticColumnType(expression) : "any";
+  const listItems = type === "list"
+    ? present.flatMap((value) => Array.isArray(value) ? value : []).filter((value) => value !== null)
+    : [];
+  const itemTypes = new Set(listItems.map(runtimeColumnType));
+  const itemType = itemTypes.size === 1 ? [...itemTypes][0] : undefined;
+  return { name, type, nullable: values.length === 0 || values.some((value) => value === null), ...(itemType === undefined ? {} : { itemType }) };
+}
+
+function runtimeColumnType(value: RuntimeValue): QueryColumn["type"] {
+  if (typeof value === "string") return "string";
+  if (typeof value === "number") return "number";
+  if (typeof value === "boolean") return "boolean";
+  if (Array.isArray(value)) return "list";
+  if (isQueryPath(value)) return "path";
+  if (isQueryNode(value)) return "node";
+  if (isQueryRelationship(value)) return "relationship";
+  return "record";
+}
+
+function staticColumnType(expression: TableValueExpression): QueryColumn["type"] {
+  if (expression.kind === "literal") return expression.value === null ? "any" : runtimeColumnType(expression.value);
+  if (expression.kind === "list" || expression.kind === "listComprehension") return "list";
+  if (expression.kind === "function") {
+    const name = expression.name.toLowerCase();
+    if (["count", "sum", "avg", "size", "length", "tointeger", "tofloat"].includes(name)) return "number";
+    if (["collect", "annotations", "nodes", "relationships"].includes(name)) return "list";
+    if (["toboolean", "all", "any"].includes(name)) return "boolean";
+    if (["elementid", "tostring", "originid"].includes(name)) return "string";
+  }
+  if (expression.kind === "quantifier") return "boolean";
+  return "any";
+}
+
+function evaluate(context: EvaluationContext, query: ParsedGraphQuery): readonly Row[] {
+  let rows: readonly Row[] = [{ nodes: {}, relationships: {}, values: {} }];
   for (const match of query.matches) {
     rows = match.optional
       ? optionalMatchRows(context, rows, match)
       : matchRows(context, rows, match);
+    assertRows(context, rows);
   }
   return rows;
 }
@@ -1075,9 +2303,9 @@ function optionalMatchRows(
   for (const row of rows) {
     const matched = matchRows(context, [row], clause);
     if (matched.length === 0) {
-      next.push(row);
+      appendRow(context, next, row);
     } else {
-      next.push(...matched);
+      appendRows(context, next, matched);
     }
   }
   return next;
@@ -1088,21 +2316,26 @@ function matchRows(
   inputRows: readonly Row[],
   clause: MatchClause,
 ): readonly Row[] {
+  if (clause.pattern.path !== undefined) {
+    return pathMatchRows(context, inputRows, clause.pattern, clause.where);
+  }
   if (clause.rollup) {
     return rollupMatchRows(context, inputRows, clause.pattern, clause.where);
   }
   const pattern = clause.pattern;
   const rows: Row[] = [];
-  const relationships = context.relationships;
   if (pattern.relationship === undefined || pattern.right === undefined) {
     for (const row of inputRows) {
       const bound = row.nodes[pattern.left.alias];
-      const candidates = bound === undefined ? context.nodes : [bound];
+      if (bound === undefined && hasRuntimeBinding(row, pattern.left.alias)) continue;
+      const candidates = bound === undefined ? candidateNodes(context, pattern.left) : [bound];
       for (const node of candidates) {
+        chargeExpansion(context);
         if (matchesNode(node, pattern.left, context)) {
-          rows.push({
+          appendRow(context, rows, {
             nodes: { ...row.nodes, [pattern.left.alias]: node },
             relationships: row.relationships,
+            values: row.values,
           });
         }
       }
@@ -1116,7 +2349,14 @@ function matchRows(
     const boundLeft = row.nodes[pattern.left.alias];
     const boundRight = row.nodes[right.alias];
     const boundRelationship = relationship.alias === undefined ? undefined : row.relationships[relationship.alias];
-    for (const edge of relationships) {
+    if ((boundLeft === undefined && hasRuntimeBinding(row, pattern.left.alias))
+        || (boundRight === undefined && hasRuntimeBinding(row, right.alias))
+        || (relationship.alias !== undefined && boundRelationship === undefined && hasRuntimeBinding(row, relationship.alias))) {
+      continue;
+    }
+    const candidates = candidateRelationships(context, pattern.direction, boundLeft, boundRight, boundRelationship);
+    for (const edge of candidates) {
+      chargeExpansion(context);
       if (boundRelationship !== undefined && boundRelationship !== edge) {
         continue;
       }
@@ -1144,14 +2384,234 @@ function matchRows(
           relationships: relationship.alias === undefined
             ? row.relationships
             : { ...row.relationships, [relationship.alias]: edge },
+          values: row.values,
         };
         if (matchesNode(orientation.left, pattern.left, context) && matchesNode(orientation.right, right, context)) {
-          rows.push(nextRow);
+          appendRow(context, rows, nextRow);
         }
       }
     }
   }
   return rows.filter((row) => evaluateExpression(row, clause.where, context));
+}
+
+function candidateRelationships(
+  context: EvaluationContext,
+  direction: QueryPattern["direction"],
+  left: QueryNode | undefined,
+  right: QueryNode | undefined,
+  relationship: QueryRelationship | undefined,
+): readonly QueryRelationship[] {
+  if (relationship !== undefined) return [relationship];
+  if (left !== undefined) {
+    if (direction === "outgoing") return context.relationshipsBySource.get(left.id) ?? [];
+    if (direction === "incoming") return context.relationshipsByTarget.get(left.id) ?? [];
+    return context.relationshipsByEndpoint.get(left.id) ?? [];
+  }
+  if (right !== undefined) {
+    if (direction === "outgoing") return context.relationshipsByTarget.get(right.id) ?? [];
+    if (direction === "incoming") return context.relationshipsBySource.get(right.id) ?? [];
+    return context.relationshipsByEndpoint.get(right.id) ?? [];
+  }
+  return context.relationships;
+}
+
+interface PathTraversalState {
+  readonly nodes: readonly QueryNode[];
+  readonly relationships: readonly QueryRelationship[];
+  readonly steps: readonly QueryPathStep[];
+  readonly usedRelationships: ReadonlySet<string>;
+}
+
+interface PathTransition {
+  readonly node: QueryNode;
+  readonly relationship: QueryRelationship;
+  readonly identity: string;
+  readonly direction: "forward" | "reverse";
+}
+
+function pathMatchRows(
+  context: EvaluationContext,
+  inputRows: readonly Row[],
+  pattern: QueryPattern,
+  where: Expression | undefined,
+): readonly Row[] {
+  const definition = pattern.path;
+  const relationship = pattern.relationship;
+  const right = pattern.right;
+  if (definition === undefined || relationship === undefined || right === undefined) return [];
+  if (pattern.path !== undefined && pattern.path.mode === "shortest" && pattern.path.min > 1) {
+    throw new Error("shortestPath supports a minimum of 0 or 1");
+  }
+  const results: Row[] = [];
+  for (const row of inputRows) {
+    const boundLeft = row.nodes[pattern.left.alias];
+    const boundRight = row.nodes[right.alias];
+    if ((boundLeft === undefined && hasRuntimeBinding(row, pattern.left.alias))
+        || (boundRight === undefined && hasRuntimeBinding(row, right.alias))) {
+      continue;
+    }
+    if (definition.mode === "shortest" && boundLeft === undefined && boundRight === undefined) {
+      throw new Error("shortestPath requires at least one endpoint to be bound by an earlier clause");
+    }
+    const starts = (boundLeft === undefined ? candidateNodes(context, pattern.left) : [boundLeft])
+      .filter((node) => matchesNode(node, pattern.left, context))
+      .sort((left, next) => left.id.localeCompare(next.id));
+    for (const start of starts) {
+      const paths = definition.mode === "shortest"
+        ? shortestPaths(context, start, boundRight, right, relationship, pattern.direction, definition.min, definition.max)
+        : enumeratePaths(context, start, boundRight, right, relationship, pattern.direction, definition.min, definition.max!);
+      for (const path of paths) {
+        const next = bindMatchedPath(row, pattern, path);
+        if (evaluateExpression(next, where, context)) appendRow(context, results, next);
+      }
+    }
+  }
+  return results;
+}
+
+function shortestPaths(
+  context: EvaluationContext,
+  start: QueryNode,
+  boundRight: QueryNode | undefined,
+  rightPattern: NodePattern,
+  relationshipPattern: RelationshipPattern,
+  direction: QueryPattern["direction"],
+  min: number,
+  requestedMax: number | undefined,
+): readonly QueryPath[] {
+  const maximum = requestedMax ?? Math.max(0, context.nodes.length - 1);
+  const initial: PathTraversalState = { nodes: [start], relationships: [], steps: [], usedRelationships: new Set() };
+  const queue: PathTraversalState[] = [initial];
+  const visitedDepth = new Map<string, number>([[start.id, 0]]);
+  const found = new Map<string, QueryPath>();
+  for (let index = 0; index < queue.length; index++) {
+    const state = queue[index]!;
+    const current = state.nodes[state.nodes.length - 1]!;
+    const depth = state.relationships.length;
+    if (depth >= min && matchesPathTarget(current, boundRight, rightPattern, context) && !found.has(current.id)) {
+      found.set(current.id, traversalPath(state));
+    }
+    if (depth >= maximum) continue;
+    for (const transition of pathTransitions(context, current, relationshipPattern, direction)) {
+      if (state.usedRelationships.has(transition.identity)) continue;
+      const nextDepth = depth + 1;
+      const previousDepth = visitedDepth.get(transition.node.id);
+      if (previousDepth !== undefined && previousDepth <= nextDepth) continue;
+      visitedDepth.set(transition.node.id, nextDepth);
+      chargeValues(context, 3);
+      queue.push(appendTransition(state, transition));
+    }
+  }
+  return [...found.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, path]) => path);
+}
+
+function enumeratePaths(
+  context: EvaluationContext,
+  start: QueryNode,
+  boundRight: QueryNode | undefined,
+  rightPattern: NodePattern,
+  relationshipPattern: RelationshipPattern,
+  direction: QueryPattern["direction"],
+  min: number,
+  max: number,
+): readonly QueryPath[] {
+  const results: QueryPath[] = [];
+  const visit = (state: PathTraversalState): void => {
+    const current = state.nodes[state.nodes.length - 1]!;
+    const depth = state.relationships.length;
+    if (depth >= min && matchesPathTarget(current, boundRight, rightPattern, context)) results.push(traversalPath(state));
+    if (depth >= max) return;
+    for (const transition of pathTransitions(context, current, relationshipPattern, direction)) {
+      if (!state.usedRelationships.has(transition.identity)) {
+        chargeValues(context, 3);
+        visit(appendTransition(state, transition));
+      }
+    }
+  };
+  visit({ nodes: [start], relationships: [], steps: [], usedRelationships: new Set() });
+  return results;
+}
+
+function pathTransitions(
+  context: EvaluationContext,
+  current: QueryNode,
+  pattern: RelationshipPattern,
+  direction: QueryPattern["direction"],
+): readonly PathTransition[] {
+  const transitions: PathTransition[] = [];
+  const candidates = direction === "outgoing"
+    ? context.relationshipsBySource.get(current.id) ?? []
+    : direction === "incoming"
+      ? context.relationshipsByTarget.get(current.id) ?? []
+      : context.relationshipsByEndpoint.get(current.id) ?? [];
+  for (const relationship of candidates) {
+    chargeExpansion(context);
+    if (!matchesRelationship(relationship, pattern, context)) continue;
+    const identity = queryRelationshipIdentity(relationship);
+    if ((direction === "outgoing" || direction === "undirected") && relationship.source === current.id) {
+      const node = context.nodeById.get(relationship.target);
+      if (node !== undefined) transitions.push({ node, relationship, identity, direction: "forward" });
+    }
+    if ((direction === "incoming" || direction === "undirected") && relationship.target === current.id
+        && (relationship.source !== relationship.target || direction !== "undirected")) {
+      const node = context.nodeById.get(relationship.source);
+      if (node !== undefined) transitions.push({ node, relationship, identity, direction: "reverse" });
+    }
+  }
+  return transitions.sort((left, right) =>
+    left.identity.localeCompare(right.identity)
+      || left.direction.localeCompare(right.direction)
+      || left.node.id.localeCompare(right.node.id)
+  );
+}
+
+function appendTransition(state: PathTraversalState, transition: PathTransition): PathTraversalState {
+  const from = state.nodes[state.nodes.length - 1]!.id;
+  const usedRelationships = new Set(state.usedRelationships);
+  usedRelationships.add(transition.identity);
+  return {
+    nodes: [...state.nodes, transition.node],
+    relationships: [...state.relationships, transition.relationship],
+    steps: [...state.steps, {
+      index: state.steps.length,
+      from,
+      to: transition.node.id,
+      relationshipId: transition.identity,
+      direction: transition.direction,
+    }],
+    usedRelationships,
+  };
+}
+
+function traversalPath(state: PathTraversalState): QueryPath {
+  return { kind: "path", nodes: state.nodes, relationships: state.relationships, steps: state.steps };
+}
+
+function matchesPathTarget(
+  node: QueryNode,
+  bound: QueryNode | undefined,
+  pattern: NodePattern,
+  context: EvaluationContext,
+): boolean {
+  return (bound === undefined || bound.id === node.id) && matchesNode(node, pattern, context);
+}
+
+function bindMatchedPath(row: Row, pattern: QueryPattern, path: QueryPath): Row {
+  const right = pattern.right!;
+  let next: Row = {
+    nodes: {
+      ...row.nodes,
+      [pattern.left.alias]: path.nodes[0]!,
+      [right.alias]: path.nodes[path.nodes.length - 1]!,
+    },
+    relationships: row.relationships,
+    values: { ...row.values, [pattern.path!.alias]: path },
+  };
+  if (pattern.relationship?.alias !== undefined) {
+    next = bindRuntimeValue(next, pattern.relationship.alias, path.relationships);
+  }
+  return next;
 }
 
 function rollupMatchRows(
@@ -1173,7 +2633,13 @@ function rollupMatchRows(
     const boundLeft = row.nodes[pattern.left.alias];
     const boundRight = row.nodes[right.alias];
     const boundRelationship = relationship.alias === undefined ? undefined : row.relationships[relationship.alias];
+    if ((boundLeft === undefined && hasRuntimeBinding(row, pattern.left.alias))
+        || (boundRight === undefined && hasRuntimeBinding(row, right.alias))
+        || (relationship.alias !== undefined && boundRelationship === undefined && hasRuntimeBinding(row, relationship.alias))) {
+      continue;
+    }
     for (const edge of relationships) {
+      chargeExpansion(context);
       if (boundRelationship !== undefined && boundRelationship !== edge) {
         continue;
       }
@@ -1209,11 +2675,12 @@ function rollupMatchRows(
                   target: target.id,
                 },
               },
+            values: row.values,
           };
           if (matchesNode(sourceEndpoint.binding, orientation.sourcePattern, context)
               && matchesNode(targetEndpoint.binding, orientation.targetPattern, context)
               && evaluateExpression(nextRow, where, context)) {
-            rows.push(nextRow);
+            appendRow(context, rows, nextRow);
             break;
           }
         }
@@ -1334,7 +2801,7 @@ function nearestEndpoint(
     if (node === undefined || !matchesNode(node, pattern, context)) {
       continue;
     }
-    if (where === undefined || evaluateExpression({ nodes: { [pattern.alias]: node }, relationships: {} }, where, context)) {
+    if (where === undefined || evaluateExpression({ nodes: { [pattern.alias]: node }, relationships: {}, values: {} }, where, context)) {
       return { id: node.id, binding: binding ?? node };
     }
   }
@@ -1368,11 +2835,12 @@ function elementNode(element: LinkedElement): QueryNode {
   return { kind: "element", id: element.id, element };
 }
 
-function queryRelationships(context: QueryExecutionContext): readonly QueryRelationship[] {
+function queryRelationships(context: QueryExecutionContext, budget: QueryBudget): readonly QueryRelationship[] {
   const edgeByRelationId = linkedEdgesByGraphRelationId(context.result);
-  const relationships: QueryRelationship[] = context.result.graph.relations().flatMap((relation) =>
-    queryRelationshipVariants(relation, edgeByRelationId.get(relation.id), context.contextBySourceIdentity)
-  );
+  const relationships: QueryRelationship[] = context.result.graph.relations().flatMap((relation) => {
+    chargeRawExpansion(budget);
+    return queryRelationshipVariants(relation, edgeByRelationId.get(relation.id), context.contextBySourceIdentity);
+  });
   const parentByChild = context.parentByChild;
   for (const relationship of [...relationships]) {
     if (relationship.kind !== "REFERENCES" || relationship.edge === undefined) {
@@ -1380,6 +2848,7 @@ function queryRelationships(context: QueryExecutionContext): readonly QueryRelat
     }
     for (const source of lineage(relationship.source, parentByChild)) {
       for (const target of lineage(relationship.target, parentByChild)) {
+        chargeRawExpansion(budget);
         if (source === relationship.source && target === relationship.target) {
           continue;
         }
@@ -1402,6 +2871,15 @@ function queryRelationships(context: QueryExecutionContext): readonly QueryRelat
     }
   }
   return relationships;
+}
+
+function chargeRawExpansion(budget: QueryBudget): void {
+  if (budget.signal?.aborted === true) throw new Error("AIQ_CANCELLED: query execution was cancelled");
+  if (Date.now() > budget.deadline) throw new Error(`AIQ_BUDGET_EXCEEDED: query exceeded timeoutMs=${budget.limits.timeoutMs}`);
+  budget.expansions++;
+  if (budget.expansions > budget.limits.maxExpansions) {
+    throw new Error(`AIQ_BUDGET_EXCEEDED: query exceeded maxExpansions=${budget.limits.maxExpansions}`);
+  }
 }
 
 function queryRelationshipVariants(
@@ -1721,7 +3199,7 @@ function labels(node: QueryNode): ReadonlySet<string> {
     return new Set(["SourceIdentity"]);
   }
   if (node.kind === "type") {
-    return new Set(["Type", node.type, ...node.baseTypes]);
+    return new Set(["Type"]);
   }
   return new Set(["Element", node.element.type, ...node.element.baseTypes]);
 }

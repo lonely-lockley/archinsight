@@ -1,0 +1,51 @@
+context customer_portal
+    name = Customer Portal
+
+external actor customer
+    name = Customer
+    technology = Browser, mobile app
+    description = Manages account details and service requests
+    links:
+        -> portal
+            description = Views account state and submits requests
+
+external actor support_agent
+    name = Support agent
+    technology = Back-office browser
+    description = Helps customers resolve account and service issues
+    links:
+        -> service_console
+            description = Reviews account state and updates service requests
+
+external system identity_provider
+    name = Identity Provider
+    technology = OIDC
+    description = Authenticates customers and support staff
+
+external system notification_platform
+    name = Notification Platform
+    technology = Email, SMS
+    description = Sends customer notifications
+
+system portal
+    name = Portal
+    technology = Web application
+    description = Customer-facing self-service experience
+    links:
+        -> identity_provider
+            technology = OIDC
+            description = Authenticates customers
+        -> notification_platform
+            technology = HTTPS
+            description = Sends request status notifications
+
+system service_console
+    name = Service Console
+    technology = Internal web application
+    description = Support-facing account and request management
+    links:
+        -> portal
+            description = Reads customer account and request state
+        -> identity_provider
+            technology = OIDC
+            description = Authenticates support staff

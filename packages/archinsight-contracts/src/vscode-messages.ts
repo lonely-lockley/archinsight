@@ -3,7 +3,9 @@ import {
   type BuiltinDiagramView,
   type CompletionDocumentation,
   type CompletionKind,
-  type LanguageSnapshot
+  type LanguageSnapshot,
+  type QueryParameterValue,
+  type QueryTableResult
 } from '@insight/language';
 import { ContractValidationError, array, boolean, number, record, string } from './validation.js';
 
@@ -43,6 +45,8 @@ export type WebviewPreviewState = {
   svg?: string;
   dot?: string;
   error?: string;
+  queryResult?: QueryTableResult;
+  parameters?: Readonly<Record<string, QueryParameterValue>>;
 };
 
 export type ControlsWebviewToHostMessage =
@@ -57,11 +61,12 @@ export type ControlsHostToWebviewMessage =
 
 export type WorkbenchWebviewToHostMessage =
   | { command: 'ready' }
+  | { command: 'cancel' }
   | { command: 'sourceChanged'; source: string }
-  | { command: 'render'; view: BuiltinDiagramView; query: string }
+  | { command: 'render'; view: BuiltinDiagramView; query: string; parameters?: Readonly<Record<string, QueryParameterValue>> }
   | { command: 'selectDeploymentEnvironment' }
   | { command: 'refresh' }
-  | { command: 'download'; kind: 'source' | 'svg' | 'png' | 'dot' }
+  | { command: 'download'; kind: 'source' | 'svg' | 'png' | 'dot' | 'csv' | 'json' }
   | { command: 'editQuery'; view: BuiltinDiagramView; query: string }
   | { command: 'png'; dataUrl: string }
   | { command: 'complete'; requestId: number; sourceName: string; source: string; cursorOffset: number }
@@ -72,10 +77,10 @@ export type WorkbenchWebviewToHostMessage =
 export type WorkbenchHostToWebviewMessage =
   | {
     command: 'source'; source: string; sourceName: string; fileName: string; view: BuiltinDiagramView; query: string;
-    environment?: string; diagnostics?: WebviewDiagnostic[]; symbols?: LanguageSnapshot; readOnly?: boolean;
+    environment?: string; parameters?: Readonly<Record<string, QueryParameterValue>>; diagnostics?: WebviewDiagnostic[]; symbols?: LanguageSnapshot; readOnly?: boolean;
     queries?: Readonly<Record<BuiltinDiagramView, string>>;
   }
-  | { command: 'query'; view: BuiltinDiagramView; query: string; environment?: string }
+  | { command: 'query'; view: BuiltinDiagramView; query: string; environment?: string; parameters?: Readonly<Record<string, QueryParameterValue>> }
   | { command: 'preview'; state: WebviewPreviewState }
   | { command: 'diagnostics'; diagnostics: WebviewDiagnostic[] }
   | { command: 'completionResult'; requestId: number; items: WebviewCompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
@@ -117,13 +122,17 @@ export function parseControlsHostToWebviewMessage(value: unknown): ControlsHostT
 export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWebviewToHostMessage {
   const input = commandRecord(value);
   switch (input.command) {
-    case 'ready': case 'selectDeploymentEnvironment': case 'refresh': return { command: input.command };
+    case 'ready': case 'cancel': case 'selectDeploymentEnvironment': case 'refresh': return { command: input.command };
     case 'sourceChanged': return { command: 'sourceChanged', source: string(input.source, 'source') };
-    case 'render': case 'editQuery': return { command: input.command, view: view(input.view), query: string(input.query, 'query') };
+    case 'render': return {
+      command: 'render', view: view(input.view), query: string(input.query, 'query'),
+      ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) })
+    };
+    case 'editQuery': return { command: 'editQuery', view: view(input.view), query: string(input.query, 'query') };
     case 'download': {
       const kind = string(input.kind, 'kind');
-      if (!['source', 'svg', 'png', 'dot'].includes(kind)) throw new ContractValidationError('download kind is invalid');
-      return { command: 'download', kind: kind as 'source' | 'svg' | 'png' | 'dot' };
+      if (!['source', 'svg', 'png', 'dot', 'csv', 'json'].includes(kind)) throw new ContractValidationError('download kind is invalid');
+      return { command: 'download', kind: kind as 'source' | 'svg' | 'png' | 'dot' | 'csv' | 'json' };
     }
     case 'png': return { command: 'png', dataUrl: string(input.dataUrl, 'dataUrl') };
     case 'complete': return {
@@ -150,12 +159,17 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
       command: 'source', source: string(input.source, 'source'), sourceName: string(input.sourceName, 'sourceName'),
       fileName: string(input.fileName, 'fileName'), view: view(input.view), query: string(input.query, 'query'),
       ...(input.environment === undefined ? {} : { environment: string(input.environment, 'environment') }),
+      ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) }),
       ...(input.diagnostics === undefined ? {} : { diagnostics: diagnostics(input.diagnostics, 'diagnostics') }),
       ...(input.symbols === undefined ? {} : { symbols: input.symbols as LanguageSnapshot }),
       ...(input.readOnly === undefined ? {} : { readOnly: boolean(input.readOnly, 'readOnly') }),
       ...(input.queries === undefined ? {} : { queries: queryRecord(input.queries) })
     };
-    case 'query': return { command: 'query', view: view(input.view), query: string(input.query, 'query'), ...(input.environment === undefined ? {} : { environment: string(input.environment, 'environment') }) };
+    case 'query': return {
+      command: 'query', view: view(input.view), query: string(input.query, 'query'),
+      ...(input.environment === undefined ? {} : { environment: string(input.environment, 'environment') }),
+      ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) })
+    };
     case 'preview': return { command: 'preview', state: previewState(input.state) };
     case 'diagnostics': return { command: 'diagnostics', diagnostics: diagnostics(input.diagnostics, 'diagnostics') };
     case 'completionResult': return {
@@ -186,8 +200,33 @@ function previewState(value: unknown): WebviewPreviewState {
     ...(input.contextId === undefined ? {} : { contextId: string(input.contextId, 'preview.contextId') }),
     ...(input.svg === undefined ? {} : { svg: string(input.svg, 'preview.svg') }),
     ...(input.dot === undefined ? {} : { dot: string(input.dot, 'preview.dot') }),
-    ...(input.error === undefined ? {} : { error: string(input.error, 'preview.error') })
+    ...(input.error === undefined ? {} : { error: string(input.error, 'preview.error') }),
+    ...(input.queryResult === undefined ? {} : { queryResult: queryTableResult(input.queryResult) }),
+    ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) })
   };
+}
+
+function queryParameters(value: unknown): Readonly<Record<string, QueryParameterValue>> {
+  const input = record(value, 'query parameters');
+  return Object.fromEntries(Object.entries(input).map(([name, item]) => [name, queryParameterValue(item, name)]));
+}
+
+function queryParameterValue(value: unknown, name: string): QueryParameterValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean'
+      || (typeof value === 'number' && Number.isFinite(value))) return value;
+  if (Array.isArray(value)) return value.map((item) => queryParameterValue(item, name));
+  throw new ContractValidationError(`query parameter '${name}' has an invalid value`);
+}
+
+function queryTableResult(value: unknown): QueryTableResult {
+  const input = record(value, 'preview.queryResult');
+  if (input.kind !== 'table' || input.schemaVersion !== 'aiq-table.v1') {
+    throw new ContractValidationError('preview.queryResult must be an aiq-table.v1 table result');
+  }
+  array(input.columns, 'preview.queryResult.columns');
+  array(input.rows, 'preview.queryResult.rows');
+  record(input.metadata, 'preview.queryResult.metadata');
+  return value as QueryTableResult;
 }
 
 function diagnostics(value: unknown, label: string): WebviewDiagnostic[] {

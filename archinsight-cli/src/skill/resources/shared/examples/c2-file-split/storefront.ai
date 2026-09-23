@@ -1,0 +1,24 @@
+context commerce
+
+import payment_provider from context commerce
+
+extend system storefront
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Renders product pages and checkout screens
+        links:
+            -> checkout_api
+                technology = HTTPS, JSON
+                call = POST /checkout
+                description = Starts checkout and shows order status
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Prices carts, creates orders, and coordinates payment
+        links:
+            -> payment_provider
+                technology = HTTPS
+                call = POST /payments/authorizations
+                description = Requests payment authorization

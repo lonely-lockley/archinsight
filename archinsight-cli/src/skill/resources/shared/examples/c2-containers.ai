@@ -1,0 +1,57 @@
+context fulfillment
+    name = Fulfillment Platform
+
+external actor warehouse_operator
+    name = Warehouse operator
+    technology = Browser
+    description = Picks, packs, and ships orders
+    links:
+        -> warehouse_ui
+            description = Processes pick, pack, and ship work
+
+external system carrier_api
+    name = Carrier API
+    technology = HTTPS API
+    description = Books shipments and returns tracking updates
+
+external system notification_platform
+    name = Notification Platform
+    technology = HTTPS API
+    description = Sends shipment notifications to customers
+
+system fulfillment
+    name = Fulfillment
+    technology = Fulfillment system
+    description = Coordinates packing, shipping, and customer shipment updates
+
+    container warehouse_ui
+        name = Warehouse UI
+        technology = React, TypeScript
+        description = Guides warehouse operators through pick, pack, and ship flows
+        links:
+            -> fulfillment_api
+                technology = HTTPS, JSON
+                call = POST /shipments
+                description = Creates and updates shipment work
+
+    service fulfillment_api
+        name = Fulfillment API
+        technology = Kotlin, PostgreSQL
+        description = Owns fulfillment workflow state and carrier integration
+        links:
+            -> carrier_api
+                technology = HTTPS
+                call = POST /labels
+                description = Buys shipment labels
+            -> notification_worker
+                description = Enqueues shipment notification work
+
+    service notification_worker
+        name = Notification Worker
+        technology = Node.js worker
+        description = Sends asynchronous shipment notifications
+        links:
+            -> notification_platform
+                technology = HTTPS
+                call = POST /messages
+                description = Sends shipment status notifications

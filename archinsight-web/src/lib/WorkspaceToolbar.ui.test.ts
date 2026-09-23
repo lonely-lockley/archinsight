@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { mount, unmount } from 'svelte';
+import { mount, tick, unmount } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import WorkspaceToolbar from './WorkspaceToolbar.svelte';
 
@@ -11,10 +11,12 @@ const handlers = () => ({
   onDownloadSvg: vi.fn(),
   onDownloadPng: vi.fn(),
   onDownloadDot: vi.fn(),
+  onDownloadCsv: vi.fn(),
+  onDownloadJson: vi.fn(),
   onSelectDocumentKind: vi.fn()
 });
 
-describe('WorkspaceToolbar document kind', () => {
+describe('WorkspaceToolbar', () => {
   it('offers a two-state document switch only for unsaved tabs', async () => {
     const target = document.createElement('div');
     document.body.append(target);
@@ -44,6 +46,36 @@ describe('WorkspaceToolbar document kind', () => {
     const saved = mount(WorkspaceToolbar, { target, props: handlers() });
     expect(target.querySelector('[aria-label="Document type"]')).toBeNull();
     await unmount(saved);
+    target.remove();
+  });
+
+  it('switches download formats with the active result type', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const events = handlers();
+    const component = mount(WorkspaceToolbar, { target, props: events });
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="Download"]')?.click();
+    await tick();
+    expect([...target.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)).toEqual([
+      'download source',
+      'download diagram as svg',
+      'download diagram as png',
+      'download diagram as DOT'
+    ]);
+
+    await unmount(component);
+    target.replaceChildren();
+    const tableEvents = handlers();
+    const table = mount(WorkspaceToolbar, { target, props: { ...tableEvents, tableResult: true } });
+    target.querySelector<HTMLButtonElement>('button[aria-label="Download"]')?.click();
+    await tick();
+    const items = [...target.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
+    expect(items.map((item) => item.textContent)).toEqual(['download table as CSV', 'download table as JSON']);
+    items[0]?.click();
+    expect(tableEvents.onDownloadCsv).toHaveBeenCalledOnce();
+
+    await unmount(table);
     target.remove();
   });
 });

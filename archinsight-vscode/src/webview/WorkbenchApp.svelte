@@ -1,7 +1,14 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
-  import type { BuiltinDiagramView } from '@insight/language';
+  import {
+    completeAiq,
+    coreLanguageSnapshot,
+    queryVariableOccurrences,
+    type BuiltinDiagramView,
+    type LanguageSnapshot,
+    type QueryTableResult
+  } from '@insight/language';
   import {
     completionDisplayLabel,
     completionDocumentationMarkdown,
@@ -31,6 +38,7 @@
     queryForDiagramMode
   } from '@archinsight/workbench/presets';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '@archinsight/workbench/types';
+  import { registerQueryCompletionProvider, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
 
   type DiagramView = BuiltinDiagramView;
@@ -60,11 +68,15 @@
   const lightEditorTheme = 'insight-vscode-light';
 
   let monaco: typeof Monaco | undefined;
+  let queryResult: QueryTableResult | undefined;
+  let resultLoading = false;
+  let queryParameters: Readonly<Record<string, import('@insight/language').QueryParameterValue>> = {};
   let editor: Monaco.editor.IStandaloneCodeEditor | undefined;
   let model: Monaco.editor.ITextModel | undefined;
   let themeObserver: MutationObserver | undefined;
   let tokenVocabulary: InsightTokenVocabulary | undefined;
   let semanticTokensProvider: InsightSemanticTokensProvider | undefined;
+  let queryCompletionProvider: Monaco.IDisposable | undefined;
   let editorHost: HTMLDivElement;
   let messagesPanel: HTMLElement;
   let suppressEditorChange = false;
@@ -91,7 +103,7 @@
   let editorSplitRatio = 50;
   let diagnostics: Diagnostic[] = [];
   let renderError: string | undefined;
-  let currentSymbols: unknown;
+  let currentSymbols: LanguageSnapshot = coreLanguageSnapshot;
   let readOnly = false;
 
   $: messages = panelMessages(diagnostics, renderError);
@@ -119,6 +131,7 @@
     completionResolvers.clear();
     pendingClipboardRequests.clear();
     themeObserver?.disconnect();
+    queryCompletionProvider?.dispose();
     editor?.dispose();
     model?.dispose();
   });
@@ -141,6 +154,13 @@
     monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
     semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
     monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);
+    registerQueryLanguage(monaco);
+    queryCompletionProvider = registerQueryCompletionProvider(monaco, (source, cursorOffset) => completeAiq({
+      source,
+      cursorOffset,
+      snapshot: currentSymbols,
+      parameters: Object.keys(queryParameters)
+    }));
     defineEditorThemes(monaco);
     registerCompletionProvider(monaco);
     observeThemeChanges(monaco);
@@ -237,12 +257,15 @@
       return;
     }
     if (message.command === 'source') {
+      resultLoading = false;
+      queryResult = undefined;
       sourceName = message.sourceName;
       fileName = message.fileName;
       source = message.source;
       diagnostics = message.diagnostics ?? [];
       diagramMode = diagramModeFromView(message.view);
       query = message.query;
+      queryParameters = message.parameters ?? {};
       deploymentEnvironment = message.environment;
       currentSymbols = message.symbols;
       readOnly = message.readOnly ?? false;
@@ -253,18 +276,24 @@
       return;
     }
     if (message.command === 'query') {
+      resultLoading = false;
+      queryResult = undefined;
       diagramMode = diagramModeFromView(message.view);
       query = message.query;
+      queryParameters = message.parameters ?? {};
       deploymentEnvironment = message.environment;
       return;
     }
     if (message.command === 'preview') {
+      resultLoading = false;
       sourceName = message.state.sourceName;
       fileName = message.state.fileName;
       diagramMode = diagramModeFromView(message.state.view);
       query = message.state.query;
+      queryParameters = message.state.parameters ?? {};
       deploymentEnvironment = message.state.environment;
       svg = message.state.error === undefined ? message.state.svg : undefined;
+      queryResult = message.state.error === undefined ? message.state.queryResult : undefined;
       dot = message.state.dot;
       renderError = message.state.error;
       return;
@@ -325,11 +354,11 @@
     editor.focus();
   }
 
-  function updateSymbols(symbols: unknown): void {
-    if (tokenVocabulary === undefined || symbols === undefined) {
+  function updateSymbols(symbols: LanguageSnapshot): void {
+    if (tokenVocabulary === undefined) {
       return;
     }
-    refreshInsightTokenVocabulary(tokenVocabulary, symbols as Parameters<typeof refreshInsightTokenVocabulary>[1], [source]);
+    refreshInsightTokenVocabulary(tokenVocabulary, symbols, [source]);
     if (monaco !== undefined && model !== undefined) {
       monaco.editor.setModelLanguage(model, 'insight');
       semanticTokensProvider?.refresh();
@@ -527,6 +556,7 @@
     }
     diagramMode = mode;
     query = queryForDiagramMode(mode);
+    queryParameters = {};
     postRender();
   }
 
@@ -537,14 +567,31 @@
   }
 
   function postRender(): void {
-    vscode.postMessage({ command: 'render', view: viewFromDiagramMode(diagramMode), query });
+    resultLoading = true;
+    queryResult = undefined;
+    const required = new Set(queryVariableOccurrences(query).map((item) => item.name).filter((name) => name !== 'context' && name !== 'tab'));
+    queryParameters = Object.fromEntries(Object.entries(queryParameters).filter(([name]) => required.has(name)));
+    vscode.postMessage({ command: 'render', view: viewFromDiagramMode(diagramMode), query, parameters: queryParameters });
+  }
+
+  function cancelResult(): void {
+    resultLoading = false;
+    vscode.postMessage({ command: 'cancel' });
+  }
+
+  function updateQueryParameter(name: string, value: import('@insight/language').QueryParameterValue | undefined): void {
+    const next = { ...queryParameters };
+    if (value === undefined) delete next[name];
+    else next[name] = value;
+    queryParameters = next;
+    postRender();
   }
 
   function refresh(): void {
     vscode.postMessage({ command: 'refresh' });
   }
 
-  function download(kind: 'source' | 'svg' | 'png' | 'dot'): void {
+  function download(kind: 'source' | 'svg' | 'png' | 'dot' | 'csv' | 'json'): void {
     vscode.postMessage({ command: 'download', kind });
   }
 
@@ -736,9 +783,12 @@
 <WorkspaceEditor
   active={true}
   {svg}
+  {queryResult}
+  {resultLoading}
   {diagramMode}
   {deploymentEnvironment}
   {query}
+  {queryParameters}
   {queryVisible}
   {queryPanelHeight}
   {viewMode}
@@ -755,6 +805,8 @@
   onSelectDiagramMode={selectDiagramMode}
   onToggleQuery={toggleQuery}
   onQueryChange={updateQuery}
+  onQueryParameterChange={updateQueryParameter}
+  onCancelResult={cancelResult}
   onQueryPanelHeightChange={(height) => queryPanelHeight = height}
   onZoomIn={() => zoomDiagram(0.06)}
   onZoomOut={() => zoomDiagram(-0.06)}
@@ -773,8 +825,11 @@
     onDownloadSvg={() => download('svg')}
     onDownloadPng={() => download('png')}
     onDownloadDot={() => download('dot')}
+    onDownloadCsv={() => download('csv')}
+    onDownloadJson={() => download('json')}
     canDownloadSvg={canDownloadDiagram}
     canDownloadPng={canDownloadDiagram}
     canDownloadDot={dot !== undefined && renderError === undefined}
+    tableResult={queryResult !== undefined}
   />
 </WorkspaceEditor>

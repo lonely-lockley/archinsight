@@ -1,4 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
@@ -7,6 +8,8 @@ import {
   buildProjectStructure,
   buildTypeHierarchy,
   filterTypeHierarchy,
+  formatQueryTableCsv,
+  formatQueryTableText,
   type LanguageDiagnostic,
   type LanguageSnapshot,
   type LinkProjectResult,
@@ -139,6 +142,8 @@ export function formatGraph(graph: RenderGraph): string {
   ].join("\n");
 }
 
+export { formatQueryTableCsv, formatQueryTableText };
+
 export function diagnosticSummary(diagnostics: readonly LanguageDiagnostic[]): Record<string, number> {
   const summary: Record<string, number> = { ERROR: 0, WARNING: 0, NOTE: 0 };
   for (const diagnostic of diagnostics) {
@@ -160,8 +165,16 @@ export async function writeOutput(file: string | undefined, content: string): Pr
     process.stdout.write(content);
     return;
   }
-  await mkdir(path.dirname(path.resolve(file)), { recursive: true });
-  await writeFile(file, content);
+  const destination = path.resolve(file);
+  await mkdir(path.dirname(destination), { recursive: true });
+  const temporary = path.join(path.dirname(destination), `.${path.basename(destination)}.${randomUUID()}.tmp`);
+  try {
+    await writeFile(temporary, content);
+    await rename(temporary, destination);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
 }
 
 export interface StructureTree {

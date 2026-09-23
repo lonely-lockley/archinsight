@@ -27,6 +27,7 @@ export type TabController = {
   patchBySourceIdentity(sourceIdentity: string, patch: Partial<WorkspaceTab>): void;
   replaceDiagnostics(resolve: (sourceIdentity: string) => WorkspaceTab['diagnostics']): void;
   clearDots(sourceIdentities: readonly string[]): void;
+  invalidateRenderedQueries(): void;
   remove(id: string): RemoveTabResult;
   retarget(
     tabId: string,
@@ -80,6 +81,14 @@ export function createTabController(ports: TabControllerPorts): TabController {
       writeTabs(ports.readState().tabs.map((tab) => (
         sources.has(tab.sourceIdentity) ? { ...tab, dot: undefined } : tab
       )));
+    },
+
+    invalidateRenderedQueries() {
+      writeTabs(ports.readState().tabs.map((tab) => ({
+        ...tab,
+        dot: undefined,
+        queryResult: undefined
+      })));
     },
 
     remove(id) {

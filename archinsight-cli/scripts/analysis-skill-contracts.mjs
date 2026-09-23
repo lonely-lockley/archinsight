@@ -131,14 +131,19 @@ RETURN source, dependency, target
   assert.equal(typeof annotatedEdge.edge.annotations[0].source.line, "number");
 
   const analysis = readFileSync(path.join(skill, "references", "analysis.md"), "utf8");
-  assert(analysis.includes("examples/queries/direct-service-dependencies.aiq"));
-  assert(analysis.includes("examples/queries/direct-authored-dependencies.aiq"));
-  assert(analysis.includes("examples/queries/async-topic-dependencies.aiq"));
-  assert(analysis.includes("examples/queries/kafka-service-dependencies.aiq"));
-  assert(analysis.includes("Insight eventing is consumer-owned"));
-  assert(analysis.includes(".edge.attributes.via"));
-  assert(analysis.includes("source.runsOn <> target.runsOn"));
-  assert.match(analysis, /current query language has no\s+annotation predicate/);
+  for (const example of ["inventory.aiq", "impact.aiq", "shortest-path.aiq", "kafka-topics.aiq", "no-incoming-dependencies.aiq", "type-summary.aiq"]) {
+    assert(analysis.includes(`examples/queries/${example}`));
+  }
+  assert(analysis.includes("The stored direction is consumer to provider"));
+  assert(analysis.includes("event.technology CONTAINS $technology"));
+  assert(analysis.includes("annotations(value)"));
+  assert(analysis.includes("RETURN TABLE"));
+  assert(analysis.includes("Archinsight: Run AIQ Query"));
+  assert(analysis.includes("show its text to the user only when they explicitly ask for it"));
+  assert(analysis.includes("Inspect graph-query JSON only"));
+  assert(analysis.includes("consider an engine defect"));
+  assert(analysis.includes("If the result contains more than 10 rows"));
+  assert(analysis.includes("complete result to a downloadable file"));
 
   console.log("analysis skill contracts passed");
 } finally {

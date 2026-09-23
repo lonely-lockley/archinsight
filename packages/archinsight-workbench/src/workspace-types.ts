@@ -1,5 +1,5 @@
 import type { DiagnosticDto, FileTreeNode } from '@archinsight/contracts';
-import type { BuiltinDiagramView } from '@insight/language';
+import type { BuiltinDiagramView, QueryParameterValue, QueryTableResult } from '@insight/language';
 
 export type ProjectUiState = {
   sidebarVisible: boolean;
@@ -36,6 +36,8 @@ export type WorkspaceTab = {
   queryView?: string;
   querySource?: string;
   queryContext?: string;
+  queryParameters?: Readonly<Record<string, QueryParameterValue>>;
+  queryResult?: QueryTableResult;
   deploymentEnvironment?: string;
   queryVisible: boolean;
   diagramScale: number;

@@ -3,12 +3,14 @@ import { emptyDiagramSvg } from '../diagram/diagram-controller';
 import { ProjectQuerySyntaxError, type ResolvedProjectQuery } from '../diagram/project-query-controller';
 import {
   IndexedGraph,
-  InsightLanguageService,
+  executeQuery,
+  renderGraphviz,
   resolveBuiltinView,
-  coreLanguageSnapshot,
   type BuiltinDiagramView,
+  type LanguageDiagnostic,
   type LanguageSnapshot,
-  type LinkProjectResult
+  type LinkProjectResult,
+  type QueryTableResult
 } from '@insight/language';
 import type {
   Diagnostic,
@@ -62,6 +64,9 @@ export type AnalysisRunnerPorts = {
   acceptProjectStructure(structure: ProjectStructure): void;
   clearDots(sourceIdentities: readonly string[]): void;
   acceptDiagram(sourceIdentity: string, svg: string, dot: string | undefined): void;
+  acceptQueryResult(sourceIdentity: string, result: QueryTableResult | undefined): void;
+  now(): number;
+  queryFinished(sourceIdentity: string, durationMs: number, rowCount: number | undefined, diagnostics: readonly LanguageDiagnostic[]): void;
   cycleSummary(task: string, diagnostics: Diagnostic[]): void;
   queryError(message: string, query: string): void;
   error(message: string): void;
@@ -71,12 +76,16 @@ export type AnalysisRunnerPorts = {
 
 export type AnalysisRunner = {
   runLink(sequence: number, options?: LinkRunOptions): Promise<void>;
-  runCachedDiagram(sequence: number, projectId: string, analysis: LinkProjectResult): Promise<void>;
+  runCachedDiagram(
+    sequence: number,
+    projectId: string,
+    analysis: LinkProjectResult,
+    reportDiagnostics?: boolean,
+    expectedTabId?: string
+  ): Promise<void>;
 };
 
 export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner {
-  const languageService = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
-
   const renderWithFallback = async (
     projectId: string,
     surface: WorkspaceSurface,
@@ -114,9 +123,13 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
   };
 
   const runner: AnalysisRunner = {
-    async runCachedDiagram(sequence, projectId, analysis) {
+    async runCachedDiagram(sequence, projectId, analysis, reportDiagnostics = true, expectedTabId) {
       const state = ports.state();
-      const sourceIdentities = renderSourceIdentities(state.tabs, state.activeTab);
+      if (expectedTabId !== undefined && state.activeTab?.id !== expectedTabId) return;
+      ports.setLoading(true);
+      const startedAt = ports.now();
+      const queryDocument = state.activeTab !== undefined && isQueryFile(state.activeTab.sourceIdentity);
+      const sourceIdentities = queryDocument ? [state.activeTab!.sourceIdentity] : renderSourceIdentities(state.tabs, state.activeTab);
       const renders: DotRender[] = [];
       try {
         for (const sourceIdentity of sourceIdentities) {
@@ -124,31 +137,42 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           const resolved = await ports.resolveQuery?.(tab, analysis);
           if (!ports.isCurrent(sequence, projectId)) return;
           if (resolved?.waiting !== undefined) {
+            ports.acceptQueryResult(sourceIdentity, undefined);
             ports.acceptDiagram(sourceIdentity, emptyDiagramSvg(resolved.waiting), undefined);
             continue;
           }
           const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === (resolved?.source ?? sourceIdentity));
+          const scope = {
+            context: resolved?.context ?? context?.id,
+            tab: resolved === undefined ? sourceIdentity : resolved.source,
+            view: resolved === undefined ? builtinView(state.diagramMode) : resolved.view,
+            ...((resolved === undefined ? state.deploymentEnvironment : tab.deploymentEnvironment) === undefined
+              ? {}
+              : { environment: resolved === undefined ? state.deploymentEnvironment : tab.deploymentEnvironment })
+          };
+          const result = executeQuery(analysis, scope, resolved?.query ?? state.query, tab.queryParameters ?? {});
+          if (result.kind === 'table') {
+            ports.clearDots([sourceIdentity]);
+            ports.acceptQueryResult(sourceIdentity, result);
+            ports.queryFinished(
+              sourceIdentity,
+              ports.now() - startedAt,
+              result.metadata.rowCount,
+              reportDiagnostics ? analysis.diagnostics : []
+            );
+            continue;
+          }
+          ports.acceptQueryResult(sourceIdentity, undefined);
           renders.push({
             sourceIdentity,
             diagram: 'query',
-            dot: languageService.render({
-              result: analysis,
-              scope: {
-                context: resolved?.context ?? context?.id,
-                tab: resolved === undefined ? sourceIdentity : resolved.source,
-                view: resolved === undefined ? builtinView(state.diagramMode) : resolved.view,
-                ...((resolved === undefined ? state.deploymentEnvironment : tab.deploymentEnvironment) === undefined
-                  ? {}
-                  : { environment: resolved === undefined ? state.deploymentEnvironment : tab.deploymentEnvironment })
-              },
-              query: resolved?.query ?? state.query,
-              theme: 'dark'
-            }).dot
+            dot: renderGraphviz(analysis, result.graph, 'dark')
           });
         }
       } catch (error) {
         if (!ports.isCurrent(sequence, projectId)) return;
         ports.clearDots(sourceIdentities);
+        sourceIdentities.forEach((sourceIdentity) => ports.acceptQueryResult(sourceIdentity, undefined));
         const message = errorMessage(error);
         if (error instanceof ProjectQuerySyntaxError) {
           ports.queryError(message, error.query);
@@ -158,6 +182,8 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           ports.error(`Render error: ${message}`);
         }
         return;
+      } finally {
+        if (ports.isCurrent(sequence, projectId)) ports.setLoading(false);
       }
       if (!ports.isCurrent(sequence, projectId)) return;
       if (renders.length === 0) {
@@ -166,10 +192,20 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
       }
       const rendered = await renderWithFallback(projectId, state.surface, renders);
       if (!ports.isCurrent(sequence, projectId)) return;
-      acceptRenderedDiagrams(renders, rendered, sourceIdentities);
+      if (acceptRenderedDiagrams(renders, rendered, sourceIdentities)) {
+        const durationMs = ports.now() - startedAt;
+        renders.forEach((render) => ports.queryFinished(
+          render.sourceIdentity,
+          durationMs,
+          undefined,
+          reportDiagnostics ? analysis.diagnostics : []
+        ));
+      }
     },
 
     async runLink(sequence, options) {
+      ports.setLoading(true);
+      const startedAt = ports.now();
       const state = ports.state();
       const overlays = overlaysForLink(state.tabs, state.overlays);
       const overlaySources = Object.entries(overlays).map(([sourceIdentity, content]) => ({
@@ -188,7 +224,9 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         if (ports.resolveQuery !== undefined && state.activeTab !== undefined && state.activeTab.projectSource !== false) {
           try {
             resolved = await ports.resolveQuery(state.activeTab);
-            deferredQuery = resolved.waiting !== undefined;
+            deferredQuery = resolved.waiting !== undefined
+              || resolved.resultKind === 'table'
+              || isQueryFile(state.activeTab.sourceIdentity);
           } catch { deferredQuery = true; }
         }
         if (!ports.isCurrent(sequence, state.projectId)) return;
@@ -216,16 +254,19 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         if (!linkHasErrors) ports.acceptProjectStructure(link.structure);
         ports.cycleSummary('Linker finished', link.diagnostics);
         if (!linkHasErrors && deferredQuery && linkedAnalysis !== undefined) {
-          await runner.runCachedDiagram(sequence, state.projectId, linkedAnalysis);
+          await runner.runCachedDiagram(sequence, state.projectId, linkedAnalysis, false, state.activeTab?.id);
           return;
         }
         if (linkHasErrors || link.renders.length === 0) {
           ports.clearDots(sourceIdentities);
+          sourceIdentities.forEach((sourceIdentity) => ports.acceptQueryResult(sourceIdentity, undefined));
           return;
         }
         const rendered = await renderWithFallback(state.projectId, state.surface, link.renders);
         if (!ports.isCurrent(sequence, state.projectId)) return;
         if (!acceptRenderedDiagrams(link.renders, rendered, sourceIdentities)) return;
+        const durationMs = ports.now() - startedAt;
+        link.renders.forEach((render) => ports.queryFinished(render.sourceIdentity, durationMs, undefined, []));
         if (deploymentEnvironmentChanged) ports.scheduleDiagramUpdate();
       } catch (error) {
         if (!ports.isCurrent(sequence, state.projectId)) return;

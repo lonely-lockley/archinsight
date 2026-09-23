@@ -23,11 +23,18 @@ export type AnalysisControllerPorts = {
   schedule(task: () => void, delay: number): number;
   cancel(handle: number): void;
   currentProjectId(): string;
+  activeTabId(): string | undefined;
   linkedAnalysis(): LinkProjectResult | undefined;
   clearLinkedAnalysis(): void;
+  invalidateRenderedQueries(): void;
   closeDeploymentPicker(): void;
   runLink(sequence: number, options?: LinkRunOptions): void | Promise<void>;
-  runCachedDiagram(sequence: number, projectId: string, analysis: LinkProjectResult): void | Promise<void>;
+  runCachedDiagram(
+    sequence: number,
+    projectId: string,
+    analysis: LinkProjectResult,
+    expectedTabId: string | undefined
+  ): void | Promise<void>;
   checkSyntax(sources: AnalysisSource[]): Promise<Diagnostic[]>;
   defaultSyntaxSources(): AnalysisSource[];
   readDiagnostics(): AnalysisDiagnosticsState;
@@ -43,6 +50,7 @@ export type AnalysisController = {
   updateLocalDiagnostics(checkedSources: string[], diagnostics: Diagnostic[]): void;
   removeDiagnostics(sources: string[]): void;
   diagnosticsFor(tab: Pick<WorkspaceTab, 'sourceIdentity'>): Diagnostic[];
+  cancelCurrent(): void;
   reset(): void;
   dispose(): void;
 };
@@ -94,6 +102,7 @@ export function createAnalysisController(ports: AnalysisControllerPorts): Analys
   const scheduleLink = (delay = 500, options?: LinkRunOptions): void => {
     ports.closeDeploymentPicker();
     ports.clearLinkedAnalysis();
+    ports.invalidateRenderedQueries();
     const sequence = ++linkSequence;
     schedule(() => void (options === undefined
       ? ports.runLink(sequence)
@@ -111,7 +120,8 @@ export function createAnalysisController(ports: AnalysisControllerPorts): Analys
       }
       const sequence = ++linkSequence;
       const projectId = ports.currentProjectId();
-      schedule(() => void ports.runCachedDiagram(sequence, projectId, analysis), delay);
+      const expectedTabId = ports.activeTabId();
+      schedule(() => void ports.runCachedDiagram(sequence, projectId, analysis, expectedTabId), delay);
     },
 
     scheduleLiveSyntaxCheck(sources = ports.defaultSyntaxSources()) {
@@ -155,6 +165,11 @@ export function createAnalysisController(ports: AnalysisControllerPorts): Analys
         ...(state.linker[tab.sourceIdentity] ?? []),
         ...(state.local[tab.sourceIdentity] ?? [])
       ]);
+    },
+
+    cancelCurrent() {
+      linkSequence += 1;
+      cancelScheduled();
     },
 
     reset,

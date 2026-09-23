@@ -1,0 +1,92 @@
+context commerce
+    name = Commerce Platform
+
+external actor shopper
+    name = Shopper
+    technology = Browser
+    links:
+        -> web_app
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+external system analytics_platform
+    name = Analytics Platform
+    technology = Kafka consumer
+    links:
+        ~> checkout_api
+            technology = Kafka
+            via = checkout.completed
+            description = Consumes completed checkout events
+
+system storefront
+    name = Storefront
+    technology = Commerce system
+
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+        description = Presents checkout screens and calls the backend API
+
+        component checkout_page
+            name = Checkout page
+            technology = Svelte
+            responsibility = Collects checkout details and shows order progress
+            links:
+                -> api_client
+
+        component api_client
+            name = API client
+            technology = Fetch, JSON
+            responsibility = Wraps backend calls and maps transport errors to UI state
+            links:
+                -> checkout_api
+                    technology = HTTPS, JSON
+                    call = POST /checkout
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Prices carts, creates orders, and coordinates payment
+        component checkout_controller
+            name = Checkout controller
+            technology = REST controller
+            responsibility = Accepts checkout requests and returns order status
+            links:
+                -> checkout_service
+
+        component checkout_service
+            name = Checkout service
+            technology = Kotlin
+            responsibility = Coordinates pricing, payment authorization, and order creation
+            links:
+                -> payment_gateway
+                    call = authorize(paymentCommand)
+                    description = Requests payment authorization
+                -> order_repository
+
+        component payment_gateway
+            name = Payment gateway
+            technology = HTTP client
+            responsibility = Translates internal payment commands to provider API calls
+            links:
+                -> payment_provider
+                    technology = HTTPS
+                    call = POST /payments/authorizations
+                    description = Authorizes customer payment
+
+        component order_repository
+            name = Order repository
+            technology = SQL
+            responsibility = Stores order state and checkout audit records
+
+        component checkout_projection
+            name = Checkout projection
+            technology = Kafka consumer
+            responsibility = Maintains an internal checkout read model from events
+            links:
+                ~> checkout_service
+                    technology = Kafka
+                    via = checkout.completed
+                    description = Consumes checkout completion events

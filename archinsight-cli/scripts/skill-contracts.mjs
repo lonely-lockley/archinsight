@@ -223,12 +223,16 @@ function verifySharedFiles(output) {
   verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md"]);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
-  assert(analysis.includes("It is not a general graph analytics language"));
-  assert.match(analysis, /transitive\s+impact/);
+  assert(analysis.includes("Use focused AIQ queries to answer architecture questions"));
+  assert(analysis.includes("show its text to the user only when they explicitly ask for it"));
+  assert(analysis.includes("consider an engine defect"));
+  assert(analysis.includes("If the result contains more than 10 rows"));
+  assert(analysis.includes("Use CSV for a flat scalar table"));
+  assert.match(analysis, /transitive\s+impact/i);
   assert(analysis.includes("--format json"));
-  assert(analysis.includes("<-[dependency:REFERENCES]-"));
-  assert(analysis.includes("-v deployment-system"));
-  assert(analysis.includes("-v deployment-container --environment <environment>"));
+  assert(analysis.includes("<-[incoming:REFERENCES]-"));
+  assert(analysis.includes("shortestPath"));
+  assert(analysis.includes("contextual **Download**"));
 
   const c4Code = readFileSync(path.join(output, "references", "c4-code.md"), "utf8");
   assert(c4Code.includes("CodeElement"));

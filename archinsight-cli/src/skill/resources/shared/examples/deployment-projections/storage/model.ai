@@ -1,0 +1,15 @@
+context storage_example
+
+deploymentProfile stateful_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+    uses database
+
+system commerce
+    name = Commerce
+
+    service orders
+        name = Orders
+        deployment:
+            uses stateful_profile

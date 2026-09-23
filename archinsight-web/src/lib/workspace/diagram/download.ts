@@ -2,7 +2,7 @@ const maxRasterDimension = 8192;
 const maxRasterPixels = 16_777_216;
 const defaultFileName = 'untitled';
 
-export type DiagramDownloadExtension = '.ai' | '.svg' | '.png' | '.dot';
+export type DownloadExtension = '.ai' | '.svg' | '.png' | '.dot' | '.csv' | '.json';
 
 export function downloadText(fileName: string, content: string, type: string): void {
   downloadBlob(fileName, new Blob([content], { type }));
@@ -110,9 +110,9 @@ export function svgLengthToPixels(value: string | null): number | undefined {
   return amount;
 }
 
-export function fileNameWithExtension(title: string, extension: DiagramDownloadExtension): string {
+export function fileNameWithExtension(title: string, extension: DownloadExtension): string {
   const cleanTitle = sanitizeFileName(title.trim() || defaultFileName);
-  const base = cleanTitle.replace(/\.(?:ai|svg|png|dot)$/i, '');
+  const base = cleanTitle.replace(/\.(?:aiq?|svg|png|dot|csv|json)$/i, '');
   return `${base}${extension}`;
 }
 

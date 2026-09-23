@@ -1,0 +1,15 @@
+context monitoring_example
+
+deploymentProfile observed_service
+    appliesTo:
+        production from eu
+    runsOn compute
+    uses observability
+
+system platform
+    name = Platform
+
+    service api
+        name = API
+        deployment:
+            uses observed_service

@@ -2,11 +2,12 @@ import { normalizeGraphvizSvgResult } from "@archinsight/graphviz";
 import {
   builtinViewDefinition,
   discoverDeploymentEnvironments,
+  executeQuery,
   renderGraphviz,
-  selectGraph,
   type BuiltinDiagramView,
   type LanguageDiagnostic,
   type LinkProjectResult,
+  type QueryTableResult,
 } from "@insight/language";
 import type { DiagramPreviewState, DiagramQueryState } from "./diagram-session.js";
 import { makeGraphvizBackgroundsTransparent } from "./diagram-svg.js";
@@ -16,6 +17,7 @@ export type DiagramView = BuiltinDiagramView;
 export interface PreviewState extends DiagramPreviewState<DiagramView> {
   readonly contextId: string;
   readonly sourceName: string;
+  readonly queryResult?: QueryTableResult;
 }
 
 interface DiagramLinkedProject {
@@ -34,6 +36,7 @@ export interface DiagramRenderInput {
 export interface DiagramRenderingContext {
   readonly theme: "dark" | "light";
   readonly log: (message: string) => void;
+  readonly now?: () => number;
 }
 
 export async function buildDiagramPreview(
@@ -41,8 +44,10 @@ export async function buildDiagramPreview(
   state: DiagramQueryState<DiagramView>,
   context: DiagramRenderingContext,
 ): Promise<PreviewState> {
+  logQueryDiagnostics(input.current.diagnostics, context.log);
   if (input.blockOnLinkerErrors
       && input.current.diagnostics.some((diagnostic) => (diagnostic.level ?? "ERROR") === "ERROR")) {
+    context.log("ERROR Query failed: Fix linker errors before running the query.");
     return {
       ...state,
       contextId: "-",
@@ -63,6 +68,7 @@ async function previewState(
   const { current, sourceName, source, fileName } = input;
   const { view, query, environment } = state;
   const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
+  const startedAt = renderingContext.now?.() ?? performance.now();
   try {
     if (viewUsesEnvironment(view) && environment === undefined) {
       const available = discoverDeploymentEnvironments(current.result, { context: context?.id, tab: sourceName });
@@ -70,15 +76,27 @@ async function previewState(
         ? "No deployment environments are relevant to this source."
         : "Select an environment for the D2 view.");
     }
-    const graph = selectGraph(current.result, {
+    const result = executeQuery(current.result, {
       context: context?.id,
       tab: sourceName,
       view,
       ...(environment === undefined ? {} : { environment }),
-    }, query);
+    }, query, state.parameters ?? {});
+    if (result.kind === "table") {
+      renderingContext.log(`INFO ${queryFinishedMessage((renderingContext.now?.() ?? performance.now()) - startedAt, result.metadata.rowCount)}`);
+      return {
+        ...state,
+        contextId: context?.id ?? "-",
+        sourceName,
+        fileName,
+        source,
+        queryResult: result,
+      };
+    }
+    const graph = result.graph;
     const dot = renderGraphviz(current.result, graph, renderingContext.theme);
     const svg = await renderSvg(dot);
-    renderingContext.log("Render finished: diagram rendered successfully");
+    renderingContext.log(`INFO ${queryFinishedMessage((renderingContext.now?.() ?? performance.now()) - startedAt)}`);
     return {
       ...state,
       contextId: context?.id ?? "-",
@@ -90,7 +108,7 @@ async function previewState(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    renderingContext.log(`Render failed: ${message}`);
+    renderingContext.log(`ERROR Query failed: ${message}`);
     return {
       ...state,
       contextId: context?.id ?? "-",
@@ -99,6 +117,23 @@ async function previewState(
       source,
       error: message,
     };
+  }
+}
+
+export function queryFinishedMessage(durationMs: number, rowCount?: number): string {
+  const duration = `${Math.max(0, Math.round(durationMs))} ms`;
+  return rowCount === undefined
+    ? `Query finished in ${duration}`
+    : `Query finished in ${duration}: ${rowCount} ${rowCount === 1 ? "row" : "rows"}`;
+}
+
+function logQueryDiagnostics(
+  diagnostics: readonly LanguageDiagnostic[],
+  log: (message: string) => void,
+): void {
+  for (const diagnostic of diagnostics) {
+    const level = diagnostic.level ?? "ERROR";
+    log(`${level} ${diagnostic.code}: ${diagnostic.message} (${diagnostic.sourceName}:${diagnostic.line}:${diagnostic.column + 1})`);
   }
 }
 

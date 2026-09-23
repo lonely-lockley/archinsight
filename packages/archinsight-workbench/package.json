@@ -15,6 +15,7 @@
     "./project-queries": "./src/project-queries.ts",
     "./query-monaco": "./src/query-monaco.ts",
     "./query-scope-widgets": "./src/query-scope-widgets.ts",
+    "./table-result-panel": "./src/TableResultPanel.svelte",
     "./types": "./src/workspace-types.ts"
   },
   "dependencies": {

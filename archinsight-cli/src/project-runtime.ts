@@ -6,6 +6,7 @@ import {
   analyzeQuery,
   builtinViewDefinition,
   discoverDeploymentEnvironments,
+  executeQuery,
   ProjectAnalysisSession,
   selectGraph,
   type LanguageDiagnostic,
@@ -13,6 +14,8 @@ import {
   type LinkProjectResult,
   type ProjectSource,
   type QueryScope,
+  type QueryParameterValue,
+  type QueryResult,
   type RenderGraph,
 } from "@insight/language";
 import type { DiagramView, ParsedArgs } from "./cli-arguments.js";
@@ -43,6 +46,31 @@ export async function loadProject(input: string): Promise<LoadedProject> {
 }
 
 export async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph> {
+  const selected = await selectedQuerySource(project, args);
+  return selectGraph(project.result, selected.scope, selected.query);
+}
+
+export async function selectedQuery(
+  project: LoadedProject,
+  args: ParsedArgs,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): Promise<QueryResult> {
+  const selected = await selectedQuerySource(project, args);
+  return executeQuery(project.result, selected.scope, selected.query, parameters, {
+    limits: {
+      ...(args.maxExpansions === undefined ? {} : { maxExpansions: args.maxExpansions }),
+      ...(args.maxRows === undefined ? {} : { maxRows: args.maxRows }),
+      ...(args.maxValues === undefined ? {} : { maxValues: args.maxValues }),
+      ...(args.maxOutputBytes === undefined ? {} : { maxOutputBytes: args.maxOutputBytes }),
+      ...(args.timeoutMs === undefined ? {} : { timeoutMs: args.timeoutMs }),
+    },
+  });
+}
+
+async function selectedQuerySource(
+  project: LoadedProject,
+  args: ParsedArgs,
+): Promise<{ readonly query: string; readonly scope: QueryScope }> {
   const view = args.queryFile === undefined ? args.view ?? "c1" : undefined;
   const query = args.queryFile === undefined
     ? BUILTIN_VIEW_QUERIES[view ?? "c1"]
@@ -59,7 +87,7 @@ export async function selectedGraph(project: LoadedProject, args: ParsedArgs): P
     ...(view === undefined ? {} : { view }),
     ...(environment === undefined ? {} : { environment }),
   };
-  return selectGraph(project.result, scope, query);
+  return { query, scope };
 }
 
 function deploymentEnvironmentOption(

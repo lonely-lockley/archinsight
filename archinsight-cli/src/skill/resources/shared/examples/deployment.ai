@@ -1,0 +1,52 @@
+context deployment_shop
+    name = Deployment Shop
+
+deploymentProfile production_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses observability
+
+deploymentProfile production_stateful_service
+    appliesTo:
+        production from eu
+
+    runsOn compute
+    uses storage
+    uses observability
+
+external actor shopper
+    name = Shopper
+    technology = Browser
+    links:
+        -> web_app
+            deployment:
+                uses publicGateway
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+
+    container web_app
+        name = Web app
+        technology = SvelteKit
+        deployment:
+            uses production_service
+        links:
+            -> checkout_api
+                deployment:
+                    uses network
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        deployment:
+            uses production_stateful_service
+        links:
+            -> payment_provider
+                deployment:
+                    uses egress

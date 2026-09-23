@@ -1,0 +1,16 @@
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    events:
+        kafka kafka
+            name = Kafka
+            technology = Managed Kafka
+            projection:
+                target $to connectTo target $this
+                    technology = Kafka
+                target $this originalLink source $from

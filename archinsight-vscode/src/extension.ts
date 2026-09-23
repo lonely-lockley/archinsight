@@ -14,6 +14,8 @@ import {
 import {
   buildProjectStructure,
   buildTypeHierarchy,
+  analyzeQuery,
+  completeAiq,
   coreLanguageSnapshot,
   coreSource,
   coreSources,
@@ -32,6 +34,7 @@ import {
   type ProjectStructureDeclaration,
   type ProjectAnalysisSession,
   type ProjectSource,
+  type QueryParameterValue,
   type TypeHierarchyNode,
   type VisibleIdentifier,
 } from "@insight/language";
@@ -128,6 +131,7 @@ const coreSourceUri = vscode.Uri.from({ scheme: coreSourceScheme, path: `/${core
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("archinsight");
+  const aiqDiagnostics = vscode.languages.createDiagnosticCollection("archinsight-aiq");
   const project = new ProjectModel(diagnostics);
   const structure = new ArchinsightStructureProvider(project);
   const controls = new ArchinsightControlsProvider(project, context.extensionUri);
@@ -143,10 +147,16 @@ export function activate(context: vscode.ExtensionContext): void {
       project.scheduleRefresh();
     }
   };
+  const updateAiqDiagnostics = (document: vscode.TextDocument): void => {
+    if (!isAiqDocument(document)) return;
+    const analysis = analyzeQuery(document.getText(), { sourceName: document.fileName });
+    aiqDiagnostics.set(document.uri, analysis.diagnostics.map(vscodeDiagnostic));
+  };
 
   context.subscriptions.push(
     output,
     diagnostics,
+    aiqDiagnostics,
     sourceWatcher,
     sourceWatcher.onDidCreate(refreshChangedSource),
     sourceWatcher.onDidChange(refreshChangedSource),
@@ -160,6 +170,9 @@ export function activate(context: vscode.ExtensionContext): void {
       webviewOptions: { retainContextWhenHidden: true },
     }),
     vscode.workspace.registerTextDocumentContentProvider(coreSourceScheme, new CoreSourceContentProvider()),
+    vscode.commands.registerCommand("archinsight.runQuery", async () => {
+      await runActiveAiqQuery(project, workbenchEditor);
+    }),
     vscode.commands.registerCommand("archinsight.linkProject", async () => {
       await project.refresh("manual");
       showLinkSummary(project.current);
@@ -245,6 +258,11 @@ export function activate(context: vscode.ExtensionContext): void {
       ".",
       ...letters(),
     ),
+    vscode.languages.registerCompletionItemProvider(
+      { language: "archinsight-query", scheme: "file" },
+      new AiqCompletionProvider(project),
+      "$", ":", ".", ...letters(),
+    ),
     vscode.languages.registerDocumentSymbolProvider(
       { language: "insight", scheme: "file" },
       new InsightDocumentSymbolProvider(project),
@@ -262,16 +280,22 @@ export function activate(context: vscode.ExtensionContext): void {
       if (isInsightDocument(document)) {
         void project.refresh("save");
       }
+      updateAiqDiagnostics(document);
     }),
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (isInsightDocument(event.document)) {
         project.scheduleRefresh();
       }
+      updateAiqDiagnostics(event.document);
     }),
     vscode.workspace.onDidOpenTextDocument((document) => {
       if (isInsightDocument(document)) {
         project.scheduleRefresh();
       }
+      updateAiqDiagnostics(document);
+    }),
+    vscode.workspace.onDidCloseTextDocument((document) => {
+      if (isAiqDocument(document)) aiqDiagnostics.delete(document.uri);
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (editor !== undefined && isInsightDocument(editor.document)) {
@@ -279,6 +303,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
   );
+
+  vscode.workspace.textDocuments.forEach(updateAiqDiagnostics);
 
   project.onDidChange(() => {
     structure.refresh();
@@ -288,6 +314,56 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
   void project.refresh("activation");
+}
+
+async function runActiveAiqQuery(
+  project: ProjectModel,
+  workbenchEditor: ArchinsightWorkbenchEditorProvider,
+): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (editor === undefined || !isAiqDocument(editor.document)) {
+    void vscode.window.showWarningMessage("Open an AIQ .aiq file before running a query.");
+    return;
+  }
+
+  await project.refresh("run-query");
+  const current = project.current;
+  if (current === undefined) {
+    void vscode.window.showWarningMessage("Open an Archinsight project before running a query.");
+    return;
+  }
+  if (current.diagnostics.some((diagnostic) => (diagnostic.level ?? "ERROR") === "ERROR")) {
+    void vscode.window.showErrorMessage("Fix linker errors before running the query.");
+    return;
+  }
+
+  const query = editor.document.getText();
+  if (activeWorkbenchEditor !== undefined) {
+    await activeWorkbenchEditor.render("no-filter", query);
+    activeWorkbenchEditor.activate();
+    return;
+  }
+
+  const sources = current.sources.filter((source) => current.sourceUris.has(source.sourceName));
+  const selected = sources.length === 1
+    ? sources[0]
+    : await vscode.window.showQuickPick(
+      sources.map((source) => ({ label: source.sourceName, source })),
+      { title: "Run AIQ Query", placeHolder: "Choose the Insight source used for $tab and the workbench context" },
+    ).then((item) => item?.source);
+  if (selected === undefined) {
+    return;
+  }
+  const uri = current.sourceUris.get(selected.sourceName);
+  if (uri === undefined) {
+    void vscode.window.showErrorMessage(`Cannot open source ${selected.sourceName}.`);
+    return;
+  }
+  const origin = new vscode.Position(0, 0);
+  await workbenchEditor.openLocation(
+    new vscode.Location(uri, new vscode.Range(origin, origin)),
+    { view: "no-filter", query },
+  );
 }
 
 export function deactivate(): void {
@@ -565,6 +641,41 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
       return completion;
     });
   }
+}
+
+class AiqCompletionProvider implements vscode.CompletionItemProvider {
+  constructor(private readonly project: ProjectModel) {
+  }
+
+  provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+    const current = this.project.current;
+    const result = completeAiq({
+      source: document.getText(),
+      cursorOffset: document.offsetAt(position),
+      snapshot: current?.snapshot ?? coreLanguageSnapshot,
+      analysis: current?.result,
+    });
+    return result.items.map((item) => {
+      const completion = new vscode.CompletionItem(item.label, aiqCompletionKind(item.kind));
+      completion.insertText = item.insertText;
+      completion.detail = item.detail;
+      completion.documentation = item.documentation;
+      completion.range = new vscode.Range(
+        document.positionAt(result.replacementStartOffset),
+        document.positionAt(result.replacementEndOffset),
+      );
+      return completion;
+    });
+  }
+}
+
+function aiqCompletionKind(kind: string): vscode.CompletionItemKind {
+  if (kind === "keyword" || kind === "selector") return vscode.CompletionItemKind.Keyword;
+  if (kind === "function") return vscode.CompletionItemKind.Function;
+  if (kind === "property") return vscode.CompletionItemKind.Property;
+  if (kind === "type") return vscode.CompletionItemKind.Class;
+  if (kind === "parameter") return vscode.CompletionItemKind.Constant;
+  return vscode.CompletionItemKind.Variable;
 }
 
 class InsightHoverProvider implements vscode.HoverProvider {
@@ -1104,6 +1215,7 @@ class ArchinsightWorkbenchEditorSession {
     query = viewQueries[view],
     forceEnvironmentPicker = false,
     requestedEnvironment: string | undefined = this.currentEnvironment(),
+    parameters?: Readonly<Record<string, QueryParameterValue>>,
   ): Promise<void> {
     const current = this.project.current;
     const sourceName = this.sourceName(current);
@@ -1113,7 +1225,7 @@ class ArchinsightWorkbenchEditorSession {
       source: this.sourceText(current, sourceName),
       fileName: this.fileName(),
       blockOnLinkerErrors: true,
-    }, { view, query, forceEnvironmentPicker, requestedEnvironment });
+    }, { view, query, forceEnvironmentPicker, requestedEnvironment, ...(parameters === undefined ? {} : { parameters }) });
   }
 
   private async handleMessage(message: ReturnType<typeof parseWorkbenchWebviewToHostMessage>): Promise<void> {
@@ -1131,8 +1243,12 @@ class ArchinsightWorkbenchEditorSession {
       await this.replaceDocument(message.source);
       return;
     }
+    if (message.command === "cancel") {
+      this.diagram.cancel();
+      return;
+    }
     if (message.command === "render") {
-      await this.render(message.view, message.query);
+      await this.render(message.view, message.query, false, this.currentEnvironment(), message.parameters);
       return;
     }
     if (message.command === "selectDeploymentEnvironment") {
@@ -1185,6 +1301,7 @@ class ArchinsightWorkbenchEditorSession {
       view: queryState.view,
       query: queryState.query,
       environment: queryState.environment,
+      parameters: queryState.parameters,
       queries: viewQueries,
       diagnostics: this.project.current?.diagnostics ?? [],
       symbols: this.project.current?.snapshot ?? coreLanguageSnapshot,
@@ -1670,6 +1787,10 @@ function isInside(root: vscode.Uri, uri: vscode.Uri): boolean {
 
 function isInsightDocument(document: vscode.TextDocument): boolean {
   return document.languageId === "insight" || document.uri.fsPath.endsWith(".ai");
+}
+
+function isAiqDocument(document: vscode.TextDocument): boolean {
+  return document.languageId === "archinsight-query" || document.uri.fsPath.endsWith(".aiq");
 }
 
 function vscodeDiagnostic(diagnostic: LanguageDiagnostic): vscode.Diagnostic {

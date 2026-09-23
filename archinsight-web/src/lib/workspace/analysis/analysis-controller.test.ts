@@ -34,6 +34,7 @@ function deferred<T>(): {
 function harness() {
   let nextHandle = 1;
   let projectId = 'project-a';
+  let activeTabId: string | undefined = 'main';
   let linkedAnalysis: LinkProjectResult | undefined;
   let diagnostics: AnalysisDiagnosticsState = { local: {}, linker: {} };
   const scheduled = new Map<number, { readonly task: () => void; readonly delay: number }>();
@@ -43,6 +44,7 @@ function harness() {
   const clearLinkedAnalysis = vi.fn(() => {
     linkedAnalysis = undefined;
   });
+  const invalidateRenderedQueries = vi.fn();
   const closeDeploymentPicker = vi.fn();
   const defaultSources: AnalysisSource[] = [{ sourceIdentity: 'main.ai', content: 'Main' }];
 
@@ -56,8 +58,10 @@ function harness() {
       scheduled.delete(handle);
     },
     currentProjectId: () => projectId,
+    activeTabId: () => activeTabId,
     linkedAnalysis: () => linkedAnalysis,
     clearLinkedAnalysis,
+    invalidateRenderedQueries,
     closeDeploymentPicker,
     runLink,
     runCachedDiagram,
@@ -76,10 +80,14 @@ function harness() {
     runCachedDiagram,
     checkSyntax,
     clearLinkedAnalysis,
+    invalidateRenderedQueries,
     closeDeploymentPicker,
     diagnostics: () => diagnostics,
     setProjectId: (value: string) => {
       projectId = value;
+    },
+    setActiveTabId: (value: string | undefined) => {
+      activeTabId = value;
     },
     setLinkedAnalysis: (value: LinkProjectResult | undefined) => {
       linkedAnalysis = value;
@@ -106,6 +114,7 @@ describe('analysis controller', () => {
     expect(test.runLink).toHaveBeenCalledOnce();
     expect(test.runLink).toHaveBeenCalledWith(2);
     expect(test.clearLinkedAnalysis).toHaveBeenCalledTimes(2);
+    expect(test.invalidateRenderedQueries).toHaveBeenCalledTimes(2);
     expect(test.closeDeploymentPicker).toHaveBeenCalledTimes(2);
   });
 
@@ -117,6 +126,7 @@ describe('analysis controller', () => {
     expect(test.runOnlyScheduled()).toBe(0);
     expect(test.runLink).toHaveBeenCalledWith(1, { forceFullAnalysis: true });
     expect(test.clearLinkedAnalysis).toHaveBeenCalledOnce();
+    expect(test.invalidateRenderedQueries).toHaveBeenCalledOnce();
   });
 
   it('schedules a cached diagram with analysis and project snapshots', () => {
@@ -126,9 +136,10 @@ describe('analysis controller', () => {
 
     test.controller.scheduleDiagramUpdate();
     test.setProjectId('project-b');
+    test.setActiveTabId('other');
 
     expect(test.runOnlyScheduled()).toBe(0);
-    expect(test.runCachedDiagram).toHaveBeenCalledWith(1, 'project-a', analysis);
+    expect(test.runCachedDiagram).toHaveBeenCalledWith(1, 'project-a', analysis, 'main');
     expect(test.runLink).not.toHaveBeenCalled();
   });
 

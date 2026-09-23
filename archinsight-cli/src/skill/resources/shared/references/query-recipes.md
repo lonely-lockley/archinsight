@@ -39,6 +39,12 @@ archinsight render . -s <source.ai> -q views/custom.aiq -f svg -o custom.svg
 Use `references/queries.md` for syntax details. Use this file for common
 customization patterns.
 
+For row-oriented analysis such as impact, shortest paths, topic inventories,
+missing dependencies, and counts, use the ready-to-run reports in
+`examples/queries/` and `references/analysis.md`. Keep reports in `reports/` and
+graph-returning custom views in `views/`. A table report is shown as a table in
+the web/VS Code workbench and cannot be rendered as SVG.
+
 ## When To Customize
 
 Write or adjust a `.aiq` query when:

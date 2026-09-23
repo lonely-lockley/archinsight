@@ -109,6 +109,28 @@ without a source. The CLI does not discover `.aiq` files or activate a web
 built-in override by basename. Read `references/custom-views.md` before adding
 a reusable project query.
 
+Analytical queries end with `RETURN TABLE`. JSON is the default versioned
+result; CSV and text are also available:
+
+```shell
+archinsight query . -q reports/topics.aiq --param 'technology="Kafka"' --format json
+archinsight query . -q reports/topics.aiq --params params.json --format csv --out topics.csv
+```
+
+JSON preserves cell types and distinguishes null from an empty string. CSV
+uses an empty field for null and JSON text for list/record/path cells. It uses
+CRLF records and quote doubling, but does not neutralize spreadsheet formulas.
+
+Repeat `--param name=<json>` for scalar or list values. `--params` reads a JSON
+object relative to the current working directory. Do not supply `$context` or
+`$tab`; they are reserved for query scope. Missing, unused, duplicate, and
+invalid parameter values fail before output is written. `--out` uses atomic
+replacement, so an execution failure does not leave a partial report.
+
+Resource controls are `--max-expansions`, `--max-rows`, `--max-values`,
+`--max-output-bytes`, and `--timeout-ms`; every value must be a positive integer.
+`render` rejects table results, and `--format csv` rejects graph results.
+
 D1 spans every environment relevant to the selected source and rejects
 `--environment`. D2 selects the only relevant environment automatically. If
 several are relevant, pass one of the ids reported by the CLI with

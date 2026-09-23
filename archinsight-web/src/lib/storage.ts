@@ -29,6 +29,7 @@ export type WorkspaceTabState = {
   queryView?: string;
   querySource?: string;
   queryContext?: string;
+  queryParameters?: Readonly<Record<string, null | boolean | number | string | readonly unknown[]>>;
   presetId?: string;
   presetVersion?: number;
   customizedQuery?: string;

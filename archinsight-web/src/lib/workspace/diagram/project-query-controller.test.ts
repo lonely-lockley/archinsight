@@ -84,6 +84,12 @@ describe('project query execution', () => {
     expect(subject.ports.fetchFile).toHaveBeenCalledWith('one', 'nested/c2.aiq');
     expect(subject.ports.tabs()[0].query).toBe('MATCH (n:Element) RETURN n');
   });
+  it('rejects a table result used as a reserved built-in override', async () => {
+    const active = tab('shop.ai');
+    const subject = fixture(active, tree('shop.ai', 'c2.aiq'));
+    subject.ports.fetchFile.mockResolvedValue({ content: 'MATCH (n:Element) RETURN TABLE elementId(n) AS id' });
+    await expect(subject.controller.resolve(active, analysis)).rejects.toThrow("Built-in view override 'c2' must return a graph");
+  });
   it('uses unsaved query content for each caller with its own scope', async () => {
     const first = tab('shop.ai');
     const second = tab('other.ai');
@@ -167,7 +173,10 @@ describe('project query execution', () => {
   it('allows context-only and unscoped queries and ignores variables in comments and strings', async () => {
     const active = tab('q.aiq', { content: "MATCH (n) WHERE n.name = '$tab' # $tab\nRETURN n", queryContext: 'shop' });
     const subject = fixture(active);
-    expect(await subject.controller.resolve(active, analysis)).toEqual({ query: active.content, source: undefined, context: 'shop', view: undefined, waiting: undefined });
+    expect(await subject.controller.resolve(active, analysis)).toEqual({
+      query: active.content, source: undefined, context: 'shop', view: undefined, waiting: undefined,
+      resultKind: 'graph', requiredParameters: []
+    });
   });
   it('does not update a different project when file loading completes late', async () => {
     const active = tab('shop.ai');

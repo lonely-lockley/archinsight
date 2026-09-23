@@ -130,6 +130,23 @@ describe('tab controller', () => {
     expect(state.tabs[1]?.dot).toBe('other.ai dot');
   });
 
+  it('invalidates cached graph and table results for every tab', () => {
+    state = {
+      ...state,
+      tabs: [
+        tab('graph.ai'),
+        tab('table.aiq', { dot: undefined, queryResult: {
+          schemaVersion: 'aiq-table.v1', kind: 'table', columns: [], rows: [],
+          metadata: { context: null, source: null, executionComplete: true, rowCount: 0, skip: 0, limit: null, pathScopes: [], warnings: [] }
+        } })
+      ]
+    };
+
+    controller().invalidateRenderedQueries();
+
+    expect(state.tabs.every((item) => item.dot === undefined && item.queryResult === undefined)).toBe(true);
+  });
+
   it('removes the active tab and selects the last remaining tab', () => {
     state = {
       tabs: [tab('first.ai'), tab('active.ai'), tab('last.ai')],
