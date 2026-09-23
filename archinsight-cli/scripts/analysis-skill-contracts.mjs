@@ -95,6 +95,27 @@ system reporting
   assert.deepEqual(kafkaGraph.edges[0].edge.attributes.via, ["orders.paid"]);
   assert.deepEqual(kafkaGraph.edges[0].edge.attributes.technology, ["Kafka"]);
 
+  const asyncTopics = query(project, skill, "async-topics.aiq");
+  assert.deepEqual(asyncTopics.rows, [
+    ["orders.created", "shop/producer", "shop/consumer"],
+    ["orders.paid", "shop/producer", "shop/kafka_consumer"],
+  ], "the primary topic recipe must include async wires without technology metadata");
+
+  const systemConsumers = JSON.parse(runCli([
+    "query",
+    project,
+    "--query",
+    path.join(skill, "examples", "queries", "system-async-consumers.aiq"),
+    "--param",
+    'system="shop/commerce"',
+    "--format",
+    "json",
+  ]));
+  assert.deepEqual(systemConsumers.rows, [
+    ["orders.created", "shop/consumer"],
+    ["orders.paid", "shop/kafka_consumer"],
+  ]);
+
   const comparisonQuery = path.join(project, "cross-boundary.aiq");
   writeFileSync(comparisonQuery, `MATCH (source:Service)-[dependency:REFERENCES]->(target:Service)
 WHERE source.context = $context
@@ -131,11 +152,17 @@ RETURN source, dependency, target
   assert.equal(typeof annotatedEdge.edge.annotations[0].source.line, "number");
 
   const analysis = readFileSync(path.join(skill, "references", "analysis.md"), "utf8");
-  for (const example of ["inventory.aiq", "impact.aiq", "shortest-path.aiq", "kafka-topics.aiq", "no-incoming-dependencies.aiq", "type-summary.aiq"]) {
+  for (const example of ["inventory.aiq", "impact.aiq", "sync-impact.aiq", "shortest-path.aiq", "async-topics.aiq", "system-async-consumers.aiq", "no-incoming-dependencies.aiq", "type-summary.aiq"]) {
     assert(analysis.includes(`examples/queries/${example}`));
   }
   assert(analysis.includes("The stored direction is consumer to provider"));
-  assert(analysis.includes("event.technology CONTAINS $technology"));
+  assert(analysis.includes("Interpretation cues for core constructs"));
+  assert.match(analysis, /neither\s+an exhaustive catalogue/);
+  assert(analysis.includes("Combine them, use other linked facts"));
+  assert(analysis.includes("MATCH ROLLUP (consumer:ContainerElement)"));
+  assert(analysis.includes("broker IN event.uses"));
+  assert(analysis.includes("unknown id also returns zero"));
+  assert(analysis.includes("Save reusable flat `RETURN TABLE` queries under `reports/`"));
   assert(analysis.includes("annotations(value)"));
   assert(analysis.includes("RETURN TABLE"));
   assert(analysis.includes("Archinsight: Run AIQ Query"));
@@ -144,6 +171,11 @@ RETURN source, dependency, target
   assert(analysis.includes("consider an engine defect"));
   assert(analysis.includes("If the result contains more than 10 rows"));
   assert(analysis.includes("complete result to a downloadable file"));
+
+  const entrypoint = readFileSync(path.join(skill, "SKILL.md"), "utf8");
+  assert(entrypoint.includes("Lead with the verdict, then its model evidence"));
+  assert(entrypoint.includes("graph queries under `views/`"));
+  assert.match(entrypoint, /`RETURN TABLE`\s+reports under `reports\/`/);
 
   console.log("analysis skill contracts passed");
 } finally {

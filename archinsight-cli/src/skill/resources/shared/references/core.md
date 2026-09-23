@@ -4,6 +4,11 @@ The `.core/*.ai` files bundled with this skill are the built-in Archinsight type
 model. Read them when you need to know available constructors, attributes,
 children, presentations, projections, or relationship operators.
 
+This reference explains the language contract. For adaptable starting points
+when interpreting `SyncWire`, `AsyncWire`, containment, placement,
+infrastructure use, and external boundaries, use the non-exhaustive cues in
+`references/analysis.md#interpretation-cues-for-core-constructs`.
+
 Some agent file tools may classify `.ai` as Adobe Illustrator binary files and
 refuse to open them. If that happens, read the bundled sources through the shell:
 

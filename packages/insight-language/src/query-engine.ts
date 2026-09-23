@@ -18,6 +18,7 @@ import {
 import {
   AiqQueryError,
   analyzeQuery,
+  endpointReachabilityKeyMode,
   isEndpointReachabilityClause,
   parseQuery,
   type Expression,
@@ -282,7 +283,7 @@ function selectGraphInternal(
       }
     }
     if (parsed.groupBy !== undefined) {
-      collectGroup(groups, row, parsed.groupBy, scope);
+      collectGroup(groups, row, parsed.groupBy, execution);
     }
   }
   let groupedSelectedElements: ReadonlySet<string> = new Set<string>();
@@ -1419,7 +1420,7 @@ function executeTableQuery(
     const input = query.clauses[clauseIndex]!;
     if (input.kind === "match") {
       rows = isEndpointReachabilityClause(query, clauseIndex)
-        ? endpointReachabilityRows(context, rows, input.clause, parameters)
+        ? endpointReachabilityRows(context, rows, input.clause, parameters, endpointReachabilityKeyMode(query, clauseIndex))
         : tableMatchRows(context, rows, input.clause, parameters);
     } else if (input.kind === "unwind") {
       const unwound: Row[] = [];
@@ -1490,6 +1491,7 @@ function endpointReachabilityRows(
   inputRows: readonly Row[],
   clause: TableMatchClause,
   parameters: Readonly<Record<string, QueryParameterValue>>,
+  keyMode: "source" | "target" | "pair",
 ): readonly Row[] {
   try {
     const pattern = materializePatternParameters(clause.pattern, context.scope, parameters);
@@ -1509,13 +1511,17 @@ function endpointReachabilityRows(
         .sort((left, next) => left.id.localeCompare(next.id));
       for (const start of starts) {
         const emit = (node: QueryNode): void => {
-          if (emitted.has(node.id) || !matchesPathTarget(node, boundRight, right, context)) return;
-          emitted.add(node.id);
-          appendRow(context, results, {
+          if (!matchesPathTarget(node, boundRight, right, context)) return;
+          const key = keyMode === "source" ? start.id : keyMode === "target" ? node.id : `${start.id}\0${node.id}`;
+          if (emitted.has(key)) return;
+          const next: Row = {
             nodes: { ...row.nodes, [pattern.left.alias]: start, [right.alias]: node },
             relationships: row.relationships,
             values: row.values,
-          });
+          };
+          if (clause.where !== undefined && !evaluateTablePredicate(next, clause.where, context, parameters)) return;
+          emitted.add(key);
+          appendRow(context, results, next);
         };
         if (definition.min === 0) emit(start);
         const queue: { readonly node: QueryNode; readonly depth: number }[] = [{ node: start, depth: 0 }];
@@ -1976,20 +1982,16 @@ function evaluateTablePredicateInternal(
   const left = evaluateTableValue(row, expression.left, context, parameters);
   if (expression.kind === "is") {
     if (expression.target.toLowerCase() === "null") return left === null;
-    return tableValueMatchesType(left, expression.target, context);
+    return runtimeValueMatchesType(left, expression.target, context);
   }
   const right = evaluateTableValue(row, expression.right, context, parameters);
-  if (expression.kind === "in") {
-    return Array.isArray(right)
-      ? right.some((value) => equalRuntimeValues(left, value))
-      : equalRuntimeValues(left, right);
-  }
+  if (expression.kind === "in") return runtimeIncludes(right, left);
   if (left === null || right === null) return false;
   if (expression.operator === "eq") return equalRuntimeValues(left, right);
   if (expression.operator === "ne") return !equalRuntimeValues(left, right);
   if (expression.operator === "contains") {
     if (typeof left === "string" && typeof right === "string") return left.includes(right);
-    if (Array.isArray(left)) return left.some((value) => equalRuntimeValues(value, right));
+    if (Array.isArray(left)) return left.some((value) => equalMembershipValues(value, right));
     return false;
   }
   const comparison = compareOrdered(left, right);
@@ -2027,7 +2029,7 @@ function evaluateTableValueInternal(
   if (expression.kind === "binding") return runtimeBinding(row, expression.alias);
   if (expression.kind === "property") {
     const target = evaluateTableValue(row, expression.target, context, parameters);
-    return runtimeProperty(target, expression.property);
+    return runtimeProperty(target, expression.property, context);
   }
   if (expression.kind === "list") {
     const values = expression.values.map((value) => evaluateTableValue(row, value, context, parameters));
@@ -2074,7 +2076,7 @@ function parameterAsRuntime(value: QueryParameterValue): RuntimeValue {
   return Array.isArray(value) ? value.map(parameterAsRuntime) : value as Exclude<QueryParameterValue, readonly QueryParameterValue[]>;
 }
 
-function runtimeProperty(value: RuntimeValue, name: string): RuntimeValue {
+function runtimeProperty(value: RuntimeValue, name: string, context: EvaluationContext): RuntimeValue {
   if (value === null) return null;
   if (isQueryPath(value)) {
     if (name === "steps") return value.steps.map((step) => ({ ...step }));
@@ -2083,11 +2085,48 @@ function runtimeProperty(value: RuntimeValue, name: string): RuntimeValue {
     if (name === "length") return value.relationships.length;
     return null;
   }
-  if (isQueryNode(value)) return propertyValue(value, name) ?? null;
-  if (isQueryRelationship(value)) return edgePropertyValue(value, name) ?? null;
+  if (isQueryNode(value)) return runtimeNodeProperty(value, name, context);
+  if (isQueryRelationship(value)) return runtimeRelationshipProperty(value, name, context);
   if (Array.isArray(value)) return name === "length" || name === "size" ? value.length : null;
   if (typeof value === "object") return (value as RuntimeRecord)[name] ?? null;
   return null;
+}
+
+function runtimeNodeProperty(node: QueryNode, name: string, context: EvaluationContext): RuntimeValue {
+  if (node.kind === "element" && node.element.referenceAttributes?.includes(name) === true) {
+    const ids = node.element.attributes[name];
+    if (ids === undefined) return null;
+    const references = ids.map((id) => context.nodeById.get(id) ?? queryNodeByIdFromElement(id));
+    return node.element.listAttributes?.includes(name) === true || references.length !== 1
+      ? references
+      : references[0]!;
+  }
+  return resolvedRuntimeProperty(propertyValue(node, name), context);
+}
+
+function runtimeRelationshipProperty(
+  relationship: QueryRelationship,
+  name: string,
+  context: EvaluationContext,
+): RuntimeValue {
+  if (relationship.edge?.referenceAttributes?.includes(name) === true) {
+    const ids = relationship.edge.attributes[name];
+    if (ids === undefined) return null;
+    const references = ids.map((id) => context.nodeById.get(id) ?? queryNodeByIdFromElement(id));
+    return relationship.edge.listAttributes?.includes(name) === true || references.length !== 1
+      ? references
+      : references[0]!;
+  }
+  return resolvedRuntimeProperty(edgePropertyValue(relationship, name), context);
+}
+
+function resolvedRuntimeProperty(
+  value: string | readonly string[] | QueryNode | undefined,
+  context: EvaluationContext,
+): RuntimeValue {
+  if (value === undefined) return null;
+  if (isQueryNode(value)) return context.nodeById.get(value.id) ?? value;
+  return value;
 }
 
 function evaluateTableFunction(name: string, values: readonly RuntimeValue[], context: EvaluationContext): RuntimeValue {
@@ -2159,18 +2198,45 @@ function convertToString(value: RuntimeValue): RuntimeValue {
   return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : null;
 }
 
-function tableValueMatchesType(value: RuntimeValue, target: string, context: EvaluationContext): boolean {
+function runtimeValueMatchesType(value: RuntimeValue, target: string, context: EvaluationContext): boolean {
   if (isQueryNode(value)) return matchesTypePredicate(value, target);
   if (isQueryRelationship(value)) {
     const type = value.edge?.type ?? value.type ?? value.kind;
-    const typeNode = context.nodes.find((node) => node.kind === "type" && node.type === type);
-    return type === target || value.kind === target || (typeNode !== undefined && labels(typeNode).has(target));
+    const typeNode = context.nodes.find((node): node is Extract<QueryNode, { readonly kind: "type" }> =>
+      node.kind === "type" && node.type === type
+    );
+    return type === target || value.kind === target || typeNode?.baseTypes.includes(target) === true;
   }
   return false;
 }
 
 function equalRuntimeValues(left: RuntimeValue, right: RuntimeValue): boolean {
-  return runtimeKey(left) === runtimeKey(right);
+  if (left === null || right === null) return left === right;
+  if (isQueryNode(left) || isQueryNode(right)) {
+    return isQueryNode(left) && isQueryNode(right) && left.kind === right.kind && left.id === right.id;
+  }
+  if (isQueryRelationship(left) || isQueryRelationship(right)) {
+    return isQueryRelationship(left) && isQueryRelationship(right)
+      && queryRelationshipIdentity(left) === queryRelationshipIdentity(right);
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
+      && left.every((value, index) => equalRuntimeValues(value, right[index]!));
+  }
+  if (typeof left === "object" || typeof right === "object") return runtimeKey(left) === runtimeKey(right);
+  return left === right;
+}
+
+function equalMembershipValues(left: RuntimeValue, right: RuntimeValue): boolean {
+  if (isQueryNode(left) && typeof right === "string") return left.id === right;
+  if (typeof left === "string" && isQueryNode(right)) return left === right.id;
+  return equalRuntimeValues(left, right);
+}
+
+function runtimeIncludes(container: RuntimeValue, item: RuntimeValue): boolean {
+  return Array.isArray(container)
+    ? container.some((value) => equalMembershipValues(value, item))
+    : equalMembershipValues(container, item);
 }
 
 function runtimeKey(value: RuntimeValue | readonly RuntimeValue[]): string {
@@ -3085,42 +3151,47 @@ function evaluateExpression(row: Row, expression: Expression | undefined, contex
     return !evaluateExpression(row, expression.expression, context);
   }
   if (expression.kind === "is") {
-    return matchesTypePredicate(evaluateValue(row, expression.left, context.scope), expression.target);
+    return runtimeValueMatchesType(evaluateValue(row, expression.left, context), expression.target, context);
   }
   if (expression.kind === "in") {
-    return includesQueryValue(evaluateValue(row, expression.right, context.scope), evaluateValue(row, expression.left, context.scope));
+    return runtimeIncludes(evaluateValue(row, expression.right, context), evaluateValue(row, expression.left, context));
   }
   const tabComparison = evaluateTabSourceIdentityComparison(row, expression, context);
   if (tabComparison !== undefined) {
     return expression.operator === "ne" ? !tabComparison : tabComparison;
   }
-  const left = evaluateValue(row, expression.left, context.scope);
-  const right = evaluateValue(row, expression.right, context.scope);
-  return compareQueryValues(left, right, expression.operator);
+  const left = evaluateValue(row, expression.left, context);
+  const right = evaluateValue(row, expression.right, context);
+  if (left === null || right === null) return false;
+  if (expression.operator === "eq") return equalRuntimeValues(left, right);
+  if (expression.operator === "ne") return !equalRuntimeValues(left, right);
+  if (typeof left === "string" && typeof right === "string") return left.includes(right);
+  if (Array.isArray(left)) return left.some((value) => equalMembershipValues(value, right));
+  return false;
 }
 
-function evaluateValue(row: Row, expression: ValueExpression, scope: QueryScope): string | readonly string[] | QueryNode | undefined {
+function evaluateValue(row: Row, expression: ValueExpression, context: EvaluationContext): RuntimeValue {
   if (expression.kind === "literal" || expression.kind === "variable") {
-    return resolveValue(expression, scope);
+    return resolveValue(expression, context.scope) ?? null;
   }
   if (expression.kind === "list") {
     return expression.values.flatMap((value) => {
-      const resolved = resolveValue(value, scope);
+      const resolved = resolveValue(value, context.scope);
       return resolved === undefined ? [] : [resolved];
     });
   }
   if (expression.kind === "binding") {
-    return row.nodes[expression.alias];
+    return row.nodes[expression.alias] ?? row.relationships[expression.alias] ?? null;
   }
   const node = row.nodes[expression.alias];
   if (node !== undefined) {
-    return propertyValue(node, expression.property);
+    return runtimeNodeProperty(node, expression.property, context);
   }
   const edge = row.relationships[expression.alias];
   if (edge !== undefined) {
-    return edgePropertyValue(edge, expression.property);
+    return runtimeRelationshipProperty(edge, expression.property, context);
   }
-  return undefined;
+  return null;
 }
 
 function equalQueryValues(left: string | readonly string[] | QueryNode | undefined, right: string | readonly string[] | QueryNode | undefined): boolean {
@@ -3136,37 +3207,6 @@ function equalQueryValues(left: string | readonly string[] | QueryNode | undefin
   return left === right;
 }
 
-function compareQueryValues(
-  left: string | readonly string[] | QueryNode | undefined,
-  right: string | readonly string[] | QueryNode | undefined,
-  operator: "eq" | "ne" | "contains",
-): boolean {
-  if (left === undefined || right === undefined) {
-    return false;
-  }
-  if (operator === "eq") {
-    return equalQueryValues(left, right);
-  }
-  if (operator === "ne") {
-    return !equalQueryValues(left, right);
-  }
-  return containsQueryValue(left, right);
-}
-
-function includesQueryValue(container: string | readonly string[] | QueryNode | undefined, item: string | readonly string[] | QueryNode | undefined): boolean {
-  if (container === undefined || item === undefined || Array.isArray(item)) {
-    return false;
-  }
-  if (Array.isArray(container)) {
-    const itemValue = isQueryNode(item) ? item.id : item;
-    return container.includes(itemValue);
-  }
-  if (isQueryNode(container)) {
-    return isQueryNode(item) && container.id === item.id;
-  }
-  return container === item;
-}
-
 function matchesTypePredicate(value: string | readonly string[] | QueryNode | undefined, target: string): boolean {
   if (!isQueryNode(value)) {
     return false;
@@ -3176,19 +3216,6 @@ function matchesTypePredicate(value: string | readonly string[] | QueryNode | un
       && linkedElementIsExplicitlyExternal(value.element);
   }
   return labels(value).has(target);
-}
-
-function containsQueryValue(left: string | readonly string[] | QueryNode | undefined, right: string | readonly string[] | QueryNode | undefined): boolean {
-  if (typeof right !== "string") {
-    return false;
-  }
-  if (typeof left === "string") {
-    return left.includes(right);
-  }
-  if (Array.isArray(left)) {
-    return left.includes(right);
-  }
-  return false;
 }
 
 function labels(node: QueryNode): ReadonlySet<string> {
@@ -3372,11 +3399,11 @@ function collectGroup(
   groups: Map<string, RenderGraphGroup>,
   row: Row,
   expression: ValueExpression,
-  scope: QueryScope,
+  context: EvaluationContext,
 ): void {
-  const value = evaluateValue(row, expression, scope);
+  const value = evaluateValue(row, expression, context);
   const node = expression.kind === "property" ? row.nodes[expression.alias] : undefined;
-  if (node === undefined || value === undefined) {
+  if (node === undefined || value === null) {
     return;
   }
   if (Array.isArray(value)) {
@@ -3384,7 +3411,8 @@ function collectGroup(
       throw new Error("Cannot GROUP BY list-valued expression");
     }
     for (const item of value) {
-      collectGroupValue(groups, node, item, undefined);
+      const owner = isQueryNode(item) ? item.id : typeof item === "string" ? item : undefined;
+      if (owner !== undefined) collectGroupValue(groups, node, owner, undefined);
     }
     return;
   }

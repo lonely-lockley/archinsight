@@ -1,0 +1,7 @@
+MATCH (producer:System)
+WHERE elementId(producer) = $system
+MATCH ROLLUP (consumer:ContainerElement)-[event:REFERENCES]->(producer)
+WHERE event IS AsyncWire
+UNWIND event.via AS topic
+RETURN TABLE DISTINCT topic, elementId(consumer) AS consumer
+ORDER BY topic, consumer

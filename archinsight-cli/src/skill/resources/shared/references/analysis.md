@@ -6,6 +6,14 @@ with scalar columns and answering the question does not require inspecting
 nested graph structure. Keep the exact query so the analysis is reproducible,
 but show its text to the user only when they explicitly ask for it.
 
+Treat the linked model as an abstraction at its declared level. Lead an
+analytical answer with the verdict, follow with the model evidence, and mention
+one limitation only when it could change that verdict. For failure-propagation
+questions, a modeled synchronous path is usually the first evidence to
+evaluate. Answer in terms appropriate to the question; do not turn model
+evidence into a guarantee about a runtime outage or bury it under a list of
+unmodeled implementation details.
+
 The linked semantic graph is the evidence. A diagram is useful for
 communication. Inspect graph-query JSON when the user's question cannot be
 expressed faithfully in AIQ, or when the result differs from the user's
@@ -17,10 +25,47 @@ only after those explanations have been ruled out.
 
 1. Run `archinsight link . --format text`; linker errors block a trustworthy report.
 2. Run `archinsight structure . --format json` to identify contexts, types, and qualified ids.
-3. Start from a bundled query under `examples/queries/` or write one focused `.aiq` in `reports/`.
-4. Use a table result for flat scalar data. Use text for terminal inspection and CSV for interchange.
-5. Inspect graph-query JSON only when required nesting cannot be flattened faithfully in AIQ, or when diagnosing an unexpected result.
-6. State the scope, parameters, depth bounds, and whether derived relationships were included. Keep the query available, but include it in the response only when the user asks.
+3. Translate the question into a selection: its anchor, relationship semantics,
+   direction, layer, and required result. Decide whether the anchor is one
+   element, a system including its children, a context, or a set; whether the
+   relationship is sync, async, any dependency, containment, placement, or
+   infrastructure use; whether traversal is incoming, outgoing, or both; and
+   whether authored, ownership-level, or projected facts answer the question.
+4. Resolve every qualified anchor id through `structure` or an inventory report
+   before interpreting an empty anchored result. An unknown id also returns zero
+   rows and must not be reported as “no dependencies.”
+5. Start from a bundled query only after the selection is defined, or write one
+   focused table report under `reports/`. A transport word such as Kafka or gRPC
+   describes a relationship unless the question explicitly asks for a
+   technology filter or infrastructure.
+6. Use a table result for flat scalar data. Use text for terminal inspection and CSV for interchange.
+7. Inspect graph-query JSON only when required nesting cannot be flattened faithfully in AIQ, or when diagnosing an unexpected result.
+8. State the scope, parameters, depth bounds, and whether derived relationships were included. Keep the query available, but include it in the response only when the user asks.
+
+## Interpretation cues for core constructs
+
+Use these meanings as starting points for built-in constructs. They are neither
+an exhaustive catalogue of possible conclusions nor required answer wording.
+Combine them, use other linked facts, and make additional conclusions when the
+model supports them. Project-defined types and attributes add the meaning
+established by that project.
+
+| Construct | Common analytical signal |
+| --- | --- |
+| `->` / `SyncWire` | Usually a blocking dependency and evidence for possible immediate influence from provider to consumer. |
+| `~>` / `AsyncWire` | Usually a decoupled dependency; useful for reasoning about delivery, delay, stale data, backlog, producers, and consumers. |
+| Wire direction | Stored consumer to provider by default; impact questions commonly traverse against the arrow. |
+| Containment, derived relationships, `ROLLUP` | Lets child-level facts answer questions at a compatible system or container ownership level. |
+| `runsOn` | Records placement and supports questions about infrastructure exposure, allocation, and affected workloads. |
+| `uses` | Records an infrastructure dependency or selected path without prescribing one universal runtime consequence. |
+| `external` | Marks a responsibility boundary; internal details may intentionally be outside the model. |
+
+Choose relevant semantics before query syntax. For example, “What can fail
+immediately if this provider fails?” usually starts with incoming `SyncWire`
+reachability; “Who receives this event?” starts with the relevant `AsyncWire`
+selection; and “What runs on this cluster?” starts with `runsOn`. Extend or
+combine those selections whenever the actual question and project vocabulary
+require it.
 
 ## Delivering Results
 
@@ -39,8 +84,10 @@ Bundled starting points:
 
 - `examples/queries/inventory.aiq`
 - `examples/queries/impact.aiq`
+- `examples/queries/sync-impact.aiq`
 - `examples/queries/shortest-path.aiq`
-- `examples/queries/kafka-topics.aiq`
+- `examples/queries/async-topics.aiq`
+- `examples/queries/system-async-consumers.aiq`
 - `examples/queries/no-incoming-dependencies.aiq`
 - `examples/queries/type-summary.aiq`
 
@@ -100,6 +147,7 @@ copies unless selectors request them.
 MATCH (changed:Element)
 WHERE elementId(changed) = $element
 MATCH p = (changed)<-[:REFERENCES*1..8]-(dependent:Element)
+WHERE dependent <> changed
 RETURN TABLE elementId(dependent) AS dependent,
              min(length(p)) AS distance
 ORDER BY dependent
@@ -108,7 +156,24 @@ ORDER BY dependent
 This reports potential dependency impact recorded in the model. It is not an
 outage probability or a proven runtime call trace. The maximum depth is part of
 the question. A path is a relationship trail: relationships cannot repeat in
-one path, while nodes can.
+one path, while nodes can. Excluding `changed` keeps a cycle from reporting the
+anchor as something else affected by its own change.
+
+For immediate failure propagation, traverse only synchronous wires:
+
+```cypher
+MATCH (changed:Element)
+WHERE elementId(changed) = $element
+MATCH p = (changed)<-[:REFERENCES*1..8 {type: 'SyncWire'}]-(dependent:Element)
+WHERE dependent <> changed
+RETURN TABLE elementId(dependent) AS dependent,
+             min(length(p)) AS distance
+ORDER BY dependent
+```
+
+Report the result as “a modeled synchronous path exists” or “no modeled
+synchronous path exists.” The generic impact report intentionally includes
+other dependency types and answers a broader change-impact question.
 
 ## One Shortest Connection
 
@@ -137,35 +202,62 @@ Use `{withDerived}` only when ownership-level derived dependencies are part of
 the question. Variable paths reject projected relations because their visible
 endpoints do not form one stable logical traversal graph.
 
-## Kafka and Other Async Topics
+## Async Topics
 
 ```cypher
 MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
-WHERE event IS AsyncWire AND event.technology CONTAINS $technology
+WHERE consumer.context = $context
+  AND event IS AsyncWire
 UNWIND event.via AS topic
-WITH DISTINCT topic, elementId(producer) AS producer, elementId(consumer) AS consumer
-RETURN TABLE topic, producer, consumer
+RETURN TABLE DISTINCT topic,
+                      elementId(producer) AS producer,
+                      elementId(consumer) AS consumer
 ORDER BY topic, producer, consumer
 ```
 
-Run with `--param 'technology="Kafka"'`. The runtime is generic: edge type,
-`technology`, and `via` are model metadata rather than a Kafka-specific command.
-A topic without any modeled relationship cannot be discovered by this report.
+This report relies only on what the eventing model guarantees: an async wire
+and its `via` value. It includes subscriptions that have no `technology` and no
+deployment block. A topic without a modeled relationship cannot be discovered.
+
+`kafka-topics.aiq` is a narrower compatibility example for projects that store
+`Kafka` directly in the logical wire's `technology`. Use it only after checking
+that convention. When technology belongs to a deployed broker, join a bound
+`InfrastructureComponent` with `broker IN event.uses` and filter the broker's
+technology; do not require infrastructure for a logical topic inventory.
+
+## Async consumers of a system
+
+```cypher
+MATCH (producer:System)
+WHERE elementId(producer) = $system
+MATCH ROLLUP (consumer:ContainerElement)-[event:REFERENCES]->(producer)
+WHERE event IS AsyncWire
+UNWIND event.via AS topic
+RETURN TABLE DISTINCT topic, elementId(consumer) AS consumer
+ORDER BY topic, consumer
+```
+
+`ROLLUP` lets a relationship authored against any child of the producer system
+match that system while retaining the actual consuming service or container.
+For a graph query, selecting `{withDerived}` relationships is the other common
+way to ask an ownership-level question. Neither form requires a deployment join.
 
 ## Missing Relationships
 
 ```cypher
-MATCH (service:Service)
-WHERE service.context = $context
-OPTIONAL MATCH (service)<-[incoming:REFERENCES]-(consumer:Element)
-WITH service, incoming
+MATCH (container:ContainerElement)
+WHERE container.context = $context
+OPTIONAL MATCH (container)<-[incoming:REFERENCES]-(consumer:Element)
+WITH container, incoming
 WHERE incoming IS NULL
-RETURN TABLE elementId(service) AS service
-ORDER BY service
+RETURN TABLE elementId(container) AS container
+ORDER BY container
 ```
 
-Use the outgoing arrow to find services with no declared providers. An empty
-table is a successful result.
+This incoming pattern finds container elements with no modeled consumers. Swap
+the arrow to find container elements with no declared providers. An empty table
+is a successful result only after the context and candidate inventory have been
+confirmed.
 
 ## Counts and Attributes
 
@@ -197,3 +289,8 @@ partial successful table.
 Keep findings separated into authored facts, derived relationships, projected
 deployment paths, and query-dependent observations. Do not edit the architecture
 merely to make a report easier.
+
+Save reusable flat `RETURN TABLE` queries under `reports/`. Save reusable graph
+`RETURN` queries and reserved web-view overrides under `views/`. Both use the
+same AIQ runtime; the directory names state their purpose. Use a temporary file
+for a one-off read-only investigation unless the user asks to keep it.

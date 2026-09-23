@@ -300,10 +300,74 @@ RETURN TABLE DISTINCT elementId(to) AS target
 ORDER BY target
 `, { from: "paths/a" });
 assert.deepEqual(unboundedReachable.kind === "table" ? unboundedReachable.rows : [], [["paths/b"], ["paths/c"], ["paths/d"], ["paths/e"]]);
+const unboundedPairs = executeQuery(alternate, {}, `
+MATCH (from:Element)
+WHERE from.id IN ['a', 'b']
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+RETURN TABLE DISTINCT elementId(from) AS source, elementId(to) AS target
+ORDER BY source, target
+`);
+assert.deepEqual(unboundedPairs.kind === "table" ? unboundedPairs.rows : [], [
+  ["paths/a", "paths/b"],
+  ["paths/a", "paths/c"],
+  ["paths/a", "paths/d"],
+  ["paths/a", "paths/e"],
+  ["paths/b", "paths/d"],
+]);
+const unboundedSetToSet = executeQuery(alternate, {}, `
+MATCH (from:Element)
+WHERE elementId(from) IN $from
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+WHERE elementId(to) IN $to
+RETURN TABLE DISTINCT elementId(from) AS source, elementId(to) AS target
+ORDER BY source, target
+`, { from: ["paths/a", "paths/b"], to: ["paths/d"] });
+assert.deepEqual(unboundedSetToSet.kind === "table" ? unboundedSetToSet.rows : [], [
+  ["paths/a", "paths/d"],
+  ["paths/b", "paths/d"],
+]);
+const globallyDistinctTargets = executeQuery(alternate, {}, `
+MATCH (from:Element)
+WHERE from.id IN ['a', 'b']
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+RETURN TABLE DISTINCT elementId(to) AS target
+ORDER BY target
+`);
+assert.deepEqual(globallyDistinctTargets.kind === "table" ? globallyDistinctTargets.rows : [], [
+  ["paths/b"], ["paths/c"], ["paths/d"], ["paths/e"],
+]);
+const filteredUnboundedTargets = executeQuery(alternate, {}, `
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+WHERE to.name <> 'Blocked'
+RETURN TABLE DISTINCT elementId(to) AS target
+ORDER BY target
+`, { from: "paths/a" });
+assert.deepEqual(filteredUnboundedTargets.kind === "table" ? filteredUnboundedTargets.rows : [], [
+  ["paths/c"], ["paths/d"], ["paths/e"],
+]);
 assert.throws(() => parseQuery(`
 MATCH path = (from:Element)-[:REFERENCES*1..]->(to:Element)
 RETURN TABLE path
-`), /endpoint-only RETURN TABLE DISTINCT reachability/);
+`), /endpoint-only RETURN TABLE DISTINCT reachability: a path alias would materialize path evidence/);
+assert.throws(() => parseQuery(`
+MATCH path = (from:Element)-[:REFERENCES*1..]->(to:Element)
+RETURN TABLE DISTINCT elementId(to) AS target
+`), /a path alias would materialize path evidence/);
+assert.throws(() => parseQuery(`
+MATCH (from:Element)-[dependency:REFERENCES*1..]->(to:Element)
+RETURN TABLE DISTINCT elementId(to) AS target
+`), /a relationship alias would materialize path evidence/);
+assert.throws(() => parseQuery(`
+MATCH (from:Element)-[:REFERENCES*1..]->(to:Element)
+RETURN TABLE elementId(to) AS target
+`), /RETURN TABLE must use DISTINCT/);
+assert.throws(() => parseQuery(`
+MATCH (from:Element)-[:REFERENCES*1..]->(to:Element)
+WITH DISTINCT from, to
+RETURN TABLE DISTINCT elementId(from) AS source, elementId(to) AS target
+`), /unbounded path MATCH must be the final input clause/);
 
 assert.throws(() => parseQuery(`
 MATCH (from:Element)
@@ -416,6 +480,37 @@ ORDER BY target
 `, { from: `oracle/${start}` });
     assert.deepEqual(result.kind === "table" ? result.rows.map(([target]) => target) : [], oracleReachable(start, 6));
   }
+  const cyclicReachability = executeQuery(oracle, {}, `
+MATCH (from:Element)
+WHERE elementId(from) = 'oracle/f'
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+RETURN TABLE DISTINCT elementId(from) AS source, elementId(to) AS target
+ORDER BY source, target
+`);
+  assert.deepEqual(cyclicReachability.kind === "table" ? cyclicReachability.rows : [], [
+    ["oracle/f", "oracle/c"],
+    ["oracle/f", "oracle/d"],
+    ["oracle/f", "oracle/e"],
+    ["oracle/f", "oracle/f"],
+  ]);
+  const incomingReachability = executeQuery(oracle, {}, `
+MATCH (from:Element)
+WHERE elementId(from) = 'oracle/d'
+MATCH (from)<-[:REFERENCES*1..]-(to:Element)
+RETURN TABLE DISTINCT elementId(to) AS target
+ORDER BY target
+`);
+  assert.deepEqual(incomingReachability.kind === "table" ? incomingReachability.rows : [],
+    oracleNodes.map((node) => [`oracle/${node}`]).sort(([left], [right]) => left.localeCompare(right)));
+  const undirectedReachability = executeQuery(oracle, {}, `
+MATCH (from:Element)
+WHERE elementId(from) = 'oracle/b'
+MATCH (from)-[:REFERENCES*1..]-(to:Element)
+RETURN TABLE DISTINCT elementId(to) AS target
+ORDER BY target
+`);
+  assert.deepEqual(undirectedReachability.kind === "table" ? undirectedReachability.rows : [],
+    oracleNodes.map((node) => [`oracle/${node}`]).sort(([left], [right]) => left.localeCompare(right)));
   for (const [start, target] of [["a", "f"], ["f", "d"], ["b", "e"]]) {
     const result = executeQuery(oracle, {}, `
 MATCH (from:Element)

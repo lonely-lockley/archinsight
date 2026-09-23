@@ -63,6 +63,7 @@ export interface QueryPattern {
 export interface QueryPathDefinition {
   readonly range?: QuerySourceRange;
   readonly alias: string;
+  readonly assigned: boolean;
   readonly mode: "shortest" | "all";
   readonly min: number;
   readonly max?: number;
@@ -589,13 +590,13 @@ class QueryAstBuilder {
 
   private matchPattern(context: MatchClauseContext): QueryPattern {
     const path = context.pathAssignment();
-    if (path !== null) return this.pathPattern(required(path.pathPattern(), "path pattern"), identifierText(path.identifier()), path.SHORTEST_PATH() === null ? "all" : "shortest");
+    if (path !== null) return this.pathPattern(required(path.pathPattern(), "path pattern"), identifierText(path.identifier()), path.SHORTEST_PATH() === null ? "all" : "shortest", true);
     const anonymousPath = context.pathPattern();
-    if (anonymousPath !== null) return this.pathPattern(anonymousPath, `__path${this.anonymousPath++}`, "all");
+    if (anonymousPath !== null) return this.pathPattern(anonymousPath, `__path${this.anonymousPath++}`, "all", false);
     return this.pattern(required(context.pattern(), "match pattern"));
   }
 
-  private pathPattern(parsed: PathPatternContext, alias: string, mode: "shortest" | "all"): QueryPattern {
+  private pathPattern(parsed: PathPatternContext, alias: string, mode: "shortest" | "all", assigned: boolean): QueryPattern {
     const nodes = parsed.nodePattern();
     const left = this.nodePattern(required(nodes[0], "left path node"));
     const relationshipContext = required(parsed.pathRelationshipPattern(), "path relationship pattern");
@@ -627,7 +628,7 @@ class QueryAstBuilder {
       relationship,
       right,
       direction,
-      path: { alias, mode, min, ...(max === undefined ? {} : { max }), range: contextRange(parsed) },
+      path: { alias, assigned, mode, min, ...(max === undefined ? {} : { max }), range: contextRange(parsed) },
     });
   }
 
@@ -978,18 +979,47 @@ class QueryAstBuilder {
 }
 
 export function isEndpointReachabilityClause(query: ParsedTableQuery, clauseIndex: number): boolean {
+  return endpointReachabilityViolation(query, clauseIndex) === undefined;
+}
+
+export function endpointReachabilityKeyMode(
+  query: ParsedTableQuery,
+  clauseIndex: number,
+): "source" | "target" | "pair" {
   const input = query.clauses[clauseIndex];
-  if (input?.kind !== "match" || clauseIndex !== query.clauses.length - 1) return false;
+  if (input?.kind !== "match" || input.clause.pattern.right === undefined) return "target";
+  const aliases = mergeAliasSets(query.projection.items.map((item) => tableValueAliases(item.expression)));
+  const source = aliases.has(input.clause.pattern.left.alias);
+  const target = aliases.has(input.clause.pattern.right.alias);
+  return source && target ? "pair" : source ? "source" : "target";
+}
+
+function endpointReachabilityViolation(query: ParsedTableQuery, clauseIndex: number): string | undefined {
+  const input = query.clauses[clauseIndex];
+  if (input?.kind !== "match") return "the unbounded path must be a MATCH clause";
+  if (clauseIndex !== query.clauses.length - 1) return "the unbounded path MATCH must be the final input clause";
   const { clause } = input;
   const pattern = clause.pattern;
-  if (clause.optional || clause.rollup || clause.where !== undefined || pattern.path?.mode !== "all"
-      || pattern.path.min > 1 || pattern.right === undefined || pattern.relationship?.alias !== undefined
-      || !query.projection.distinct) return false;
-  return query.projection.items.every((item) => {
-    if (containsTableAggregate(item.expression)) return false;
-    const aliases = tableValueAliases(item.expression);
-    return [...aliases].every((alias) => alias === pattern.right!.alias);
-  });
+  if (pattern.path?.mode !== "all" || pattern.path.max !== undefined) return "the clause is not an unbounded all-path match";
+  if (clause.optional) return "OPTIONAL MATCH is not supported for unbounded reachability";
+  if (clause.rollup) return "ROLLUP is not supported for unbounded reachability";
+  if (pattern.path.min > 1) return "the minimum path length must be 0 or 1";
+  if (pattern.right === undefined) return "the path must have two endpoints";
+  if (pattern.path.assigned) return "a path alias would materialize path evidence";
+  if (pattern.relationship?.alias !== undefined) return "a relationship alias would materialize path evidence";
+  if (!query.projection.distinct) return "RETURN TABLE must use DISTINCT";
+  const endpointAliases = new Set([pattern.left.alias, pattern.right.alias]);
+  if (clause.where !== undefined) {
+    const whereAliases = tableExpressionAliases(clause.where, new Set());
+    const unsupported = [...whereAliases].find((alias) => !endpointAliases.has(alias));
+    if (unsupported !== undefined) return `WHERE references non-endpoint alias '${unsupported}'`;
+  }
+  for (const item of query.projection.items) {
+    if (containsTableAggregate(item.expression)) return "RETURN TABLE cannot aggregate unbounded path evidence";
+    const unsupported = [...tableValueAliases(item.expression)].find((alias) => !endpointAliases.has(alias));
+    if (unsupported !== undefined) return `RETURN TABLE references non-endpoint alias '${unsupported}'`;
+  }
+  return undefined;
 }
 
 function validateUnboundedPaths(query: ParsedQuery): void {
@@ -1001,8 +1031,11 @@ function validateUnboundedPaths(query: ParsedQuery): void {
   }
   query.clauses.forEach((input, index) => {
     if (input.kind === "match" && input.clause.pattern.path?.mode === "all"
-        && input.clause.pattern.path.max === undefined && !isEndpointReachabilityClause(query, index)) {
-      throw new Error("Unbounded variable-length paths require endpoint-only RETURN TABLE DISTINCT reachability");
+        && input.clause.pattern.path.max === undefined) {
+      const violation = endpointReachabilityViolation(query, index);
+      if (violation !== undefined) {
+        throw new Error(`Unbounded variable-length paths require endpoint-only RETURN TABLE DISTINCT reachability: ${violation}`);
+      }
     }
   });
 }

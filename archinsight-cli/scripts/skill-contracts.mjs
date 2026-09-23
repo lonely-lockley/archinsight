@@ -97,7 +97,10 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("references/cli.md"));
   assert(content.includes("references/c4-code.md"));
   assert(content.includes("references/custom-views.md"));
-  assert(content.includes("views/<descriptive-name>.aiq"));
+  assert(content.includes("graph queries under `views/`"));
+  assert(content.includes("`RETURN TABLE`"));
+  assert(content.includes("reports under `reports/`"));
+  assert(content.includes("Lead with the verdict, then its model evidence"));
   assert.equal(occurrences(content, "references/deployment-projections.md"), 1);
   assert(content.includes("Infer and reuse an existing C4 Code vocabulary from the repository"));
   assert.match(content, /Ask the\s+user about entity kinds only when creating the Code layer or extending that\s+vocabulary/);
@@ -117,7 +120,10 @@ function verifySharedFiles(output) {
   assert(cli.includes("archinsight environments . -s <source.ai> --format json"));
   assert(cli.includes("deployment-environments.v1"));
   const customViews = readFileSync(path.join(output, "references", "custom-views.md"), "utf8");
-  assert.match(customViews, /Unless the user specifies another\s+path, create them under `views\/`/);
+  assert(customViews.includes("graph-returning queries"));
+  assert(customViews.includes("`RETURN TABLE` reports"));
+  assert(customViews.includes("`reports/<descriptive-name>.aiq`"));
+  assert(customViews.includes("`views/<descriptive-name>.aiq`"));
   assert(customViews.includes("directories do not namespace query names"));
   for (const name of [
     "no-filter",

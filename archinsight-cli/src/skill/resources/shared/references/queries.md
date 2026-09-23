@@ -38,12 +38,13 @@ Prefer paths relative to the project root:
 archinsight query path/to/project -s models/storefront.ai -q views/c2.aiq -f text
 ```
 
-## Project Custom Views
+## Project Queries and Custom Views
 
 Agents may create and maintain reusable `.aiq` queries as project files. Read
-`references/custom-views.md` before doing so. By default, create
-`views/<descriptive-name>.aiq`; use another location only when the user specifies
-it.
+`references/custom-views.md` before doing so. Put reusable graph `RETURN`
+queries under `views/` and reusable `RETURN TABLE` reports under `reports/`.
+Both directories contain ordinary AIQ files; the names communicate purpose.
+Use a temporary file for one-off analysis unless the user asks to keep it.
 
 The web workspace discovers queries by basename across the whole project. A
 descriptive new basename creates a custom view. A reserved basename such as
@@ -103,8 +104,23 @@ RETURN TABLE length(p) AS hops, p.steps AS steps
 
 All-path enumeration requires a finite maximum such as `*1..8`. Endpoint-only
 `RETURN TABLE DISTINCT` reachability can use `*1..` because it traverses with a
-visited set instead of materializing alternate paths. Incoming and undirected
-arrows are supported. `{withDerived}` includes derived relations;
+visited set instead of materializing alternate paths. It may project the source,
+the target, or both and may filter either endpoint after the path:
+
+```cypher
+MATCH (source:Element)
+WHERE elementId(source) IN $from
+MATCH (source)-[:REFERENCES*1..]->(target:Element)
+WHERE elementId(target) IN $to
+RETURN TABLE DISTINCT elementId(source) AS source,
+                      elementId(target) AS target
+ORDER BY source, target
+```
+
+An unbounded reachability query cannot bind or return a path or relationship,
+aggregate path evidence, or place another input clause after the path. Bind a
+path and set a finite bound when route evidence is required. Incoming and
+undirected arrows are supported. `{withDerived}` includes derived relations;
 projected relations are not available for variable-length traversal.
 
 ## Node Patterns
@@ -194,6 +210,7 @@ WHERE node.sourceIdentity = $tab
 WHERE node.deployed = true
 WHERE node IS External
 WHERE NOT node IS DeploymentElement
+WHERE edge IS AsyncWire
 WHERE edge.projected = 'true'
 WHERE edge.projectionRoot = 'eu/service_network'
 WHERE node.id IN ['api', 'web_app']
@@ -206,13 +223,15 @@ Use single quotes for string literals.
 
 `CONTAINS` is case-sensitive. For scalar text it performs substring matching;
 for a list property it tests membership. Match the stored spelling exactly.
+`IS` applies to nodes and relationships, including project-defined descendants,
+with the same semantics in graph and table results.
 
 Attribute cardinality comes from the Insight type system and linked reference
 metadata, not from the JSON representation. Use `CONTAINS` for declared lists
 such as `Wire.uses`. Infrastructure `runsOn` is a declared scalar reference;
 on systems and containers, `runsOn` and `uses` are computed deployment results,
-not declared source attributes. A single resolved reference resolves to one
-graph node: compare it with another bound node, or
+not declared source attributes. A single resolved reference resolves to its
+real typed graph node: compare it with another bound node, or
 test its qualified id with `node.runsOn IN ['eu/cluster']`.
 `node.runsOn CONTAINS 'eu/cluster'` does not match a scalar reference because
 that value is neither scalar text nor a list.
@@ -456,7 +475,8 @@ the filter or grouping deliberately.
 - Return every node and relationship alias needed for rendering.
 - Add `GROUP BY` deliberately for diagrams with clusters.
 - Validate query files with `archinsight query` before rendering.
-- Keep reusable custom queries in `views/<descriptive-name>.aiq` unless the user
-  specifies another path.
+- Keep reusable graph queries in `views/<descriptive-name>.aiq` and reusable
+  table reports in `reports/<descriptive-name>.aiq` unless the user specifies
+  another path.
 - Copy `examples/builtin-views/<name>.aiq` before overriding a standard view;
   do not recreate a built-in query from memory.

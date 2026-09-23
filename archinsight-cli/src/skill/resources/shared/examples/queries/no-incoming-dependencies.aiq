@@ -1,7 +1,7 @@
-MATCH (service:Service)
-WHERE service.context = $context
-OPTIONAL MATCH (service)<-[incoming:REFERENCES]-(consumer:Element)
-WITH service, incoming
+MATCH (container:ContainerElement)
+WHERE container.context = $context
+OPTIONAL MATCH (container)<-[incoming:REFERENCES]-(consumer:Element)
+WITH container, incoming
 WHERE incoming IS NULL
-RETURN TABLE elementId(service) AS service
-ORDER BY service
+RETURN TABLE elementId(container) AS container
+ORDER BY container

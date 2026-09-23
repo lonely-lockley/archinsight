@@ -124,7 +124,21 @@ ORDER BY target
 ```
 
 The endpoint-only form uses a visited traversal and does not enumerate alternate
-routes. Bind a named path and set a finite maximum when route evidence is needed:
+routes. It may return either endpoint or both and may filter endpoint properties:
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) IN $from
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+WHERE elementId(to) IN $to
+RETURN TABLE DISTINCT elementId(from) AS source,
+                      elementId(to) AS target
+ORDER BY source, target
+```
+
+It must not bind a path or relationship, return or aggregate path evidence, or
+have another input clause after the unbounded match. Bind a named path and set a
+finite maximum when route evidence is needed:
 
 ```cypher
 MATCH (from:Element)
@@ -181,6 +195,7 @@ Question: “What can be affected if B changes?”
 MATCH (changed:Element)
 WHERE elementId(changed) = $element
 MATCH p = (changed)<-[:REFERENCES*1..8]-(dependent:Element)
+WHERE dependent <> changed
 RETURN TABLE elementId(dependent) AS dependent,
              min(length(p)) AS distance,
              collect(p.steps) AS evidence
@@ -200,55 +215,75 @@ For a direct checkout dependency, the first columns are
 `shop/checkout,1`. Evidence remains a structured list in JSON and is encoded as
 JSON text inside one CSV cell.
 
-### Kafka topics and consumers
+For immediate failure propagation, constrain the path relationship with
+`{type: 'SyncWire'}`. Then the answer is whether a modeled synchronous path
+exists against the dependency arrow. The generic query above answers broader
+change impact and intentionally includes async dependencies.
 
-Question: “Which Kafka topics exist, and who produces or consumes them?”
+### Async topics and consumers
+
+Question: “Which async topics exist, and who produces or consumes them?”
 
 ```cypher
 MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
-WHERE event IS AsyncWire AND event.technology CONTAINS $technology
+WHERE consumer.context = $context
+  AND event IS AsyncWire
 UNWIND event.via AS topic
-WITH DISTINCT topic, elementId(producer) AS producer, elementId(consumer) AS consumer
-RETURN TABLE topic,
-             collect(DISTINCT producer) AS producers,
-             collect(DISTINCT consumer) AS consumers,
-             count(DISTINCT consumer) AS consumerCount
-ORDER BY topic
+RETURN TABLE DISTINCT topic,
+                      elementId(producer) AS producer,
+                      elementId(consumer) AS consumer
+ORDER BY topic, producer, consumer
 ```
 
-Run with `--param 'technology="Kafka"'`. `via`, the edge type, and technology
-are model data; the query engine has no Kafka-specific command.
+This form includes wires with no `technology` and no deployment block. Filter
+`event.technology` only in a project that stores transport technology on the
+logical wire. If Kafka is modeled on a broker, join that infrastructure through
+`broker IN event.uses` only when the question is about the broker.
 
 ```shell
-archinsight query . -q reports/kafka-topics.aiq \
-  --param 'technology="Kafka"' --format json
+archinsight query . -c shop -q reports/async-topics.aiq --format json
 ```
 
-For one checkout consumer, a row can contain `orders.created`,
-`["shop/catalog"]`, `["shop/checkout"]`, and `1`. A topic with no modeled wire
-cannot be discovered.
+For one checkout consumer, a row can contain `orders.created`, `shop/catalog`,
+and `shop/checkout`. A topic with no modeled wire cannot be discovered.
+
+For consumers of topics produced by any child of one system, roll the producer
+endpoint up to its owner while keeping the consuming service or container:
+
+```cypher
+MATCH (producer:System)
+WHERE elementId(producer) = $system
+MATCH ROLLUP (consumer:ContainerElement)-[event:REFERENCES]->(producer)
+WHERE event IS AsyncWire
+UNWIND event.via AS topic
+RETURN TABLE DISTINCT topic, elementId(consumer) AS consumer
+ORDER BY topic, consumer
+```
+
+`ROLLUP` is the direct system-level pattern. A graph query using
+`{withDerived}` can instead select authored relationships lifted to owners.
 
 ### No incoming dependencies
 
 ```cypher
-MATCH (service:Service)
-WHERE service.context = $context
-OPTIONAL MATCH (service)<-[incoming:REFERENCES]-(consumer:Element)
-WITH service, incoming
+MATCH (container:ContainerElement)
+WHERE container.context = $context
+OPTIONAL MATCH (container)<-[incoming:REFERENCES]-(consumer:Element)
+WITH container, incoming
 WHERE incoming IS NULL
-RETURN TABLE elementId(service) AS service
-ORDER BY service
+RETURN TABLE elementId(container) AS container
+ORDER BY container
 ```
 
-An empty result is successful and means no matching service survived the
-condition. It does not mean linking or query execution failed.
+An empty result is meaningful only after the context, candidate inventory, and
+any qualified anchor id have been checked. An unknown id also produces no rows.
 
 ```shell
 archinsight query . -c shop -q reports/no-incoming-dependencies.aiq --format text
 ```
 
-The output is one service id per row. Swap the arrow to find elements with no
-outgoing dependency instead.
+The output is one service or container id per row. Swap the arrow to find
+elements with no outgoing dependency instead.
 
 ### Counts by type
 
@@ -309,15 +344,18 @@ query is incomplete.
 ## Saved queries and custom views
 
 Create a file with the `.aiq` extension to keep a reusable query with the
-project. The recommended location is `views/`:
+project. Put graph-returning views under `views/` and table reports under
+`reports/`:
 
 ```text
 views/
     dependencies.aiq
     external-integrations.aiq
+reports/
+    dependency-inventory.aiq
 ```
 
-The directory is a project convention, not part of query identity. The web
+These directories are a purpose-based project convention, not part of query identity. The web
 workspace discovers query files recursively and identifies each query only by
 its filename without `.aiq`. `views/dependencies.aiq` therefore creates the
 custom view `dependencies`. Names and the `.aiq` extension are case-sensitive.
@@ -621,6 +659,15 @@ WHERE node IS ContainerElement
 RETURN node
 ```
 
+They also apply to relationships in both graph and table queries, including
+project-defined operator descendants:
+
+```cypher
+MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+WHERE event IS AsyncWire
+RETURN consumer, event, producer
+```
+
 `External` is a built-in semantic predicate based on the element's resolved model kind. It matches declarations created with `external actor` or `external system`. Relative externality in a built-in C1-C4 view is carried separately by the resulting render graph and does not change this predicate in custom queries.
 
 A custom CLI query uses its own selection and grouping rules. The query file
@@ -716,7 +763,7 @@ RETURN component, container
 
 These patterns select nodes connected through typed model attributes even when the attribute itself is not represented as an authored `REFERENCES` edge.
 
-Attribute cardinality comes from the Insight type system and linked reference metadata. `Wire.uses` is a declared list; infrastructure `runsOn` is a declared scalar reference. On systems and containers, `runsOn` and `uses` are computed deployment results, not declared source attributes. A single resolved reference can be compared with a bound node or tested against a qualified id:
+Attribute cardinality comes from the Insight type system and linked reference metadata. `Wire.uses` is a declared list; infrastructure `runsOn` is a declared scalar reference. On systems and containers, `runsOn` and `uses` are computed deployment results, not declared source attributes. A single resolved reference is the real typed graph node and can be compared with a bound node or tested against a qualified id:
 
 ```cypher
 WHERE node.uses IN ['eu/vault']
