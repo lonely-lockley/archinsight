@@ -41,6 +41,30 @@ describe('project query discovery', () => {
     expect(projectFilePaths(undefined)).toEqual([]);
     expect(discoverProjectQueries({ ...tree(), children: [files] })).toEqual(discoverProjectQueries(files));
   });
+  it('does not discover queries inside hidden or generated directories', () => {
+    const directory = (path: string, children: TreeNode[]): TreeNode => ({
+      name: path.split('/').at(-1) ?? path, path, type: 'directory', children
+    });
+    const file = (path: string): TreeNode => ({
+      name: path.split('/').at(-1)!, path, type: 'file', children: []
+    });
+    const files = directory('', [
+      directory('.claude', [file('.claude/skills/archinsight/examples/builtin-views/c2.aiq')]),
+      directory('.codex', [file('.codex/skills/archinsight/examples/builtin-views/c2.aiq')]),
+      directory('.cache', [file('.cache/cached.aiq')]),
+      directory('node_modules', [file('node_modules/package/example.aiq')]),
+      directory('build', [file('build/generated.aiq')]),
+      directory('dist', [file('dist/generated.aiq')]),
+      directory('views', [file('views/c2.aiq'), file('views/impact.aiq')]),
+      file('model.ai')
+    ]);
+
+    expect(projectFilePaths(files)).toEqual(['views/c2.aiq', 'views/impact.aiq', 'model.ai']);
+    expect(discoverProjectQueries(files)).toEqual([
+      { name: 'c2', paths: ['views/c2.aiq'], view: 'c2' },
+      { name: 'impact', paths: ['views/impact.aiq'], view: undefined }
+    ]);
+  });
   it('reports duplicate names instead of choosing by traversal order', () => {
     const files = tree('b/c2.aiq', 'a/c2.aiq');
     expect(() => resolveProjectQuery(tab('shop.ai'), discoverProjectQueries(files))).toThrow("Query name 'c2' is ambiguous: a/c2.aiq, b/c2.aiq");

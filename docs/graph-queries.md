@@ -452,6 +452,11 @@ query text directly in an `.ai` tab's query panel creates that tab's local
 customization, as before. Selecting a view again restores the file-backed or
 built-in query.
 
+Query discovery skips hidden directories and the `node_modules`, `build`, and
+`dist` directories. Bundled examples under generated `.claude/skills/` and
+`.codex/skills/` packages therefore do not become project queries or built-in
+overrides.
+
 ### Run a saved query from the CLI
 
 The CLI does not discover project query files or override built-in views by
@@ -471,7 +476,7 @@ explicit context:
 archinsight query . -c ecommerce -q views/external-integrations.aiq --format json
 ```
 
-`--query` takes precedence over `--view`, so pass one or the other. In
+`--query` and `--view` are mutually exclusive, so pass one or the other. In
 particular, `archinsight query ... -v c2` runs the built-in query bundled with
 that CLI version; it does not look for `views/c2.aiq`. Running
 `-q views/c2.aiq` executes the file as a standalone query and does not attach

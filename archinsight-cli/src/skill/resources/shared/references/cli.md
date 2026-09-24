@@ -95,8 +95,8 @@ context-wide C1 or `no-filter` query without a source, pass
 present, they must resolve to the same context; the context does not override
 the source.
 
-A custom query file takes precedence over `--view`. Pass it by project-relative
-path and omit `--view`:
+A custom query file is mutually exclusive with `--view`. Pass it by
+project-relative path and omit `--view`:
 
 ```shell
 archinsight query . -s <source.ai> -q views/<name>.aiq --format json

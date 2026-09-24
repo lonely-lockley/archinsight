@@ -16,7 +16,11 @@ reports/
 
 Create the needed directory when it does not exist. Use a short descriptive
 lowercase filename. Before writing, search the whole project for `.aiq` files
-and compare their basenames, because directories do not namespace query names.
+that participate in project discovery and compare their basenames, because
+directories do not namespace query names. The web workspace skips hidden
+directories, `node_modules`, `build`, and `dist`; generated examples under
+`.claude/skills/` and `.codex/skills/` therefore do not conflict with project
+queries.
 
 ## Choose a Custom Name or an Override
 
@@ -79,7 +83,7 @@ query uses `$context` without `$tab`, a context-wide run may use:
 archinsight query . -c ecommerce -q views/external-integrations.aiq --format json
 ```
 
-`--query` takes precedence over `--view`; pass only one. `-v c2` runs the
+`--query` and `--view` are mutually exclusive; pass only one. `-v c2` runs the
 built-in C2 query bundled in the CLI and does not discover `views/c2.aiq`.
 Conversely, `-q views/c2.aiq` runs the file as a standalone query without C2's
 post-selection pipeline. The web override retains that pipeline, so boundary

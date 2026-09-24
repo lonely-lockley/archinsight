@@ -29,8 +29,8 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `--tab <source>` - compatibility alias for `--source`.
 - `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment-system`, `deployment-container`, `deployment`, `no-filter`.
 - `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
-- `-q, --query <file>` - custom query file; overrides `--view`; relative paths
-  are resolved from `project-dir`.
+- `-q, --query <file>` - custom query file; mutually exclusive with `--view`;
+  relative paths are resolved from `project-dir`.
 - `-f, --format <format>` - command output format.
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
@@ -87,13 +87,15 @@ The web workspace discovers `.aiq` files recursively by basename. A name such
 as `dependencies.aiq` creates a custom view. Reserved filenames `no-filter.aiq`,
 `c1.aiq`, `c2.aiq`, `c3.aiq`, `c4.aiq`, `deployment-system.aiq`,
 `deployment-container.aiq`, and `deployment.aiq` override the corresponding
-web view. Directories do not affect identity or precedence, so duplicate
-basenames conflict.
+web view. Discovery skips hidden directories, `node_modules`, `build`, and
+`dist`, so generated agent-skill examples are not project queries. Other
+directories do not affect identity or precedence, so duplicate basenames
+conflict.
 
 CLI execution is explicit: it does not discover these files and does not apply
 filename-based overrides. `-q views/c2.aiq` runs that file as a standalone
-query, while `-v c2` runs the C2 query bundled with the CLI. Because `--query`
-takes precedence over `--view`, do not combine them.
+query, while `-v c2` runs the C2 query bundled with the CLI. `--query` and
+`--view` are mutually exclusive; combining them is a CLI error.
 
 ## Environment Discovery
 

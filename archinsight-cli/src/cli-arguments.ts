@@ -74,7 +74,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
     positional.push(arg);
   }
-  return {
+  const parsed: ParsedArgs = {
     command: command(positional[0]),
     skillAction: skillAction(positional[0], positional[1]),
     input: inputPath(positional),
@@ -98,6 +98,15 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     version: options.version === true,
     force: options.force === true,
   };
+  validateOptionCombinations(parsed);
+  return parsed;
+}
+
+function validateOptionCombinations(args: ParsedArgs): void {
+  if ((args.command === "query" || args.command === "render")
+      && args.view !== undefined && args.queryFile !== undefined) {
+    throw new CliError(`Options '--view' and '--query' are mutually exclusive for command '${args.command}'`);
+  }
 }
 
 function optionKey(arg: string): string | undefined {
@@ -236,7 +245,7 @@ Options:
       --tab <source>       Backward-compatible alias for --source.
   -v, --view <name>        Built-in view: ${viewList}.
   -e, --environment <id>   Environment scope for deployment-container; optional when exactly one is relevant.
-  -q, --query <file>       Query file; overrides --view.
+  -q, --query <file>       Query file; mutually exclusive with --view.
       --param <name=json>  Supply a query parameter; repeat for multiple parameters.
       --params <file>      Read query parameters from a JSON object.
       --max-expansions <n> Maximum candidate/edge checks during query execution.
