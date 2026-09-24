@@ -40,6 +40,8 @@ test('menu commands refer to declared commands', () => {
 test('language, grammar, custom editor, view, and icon contributions resolve', () => {
   for (const language of manifest.contributes.languages) {
     assertPath(language.configuration);
+    assertPath(language.icon.light);
+    assertPath(language.icon.dark);
   }
   for (const grammar of manifest.contributes.grammars) {
     assertPath(grammar.path);
@@ -55,6 +57,13 @@ test('language, grammar, custom editor, view, and icon contributions resolve', (
     );
     assert(manifest.activationEvents.includes(`onCustomEditor:${editor.viewType}`));
   }
+  const archinsightEditor = manifest.contributes.customEditors.find((editor) => editor.viewType === 'archinsight.editor');
+  assert(archinsightEditor, 'Archinsight custom editor must be contributed');
+  assert.deepEqual(
+    archinsightEditor.selector.map((selector) => selector.filenamePattern).sort(),
+    ['*.ai', '*.aiq'],
+    'Insight models and AIQ queries must open in the Archinsight custom editor',
+  );
 
   for (const views of Object.values(manifest.contributes.views ?? {})) {
     for (const view of views) {
@@ -65,6 +74,30 @@ test('language, grammar, custom editor, view, and icon contributions resolve', (
       );
     }
   }
+});
+
+test('Insight and AIQ languages use their Archinsight file icons', () => {
+  const languages = new Map(manifest.contributes.languages.map((language) => [language.id, language]));
+  assert.deepEqual(languages.get('insight')?.icon, {
+    light: './assets/file-icons/ai.svg',
+    dark: './assets/file-icons/ai.svg',
+  });
+  assert.deepEqual(languages.get('archinsight-query')?.icon, {
+    light: './assets/file-icons/aiq.svg',
+    dark: './assets/file-icons/aiq.svg',
+  });
+
+  const aiIcon = readFileSync(path.join(extensionRoot, 'assets', 'file-icons', 'ai.svg'), 'utf8');
+  const aiqIcon = readFileSync(path.join(extensionRoot, 'assets', 'file-icons', 'aiq.svg'), 'utf8');
+  assert(aiIcon.includes('M17.2085 0.5C20.3898'), 'Insight icon must contain the web Archinsight mark');
+  assert(aiqIcon.includes('M5.65 7.25 9.9 6.4'), 'AIQ icon must contain the web query graph');
+  assert(aiIcon.includes('#36d074'));
+  assert(aiqIcon.includes('#36d074'));
+});
+
+test('custom editor tabs force the Archinsight icon despite file-theme extension conflicts', () => {
+  assert(extensionSource.includes('panel.iconPath = vscode.Uri.joinPath('));
+  assert(extensionSource.includes('fileName.toLocaleLowerCase().endsWith(".aiq") ? "aiq.svg" : "ai.svg"'));
 });
 
 test('language configuration uses balanced editor pairs', () => {
@@ -116,6 +149,27 @@ test('custom editor and preview share one diagram state machine', () => {
   assert.equal(extensionSource.includes('private pngResolve'), false);
   assert.equal(extensionSource.includes('private async exportPng'), false);
   assert.equal(extensionSource.includes('function fileNameWithExtension'), false);
+});
+
+test('AIQ custom editor initializes and renders the document query', () => {
+  assert(extensionSource.includes('? { view: "no-filter", query: document.getText() }'));
+  assert(extensionSource.includes('message.command === "selectQueryScope"'));
+  assert.equal(extensionSource.includes('Choose the Insight source used for $tab'), false);
+  assert(extensionSource.includes('activeQueryDocumentSource()'));
+  assert(workbenchSource.includes('createQueryScopeWidgets'));
+  assert(workbenchSource.includes("command: 'selectQueryScope'"));
+  assert(workbenchSource.includes("queryDocument={editorLanguage() === 'archinsight-query'}"));
+  assert(workbenchSource.includes("monaco.editor.setModelLanguage(model, editorLanguage())"));
+  assert(workbenchSource.includes("return fileName.toLocaleLowerCase().endsWith('.aiq')"));
+});
+
+test('VS Code Monaco uses the same Insight themes as the web editor', () => {
+  assert(workbenchSource.includes("from '@archinsight/workbench/monaco-themes'"));
+  assert(workbenchSource.includes('defineInsightThemes(monaco)'));
+  assert(workbenchSource.includes('insightDarkTheme'));
+  assert(workbenchSource.includes('insightLightTheme'));
+  assert.equal(workbenchSource.includes('function insightTokenRules('), false);
+  assert.equal(workbenchSource.includes("'insight-vscode-dark'"), false);
 });
 
 function assertPath(relativePath) {

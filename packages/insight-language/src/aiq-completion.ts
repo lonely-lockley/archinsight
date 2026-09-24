@@ -42,7 +42,7 @@ export interface AiqCompletionResult {
 
 const clauseKeywords = ["WHERE", "MATCH", "OPTIONAL MATCH", "UNWIND", "WITH", "RETURN", "RETURN TABLE"] as const;
 const expressionKeywords = ["DISTINCT", "NOT", "TRUE", "FALSE", "NULL", "AND", "OR", "IN", "CONTAINS", "IS NULL", "IS NOT NULL"] as const;
-const selectors = ["authored", "derived", "withDerived", "projected", "withProjected"] as const;
+const selectors = ["derived", "withDerived", "projected", "withProjected"] as const;
 
 const nodeProperties = ["id", "localId", "type", "context", "sourceIdentity", "parent", "constructor", "annotations"];
 const relationshipProperties = ["id", "type", "kind", "operator", "source", "target", "context", "sourceIdentity", "derived", "projected", "annotations"];

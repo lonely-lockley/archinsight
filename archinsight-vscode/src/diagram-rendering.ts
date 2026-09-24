@@ -31,6 +31,10 @@ export interface DiagramRenderInput {
   readonly fileName: string;
   readonly source: string;
   readonly blockOnLinkerErrors: boolean;
+  readonly queryScope?: {
+    readonly tab?: string;
+    readonly context?: string;
+  };
 }
 
 export interface DiagramRenderingContext {
@@ -67,18 +71,20 @@ async function previewState(
 ): Promise<PreviewState> {
   const { current, sourceName, source, fileName } = input;
   const { view, query, environment } = state;
-  const context = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
+  const sourceContext = current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName);
+  const tab = input.queryScope === undefined ? sourceName : input.queryScope.tab;
+  const context = input.queryScope === undefined ? sourceContext?.id : input.queryScope.context;
   const startedAt = renderingContext.now?.() ?? performance.now();
   try {
     if (viewUsesEnvironment(view) && environment === undefined) {
-      const available = discoverDeploymentEnvironments(current.result, { context: context?.id, tab: sourceName });
+      const available = discoverDeploymentEnvironments(current.result, { context, tab });
       throw new Error(available.length === 0
         ? "No deployment environments are relevant to this source."
         : "Select an environment for the D2 view.");
     }
     const result = executeQuery(current.result, {
-      context: context?.id,
-      tab: sourceName,
+      context,
+      tab,
       view,
       ...(environment === undefined ? {} : { environment }),
     }, query, state.parameters ?? {});
@@ -86,7 +92,7 @@ async function previewState(
       renderingContext.log(`INFO ${queryFinishedMessage((renderingContext.now?.() ?? performance.now()) - startedAt, result.metadata.rowCount)}`);
       return {
         ...state,
-        contextId: context?.id ?? "-",
+        contextId: context ?? "-",
         sourceName,
         fileName,
         source,
@@ -99,7 +105,7 @@ async function previewState(
     renderingContext.log(`INFO ${queryFinishedMessage((renderingContext.now?.() ?? performance.now()) - startedAt)}`);
     return {
       ...state,
-      contextId: context?.id ?? "-",
+      contextId: context ?? "-",
       sourceName,
       fileName,
       source,
@@ -111,7 +117,7 @@ async function previewState(
     renderingContext.log(`ERROR Query failed: ${message}`);
     return {
       ...state,
-      contextId: context?.id ?? "-",
+      contextId: context ?? "-",
       sourceName,
       fileName,
       source,

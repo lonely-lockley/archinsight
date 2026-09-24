@@ -154,9 +154,13 @@ RETURN TABLE elementId(from) AS source,
 
 Use `<-` for impact analysis when authored dependencies point from consumer to
 provider. Each path step preserves the stored relationship direction. Derived
-relationships can be included with `{withDerived}`. Projected relationships are
-rejected for variable-length traversal because their query-visible endpoints do
-not define one stable logical traversal graph.
+relationships can be included with `{withDerived}`, which changes the traversal
+to the ownership rollup graph. Consecutive rollup hops can represent relations
+of different children of the shared owner, so that path establishes aggregated
+owner reachability rather than one continuous underlying dependency chain. Keep
+the path selector-free for exact dependency and impact analysis. Projected
+relationships are rejected for variable-length traversal because their
+query-visible endpoints do not define one stable logical traversal graph.
 
 ## Solving common questions
 
@@ -219,6 +223,23 @@ For immediate failure propagation, constrain the path relationship with
 `{type: 'SyncWire'}`. Then the answer is whether a modeled synchronous path
 exists against the dependency arrow. The generic query above answers broader
 change impact and intentionally includes async dependencies.
+
+When the changed anchor is a system and dependencies are authored against its
+children, expand the system before traversing the direct relationship graph:
+
+```cypher
+MATCH (changed:System)
+WHERE elementId(changed) = $system
+MATCH (changed)-[:CONTAINS*0..8]->(provider:Element)
+MATCH (provider)<-[:REFERENCES*1..]-(dependent:Element)
+WHERE dependent <> provider
+RETURN TABLE DISTINCT elementId(dependent) AS dependent
+ORDER BY dependent
+```
+
+The containment bound states the ownership depth included in the question.
+This form does not need `{withDerived}`: without a selector, `REFERENCES`
+matches only direct, non-derived, non-projected relationships.
 
 ### Async topics and consumers
 

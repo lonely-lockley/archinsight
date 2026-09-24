@@ -474,7 +474,7 @@ for (const order of [oracleNodes, [...oracleNodes].reverse()]) {
     const result = executeQuery(oracle, {}, `
 MATCH (from:Element)
 WHERE elementId(from) = $from
-MATCH (from)-[:REFERENCES*1..6 {authored}]->(to:Element)
+MATCH (from)-[:REFERENCES*1..6]->(to:Element)
 RETURN TABLE DISTINCT elementId(to) AS target
 ORDER BY target
 `, { from: `oracle/${start}` });
@@ -517,7 +517,7 @@ MATCH (from:Element)
 WHERE elementId(from) = $from
 MATCH (to:Element)
 WHERE elementId(to) = $to
-MATCH p = shortestPath((from)-[:REFERENCES*1..6 {authored}]->(to))
+MATCH p = shortestPath((from)-[:REFERENCES*1..6]->(to))
 RETURN TABLE length(p) AS hops
 `, { from: `oracle/${start}`, to: `oracle/${target}` });
     const distance = oracleDistance(start, target);

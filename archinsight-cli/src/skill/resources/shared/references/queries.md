@@ -120,8 +120,13 @@ ORDER BY source, target
 An unbounded reachability query cannot bind or return a path or relationship,
 aggregate path evidence, or place another input clause after the path. Bind a
 path and set a finite bound when route evidence is required. Incoming and
-undirected arrows are supported. `{withDerived}` includes derived relations;
-projected relations are not available for variable-length traversal.
+undirected arrows are supported. A selector-free `REFERENCES` path follows the
+direct, non-derived model relationships and is the default for exact dependency
+and impact analysis. `{withDerived}` instead traverses the ownership rollup
+graph. Its consecutive aggregate hops can be backed by different children of
+the shared owner, so such a path establishes reachability between owners rather
+than one continuous path through the underlying elements. Projected relations
+are not available for variable-length traversal.
 
 ## Node Patterns
 

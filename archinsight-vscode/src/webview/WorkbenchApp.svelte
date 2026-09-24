@@ -19,6 +19,7 @@
     type WebviewCompletionItem,
     type WebviewDiagnostic,
     type WebviewPreviewState,
+    type WebviewQueryScopeState,
     type WorkbenchWebviewToHostMessage
   } from '@archinsight/contracts';
   import WorkspaceEditor from '@archinsight/workbench/workspace-editor';
@@ -31,6 +32,11 @@
     type InsightTokenVocabulary
   } from '@archinsight/workbench/monaco';
   import {
+    defineInsightThemes,
+    insightDarkTheme,
+    insightLightTheme
+  } from '@archinsight/workbench/monaco-themes';
+  import {
     defaultDiagramMode,
     defaultQuery,
     diagramModeDefinition,
@@ -39,6 +45,7 @@
   } from '@archinsight/workbench/presets';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '@archinsight/workbench/types';
   import { registerQueryCompletionProvider, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
+  import { createQueryScopeWidgets } from '@archinsight/workbench/query-scope-widgets';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
 
   type DiagramView = BuiltinDiagramView;
@@ -64,8 +71,6 @@
   const defaultViewMode: EditorViewMode = 'split';
   const minDiagramScale = 0.2;
   const maxDiagramScale = 3;
-  const darkEditorTheme = 'insight-vscode-dark';
-  const lightEditorTheme = 'insight-vscode-light';
 
   let monaco: typeof Monaco | undefined;
   let queryResult: QueryTableResult | undefined;
@@ -77,6 +82,7 @@
   let tokenVocabulary: InsightTokenVocabulary | undefined;
   let semanticTokensProvider: InsightSemanticTokensProvider | undefined;
   let queryCompletionProvider: Monaco.IDisposable | undefined;
+  let queryScopeWidgets: ReturnType<typeof createQueryScopeWidgets> | undefined;
   let editorHost: HTMLDivElement;
   let messagesPanel: HTMLElement;
   let suppressEditorChange = false;
@@ -105,6 +111,7 @@
   let renderError: string | undefined;
   let currentSymbols: LanguageSnapshot = coreLanguageSnapshot;
   let readOnly = false;
+  let queryScope: WebviewQueryScopeState = { enabled: false, sources: [], contexts: [] };
 
   $: messages = panelMessages(diagnostics, renderError);
   $: workAreaStyle = 'grid-template-rows: minmax(0, 1fr);';
@@ -132,6 +139,7 @@
     pendingClipboardRequests.clear();
     themeObserver?.disconnect();
     queryCompletionProvider?.dispose();
+    queryScopeWidgets?.dispose();
     editor?.dispose();
     model?.dispose();
   });
@@ -161,11 +169,11 @@
       snapshot: currentSymbols,
       parameters: Object.keys(queryParameters)
     }));
-    defineEditorThemes(monaco);
+    defineInsightThemes(monaco);
     registerCompletionProvider(monaco);
     observeThemeChanges(monaco);
     await tick();
-    model = monaco.editor.createModel(source, 'insight', monaco.Uri.parse(`insight://tab/${sourceName || 'active.ai'}`));
+    model = monaco.editor.createModel(source, editorLanguage(), monaco.Uri.parse(`archinsight://tab/${sourceName || 'active.ai'}`));
     editor = monaco.editor.create(editorHost, {
       model,
       theme: editorTheme(),
@@ -196,6 +204,12 @@
       }
       source = model.getValue();
       scheduleSourceChange(source);
+    });
+    queryScopeWidgets = createQueryScopeWidgets(monaco, editor, {
+      state: () => queryScope,
+      select(variable, value) {
+        vscode.postMessage({ command: 'selectQueryScope', variable, value });
+      }
     });
     editor.updateOptions({ readOnly });
     updateSymbols(currentSymbols);
@@ -269,10 +283,12 @@
       deploymentEnvironment = message.environment;
       currentSymbols = message.symbols;
       readOnly = message.readOnly ?? false;
+      queryScope = message.queryScope ?? { enabled: false, sources: [], contexts: [] };
       updateSymbols(currentSymbols);
       editor?.updateOptions({ readOnly });
       applySource(source);
       applyDiagnostics();
+      queryScopeWidgets?.refresh();
       return;
     }
     if (message.command === 'query') {
@@ -286,8 +302,6 @@
     }
     if (message.command === 'preview') {
       resultLoading = false;
-      sourceName = message.state.sourceName;
-      fileName = message.state.fileName;
       diagramMode = diagramModeFromView(message.state.view);
       query = message.state.query;
       queryParameters = message.state.parameters ?? {};
@@ -302,6 +316,11 @@
       diagnostics = message.diagnostics;
       updateSymbols(currentSymbols);
       applyDiagnostics();
+      return;
+    }
+    if (message.command === 'queryScope') {
+      queryScope = message.state;
+      queryScopeWidgets?.refresh();
       return;
     }
     if (message.command === 'completionResult') {
@@ -358,12 +377,20 @@
     if (tokenVocabulary === undefined) {
       return;
     }
-    refreshInsightTokenVocabulary(tokenVocabulary, symbols, [source]);
+    if (editorLanguage() === 'insight') {
+      refreshInsightTokenVocabulary(tokenVocabulary, symbols, [source]);
+    }
     if (monaco !== undefined && model !== undefined) {
-      monaco.editor.setModelLanguage(model, 'insight');
+      monaco.editor.setModelLanguage(model, editorLanguage());
       semanticTokensProvider?.refresh();
       editor?.render(true);
     }
+  }
+
+  function editorLanguage(): 'insight' | 'archinsight-query' {
+    return fileName.toLocaleLowerCase().endsWith('.aiq') || sourceName.toLocaleLowerCase().endsWith('.aiq')
+      ? 'archinsight-query'
+      : 'insight';
   }
 
   function applyDiagnostics(): void {
@@ -647,90 +674,15 @@
   }
 
   function editorTheme(): string {
-    return document.body.classList.contains('vscode-light') ? lightEditorTheme : darkEditorTheme;
+    return document.body.classList.contains('vscode-light') ? insightLightTheme : insightDarkTheme;
   }
 
   function observeThemeChanges(monacoInstance: typeof Monaco): void {
     themeObserver?.disconnect();
     themeObserver = new MutationObserver(() => {
-      defineEditorThemes(monacoInstance);
       monacoInstance.editor.setTheme(editorTheme());
     });
     themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  }
-
-  function defineEditorThemes(monacoInstance: typeof Monaco): void {
-    const styles = getComputedStyle(document.documentElement);
-    const background = cssColor(styles, '--vscode-editor-background', '#1f1f1f');
-    const foreground = cssColor(styles, '--vscode-editor-foreground', '#e6e6e6');
-    monacoInstance.editor.defineTheme(darkEditorTheme, {
-      base: 'vs-dark',
-      inherit: true,
-      rules: insightTokenRules('dark'),
-      colors: {
-        'editor.background': background,
-        'editor.foreground': foreground,
-        'editor.selectionBackground': '#4c2889'
-      }
-    });
-    monacoInstance.editor.defineTheme(lightEditorTheme, {
-      base: 'vs',
-      inherit: true,
-      rules: insightTokenRules('light'),
-      colors: {
-        'editor.background': background,
-        'editor.foreground': foreground,
-        'editor.selectionBackground': '#c8c8fa'
-      }
-    });
-  }
-
-  function cssColor(styles: CSSStyleDeclaration, property: string, fallback: string): string {
-    const value = styles.getPropertyValue(property).trim();
-    return value.length === 0 ? fallback : value;
-  }
-
-  function insightTokenRules(theme: 'dark' | 'light'): Monaco.editor.ITokenThemeRule[] {
-    if (theme === 'light') {
-      return [
-        { token: 'comment', foreground: '6a737d' },
-        { token: 'string', foreground: '032f62' },
-        { token: 'entity.name', foreground: '6f42c1' },
-        { token: 'entity.name.function.constructor.insight', foreground: '22863a' },
-        { token: 'function', foreground: '22863a' },
-        { token: 'keyword', foreground: 'd73a49' },
-        { token: 'keyword.control.insight', foreground: '008b8b' },
-        { token: 'keyword', foreground: '008b8b' },
-        { token: 'keyword.declaration.insight', foreground: 'b05a00' },
-        { token: 'keyword.declaration', foreground: 'b05a00' },
-        { token: 'variable', foreground: 'e36209' },
-        { token: 'variable.other', foreground: '24292e' },
-        { token: 'property', foreground: '24292e' },
-        { token: 'operator', foreground: '24292e' },
-        { token: 'type', foreground: '6f42c1' },
-        { token: 'annotation', foreground: 'b08800' },
-        { token: 'constant.language.annotation', foreground: 'b08800' }
-      ];
-    }
-    return [
-      { token: 'comment', foreground: '959da5' },
-      { token: 'string', foreground: '79b8ff' },
-      { token: 'entity.name', foreground: 'b392f0' },
-      { token: 'entity.name.function.constructor.insight', foreground: '7ee787' },
-      { token: 'function', foreground: '7ee787' },
-      { token: 'keyword', foreground: 'ea4a5a' },
-      { token: 'keyword.control.insight', foreground: '39c5bb' },
-      { token: 'keyword', foreground: '39c5bb' },
-      { token: 'keyword.declaration.insight', foreground: 'd19a66' },
-      { token: 'keyword.declaration', foreground: 'd19a66' },
-      { token: 'variable', foreground: 'fb8532' },
-      { token: 'variable.other', foreground: 'f6f8fa' },
-      { token: 'property', foreground: 'f6f8fa' },
-      { token: 'operator', foreground: 'f6f8fa' },
-      { token: 'type', foreground: 'b392f0' },
-      { token: 'annotation', foreground: 'f2cc60' },
-      { token: 'constant.language.annotation', foreground: 'f2cc60' }
-    ];
   }
 
   function completionItemKind(monacoInstance: typeof Monaco, item: CompletionItem): Monaco.languages.CompletionItemKind {
@@ -790,6 +742,7 @@
   {query}
   {queryParameters}
   {queryVisible}
+  queryDocument={editorLanguage() === 'archinsight-query'}
   {queryPanelHeight}
   {viewMode}
   {diagramScale}

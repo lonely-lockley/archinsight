@@ -34,6 +34,20 @@ export type WebviewCompletionItem = {
   documentation?: CompletionDocumentation;
 };
 
+export type WebviewQueryScopeChoice = {
+  value: string;
+  label: string;
+  typeName?: string;
+};
+
+export type WebviewQueryScopeState = {
+  readonly enabled: boolean;
+  readonly tab?: string;
+  readonly context?: string;
+  readonly sources: readonly WebviewQueryScopeChoice[];
+  readonly contexts: readonly WebviewQueryScopeChoice[];
+};
+
 export type WebviewPreviewState = {
   view: BuiltinDiagramView;
   query: string;
@@ -63,6 +77,7 @@ export type WorkbenchWebviewToHostMessage =
   | { command: 'ready' }
   | { command: 'cancel' }
   | { command: 'sourceChanged'; source: string }
+  | { command: 'selectQueryScope'; variable: 'tab' | 'context'; value: string }
   | { command: 'render'; view: BuiltinDiagramView; query: string; parameters?: Readonly<Record<string, QueryParameterValue>> }
   | { command: 'selectDeploymentEnvironment' }
   | { command: 'refresh' }
@@ -78,11 +93,12 @@ export type WorkbenchHostToWebviewMessage =
   | {
     command: 'source'; source: string; sourceName: string; fileName: string; view: BuiltinDiagramView; query: string;
     environment?: string; parameters?: Readonly<Record<string, QueryParameterValue>>; diagnostics?: WebviewDiagnostic[]; symbols?: LanguageSnapshot; readOnly?: boolean;
-    queries?: Readonly<Record<BuiltinDiagramView, string>>;
+    queries?: Readonly<Record<BuiltinDiagramView, string>>; queryScope?: WebviewQueryScopeState;
   }
   | { command: 'query'; view: BuiltinDiagramView; query: string; environment?: string; parameters?: Readonly<Record<string, QueryParameterValue>> }
   | { command: 'preview'; state: WebviewPreviewState }
   | { command: 'diagnostics'; diagnostics: WebviewDiagnostic[] }
+  | { command: 'queryScope'; state: WebviewQueryScopeState }
   | { command: 'completionResult'; requestId: number; items: WebviewCompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
   | { command: 'clipboardText'; requestId: number; text: string }
   | { command: 'exportPng'; svg: string }
@@ -124,6 +140,11 @@ export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWeb
   switch (input.command) {
     case 'ready': case 'cancel': case 'selectDeploymentEnvironment': case 'refresh': return { command: input.command };
     case 'sourceChanged': return { command: 'sourceChanged', source: string(input.source, 'source') };
+    case 'selectQueryScope': {
+      const variable = string(input.variable, 'variable');
+      if (variable !== 'tab' && variable !== 'context') throw new ContractValidationError('query scope variable is invalid');
+      return { command: 'selectQueryScope', variable, value: string(input.value, 'value') };
+    }
     case 'render': return {
       command: 'render', view: view(input.view), query: string(input.query, 'query'),
       ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) })
@@ -163,7 +184,8 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
       ...(input.diagnostics === undefined ? {} : { diagnostics: diagnostics(input.diagnostics, 'diagnostics') }),
       ...(input.symbols === undefined ? {} : { symbols: input.symbols as LanguageSnapshot }),
       ...(input.readOnly === undefined ? {} : { readOnly: boolean(input.readOnly, 'readOnly') }),
-      ...(input.queries === undefined ? {} : { queries: queryRecord(input.queries) })
+      ...(input.queries === undefined ? {} : { queries: queryRecord(input.queries) }),
+      ...(input.queryScope === undefined ? {} : { queryScope: queryScopeState(input.queryScope) })
     };
     case 'query': return {
       command: 'query', view: view(input.view), query: string(input.query, 'query'),
@@ -172,6 +194,7 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
     };
     case 'preview': return { command: 'preview', state: previewState(input.state) };
     case 'diagnostics': return { command: 'diagnostics', diagnostics: diagnostics(input.diagnostics, 'diagnostics') };
+    case 'queryScope': return { command: 'queryScope', state: queryScopeState(input.state) };
     case 'completionResult': return {
       command: 'completionResult', requestId: number(input.requestId, 'requestId'), items: completionItems(input.items),
       ...(input.replacementStartOffset === undefined ? {} : { replacementStartOffset: number(input.replacementStartOffset, 'replacementStartOffset') }),
@@ -182,6 +205,28 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
     case 'reveal': return { command: 'reveal', line: number(input.line, 'line'), column: number(input.column, 'column') };
     default: throw unknownCommand(input.command);
   }
+}
+
+function queryScopeState(value: unknown): WebviewQueryScopeState {
+  const input = record(value, 'query scope');
+  return {
+    enabled: boolean(input.enabled, 'query scope.enabled'),
+    ...(input.tab === undefined ? {} : { tab: string(input.tab, 'query scope.tab') }),
+    ...(input.context === undefined ? {} : { context: string(input.context, 'query scope.context') }),
+    sources: queryScopeChoices(input.sources, 'query scope.sources'),
+    contexts: queryScopeChoices(input.contexts, 'query scope.contexts')
+  };
+}
+
+function queryScopeChoices(value: unknown, name: string): WebviewQueryScopeChoice[] {
+  return array(value, name).map((item, index) => {
+    const input = record(item, `${name}[${index}]`);
+    return {
+      value: string(input.value, `${name}[${index}].value`),
+      label: string(input.label, `${name}[${index}].label`),
+      ...(input.typeName === undefined ? {} : { typeName: string(input.typeName, `${name}[${index}].typeName`) })
+    };
+  });
 }
 
 export function parsePreviewWebviewToHostMessage(value: unknown): PreviewWebviewToHostMessage {

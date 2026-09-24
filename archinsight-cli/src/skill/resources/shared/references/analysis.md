@@ -85,6 +85,7 @@ Bundled starting points:
 - `examples/queries/inventory.aiq`
 - `examples/queries/impact.aiq`
 - `examples/queries/sync-impact.aiq`
+- `examples/queries/system-impact.aiq`
 - `examples/queries/shortest-path.aiq`
 - `examples/queries/async-topics.aiq`
 - `examples/queries/system-async-consumers.aiq`
@@ -198,9 +199,30 @@ ORDER BY position
 For bounded alternatives use `MATCH p = (from)-[:REFERENCES*1..8]->(to)`.
 For endpoint-only reachability, omit the path alias and use
 `RETURN TABLE DISTINCT`; that form may use `*1..` and avoids enumerating routes.
-Use `{withDerived}` only when ownership-level derived dependencies are part of
-the question. Variable paths reject projected relations because their visible
+A selector-free `REFERENCES` path follows the direct model relationships. Use
+it when the answer requires one continuous dependency chain. `{withDerived}`
+traverses the ownership rollup graph instead: consecutive hops can summarize
+relationships belonging to different children of their shared owner. Use that
+only when the question explicitly asks about reachability in the aggregated
+owner graph. Variable paths reject projected relations because their visible
 endpoints do not form one stable logical traversal graph.
+
+When the anchor is a system but its relationships belong to children, expand
+the system first and keep the dependency traversal selector-free:
+
+```cypher
+MATCH (changed:System)
+WHERE elementId(changed) = $system
+MATCH (changed)-[:CONTAINS*0..8]->(provider:Element)
+MATCH (provider)<-[:REFERENCES*1..]-(dependent:Element)
+WHERE dependent <> provider
+RETURN TABLE DISTINCT elementId(dependent) AS dependent
+ORDER BY dependent
+```
+
+The containment bound covers the ownership depth to inspect; raise it for a
+deeper project. This query traverses actual relationships from every element
+inside the system instead of composing derived owner-to-owner copies.
 
 ## Async Topics
 

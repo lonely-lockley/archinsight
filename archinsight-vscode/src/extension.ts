@@ -43,7 +43,13 @@ import {
   parsePreviewWebviewToHostMessage,
   parseWorkbenchWebviewToHostMessage,
   type WorkbenchHostToWebviewMessage,
+  type WebviewQueryScopeState,
 } from "@archinsight/contracts";
+import {
+  resolveQueryScopeState,
+  selectQueryScope,
+  type QueryScopeContextChoice,
+} from "@archinsight/workbench/query-scope-state";
 import {
   fileNameWithExtension,
   type DiagramArtifactKind,
@@ -321,7 +327,10 @@ async function runActiveAiqQuery(
   workbenchEditor: ArchinsightWorkbenchEditorProvider,
 ): Promise<void> {
   const editor = vscode.window.activeTextEditor;
-  if (editor === undefined || !isAiqDocument(editor.document)) {
+  const textQueryDocument = editor !== undefined && isAiqDocument(editor.document) ? editor.document : undefined;
+  const workbenchQuery = activeWorkbenchEditor?.activeQueryDocumentSource();
+  const query = textQueryDocument?.getText() ?? workbenchQuery;
+  if (query === undefined) {
     void vscode.window.showWarningMessage("Open an AIQ .aiq file before running a query.");
     return;
   }
@@ -337,31 +346,15 @@ async function runActiveAiqQuery(
     return;
   }
 
-  const query = editor.document.getText();
-  if (activeWorkbenchEditor !== undefined) {
+  if (activeWorkbenchEditor !== undefined && workbenchQuery !== undefined) {
     await activeWorkbenchEditor.render("no-filter", query);
     activeWorkbenchEditor.activate();
     return;
   }
-
-  const sources = current.sources.filter((source) => current.sourceUris.has(source.sourceName));
-  const selected = sources.length === 1
-    ? sources[0]
-    : await vscode.window.showQuickPick(
-      sources.map((source) => ({ label: source.sourceName, source })),
-      { title: "Run AIQ Query", placeHolder: "Choose the Insight source used for $tab and the workbench context" },
-    ).then((item) => item?.source);
-  if (selected === undefined) {
-    return;
-  }
-  const uri = current.sourceUris.get(selected.sourceName);
-  if (uri === undefined) {
-    void vscode.window.showErrorMessage(`Cannot open source ${selected.sourceName}.`);
-    return;
-  }
+  if (textQueryDocument === undefined) return;
   const origin = new vscode.Position(0, 0);
   await workbenchEditor.openLocation(
-    new vscode.Location(uri, new vscode.Range(origin, origin)),
+    new vscode.Location(textQueryDocument.uri, new vscode.Range(origin, origin)),
     { view: "no-filter", query },
   );
 }
@@ -976,11 +969,22 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     virtualDocument?: VirtualWorkbenchDocument,
     initialState?: DiagramQueryState,
   ): Promise<ArchinsightWorkbenchEditorSession> {
+    const fileName = virtualDocument?.fileName
+      ?? (document === undefined ? coreSourceName : path.basename(document.uri.fsPath));
+    panel.iconPath = vscode.Uri.joinPath(
+      this.extensionUri,
+      "assets",
+      "file-icons",
+      fileName.toLocaleLowerCase().endsWith(".aiq") ? "aiq.svg" : "ai.svg",
+    );
     const sessionUri = document?.uri ?? virtualDocument?.uri;
     const pendingState = sessionUri === undefined ? undefined : this.pendingInitialStates.get(sessionUri.toString());
     if (sessionUri !== undefined) {
       this.pendingInitialStates.delete(sessionUri.toString());
     }
+    const documentState: DiagramQueryState | undefined = document !== undefined && isAiqDocument(document)
+      ? { view: "no-filter", query: document.getText() }
+      : undefined;
     const session = new ArchinsightWorkbenchEditorSession(
       this.project,
       this.extensionUri,
@@ -989,7 +993,7 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       panel,
       (location, state) => this.openLocation(location, state),
       virtualDocument,
-      initialState ?? pendingState,
+      initialState ?? pendingState ?? documentState,
     );
     this.sessions.add(session);
     activeWorkbenchEditor = session;
@@ -1116,6 +1120,8 @@ class ArchinsightWorkbenchEditorSession {
   private lastSource: string | undefined;
   private webviewReady = false;
   private pendingReveal: vscode.Position | undefined;
+  private queryScopeTab: string | undefined;
+  private queryScopeContext: string | undefined;
 
   constructor(
     private readonly project: ProjectModel,
@@ -1160,6 +1166,10 @@ class ArchinsightWorkbenchEditorSession {
     return this.panel.active;
   }
 
+  activeQueryDocumentSource(): string | undefined {
+    return this.isActive() && this.isQueryDocument() ? this.document?.getText() : undefined;
+  }
+
   matches(uri: vscode.Uri): boolean {
     return this.uri().toString() === uri.toString();
   }
@@ -1197,17 +1207,16 @@ class ArchinsightWorkbenchEditorSession {
     if (source !== this.lastSource) {
       await this.postSource();
     }
-    await this.postDiagnostics(current?.diagnostics ?? []);
+    await this.postDiagnostics(this.editorDiagnostics(current));
+    await this.postQueryScope(current);
     if (current === undefined) {
       return;
     }
-    await this.diagram.refresh({
-      current,
-      sourceName,
-      source,
-      fileName: this.fileName(),
-      blockOnLinkerErrors: true,
-    });
+    const input = this.renderInput(current, this.diagram.queryState().query);
+    if (input === undefined) {
+      return;
+    }
+    await this.diagram.refresh(input);
   }
 
   async render(
@@ -1218,14 +1227,9 @@ class ArchinsightWorkbenchEditorSession {
     parameters?: Readonly<Record<string, QueryParameterValue>>,
   ): Promise<void> {
     const current = this.project.current;
-    const sourceName = this.sourceName(current);
-    await this.diagram.render(current === undefined ? undefined : {
-      current,
-      sourceName,
-      source: this.sourceText(current, sourceName),
-      fileName: this.fileName(),
-      blockOnLinkerErrors: true,
-    }, { view, query, forceEnvironmentPicker, requestedEnvironment, ...(parameters === undefined ? {} : { parameters }) });
+    await this.diagram.render(current === undefined ? undefined : this.renderInput(current, query), {
+      view, query, forceEnvironmentPicker, requestedEnvironment, ...(parameters === undefined ? {} : { parameters })
+    });
   }
 
   private async handleMessage(message: ReturnType<typeof parseWorkbenchWebviewToHostMessage>): Promise<void> {
@@ -1241,6 +1245,17 @@ class ArchinsightWorkbenchEditorSession {
         return;
       }
       await this.replaceDocument(message.source);
+      if (this.isQueryDocument()) {
+        this.diagram.setQueryState("no-filter", message.source);
+        const state = this.diagram.queryState();
+        await this.controls.sync(state.view, state.query);
+        await this.panel.webview.postMessage({ command: "query", ...state });
+        await this.postDiagnostics(this.editorDiagnostics(this.project.current, message.source));
+      }
+      return;
+    }
+    if (message.command === "selectQueryScope") {
+      await this.selectQueryScope(message.variable, message.value);
       return;
     }
     if (message.command === "cancel") {
@@ -1303,14 +1318,22 @@ class ArchinsightWorkbenchEditorSession {
       environment: queryState.environment,
       parameters: queryState.parameters,
       queries: viewQueries,
-      diagnostics: this.project.current?.diagnostics ?? [],
+      diagnostics: this.editorDiagnostics(this.project.current),
       symbols: this.project.current?.snapshot ?? coreLanguageSnapshot,
       readOnly: this.isReadOnly(),
+      queryScope: this.queryScopeState(this.project.current),
     });
   }
 
   private async postDiagnostics(diagnostics: readonly LanguageDiagnostic[]): Promise<void> {
     await this.panel.webview.postMessage({ command: "diagnostics", diagnostics });
+  }
+
+  private async postQueryScope(current: LinkedProject | undefined): Promise<void> {
+    await this.panel.webview.postMessage({
+      command: "queryScope",
+      state: this.queryScopeState(current),
+    } satisfies WorkbenchHostToWebviewMessage);
   }
 
   private tokenVocabulary(source: string): InsightTokenVocabulary {
@@ -1455,6 +1478,82 @@ class ArchinsightWorkbenchEditorSession {
 
   private uri(): vscode.Uri {
     return this.virtualDocument?.uri ?? this.document?.uri ?? coreSourceUri;
+  }
+
+  private isQueryDocument(): boolean {
+    return this.document !== undefined && isAiqDocument(this.document);
+  }
+
+  private editorDiagnostics(current: LinkedProject | undefined, source = this.document?.getText() ?? ""): readonly LanguageDiagnostic[] {
+    if (!this.isQueryDocument()) {
+      return current?.diagnostics ?? [];
+    }
+    return analyzeQuery(source, { sourceName: this.sourceName(current) }).diagnostics;
+  }
+
+  private queryScopeState(current: LinkedProject | undefined): WebviewQueryScopeState {
+    if (!this.isQueryDocument() || current === undefined) {
+      return { enabled: this.isQueryDocument(), sources: [], contexts: [] };
+    }
+    const contexts = this.queryScopeContexts(current);
+    const sourceTypes = new Map(contexts.map((context) => [context.sourceIdentity, context.typeName]));
+    const sources = current.sources
+      .filter((source) => source.sourceName.toLocaleLowerCase().endsWith(".ai") && current.sourceUris.has(source.sourceName))
+      .map((source) => ({
+        value: source.sourceName,
+        label: source.sourceName,
+        ...(sourceTypes.get(source.sourceName) === undefined ? {} : { typeName: sourceTypes.get(source.sourceName) }),
+      }));
+    return resolveQueryScopeState(true, sources, contexts, {
+      tab: this.queryScopeTab,
+      context: this.queryScopeContext,
+    });
+  }
+
+  private async selectQueryScope(variable: "tab" | "context", value: string): Promise<void> {
+    const current = this.project.current;
+    if (!this.isQueryDocument() || current === undefined) return;
+    const selection = selectQueryScope(
+      this.queryScopeState(current),
+      this.queryScopeContexts(current),
+      { tab: this.queryScopeTab, context: this.queryScopeContext },
+      variable,
+      value,
+    );
+    if (selection === undefined) return;
+    this.queryScopeTab = selection.tab;
+    this.queryScopeContext = selection.context;
+    await this.postQueryScope(current);
+    const input = this.renderInput(current, this.diagram.queryState().query);
+    if (input !== undefined) await this.diagram.refresh(input);
+  }
+
+  private queryScopeContexts(current: LinkedProject): readonly QueryScopeContextChoice[] {
+    return current.result.contexts
+      .filter((context) => context.synthetic !== true)
+      .map((context) => ({
+        value: context.id,
+        label: context.id,
+        sourceIdentity: context.sourceIdentity,
+        ...(context.type === undefined ? {} : { typeName: context.type }),
+      }));
+  }
+
+  private renderInput(current: LinkedProject, query: string): DiagramRenderInput | undefined {
+    const sourceName = this.sourceName(current);
+    const base = {
+      current,
+      sourceName,
+      source: this.sourceText(current, sourceName),
+      fileName: this.fileName(),
+      blockOnLinkerErrors: true,
+    };
+    if (!this.isQueryDocument()) return base;
+    const scope = this.queryScopeState(current);
+    const variables = analyzeQuery(query).referencedVariables;
+    if ((variables.includes("tab") && scope.tab === undefined)
+        || (variables.includes("context") && scope.context === undefined)) return undefined;
+    return { ...base, queryScope: { tab: scope.tab, context: scope.context } };
   }
 }
 

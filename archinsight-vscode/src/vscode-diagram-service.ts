@@ -55,10 +55,12 @@ async function chooseEnvironment(
   selected: string | undefined,
   forcePicker: boolean,
 ): Promise<DiagramEnvironmentSelection> {
-  const context = input.current.result.contexts.find((candidate) => candidate.sourceIdentity === input.sourceName);
+  const sourceContext = input.current.result.contexts.find((candidate) => candidate.sourceIdentity === input.sourceName);
+  const tab = input.queryScope === undefined ? input.sourceName : input.queryScope.tab;
+  const context = input.queryScope === undefined ? sourceContext?.id : input.queryScope.context;
   const environments = discoverDeploymentEnvironments(input.current.result, {
-    context: context?.id,
-    tab: input.sourceName,
+    context,
+    tab,
   });
   if (environments.length === 0) {
     if (forcePicker) {

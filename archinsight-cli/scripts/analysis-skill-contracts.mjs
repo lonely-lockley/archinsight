@@ -56,6 +56,31 @@ system reporting
 
     service report_api
         name = Reporting API
+
+system target_system
+    name = Target system
+
+    service target_provider
+        name = Target provider
+
+system bridge_system
+    name = Bridge system
+
+    service actual_consumer
+        name = Actual consumer
+        links:
+            -> target_provider
+
+    service unrelated_provider
+        name = Unrelated provider
+
+system false_positive_system
+    name = False positive system
+
+    service unrelated_consumer
+        name = Unrelated consumer
+        links:
+            -> unrelated_provider
 `);
 
   const directGraph = query(project, skill, "direct-service-dependencies.aiq");
@@ -116,9 +141,24 @@ system reporting
     ["orders.paid", "shop/kafka_consumer"],
   ]);
 
+  const systemImpact = JSON.parse(runCli([
+    "query",
+    project,
+    "--query",
+    path.join(skill, "examples", "queries", "system-impact.aiq"),
+    "--param",
+    'system="shop/target_system"',
+    "--format",
+    "json",
+  ]));
+  assert.deepEqual(systemImpact.rows, [
+    ["shop/actual_consumer"],
+  ], "system impact must traverse child relationships without composing ownership rollups");
+
   const comparisonQuery = path.join(project, "cross-boundary.aiq");
   writeFileSync(comparisonQuery, `MATCH (source:Service)-[dependency:REFERENCES]->(target:Service)
 WHERE source.context = $context
+  AND source.id = 'caller'
   AND source.parent <> target.parent
 RETURN source, dependency, target
 `);
@@ -152,7 +192,7 @@ RETURN source, dependency, target
   assert.equal(typeof annotatedEdge.edge.annotations[0].source.line, "number");
 
   const analysis = readFileSync(path.join(skill, "references", "analysis.md"), "utf8");
-  for (const example of ["inventory.aiq", "impact.aiq", "sync-impact.aiq", "shortest-path.aiq", "async-topics.aiq", "system-async-consumers.aiq", "no-incoming-dependencies.aiq", "type-summary.aiq"]) {
+  for (const example of ["inventory.aiq", "impact.aiq", "sync-impact.aiq", "system-impact.aiq", "shortest-path.aiq", "async-topics.aiq", "system-async-consumers.aiq", "no-incoming-dependencies.aiq", "type-summary.aiq"]) {
     assert(analysis.includes(`examples/queries/${example}`));
   }
   assert(analysis.includes("The stored direction is consumer to provider"));

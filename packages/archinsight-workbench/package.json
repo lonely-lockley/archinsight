@@ -14,6 +14,7 @@
     "./empty-workspace": "./src/empty-workspace-strategy.ts",
     "./project-queries": "./src/project-queries.ts",
     "./query-monaco": "./src/query-monaco.ts",
+    "./query-scope-state": "./src/query-scope-state.ts",
     "./query-scope-widgets": "./src/query-scope-widgets.ts",
     "./table-result-panel": "./src/TableResultPanel.svelte",
     "./types": "./src/workspace-types.ts"

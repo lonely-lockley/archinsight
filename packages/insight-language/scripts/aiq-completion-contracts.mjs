@@ -48,6 +48,9 @@ assert.deepEqual(relationshipKind.items.map((item) => item.label), ["REFERENCES"
 const selector = completeAiq({ source: "MATCH (a)-[:REFERENCES*1..3 {with", cursorOffset: "MATCH (a)-[:REFERENCES*1..3 {with".length, snapshot });
 assert.deepEqual(selector.items.map((item) => item.label), ["withDerived"]);
 
+const pathSelectors = completeAiq({ source: "MATCH (a)-[:REFERENCES*1..3 {", cursorOffset: "MATCH (a)-[:REFERENCES*1..3 {".length, snapshot });
+assert.deepEqual(pathSelectors.items.map((item) => item.label), ["derived", "withDerived"]);
+
 const renamedProperty = completeAiq({
   source: "MATCH (service:PaymentService) WITH service AS kept RETURN TABLE kept.to",
   cursorOffset: "MATCH (service:PaymentService) WITH service AS kept RETURN TABLE kept.to".length,

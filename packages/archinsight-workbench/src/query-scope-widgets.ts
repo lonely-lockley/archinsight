@@ -1,16 +1,9 @@
 import type * as Monaco from 'monaco-editor';
 import { queryVariableOccurrences } from '@insight/language';
+import type { QueryScopeVariable, QueryScopeWidgetState } from './query-scope-state';
 import './query-scope-widgets.css';
 
-export type QueryScopeVariable = 'tab' | 'context';
-export type QueryScopeChoice = { readonly value: string; readonly label: string; readonly typeName?: string };
-export type QueryScopeWidgetState = {
-  readonly enabled: boolean;
-  readonly tab?: string;
-  readonly context?: string;
-  readonly sources: readonly QueryScopeChoice[];
-  readonly contexts: readonly QueryScopeChoice[];
-};
+export type { QueryScopeVariable, QueryScopeWidgetState } from './query-scope-state';
 export type QueryScopeWidgetPorts = {
   state(): QueryScopeWidgetState;
   select(variable: QueryScopeVariable, value: string): void;

@@ -277,6 +277,7 @@ function verifySharedFiles(output) {
     "direct-authored-dependencies.aiq",
     "async-topic-dependencies.aiq",
     "kafka-service-dependencies.aiq",
+    "system-impact.aiq",
   ]) {
     assert(existsSync(path.join(output, "examples", "queries", queryName)), `${queryName} must be bundled`);
   }

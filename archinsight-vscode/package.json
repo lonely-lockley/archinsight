@@ -78,6 +78,10 @@
         "extensions": [
           ".ai"
         ],
+        "icon": {
+          "light": "./assets/file-icons/ai.svg",
+          "dark": "./assets/file-icons/ai.svg"
+        },
         "configuration": "./language-configuration.json"
       },
       {
@@ -89,6 +93,10 @@
         "extensions": [
           ".aiq"
         ],
+        "icon": {
+          "light": "./assets/file-icons/aiq.svg",
+          "dark": "./assets/file-icons/aiq.svg"
+        },
         "configuration": "./language-configuration.json"
       }
     ],
@@ -111,6 +119,9 @@
         "selector": [
           {
             "filenamePattern": "*.ai"
+          },
+          {
+            "filenamePattern": "*.aiq"
           }
         ],
         "priority": "default"

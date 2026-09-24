@@ -1,0 +1,7 @@
+MATCH (changed:System)
+WHERE elementId(changed) = $system
+MATCH (changed)-[:CONTAINS*0..8]->(provider:Element)
+MATCH (provider)<-[:REFERENCES*1..]-(dependent:Element)
+WHERE dependent <> provider
+RETURN TABLE DISTINCT elementId(dependent) AS dependent
+ORDER BY dependent

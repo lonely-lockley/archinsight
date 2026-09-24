@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type * as Monaco from 'monaco-editor';
-import { createQueryScopeWidgets, type QueryScopeWidgetState } from '@archinsight/workbench/query-scope-widgets';
+import {
+  resolveQueryScopeState,
+  selectQueryScope,
+  type QueryScopeWidgetState
+} from '@archinsight/workbench/query-scope-state';
+import { createQueryScopeWidgets } from '@archinsight/workbench/query-scope-widgets';
 import { registerQueryLanguage } from '@archinsight/workbench/query-monaco';
 import { readFileSync } from 'node:fs';
 
@@ -38,6 +43,42 @@ function fixture() {
     removeModel: () => { currentModel = null; events.model(); }
   };
 }
+
+describe('shared query scope model', () => {
+  const sources = [
+    { value: 'other.ai', label: 'other.ai' },
+    { value: 'shop.ai', label: 'shop.ai', typeName: 'Context' }
+  ];
+  const contexts = [
+    { value: 'shop', label: 'shop', typeName: 'Context', sourceIdentity: 'shop.ai' },
+    { value: 'other', label: 'other', sourceIdentity: 'other.ai' },
+    { value: 'shop', label: 'shop', typeName: 'Context', sourceIdentity: 'extension.ai' }
+  ];
+
+  it('infers context from $tab and exposes unique sorted choices', () => {
+    expect(resolveQueryScopeState(true, sources, contexts, { tab: 'shop.ai', context: 'other' })).toEqual({
+      enabled: true,
+      tab: 'shop.ai',
+      context: 'shop',
+      sources: [sources[0], sources[1]],
+      contexts: [
+        { value: 'other', label: 'other' },
+        { value: 'shop', label: 'shop', typeName: 'Context' }
+      ]
+    });
+  });
+
+  it('uses the same selection transitions for web and VS Code hosts', () => {
+    const unselected = resolveQueryScopeState(true, sources, contexts, {});
+    expect(selectQueryScope(unselected, contexts, {}, 'tab', 'shop.ai')).toEqual({ tab: 'shop.ai' });
+    const selected = resolveQueryScopeState(true, sources, contexts, { tab: 'shop.ai' });
+    expect(selectQueryScope(selected, contexts, { tab: 'shop.ai' }, 'context', 'shop'))
+      .toEqual({ tab: 'shop.ai', context: 'shop' });
+    expect(selectQueryScope(selected, contexts, { tab: 'shop.ai' }, 'context', 'other'))
+      .toEqual({ context: 'other' });
+    expect(selectQueryScope(selected, contexts, { tab: 'shop.ai' }, 'tab', 'missing.ai')).toBeUndefined();
+  });
+});
 
 describe('query scope decorations', () => {
   it('places the picker above the Monaco minimap', () => {
