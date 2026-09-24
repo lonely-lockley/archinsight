@@ -1,3 +1,8 @@
+# This source defines the project-specific deployment vocabulary used by the
+# concrete infrastructure and deployment profiles in this example.
+# For detailed documentation about deployment entities please refer to:
+# https://archinsight.org/doc/deployment/#deployment-entities
+
 define type ArchinsightEnvironment of Environment
     ArchinsightServiceProvider csp
     ArchinsightServiceProvider cdn

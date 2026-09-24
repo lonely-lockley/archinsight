@@ -11,7 +11,7 @@ It embeds `@insight/language` directly and does not call the web app.
 ```shell
 archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
-archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json] [-o file]
+archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
 archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f dot|svg|json] [-o file]
 archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
 archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
@@ -31,6 +31,13 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
 - `-q, --query <file>` - custom query file; mutually exclusive with `--view`;
   relative paths are resolved from `project-dir`.
+- `--param <name=json>` - query parameter; repeat for multiple parameters.
+- `--params <file>` - query parameters from a JSON object.
+- `--max-expansions <n>` - maximum candidate and edge checks during query execution.
+- `--max-rows <n>` - maximum rows materialized by one query stage.
+- `--max-values <n>` - maximum collected values and materialized path parts.
+- `--max-output-bytes <n>` - maximum serialized query result size.
+- `--timeout-ms <n>` - query execution deadline after linking.
 - `-f, --format <format>` - command output format.
 - `-o, --out <file>` - write payload output to a file instead of stdout.
 - `-t, --theme <theme>` - render theme; defaults to `light`.
@@ -229,9 +236,21 @@ The generic target writes a runtime-neutral guide:
             deployment-container.aiq
             deployment.aiq
         queries/
+            async-topic-dependencies.aiq
+            async-topics.aiq
             deployment-internal-actors.aiq
+            direct-authored-dependencies.aiq
             direct-service-dependencies.aiq
+            impact.aiq
+            inventory.aiq
             kafka-service-dependencies.aiq
+            kafka-topics.aiq
+            no-incoming-dependencies.aiq
+            shortest-path.aiq
+            sync-impact.aiq
+            system-async-consumers.aiq
+            system-impact.aiq
+            type-summary.aiq
 ```
 
 Codex and Claude targets package the same Insight reference directly into the
@@ -265,9 +284,9 @@ structure before broad edits or imports, read bundled core language sources for
 built-in types/presentations/projections, describe systems layer by layer, and
 write custom `.aiq` diagram queries with the supported Cypher-style subset.
 Dedicated references cover semantic import from C4-oriented DSLs, diagrams,
-inventories, and prose, plus read-only analysis through structure inspection,
-focused queries, and processing of query JSON when the query subset does not
-provide aggregation or graph traversal.
+inventories, and prose, plus read-only analysis through structure inspection
+and focused AIQ table reports. It uses graph-query JSON only when a question
+cannot be expressed faithfully in AIQ or an unexpected result needs diagnosis.
 For deployment and query changes it requires `query --format json` semantic
 inspection before rendering. The JSON reference distinguishes selected graph
 endpoints, underlying linked edges, and logical projection origins.

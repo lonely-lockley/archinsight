@@ -49,14 +49,18 @@ Archinsight queries are not fully compatible with Cypher. The current language s
 - node and relationship property predicates;
 - one `WHERE` expression attached to each match clause;
 - `AND`, `OR`, `NOT`, and parentheses;
-- `=`, `<>`, `CONTAINS`, `IN`, `IS`, and `IS NOT` predicates;
-- list literals in expressions;
+- `=`, `<>`, `<`, `<=`, `>`, `>=`, `CONTAINS`, `IN`, `IS`, and `IS NOT`
+  predicates;
+- list literals, `all`/`any` predicates, and list comprehensions;
 - architecture-specific `ROLLUP` matching;
 - architecture-specific exact and inclusive relationship selectors;
 - one `GROUP BY` expression;
 - `RETURN` of bound aliases.
 
-The language has no mutation clauses or subqueries. Plain `RETURN` selects bound aliases for a graph result. `RETURN TABLE` enables computed projections, aggregation, paths, ordering, and pagination for analytical reports.
+The language has no mutation clauses or subqueries. Plain `RETURN` selects
+bound aliases for a graph result. `RETURN TABLE` adds `WITH`, `UNWIND`, named
+path assignments, `shortestPath`, computed projections, aggregation,
+`DISTINCT`, `ORDER BY`, `SKIP`, and `LIMIT` for analytical reports.
 
 ## Table reports and analytics
 
@@ -68,6 +72,10 @@ parameters, comparisons, and `IS NULL`. Aggregates are `count`, `collect`,
 `coalesce`, `nodes`, `relationships`, `length`, `startNode`, `endNode`,
 `annotations`, `originId`, and the `toInteger`/`toFloat`/`toBoolean`/`toString`
 conversions.
+The `all(item IN list WHERE predicate)` and
+`any(item IN list WHERE predicate)` functions evaluate list predicates. List
+comprehensions use `[item IN list WHERE predicate | projection]`, with an
+optional `WHERE` part.
 
 ```cypher
 MATCH (service:Service)
@@ -97,13 +105,14 @@ archinsight query . -q reports/path.aiq --param 'from="sales/api"' --param 'to="
 archinsight query . -q reports/topics.aiq --params report-params.json
 ```
 
-In VS Code, open a saved `.aiq` and use the play button in the editor title or
-run **Archinsight: Run AIQ Query** from the Command Palette. If no Insight
-workbench is open, choose the `.ai` source that supplies `$tab` and the current
-context. Required parameters then appear above the result. The web editor uses
-the same flow when a `.aiq` tab is opened. A table report replaces the diagram
-area; it can be paged locally and downloaded as the same JSON or CSV contract
-used by the CLI. AIQ completion remains available while the query is incomplete.
+In VS Code, open a saved `.aiq` in the Archinsight editor and use the play
+button or run **Archinsight: Run AIQ Query** from the Command Palette. Choose
+`$tab` and `$context` with the inline controls embedded at their occurrences in
+the query. Required user parameters appear above the result. The web editor
+uses the same shared editor and controls. A table report replaces the diagram
+area; it shows up to 100 rows per local page and can be downloaded using the
+same JSON or CSV contract as the CLI. AIQ completion remains available while
+the query is incomplete.
 
 Parameter values are JSON null, boolean, finite number, string, or lists of
 those values. `--param name=<json>` can be repeated. `--params` reads one JSON
@@ -674,7 +683,13 @@ WHERE source.runsOn <> target.runsOn
 RETURN source, dependency, target
 ```
 
-Scalar references compare by qualified element id. List-valued properties compare as complete ordered lists. When either property is absent, both `=` and `<>` evaluate to false for that row. The language does not currently calculate list intersection or set difference; those operations require post-processing the JSON result.
+Scalar references compare by qualified element id. List-valued properties
+compare as complete ordered lists. When either property is absent, both `=` and
+`<>` evaluate to false for that row. Ordered comparisons `<`, `<=`, `>`, and
+`>=` accept two numbers or two strings. Use `all(item IN list WHERE predicate)`
+and `any(item IN list WHERE predicate)` for list predicates. A list
+comprehension such as `[item IN source.uses WHERE item IN target.uses | item]`
+can select an intersection without post-processing query JSON.
 
 Type predicates use the effective inheritance tree:
 
@@ -696,9 +711,9 @@ RETURN consumer, event, producer
 
 `External` is a built-in semantic predicate based on the element's resolved model kind. It matches declarations created with `external actor` or `external system`. Relative externality in a built-in C1-C4 view is carried separately by the resulting render graph and does not change this predicate in custom queries.
 
-A custom CLI query uses its own selection and grouping rules. The query file
-overrides `--view`, so built-in boundary handling is not applied after the
-custom query:
+A custom CLI query uses its own selection and grouping rules. Select it with
+`--query` instead of `--view`; the two options are mutually exclusive. Built-in
+boundary handling is not applied after the custom query:
 
 ```shell
 archinsight query . -s storefront.ai -q views/dependencies.aiq --format json

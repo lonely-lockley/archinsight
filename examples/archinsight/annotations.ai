@@ -1,9 +1,15 @@
 # Lifecycle annotations and the legacy Graphviz attribute annotation.
 # New visual conventions should be defined through presentations.
+# For lifecycle annotation documentation please refer to:
+# https://archinsight.org/doc/annotations/#planned
+# For the legacy @attribute documentation please refer to:
+# https://archinsight.org/doc/annotations/#legacy-attribute
+
 context annotations
 
 # For Graphviz attributes description please refer to:
 # https://graphviz.org/doc/info/attrs.html
+
 @planned
 system source
     name = Source system

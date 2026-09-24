@@ -33,15 +33,18 @@ system application
 ## What You Get
 
 - `.ai` language support with syntax highlighting and semantic tokens.
+- `.aiq` syntax highlighting and query-aware completion.
 - Smart completion from parser context, types, visible declarations, and imports, with constructor and presentation-derived documentation.
 - Workspace diagnostics for parser, linker, and type-system errors.
 - A custom split editor with Insight source and live diagram preview side by side.
 - Built-in view buttons for no-filter, C1, C2, C3, C4, D1 system deployment,
   and D2 container deployment queries.
-- Editable query panel for custom graph queries.
+- Saved `.aiq` editors for graph queries and typed table reports, with inline
+  `$tab`, `$context`, and user-parameter controls.
 - `Project Structure` tree for contexts, types, and declarations.
 - Click-to-source navigation from structure and rendered diagram items.
-- Download actions for source, SVG, PNG, and DOT.
+- A contextual Download menu for source and diagram formats, or JSON and CSV
+  when an AIQ query returns a table.
 
 The extension embeds the shared `@insight/language` runtime directly. It does not need a separate CLI process for diagnostics, completions, linking, querying, or rendering state.
 
@@ -57,14 +60,19 @@ structure, generate skills, and render diagrams.
    `storefront.ai` example shown above.
 3. Open the file. Archinsight uses its source-and-diagram editor by default.
 4. Use the top toolbar to switch between no-filter, C1, C2, C3, C4, D1 system deployment, and D2 container deployment views. D2 automatically selects a single relevant environment or opens a native picker when several are available.
-5. Open the `Archinsight Query` panel to inspect or edit the active graph query.
-6. Open `Project Structure` in Explorer to navigate declarations.
+5. Open a saved `.aiq` file in the Archinsight editor to run a graph query or
+   table report. Choose `$tab`, `$context`, and required parameters using the
+   controls embedded in the query editor.
+6. Use the play button or **Archinsight: Run AIQ Query** to rerun the active
+   query after changing its text or parameters.
+7. Open `Project Structure` in Explorer to navigate declarations.
 
 Useful commands are available from the Command Palette:
 
 - `Archinsight: Link Project`
 - `Archinsight: Preview Diagram`
 - `Archinsight: Show Structure`
+- `Archinsight: Run AIQ Query`
 - `Archinsight: Check CLI`
 - `Archinsight: Install CLI`
 - `Archinsight: Generate Agent Skill`

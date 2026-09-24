@@ -105,14 +105,15 @@ user parameters. Missing, unused, duplicate, and reserved parameters are errors.
 
 ## Run a report in the UI
 
-In the web editor, open the `.aiq` file and enter the required parameters above
-the result. In VS Code, open the `.aiq` file and use the play button or run
-**Archinsight: Run AIQ Query**. Choose the `.ai` source used for `$tab` when the
-workbench asks. Graph queries keep the diagram; `RETURN TABLE` replaces it with
-a typed table and does not invoke Graphviz. The table supports local paging,
-keyboard navigation, expandable nested values, and JSON/CSV downloads. Nested
-cells are available for user-requested reports; agent analysis should prefer
-flat scalar columns and use `UNWIND` to turn lists or path steps into rows.
+In the web editor or VS Code, open the `.aiq` file and choose `$tab` and
+`$context` with the inline controls embedded in the query. Enter required user
+parameters above the result, then use the play button or run
+**Archinsight: Run AIQ Query** in VS Code. Graph queries keep the diagram;
+`RETURN TABLE` replaces it with a typed table and does not invoke Graphviz. The
+table supports keyboard navigation, expandable nested values, JSON/CSV
+downloads, and local pages of up to 100 rows. Nested cells are available for
+user-requested reports; agent analysis should prefer flat scalar columns and
+use `UNWIND` to turn lists or path steps into rows.
 Use the contextual **Download** menu to download JSON when typed cells or path
 metadata must be preserved, or CSV for a flat interchange file.
 AIQ completion suggests clauses, scoped aliases, types, attributes, functions,

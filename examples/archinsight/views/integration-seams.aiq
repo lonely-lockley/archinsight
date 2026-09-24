@@ -1,3 +1,9 @@
+# This diagram highlights component dependencies that cross an immediate
+# ownership boundary and groups the selected elements by their parent.
+# In the playground, select the `archinsight` context.
+# For detailed documentation please refer to:
+# https://archinsight.org/doc/querying-the-architecture-graph/#9-group-the-result
+
 MATCH (source:Component)-[dependency:REFERENCES]->(target:Element)
 WHERE source.context = $context
   AND source.parent <> target.parent

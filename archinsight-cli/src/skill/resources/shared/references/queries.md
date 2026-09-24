@@ -91,7 +91,11 @@ ORDER BY service
 Computed columns require `AS`; a bound alias can retain its name. Aggregates:
 `count`, `collect`, `min`, `max`, `sum`, `avg`. Path/scalar functions:
 `nodes`, `relationships`, `length`, `elementId`, `startNode`, `endNode`,
-`coalesce`, `size`, `annotations`, `originId`, and explicit conversions.
+`coalesce`, `size`, `annotations`, `originId`, `toInteger`, `toFloat`,
+`toBoolean`, and `toString`.
+List predicates use `all(item IN list WHERE predicate)` and
+`any(item IN list WHERE predicate)`. List comprehensions use
+`[item IN list WHERE predicate | projection]`; the `WHERE` part is optional.
 
 ```cypher
 MATCH (from:Element)
@@ -258,9 +262,11 @@ WHERE source.runsOn <> target.runsOn
 ```
 
 Scalar references compare by qualified id and lists compare as complete ordered
-lists. If either property is absent, both comparisons evaluate to false. Set
-intersection and overlap tests are not supported; post-process query JSON for
-those operations.
+lists. If either property is absent, both comparisons evaluate to false.
+Ordered comparisons `<`, `<=`, `>`, and `>=` accept two numbers or two strings.
+Use `any(item IN left WHERE item IN right)` to test overlap, or a list
+comprehension such as `[item IN left WHERE item IN right | item]` to return the
+intersection.
 
 `node.deployed` is true when an element's deployment resolves to at least one
 `runsOn` or `uses` infrastructure object. The built-in Deployment view uses it to keep
@@ -347,9 +353,10 @@ endpoint to its system, C3 to its container or service, and C4 to its component.
 `IS External` in a custom query continues to match only the explicit model
 marker.
 
-A custom query file supplies its own selection and grouping contract and
-overrides `--view`. To customize a web C1-C4 view while retaining its boundary
-behavior, copy the corresponding bundled built-in `.aiq` file to the reserved
+A custom query file supplies its own selection and grouping contract. Select it
+with `--query` instead of `--view`; the CLI rejects the two options together.
+To customize a web C1-C4 view while retaining its boundary behavior, copy the
+corresponding bundled built-in `.aiq` file to the reserved
 `views/<name>.aiq` path and modify its predicates or grouping. Running that file
 through CLI `--query` does not apply the built-in post-selection pipeline.
 

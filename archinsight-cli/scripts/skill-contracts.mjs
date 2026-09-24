@@ -267,8 +267,17 @@ function verifySharedFiles(output) {
 
   const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
   assert.match(queries, /Labels are case-sensitive[\s\S]*`CodeElement`/);
-  assert(queries.includes("overrides `--view`"));
-  assert.equal(queries.includes("pass both\n`-q <query.aiq>` and `-v"), false);
+  assert(queries.includes("Select it\nwith `--query` instead of `--view`"));
+  assert(queries.includes("the CLI rejects the two options together"));
+  assert(queries.includes("any(item IN left WHERE item IN right)"));
+  for (const functionName of [
+    "count", "collect", "min", "max", "sum", "avg",
+    "nodes", "relationships", "length", "all", "any", "elementId",
+    "startNode", "endNode", "coalesce", "size", "annotations", "originId",
+    "toInteger", "toFloat", "toBoolean", "toString",
+  ]) {
+    assert(queries.includes(functionName), `query reference omits AIQ function '${functionName}'`);
+  }
   assert(queries.includes("`listAttributes` and\n`referenceAttributes`"));
   assert(queries.includes("source.runsOn <> target.runsOn"));
 

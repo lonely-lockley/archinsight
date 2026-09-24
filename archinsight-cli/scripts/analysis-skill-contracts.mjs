@@ -206,6 +206,8 @@ RETURN source, dependency, target
   assert(analysis.includes("annotations(value)"));
   assert(analysis.includes("RETURN TABLE"));
   assert(analysis.includes("Archinsight: Run AIQ Query"));
+  assert(analysis.includes("inline controls embedded in the query"));
+  assert(analysis.includes("local pages of up to 100 rows"));
   assert(analysis.includes("show its text to the user only when they explicitly ask for it"));
   assert(analysis.includes("Inspect graph-query JSON only"));
   assert(analysis.includes("consider an engine defect"));
