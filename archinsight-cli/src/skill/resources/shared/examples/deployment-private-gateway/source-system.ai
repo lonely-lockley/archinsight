@@ -1,0 +1,28 @@
+context services
+
+import target from context services
+import payment from context external
+
+deploymentProfile source_profile
+    appliesTo:
+        production from source_env
+
+    runsOn compute
+
+system source_system
+    name = Source System
+
+    service caller
+        name = Caller
+        deployment:
+            uses source_profile
+        links:
+            -> target
+                technology = HTTPS
+                call = GET /private
+                deployment:
+                    uses privateGateway
+            -> payment
+                technology = HTTPS
+                deployment:
+                    uses network

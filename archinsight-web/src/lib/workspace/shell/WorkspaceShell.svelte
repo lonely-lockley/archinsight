@@ -105,8 +105,11 @@
     <WorkspaceEditor
       active={view.activeTab !== undefined}
       svg={view.activeTab?.svg}
+      queryResult={view.activeTab?.queryResult}
+      resultLoading={view.state.analysisLoading}
       diagramMode={view.activeTab?.diagramMode ?? defaultDiagramMode}
-      query={view.activeTab?.query ?? defaultQuery}
+      query={isQueryFile(view.activeTab?.sourceIdentity ?? '') ? view.activeTab?.content ?? '' : view.activeTab?.query ?? defaultQuery}
+      queryParameters={view.activeTab?.queryParameters}
       queryDocument={isQueryFile(view.activeTab?.sourceIdentity ?? '')}
       {projectQueries}
       selectedQuery={view.activeTab?.queryView}
@@ -134,6 +137,7 @@
       onCloseDeploymentPicker={controllers.diagram.closeDeploymentPicker}
       onToggleQuery={controllers.diagram.toggleQuery}
       onQueryChange={controllers.diagram.updateQuery}
+      onQueryParameterChange={controllers.query.setParameter}
       onQueryPanelHeightChange={controllers.diagram.updateQueryPanelHeight}
       onZoomIn={() => controllers.diagram.zoom(0.06)}
       onZoomOut={() => controllers.diagram.zoom(-0.06)}
@@ -145,6 +149,7 @@
       onDiagramVisibleScaleChange={controllers.diagram.updateVisibleScale}
       onOpenDeclaration={controllers.file.goToDeclaration}
       onBeginMessagesResize={controllers.layout.beginMessagesResize}
+      onCancelResult={controllers.analysis.cancelCurrent}
     >
       <WorkspaceToolbar
         slot="leading-actions"
@@ -154,9 +159,12 @@
         onDownloadSvg={controllers.download.svg}
         onDownloadPng={() => void controllers.download.png()}
         onDownloadDot={controllers.download.dot}
+        onDownloadCsv={controllers.download.csv}
+        onDownloadJson={controllers.download.json}
         canDownloadSvg={view.canDownloadCurrentDiagram}
         canDownloadPng={view.canDownloadCurrentDiagram}
         canDownloadDot={view.activeTab?.dot !== undefined}
+        tableResult={view.activeTab?.queryResult !== undefined}
         newFileState={view.newTabState}
         saveState={view.saveState}
         unsavedDocumentKind={view.activeTab !== undefined && view.activeTab.filePath === undefined && view.activeTab.readOnly !== true

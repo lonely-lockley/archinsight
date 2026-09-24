@@ -78,11 +78,10 @@ RETURN system
   assert.equal(contextQuery.context, "alpha");
   assert(contextQuery.elements["alpha/application"]);
 
-  const customQueryOverridesView = graph(
-    "query", root, "-c", "alpha", "-v", "c2", "-q", "context.aiq", "--format", "json",
+  assertFailure(
+    ["query", root, "-c", "alpha", "-v", "c2", "-q", "context.aiq", "--format", "json"],
+    /Options '--view' and '--query' are mutually exclusive for command 'query'/,
   );
-  assert.equal(customQueryOverridesView.context, "alpha");
-  assert(customQueryOverridesView.elements["alpha/application"]);
 
   const lexicalTabReferences = graph("query", root, "-q", "literal.aiq", "--format", "json");
   assert.equal(Object.keys(lexicalTabReferences.elements).length, 0);

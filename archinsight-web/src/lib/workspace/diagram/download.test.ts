@@ -12,6 +12,7 @@ describe('diagram downloads', () => {
   it('sanitizes platform-invalid names and replaces the prior extension', () => {
     expect(sanitizeFileName('  Domain: Context?.ai  ')).toBe('Domain- Context-.ai');
     expect(fileNameWithExtension('Domain: Context.ai', '.svg')).toBe('Domain- Context.svg');
+    expect(fileNameWithExtension('report.aiq', '.csv')).toBe('report.csv');
     expect(fileNameWithExtension('   ', '.dot')).toBe('untitled.dot');
   });
 

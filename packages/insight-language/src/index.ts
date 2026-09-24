@@ -1,4 +1,6 @@
 export { CompletionEngine } from "./completion-engine.js";
+export { completeAiq } from "./aiq-completion.js";
+export type { AiqCompletionItem, AiqCompletionKind, AiqCompletionRequest, AiqCompletionResult } from "./aiq-completion.js";
 export {
   BUILTIN_VIEW_DEFINITIONS,
   BUILTIN_VIEW_IDS,
@@ -85,9 +87,39 @@ export {
   filterProjectStructure,
   filterTypeHierarchy,
 } from "./project-structure.js";
-export { DEFAULT_QUERY, discoverDeploymentEnvironments, selectGraph, selectGraphs } from "./query-engine.js";
+export {
+  DEFAULT_QUERY,
+  DEFAULT_QUERY_EXECUTION_LIMITS,
+  discoverDeploymentEnvironments,
+  executeQuery,
+  selectGraph,
+  selectGraphs,
+} from "./query-engine.js";
+export type {
+  QueryCell,
+  QueryColumn,
+  QueryExecutionLimits,
+  QueryExecutionOptions,
+  QueryParameterValue,
+  QueryResult,
+  QueryResultMetadata,
+  QueryTableResult,
+} from "./query-engine.js";
 export { analyzeQuery, parseQuery, queryVariableOccurrences } from "./query-syntax.js";
-export type { ParsedQuery, QueryAnalysis, QueryVariableOccurrence } from "./query-syntax.js";
+export { formatQueryTableCsv, formatQueryTableText, queryCellText } from "./query-result-format.js";
+export { AIQ_FUNCTIONS, aiqFunction } from "./query-function-catalog.js";
+export type { AiqFunctionDefinition, AiqFunctionKind } from "./query-function-catalog.js";
+export type {
+  AiqDiagnostic,
+  AnalyzeQueryOptions,
+  ParsedGraphQuery,
+  ParsedQuery,
+  ParsedTableQuery,
+  QueryAnalysis,
+  QuerySourceRange,
+  QueryVariableOccurrence,
+} from "./query-syntax.js";
+export { AiqQueryError } from "./query-syntax.js";
 export { renderGraphviz } from "./graphviz-renderer.js";
 export { parseRenderIdentity, renderIdentity } from "./render-identity.js";
 export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";

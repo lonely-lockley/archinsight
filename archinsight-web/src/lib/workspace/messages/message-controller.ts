@@ -1,5 +1,6 @@
 import type { Diagnostic } from '$lib/api';
 import type { MessageView } from '@archinsight/workbench/types';
+import type { LanguageDiagnostic } from '@insight/language';
 import { diagnosticCounts, diagnosticPosition, messageLevel } from '../analysis/diagnostics';
 
 const maxMessages = 250;
@@ -18,6 +19,7 @@ export type MessageController = {
   info(message: string): void;
   fileSaved(path: string): void;
   queryError(message: string, query: string): void;
+  queryFinished(sourceIdentity: string, durationMs: number, rowCount: number | undefined, diagnostics: readonly LanguageDiagnostic[]): void;
   cycleSummary(task: string, diagnostics: Diagnostic[]): void;
   reset(): void;
 };
@@ -59,6 +61,25 @@ export function createMessageController(ports: MessageControllerPorts): MessageC
       }]);
     },
 
+    queryFinished(sourceIdentity, durationMs, rowCount, diagnostics) {
+      append([
+        ...diagnostics
+          .filter((diagnostic) => diagnostic.level === 'WARNING' || diagnostic.level === 'NOTE')
+          .map((diagnostic) => ({
+            level: diagnostic.level === 'WARNING' ? 'WARNING' as const : 'NOTE' as const,
+            source: ports.sourceLabel(diagnostic.sourceName),
+            position: `${diagnostic.line}:${diagnostic.column + 1}`,
+            message: `${diagnostic.code}: ${diagnostic.message}`
+          })),
+        {
+          level: 'INFO',
+          source: ports.sourceLabel(sourceIdentity),
+          position: '-',
+          message: queryFinishedMessage(durationMs, rowCount)
+        }
+      ]);
+    },
+
     cycleSummary(task, diagnostics) {
       const counts = diagnosticCounts(diagnostics);
       append([
@@ -66,7 +87,7 @@ export function createMessageController(ports: MessageControllerPorts): MessageC
           level: messageLevel(diagnostic),
           source: ports.sourceLabel(diagnostic.source),
           position: diagnosticPosition(diagnostic),
-          message: diagnostic.message
+          message: `${diagnostic.code}: ${diagnostic.message}`
         })),
         {
           level: 'INFO',
@@ -80,6 +101,13 @@ export function createMessageController(ports: MessageControllerPorts): MessageC
       ports.writeMessages([]);
     }
   };
+}
+
+export function queryFinishedMessage(durationMs: number, rowCount?: number): string {
+  const duration = `${Math.max(0, Math.round(durationMs))} ms`;
+  return rowCount === undefined
+    ? `Query finished in ${duration}`
+    : `Query finished in ${duration}: ${rowCount} ${rowCount === 1 ? 'row' : 'rows'}`;
 }
 
 export function errorMessage(error: unknown): string {

@@ -1,0 +1,6 @@
+define type BrokerEnvironment of Environment
+    Compute compute
+    Broker events
+
+define type KafkaBroker of Broker
+    constructor kafka

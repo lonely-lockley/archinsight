@@ -113,7 +113,7 @@ The [CLI reference](archinsight-cli/README.md) describes the query, render, and 
 
 ## VSCode extension
 
-The [Archinsight VSCode extension](https://marketplace.visualstudio.com/items?itemName=archinsight.archinsight-vscode) provides diagnostics, completion, semantic highlighting, project structure, source navigation, and a source/diagram split editor. It supports the built-in views, custom graph queries, and SVG, PNG, and DOT export.
+The [Archinsight VSCode extension](https://marketplace.visualstudio.com/items?itemName=archinsight.archinsight-vscode) provides diagnostics, completion, semantic highlighting, project structure, source navigation, and a source/result split editor for `.ai` and `.aiq` files. It supports built-in views, custom graph queries, typed table reports, diagram export, and JSON/CSV table downloads.
 
 Open a workspace containing `.ai` files and then open a model. The extension embeds the language runtime for interactive editing and diagram preview. The CLI adds command-line validation and CI integration using the same project semantics.
 

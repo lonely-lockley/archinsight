@@ -1,0 +1,19 @@
+# This analytical report lists direct component dependencies that cross an
+# immediate ownership boundary, together with their technology and description.
+# In the playground, select the `archinsight` context.
+# For detailed documentation please refer to:
+# https://archinsight.org/doc/querying-the-architecture-graph/#4-follow-outgoing-relationships
+
+MATCH (source:Component)-[dependency:REFERENCES]->(target:Element)
+WHERE source.context = $context
+  AND source.parent <> target.parent
+RETURN TABLE elementId(source) AS source,
+             source.name AS sourceName,
+             elementId(source.parent) AS sourceOwner,
+             elementId(target) AS target,
+             target.name AS targetName,
+             elementId(target.parent) AS targetOwner,
+             dependency.type AS dependencyType,
+             dependency.technology AS technology,
+             dependency.description AS description
+ORDER BY source, target

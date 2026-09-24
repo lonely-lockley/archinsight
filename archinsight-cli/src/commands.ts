@@ -1,6 +1,9 @@
-import { discoverDeploymentEnvironments, renderGraphviz } from "@insight/language";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { AiqQueryError, discoverDeploymentEnvironments, renderGraphviz, type QueryParameterValue, type QueryResult } from "@insight/language";
 import {
   outputFormat,
+  queryOutputFormat,
   renderFormat,
   skillTarget,
   type ParsedArgs,
@@ -11,6 +14,8 @@ import {
   exitWithDiagnostics,
   formatDiagnostics,
   formatGraph,
+  formatQueryTableCsv,
+  formatQueryTableText,
   formatStructure,
   hasErrors,
   linkerFinishedLine,
@@ -25,6 +30,7 @@ import {
   loadProject,
   projectPath,
   selectedGraph,
+  selectedQuery,
   selectedSource,
   type DeploymentEnvironmentEntry,
 } from "./project-runtime.js";
@@ -90,13 +96,73 @@ export async function runQuery(args: ParsedArgs): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const graph = await selectedGraph(project, args);
-  const format = outputFormat(args.format, "json");
-  if (format === "json") {
-    await writeOutput(args.output, JSON.stringify(graph, null, 2));
+  const warnings = project.diagnostics.filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE");
+  if (warnings.length > 0) process.stderr.write(formatDiagnostics(warnings));
+  let result: QueryResult;
+  try {
+    result = await selectedQuery(project, args, await queryParameters(args));
+  } catch (cause) {
+    if (cause instanceof AiqQueryError) {
+      throw new CliError(cause.detail, cause.code, args.queryFile ?? "<built-in-query>", cause.range.line, cause.range.column);
+    }
+    throw cause;
+  }
+  const format = queryOutputFormat(args.format, "json");
+  if (result.kind === "table") {
+    await writeOutput(args.output, format === "json"
+      ? JSON.stringify(result, null, 2)
+      : format === "csv" ? formatQueryTableCsv(result) : formatQueryTableText(result));
     return;
   }
-  await writeOutput(args.output, formatGraph(graph));
+  if (format === "csv") throw new CliError("CSV output is supported only for RETURN TABLE queries");
+  if (format === "json") {
+    await writeOutput(args.output, JSON.stringify(result.graph, null, 2));
+    return;
+  }
+  await writeOutput(args.output, formatGraph(result.graph));
+}
+
+async function queryParameters(args: ParsedArgs): Promise<Readonly<Record<string, QueryParameterValue>>> {
+  const values: Record<string, QueryParameterValue> = {};
+  if (args.parametersFile !== undefined) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readFile(path.resolve(args.parametersFile), "utf8"));
+    } catch (error) {
+      throw new CliError(`Cannot read query parameters '${args.parametersFile}': ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!isPlainObject(parsed)) throw new CliError("--params must contain one JSON object");
+    for (const [name, value] of Object.entries(parsed)) values[name] = queryParameterValue(name, value);
+  }
+  for (const assignment of args.parameters ?? []) {
+    const separator = assignment.indexOf("=");
+    if (separator <= 0) throw new CliError(`Invalid --param '${assignment}'; expected name=<JSON-value>`);
+    const name = assignment.slice(0, separator);
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new CliError(`Invalid query parameter name '${name}'`);
+    if (Object.hasOwn(values, name)) throw new CliError(`Query parameter '$${name}' was supplied more than once`);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(assignment.slice(separator + 1));
+    } catch (error) {
+      throw new CliError(`Invalid JSON value for query parameter '$${name}': ${error instanceof Error ? error.message : String(error)}`);
+    }
+    values[name] = queryParameterValue(name, parsed);
+  }
+  for (const reserved of ["context", "tab"]) {
+    if (Object.hasOwn(values, reserved)) throw new CliError(`Query parameter '$${reserved}' is reserved for query scope`);
+  }
+  return values;
+}
+
+function queryParameterValue(name: string, value: unknown): QueryParameterValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) return value.map((item) => queryParameterValue(name, item));
+  throw new CliError(`Query parameter '$${name}' must be null, boolean, finite number, string, or a list of those values`);
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function runStructure(args: ParsedArgs): Promise<void> {

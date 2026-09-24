@@ -4,6 +4,7 @@ import {
   createMessageController,
   errorMessage,
   isQueryErrorMessage,
+  queryFinishedMessage,
   queryErrorPosition,
   queryOffsetPosition
 } from './message-controller';
@@ -43,8 +44,29 @@ describe('message controller', () => {
       source: 'main.ai', line: 2, column: 3, level: 'ERROR', code: 'E1', message: 'bad'
     }]);
 
-    expect(subject.messages()[0]).toMatchObject({ source: 'label:main.ai', position: '2:4', message: 'bad' });
+    expect(subject.messages()[0]).toMatchObject({ source: 'label:main.ai', position: '2:4', message: 'E1: bad' });
     expect(subject.messages()[1]?.message).toBe('Linker finished: errors: 1, warnings: 0, notes: 0');
+  });
+
+  it('reports query warnings and a successful result summary in Output', () => {
+    const subject = fixture();
+    subject.controller.queryFinished('report.aiq', 12.6, 2, [{
+      sourceName: 'main.ai', line: 2, column: 3, level: 'WARNING',
+      code: 'ATTRIBUTE_ANNOTATION_DEPRECATED', message: '@attribute is deprecated'
+    }]);
+
+    expect(subject.messages()).toMatchObject([
+      {
+        level: 'WARNING', source: 'label:main.ai', position: '2:4',
+        message: 'ATTRIBUTE_ANNOTATION_DEPRECATED: @attribute is deprecated'
+      },
+      {
+        level: 'INFO', source: 'label:report.aiq', position: '-',
+        message: 'Query finished in 13 ms: 2 rows'
+      }
+    ]);
+    expect(queryFinishedMessage(0.4)).toBe('Query finished in 0 ms');
+    expect(queryFinishedMessage(1, 1)).toBe('Query finished in 1 ms: 1 row');
   });
 
   it('keeps only the newest 250 messages and can reset them', () => {

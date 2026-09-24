@@ -54,4 +54,35 @@ describe('WorkspaceEditor composition', () => {
     await unmount(component);
     target.remove();
   });
+
+  it('shows cancellable query loading over the result pane', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onCancelResult = vi.fn();
+    const component = mount(WorkspaceEditor, {
+      target,
+      props: {
+        active: true,
+        svg: undefined,
+        resultLoading: true,
+        diagramMode: 'default',
+        query: 'MATCH (n:Element) RETURN TABLE elementId(n) AS id',
+        editorHost: document.createElement('div'),
+        messagesPanel: document.createElement('div'),
+        onCancelResult,
+        onSelectDiagramMode: vi.fn(), onToggleQuery: vi.fn(), onQueryChange: vi.fn(),
+        onQueryPanelHeightChange: vi.fn(), onZoomIn: vi.fn(), onZoomOut: vi.fn(),
+        onFitDiagram: vi.fn(), onActualSize: vi.fn(), onSelectViewMode: vi.fn(),
+        onRefresh: vi.fn(), onEditorSplitRatioChange: vi.fn(),
+        onDiagramVisibleScaleChange: vi.fn(), onOpenDeclaration: vi.fn(),
+        onBeginMessagesResize: vi.fn()
+      }
+    });
+    const status = target.querySelector<HTMLElement>('[role="status"]');
+    expect(status?.textContent).toContain('Running query');
+    status?.querySelector<HTMLButtonElement>('button')?.click();
+    expect(onCancelResult).toHaveBeenCalledOnce();
+    await unmount(component);
+    target.remove();
+  });
 });

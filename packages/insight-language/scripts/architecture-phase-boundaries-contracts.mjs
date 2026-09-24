@@ -41,9 +41,12 @@ assert(queryEngine.includes('from "./query-execution-context.js"'));
 assert(queryEngine.includes('from "./query-view-pipeline.js"'));
 assert.equal(queryEngine.includes("class QueryParser"), false, "query syntax must not drift back into evaluation");
 assert.equal(queryEngine.includes("function tokenizeQuery"), false, "query tokenization belongs to query syntax");
-assert.equal(occurrences(queryEngine, "createQueryExecutionContext(result, scope)"), 2,
-  "selection and standalone environment discovery each create one canonical context");
-assert(querySyntax.includes("class QueryParser"));
+assert.equal(occurrences(queryEngine, "createQueryExecutionContext(result, scope)"), 3,
+  "graph selection, table execution, and standalone environment discovery each create one canonical context");
+assert(querySyntax.includes('from "./generated/AiqLexer.js"'));
+assert(querySyntax.includes('from "./generated/AiqParser.js"'));
+assert.equal(querySyntax.includes("class QueryParser"), false,
+  "AIQ syntax must use the generated ANTLR parser rather than a second handwritten parser");
 assert(queryContext.includes("elementsById"));
 assert(queryContext.includes("parentByChild"));
 assert(queryPipeline.includes("runQueryViewPipeline"));

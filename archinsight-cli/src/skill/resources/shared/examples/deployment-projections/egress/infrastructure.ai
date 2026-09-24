@@ -1,0 +1,18 @@
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    egress:
+        egress outbound
+            name = Outbound path
+            gateway:
+                infrastructureComponent nat_gateway
+                    name = NAT gateway
+            projection:
+                source $from originalLink source gateway
+                source gateway connectTo target $to
+                    technology = HTTPS

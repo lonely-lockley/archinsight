@@ -28,6 +28,12 @@ system application
   assertFailure(run("query", project, "--unknown"), /Unknown option '--unknown'/);
   assertFailure(run("query", project, "--format", "yaml"), /Unsupported format 'yaml'/);
   assertFailure(run("query", project, "--view", "unknown"), /Unknown view 'unknown'/);
+  for (const command of ["query", "render"]) {
+    assertFailure(
+      run(command, project, "--view", "c1", "--query", "custom.aiq"),
+      new RegExp(`Options '--view' and '--query' are mutually exclusive for command '${command}'`),
+    );
+  }
   assertFailure(run("skill"), /Usage: archinsight skill init/);
   assertFailure(run("skill", "unknown"), /Unknown skill command 'unknown'/);
   assertFailure(run("skill", "init", project, "--target", "unknown"), /Unknown skill target 'unknown'/);

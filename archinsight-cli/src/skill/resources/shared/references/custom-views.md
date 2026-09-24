@@ -1,18 +1,26 @@
 # Custom Views and Saved Queries
 
 An agent may create project-owned `.aiq` files when a reusable architectural
-question or diagram view is part of the task. Unless the user specifies another
-path, create them under `views/`:
+question or diagram view is part of the task. Put graph-returning queries and
+reserved web-view overrides under `views/`. Put reusable `RETURN TABLE` reports
+under `reports/`. Both use the same AIQ runtime; this is a purpose-based project
+convention. Unless the user specifies another path, use:
 
 ```text
 views/
     dependencies.aiq
     async-flows.aiq
+reports/
+    dependency-inventory.aiq
 ```
 
-Create `views/` when it does not exist. Use a short descriptive lowercase
-filename. Before writing, search the whole project for `.aiq` files and compare
-their basenames, because directories do not namespace query names.
+Create the needed directory when it does not exist. Use a short descriptive
+lowercase filename. Before writing, search the whole project for `.aiq` files
+that participate in project discovery and compare their basenames, because
+directories do not namespace query names. The web workspace skips hidden
+directories, `node_modules`, `build`, and `dist`; generated examples under
+`.claude/skills/` and `.codex/skills/` therefore do not conflict with project
+queries.
 
 ## Choose a Custom Name or an Override
 
@@ -75,7 +83,7 @@ query uses `$context` without `$tab`, a context-wide run may use:
 archinsight query . -c ecommerce -q views/external-integrations.aiq --format json
 ```
 
-`--query` takes precedence over `--view`; pass only one. `-v c2` runs the
+`--query` and `--view` are mutually exclusive; pass only one. `-v c2` runs the
 built-in C2 query bundled in the CLI and does not discover `views/c2.aiq`.
 Conversely, `-q views/c2.aiq` runs the file as a standalone query without C2's
 post-selection pipeline. The web override retains that pipeline, so boundary
@@ -85,18 +93,19 @@ folding or other pipeline-sensitive output can differ between these two calls.
 
 1. Read `references/queries.md` and inspect the existing model and `.aiq`
    basenames.
-2. Decide whether the request needs an additional named view or an intentional
-   project-wide override.
-3. Write `views/<descriptive-name>.aiq` by default. For an override, copy the
-   corresponding bundled built-in query first.
+2. Decide whether the request needs a table report, an additional named graph
+   view, or an intentional project-wide override.
+3. Write table reports to `reports/<descriptive-name>.aiq` and graph queries to
+   `views/<descriptive-name>.aiq`. For an override, copy the corresponding
+   bundled built-in query first.
 4. Run `archinsight link . --format text` to ensure the model still links.
 5. Run the exact query with
    `archinsight query ... -q views/<name>.aiq --format json` and inspect
    elements, edges, groups, and external endpoints.
 6. Render the same file only after the JSON matches the intended scope.
-7. Keep the `.aiq` file in the project when the view is reusable. For a one-off
-   read-only investigation, use a temporary file only when the user did not ask
-   to preserve the view.
+7. Keep the `.aiq` file in the project when the report or view is reusable. For
+   a one-off read-only investigation, use a temporary file when the user did not
+   ask to preserve it.
 
 Do not change correct model declarations merely to make a custom view easier to
 write. Query selection owns analytical and presentation scope; the model owns

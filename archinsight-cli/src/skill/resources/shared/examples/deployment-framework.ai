@@ -1,0 +1,23 @@
+define type ApplicationEnvironment of Environment
+    ServiceProvider cloud
+    Compute compute
+    Storage storage
+    Monitoring observability
+    PublicGateway publicGateway
+    NetworkConnection network
+    Egress egress
+
+define type ServiceProvider of InfrastructureComponent
+    constructor serviceProvider
+
+define type PublicGateway of NetworkConnection
+    constructor publicGateway
+    required InfrastructureComponent cdn
+    required InfrastructureComponent loadBalancer
+
+define type Egress of NetworkConnection
+    constructor egress
+
+define type Monitoring of InfrastructureComponent
+    constructor monitoring
+    required InfrastructureComponent display

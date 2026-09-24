@@ -47,6 +47,10 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   const message = error instanceof CliError || error instanceof Error ? error.message : String(error);
-  process.stderr.write(`ERROR\tCLI\t-\t0\t0\t${message.replaceAll(/\s+/g, " ").trim()}\n`);
+  const code = error instanceof CliError ? error.code : "CLI";
+  const sourceName = error instanceof CliError ? error.sourceName : "-";
+  const line = error instanceof CliError ? error.line : 0;
+  const column = error instanceof CliError ? error.column : 0;
+  process.stderr.write(`ERROR\t${code}\t${sourceName}\t${line}\t${column}\t${message.replaceAll(/\s+/g, " ").trim()}\n`);
   process.exitCode = 1;
 });

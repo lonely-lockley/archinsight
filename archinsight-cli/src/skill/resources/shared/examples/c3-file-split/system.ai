@@ -1,0 +1,18 @@
+context commerce
+    name = Commerce Platform
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+
+    container web_app
+        name = Web app
+        technology = SvelteKit, TypeScript
+
+    service checkout_api
+        name = Checkout API
+        technology = Kotlin, PostgreSQL
+        description = Handles cart pricing, order placement, and payment orchestration

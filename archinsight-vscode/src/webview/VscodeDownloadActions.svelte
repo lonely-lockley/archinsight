@@ -5,9 +5,12 @@
   export let onDownloadSvg: () => void;
   export let onDownloadPng: () => void;
   export let onDownloadDot: () => void;
+  export let onDownloadCsv: () => void;
+  export let onDownloadJson: () => void;
   export let canDownloadSvg = false;
   export let canDownloadPng = false;
   export let canDownloadDot = false;
+  export let tableResult = false;
 
   let downloadOpen = false;
 
@@ -52,10 +55,15 @@
   </button>
   {#if downloadOpen}
     <div class="download-menu" role="menu" tabindex="-1" on:click|stopPropagation on:keydown|stopPropagation>
-      <button role="menuitem" type="button" on:click={() => download(onDownloadSource)}>download source</button>
-      <button disabled={!canDownloadSvg} role="menuitem" type="button" on:click={() => download(onDownloadSvg)}>download diagram as svg</button>
-      <button disabled={!canDownloadPng} role="menuitem" type="button" on:click={() => download(onDownloadPng)}>download diagram as png</button>
-      <button disabled={!canDownloadDot} role="menuitem" type="button" on:click={() => download(onDownloadDot)}>download diagram as DOT</button>
+      {#if tableResult}
+        <button role="menuitem" type="button" on:click={() => download(onDownloadCsv)}>download table as CSV</button>
+        <button role="menuitem" type="button" on:click={() => download(onDownloadJson)}>download table as JSON</button>
+      {:else}
+        <button role="menuitem" type="button" on:click={() => download(onDownloadSource)}>download source</button>
+        <button disabled={!canDownloadSvg} role="menuitem" type="button" on:click={() => download(onDownloadSvg)}>download diagram as svg</button>
+        <button disabled={!canDownloadPng} role="menuitem" type="button" on:click={() => download(onDownloadPng)}>download diagram as png</button>
+        <button disabled={!canDownloadDot} role="menuitem" type="button" on:click={() => download(onDownloadDot)}>download diagram as DOT</button>
+      {/if}
     </div>
   {/if}
 </div>

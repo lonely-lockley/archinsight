@@ -1,0 +1,22 @@
+context egress_example
+
+import payment_api from context providers
+
+deploymentProfile service_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+
+system commerce
+    name = Commerce
+
+    service client
+        name = Payment client
+        deployment:
+            uses service_profile
+        links:
+            -> payment_api
+                technology = HTTPS
+                description = Authorizes payments
+                deployment:
+                    uses egress

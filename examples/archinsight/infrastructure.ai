@@ -1,3 +1,8 @@
+# This source instantiates the production deployment and its concrete
+# infrastructure for the `eu` environment.
+# For detailed documentation about deployment boundaries please refer to:
+# https://archinsight.org/doc/deployment/#environment-and-deployment-boundaries
+
 environment eu
     name = Europe
 

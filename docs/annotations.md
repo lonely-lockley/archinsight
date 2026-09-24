@@ -56,7 +56,26 @@ Annotations on a logical wire are carried into physical relationships created fr
 
 ## Inspecting annotations
 
-Query JSON includes annotations on selected elements and relationships. The query language does not currently provide an annotation predicate, so a report starts with a broad graph and filters its JSON output:
+AIQ exposes element and relationship annotations through `annotations(value)`.
+Use `UNWIND` to return one row per annotation:
+
+```cypher
+MATCH (element:Element)
+WHERE element.context = $context
+UNWIND annotations(element) AS annotation
+RETURN TABLE elementId(element) AS element,
+             annotation.name AS annotation,
+             annotation.value AS value
+ORDER BY element, annotation
+```
+
+The same function can be used in a predicate. For example,
+`any(annotation IN annotations(element) WHERE annotation.name = 'planned')`
+selects planned elements. Relationship aliases work in the same way.
+
+Graph query JSON also includes annotations on selected elements and
+relationships. A complete graph can be filtered with another JSON tool when a
+graph-shaped result is required:
 
 ```shell
 archinsight query . -c <context-id> -v no-filter --format json |

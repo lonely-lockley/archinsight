@@ -1,0 +1,13 @@
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    database:
+        storage postgres
+            name = PostgreSQL
+            projection:
+                source $from originalLink target $this

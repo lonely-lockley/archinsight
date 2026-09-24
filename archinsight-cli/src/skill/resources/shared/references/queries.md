@@ -1,8 +1,8 @@
 # Insight Query Reference
 
 Insight diagram queries use a small Cypher-style subset evaluated in memory.
-Use queries to select which linked model elements and relationships appear in a
-diagram.
+Use plain `RETURN` to select a graph for a diagram and `RETURN TABLE` to produce
+an analytical report.
 
 ## CLI Shape
 
@@ -11,6 +11,7 @@ archinsight query . -s <source.ai> -q views/dependencies.aiq -f text
 archinsight query . -s <source.ai> -v deployment-system --format json
 archinsight query . -s <source.ai> -v deployment-container --environment <environment> --format json
 archinsight render . -s <source.ai> -q views/dependencies.aiq -f svg -o diagram.svg
+archinsight query . -q reports/impact.aiq --param 'element="context/service"' -f json
 ```
 
 The scope variables are:
@@ -37,12 +38,13 @@ Prefer paths relative to the project root:
 archinsight query path/to/project -s models/storefront.ai -q views/c2.aiq -f text
 ```
 
-## Project Custom Views
+## Project Queries and Custom Views
 
 Agents may create and maintain reusable `.aiq` queries as project files. Read
-`references/custom-views.md` before doing so. By default, create
-`views/<descriptive-name>.aiq`; use another location only when the user specifies
-it.
+`references/custom-views.md` before doing so. Put reusable graph `RETURN`
+queries under `views/` and reusable `RETURN TABLE` reports under `reports/`.
+Both directories contain ordinary AIQ files; the names communicate purpose.
+Use a temporary file for one-off analysis unless the user asks to keep it.
 
 The web workspace discovers queries by basename across the whole project. A
 descriptive new basename creates a custom view. A reserved basename such as
@@ -74,8 +76,61 @@ GROUP BY ...
 RETURN ...
 ```
 
-`MATCH` clauses come first. `GROUP BY` is optional and appears before
-`RETURN`. `RETURN` must list the aliases that should be rendered.
+Graph queries use `MATCH ... [GROUP BY ...] RETURN alias, ...`. Table queries
+may compose `MATCH`, `OPTIONAL MATCH`, `WITH`, and `UNWIND`, ending in
+`RETURN TABLE`. They support `DISTINCT`, `ORDER BY`, `SKIP`, `LIMIT`, numeric,
+boolean, null and list values, and named parameters.
+
+```cypher
+MATCH (service:Service)
+WHERE service.context = $context
+RETURN TABLE elementId(service) AS service, service.type AS type
+ORDER BY service
+```
+
+Computed columns require `AS`; a bound alias can retain its name. Aggregates:
+`count`, `collect`, `min`, `max`, `sum`, `avg`. Path/scalar functions:
+`nodes`, `relationships`, `length`, `elementId`, `startNode`, `endNode`,
+`coalesce`, `size`, `annotations`, `originId`, `toInteger`, `toFloat`,
+`toBoolean`, and `toString`.
+List predicates use `all(item IN list WHERE predicate)` and
+`any(item IN list WHERE predicate)`. List comprehensions use
+`[item IN list WHERE predicate | projection]`; the `WHERE` part is optional.
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (to:Element)
+WHERE elementId(to) = $to
+MATCH p = shortestPath((from)-[:REFERENCES*1..]->(to))
+RETURN TABLE length(p) AS hops, p.steps AS steps
+```
+
+All-path enumeration requires a finite maximum such as `*1..8`. Endpoint-only
+`RETURN TABLE DISTINCT` reachability can use `*1..` because it traverses with a
+visited set instead of materializing alternate paths. It may project the source,
+the target, or both and may filter either endpoint after the path:
+
+```cypher
+MATCH (source:Element)
+WHERE elementId(source) IN $from
+MATCH (source)-[:REFERENCES*1..]->(target:Element)
+WHERE elementId(target) IN $to
+RETURN TABLE DISTINCT elementId(source) AS source,
+                      elementId(target) AS target
+ORDER BY source, target
+```
+
+An unbounded reachability query cannot bind or return a path or relationship,
+aggregate path evidence, or place another input clause after the path. Bind a
+path and set a finite bound when route evidence is required. Incoming and
+undirected arrows are supported. A selector-free `REFERENCES` path follows the
+direct, non-derived model relationships and is the default for exact dependency
+and impact analysis. `{withDerived}` instead traverses the ownership rollup
+graph. Its consecutive aggregate hops can be backed by different children of
+the shared owner, so such a path establishes reachability between owners rather
+than one continuous path through the underlying elements. Projected relations
+are not available for variable-length traversal.
 
 ## Node Patterns
 
@@ -164,6 +219,7 @@ WHERE node.sourceIdentity = $tab
 WHERE node.deployed = true
 WHERE node IS External
 WHERE NOT node IS DeploymentElement
+WHERE edge IS AsyncWire
 WHERE edge.projected = 'true'
 WHERE edge.projectionRoot = 'eu/service_network'
 WHERE node.id IN ['api', 'web_app']
@@ -176,13 +232,15 @@ Use single quotes for string literals.
 
 `CONTAINS` is case-sensitive. For scalar text it performs substring matching;
 for a list property it tests membership. Match the stored spelling exactly.
+`IS` applies to nodes and relationships, including project-defined descendants,
+with the same semantics in graph and table results.
 
 Attribute cardinality comes from the Insight type system and linked reference
 metadata, not from the JSON representation. Use `CONTAINS` for declared lists
 such as `Wire.uses`. Infrastructure `runsOn` is a declared scalar reference;
 on systems and containers, `runsOn` and `uses` are computed deployment results,
-not declared source attributes. A single resolved reference resolves to one
-graph node: compare it with another bound node, or
+not declared source attributes. A single resolved reference resolves to its
+real typed graph node: compare it with another bound node, or
 test its qualified id with `node.runsOn IN ['eu/cluster']`.
 `node.runsOn CONTAINS 'eu/cluster'` does not match a scalar reference because
 that value is neither scalar text nor a list.
@@ -204,9 +262,11 @@ WHERE source.runsOn <> target.runsOn
 ```
 
 Scalar references compare by qualified id and lists compare as complete ordered
-lists. If either property is absent, both comparisons evaluate to false. Set
-intersection and overlap tests are not supported; post-process query JSON for
-those operations.
+lists. If either property is absent, both comparisons evaluate to false.
+Ordered comparisons `<`, `<=`, `>`, and `>=` accept two numbers or two strings.
+Use `any(item IN left WHERE item IN right)` to test overlap, or a list
+comprehension such as `[item IN left WHERE item IN right | item]` to return the
+intersection.
 
 `node.deployed` is true when an element's deployment resolves to at least one
 `runsOn` or `uses` infrastructure object. The built-in Deployment view uses it to keep
@@ -293,9 +353,10 @@ endpoint to its system, C3 to its container or service, and C4 to its component.
 `IS External` in a custom query continues to match only the explicit model
 marker.
 
-A custom query file supplies its own selection and grouping contract and
-overrides `--view`. To customize a web C1-C4 view while retaining its boundary
-behavior, copy the corresponding bundled built-in `.aiq` file to the reserved
+A custom query file supplies its own selection and grouping contract. Select it
+with `--query` instead of `--view`; the CLI rejects the two options together.
+To customize a web C1-C4 view while retaining its boundary behavior, copy the
+corresponding bundled built-in `.aiq` file to the reserved
 `views/<name>.aiq` path and modify its predicates or grouping. Running that file
 through CLI `--query` does not apply the built-in post-selection pipeline.
 
@@ -426,7 +487,8 @@ the filter or grouping deliberately.
 - Return every node and relationship alias needed for rendering.
 - Add `GROUP BY` deliberately for diagrams with clusters.
 - Validate query files with `archinsight query` before rendering.
-- Keep reusable custom queries in `views/<descriptive-name>.aiq` unless the user
-  specifies another path.
+- Keep reusable graph queries in `views/<descriptive-name>.aiq` and reusable
+  table reports in `reports/<descriptive-name>.aiq` unless the user specifies
+  another path.
 - Copy `examples/builtin-views/<name>.aiq` before overriding a standard view;
   do not recreate a built-in query from memory.

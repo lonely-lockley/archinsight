@@ -1,0 +1,15 @@
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (to:Element)
+WHERE elementId(to) = $to
+MATCH p = shortestPath((from)-[:REFERENCES*1..]->(to))
+UNWIND p.steps AS step
+RETURN TABLE elementId(from) AS source,
+             elementId(to) AS target,
+             length(p) AS hops,
+             step.index AS position,
+             step.from AS stepFrom,
+             step.to AS stepTo,
+             step.relationshipId AS relationship,
+             step.direction AS direction
+ORDER BY position

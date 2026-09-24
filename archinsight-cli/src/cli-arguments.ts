@@ -11,6 +11,7 @@ import { version } from "./version.js";
 export type Command = "link" | "render" | "query" | "structure" | "environments" | "skill";
 type SkillAction = "init";
 export type OutputFormat = "text" | "json";
+export type QueryOutputFormat = OutputFormat | "csv";
 export type RenderFormat = "dot" | "svg" | "json";
 export type DiagramView = BuiltinDiagramView;
 
@@ -27,6 +28,13 @@ export interface ParsedArgs {
   readonly format?: string;
   readonly theme?: string;
   readonly target?: string;
+  readonly parameters?: readonly string[];
+  readonly parametersFile?: string;
+  readonly maxExpansions?: number;
+  readonly maxRows?: number;
+  readonly maxValues?: number;
+  readonly maxOutputBytes?: number;
+  readonly timeoutMs?: number;
   readonly help: boolean;
   readonly version: boolean;
   readonly force: boolean;
@@ -34,6 +42,7 @@ export interface ParsedArgs {
 
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   const options: Record<string, string | boolean> = {};
+  const parameters: string[] = [];
   const positional: string[] = [];
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index]!;
@@ -55,7 +64,8 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       if (value === undefined || value.startsWith("-")) {
         throw new CliError(`Option '${arg}' expects a value`);
       }
-      options[key] = value;
+      if (key === "param") parameters.push(value);
+      else options[key] = value;
       index++;
       continue;
     }
@@ -64,7 +74,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
     positional.push(arg);
   }
-  return {
+  const parsed: ParsedArgs = {
     command: command(positional[0]),
     skillAction: skillAction(positional[0], positional[1]),
     input: inputPath(positional),
@@ -77,10 +87,26 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     format: stringOption(options.format),
     theme: stringOption(options.theme),
     target: stringOption(options.target),
+    parameters,
+    parametersFile: stringOption(options.params),
+    maxExpansions: positiveIntegerOption(options.maxExpansions, "--max-expansions"),
+    maxRows: positiveIntegerOption(options.maxRows, "--max-rows"),
+    maxValues: positiveIntegerOption(options.maxValues, "--max-values"),
+    maxOutputBytes: positiveIntegerOption(options.maxOutputBytes, "--max-output-bytes"),
+    timeoutMs: positiveIntegerOption(options.timeoutMs, "--timeout-ms"),
     help: options.help === true,
     version: options.version === true,
     force: options.force === true,
   };
+  validateOptionCombinations(parsed);
+  return parsed;
+}
+
+function validateOptionCombinations(args: ParsedArgs): void {
+  if ((args.command === "query" || args.command === "render")
+      && args.view !== undefined && args.queryFile !== undefined) {
+    throw new CliError(`Options '--view' and '--query' are mutually exclusive for command '${args.command}'`);
+  }
 }
 
 function optionKey(arg: string): string | undefined {
@@ -103,6 +129,13 @@ function optionKey(arg: string): string | undefined {
     "--theme": "theme",
     "-t": "theme",
     "--target": "target",
+    "--param": "param",
+    "--params": "params",
+    "--max-expansions": "maxExpansions",
+    "--max-rows": "maxRows",
+    "--max-values": "maxValues",
+    "--max-output-bytes": "maxOutputBytes",
+    "--timeout-ms": "timeoutMs",
   } as Record<string, string | undefined>)[arg];
 }
 
@@ -165,6 +198,12 @@ export function outputFormat(value: string | undefined, fallback: OutputFormat):
   throw new CliError(`Unsupported format '${value}'`);
 }
 
+export function queryOutputFormat(value: string | undefined, fallback: QueryOutputFormat): QueryOutputFormat {
+  if (value === undefined) return fallback;
+  if (value === "text" || value === "json" || value === "csv") return value;
+  throw new CliError(`Unsupported format '${value}'`);
+}
+
 export function renderFormat(value: string | undefined, fallback: RenderFormat): RenderFormat {
   if (value === undefined) {
     return fallback;
@@ -179,6 +218,13 @@ function stringOption(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function positiveIntegerOption(value: unknown, option: string): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = typeof value === "string" ? Number(value) : Number.NaN;
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) throw new CliError(`Option '${option}' expects a positive integer`);
+  return parsed;
+}
+
 export function helpText(): string {
   const viewUsage = BUILTIN_VIEW_IDS.join("|");
   const viewList = BUILTIN_VIEW_DEFINITIONS.map((definition) => definition.id).join(", ");
@@ -187,7 +233,7 @@ export function helpText(): string {
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
   archinsight render [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
-  archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f text|json] [-o file]
+  archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
@@ -199,7 +245,14 @@ Options:
       --tab <source>       Backward-compatible alias for --source.
   -v, --view <name>        Built-in view: ${viewList}.
   -e, --environment <id>   Environment scope for deployment-container; optional when exactly one is relevant.
-  -q, --query <file>       Query file; overrides --view.
+  -q, --query <file>       Query file; mutually exclusive with --view.
+      --param <name=json>  Supply a query parameter; repeat for multiple parameters.
+      --params <file>      Read query parameters from a JSON object.
+      --max-expansions <n> Maximum candidate/edge checks during query execution.
+      --max-rows <n>       Maximum rows materialized by one query stage.
+      --max-values <n>     Maximum collected values and materialized path parts.
+      --max-output-bytes <n> Maximum serialized result size.
+      --timeout-ms <n>     Query execution deadline after linking.
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
   -t, --theme <theme>      Render theme, default: light.

@@ -1,0 +1,13 @@
+environment target_env
+    name = Target Environment
+
+deployment production
+    compute:
+        name = Target Compute
+
+    privateGateway:
+        name = Target Private Gateway
+        projection:
+            source $from originalLink target $this
+            target $this connectTo target $to
+                technology = HTTPS

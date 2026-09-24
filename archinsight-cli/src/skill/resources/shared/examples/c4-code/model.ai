@@ -1,0 +1,24 @@
+context code_sample
+
+system application
+    name = Application
+
+    service checkout
+        name = Checkout
+
+        component order_processing
+            name = Order processing
+            responsibility = Coordinates checkout
+            module controller
+                name = Checkout controller
+                responsibility = Accepts checkout commands
+                links:
+                    -> domain
+
+            module domain
+                name = Checkout domain
+                responsibility = Applies checkout rules
+                children:
+                    module validation
+                        name = Order validation
+                        responsibility = Validates checkout input

@@ -1,6 +1,7 @@
 import { isQueryFile } from '@archinsight/workbench/project-queries';
 import {
   discoverDeploymentEnvironments,
+  queryVariableOccurrences,
   type DeploymentEnvironment,
   type LinkProjectResult
 } from '@insight/language';
@@ -21,6 +22,8 @@ type ToolbarPatch = Partial<Pick<WorkspaceTab,
   | 'query'
   | 'queryPreset'
   | 'queryView'
+  | 'queryParameters'
+  | 'queryResult'
   | 'deploymentEnvironment'
   | 'queryVisible'
   | 'queryPanelHeight'
@@ -107,7 +110,9 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
       queryPreset: true,
       queryView: undefined,
       deploymentEnvironment: environment,
-      dot: undefined
+      dot: undefined,
+      queryParameters: {},
+      queryResult: undefined
     });
     if (environment === undefined && ports.activeTab() !== undefined) {
       ports.patchActiveTab({ svg: emptyDiagramSvg('No deployment environments are relevant to this source') });
@@ -127,12 +132,16 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
   return {
     updateQuery(value) {
       const tab = ports.activeTab();
+      const required = new Set(queryVariableOccurrences(value).map((item) => item.name).filter((name) => name !== 'context' && name !== 'tab'));
+      const queryParameters = Object.fromEntries(Object.entries(tab?.queryParameters ?? {}).filter(([name]) => required.has(name)));
       persistPatch({
         query: value,
         diagramMode: tab?.diagramMode ?? 'default',
         queryPreset: false,
         queryView: undefined,
-        dot: undefined
+        dot: undefined,
+        queryParameters,
+        queryResult: undefined
       });
       ports.scheduleDiagramUpdate();
     },
@@ -147,7 +156,9 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
             query: queryForDiagramMode(mode),
             queryPreset: true,
             queryView: undefined,
-            dot: undefined
+            dot: undefined,
+            queryParameters: {},
+            queryResult: undefined
           });
           ports.scheduleLink(0);
           return;
@@ -167,7 +178,9 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
         query: queryForDiagramMode(mode),
         queryPreset: true,
         queryView: undefined,
-        dot: undefined
+        dot: undefined,
+        queryParameters: {},
+        queryResult: undefined
       });
       ports.scheduleDiagramUpdate();
     },

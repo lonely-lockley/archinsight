@@ -37,6 +37,8 @@
   },
   "activationEvents": [
     "onLanguage:insight",
+    "onLanguage:archinsight-query",
+    "onCommand:archinsight.runQuery",
     "onCommand:archinsight.linkProject",
     "onCommand:archinsight.previewDiagram",
     "onCommand:archinsight.showStructure",
@@ -76,6 +78,25 @@
         "extensions": [
           ".ai"
         ],
+        "icon": {
+          "light": "./assets/file-icons/ai.svg",
+          "dark": "./assets/file-icons/ai.svg"
+        },
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "archinsight-query",
+        "aliases": [
+          "AIQ",
+          "Archinsight Query"
+        ],
+        "extensions": [
+          ".aiq"
+        ],
+        "icon": {
+          "light": "./assets/file-icons/aiq.svg",
+          "dark": "./assets/file-icons/aiq.svg"
+        },
         "configuration": "./language-configuration.json"
       }
     ],
@@ -84,6 +105,11 @@
         "language": "insight",
         "scopeName": "source.insight",
         "path": "./syntaxes/insight.tmLanguage.json"
+      },
+      {
+        "language": "archinsight-query",
+        "scopeName": "source.archinsight-query",
+        "path": "./syntaxes/aiq.tmLanguage.json"
       }
     ],
     "customEditors": [
@@ -93,12 +119,20 @@
         "selector": [
           {
             "filenamePattern": "*.ai"
+          },
+          {
+            "filenamePattern": "*.aiq"
           }
         ],
         "priority": "default"
       }
     ],
     "commands": [
+      {
+        "command": "archinsight.runQuery",
+        "title": "Archinsight: Run AIQ Query",
+        "icon": "$(play)"
+      },
       {
         "command": "archinsight.linkProject",
         "title": "Archinsight: Link Project"
@@ -216,6 +250,13 @@
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "archinsight.runQuery",
+          "when": "editorLangId == archinsight-query",
+          "group": "navigation@1"
+        }
+      ],
       "view/title": [
         {
           "command": "archinsight.structure.toggleLanguageTypes",

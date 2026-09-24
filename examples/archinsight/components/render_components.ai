@@ -1,3 +1,10 @@
+# This source extends the renderer service with its C3 API and worker
+# components.
+# For detailed documentation about components please refer to:
+# https://archinsight.org/doc/c3-components/#components-inside-containers
+# For splitting objects across files with `extend` please refer to:
+# https://archinsight.org/doc/structuring-an-insight-project/#splitting-objects-with-extend
+
 context archinsight
 
 extend service renderer_service

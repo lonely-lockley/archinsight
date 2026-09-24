@@ -5,11 +5,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./query-result-format": "./src/query-result-format.ts"
   },
   "scripts": {
     "sync:core": "node scripts/sync-core.mjs",
-    "generate:grammar": "npm run sync:core && antlr-ng -Dlanguage=TypeScript --exact-output-dir -o src/generated grammar/InsightLexer.g4 grammar/InsightParser.g4 && node scripts/strip-generated-whitespace.mjs",
+    "generate:grammar": "npm run sync:core && antlr-ng -Dlanguage=TypeScript --exact-output-dir -o src/generated grammar/InsightLexer.g4 grammar/InsightParser.g4 grammar/AiqLexer.g4 grammar/AiqParser.g4 && node scripts/strip-generated-whitespace.mjs",
     "test:prepare": "node scripts/ensure-generated.mjs && tsc -p tsconfig.runtime.json",
     "test:contracts": "npm run test:prepare && node scripts/run-test-suite.mjs contracts",
     "test:runtime": "npm run test:prepare && node scripts/run-test-suite.mjs runtime",

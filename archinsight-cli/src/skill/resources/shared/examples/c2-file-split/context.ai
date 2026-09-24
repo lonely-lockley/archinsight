@@ -1,0 +1,11 @@
+context commerce
+    name = Commerce Platform
+
+external system payment_provider
+    name = Payment Provider
+    technology = HTTPS API
+
+system storefront
+    name = Storefront
+    technology = Commerce system
+    description = Lets shoppers browse products and place orders

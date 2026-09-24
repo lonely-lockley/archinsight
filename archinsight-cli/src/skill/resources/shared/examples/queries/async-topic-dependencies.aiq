@@ -1,0 +1,4 @@
+MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+WHERE consumer.context = $context
+  AND event.type = 'AsyncWire'
+RETURN consumer, event, producer

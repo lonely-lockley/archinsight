@@ -1,0 +1,7 @@
+define type EgressEnvironment of Environment
+    Compute compute
+    Egress egress
+
+define type Egress of NetworkConnection
+    constructor egress
+    required InfrastructureComponent gateway

@@ -97,7 +97,10 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("references/cli.md"));
   assert(content.includes("references/c4-code.md"));
   assert(content.includes("references/custom-views.md"));
-  assert(content.includes("views/<descriptive-name>.aiq"));
+  assert(content.includes("graph queries under `views/`"));
+  assert(content.includes("`RETURN TABLE`"));
+  assert(content.includes("reports under `reports/`"));
+  assert(content.includes("Lead with the verdict, then its model evidence"));
   assert.equal(occurrences(content, "references/deployment-projections.md"), 1);
   assert(content.includes("Infer and reuse an existing C4 Code vocabulary from the repository"));
   assert.match(content, /Ask the\s+user about entity kinds only when creating the Code layer or extending that\s+vocabulary/);
@@ -117,7 +120,10 @@ function verifySharedFiles(output) {
   assert(cli.includes("archinsight environments . -s <source.ai> --format json"));
   assert(cli.includes("deployment-environments.v1"));
   const customViews = readFileSync(path.join(output, "references", "custom-views.md"), "utf8");
-  assert.match(customViews, /Unless the user specifies another\s+path, create them under `views\/`/);
+  assert(customViews.includes("graph-returning queries"));
+  assert(customViews.includes("`RETURN TABLE` reports"));
+  assert(customViews.includes("`reports/<descriptive-name>.aiq`"));
+  assert(customViews.includes("`views/<descriptive-name>.aiq`"));
   assert(customViews.includes("directories do not namespace query names"));
   for (const name of [
     "no-filter",
@@ -223,12 +229,16 @@ function verifySharedFiles(output) {
   verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md"]);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
-  assert(analysis.includes("It is not a general graph analytics language"));
-  assert.match(analysis, /transitive\s+impact/);
+  assert(analysis.includes("Use focused AIQ queries to answer architecture questions"));
+  assert(analysis.includes("show its text to the user only when they explicitly ask for it"));
+  assert(analysis.includes("consider an engine defect"));
+  assert(analysis.includes("If the result contains more than 10 rows"));
+  assert(analysis.includes("Use CSV for a flat scalar table"));
+  assert.match(analysis, /transitive\s+impact/i);
   assert(analysis.includes("--format json"));
-  assert(analysis.includes("<-[dependency:REFERENCES]-"));
-  assert(analysis.includes("-v deployment-system"));
-  assert(analysis.includes("-v deployment-container --environment <environment>"));
+  assert(analysis.includes("<-[incoming:REFERENCES]-"));
+  assert(analysis.includes("shortestPath"));
+  assert(analysis.includes("contextual **Download**"));
 
   const c4Code = readFileSync(path.join(output, "references", "c4-code.md"), "utf8");
   assert(c4Code.includes("CodeElement"));
@@ -257,8 +267,17 @@ function verifySharedFiles(output) {
 
   const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
   assert.match(queries, /Labels are case-sensitive[\s\S]*`CodeElement`/);
-  assert(queries.includes("overrides `--view`"));
-  assert.equal(queries.includes("pass both\n`-q <query.aiq>` and `-v"), false);
+  assert(queries.includes("Select it\nwith `--query` instead of `--view`"));
+  assert(queries.includes("the CLI rejects the two options together"));
+  assert(queries.includes("any(item IN left WHERE item IN right)"));
+  for (const functionName of [
+    "count", "collect", "min", "max", "sum", "avg",
+    "nodes", "relationships", "length", "all", "any", "elementId",
+    "startNode", "endNode", "coalesce", "size", "annotations", "originId",
+    "toInteger", "toFloat", "toBoolean", "toString",
+  ]) {
+    assert(queries.includes(functionName), `query reference omits AIQ function '${functionName}'`);
+  }
   assert(queries.includes("`listAttributes` and\n`referenceAttributes`"));
   assert(queries.includes("source.runsOn <> target.runsOn"));
 
@@ -267,6 +286,7 @@ function verifySharedFiles(output) {
     "direct-authored-dependencies.aiq",
     "async-topic-dependencies.aiq",
     "kafka-service-dependencies.aiq",
+    "system-impact.aiq",
   ]) {
     assert(existsSync(path.join(output, "examples", "queries", queryName)), `${queryName} must be bundled`);
   }

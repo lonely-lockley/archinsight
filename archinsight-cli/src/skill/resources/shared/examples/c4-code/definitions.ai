@@ -1,0 +1,10 @@
+define type Module of CodeElement
+    constructor module
+
+    required Text name
+    Text responsibility
+    List of Wire links
+    List of CodeElement children
+
+extend type Component
+    List of CodeElement _

@@ -1,0 +1,69 @@
+environment eu
+    name = Europe
+
+deployment production
+    cloud:
+        serviceProvider aws
+            name = AWS
+
+    compute:
+        compute kubernetes
+            name = Kubernetes
+            runsOn:
+                aws
+
+    storage:
+        storage postgres
+            name = PostgreSQL
+            runsOn:
+                aws
+            projection:
+                source $from originalLink target $this
+
+    publicGateway:
+        publicGateway public_edge
+            name = Public ingress
+            cdn:
+                infrastructureComponent cloudfront
+                    name = CloudFront
+                    runsOn:
+                        aws
+            loadBalancer:
+                infrastructureComponent alb
+                    name = Application Load Balancer
+                    runsOn:
+                        aws
+            projection:
+                source $from originalLink target cdn
+                target cdn connectTo target loadBalancer
+                    technology = HTTPS
+                target loadBalancer connectTo target $to
+                    technology = HTTPS
+
+    network:
+        networkConnection service_network
+            name = Service network
+            runsOn:
+                kubernetes
+            projection:
+                source $from originalLink target $to
+
+    egress:
+        egress outbound
+            name = Outbound network
+            runsOn:
+                kubernetes
+            projection:
+                source $from originalLink target $to
+
+    observability:
+        monitoring telemetry
+            name = OpenTelemetry Collector
+            runsOn:
+                kubernetes
+            display:
+                infrastructureComponent grafana
+                    name = Grafana Cloud
+            projection:
+                target $this connectTo source $from
+                target $this connectTo target display

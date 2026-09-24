@@ -57,6 +57,27 @@ describe('shared transport contracts', () => {
     });
   });
 
+  it('validates AIQ built-in variable scope messages', () => {
+    expect(parseWorkbenchWebviewToHostMessage({
+      command: 'selectQueryScope', variable: 'context', value: 'archinsight'
+    })).toEqual({ command: 'selectQueryScope', variable: 'context', value: 'archinsight' });
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'queryScope',
+      state: {
+        enabled: true,
+        context: 'archinsight',
+        sources: [{ value: 'main.ai', label: 'main.ai', typeName: 'Context' }],
+        contexts: [{ value: 'archinsight', label: 'archinsight', typeName: 'Context' }]
+      }
+    })).toMatchObject({ state: { context: 'archinsight' } });
+    expect(() => parseWorkbenchWebviewToHostMessage({
+      command: 'selectQueryScope', variable: 'source', value: 'main.ai'
+    })).toThrow(ContractValidationError);
+    expect(() => parseWorkbenchHostToWebviewMessage({
+      command: 'queryScope', state: { enabled: true, sources: [{}], contexts: [] }
+    })).toThrow(ContractValidationError);
+  });
+
   it('validates structured completion documentation from the extension host', () => {
     expect(parseWorkbenchHostToWebviewMessage({
       command: 'completionResult',

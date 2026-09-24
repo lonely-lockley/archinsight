@@ -35,6 +35,7 @@ const linkResponse = (overrides: Partial<LinkResponse> = {}): LinkResponse => ({
 
 function fixture() {
   const main = tab('main.ai', { filePath: undefined, content: 'changed' });
+  let time = 100;
   const ports: AnalysisRunnerPorts = {
     state: () => ({
       projectId: 'project', surface: 'editor', tabs: [main], activeTab: main,
@@ -58,6 +59,9 @@ function fixture() {
     acceptProjectStructure: vi.fn(),
     clearDots: vi.fn(),
     acceptDiagram: vi.fn(),
+    acceptQueryResult: vi.fn(),
+    now: vi.fn(() => time += 5),
+    queryFinished: vi.fn(),
     cycleSummary: vi.fn(),
     queryError: vi.fn(),
     error: vi.fn(),
@@ -117,6 +121,7 @@ describe('analysis runner', () => {
     );
     expect(subject.ports.acceptProjectStructure).toHaveBeenCalled();
     expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', '<svg>server</svg>', 'digraph {}');
+    expect(subject.ports.queryFinished).toHaveBeenCalledWith('main.ai', 5, undefined, []);
   });
 
   it('forwards a forced full-analysis request to the web API', async () => {
@@ -177,6 +182,37 @@ describe('file-backed query execution', () => {
     expect(renders[0].dot).not.toContain('First');
     expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('q.aiq', '<svg/>', renders[0].dot);
     expect(subject.ports.linkProject).not.toHaveBeenCalled();
+  });
+
+  it('publishes a table result without invoking Graphviz', async () => {
+    const subject = fixture();
+    const active = tab('report.aiq', { queryParameters: { element: 'two/second' } });
+    subject.ports.state = () => ({ projectId: 'project', surface: 'editor', tabs: [active], activeTab: active, overlays: {}, query: 'wrong', diagramMode: 'c2', deploymentEnvironment: undefined });
+    subject.ports.resolveQuery = vi.fn(async () => ({
+      query: 'MATCH (n:Element) WHERE elementId(n) = $element RETURN TABLE elementId(n) AS element',
+      view: undefined,
+      resultKind: 'table' as const
+    }));
+    await subject.runner.runCachedDiagram(1, 'project', model);
+    expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
+    expect(subject.ports.renderOnServer).not.toHaveBeenCalled();
+    expect(subject.ports.acceptQueryResult).toHaveBeenCalledWith('report.aiq', expect.objectContaining({
+      kind: 'table', rows: [['two/second']]
+    }));
+    expect(subject.ports.queryFinished).toHaveBeenCalledWith(
+      'report.aiq', 5, 1, model.diagnostics
+    );
+  });
+
+  it('ignores a delayed query after the active tab changes', async () => {
+    const subject = fixture();
+
+    await subject.runner.runCachedDiagram(1, 'project', model, true, 'previous.ai');
+
+    expect(subject.ports.setLoading).not.toHaveBeenCalled();
+    expect(subject.ports.acceptQueryResult).not.toHaveBeenCalled();
+    expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
+    expect(subject.ports.queryFinished).not.toHaveBeenCalled();
   });
 
   it('passes preview scope and a raw-query view through the backend link request', async () => {

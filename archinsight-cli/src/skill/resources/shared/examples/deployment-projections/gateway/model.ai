@@ -1,0 +1,23 @@
+context gateway_example
+
+deploymentProfile service_profile
+    appliesTo:
+        production from eu
+    runsOn compute
+
+external actor customer
+    name = Customer
+    links:
+        -> api
+            technology = HTTPS
+            description = Calls the public API
+            deployment:
+                uses publicGateway
+
+system platform
+    name = Platform
+
+    service api
+        name = API
+        deployment:
+            uses service_profile

@@ -1,0 +1,11 @@
+environment source_env
+    name = Source Environment
+
+deployment production
+    compute:
+        name = Source Compute
+
+    network:
+        name = Source Network
+        projection:
+            source $from originalLink target $to

@@ -7,10 +7,11 @@
 
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { BUILTIN_VIEW_DEFINITIONS, type BuiltinViewDefinition } from '@insight/language';
+  import { BUILTIN_VIEW_DEFINITIONS, queryVariableOccurrences, type BuiltinViewDefinition, type QueryParameterValue } from '@insight/language';
 
   export let diagramMode: DiagramMode;
   export let query: string;
+  export let queryParameters: Readonly<Record<string, QueryParameterValue>> | undefined = undefined;
   export let queryVisible = false;
   export let queryDocument = false;
   export let projectQueries: readonly { readonly name: string; readonly paths: readonly string[]; readonly view?: string }[] = [];
@@ -26,6 +27,7 @@
   export let onCloseDeploymentPicker: () => void = () => {};
   export let onToggleQuery: () => void;
   export let onQueryChange: (query: string) => void;
+  export let onQueryParameterChange: (name: string, value: QueryParameterValue | undefined) => void = () => {};
   export let onQueryPanelHeightChange: (height: number) => void;
 
   const minQueryPanelHeight = 80;
@@ -47,11 +49,18 @@
   let deploymentPickerWasOpen = false;
   let customViewPickerHost: HTMLDivElement;
   let customViewPickerOpen = false;
+  let invalidParameter: string | undefined;
+  $: requiredParameters = [...new Set(queryVariableOccurrences(query).map((item) => item.name))]
+    .filter((name) => name !== 'context' && name !== 'tab').sort();
 
   $: normalizedQueryPanelHeight = clampQueryPanelHeight(queryPanelHeight);
   $: queryEditorStyle = queryVisible && !queryDocument
-    ? `grid-template-rows: 36px ${normalizedQueryPanelHeight}px 6px;`
-    : 'grid-template-rows: 36px;';
+    ? requiredParameters.length > 0
+      ? `grid-template-rows: 36px auto ${normalizedQueryPanelHeight}px 6px;`
+      : `grid-template-rows: 36px ${normalizedQueryPanelHeight}px 6px;`
+    : requiredParameters.length > 0
+      ? 'grid-template-rows: 36px auto;'
+      : 'grid-template-rows: 36px;';
   $: if (queryVisible && !queryDocument) {
     void ensureQueryEditor();
   } else {
@@ -194,6 +203,27 @@
     return Math.max(minQueryPanelHeight, Math.min(maxQueryPanelHeight, value));
   }
 
+  function parameterChanged(name: string, text: string): void {
+    invalidParameter = undefined;
+    if (text.trim() === '') {
+      onQueryParameterChange(name, undefined);
+      return;
+    }
+    try {
+      const value = JSON.parse(text) as unknown;
+      if (!validParameter(value)) throw new Error('Expected null, boolean, finite number, string, or a list of these values');
+      onQueryParameterChange(name, value);
+    } catch (error) {
+      invalidParameter = `${name}: ${error instanceof Error ? error.message : 'Invalid JSON value'}`;
+    }
+  }
+
+  function validParameter(value: unknown): value is QueryParameterValue {
+    return value === null || typeof value === 'string' || typeof value === 'boolean'
+      || (typeof value === 'number' && Number.isFinite(value))
+      || (Array.isArray(value) && value.every(validParameter));
+  }
+
   function diagramModeForDefinition(definition: BuiltinViewDefinition): DiagramMode {
     return definition.id === 'no-filter' ? 'default' : definition.id;
   }
@@ -308,6 +338,15 @@
     <slot name="refresh-actions"></slot>
   </header>
 
+  {#if requiredParameters.length > 0}
+    <section class="query-parameters" aria-label="Query parameters">
+      {#each requiredParameters as name (name)}
+        <label><span>${name}</span><input aria-label={`Parameter ${name}`} value={queryParameters?.[name] === undefined ? '' : JSON.stringify(queryParameters[name])} placeholder="JSON value" on:change={(event) => parameterChanged(name, event.currentTarget.value)} /></label>
+      {/each}
+      {#if invalidParameter !== undefined}<span class="parameter-error" role="alert">{invalidParameter}</span>{/if}
+    </section>
+  {/if}
+
   {#if queryVisible && !queryDocument}
     <section class="query-panel" aria-label="Graph query">
       <div bind:this={queryHost} class="query-monaco"></div>
@@ -339,6 +378,11 @@
     border-bottom: 1px solid var(--archinsight-border, #333333);
     background: var(--archinsight-toolbar-bg, #242424);
   }
+
+  .query-parameters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--archinsight-border, #333); background: var(--archinsight-toolbar-bg, #242424); font-size: 12px; }
+  .query-parameters label { display: inline-flex; gap: 6px; align-items: center; }
+  .query-parameters input { width: 150px; padding: 3px 6px; color: inherit; background: var(--archinsight-control-bg, #2a2a2a); border: 1px solid var(--archinsight-border, #444); }
+  .parameter-error { color: var(--vscode-errorForeground, #f48771); }
 
   .icon-button {
     display: inline-grid;

@@ -1,0 +1,7 @@
+MATCH (container:ContainerElement)
+WHERE container.context = $context
+OPTIONAL MATCH (container)<-[incoming:REFERENCES]-(consumer:Element)
+WITH container, incoming
+WHERE incoming IS NULL
+RETURN TABLE elementId(container) AS container
+ORDER BY container

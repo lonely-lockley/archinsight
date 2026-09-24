@@ -49,27 +49,343 @@ Archinsight queries are not fully compatible with Cypher. The current language s
 - node and relationship property predicates;
 - one `WHERE` expression attached to each match clause;
 - `AND`, `OR`, `NOT`, and parentheses;
-- `=`, `<>`, `CONTAINS`, `IN`, `IS`, and `IS NOT` predicates;
-- list literals in expressions;
+- `=`, `<>`, `<`, `<=`, `>`, `>=`, `CONTAINS`, `IN`, `IS`, and `IS NOT`
+  predicates;
+- list literals, `all`/`any` predicates, and list comprehensions;
 - architecture-specific `ROLLUP` matching;
 - architecture-specific exact and inclusive relationship selectors;
 - one `GROUP BY` expression;
 - `RETURN` of bound aliases.
 
-The current grammar has no mutation clauses, aggregation functions, variable-length paths, subqueries, ordering, pagination, or general Cypher expression language. `RETURN` selects previously bound aliases rather than computing arbitrary projections.
+The language has no mutation clauses or subqueries. Plain `RETURN` selects
+bound aliases for a graph result. `RETURN TABLE` adds `WITH`, `UNWIND`, named
+path assignments, `shortestPath`, computed projections, aggregation,
+`DISTINCT`, `ORDER BY`, `SKIP`, and `LIMIT` for analytical reports.
+
+## Table reports and analytics
+
+Use `RETURN TABLE` when the answer is rows rather than a diagram. Every computed
+column needs an `AS` name; a bound alias can keep its name. Table queries support
+`WITH`, `UNWIND`, `DISTINCT`, `ORDER BY`, `SKIP`, `LIMIT`, list literals,
+parameters, comparisons, and `IS NULL`. Aggregates are `count`, `collect`,
+`min`, `max`, `sum`, and `avg`. Scalar functions include `elementId`, `size`,
+`coalesce`, `nodes`, `relationships`, `length`, `startNode`, `endNode`,
+`annotations`, `originId`, and the `toInteger`/`toFloat`/`toBoolean`/`toString`
+conversions.
+The `all(item IN list WHERE predicate)` and
+`any(item IN list WHERE predicate)` functions evaluate list predicates. List
+comprehensions use `[item IN list WHERE predicate | projection]`, with an
+optional `WHERE` part.
+
+```cypher
+MATCH (service:Service)
+WHERE service.context = $context
+RETURN TABLE elementId(service) AS service,
+             service.type AS type,
+             service.technology AS technology
+ORDER BY service
+```
+
+The CLI returns the versioned `aiq-table.v1` JSON envelope by default. `csv`
+contains only the column header and rows; `text` is intended for reading in a
+terminal. The web workspace and VS Code workbench show the same result as a
+table in place of the diagram, with JSON and CSV downloads. Required user
+parameters appear above the result when editing a saved `.aiq`. `$context` and
+`$tab` continue to use the query scope selectors.
+
+JSON preserves cell types and distinguishes null from an empty string. CSV
+encodes null as an empty field and lists/records/paths as JSON text inside one
+cell, so use JSON when that distinction matters. CSV uses CRLF records and
+standard quote doubling, but it does not neutralize spreadsheet formulas.
+
+```shell
+archinsight query . -s models/storefront.ai -q reports/inventory.aiq --format json
+archinsight query . -s models/storefront.ai -q reports/inventory.aiq --format csv --out inventory.csv
+archinsight query . -q reports/path.aiq --param 'from="sales/api"' --param 'to="billing/api"'
+archinsight query . -q reports/topics.aiq --params report-params.json
+```
+
+In VS Code, open a saved `.aiq` in the Archinsight editor and use the play
+button or run **Archinsight: Run AIQ Query** from the Command Palette. Choose
+`$tab` and `$context` with the inline controls embedded at their occurrences in
+the query. Required user parameters appear above the result. The web editor
+uses the same shared editor and controls. A table report replaces the diagram
+area; it shows up to 100 rows per local page and can be downloaded using the
+same JSON or CSV contract as the CLI. AIQ completion remains available while
+the query is incomplete.
+
+Parameter values are JSON null, boolean, finite number, string, or lists of
+those values. `--param name=<json>` can be repeated. `--params` reads one JSON
+object relative to the current working directory. Missing, unused, duplicated,
+or attempts to set reserved `$context`/`$tab` parameters are errors.
+
+Variable paths use relationship trails, so a single query-visible relationship
+does not repeat within one path. Nodes may repeat. Enumerating paths must have
+a finite maximum. An endpoint-only `RETURN TABLE DISTINCT` reachability query
+and `shortestPath` may omit the maximum:
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+RETURN TABLE DISTINCT elementId(to) AS target
+ORDER BY target
+```
+
+The endpoint-only form uses a visited traversal and does not enumerate alternate
+routes. It may return either endpoint or both and may filter endpoint properties:
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) IN $from
+MATCH (from)-[:REFERENCES*1..]->(to:Element)
+WHERE elementId(to) IN $to
+RETURN TABLE DISTINCT elementId(from) AS source,
+                      elementId(to) AS target
+ORDER BY source, target
+```
+
+It must not bind a path or relationship, return or aggregate path evidence, or
+have another input clause after the unbounded match. Bind a named path and set a
+finite maximum when route evidence is needed:
+
+```cypher
+MATCH (from:Element)
+WHERE elementId(from) = $from
+MATCH (to:Element)
+WHERE elementId(to) = $to
+MATCH p = shortestPath((from)-[:REFERENCES*1..]->(to))
+RETURN TABLE elementId(from) AS source,
+             elementId(to) AS target,
+             length(p) AS hops,
+             p.steps AS steps
+```
+
+Use `<-` for impact analysis when authored dependencies point from consumer to
+provider. Each path step preserves the stored relationship direction. Derived
+relationships can be included with `{withDerived}`, which changes the traversal
+to the ownership rollup graph. Consecutive rollup hops can represent relations
+of different children of the shared owner, so that path establishes aggregated
+owner reachability rather than one continuous underlying dependency chain. Keep
+the path selector-free for exact dependency and impact analysis. Projected
+relationships are rejected for variable-length traversal because their
+query-visible endpoints do not define one stable logical traversal graph.
+
+## Solving common questions
+
+The following recipes are starting points for people. Keep them in `reports/`;
+use `views/` for graph-returning queries.
+
+### Direct dependencies
+
+Question: “Which elements does this service depend on?”
+
+```cypher
+MATCH (service:Service)-[dependency:REFERENCES]->(provider:Element)
+WHERE elementId(service) = $service
+RETURN TABLE DISTINCT elementId(provider) AS provider,
+                      dependency.type AS relationshipType,
+                      originId(dependency) AS origin
+ORDER BY provider
+```
+
+Run with `--param 'service="context/service"'`. Parallel relationships remain
+separate when their type or origin differs.
+
+```shell
+archinsight query . -q reports/direct-dependencies.aiq \
+  --param 'service="shop/checkout"' --format text
+```
+
+A typical row contains `shop/catalog`, `SyncWire`, and the authored relationship
+id. JSON is the best format when provenance will be processed by another tool.
+
+### Change impact
+
+Question: “What can be affected if B changes?”
+
+```cypher
+MATCH (changed:Element)
+WHERE elementId(changed) = $element
+MATCH p = (changed)<-[:REFERENCES*1..8]-(dependent:Element)
+WHERE dependent <> changed
+RETURN TABLE elementId(dependent) AS dependent,
+             min(length(p)) AS distance,
+             collect(p.steps) AS evidence
+ORDER BY dependent
+```
+
+Run with `--param 'element="context/B"'`. The result is potential impact in the
+declared model, not an outage probability or execution trace. Depth 8 is part of
+the question; raise it deliberately if the architecture is deeper.
+
+```shell
+archinsight query . -q reports/impact.aiq \
+  --param 'element="shop/catalog"' --format csv
+```
+
+For a direct checkout dependency, the first columns are
+`shop/checkout,1`. Evidence remains a structured list in JSON and is encoded as
+JSON text inside one CSV cell.
+
+For immediate failure propagation, constrain the path relationship with
+`{type: 'SyncWire'}`. Then the answer is whether a modeled synchronous path
+exists against the dependency arrow. The generic query above answers broader
+change impact and intentionally includes async dependencies.
+
+When the changed anchor is a system and dependencies are authored against its
+children, expand the system before traversing the direct relationship graph:
+
+```cypher
+MATCH (changed:System)
+WHERE elementId(changed) = $system
+MATCH (changed)-[:CONTAINS*0..8]->(provider:Element)
+MATCH (provider)<-[:REFERENCES*1..]-(dependent:Element)
+WHERE dependent <> provider
+RETURN TABLE DISTINCT elementId(dependent) AS dependent
+ORDER BY dependent
+```
+
+The containment bound states the ownership depth included in the question.
+This form does not need `{withDerived}`: without a selector, `REFERENCES`
+matches only direct, non-derived, non-projected relationships.
+
+### Async topics and consumers
+
+Question: “Which async topics exist, and who produces or consumes them?”
+
+```cypher
+MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+WHERE consumer.context = $context
+  AND event IS AsyncWire
+UNWIND event.via AS topic
+RETURN TABLE DISTINCT topic,
+                      elementId(producer) AS producer,
+                      elementId(consumer) AS consumer
+ORDER BY topic, producer, consumer
+```
+
+This form includes wires with no `technology` and no deployment block. Filter
+`event.technology` only in a project that stores transport technology on the
+logical wire. If Kafka is modeled on a broker, join that infrastructure through
+`broker IN event.uses` only when the question is about the broker.
+
+```shell
+archinsight query . -c shop -q reports/async-topics.aiq --format json
+```
+
+For one checkout consumer, a row can contain `orders.created`, `shop/catalog`,
+and `shop/checkout`. A topic with no modeled wire cannot be discovered.
+
+For consumers of topics produced by any child of one system, roll the producer
+endpoint up to its owner while keeping the consuming service or container:
+
+```cypher
+MATCH (producer:System)
+WHERE elementId(producer) = $system
+MATCH ROLLUP (consumer:ContainerElement)-[event:REFERENCES]->(producer)
+WHERE event IS AsyncWire
+UNWIND event.via AS topic
+RETURN TABLE DISTINCT topic, elementId(consumer) AS consumer
+ORDER BY topic, consumer
+```
+
+`ROLLUP` is the direct system-level pattern. A graph query using
+`{withDerived}` can instead select authored relationships lifted to owners.
+
+### No incoming dependencies
+
+```cypher
+MATCH (container:ContainerElement)
+WHERE container.context = $context
+OPTIONAL MATCH (container)<-[incoming:REFERENCES]-(consumer:Element)
+WITH container, incoming
+WHERE incoming IS NULL
+RETURN TABLE elementId(container) AS container
+ORDER BY container
+```
+
+An empty result is meaningful only after the context, candidate inventory, and
+any qualified anchor id have been checked. An unknown id also produces no rows.
+
+```shell
+archinsight query . -c shop -q reports/no-incoming-dependencies.aiq --format text
+```
+
+The output is one service or container id per row. Swap the arrow to find
+elements with no outgoing dependency instead.
+
+### Counts by type
+
+```cypher
+MATCH (element:Element)
+WHERE element.context = $context
+RETURN TABLE element.type AS type, count(*) AS total
+ORDER BY type
+```
+
+```shell
+archinsight query . -c shop -q reports/type-summary.aiq --format csv
+```
+
+The table has `type,total`, for example `Service,12`. Counts describe the
+selected semantic graph and can include derived query-visible objects only when
+the query asks for them.
+
+### Paths, alternatives, and cycles
+
+Use the shortest-path report when one explanation is enough:
+
+```shell
+archinsight query . -q reports/shortest-path.aiq \
+  --param 'from="shop/checkout"' --param 'to="shop/catalog"' --format json
+```
+
+The result includes source, target, hop count, nodes, and ordered steps. Replace
+`shortestPath((from)-[:REFERENCES*1..]->(to))` with a finite pattern such as
+`(from)-[:REFERENCES*1..8]->(to)` to enumerate alternatives. A cycle query binds
+the same element at both endpoints and uses a minimum of 1. Both operations use
+relationship trails, so a relationship cannot repeat within one returned path;
+always state the maximum depth when interpreting alternatives or cycles.
+
+### Annotations
+
+Annotations are ordinary typed data rather than a special report mode:
+
+```cypher
+MATCH (element:Element)
+WHERE element.context = $context
+UNWIND annotations(element) AS annotation
+RETURN TABLE elementId(element) AS element,
+             annotation.name AS annotation,
+             annotation.value AS value
+ORDER BY element, annotation
+```
+
+Save this as `reports/annotations.aiq` and run
+`archinsight query . -c shop -q reports/annotations.aiq --format json`.
+Elements without annotations produce no rows; keep JSON when annotation values
+or source metadata need to retain their types.
+
+AIQ completion in the web and native VS Code editors suggests clauses, aliases,
+model types and attributes, functions, selectors, and parameters even while a
+query is incomplete.
 
 ## Saved queries and custom views
 
 Create a file with the `.aiq` extension to keep a reusable query with the
-project. The recommended location is `views/`:
+project. Put graph-returning views under `views/` and table reports under
+`reports/`:
 
 ```text
 views/
     dependencies.aiq
     external-integrations.aiq
+reports/
+    dependency-inventory.aiq
 ```
 
-The directory is a project convention, not part of query identity. The web
+These directories are a purpose-based project convention, not part of query identity. The web
 workspace discovers query files recursively and identifies each query only by
 its filename without `.aiq`. `views/dependencies.aiq` therefore creates the
 custom view `dependencies`. Names and the `.aiq` extension are case-sensitive.
@@ -145,6 +461,11 @@ query text directly in an `.ai` tab's query panel creates that tab's local
 customization, as before. Selecting a view again restores the file-backed or
 built-in query.
 
+Query discovery skips hidden directories and the `node_modules`, `build`, and
+`dist` directories. Bundled examples under generated `.claude/skills/` and
+`.codex/skills/` packages therefore do not become project queries or built-in
+overrides.
+
 ### Run a saved query from the CLI
 
 The CLI does not discover project query files or override built-in views by
@@ -164,7 +485,7 @@ explicit context:
 archinsight query . -c ecommerce -q views/external-integrations.aiq --format json
 ```
 
-`--query` takes precedence over `--view`, so pass one or the other. In
+`--query` and `--view` are mutually exclusive, so pass one or the other. In
 particular, `archinsight query ... -v c2` runs the built-in query bundled with
 that CLI version; it does not look for `views/c2.aiq`. Running
 `-q views/c2.aiq` executes the file as a standalone query and does not attach
@@ -226,7 +547,7 @@ MATCH (service:Service)
 RETURN service
 ```
 
-Type labels include inherited Insight types. The general `Element`, `Context`, `SourceIdentity`, and `Type` labels select the corresponding semantic node kinds.
+Element type labels include inherited Insight types. The general `Element`, `Context`, `SourceIdentity`, and `Type` labels select the corresponding semantic node kinds. Type-definition nodes use only the `Type` label; inspect their `type` and `baseTypes` properties when querying the type hierarchy.
 
 Element nodes expose these built-in properties:
 
@@ -362,7 +683,13 @@ WHERE source.runsOn <> target.runsOn
 RETURN source, dependency, target
 ```
 
-Scalar references compare by qualified element id. List-valued properties compare as complete ordered lists. When either property is absent, both `=` and `<>` evaluate to false for that row. The language does not currently calculate list intersection or set difference; those operations require post-processing the JSON result.
+Scalar references compare by qualified element id. List-valued properties
+compare as complete ordered lists. When either property is absent, both `=` and
+`<>` evaluate to false for that row. Ordered comparisons `<`, `<=`, `>`, and
+`>=` accept two numbers or two strings. Use `all(item IN list WHERE predicate)`
+and `any(item IN list WHERE predicate)` for list predicates. A list
+comprehension such as `[item IN source.uses WHERE item IN target.uses | item]`
+can select an intersection without post-processing query JSON.
 
 Type predicates use the effective inheritance tree:
 
@@ -373,11 +700,20 @@ WHERE node IS ContainerElement
 RETURN node
 ```
 
+They also apply to relationships in both graph and table queries, including
+project-defined operator descendants:
+
+```cypher
+MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+WHERE event IS AsyncWire
+RETURN consumer, event, producer
+```
+
 `External` is a built-in semantic predicate based on the element's resolved model kind. It matches declarations created with `external actor` or `external system`. Relative externality in a built-in C1-C4 view is carried separately by the resulting render graph and does not change this predicate in custom queries.
 
-A custom CLI query uses its own selection and grouping rules. The query file
-overrides `--view`, so built-in boundary handling is not applied after the
-custom query:
+A custom CLI query uses its own selection and grouping rules. Select it with
+`--query` instead of `--view`; the two options are mutually exclusive. Built-in
+boundary handling is not applied after the custom query:
 
 ```shell
 archinsight query . -s storefront.ai -q views/dependencies.aiq --format json
@@ -468,7 +804,7 @@ RETURN component, container
 
 These patterns select nodes connected through typed model attributes even when the attribute itself is not represented as an authored `REFERENCES` edge.
 
-Attribute cardinality comes from the Insight type system and linked reference metadata. `Wire.uses` is a declared list; infrastructure `runsOn` is a declared scalar reference. On systems and containers, `runsOn` and `uses` are computed deployment results, not declared source attributes. A single resolved reference can be compared with a bound node or tested against a qualified id:
+Attribute cardinality comes from the Insight type system and linked reference metadata. `Wire.uses` is a declared list; infrastructure `runsOn` is a declared scalar reference. On systems and containers, `runsOn` and `uses` are computed deployment results, not declared source attributes. A single resolved reference is the real typed graph node and can be compared with a bound node or tested against a qualified id:
 
 ```cypher
 WHERE node.uses IN ['eu/vault']

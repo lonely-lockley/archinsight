@@ -1,11 +1,14 @@
 import { defaultQuery, queryForDiagramMode } from '@archinsight/workbench/presets';
-import { analyzeQuery, resolveBuiltinView, type BuiltinDiagramView, type LinkProjectResult } from '@insight/language';
+import { analyzeQuery, resolveBuiltinView, type BuiltinDiagramView, type LinkProjectResult, type QueryParameterValue } from '@insight/language';
 import { discoverProjectQueries, isQueryFile, projectFilePaths, resolveProjectQuery } from '@archinsight/workbench/project-queries';
-import type {
-  QueryScopeChoice,
-  QueryScopeVariable,
-  QueryScopeWidgetState
-} from '@archinsight/workbench/query-scope-widgets';
+import {
+  resolveQueryScopeState,
+  selectQueryScope,
+  type QueryScopeChoice,
+  type QueryScopeContextChoice,
+  type QueryScopeVariable,
+  type QueryScopeWidgetState
+} from '@archinsight/workbench/query-scope-state';
 import type { TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
 
 export type ResolvedProjectQuery = {
@@ -14,6 +17,8 @@ export type ResolvedProjectQuery = {
   readonly source?: string;
   readonly context?: string;
   readonly waiting?: string;
+  readonly resultKind?: 'graph' | 'table';
+  readonly requiredParameters?: readonly string[];
 };
 
 export class ProjectQuerySyntaxError extends Error {
@@ -47,32 +52,26 @@ export function createProjectQueryController(ports: ProjectQueryControllerPorts)
       .map((path) => scopeChoice(path, rootTypes.get(path)));
   };
 
-  const availableContexts = (): readonly QueryScopeChoice[] => {
+  const queryContexts = (): readonly QueryScopeContextChoice[] => {
     const contexts = ports.analysis()?.contexts.filter((context) => context.synthetic !== true) ?? [];
-    const rootTypes = new Map(contexts.map((context) => [context.id, context.type]));
-    return [...rootTypes.keys()]
-      .sort()
-      .map((id) => scopeChoice(id, rootTypes.get(id)));
+    return contexts.map((context) => ({
+      ...scopeChoice(context.id, context.type),
+      sourceIdentity: context.sourceIdentity
+    }));
   };
+
+  const availableContexts = (): readonly QueryScopeChoice[] => resolveQueryScopeState(
+    false, [], queryContexts(), {}
+  ).contexts;
 
   const widgetState = (): QueryScopeWidgetState => {
     const tab = ports.activeTab();
-    const sources = querySources();
-    const contexts = availableContexts();
-    const source = sources.some((candidate) => candidate.value === tab?.querySource)
-      ? tab?.querySource
-      : undefined;
-    const inferredContext = ports.analysis()?.contexts.find((context) => context.sourceIdentity === source)?.id;
-    const context = source === undefined && contexts.some((candidate) => candidate.value === tab?.queryContext)
-      ? tab?.queryContext
-      : inferredContext;
-    return {
-      enabled: tab !== undefined && isQueryFile(tab.sourceIdentity),
-      tab: source,
-      context,
-      sources,
-      contexts
-    };
+    return resolveQueryScopeState(
+      tab !== undefined && isQueryFile(tab.sourceIdentity),
+      querySources(),
+      queryContexts(),
+      { tab: tab?.querySource, context: tab?.queryContext }
+    );
   };
 
   return {
@@ -81,12 +80,16 @@ export function createProjectQueryController(ports: ProjectQueryControllerPorts)
     selectScope(variable: QueryScopeVariable, value: string): void {
       const tab = ports.activeTab();
       if (tab === undefined || !isQueryFile(tab.sourceIdentity)) return;
-      const choices = widgetState();
-      if (!(variable === 'tab' ? choices.sources : choices.contexts).some((choice) => choice.value === value)) return;
-      const context = ports.analysis()?.contexts.find((item) => item.sourceIdentity === tab.querySource)?.id;
-      ports.patchTab(tab.id, variable === 'tab'
-        ? { querySource: value, queryContext: undefined, dot: undefined }
-        : { queryContext: value, querySource: context === value ? tab.querySource : undefined, dot: undefined });
+      const selection = selectQueryScope(
+        widgetState(), queryContexts(), { tab: tab.querySource, context: tab.queryContext }, variable, value
+      );
+      if (selection === undefined) return;
+      ports.patchTab(tab.id, {
+        querySource: selection.tab,
+        queryContext: selection.context,
+        dot: undefined,
+        queryResult: undefined
+      });
       ports.persist();
       ports.refreshWidgets();
       ports.scheduleDiagram();
@@ -97,7 +100,18 @@ export function createProjectQueryController(ports: ProjectQueryControllerPorts)
       if (tab === undefined || isQueryFile(tab.sourceIdentity)) return;
       const query = discoverProjectQueries(ports.tree()).find((query) => query.name === name);
       if (query === undefined) return;
-      ports.patchTab(tab.id, { queryView: name, queryPreset: true, diagramMode: query.view ?? 'default', deploymentEnvironment: undefined, dot: undefined });
+      ports.patchTab(tab.id, { queryView: name, queryPreset: true, diagramMode: query.view ?? 'default', deploymentEnvironment: undefined, dot: undefined, queryParameters: {}, queryResult: undefined });
+      ports.persist();
+      ports.scheduleDiagram();
+    },
+
+    setParameter(name: string, value: QueryParameterValue | undefined): void {
+      const tab = ports.activeTab();
+      if (tab === undefined || name === 'context' || name === 'tab') return;
+      const queryParameters = { ...(tab.queryParameters ?? {}) };
+      if (value === undefined) delete queryParameters[name];
+      else queryParameters[name] = value;
+      ports.patchTab(tab.id, { queryParameters, queryResult: undefined });
       ports.persist();
       ports.scheduleDiagram();
     },
@@ -123,18 +137,34 @@ export function createProjectQueryController(ports: ProjectQueryControllerPorts)
         : undefined;
       const context = source === undefined ? storedContext
         : analysis?.contexts.find((item) => item.sourceIdentity === source)?.id;
-      let variables: readonly string[];
+      let queryAnalysis: ReturnType<typeof analyzeQuery>;
       try {
-        variables = analyzeQuery(!queryTab && path === undefined && query.trim() === '' ? defaultQuery : query).referencedVariables;
+        queryAnalysis = analyzeQuery(!queryTab && path === undefined && query.trim() === '' ? defaultQuery : query);
       } catch (cause) {
         throw new ProjectQuerySyntaxError(query, cause);
       }
+      if (queryAnalysis.diagnostics.some((diagnostic) => diagnostic.level === 'ERROR')) {
+        const diagnostic = queryAnalysis.diagnostics.find((item) => item.level === 'ERROR')!;
+        throw new ProjectQuerySyntaxError(query, new Error(`${diagnostic.code}: ${diagnostic.message}`));
+      }
+      if (projectQuery?.view !== undefined && queryAnalysis.resultKind !== 'graph') {
+        throw new ProjectQuerySyntaxError(query, new Error(`Built-in view override '${projectQuery.view}' must return a graph`));
+      }
+      const variables = queryAnalysis.referencedVariables;
       const view = projectQuery?.view ?? (queryTab || tab.queryView !== undefined ? undefined : resolveBuiltinView(tab.diagramMode, true)!.id);
       const waiting = (variables.includes('tab') && source === undefined)
         || (variables.includes('context') && context === undefined)
         ? 'Select query scope'
         : undefined;
-      return { query, view, source, context, waiting };
+      return {
+        query,
+        view,
+        source,
+        context,
+        waiting,
+        resultKind: queryAnalysis.resultKind === 'unknown' ? undefined : queryAnalysis.resultKind,
+        requiredParameters: queryAnalysis.requiredParameters
+      };
     }
   };
 }

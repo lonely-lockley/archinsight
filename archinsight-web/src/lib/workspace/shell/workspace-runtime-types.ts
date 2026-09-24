@@ -21,6 +21,7 @@ export type WorkspaceRuntimeHost = {
 
 export type WorkspaceRuntimeControllers = {
   query: ReturnType<typeof createProjectQueryController>;
+  analysis: { cancelCurrent(): void };
   auth: AuthController;
   action: WorkspaceActionController;
   diagram: DiagramController;

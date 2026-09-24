@@ -147,4 +147,29 @@ describe('download controller', () => {
     subject.controller.dot();
     expect(subject.downloadText).toHaveBeenCalledOnce();
   });
+
+  it('downloads table results as CSV and JSON', () => {
+    const queryResult = {
+      schemaVersion: 'aiq-table.v1' as const,
+      kind: 'table' as const,
+      columns: [{ name: 'service', type: 'string' as const, nullable: false }],
+      rows: [['shop,api']],
+      metadata: {
+        context: null, source: null, executionComplete: true as const, rowCount: 1,
+        skip: 0, limit: null, pathScopes: [], warnings: []
+      }
+    };
+    const subject = fixture();
+    subject.setActiveTab(tab({ title: 'report.aiq', queryResult }));
+
+    subject.controller.csv();
+    subject.controller.json();
+
+    expect(subject.downloadText).toHaveBeenNthCalledWith(
+      1, 'report.csv', 'service\r\n"shop,api"\r\n', 'text/csv;charset=utf-8'
+    );
+    expect(subject.downloadText).toHaveBeenNthCalledWith(
+      2, 'report.json', `${JSON.stringify(queryResult, null, 2)}\n`, 'application/json;charset=utf-8'
+    );
+  });
 });

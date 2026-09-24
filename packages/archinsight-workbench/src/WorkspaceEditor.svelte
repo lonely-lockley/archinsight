@@ -6,11 +6,15 @@
   import RefreshActions from './RefreshActions.svelte';
   import type { EmptyWorkspaceAction, EmptyWorkspaceStrategy } from './empty-workspace-strategy';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from './workspace-types';
+  import type { QueryParameterValue, QueryTableResult } from '@insight/language';
 
   export let active = false;
   export let svg: string | undefined;
+  export let queryResult: QueryTableResult | undefined = undefined;
+  export let resultLoading = false;
   export let diagramMode: DiagramMode;
   export let query: string;
+  export let queryParameters: Readonly<Record<string, QueryParameterValue>> | undefined = undefined;
   export let queryVisible = false;
   export let queryDocument = false;
   export let projectQueries: readonly { readonly name: string; readonly paths: readonly string[]; readonly view?: string }[] = [];
@@ -39,6 +43,7 @@
   export let onCloseDeploymentPicker: () => void = () => {};
   export let onToggleQuery: () => void;
   export let onQueryChange: (query: string) => void;
+  export let onQueryParameterChange: (name: string, value: QueryParameterValue | undefined) => void = () => {};
   export let onQueryPanelHeightChange: (height: number) => void;
   export let onZoomIn: () => void;
   export let onZoomOut: () => void;
@@ -51,6 +56,7 @@
   export let onOpenDeclaration: (declaration: SourceLocation) => void;
   export let onBeginMessagesResize: (event: PointerEvent) => void;
   export let onEmptyAction: (action: EmptyWorkspaceAction) => void = () => {};
+  export let onCancelResult: () => void = () => {};
 </script>
 
 <section class:inactive={!active} class="workspace-editor">
@@ -58,6 +64,7 @@
     <QueryEditorPanel
       {diagramMode}
       {query}
+      {queryParameters}
       {queryVisible}
       {queryDocument}
       {projectQueries}
@@ -73,6 +80,7 @@
       {onCloseDeploymentPicker}
       {onToggleQuery}
       {onQueryChange}
+      {onQueryParameterChange}
       {onQueryPanelHeightChange}
     >
       <svelte:fragment slot="leading-actions">
@@ -102,6 +110,8 @@
     <EditorPanel
       {active}
       {svg}
+      {queryResult}
+      {resultLoading}
       {viewMode}
       {diagramScale}
       {diagramFit}
@@ -114,6 +124,7 @@
       bind:messagesPanel
       {emptyStrategy}
       {onEmptyAction}
+      {onCancelResult}
       {onEditorSplitRatioChange}
       {onDiagramVisibleScaleChange}
       {onOpenDeclaration}

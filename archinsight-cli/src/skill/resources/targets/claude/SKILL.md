@@ -44,7 +44,8 @@ Choose one mode before acting:
 - **Analyze:** stay read-only and follow `references/analysis.md`. Inspect
   sources, run `structure`, `link`, and the relevant query, then separate
   authored facts, derived relationships, deployment projections, and rendered
-  presentation in the findings.
+  presentation in the findings. Lead with the verdict, then its model evidence;
+  mention a limitation only when it could change the verdict.
 - **Repair:** reproduce the defect first. For a visual defect, inspect
   `archinsight query ... --format json` before treating the image as evidence
   that the model is wrong. Request the current image or rendered output when it
@@ -88,8 +89,9 @@ architecture.
    `$to` to wires, and make pub/sub dependencies consumer-owned.
 6. If a diagram becomes noisy, adjust scope/query before changing a correct
    graph model.
-7. Save reusable custom views as `.aiq`. Unless the user specifies another
-   location, create `views/` and write `views/<descriptive-name>.aiq`.
+7. Save reusable graph queries under `views/` and reusable `RETURN TABLE`
+   reports under `reports/`. Use reserved view basenames only for intentional
+   web-view overrides.
 8. Prefer small, focused files connected by `context`, `import`, and `extend`.
 9. Keep definition, context, and environment sources in separate files.
 10. Use `archinsight structure . --format text` to inspect the current model
@@ -149,15 +151,14 @@ sections of Insight unless the existing layering is already understood.
   or broad file changes.
 - Read `references/core.md` and `.core/*.ai` before assuming built-in types,
   constructors, attributes, presentations, or projections.
-- Read `references/queries.md` before writing queries or interpreting query
-  JSON.
+- Read `references/queries.md` before writing graph views or `RETURN TABLE`
+  reports, supplying parameters, or interpreting query JSON/CSV.
 - Read `references/custom-views.md` before creating a saved `.aiq` view or
   overriding a built-in query.
 - Read `references/query-recipes.md` when a view hides expected content,
   returns unexpected content, or needs customization.
 - Read `references/validation.md` before validating semantic or rendered
   results.
-- Read `references/analysis.md` for read-only architecture analysis,
-  dependency questions, impact exploration, and the boundary between Insight
-  queries and analysis of their JSON output.
+- Read `references/analysis.md` for inventories, dependency impact, paths,
+  topics, missing relationships, aggregation, and resource-bounded reports.
 - Use `examples/layered-architecture.ai` as a compact valid model.

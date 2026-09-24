@@ -1,4 +1,11 @@
 # Current Archinsight implementation modeled with Archinsight itself.
+# This is the main logical-model source and the entry point for C1, C2, D1,
+# and D2 views in the playground.
+# For detailed documentation about source file roles please refer to:
+# https://archinsight.org/doc/structuring-an-insight-project/#source-file-roles
+# For the Insight language reference please refer to:
+# https://archinsight.org/doc/insight-language/
+
 context archinsight
     name = Archinsight
 

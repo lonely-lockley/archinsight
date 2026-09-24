@@ -1,0 +1,15 @@
+context services
+
+deploymentProfile target_profile
+    appliesTo:
+        production from target_env
+
+    runsOn compute
+
+system target_system
+    name = Target System
+
+    service target
+        name = Target
+        deployment:
+            uses target_profile

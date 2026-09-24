@@ -102,6 +102,13 @@ export function createWorkspaceFileController(
   const analysis = (): AnalysisController => ports.analysisController();
   const monaco = (): MonacoSession => ports.monacoSession();
 
+  const scheduleActiveDiagramIfMissing = (): void => {
+    const tab = ports.activeTab();
+    if (tab !== undefined && tab.dot === undefined && tab.queryResult === undefined) {
+      analysis().scheduleDiagramUpdate();
+    }
+  };
+
   const persistWorkspace = (): void => {
     if (ports.activeProjectId() === undefined) return;
     const persistentTabs = ports.tabs().filter((tab) => tab.projectSource !== false);
@@ -146,7 +153,7 @@ export function createWorkspaceFileController(
     await ports.defer();
     if (loadGuard !== undefined && !ports.currentProjectLoad(loadGuard)) return;
     monaco().syncActiveTab();
-    analysis().scheduleDiagramUpdate();
+    scheduleActiveDiagramIfMissing();
   };
 
   const openFile = async (
@@ -256,7 +263,7 @@ export function createWorkspaceFileController(
     if (closingActiveTab) {
       monaco().syncActiveTab();
       if (removesSemanticInput) analysis().scheduleLink();
-      else analysis().scheduleDiagramUpdate();
+      else scheduleActiveDiagramIfMissing();
     } else if (removesSemanticInput) {
       analysis().scheduleLink();
     }
@@ -311,7 +318,7 @@ export function createWorkspaceFileController(
 
   return {
     contentChanged(tab, content) {
-      ports.tabController.patch(tab.id, { content, local: true, dot: undefined });
+      ports.tabController.patch(tab.id, { content, local: true, dot: undefined, queryResult: undefined });
       if (tab.filePath !== undefined) {
         ports.setOverlays({ ...ports.overlays(), [tab.filePath]: content });
         ports.writeLocalSource(ports.storageProjectId(), tab.filePath, content);
@@ -319,7 +326,7 @@ export function createWorkspaceFileController(
       if (isQueryFile(tab.sourceIdentity)) {
         const name = queryFileName(tab.sourceIdentity);
         for (const affected of ports.tabs()) {
-          if (selectedQueryName(affected) === name) ports.tabController.patch(affected.id, { dot: undefined });
+          if (selectedQueryName(affected) === name) ports.tabController.patch(affected.id, { dot: undefined, svg: '', queryResult: undefined });
         }
         analysis().scheduleDiagramUpdate(350);
         persistWorkspace();

@@ -48,7 +48,7 @@ Thumbs.db
 local/
 
 # Project-local examples, except the maintained Archinsight example
-examples/
+/examples/
 !/examples/
 !/examples/archinsight/
 !/examples/archinsight/**/*.ai

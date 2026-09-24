@@ -1,3 +1,8 @@
+# This source declares an external system imported by the Archinsight model.
+# Open a C1 view to see how it participates in the surrounding context.
+# For detailed documentation about context boundaries please refer to:
+# https://archinsight.org/doc/c1-system-context/#context-boundary
+
 context external_systems
     name = External systems
 

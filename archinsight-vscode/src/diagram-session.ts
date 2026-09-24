@@ -1,9 +1,13 @@
-export type DiagramArtifactKind = "source" | "svg" | "png" | "dot";
+import { formatQueryTableCsv } from "@insight/language/query-result-format";
+import type { QueryTableResult } from "@insight/language";
+
+export type DiagramArtifactKind = "source" | "svg" | "png" | "dot" | "csv" | "json";
 
 export interface DiagramQueryState<TView extends string> {
   readonly view: TView;
   readonly query: string;
   readonly environment?: string;
+  readonly parameters?: Readonly<Record<string, import("@insight/language").QueryParameterValue>>;
 }
 
 export interface DiagramPreviewState<TView extends string> extends DiagramQueryState<TView> {
@@ -12,6 +16,7 @@ export interface DiagramPreviewState<TView extends string> extends DiagramQueryS
   readonly svg?: string;
   readonly dot?: string;
   readonly error?: string;
+  readonly queryResult?: QueryTableResult;
 }
 
 export interface DiagramEnvironmentSelection {
@@ -24,6 +29,7 @@ export interface DiagramRenderRequest<TView extends string> {
   readonly query: string;
   readonly forceEnvironmentPicker?: boolean;
   readonly requestedEnvironment?: string;
+  readonly parameters?: Readonly<Record<string, import("@insight/language").QueryParameterValue>>;
 }
 
 export type DiagramRenderStatus = "rendered" | "cancelled" | "unavailable" | "stale";
@@ -83,8 +89,12 @@ export class DiagramSession<
     return this.currentPreview;
   }
 
+  cancel(): void {
+    this.generation++;
+  }
+
   setQueryState(view: TView, query: string): void {
-    this.currentQuery = this.withEnvironment(view, query, this.currentQuery.environment);
+    this.currentQuery = this.withEnvironment(view, query, this.currentQuery.environment, this.currentQuery.parameters);
   }
 
   async render(input: TInput | undefined, request: DiagramRenderRequest<TView>): Promise<DiagramRenderStatus> {
@@ -96,6 +106,7 @@ export class DiagramSession<
       view: this.currentQuery.view,
       query: this.currentQuery.query,
       requestedEnvironment: this.currentQuery.environment,
+      parameters: this.currentQuery.parameters,
     }, false);
   }
 
@@ -111,8 +122,22 @@ export class DiagramSession<
 
     const state = this.currentPreview;
     if (state === undefined) {
-      this.ports.warn("No rendered diagram is available.");
+      this.ports.warn(kind === "csv" || kind === "json"
+        ? "No table result is available."
+        : "No rendered diagram is available.");
       return false;
+    }
+    if (kind === "csv" || kind === "json") {
+      if (state.queryResult === undefined) {
+        this.ports.warn("No table result is available.");
+        return false;
+      }
+      await this.saveText(
+        state.fileName,
+        `.${kind}`,
+        kind === "csv" ? formatQueryTableCsv(state.queryResult) : `${JSON.stringify(state.queryResult, null, 2)}\n`,
+      );
+      return true;
     }
     if (kind === "svg") {
       if (state.svg === undefined) {
@@ -168,7 +193,7 @@ export class DiagramSession<
     }
     if (input === undefined) {
       if (queryChanged) {
-        this.currentQuery = this.withEnvironment(request.view, request.query, this.currentQuery.environment);
+        this.currentQuery = this.withEnvironment(request.view, request.query, this.currentQuery.environment, request.parameters ?? this.currentQuery.parameters);
         await this.ports.onQueryChanged?.(this.currentQuery);
         await this.ports.publishQuery?.(this.currentQuery);
       }
@@ -191,10 +216,11 @@ export class DiagramSession<
       environment = selection.environment;
     }
 
-    const nextQuery = this.withEnvironment(request.view, request.query, environment);
+    const nextQuery = this.withEnvironment(request.view, request.query, environment, request.parameters ?? this.currentQuery.parameters);
     const didChange = nextQuery.view !== this.currentQuery.view
       || nextQuery.query !== this.currentQuery.query
-      || nextQuery.environment !== this.currentQuery.environment;
+      || nextQuery.environment !== this.currentQuery.environment
+      || JSON.stringify(nextQuery.parameters) !== JSON.stringify(this.currentQuery.parameters);
     this.currentQuery = nextQuery;
     if (queryChanged && didChange) {
       await this.ports.onQueryChanged?.(nextQuery);
@@ -213,11 +239,17 @@ export class DiagramSession<
     return "rendered";
   }
 
-  private withEnvironment(view: TView, query: string, environment: string | undefined): DiagramQueryState<TView> {
+  private withEnvironment(
+    view: TView,
+    query: string,
+    environment: string | undefined,
+    parameters?: Readonly<Record<string, import("@insight/language").QueryParameterValue>>,
+  ): DiagramQueryState<TView> {
     return {
       view,
       query,
       ...(environment === undefined ? {} : { environment }),
+      ...(parameters === undefined ? {} : { parameters }),
     };
   }
 
@@ -247,5 +279,5 @@ export class DiagramSession<
 }
 
 export function fileNameWithExtension(fileName: string, extension: string): string {
-  return fileName.replace(/\.ai$/i, "") + extension;
+  return fileName.replace(/\.aiq?$/i, "") + extension;
 }

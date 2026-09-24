@@ -1,0 +1,21 @@
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute kubernetes
+            name = Kubernetes
+
+    observability:
+        monitoring telemetry
+            name = Telemetry agent
+            prometheus:
+                infrastructureComponent prometheus
+                    name = Prometheus
+            collector:
+                infrastructureComponent otel_collector
+                    name = OpenTelemetry Collector
+            projection:
+                target $this connectTo source $from
+                target $this connectTo target prometheus
+                target $this connectTo target collector
