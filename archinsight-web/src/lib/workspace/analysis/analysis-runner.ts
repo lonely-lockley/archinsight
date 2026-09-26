@@ -10,7 +10,8 @@ import {
   type LanguageDiagnostic,
   type LanguageSnapshot,
   type LinkProjectResult,
-  type QueryTableResult
+  type QueryTableResult,
+  type RenderTheme
 } from '@insight/language';
 import type {
   Diagnostic,
@@ -35,6 +36,7 @@ export type AnalysisRunnerState = {
   readonly query: string;
   readonly diagramMode: DiagramMode;
   readonly deploymentEnvironment: string | undefined;
+  readonly theme: RenderTheme;
 };
 
 export type AnalysisRunnerPorts = {
@@ -63,7 +65,7 @@ export type AnalysisRunnerPorts = {
   refreshEditorSymbols(): void;
   acceptProjectStructure(structure: ProjectStructure): void;
   clearDots(sourceIdentities: readonly string[]): void;
-  acceptDiagram(sourceIdentity: string, svg: string, dot: string | undefined): void;
+  acceptDiagram(sourceIdentity: string, svg: string, dot: string | undefined, theme: RenderTheme | undefined): void;
   acceptQueryResult(sourceIdentity: string, result: QueryTableResult | undefined): void;
   now(): number;
   queryFinished(sourceIdentity: string, durationMs: number, rowCount: number | undefined, diagnostics: readonly LanguageDiagnostic[]): void;
@@ -101,7 +103,8 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
   const acceptRenderedDiagrams = (
     renders: readonly DotRender[],
     rendered: SvgRenderResponse,
-    sourceIdentities: readonly string[]
+    sourceIdentities: readonly string[],
+    theme: RenderTheme
   ): boolean => {
     if (rendered.diagnostics.length > 0) {
       ports.cycleSummary('Renderer finished', rendered.diagnostics);
@@ -117,7 +120,7 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
     }
     const dotBySource = dotRendersBySource(renders);
     for (const svg of rendered.svgs) {
-      ports.acceptDiagram(svg.sourceIdentity, svg.svg, dotBySource.get(svg.sourceIdentity));
+      ports.acceptDiagram(svg.sourceIdentity, svg.svg, dotBySource.get(svg.sourceIdentity), theme);
     }
     return true;
   };
@@ -138,7 +141,7 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           if (!ports.isCurrent(sequence, projectId)) return;
           if (resolved?.waiting !== undefined) {
             ports.acceptQueryResult(sourceIdentity, undefined);
-            ports.acceptDiagram(sourceIdentity, emptyDiagramSvg(resolved.waiting), undefined);
+            ports.acceptDiagram(sourceIdentity, emptyDiagramSvg(resolved.waiting), undefined, undefined);
             continue;
           }
           const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === (resolved?.source ?? sourceIdentity));
@@ -166,7 +169,7 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           renders.push({
             sourceIdentity,
             diagram: 'query',
-            dot: renderGraphviz(analysis, result.graph, 'dark')
+            dot: renderGraphviz(analysis, result.graph, state.theme)
           });
         }
       } catch (error) {
@@ -192,7 +195,7 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
       }
       const rendered = await renderWithFallback(projectId, state.surface, renders);
       if (!ports.isCurrent(sequence, projectId)) return;
-      if (acceptRenderedDiagrams(renders, rendered, sourceIdentities)) {
+      if (acceptRenderedDiagrams(renders, rendered, sourceIdentities, state.theme)) {
         const durationMs = ports.now() - startedAt;
         renders.forEach((render) => ports.queryFinished(
           render.sourceIdentity,
@@ -238,7 +241,9 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           resolved === undefined ? builtinView(state.diagramMode) : resolved.view,
           state.deploymentEnvironment,
           state.surface,
-          resolved === undefined ? options : { ...options, querySource: resolved.source, queryContext: resolved.context }
+          resolved === undefined
+            ? { ...options, theme: state.theme }
+            : { ...options, querySource: resolved.source, queryContext: resolved.context, theme: state.theme }
         );
         if (!ports.isCurrent(sequence, state.projectId)) return;
         ports.setLoading(false);
@@ -264,10 +269,11 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         }
         const rendered = await renderWithFallback(state.projectId, state.surface, link.renders);
         if (!ports.isCurrent(sequence, state.projectId)) return;
-        if (!acceptRenderedDiagrams(link.renders, rendered, sourceIdentities)) return;
+        if (!acceptRenderedDiagrams(link.renders, rendered, sourceIdentities, state.theme)) return;
         const durationMs = ports.now() - startedAt;
         link.renders.forEach((render) => ports.queryFinished(render.sourceIdentity, durationMs, undefined, []));
         if (deploymentEnvironmentChanged) ports.scheduleDiagramUpdate();
+        if (ports.state().theme !== state.theme) ports.scheduleDiagramUpdate();
       } catch (error) {
         if (!ports.isCurrent(sequence, state.projectId)) return;
         ports.setLoading(false);

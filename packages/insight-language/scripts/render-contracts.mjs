@@ -75,6 +75,7 @@ WHERE n.context = $context
 RETURN n, r, m
 `);
   const dot = renderGraphviz(result, projection, "light");
+  const darkDot = renderGraphviz(result, projection, "dark");
 
   assertNoErrors(result);
   assert.equal(Object.keys(projection.elements).length, 2);
@@ -86,6 +87,8 @@ RETURN n, r, m
   assert(dot.includes('"source/app" -> "external_systems/google"'));
   assert(dot.includes("rankdir=TB"));
   assert(dot.includes("shape=\"box\""));
+  assert.notEqual(darkDot, dot);
+  assert(darkDot.includes('"source/app" -> "external_systems/google"'));
 }
 
 function rendersFixedSourceIdentityCypherProjection() {

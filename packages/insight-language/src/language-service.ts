@@ -13,7 +13,7 @@ import type {
 } from "./contracts.js";
 import { buildLanguageSnapshotResultFromSources, coreLanguageSnapshot, type LanguageSnapshotSource } from "./core-snapshot.js";
 import { createGeneratedInsightSyntaxProvider } from "./generated-provider.js";
-import { renderGraphviz } from "./graphviz-renderer.js";
+import { renderGraphviz, type RenderTheme } from "./graphviz-renderer.js";
 import { linkProject } from "./project-linker.js";
 import { ProjectLinkerState, type ProjectLinkerStateUpdate, type ProjectSourceReplacement } from "./project-linker-state.js";
 import { ProjectAnalysisSession } from "./project-analysis-session.js";
@@ -39,7 +39,7 @@ export interface ServiceRenderRequest {
   readonly result: LinkProjectResult;
   readonly scope: QueryScope;
   readonly query?: string;
-  readonly theme?: string;
+  readonly theme?: RenderTheme;
 }
 
 export interface ServiceRenderResult {

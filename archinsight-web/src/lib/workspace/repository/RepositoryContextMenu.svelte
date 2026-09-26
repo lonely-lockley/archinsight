@@ -91,10 +91,10 @@
     z-index: 80;
     min-width: 172px;
     padding: 4px;
-    border: 1px solid #454545;
+    border: 1px solid var(--archinsight-border-strong, #454545);
     border-radius: 4px;
-    background: #252525;
-    box-shadow: 0 12px 28px rgb(0 0 0 / 34%);
+    background: var(--archinsight-menu-bg, #252525);
+    box-shadow: var(--archinsight-shadow, 0 12px 28px rgb(0 0 0 / 34%));
   }
 
   .context-menu button {
@@ -107,7 +107,7 @@
     border: 0;
     border-radius: 3px;
     background: transparent;
-    color: #e5e5e5;
+    color: var(--archinsight-foreground, #e5e5e5);
     font: inherit;
     font-size: 12px;
     text-align: left;
@@ -115,14 +115,14 @@
 
   .context-menu button:hover,
   .context-menu button:focus-visible {
-    background: #36511f;
-    color: #ffffff;
+    background: var(--archinsight-control-active-bg, #36511f);
+    color: var(--archinsight-control-active-fg, #ffffff);
     outline: none;
   }
 
   .context-menu button:disabled {
     background: transparent;
-    color: #707070;
+    color: var(--archinsight-disabled-foreground, #707070);
     cursor: not-allowed;
   }
 </style>

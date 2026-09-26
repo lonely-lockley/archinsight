@@ -36,6 +36,7 @@ import {
 } from "./project-runtime.js";
 import { installSkillPackage } from "./skill/skill-installer.js";
 import { skillPackage } from "./skill/skill-package.js";
+import { resolveRenderTheme } from "./system-theme.js";
 
 export async function runLink(args: ParsedArgs): Promise<void> {
   const project = await loadProject(projectPath(args));
@@ -69,7 +70,7 @@ export async function runRender(args: ParsedArgs): Promise<void> {
   }
   try {
     const graph = await selectedGraph(project, args);
-    const dot = renderGraphviz(project.result, graph, args.theme ?? "light");
+    const dot = renderGraphviz(project.result, graph, await resolveRenderTheme(args.theme));
     const format = renderFormat(args.format, "dot");
     if (format === "dot") {
       await writeOutput(args.output, dot);

@@ -102,17 +102,17 @@
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--archinsight-border, #3a3a3a);
     border-radius: 4px;
-    background: #2a2a2a;
-    color: #eeeeee;
+    background: var(--archinsight-control-bg, #2a2a2a);
+    color: var(--archinsight-foreground, #eeeeee);
     font-size: 16px;
     line-height: 1;
   }
 
   .login-button:hover,
   .avatar-button:hover {
-    background: #343434;
+    background: var(--archinsight-control-hover-bg, #343434);
   }
 
   .avatar-button {
@@ -135,17 +135,17 @@
     z-index: 50;
     min-width: 180px;
     padding: 4px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--archinsight-border, #3a3a3a);
     border-radius: 4px;
-    background: #242424;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+    background: var(--archinsight-menu-bg, #242424);
+    box-shadow: var(--archinsight-shadow, 0 10px 24px rgba(0, 0, 0, 0.35));
   }
 
   .auth-user-name {
     max-width: 240px;
     padding: 7px 8px 8px;
-    border-bottom: 1px solid #343434;
-    color: #eeeeee;
+    border-bottom: 1px solid var(--archinsight-border-subtle, #343434);
+    color: var(--archinsight-foreground, #eeeeee);
     font-size: 12px;
     font-weight: 500;
     line-height: 1.25;
@@ -165,13 +165,13 @@
     border: 0;
     border-radius: 3px;
     background: transparent;
-    color: #eeeeee;
+    color: var(--archinsight-foreground, #eeeeee);
     font-size: 12px;
     text-align: left;
   }
 
   .auth-dropdown button:hover {
-    background: #343434;
+    background: var(--archinsight-control-hover-bg, #343434);
   }
 
   .has-tooltip {
@@ -185,10 +185,10 @@
     z-index: 60;
     max-width: 220px;
     padding: 6px 8px;
-    border: 1px solid #444444;
+    border: 1px solid var(--archinsight-tooltip-border, #444444);
     border-radius: 4px;
-    background: #181818;
-    color: #eeeeee;
+    background: var(--archinsight-tooltip-bg, #181818);
+    color: var(--archinsight-tooltip-fg, #eeeeee);
     content: attr(data-tooltip);
     font-size: 12px;
     font-weight: 500;

@@ -127,6 +127,7 @@ function validatedWebviewMessage<T>(parser: (value: unknown) => T, value: unknow
 }
 
 let activePreview: PreviewSession | undefined;
+const previewSessions = new Set<PreviewSession>();
 let activeWorkbenchEditor: ArchinsightWorkbenchEditorSession | undefined;
 const archinsightEditorViewType = "archinsight.editor";
 const archinsightCoreEditorViewType = "archinsight.coreEditor";
@@ -307,6 +308,10 @@ export function activate(context: vscode.ExtensionContext): void {
       if (editor !== undefined && isInsightDocument(editor.document)) {
         void activePreview?.setActiveDocument(editor.document);
       }
+    }),
+    vscode.window.onDidChangeActiveColorTheme(() => {
+      void workbenchEditor.refreshTheme();
+      for (const preview of previewSessions) void preview.refreshTheme();
     }),
   );
 
@@ -1018,6 +1023,10 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     await Promise.all([...this.sessions].map((session) => session.refreshFromProject(current)));
   }
 
+  async refreshTheme(): Promise<void> {
+    await Promise.all([...this.sessions].map((session) => session.refreshTheme()));
+  }
+
   async openLocation(location: vscode.Location, state?: DiagramQueryState): Promise<void> {
     if (location.uri.scheme === coreSourceScheme) {
       await this.openCoreSource(location.range, path.basename(location.uri.path), state);
@@ -1217,6 +1226,15 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     await this.diagram.refresh(input);
+  }
+
+  async refreshTheme(): Promise<void> {
+    if (this.disposed) return;
+    const current = this.project.current;
+    const input = current === undefined
+      ? undefined
+      : this.renderInput(current, this.diagram.queryState().query);
+    await this.diagram.refreshGraph(input);
   }
 
   async render(
@@ -1647,10 +1665,12 @@ class PreviewSession {
       { enableScripts: true, retainContextWhenHidden: true },
     );
     activePreview = this;
+    previewSessions.add(this);
     this.panel.onDidDispose(() => {
       if (activePreview === this) {
         activePreview = undefined;
       }
+      previewSessions.delete(this);
       this.diagram.dispose("Preview closed");
     });
     this.panel.onDidChangeViewState((event) => {
@@ -1685,6 +1705,10 @@ class PreviewSession {
     }
     this.current = current;
     await this.diagram.refresh(this.renderInput());
+  }
+
+  async refreshTheme(): Promise<void> {
+    await this.diagram.refreshGraph(this.panel === undefined ? undefined : this.renderInput());
   }
 
   async setActiveDocument(document: vscode.TextDocument): Promise<void> {

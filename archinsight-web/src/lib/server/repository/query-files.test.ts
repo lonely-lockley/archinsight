@@ -27,6 +27,12 @@ describe('query file repository and rendering contract', () => {
     expect(result.renders[0].sourceIdentity).toBe('q.aiq');
     expect(result.renders[0].dot).toContain('Second');
     expect(result.renders[0].dot).not.toContain('First');
+    const light = await linkForSources(undefined, sources, {
+      openSourceIdentities: ['q.aiq'], querySource: 'two.ai',
+      query: 'MATCH (n:Element) WHERE n.sourceIdentity = $tab RETURN n', theme: 'light'
+    });
+    expect(light.renders[0].dot).not.toBe(result.renders[0].dot);
+    expect(light.renders[0].dot).toContain('Second');
     const contextOnly = await linkForSources(undefined, sources, { openSourceIdentities: ['q.aiq'], queryContext: 'one', query: 'MATCH (n:Element) WHERE n.context = $context RETURN n' });
     expect(contextOnly.renders[0].dot).toContain('First');
     expect(contextOnly.renders[0].dot).not.toContain('Second');

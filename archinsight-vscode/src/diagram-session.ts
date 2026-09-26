@@ -110,6 +110,13 @@ export class DiagramSession<
     }, false);
   }
 
+  async refreshGraph(input: TInput | undefined): Promise<DiagramRenderStatus> {
+    if (input === undefined || this.currentPreview === undefined || this.currentPreview.queryResult !== undefined) {
+      return "unavailable";
+    }
+    return this.refresh(input);
+  }
+
   async download(kind: DiagramArtifactKind, sourceOverride?: DiagramSourceArtifact): Promise<boolean> {
     if (kind === "source") {
       const source = sourceOverride ?? this.currentPreview;

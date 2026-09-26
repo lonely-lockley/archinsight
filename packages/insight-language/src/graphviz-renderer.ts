@@ -11,7 +11,9 @@ import type {
 import { presentationText, type PresentationTextField } from "./presentation-resolver.js";
 import { renderIdentity } from "./render-identity.js";
 
-export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, theme = "light"): string {
+export type RenderTheme = "light" | "dark";
+
+export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, theme: RenderTheme = "light"): string {
   if (result.diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
     throw new Error("Cannot render invalid link result");
   }
@@ -60,7 +62,7 @@ export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, th
   return lines.join("\n");
 }
 
-function writeHeader(lines: string[], result: LinkProjectResult, context: string, theme: string): void {
+function writeHeader(lines: string[], result: LinkProjectResult, context: string, theme: RenderTheme): void {
   const contextPresentation = presentation(result, "Context");
   const elementPresentation = presentation(result, "Element");
   const edgePresentation = presentation(result, "Edge");
@@ -113,7 +115,7 @@ function writeGroup(
   renderedGroups: Set<string>,
   renderedElements: Set<string>,
   hidden: ReadonlySet<string>,
-  theme: string,
+  theme: RenderTheme,
   indent: string,
 ): void {
   if (renderedGroups.has(group.owner)) {
@@ -187,7 +189,7 @@ function writeGroup(
   lines.push(`${indent}}`);
 }
 
-function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: string, indent: string): void {
+function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: RenderTheme, indent: string): void {
   const basePresentation = presentation(result, element.type);
   const resolvedPresentation = graph.externalElements.includes(element.id)
     ? externalizedPresentation(basePresentation, theme)
@@ -216,7 +218,7 @@ function writeEdge(
   result: LinkProjectResult,
   edge: RenderGraphEdge,
   groupByOwner: ReadonlyMap<string, RenderGraphGroup>,
-  theme: string,
+  theme: RenderTheme,
 ): void {
   const resolvedPresentation = presentation(result, edge.edge.type);
   const properties = dotProperties(resolvedPresentation, theme, true);
@@ -285,7 +287,7 @@ function hiddenElements(result: LinkProjectResult, graph: RenderGraph): Readonly
     .map((element) => element.id));
 }
 
-function dotProperties(presentationDefinition: ResolvedPresentation, theme: string, edge: boolean): Record<string, string> {
+function dotProperties(presentationDefinition: ResolvedPresentation, theme: RenderTheme, edge: boolean): Record<string, string> {
   const values = section(presentationDefinition, theme);
   return {
     ...(values.fill === undefined || edge ? {} : { fillcolor: values.fill }),
@@ -304,7 +306,7 @@ function presentation(result: LinkProjectResult, type: string): ResolvedPresenta
 
 function externalizedPresentation(
   base: ResolvedPresentation,
-  theme: string,
+  theme: RenderTheme,
 ): ResolvedPresentation {
   const modifier = section(base, theme === "dark" ? "externalDark" : "externalLight");
   return {

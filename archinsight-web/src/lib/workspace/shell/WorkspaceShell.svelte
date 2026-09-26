@@ -228,7 +228,7 @@
     display: grid;
     width: 100vw;
     height: 100vh;
-    background: #252525;
+    background: var(--archinsight-panel-bg, #252525);
   }
 
   .main {
@@ -262,21 +262,21 @@
     padding: 0 10px;
     border: 1px solid transparent;
     border-radius: 4px;
-    color: #dddddd;
+    color: var(--archinsight-foreground, #dddddd);
     font-size: 12px;
     text-decoration: none;
   }
 
   .playground-auth a:hover,
   .playground-auth a:focus-visible {
-    background: #343434;
-    color: #ffffff;
+    background: var(--archinsight-control-hover-bg, #343434);
+    color: var(--archinsight-control-active-fg, #ffffff);
     outline: none;
   }
 
   .playground-auth .sign-up,
   .playground-auth .go-to-editor {
-    border-color: #bdbdbd;
+    border-color: var(--archinsight-border-strong, #bdbdbd);
   }
 
   @media (max-width: 980px) {

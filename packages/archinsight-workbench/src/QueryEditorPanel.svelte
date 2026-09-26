@@ -382,7 +382,7 @@
   .query-parameters { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--archinsight-border, #333); background: var(--archinsight-toolbar-bg, #242424); font-size: 12px; }
   .query-parameters label { display: inline-flex; gap: 6px; align-items: center; }
   .query-parameters input { width: 150px; padding: 3px 6px; color: inherit; background: var(--archinsight-control-bg, #2a2a2a); border: 1px solid var(--archinsight-border, #444); }
-  .parameter-error { color: var(--vscode-errorForeground, #f48771); }
+  .parameter-error { color: var(--archinsight-danger, var(--vscode-errorForeground, #f48771)); }
 
   .icon-button {
     display: inline-grid;
@@ -421,7 +421,7 @@
     border: 1px solid var(--archinsight-tooltip-border, #444444);
     border-radius: 4px;
     background: var(--archinsight-tooltip-bg, #181818);
-    color: var(--archinsight-foreground, #eeeeee);
+    color: var(--archinsight-tooltip-fg, var(--archinsight-foreground, #eeeeee));
     content: attr(data-tooltip);
     font-size: 12px;
     font-weight: 500;
@@ -543,7 +543,7 @@
     border: 1px solid var(--archinsight-border, #454545);
     border-radius: 4px;
     background: var(--archinsight-toolbar-bg, #242424);
-    box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
+    box-shadow: var(--archinsight-shadow, 0 10px 28px rgb(0 0 0 / 35%));
   }
 
   .custom-view-option {
@@ -601,7 +601,7 @@
 
   .diagram-modes .custom-view-open:hover,
   .diagram-modes .custom-view-open:focus-visible {
-    background: rgb(255 255 255 / 8%);
+    background: var(--archinsight-selection-overlay, rgb(255 255 255 / 8%));
     outline: none;
   }
 
@@ -635,7 +635,7 @@
     border: 1px solid var(--archinsight-border, #454545);
     border-radius: 6px;
     background: var(--archinsight-toolbar-bg, #242424);
-    box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
+    box-shadow: var(--archinsight-shadow, 0 10px 28px rgb(0 0 0 / 35%));
   }
 
   .environment-picker input {

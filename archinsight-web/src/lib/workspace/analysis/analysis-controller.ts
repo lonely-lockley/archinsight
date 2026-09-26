@@ -1,4 +1,4 @@
-import type { LinkProjectResult } from '@insight/language';
+import type { LinkProjectResult, RenderTheme } from '@insight/language';
 import type { Diagnostic } from '$lib/api';
 import type { WorkspaceTab } from '@archinsight/workbench/types';
 import {
@@ -59,6 +59,7 @@ export type LinkRunOptions = {
   readonly forceFullAnalysis?: boolean;
   readonly querySource?: string;
   readonly queryContext?: string;
+  readonly theme?: RenderTheme;
 };
 
 export function createAnalysisController(ports: AnalysisControllerPorts): AnalysisController {

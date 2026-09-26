@@ -8,6 +8,7 @@ import {
   type LanguageDiagnostic,
   type LinkProjectResult,
   type QueryTableResult,
+  type RenderTheme,
 } from "@insight/language";
 import type { DiagramPreviewState, DiagramQueryState } from "./diagram-session.js";
 import { makeGraphvizBackgroundsTransparent } from "./diagram-svg.js";
@@ -38,7 +39,7 @@ export interface DiagramRenderInput {
 }
 
 export interface DiagramRenderingContext {
-  readonly theme: "dark" | "light";
+  readonly theme: RenderTheme;
   readonly log: (message: string) => void;
   readonly now?: () => number;
 }

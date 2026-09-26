@@ -170,7 +170,7 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
                 ...(request?.environment == null ? {} : { environment: request.environment })
               },
               query: request?.query ?? undefined,
-              theme: 'dark'
+              theme: request?.theme ?? 'dark'
             }).dot
           }
         ];

@@ -81,6 +81,10 @@ export function parseLinkRequest(value: unknown): LinkRequest {
   if (view != null && !isBuiltinDiagramView(view)) {
     throw new ContractValidationError('view must be a built-in diagram view');
   }
+  const theme = input.theme;
+  if (theme !== undefined && theme !== 'light' && theme !== 'dark') {
+    throw new ContractValidationError('theme must be light or dark');
+  }
   return {
     openSourceIdentities: input.openSourceIdentities == null ? input.openSourceIdentities : stringArray(input.openSourceIdentities, 'openSourceIdentities'),
     overlays: optionalStringRecord(input.overlays, 'overlays'),
@@ -89,6 +93,7 @@ export function parseLinkRequest(value: unknown): LinkRequest {
     queryContext: nullableString(input.queryContext, 'queryContext'),
     view,
     environment: nullableString(input.environment, 'environment'),
+    theme,
     ...(input.forceFullAnalysis === undefined
       ? {}
       : { forceFullAnalysis: boolean(input.forceFullAnalysis, 'forceFullAnalysis') })

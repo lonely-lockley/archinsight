@@ -64,7 +64,7 @@
     min-height: 28px;
     padding: 0 10px 0 calc(10px + var(--depth) * 18px);
     background: transparent;
-    color: #d2d2d2;
+    color: var(--archinsight-foreground, #d2d2d2);
     user-select: none;
   }
 
@@ -73,7 +73,7 @@
   }
 
   .structure-row:hover {
-    background: #2f2f2f;
+    background: var(--archinsight-control-hover-bg, #2f2f2f);
   }
 
   .chevron,
@@ -86,7 +86,7 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: #9a9a9a;
+    color: var(--archinsight-muted-foreground, #9a9a9a);
     font: inherit;
     cursor: pointer;
   }
@@ -150,7 +150,7 @@
 
   .meta {
     padding-left: 8px;
-    color: #858585;
+    color: var(--archinsight-muted-foreground, #858585);
     font-size: 12px;
   }
 </style>

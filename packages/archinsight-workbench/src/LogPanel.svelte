@@ -44,8 +44,8 @@
     z-index: 4;
     min-height: 0;
     overflow: auto;
-    border-top: 1px solid #333333;
-    background: #242424;
+    border-top: 1px solid var(--archinsight-border, #333333);
+    background: var(--archinsight-toolbar-bg, #242424);
   }
 
   .messages-panel.hidden-panel {
@@ -62,25 +62,25 @@
     align-items: center;
     min-height: 28px;
     padding: 0 12px;
-    border-left: 3px solid #6fa8dc;
-    color: #d9d9d9;
+    border-left: 3px solid var(--archinsight-info, #6fa8dc);
+    color: var(--archinsight-foreground, #d9d9d9);
     font-size: 12px;
   }
 
   .message-row + .message-row {
-    border-top: 1px solid #303030;
+    border-top: 1px solid var(--archinsight-border-subtle, #303030);
   }
 
   .msg-error {
-    border-left-color: #ff5c57;
+    border-left-color: var(--archinsight-danger, #ff5c57);
   }
 
   .msg-warning {
-    border-left-color: #ffb86c;
+    border-left-color: var(--archinsight-warning, #ffb86c);
   }
 
   .msg-note {
-    border-left-color: #6fa8dc;
+    border-left-color: var(--archinsight-info, #6fa8dc);
   }
 
   .message-level {
@@ -90,7 +90,7 @@
   .message-time,
   .message-source,
   .message-position {
-    color: #a8a8a8;
+    color: var(--archinsight-muted, #a8a8a8);
     font-family: Menlo, Monaco, Consolas, monospace;
   }
 
@@ -108,7 +108,7 @@
 
   .messages-empty {
     padding: 16px;
-    color: #8f8f8f;
+    color: var(--archinsight-muted-foreground, #8f8f8f);
     font-size: 13px;
   }
 </style>

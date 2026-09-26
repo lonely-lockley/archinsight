@@ -48,6 +48,8 @@ import type {
   WorkspaceRuntime,
   WorkspaceRuntimeHost
 } from '$lib/workspace/shell/workspace-runtime-types';
+import { createBrowserThemeSource } from '$lib/workspace/theme/browser-theme-source';
+import { createWorkspaceThemeController } from '$lib/workspace/theme/workspace-theme-controller';
 
 export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRuntime {
   const { api, storage, diagram } = workspaceRuntimeDependencies;
@@ -257,7 +259,8 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
       overlays: state().overlays,
       query: activeTab()?.query ?? defaultQuery,
       diagramMode: activeTab()?.diagramMode ?? defaultDiagramMode,
-      deploymentEnvironment: activeTab()?.deploymentEnvironment
+      deploymentEnvironment: activeTab()?.deploymentEnvironment,
+      theme: state().renderTheme
     }),
     linkProject: api.linkProject,
     renderInBrowser: diagram.renderDotInBrowser,
@@ -273,7 +276,11 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     refreshEditorSymbols: editorSynchronization.refreshEditorSymbols,
     acceptProjectStructure: editorSynchronization.acceptProjectStructure,
     clearDots: (sourceIdentities) => tabController.clearDots(sourceIdentities),
-    acceptDiagram: (sourceIdentity, svg, dot) => tabController.patchBySourceIdentity(sourceIdentity, { svg, dot }),
+    acceptDiagram: (sourceIdentity, svg, dot, renderTheme) => tabController.patchBySourceIdentity(sourceIdentity, {
+      svg,
+      dot,
+      renderTheme
+    }),
     acceptQueryResult: (sourceIdentity, queryResult) => tabController.patchBySourceIdentity(sourceIdentity, { queryResult }),
     now: () => Date.now(),
     queryFinished: messageController.queryFinished,
@@ -370,7 +377,8 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     redirectIfAuthRequired: authController.redirectIfAuthRequired,
     info: messageController.info,
     error: messageController.error,
-    fileSaved: messageController.fileSaved
+    fileSaved: messageController.fileSaved,
+    renderTheme: () => state().renderTheme
   });
   actionController = createWorkspaceActionController({
     surface: host.surface,
@@ -391,6 +399,14 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     downloadText: diagram.downloadText,
     downloadBlob: diagram.downloadBlob,
     error: messageController.error
+  });
+  const themeController = createWorkspaceThemeController({
+    source: createBrowserThemeSource(),
+    theme: () => state().renderTheme,
+    setTheme: (renderTheme) => patch({ renderTheme }),
+    setEditorTheme: monacoSession.setTheme,
+    activeTab,
+    scheduleDiagramUpdate: () => analysisController.scheduleDiagramUpdate()
   });
 
   const controllers = {
@@ -420,6 +436,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     messages: messageController,
     monaco: monacoSession,
     projects: projectSession,
+    theme: themeController,
     closeRepositoryMenu
   });
 

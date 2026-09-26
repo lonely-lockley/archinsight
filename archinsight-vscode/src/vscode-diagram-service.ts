@@ -11,6 +11,7 @@ import {
   type DiagramQueryState,
   type DiagramSessionPorts,
 } from "./diagram-session.js";
+import { renderThemeForColorThemeKind } from "./theme.js";
 
 export const viewQueries: Record<DiagramView, string> = BUILTIN_VIEW_QUERIES;
 
@@ -32,7 +33,7 @@ export function createDiagramSession(
     usesEnvironment: viewUsesEnvironment,
     chooseEnvironment,
     buildPreview: (input, state) => buildDiagramPreview(input, state, {
-      theme: vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark ? "dark" : "light",
+      theme: renderThemeForColorThemeKind(vscode.window.activeColorTheme.kind),
       log,
     }),
     save: saveBytes,

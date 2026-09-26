@@ -84,6 +84,11 @@ archinsight query . -s <source.ai> -v c2 --format json
 archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
 ```
 
+`render` follows the operating-system light/dark preference by default. Pass
+`--theme light` or `--theme dark` for reproducible output in CI or agent runs;
+`--theme system` explicitly restores automatic selection. If the system
+preference cannot be read, rendering uses the light theme without failing.
+
 The selected source supplies `$tab` and determines `$context`. C2, C3, C4,
 D1 (`deployment-system`), D2 (`deployment-container`), and the legacy
 Deployment view require a source when a project contains several model files.

@@ -3,6 +3,7 @@ import {
   BUILTIN_VIEW_IDS,
   resolveBuiltinView,
   type BuiltinDiagramView,
+  type RenderTheme,
 } from "@insight/language";
 import { CliError } from "./cli-error.js";
 import type { SkillTarget } from "./skill/skill-package.js";
@@ -14,6 +15,7 @@ export type OutputFormat = "text" | "json";
 export type QueryOutputFormat = OutputFormat | "csv";
 export type RenderFormat = "dot" | "svg" | "json";
 export type DiagramView = BuiltinDiagramView;
+export type ThemeOption = RenderTheme | "system";
 
 export interface ParsedArgs {
   readonly command?: Command;
@@ -26,7 +28,7 @@ export interface ParsedArgs {
   readonly queryFile?: string;
   readonly output?: string;
   readonly format?: string;
-  readonly theme?: string;
+  readonly theme?: ThemeOption;
   readonly target?: string;
   readonly parameters?: readonly string[];
   readonly parametersFile?: string;
@@ -85,7 +87,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     queryFile: stringOption(options.query),
     output: stringOption(options.output),
     format: stringOption(options.format),
-    theme: stringOption(options.theme),
+    theme: themeOption(options.theme),
     target: stringOption(options.target),
     parameters,
     parametersFile: stringOption(options.params),
@@ -188,6 +190,12 @@ function viewOption(value: unknown): DiagramView | undefined {
   throw new CliError(`Unknown view '${String(value)}'`);
 }
 
+function themeOption(value: unknown): ThemeOption | undefined {
+  if (value === undefined) return undefined;
+  if (value === "system" || value === "light" || value === "dark") return value;
+  throw new CliError(`Unsupported render theme '${String(value)}'; expected system, light, or dark`);
+}
+
 export function outputFormat(value: string | undefined, fallback: OutputFormat): OutputFormat {
   if (value === undefined) {
     return fallback;
@@ -255,7 +263,7 @@ Options:
       --timeout-ms <n>     Query execution deadline after linking.
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
-  -t, --theme <theme>      Render theme, default: light.
+  -t, --theme <theme>      Render theme: system, light, or dark; default: system.
       --target <target>    Skill target: generic, codex, or claude.
       --force              Replace the complete generated skill directory.
   -V, --version            Print version.

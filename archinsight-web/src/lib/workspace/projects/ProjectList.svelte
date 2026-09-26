@@ -52,7 +52,7 @@
     align-items: center;
     min-height: 44px;
     padding: 0 16px;
-    border-bottom: 1px solid #3a3a3a;
+    border-bottom: 1px solid var(--archinsight-border, #3a3a3a);
   }
 
   h2 {
@@ -70,10 +70,10 @@
   footer button {
     min-height: 32px;
     padding: 0 14px;
-    border: 1px solid #505050;
+    border: 1px solid var(--archinsight-border-strong, #505050);
     border-radius: 4px;
-    background: #333333;
-    color: #eeeeee;
+    background: var(--archinsight-control-bg, #333333);
+    color: var(--archinsight-foreground, #eeeeee);
   }
 
   .project-list {
@@ -91,17 +91,17 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     min-height: 68px;
-    border: 1px solid #414141;
+    border: 1px solid var(--archinsight-border, #414141);
     border-radius: 5px;
-    background: #202020;
-    color: #dddddd;
+    background: var(--archinsight-control-group-bg, #202020);
+    color: var(--archinsight-foreground, #dddddd);
     overflow: hidden;
   }
 
   .project-row:hover,
   .project-row:focus-within {
-    border-color: #648744;
-    background: #293025;
+    border-color: color-mix(in srgb, var(--color-primary) 65%, var(--archinsight-border));
+    background: var(--archinsight-control-active-bg, #293025);
   }
 
   .project-row.active {
@@ -138,17 +138,17 @@
     border: 0;
     border-radius: 4px;
     background: transparent;
-    color: #c8c8c8;
+    color: var(--archinsight-muted, #c8c8c8);
   }
 
   .project-row-actions button:hover {
-    background: #3b3b3b;
-    color: #ffffff;
+    background: var(--archinsight-control-hover-bg, #3b3b3b);
+    color: var(--archinsight-foreground, #ffffff);
   }
 
   .project-name {
     overflow: hidden;
-    color: #ffffff;
+    color: var(--archinsight-foreground, #ffffff);
     font-size: 14px;
     font-weight: 700;
     text-overflow: ellipsis;
@@ -165,12 +165,12 @@
   .project-stat {
     display: grid;
     gap: 4px;
-    color: #bdbdbd;
+    color: var(--archinsight-muted, #bdbdbd);
     font-size: 12px;
   }
 
   .project-stat strong {
-    color: #858585;
+    color: var(--archinsight-muted-foreground, #858585);
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.04em;
@@ -192,17 +192,17 @@
   .playground-project-label {
     flex: none;
     padding: 2px 5px;
-    border: 1px solid #557b9d;
+    border: 1px solid var(--archinsight-badge-blue-border, #557b9d);
     border-radius: 3px;
-    background: #263847;
-    color: #9dccf3;
+    background: var(--archinsight-badge-blue-bg, #263847);
+    color: var(--archinsight-badge-blue-fg, #9dccf3);
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
   }
 
   .dialog-error {
-    color: #ff8787;
+    color: var(--archinsight-danger, #ff8787);
     font-size: 12px;
   }
 
@@ -211,25 +211,25 @@
     justify-content: flex-end;
     gap: 8px;
     padding: 12px 16px;
-    border-top: 1px solid #3a3a3a;
+    border-top: 1px solid var(--archinsight-border, #3a3a3a);
   }
 
   footer button {
     min-width: 76px;
     height: 30px;
-    border: 1px solid #484848;
+    border: 1px solid var(--archinsight-border-strong, #484848);
     border-radius: 4px;
-    background: #2b2b2b;
-    color: #eeeeee;
+    background: var(--archinsight-control-bg, #2b2b2b);
+    color: var(--archinsight-foreground, #eeeeee);
     font: inherit;
     font-size: 12px;
   }
 
   footer button:hover,
   footer button:focus-visible {
-    border-color: #5a5a5a;
-    background: #36511f;
-    color: #ffffff;
+    border-color: var(--archinsight-border-strong, #5a5a5a);
+    background: var(--archinsight-control-active-bg, #36511f);
+    color: var(--archinsight-control-active-fg, #ffffff);
     outline: none;
   }
 

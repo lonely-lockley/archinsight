@@ -47,6 +47,7 @@
   import { registerQueryCompletionProvider, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
   import { createQueryScopeWidgets } from '@archinsight/workbench/query-scope-widgets';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
+  import { renderThemeForBodyClasses } from '../theme';
 
   type DiagramView = BuiltinDiagramView;
 
@@ -674,7 +675,7 @@
   }
 
   function editorTheme(): string {
-    return document.body.classList.contains('vscode-light') ? insightLightTheme : insightDarkTheme;
+    return renderThemeForBodyClasses(document.body.classList) === 'light' ? insightLightTheme : insightDarkTheme;
   }
 
   function observeThemeChanges(monacoInstance: typeof Monaco): void {

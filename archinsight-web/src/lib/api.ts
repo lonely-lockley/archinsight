@@ -1,7 +1,8 @@
 import type {
   BuiltinDiagramView,
   LanguageSnapshot,
-  ProjectStructureDeclaration
+  ProjectStructureDeclaration,
+  RenderTheme
 } from '@insight/language';
 import { base } from '$app/paths';
 import {
@@ -210,7 +211,12 @@ export async function linkProject(
   view: BuiltinDiagramView | undefined,
   environment: string | undefined,
   surface: WorkspaceSurface = 'editor',
-  options: { readonly forceFullAnalysis?: boolean; readonly querySource?: string; readonly queryContext?: string } = {}
+  options: {
+    readonly forceFullAnalysis?: boolean;
+    readonly querySource?: string;
+    readonly queryContext?: string;
+    readonly theme?: RenderTheme;
+  } = {}
 ): Promise<LinkResponse> {
   return postJson(
     surface === 'playground' ? '/api/playground/link' : `/api/projects/${encodeURIComponent(projectId)}/link`,
@@ -222,6 +228,7 @@ export async function linkProject(
       environment,
       querySource: options.querySource,
       queryContext: options.queryContext,
+      theme: options.theme,
       ...(options.forceFullAnalysis === true ? { forceFullAnalysis: true } : {})
     },
     parseLinkResponse

@@ -9,6 +9,7 @@ import type { ProjectSessionController } from '$lib/workspace/projects/project-s
 import type { LayoutController } from '$lib/workspace/shell/layout-controller';
 import type { WorkspaceActionController } from '$lib/workspace/shell/workspace-action-controller';
 import type { WorkspaceRuntimeHost } from '$lib/workspace/shell/workspace-runtime-types';
+import type { WorkspaceThemeController } from '$lib/workspace/theme/workspace-theme-controller';
 
 export type WorkspaceRuntimeLifecycle = {
   start(): Promise<void>;
@@ -25,10 +26,12 @@ export function createWorkspaceRuntimeLifecycle(ports: {
   messages: MessageController;
   monaco: MonacoSession;
   projects: ProjectSessionController;
+  theme: WorkspaceThemeController;
   closeRepositoryMenu(): void;
 }): WorkspaceRuntimeLifecycle {
   return {
     async start() {
+      ports.theme.start();
       ports.monaco.startLanguageWorker();
       if (!await ports.auth.authorizeWorkspace()) return;
       try {
@@ -51,6 +54,7 @@ export function createWorkspaceRuntimeLifecycle(ports: {
       ports.analysis.dispose();
       ports.diagram.dispose();
       ports.layout.dispose();
+      ports.theme.dispose();
       window.removeEventListener('keydown', ports.action.handleGlobalKeydown);
       window.removeEventListener('click', ports.closeRepositoryMenu);
       ports.monaco.dispose();

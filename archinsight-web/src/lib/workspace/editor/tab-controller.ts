@@ -79,7 +79,7 @@ export function createTabController(ports: TabControllerPorts): TabController {
     clearDots(sourceIdentities) {
       const sources = new Set(sourceIdentities);
       writeTabs(ports.readState().tabs.map((tab) => (
-        sources.has(tab.sourceIdentity) ? { ...tab, dot: undefined } : tab
+        sources.has(tab.sourceIdentity) ? { ...tab, dot: undefined, renderTheme: undefined } : tab
       )));
     },
 
@@ -87,6 +87,7 @@ export function createTabController(ports: TabControllerPorts): TabController {
       writeTabs(ports.readState().tabs.map((tab) => ({
         ...tab,
         dot: undefined,
+        renderTheme: undefined,
         queryResult: undefined
       })));
     },

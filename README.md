@@ -109,13 +109,13 @@ The resulting `architecture.svg` contains the systems, containers, services, and
 
 The CLI is the local and automation interface for an Insight project. It links and validates models, prints project structure, executes graph queries, renders diagrams, and generates agent skills.
 
-The [CLI reference](archinsight-cli/README.md) describes the query, render, and output options.
+The [CLI reference](archinsight-cli/README.md) describes the query, render, and output options. Diagram rendering follows the system light/dark preference by default and accepts an explicit `--theme light` or `--theme dark` override.
 
 ## VSCode extension
 
 The [Archinsight VSCode extension](https://marketplace.visualstudio.com/items?itemName=archinsight.archinsight-vscode) provides diagnostics, completion, semantic highlighting, project structure, source navigation, and a source/result split editor for `.ai` and `.aiq` files. It supports built-in views, custom graph queries, typed table reports, diagram export, and JSON/CSV table downloads.
 
-Open a workspace containing `.ai` files and then open a model. The extension embeds the language runtime for interactive editing and diagram preview. The CLI adds command-line validation and CI integration using the same project semantics.
+Open a workspace containing `.ai` files and then open a model. The extension embeds the language runtime for interactive editing and diagram preview, and follows the active VS Code theme without reloading the editor. The CLI adds command-line validation and CI integration using the same project semantics.
 
 ## AI agent skill
 

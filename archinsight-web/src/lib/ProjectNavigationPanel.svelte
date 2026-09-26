@@ -189,10 +189,10 @@
     z-index: 30;
     max-width: 220px;
     padding: 6px 8px;
-    border: 1px solid #444444;
+    border: 1px solid var(--archinsight-tooltip-border, #444444);
     border-radius: 4px;
-    background: #181818;
-    color: #eeeeee;
+    background: var(--archinsight-tooltip-bg, #181818);
+    color: var(--archinsight-tooltip-fg, #eeeeee);
     content: attr(data-tooltip);
     font-size: 12px;
     font-weight: 500;
@@ -242,8 +242,8 @@
     height: 100%;
     min-height: 0;
     min-width: 0;
-    border-right: 1px solid #3a3a3a;
-    background: #212121;
+    border-right: 1px solid var(--archinsight-border, #3a3a3a);
+    background: var(--archinsight-sidebar-bg, #212121);
   }
 
   .sidebar.collapsed {
@@ -275,7 +275,7 @@
     gap: 8px;
     align-items: end;
     padding: 0 18px;
-    border-bottom: 1px solid #333333;
+    border-bottom: 1px solid var(--archinsight-border, #333333);
   }
 
   .panel-tabs button {
@@ -287,13 +287,13 @@
     border: 0;
     border-bottom: 3px solid transparent;
     background: transparent;
-    color: #a5a5a5;
+    color: var(--archinsight-muted, #a5a5a5);
     font-size: 14px;
   }
 
   .panel-tabs button.active {
     border-bottom-color: var(--color-primary);
-    color: #ffffff;
+    color: var(--archinsight-foreground, #ffffff);
   }
 
   .panel-body {
@@ -305,7 +305,7 @@
   .empty {
     align-self: start;
     padding: 14px 16px;
-    color: #9d9d9d;
+    color: var(--archinsight-muted-foreground, #9d9d9d);
     font-size: 13px;
   }
 
@@ -322,8 +322,8 @@
     gap: 8px;
     justify-content: flex-end;
     padding: 7px 10px;
-    border-top: 1px solid #333333;
-    background: #242424;
+    border-top: 1px solid var(--archinsight-border, #333333);
+    background: var(--archinsight-toolbar-bg, #242424);
   }
 
   .sidebar-controls button {
@@ -333,8 +333,8 @@
     flex: 0 0 32px;
     border: 0;
     border-radius: 4px;
-    background: #2d2d2d;
-    color: #dddddd;
+    background: var(--archinsight-control-bg, #2d2d2d);
+    color: var(--archinsight-foreground, #dddddd);
     font-size: 16px;
   }
 
@@ -345,8 +345,8 @@
 
   .sidebar-controls button:hover,
   .sidebar-controls button.active-tool {
-    background: #354436;
-    color: #ffffff;
+    background: var(--archinsight-control-active-bg, #354436);
+    color: var(--archinsight-control-active-fg, #ffffff);
   }
 
   .sidebar-resize {
@@ -372,8 +372,8 @@
     width: 100%;
     min-height: 0;
     padding: 8px 0;
-    border-right: 1px solid #303030;
-    background: #202020;
+    border-right: 1px solid var(--archinsight-border-subtle, #303030);
+    background: var(--archinsight-control-group-bg, #202020);
   }
 
   .rail-brand,
@@ -381,7 +381,7 @@
   .rail-button {
     border: 0;
     background: transparent;
-    color: #bdbdbd;
+    color: var(--archinsight-muted, #bdbdbd);
   }
 
   .rail-brand {
@@ -409,14 +409,14 @@
 
   .rail-tab.active,
   .rail-button.active-tool {
-    color: #ffffff;
+    color: var(--archinsight-foreground, #ffffff);
     box-shadow: inset 3px 0 0 var(--color-primary);
   }
 
   .rail-tab:hover,
   .rail-button:hover {
-    background: #2d2d2d;
-    color: #ffffff;
+    background: var(--archinsight-control-hover-bg, #2d2d2d);
+    color: var(--archinsight-foreground, #ffffff);
   }
 
   .rail-spacer {
@@ -425,6 +425,6 @@
 
   .empty {
     padding: 24px;
-    color: #9a9a9a;
+    color: var(--archinsight-muted-foreground, #9a9a9a);
   }
 </style>

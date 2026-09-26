@@ -7,6 +7,14 @@
   font-family: var(--lumo-font-family);
   color: #e6e6e6;
   background: #1f1f1f;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #242424;
+    background: #f7f7f7;
+  }
 }
 
 html,

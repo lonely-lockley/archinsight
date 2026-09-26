@@ -195,6 +195,16 @@ The generated DOT is an intermediate representation owned by Archinsight. Users 
 
 DOT generation refuses a linked result containing errors. Warnings and notes remain compatible with rendering because they do not make the graph invalid.
 
+The browser editor selects the light or dark presentation from the browser's
+`prefers-color-scheme` setting and updates the complete workspace UI, Monaco,
+table results, and an open graph when that preference changes. The VS Code
+extension follows the active VS Code theme, including its
+high-contrast light and dark variants. The CLI follows the operating-system
+preference by default; pass `--theme light` or `--theme dark` to make generated
+artifacts reproducible in CI, or `--theme system` to request automatic selection
+explicitly. If a headless or unsupported system does not expose a preference,
+the CLI uses the light presentation.
+
 ## From DOT to an image
 
 Graphviz receives the generated DOT, calculates node positions and edge routes, and emits a visual format such as SVG or PNG. Archinsight uses the `dot` layout model for directed, hierarchical architecture diagrams.

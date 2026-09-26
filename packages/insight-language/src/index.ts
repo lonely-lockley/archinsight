@@ -120,7 +120,7 @@ export type {
   QueryVariableOccurrence,
 } from "./query-syntax.js";
 export { AiqQueryError } from "./query-syntax.js";
-export { renderGraphviz } from "./graphviz-renderer.js";
+export { renderGraphviz, type RenderTheme } from "./graphviz-renderer.js";
 export { parseRenderIdentity, renderIdentity } from "./render-identity.js";
 export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";

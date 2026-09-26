@@ -6,6 +6,7 @@
     parseControlsHostToWebviewMessage,
     type ControlsWebviewToHostMessage
   } from '@archinsight/contracts';
+  import { renderThemeForBodyClasses } from '../theme';
 
   type DiagramView = BuiltinDiagramView;
 
@@ -337,7 +338,7 @@
   }
 
   function editorTheme(): string {
-    return document.body.classList.contains('vscode-light') ? lightTheme : darkTheme;
+    return renderThemeForBodyClasses(document.body.classList) === 'light' ? lightTheme : darkTheme;
   }
 
   function cssColor(styles: CSSStyleDeclaration, property: string, fallback: string): string {

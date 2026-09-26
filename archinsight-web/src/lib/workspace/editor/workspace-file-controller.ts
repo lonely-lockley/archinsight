@@ -1,4 +1,4 @@
-import { resolveBuiltinView } from '@insight/language';
+import { resolveBuiltinView, type RenderTheme } from '@insight/language';
 import { isQueryFile, selectedQueryName, queryFileName } from '@archinsight/workbench/project-queries';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { WorkspaceTabState } from '$lib/storage';
@@ -68,6 +68,7 @@ export type WorkspaceFileControllerPorts = {
   info(message: string): void;
   error(message: string): void;
   fileSaved(path: string): void;
+  renderTheme(): RenderTheme;
 };
 
 export type WorkspaceFileController = {
@@ -104,7 +105,8 @@ export function createWorkspaceFileController(
 
   const scheduleActiveDiagramIfMissing = (): void => {
     const tab = ports.activeTab();
-    if (tab !== undefined && tab.dot === undefined && tab.queryResult === undefined) {
+    if (tab !== undefined && tab.queryResult === undefined
+        && (tab.dot === undefined || tab.renderTheme !== ports.renderTheme())) {
       analysis().scheduleDiagramUpdate();
     }
   };
