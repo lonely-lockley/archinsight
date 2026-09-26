@@ -1,5 +1,4 @@
 MATCH (consumer:ContainerElement)-[event:REFERENCES]->(producer:ContainerElement)
-WHERE consumer.context = $context
-  AND event.type = 'AsyncWire'
+WHERE event.type = 'AsyncWire'
   AND event.technology CONTAINS 'Kafka'
 RETURN consumer, event, producer

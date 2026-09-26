@@ -6,6 +6,13 @@ with scalar columns and answering the question does not require inspecting
 nested graph structure. Keep the exact query so the analysis is reproducible,
 but show its text to the user only when they explicitly ask for it.
 
+Default analytical queries to the whole linked project. Add
+`element.context = $context`, `element.sourceIdentity = $tab`, or an equivalent
+scope predicate only when the user explicitly asks to restrict the answer to a
+context or source file. The currently open editor tab and the availability of
+scope controls do not imply that restriction. A project-wide query should not
+reference `$context` or `$tab`, and should run without `--context` or `--source`.
+
 Treat the linked model as an abstraction at its declared level. Lead an
 analytical answer with the verdict, follow with the model evidence, and mention
 one limitation only when it could change that verdict. For failure-propagation
@@ -25,8 +32,9 @@ only after those explanations have been ruled out.
 
 1. Run `archinsight link . --format text`; linker errors block a trustworthy report.
 2. Run `archinsight structure . --format json` to identify contexts, types, and qualified ids.
-3. Translate the question into a selection: its anchor, relationship semantics,
-   direction, layer, and required result. Decide whether the anchor is one
+3. Translate the question into a selection: its scope, anchor, relationship
+   semantics, direction, layer, and required result. Use the whole project
+   unless the user requested a context or source restriction. Decide whether the anchor is one
    element, a system including its children, a context, or a set; whether the
    relationship is sync, async, any dependency, containment, placement, or
    infrastructure use; whether traversal is incoming, outgoing, or both; and
@@ -93,7 +101,7 @@ Bundled starting points:
 - `examples/queries/type-summary.aiq`
 
 ```shell
-archinsight query . -s <source.ai> -q reports/inventory.aiq --format text
+archinsight query . -q reports/inventory.aiq --format text
 archinsight query . -q reports/path.aiq \
   --param 'from="context/A"' --param 'to="context/B"' --format text
 archinsight query . -q reports/topics.aiq --params params.json --format csv
@@ -105,9 +113,10 @@ user parameters. Missing, unused, duplicate, and reserved parameters are errors.
 
 ## Run a report in the UI
 
-In the web editor or VS Code, open the `.aiq` file and choose `$tab` and
-`$context` with the inline controls embedded in the query. Enter required user
-parameters above the result, then use the play button or run
+In the web editor or VS Code, open the `.aiq` file. If the query explicitly
+references `$tab` or `$context`, choose those values with the inline controls
+embedded in the query; a project-wide query runs without either selection.
+Enter required user parameters above the result, then use the play button or run
 **Archinsight: Run AIQ Query** in VS Code. Graph queries keep the diagram;
 `RETURN TABLE` replaces it with a typed table and does not invoke Graphviz. The
 table supports keyboard navigation, expandable nested values, JSON/CSV
@@ -123,7 +132,6 @@ selectors, and parameters while a person edits an incomplete report.
 
 ```cypher
 MATCH (element:Element)
-WHERE element.context = $context
 RETURN TABLE elementId(element) AS element, element.type AS type
 ORDER BY element
 ```
@@ -229,8 +237,7 @@ inside the system instead of composing derived owner-to-owner copies.
 
 ```cypher
 MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
-WHERE consumer.context = $context
-  AND event IS AsyncWire
+WHERE event IS AsyncWire
 UNWIND event.via AS topic
 RETURN TABLE DISTINCT topic,
                       elementId(producer) AS producer,
@@ -269,7 +276,6 @@ way to ask an ownership-level question. Neither form requires a deployment join.
 
 ```cypher
 MATCH (container:ContainerElement)
-WHERE container.context = $context
 OPTIONAL MATCH (container)<-[incoming:REFERENCES]-(consumer:Element)
 WITH container, incoming
 WHERE incoming IS NULL
@@ -279,14 +285,13 @@ ORDER BY container
 
 This incoming pattern finds container elements with no modeled consumers. Swap
 the arrow to find container elements with no declared providers. An empty table
-is a successful result only after the context and candidate inventory have been
+is a successful result only after the selected scope and candidate inventory have been
 confirmed.
 
 ## Counts and Attributes
 
 ```cypher
 MATCH (element:Element)
-WHERE element.context = $context
 RETURN TABLE element.type AS type, count(*) AS total
 ORDER BY type
 ```

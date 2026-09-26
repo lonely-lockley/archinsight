@@ -1,6 +1,5 @@
 MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
-WHERE consumer.context = $context
-  AND event IS AsyncWire
+WHERE event IS AsyncWire
 UNWIND event.via AS topic
 RETURN TABLE DISTINCT topic,
                       elementId(producer) AS producer,

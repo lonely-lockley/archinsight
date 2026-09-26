@@ -82,6 +82,19 @@ system false_positive_system
         links:
             -> unrelated_provider
 `);
+  writeFileSync(path.join(project, "operations.ai"), `context operations
+    name = Operations
+
+system logistics
+    name = Logistics
+
+    service dispatcher
+        name = Dispatcher
+`);
+
+  const inventory = query(project, skill, "inventory.aiq");
+  assert(inventory.rows.some((row) => row[0] === "operations/dispatcher"),
+    "the default analytical inventory must include elements from every project context");
 
   const directGraph = query(project, skill, "direct-service-dependencies.aiq");
   assert(directGraph.edges.some((item) =>
@@ -206,7 +219,9 @@ RETURN source, dependency, target
   assert(analysis.includes("annotations(value)"));
   assert(analysis.includes("RETURN TABLE"));
   assert(analysis.includes("Archinsight: Run AIQ Query"));
-  assert(analysis.includes("inline controls embedded in the query"));
+  assert(analysis.includes("with the inline controls"));
+  assert(analysis.includes("Default analytical queries to the whole linked project"));
+  assert(analysis.includes("a project-wide query runs without either selection"));
   assert(analysis.includes("local pages of up to 100 rows"));
   assert(analysis.includes("show its text to the user only when they explicitly ask for it"));
   assert(analysis.includes("Inspect graph-query JSON only"));
@@ -228,8 +243,6 @@ function query(project, skill, queryName) {
   return JSON.parse(runCli([
     "query",
     project,
-    "--context",
-    "shop",
     "--query",
     path.join(skill, "examples", "queries", queryName),
     "--format",

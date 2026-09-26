@@ -43,7 +43,9 @@ Choose one mode before acting:
   sources, run `structure`, `link`, and the relevant query, then separate
   authored facts, derived relationships, deployment projections, and rendered
   presentation in the findings. Lead with the verdict, then its model evidence;
-  mention a limitation only when it could change the verdict.
+  mention a limitation only when it could change the verdict. Search the whole
+  project unless the user explicitly requests a context or source-file scope;
+  only then add `$context` or `$tab` filtering.
 - **Repair:** reproduce the defect first. For a visual defect, inspect
   `archinsight query ... --format json` before treating the image as evidence
   that the model is wrong. Request the current image or rendered output when it

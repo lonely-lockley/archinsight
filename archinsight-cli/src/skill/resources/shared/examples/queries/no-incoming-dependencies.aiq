@@ -1,5 +1,4 @@
 MATCH (container:ContainerElement)
-WHERE container.context = $context
 OPTIONAL MATCH (container)<-[incoming:REFERENCES]-(consumer:Element)
 WITH container, incoming
 WHERE incoming IS NULL

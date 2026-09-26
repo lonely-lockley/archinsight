@@ -1,5 +1,4 @@
 MATCH (element:Element)
-WHERE element.context = $context
 RETURN TABLE elementId(element) AS element,
              element.type AS type,
              element.sourceIdentity AS source

@@ -1,3 +1,2 @@
 MATCH (source:ContainerElement)-[dependency:REFERENCES {withDerived}]->(target:ContainerElement)
-WHERE source.context = $context
 RETURN source, dependency, target

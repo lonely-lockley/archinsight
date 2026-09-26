@@ -1,4 +1,3 @@
 MATCH (element:Element)
-WHERE element.context = $context
 RETURN TABLE element.type AS type, count(*) AS total
 ORDER BY type

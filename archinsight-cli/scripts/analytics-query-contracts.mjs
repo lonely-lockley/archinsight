@@ -102,7 +102,7 @@ RETURN TABLE elementId(service) AS service
 
   const examples = path.resolve("src/skill/resources/shared/examples/queries");
   const bundled = (name, ...args) => run("query", root, "-q", path.join(examples, name), ...args);
-  const inventoryExample = bundled("inventory.aiq", "-c", "shop");
+  const inventoryExample = bundled("inventory.aiq");
   assert.equal(inventoryExample.status, 0, inventoryExample.stderr);
   assert.equal(JSON.parse(inventoryExample.stdout).metadata.rowCount, 6);
   const impact = bundled("impact.aiq", "--param", 'element="shop/catalog"');
@@ -122,13 +122,13 @@ RETURN TABLE elementId(service) AS service
   assert.equal(shortest.status, 0, shortest.stderr);
   assert.equal(JSON.parse(shortest.stdout).rows[0][2], 1);
   assert.deepEqual(JSON.parse(shortest.stdout).rows[0].slice(3, 6), [0, "shop/checkout", "shop/catalog"]);
-  const topics = bundled("async-topics.aiq", "-c", "shop");
+  const topics = bundled("async-topics.aiq");
   assert.equal(topics.status, 0, topics.stderr);
   assert.deepEqual(JSON.parse(topics.stdout).rows, [
     ["orders.created", "shop/catalog", "shop/checkout"],
     ["orders.paid", "shop/catalog", "shop/reporting_worker"],
   ], "the generic topic inventory must include an async wire without technology or deployment metadata");
-  const kafkaTopics = bundled("kafka-topics.aiq", "-c", "shop", "--param", 'technology="Kafka"');
+  const kafkaTopics = bundled("kafka-topics.aiq", "--param", 'technology="Kafka"');
   assert.equal(kafkaTopics.status, 0, kafkaTopics.stderr);
   assert.deepEqual(JSON.parse(kafkaTopics.stdout).rows, [["orders.paid", "shop/catalog", "shop/reporting_worker"]]);
   const systemConsumers = bundled("system-async-consumers.aiq", "--param", 'system="shop/application"');
@@ -137,11 +137,11 @@ RETURN TABLE elementId(service) AS service
     ["orders.created", "shop/checkout"],
     ["orders.paid", "shop/reporting_worker"],
   ]);
-  const noIncoming = bundled("no-incoming-dependencies.aiq", "-c", "shop");
+  const noIncoming = bundled("no-incoming-dependencies.aiq");
   assert.equal(noIncoming.status, 0, noIncoming.stderr);
   assert.deepEqual(JSON.parse(noIncoming.stdout).rows, [["shop/batch"], ["shop/reporting_worker"]]);
   for (const name of ["type-summary.aiq"]) {
-    const result = bundled(name, "-c", "shop");
+    const result = bundled(name);
     assert.equal(result.status, 0, `${name}: ${result.stderr}`);
     assert.equal(JSON.parse(result.stdout).kind, "table");
   }

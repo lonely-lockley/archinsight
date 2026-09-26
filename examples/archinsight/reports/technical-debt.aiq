@@ -1,11 +1,10 @@
-# This analytical report finds dependencies, or their source elements,
-# explicitly marked as deprecated so they can be reviewed as technical debt.
-# In the playground, select the `annotations` context.
+# This project-wide analytical report finds dependencies, or their source
+# elements, explicitly marked as deprecated so they can be reviewed as
+# technical debt.
 # For detailed documentation please refer to:
 # https://archinsight.org/doc/annotations/#inspecting-annotations
 
 MATCH (source:Element)-[dependency:REFERENCES]->(target:Element)
-WHERE source.context = $context
 WITH source, dependency, target,
      any(annotation IN annotations(source) WHERE annotation.name = 'deprecated') AS sourceDeprecated,
      any(annotation IN annotations(dependency) WHERE annotation.name = 'deprecated') AS dependencyDeprecated
