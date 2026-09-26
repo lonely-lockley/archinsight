@@ -59,12 +59,20 @@ export function defaultDialogFileName(title: string, fallback: string): string {
   if (value.length === 0 || /^Untitled \d+$/.test(value)) {
     return fallback;
   }
-  return displayFileName(value);
+  return stripKnownInsightExtension(baseName(value));
 }
 
-export function normalizeDialogName(name: string, target: RepositoryDialogTarget): string {
+export function normalizeDialogName(
+  name: string,
+  target: RepositoryDialogTarget,
+  fileKind?: 'model' | 'query'
+): string {
   const normalized = name.trim().replace(/^\/+|\/+$/g, '');
-  return target === 'file' ? stripInsightExtension(normalized) : normalized;
+  if (target !== 'file') return normalized;
+  if (fileKind === undefined) return stripInsightExtension(normalized);
+  const base = stripKnownInsightExtension(normalized);
+  if (base.length === 0) return '';
+  return `${base}.${fileKind === 'query' ? 'aiq' : 'ai'}`;
 }
 
 export function displayFileName(path: string): string {
@@ -86,6 +94,11 @@ export function stripInsightExtension(value: string): string {
   return value.endsWith('.ai') ? value.slice(0, -3) : value;
 }
 
+function stripKnownInsightExtension(value: string): string {
+  if (value.endsWith('.aiq')) return value.slice(0, -4);
+  return stripInsightExtension(value);
+}
+
 export function baseName(path: string): string {
   return path.split('/').filter(Boolean).at(-1) ?? path;
 }
@@ -101,4 +114,3 @@ export function joinPath(directory: string, fileName: string): string {
   const cleanFileName = fileName.trim().replace(/^\/+|\/+$/g, '');
   return cleanDirectory.length === 0 ? cleanFileName : `${cleanDirectory}/${cleanFileName}`;
 }
-

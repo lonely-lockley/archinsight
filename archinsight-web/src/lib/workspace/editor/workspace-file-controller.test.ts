@@ -220,7 +220,7 @@ describe('workspace file controller', () => {
 
     await subject.controller.saveActiveTab();
     expect(subject.ports.openFileDialog).toHaveBeenCalledWith(expect.objectContaining({
-      mode: 'save', fileName: 'untitled.aiq', tabId: 'untitled:1'
+      mode: 'save', fileName: 'untitled', fileKind: 'query', tabId: 'untitled:1'
     }));
 
     subject.controller.selectActiveDocumentKind('model');
@@ -257,7 +257,7 @@ describe('workspace file controller', () => {
     const saveAs = fixture([unsaved]);
     await saveAs.controller.saveActiveTab();
     expect(saveAs.ports.openFileDialog).toHaveBeenCalledWith(expect.objectContaining({
-      mode: 'save', fileName: 'untitled', tabId: 'untitled:1'
+      mode: 'save', fileName: 'untitled', fileKind: 'model', tabId: 'untitled:1'
     }));
 
     const saved = fixture([tab('main.ai', { local: true })]);

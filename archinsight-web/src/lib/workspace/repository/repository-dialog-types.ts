@@ -1,6 +1,7 @@
 import type { RepositoryDialogTarget } from './repository-paths';
 
 export type FileDialogMode = 'save' | 'new' | 'rename';
+export type RepositoryFileKind = 'model' | 'query';
 
 export type FileDialogState = {
   mode: FileDialogMode;
@@ -8,6 +9,7 @@ export type FileDialogState = {
   title: string;
   directory: string;
   fileName: string;
+  fileKind?: RepositoryFileKind;
   sourcePath?: string;
   tabId?: string;
   content?: string;
@@ -19,4 +21,3 @@ export type DeleteDialogState = {
   target: RepositoryDialogTarget;
   error?: string;
 };
-

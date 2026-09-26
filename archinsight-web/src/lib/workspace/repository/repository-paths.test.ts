@@ -66,9 +66,13 @@ describe('repository path model', () => {
 
   it('normalizes dialog names without applying file extensions to folders', () => {
     expect(normalizeDialogName(' /main.ai/ ', 'file')).toBe('main');
+    expect(normalizeDialogName(' /main.aiq/ ', 'file', 'model')).toBe('main.ai');
+    expect(normalizeDialogName(' /main.ai/ ', 'file', 'query')).toBe('main.aiq');
+    expect(normalizeDialogName('   ', 'file', 'query')).toBe('');
     expect(normalizeDialogName(' /domain.ai/ ', 'folder')).toBe('domain.ai');
     expect(defaultDialogFileName('Untitled 3', 'untitled')).toBe('untitled');
     expect(defaultDialogFileName(' src/main.ai ', 'untitled')).toBe('main');
+    expect(defaultDialogFileName(' reports/impact.aiq ', 'untitled')).toBe('impact');
   });
 
   it('preserves the existing display and join path contracts', () => {

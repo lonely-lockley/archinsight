@@ -427,12 +427,14 @@ export function createWorkspaceFileController(
         return;
       }
       if (tab.filePath === undefined) {
+        const fileKind = isQueryFile(tab.sourceIdentity) ? 'query' : 'model';
         ports.openFileDialog({
           mode: 'save',
           target: 'file',
           title: 'Save file',
           directory: '',
-          fileName: defaultDialogFileName(tab.title, isQueryFile(tab.sourceIdentity) ? 'untitled.aiq' : 'untitled'),
+          fileName: defaultDialogFileName(tab.title, 'untitled'),
+          fileKind,
           tabId: tab.id,
           content: tab.content
         });

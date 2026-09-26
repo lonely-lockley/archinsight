@@ -36,7 +36,8 @@ function node(path: string, type: TreeNode['type']): TreeNode {
 function callbacks() {
   return {
     onClose: vi.fn(),
-    onNewFile: vi.fn(),
+    onNewModel: vi.fn(),
+    onNewQuery: vi.fn(),
     onNewFolder: vi.fn(),
     onRenameFile: vi.fn(),
     onRenameFolder: vi.fn(),
@@ -61,7 +62,7 @@ describe('RepositoryContextMenu', () => {
 
     expect(target.querySelector('[role="menu"]')?.getAttribute('style')).toContain('left: 24px');
     expect([...target.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim()))
-      .toEqual(['New file', 'New folder']);
+      .toEqual(['New model', 'New query', 'New folder']);
 
     await unmount(component);
     target.remove();
@@ -84,13 +85,15 @@ describe('RepositoryContextMenu', () => {
     });
 
     const buttons = [...target.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
-    expect(buttons.map((button) => button.textContent?.trim())).toEqual(['New file', 'Rename / Move', 'Delete']);
-    expect(buttons[2]?.disabled).toBe(true);
-    expect(buttons[2]?.title).toBe('Read only');
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual(['New model', 'New query', 'Rename / Move', 'Delete']);
+    expect(buttons[3]?.disabled).toBe(true);
+    expect(buttons[3]?.title).toBe('Read only');
     buttons[0]?.click();
     buttons[1]?.click();
+    buttons[2]?.click();
 
-    expect(handlers.onNewFile).toHaveBeenCalledWith('src/domain');
+    expect(handlers.onNewModel).toHaveBeenCalledWith('src/domain');
+    expect(handlers.onNewQuery).toHaveBeenCalledWith('src/domain');
     expect(handlers.onRenameFolder).toHaveBeenCalledWith('src/domain');
     expect(handlers.onNewFolder).not.toHaveBeenCalled();
     expect(handlers.onDeleteFolder).not.toHaveBeenCalled();
