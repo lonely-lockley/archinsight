@@ -172,6 +172,16 @@ test('VS Code Monaco uses the same Insight themes as the web editor', () => {
   assert.equal(workbenchSource.includes("'insight-vscode-dark'"), false);
 });
 
+test('active VS Code theme changes refresh graph previews without project relinking', () => {
+  assert(extensionSource.includes('onDidChangeActiveColorTheme'));
+  assert(extensionSource.includes('workbenchEditor.refreshTheme()'));
+  assert(extensionSource.includes('preview.refreshTheme()'));
+  assert(extensionSource.includes('this.diagram.refreshGraph(input)'));
+  assert.equal(extensionSource.includes('project.refresh("theme")'), false);
+  assert(workbenchSource.includes('renderThemeForBodyClasses'));
+  assert(controlsSource.includes('renderThemeForBodyClasses'));
+});
+
 function assertPath(relativePath) {
   assert(existsSync(path.resolve(extensionRoot, relativePath)), `${relativePath} must exist`);
 }

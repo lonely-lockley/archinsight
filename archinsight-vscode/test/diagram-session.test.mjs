@@ -69,6 +69,26 @@ test('refresh reuses explicitly updated query state without emitting query-chang
   assert.equal(harness.previews.at(-1).query, 'refreshed');
 });
 
+test('theme refresh rerenders graphs but leaves tables and unopened previews untouched', async () => {
+  const graphHarness = createHarness();
+  const graphSession = graphHarness.session();
+  const input = { fileName: 'main.ai', source: 'source' };
+  assert.equal(await graphSession.refreshGraph(input), 'unavailable');
+  await graphSession.render(input, { view: 'c1', query: 'graph' });
+  assert.equal(await graphSession.refreshGraph(input), 'rendered');
+  assert.equal(graphHarness.previews.length, 2);
+
+  const tableHarness = createHarness({ queryResult: {
+    schemaVersion: 'aiq-table.v1', kind: 'table', columns: [], rows: [],
+    metadata: { context: null, source: null, executionComplete: true, rowCount: 0,
+      skip: 0, limit: null, pathScopes: [], warnings: [] },
+  } });
+  const tableSession = tableHarness.session();
+  await tableSession.render(input, { view: 'c1', query: 'table' });
+  assert.equal(await tableSession.refreshGraph(input), 'unavailable');
+  assert.equal(tableHarness.previews.length, 1);
+});
+
 test('query parameters survive refresh and participate in query state changes', async () => {
   const harness = createHarness();
   const session = harness.session();

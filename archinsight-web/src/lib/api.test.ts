@@ -199,11 +199,12 @@ describe('web API client', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(linkResponse()));
 
     await linkProject('demo', ['model.ai'], {}, '', 'c2', undefined, 'playground', {
-      forceFullAnalysis: true
+      forceFullAnalysis: true,
+      theme: 'light'
     });
 
     const [, init] = fetchMock.mock.lastCall!;
-    expect(JSON.parse(String(init?.body))).toMatchObject({ forceFullAnalysis: true });
+    expect(JSON.parse(String(init?.body))).toMatchObject({ forceFullAnalysis: true, theme: 'light' });
   });
 
   it('uses the same authentication error for read, write, and delete requests', async () => {

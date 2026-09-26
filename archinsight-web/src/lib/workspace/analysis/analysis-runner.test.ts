@@ -40,7 +40,7 @@ function fixture() {
     state: () => ({
       projectId: 'project', surface: 'editor', tabs: [main], activeTab: main,
       overlays: { 'saved.ai': 'saved' }, query: 'query', diagramMode: 'default',
-      deploymentEnvironment: undefined
+      deploymentEnvironment: undefined, theme: 'dark'
     }),
     linkProject: vi.fn(async () => linkResponse()),
     renderInBrowser: vi.fn(async () => ({
@@ -117,10 +117,10 @@ describe('analysis runner', () => {
 
     expect(subject.ports.linkProject).toHaveBeenCalledWith(
       'project', ['main.ai'], { 'saved.ai': 'saved', 'main.ai': 'changed' },
-      'query', 'no-filter', undefined, 'editor', undefined
+      'query', 'no-filter', undefined, 'editor', { theme: 'dark' }
     );
     expect(subject.ports.acceptProjectStructure).toHaveBeenCalled();
-    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', '<svg>server</svg>', 'digraph {}');
+    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', '<svg>server</svg>', 'digraph {}', 'dark');
     expect(subject.ports.queryFinished).toHaveBeenCalledWith('main.ai', 5, undefined, []);
   });
 
@@ -131,8 +131,23 @@ describe('analysis runner', () => {
 
     expect(subject.ports.linkProject).toHaveBeenCalledWith(
       'project', ['main.ai'], { 'saved.ai': 'saved', 'main.ai': 'changed' },
-      'query', 'no-filter', undefined, 'editor', { forceFullAnalysis: true }
+      'query', 'no-filter', undefined, 'editor', { forceFullAnalysis: true, theme: 'dark' }
     );
+  });
+
+  it('schedules a cached refresh when the browser theme changes during the initial link', async () => {
+    const subject = fixture();
+    let theme: 'light' | 'dark' = 'dark';
+    const originalState = subject.ports.state;
+    subject.ports.state = () => ({ ...originalState(), theme });
+    vi.mocked(subject.ports.linkProject).mockImplementationOnce(async () => {
+      theme = 'light';
+      return linkResponse();
+    });
+
+    await subject.runner.runLink(1);
+
+    expect(subject.ports.scheduleDiagramUpdate).toHaveBeenCalledOnce();
   });
 
   it('separates query failures from server failures', async () => {
@@ -172,7 +187,7 @@ describe('file-backed query execution', () => {
   it('renders each consumer using its own query and source, including a separate aiq preview', async () => {
     const subject = fixture();
     const active = tab('q.aiq');
-    subject.ports.state = () => ({ projectId: 'project', surface: 'editor', tabs: [active], activeTab: active, overlays: {}, query: 'wrong', diagramMode: 'c2', deploymentEnvironment: undefined });
+    subject.ports.state = () => ({ projectId: 'project', surface: 'editor', tabs: [active], activeTab: active, overlays: {}, query: 'wrong', diagramMode: 'c2', deploymentEnvironment: undefined, theme: 'dark' });
     subject.ports.resolveQuery = vi.fn(async () => ({ query: 'MATCH (n:Element) WHERE n.sourceIdentity = $tab RETURN n', view: undefined, source: 'two.ai', context: 'two' }));
     vi.mocked(subject.ports.renderInBrowser).mockImplementation(async (renders) => ({ diagnostics: [], svgs: renders.map((render) => ({ ...render, svg: '<svg/>' })) }));
     await subject.runner.runCachedDiagram(1, 'project', model);
@@ -180,14 +195,14 @@ describe('file-backed query execution', () => {
     expect(renders[0].sourceIdentity).toBe('q.aiq');
     expect(renders[0].dot).toContain('Second');
     expect(renders[0].dot).not.toContain('First');
-    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('q.aiq', '<svg/>', renders[0].dot);
+    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('q.aiq', '<svg/>', renders[0].dot, 'dark');
     expect(subject.ports.linkProject).not.toHaveBeenCalled();
   });
 
   it('publishes a table result without invoking Graphviz', async () => {
     const subject = fixture();
     const active = tab('report.aiq', { queryParameters: { element: 'two/second' } });
-    subject.ports.state = () => ({ projectId: 'project', surface: 'editor', tabs: [active], activeTab: active, overlays: {}, query: 'wrong', diagramMode: 'c2', deploymentEnvironment: undefined });
+    subject.ports.state = () => ({ projectId: 'project', surface: 'editor', tabs: [active], activeTab: active, overlays: {}, query: 'wrong', diagramMode: 'c2', deploymentEnvironment: undefined, theme: 'dark' });
     subject.ports.resolveQuery = vi.fn(async () => ({
       query: 'MATCH (n:Element) WHERE elementId(n) = $element RETURN TABLE elementId(n) AS element',
       view: undefined,
@@ -215,11 +230,42 @@ describe('file-backed query execution', () => {
     expect(subject.ports.queryFinished).not.toHaveBeenCalled();
   });
 
+  it('accepts only the newest diagram when the theme changes during rendering', async () => {
+    const subject = fixture();
+    const active = tab('q.aiq');
+    let theme: 'light' | 'dark' = 'dark';
+    let currentSequence = 1;
+    let renderCalls = 0;
+    let finishDark!: () => void;
+    const darkPending = new Promise<void>((resolve) => { finishDark = resolve; });
+    subject.ports.state = () => ({
+      projectId: 'project', surface: 'editor', tabs: [active], activeTab: active,
+      overlays: {}, query: 'wrong', diagramMode: 'c2', deploymentEnvironment: undefined, theme
+    });
+    subject.ports.resolveQuery = vi.fn(async () => ({ query: 'MATCH (n:System) RETURN n', view: undefined }));
+    subject.ports.isCurrent = vi.fn((sequence) => sequence === currentSequence);
+    vi.mocked(subject.ports.renderInBrowser).mockImplementation(async (renders) => {
+      if (++renderCalls === 1) await darkPending;
+      return { diagnostics: [], svgs: renders.map((render) => ({ ...render, svg: `<svg>${theme}</svg>` })) };
+    });
+
+    const darkRender = subject.runner.runCachedDiagram(1, 'project', model);
+    await vi.waitFor(() => expect(subject.ports.renderInBrowser).toHaveBeenCalledOnce());
+    theme = 'light';
+    currentSequence = 2;
+    await subject.runner.runCachedDiagram(2, 'project', model);
+    finishDark();
+    await darkRender;
+
+    expect(subject.ports.acceptDiagram).toHaveBeenCalledOnce();
+    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('q.aiq', '<svg>light</svg>', expect.any(String), 'light');
+  });
+
   it('passes preview scope and a raw-query view through the backend link request', async () => {
     const subject = fixture();
     subject.ports.resolveQuery = vi.fn(async () => ({ query: 'custom', view: undefined, source: 'two.ai', context: 'two' }));
     await subject.runner.runLink(1);
-    expect(subject.ports.linkProject).toHaveBeenCalledWith('project', ['main.ai'], { 'saved.ai': 'saved', 'main.ai': 'changed' }, 'custom', undefined, undefined, 'editor', { querySource: 'two.ai', queryContext: 'two' });
+    expect(subject.ports.linkProject).toHaveBeenCalledWith('project', ['main.ai'], { 'saved.ai': 'saved', 'main.ai': 'changed' }, 'custom', undefined, undefined, 'editor', { querySource: 'two.ai', queryContext: 'two', theme: 'dark' });
   });
 
   it('loads the model before prompting for a missing preview scope', async () => {
@@ -229,7 +275,7 @@ describe('file-backed query execution', () => {
     await subject.runner.runLink(1);
     expect(vi.mocked(subject.ports.linkProject).mock.calls[0][1]).toEqual([]);
     expect(subject.ports.acceptLinkedAnalysis).toHaveBeenCalled();
-    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', expect.stringContaining('Select query scope'), undefined);
+    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', expect.stringContaining('Select query scope'), undefined, undefined);
     expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
   });
 

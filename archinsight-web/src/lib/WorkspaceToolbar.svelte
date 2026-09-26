@@ -129,9 +129,9 @@
     align-items: center;
     flex: 0 0 auto;
     height: 28px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--archinsight-border, #3a3a3a);
     border-radius: 4px;
-    background: #202020;
+    background: var(--archinsight-control-group-bg, #202020);
   }
 
   .file-actions > button,
@@ -141,7 +141,7 @@
 
   .file-actions > button + button,
   .download-action {
-    border-left: 1px solid #3a3a3a;
+    border-left: 1px solid var(--archinsight-border, #3a3a3a);
   }
 
   .file-actions > button:first-child {
@@ -165,23 +165,23 @@
     padding: 0;
     border: 0;
     border-radius: 4px;
-    background: #2a2a2a;
-    color: #eeeeee;
+    background: var(--archinsight-control-bg, #2a2a2a);
+    color: var(--archinsight-foreground, #eeeeee);
     font-size: 14px;
     line-height: 1;
   }
 
   .icon-button:hover {
-    background: #343434;
+    background: var(--archinsight-control-hover-bg, #343434);
   }
 
   .icon-button:disabled {
-    color: var(--vscode-disabledForeground, #666666);
+    color: var(--archinsight-disabled-foreground, var(--vscode-disabledForeground, #666666));
     cursor: default;
   }
 
   .icon-button:disabled:hover {
-    background: #2a2a2a;
+    background: var(--archinsight-control-bg, #2a2a2a);
   }
 
   .has-tooltip {
@@ -195,10 +195,10 @@
     z-index: 30;
     max-width: 220px;
     padding: 6px 8px;
-    border: 1px solid #444444;
+    border: 1px solid var(--archinsight-tooltip-border, #444444);
     border-radius: 4px;
-    background: #181818;
-    color: #eeeeee;
+    background: var(--archinsight-tooltip-bg, #181818);
+    color: var(--archinsight-tooltip-fg, #eeeeee);
     content: attr(data-tooltip);
     font-size: 12px;
     font-weight: 500;
@@ -226,10 +226,10 @@
     z-index: 40;
     min-width: 210px;
     padding: 4px;
-    border: 1px solid #444444;
+    border: 1px solid var(--archinsight-tooltip-border, #444444);
     border-radius: 4px;
-    background: #202020;
-    box-shadow: 0 8px 18px rgb(0 0 0 / 35%);
+    background: var(--archinsight-menu-bg, #202020);
+    box-shadow: var(--archinsight-shadow, 0 8px 18px rgb(0 0 0 / 35%));
   }
 
   .download-menu button {
@@ -240,7 +240,7 @@
     border: 0;
     border-radius: 3px;
     background: transparent;
-    color: #eeeeee;
+    color: var(--archinsight-foreground, #eeeeee);
     font: inherit;
     font-size: 12px;
     line-height: 28px;
@@ -249,11 +249,11 @@
   }
 
   .download-menu button:hover {
-    background: #343434;
+    background: var(--archinsight-control-hover-bg, #343434);
   }
 
   .download-menu button:disabled {
-    color: #666666;
+    color: var(--archinsight-disabled-foreground, #666666);
     cursor: not-allowed;
   }
 
@@ -264,9 +264,9 @@
   .document-kind-switch {
     display: inline-flex;
     height: 28px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--archinsight-border, #3a3a3a);
     border-radius: 4px;
-    background: #202020;
+    background: var(--archinsight-control-group-bg, #202020);
   }
 
   .document-kind-switch button {
@@ -277,13 +277,13 @@
     place-items: center;
     border: 0;
     background: transparent;
-    color: #b8b8b8;
+    color: var(--archinsight-muted, #b8b8b8);
     font: inherit;
     font-size: 11px;
   }
 
   .document-kind-switch button + button {
-    border-left: 1px solid #3a3a3a;
+    border-left: 1px solid var(--archinsight-border, #3a3a3a);
   }
 
   .document-kind-switch button:first-child {
@@ -296,14 +296,14 @@
 
   .document-kind-switch button:hover,
   .document-kind-switch button:focus-visible {
-    background: #343434;
-    color: #ffffff;
+    background: var(--archinsight-control-hover-bg, #343434);
+    color: var(--archinsight-foreground, #ffffff);
     outline: none;
   }
 
   .document-kind-switch button.active {
-    background: #36511f;
-    color: #ffffff;
+    background: var(--archinsight-control-active-bg, #36511f);
+    color: var(--archinsight-control-active-fg, #ffffff);
   }
 
   .document-kind-switch .codicon {

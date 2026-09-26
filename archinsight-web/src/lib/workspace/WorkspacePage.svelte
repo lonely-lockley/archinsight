@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import type { WorkspaceSurface } from '$lib/actions/action-model';
   import WorkspaceShell from '$lib/workspace/shell/WorkspaceShell.svelte';
+  import WorkspaceTheme from '$lib/workspace/theme/WorkspaceTheme.svelte';
   import { createWorkspaceRuntime } from '$lib/workspace/shell/workspace-runtime';
   import {
     createWorkspaceShellView
@@ -30,10 +31,12 @@
   onDestroy(runtime.dispose);
 </script>
 
-<WorkspaceShell
-  view={shellView}
-  controllers={runtime.controllers}
-  bind:editorHost
-  onOpenRepositoryMenu={runtime.openRepositoryMenu}
-  onCloseRepositoryMenu={runtime.closeRepositoryMenu}
-/>
+<WorkspaceTheme theme={state.renderTheme}>
+  <WorkspaceShell
+    view={shellView}
+    controllers={runtime.controllers}
+    bind:editorHost
+    onOpenRepositoryMenu={runtime.openRepositoryMenu}
+    onCloseRepositoryMenu={runtime.closeRepositoryMenu}
+  />
+</WorkspaceTheme>

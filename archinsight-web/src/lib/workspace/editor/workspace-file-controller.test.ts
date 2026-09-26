@@ -34,7 +34,7 @@ function fixture(initialTabs: WorkspaceTab[] = []) {
     startLanguageWorker: vi.fn(), setupEditor: vi.fn(async () => undefined),
     checkSyntax: vi.fn(async () => []), syncActiveTab: vi.fn(), ensureModel: vi.fn(),
     removeModel: vi.fn(), retargetModel: vi.fn(), reveal: vi.fn(),
-    refreshTokenVocabulary: vi.fn(), refreshMarkers: vi.fn(), layout: vi.fn(), refreshQueryScope: vi.fn(),
+    refreshTokenVocabulary: vi.fn(), refreshMarkers: vi.fn(), layout: vi.fn(), refreshQueryScope: vi.fn(), setTheme: vi.fn(),
     reset: vi.fn(), dispose: vi.fn()
   };
   const analysis: AnalysisController = {
@@ -82,7 +82,8 @@ function fixture(initialTabs: WorkspaceTab[] = []) {
     redirectIfAuthRequired: vi.fn(() => false),
     info: vi.fn(),
     error: vi.fn(),
-    fileSaved: vi.fn()
+    fileSaved: vi.fn(),
+    renderTheme: () => 'dark'
   };
   return {
     ports, monaco, analysis,
@@ -142,7 +143,7 @@ describe('workspace file controller', () => {
       metadata: { context: null, source: null, executionComplete: true as const, rowCount: 0, skip: 0, limit: null, pathScopes: [], warnings: [] }
     };
     const subject = fixture([
-      tab('graph.ai', { dot: 'digraph {}' }),
+      tab('graph.ai', { dot: 'digraph {}', renderTheme: 'dark' }),
       tab('table.aiq', { dot: undefined, queryResult: tableResult }),
       tab('missing.ai', { dot: undefined })
     ]);
@@ -152,6 +153,14 @@ describe('workspace file controller', () => {
     expect(subject.analysis.scheduleDiagramUpdate).not.toHaveBeenCalled();
 
     await subject.controller.activateTab('missing.ai');
+    expect(subject.analysis.scheduleDiagramUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes a cached graph once when its render theme is stale', async () => {
+    const subject = fixture([tab('graph.ai', { dot: 'digraph {}', renderTheme: 'light' })]);
+
+    await subject.controller.activateTab('graph.ai');
+
     expect(subject.analysis.scheduleDiagramUpdate).toHaveBeenCalledOnce();
   });
 

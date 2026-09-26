@@ -54,7 +54,7 @@
     padding: 0 10px 0 calc(10px + var(--depth) * 18px);
     border: 0;
     background: transparent;
-    color: #d2d2d2;
+    color: var(--archinsight-foreground, #d2d2d2);
     font: inherit;
     text-align: left;
     cursor: default;
@@ -62,12 +62,12 @@
   }
 
   .tree-row:hover {
-    background: #2f2f2f;
+    background: var(--archinsight-control-hover-bg, #2f2f2f);
   }
 
   .tree-row.active {
-    background: #36511f;
-    color: #ffffff;
+    background: var(--archinsight-control-active-bg, #36511f);
+    color: var(--archinsight-control-active-fg, #ffffff);
   }
 
   .directory {
@@ -75,18 +75,18 @@
   }
 
   .file {
-    color: #d2d2d2;
+    color: var(--archinsight-foreground, #d2d2d2);
   }
 
   .chevron {
-    color: #9a9a9a;
+    color: var(--archinsight-muted-foreground, #9a9a9a);
   }
 
   .icon-cell {
     display: grid;
     place-items: center;
     justify-self: center;
-    color: #b9b9b9;
+    color: var(--archinsight-muted, #b9b9b9);
   }
 
   .tree-row.active .icon-cell {

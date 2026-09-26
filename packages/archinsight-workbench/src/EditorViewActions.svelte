@@ -89,7 +89,7 @@
     border: 1px solid var(--archinsight-tooltip-border, #444444);
     border-radius: 4px;
     background: var(--archinsight-tooltip-bg, #181818);
-    color: var(--archinsight-foreground, #eeeeee);
+    color: var(--archinsight-tooltip-fg, var(--archinsight-foreground, #eeeeee));
     content: attr(data-tooltip);
     font-size: 12px;
     font-weight: 500;

@@ -1,7 +1,8 @@
 import {
   coreLanguageSnapshot,
   type LanguageSnapshot,
-  type LinkProjectResult
+  type LinkProjectResult,
+  type RenderTheme
 } from '@insight/language';
 import type { AuthUserResponse, Diagnostic, ProjectStructure } from '$lib/api';
 import type { ProjectRegistryState } from '$lib/storage';
@@ -51,6 +52,7 @@ export type WorkspaceRuntimeState = {
   currentUser: AuthUserResponse;
   publishedProjectId: string | undefined;
   deploymentPickerOpen: boolean;
+  renderTheme: RenderTheme;
 };
 
 export function initialWorkspaceRuntimeState(): WorkspaceRuntimeState {
@@ -82,7 +84,8 @@ export function initialWorkspaceRuntimeState(): WorkspaceRuntimeState {
     projectDialog: undefined,
     currentUser: { authenticated: false },
     publishedProjectId: undefined,
-    deploymentPickerOpen: false
+    deploymentPickerOpen: false,
+    renderTheme: 'dark'
   };
 }
 

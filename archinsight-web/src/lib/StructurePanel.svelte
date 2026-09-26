@@ -181,11 +181,11 @@
   }
 
   .structure-panel {
-    --vscode-symbolIcon-classForeground: #EE9D28;
-    --vscode-symbolIcon-variableForeground: #75BEFF;
-    --vscode-symbolIcon-namespaceForeground: #d2d2d2;
-    --vscode-symbolIcon-operatorForeground: #d2d2d2;
-    --vscode-symbolIcon-referenceForeground: #d2d2d2;
+    --vscode-symbolIcon-classForeground: var(--archinsight-symbol-class, #ee9d28);
+    --vscode-symbolIcon-variableForeground: var(--archinsight-symbol-variable, #75beff);
+    --vscode-symbolIcon-namespaceForeground: var(--archinsight-foreground, #d2d2d2);
+    --vscode-symbolIcon-operatorForeground: var(--archinsight-foreground, #d2d2d2);
+    --vscode-symbolIcon-referenceForeground: var(--archinsight-foreground, #d2d2d2);
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
     height: 100%;
@@ -200,15 +200,15 @@
     gap: 8px;
     margin: 10px 10px 8px;
     padding: 0 7px 0 9px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--archinsight-border, #3a3a3a);
     border-radius: 4px;
-    background: #252525;
-    color: #9a9a9a;
+    background: var(--archinsight-input-bg, #252525);
+    color: var(--archinsight-muted-foreground, #9a9a9a);
   }
 
   .search-box:focus-within {
     border-color: var(--color-primary);
-    color: #d8d8d8;
+    color: var(--archinsight-foreground, #d8d8d8);
   }
 
   input {
@@ -218,13 +218,13 @@
     border: 0;
     outline: 0;
     background: transparent;
-    color: #eeeeee;
+    color: var(--archinsight-foreground, #eeeeee);
     font: inherit;
     font-size: 13px;
   }
 
   input::placeholder {
-    color: #808080;
+    color: var(--archinsight-muted-foreground, #808080);
   }
 
   .clear-search {
@@ -235,7 +235,7 @@
     border: 0;
     border-radius: 3px;
     background: transparent;
-    color: #9a9a9a;
+    color: var(--archinsight-muted-foreground, #9a9a9a);
     line-height: 1;
   }
 
@@ -250,8 +250,8 @@
 
   .clear-search:hover,
   .clear-search:focus-visible {
-    background: #343434;
-    color: #eeeeee;
+    background: var(--archinsight-control-hover-bg, #343434);
+    color: var(--archinsight-foreground, #eeeeee);
     outline: none;
   }
 
@@ -267,25 +267,25 @@
     height: 28px;
     place-items: center;
     padding: 0;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--archinsight-border, #3a3a3a);
     border-radius: 3px;
-    background: #252525;
-    color: #8d8d8d;
+    background: var(--archinsight-control-bg, #252525);
+    color: var(--archinsight-muted-foreground, #8d8d8d);
     font-size: 15px;
   }
 
   .structure-filter:hover,
   .structure-filter:focus-visible {
-    border-color: #5a5a5a;
-    background: #343434;
-    color: #eeeeee;
+    border-color: var(--archinsight-border-strong, #5a5a5a);
+    background: var(--archinsight-control-hover-bg, #343434);
+    color: var(--archinsight-foreground, #eeeeee);
     outline: none;
   }
 
   .structure-filter.active {
     border-color: var(--color-primary);
-    background: color-mix(in srgb, var(--color-primary) 20%, #252525);
-    color: #eeeeee;
+    background: var(--archinsight-control-active-bg, color-mix(in srgb, var(--color-primary) 20%, #252525));
+    color: var(--archinsight-control-active-fg, #eeeeee);
   }
 
   .structure-content {
@@ -297,7 +297,7 @@
 
   .section-title {
     padding: 12px 10px 5px;
-    color: #8d8d8d;
+    color: var(--archinsight-muted-foreground, #8d8d8d);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0;
@@ -306,6 +306,6 @@
 
   .empty {
     padding: 24px;
-    color: #9a9a9a;
+    color: var(--archinsight-muted-foreground, #9a9a9a);
   }
 </style>

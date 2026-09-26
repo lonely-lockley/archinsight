@@ -53,10 +53,10 @@
     z-index: 30;
     max-width: 220px;
     padding: 6px 8px;
-    border: 1px solid #444444;
+    border: 1px solid var(--archinsight-tooltip-border, #444444);
     border-radius: 4px;
-    background: #181818;
-    color: #eeeeee;
+    background: var(--archinsight-tooltip-bg, #181818);
+    color: var(--archinsight-tooltip-fg, #eeeeee);
     content: attr(data-tooltip);
     font-size: 12px;
     font-weight: 500;
@@ -81,8 +81,8 @@
     display: flex;
     min-width: 0;
     overflow: auto hidden;
-    border-bottom: 1px solid #393939;
-    background: #2b2b2b;
+    border-bottom: 1px solid var(--archinsight-border, #393939);
+    background: var(--archinsight-tab-strip-bg, #2b2b2b);
   }
 
   .tab {
@@ -91,16 +91,16 @@
     min-width: 118px;
     max-width: 190px;
     height: 100%;
-    border-right: 1px solid #3a3a3a;
+    border-right: 1px solid var(--archinsight-border, #3a3a3a);
     border-bottom: 2px solid transparent;
-    background: #2d2d2d;
-    color: #d8d8d8;
+    background: var(--archinsight-tab-bg, #2d2d2d);
+    color: var(--archinsight-foreground, #d8d8d8);
   }
 
   .tab.active {
     border-bottom-color: var(--color-primary);
-    background: #303030;
-    color: #ffffff;
+    background: var(--archinsight-tab-active-bg, #303030);
+    color: var(--archinsight-foreground, #ffffff);
   }
 
   .tab-main {
@@ -153,7 +153,7 @@
     height: 100%;
     border: 0;
     background: transparent;
-    color: #b5b5b5;
+    color: var(--archinsight-muted, #b5b5b5);
   }
 
   .close .codicon {
@@ -161,7 +161,7 @@
   }
 
   .close:hover {
-    color: #ffffff;
-    background: #3a3a3a;
+    color: var(--archinsight-foreground, #ffffff);
+    background: var(--archinsight-control-hover-bg, #3a3a3a);
   }
 </style>

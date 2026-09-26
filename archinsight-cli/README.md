@@ -40,7 +40,9 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `--timeout-ms <n>` - query execution deadline after linking.
 - `-f, --format <format>` - command output format.
 - `-o, --out <file>` - write payload output to a file instead of stdout.
-- `-t, --theme <theme>` - render theme; defaults to `light`.
+- `-t, --theme <system|light|dark>` - render theme. It follows the operating
+  system by default and falls back to `light` when the preference is unavailable.
+  Use an explicit theme for reproducible CI output.
 - `--target <target>` - skill target for `skill init`: `generic`, `codex`, or `claude`.
 - `--force` - replace the complete generated skill directory after the new
   package has been generated successfully.

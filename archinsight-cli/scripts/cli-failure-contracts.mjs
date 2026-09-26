@@ -23,11 +23,13 @@ system application
 
   assertSuccess(run("--version"), /\d+\.\d+\.\d+/);
   assertSuccess(run("--help"), /Usage:/);
+  assertSuccess(run("--help"), /theme: system, light, or dark; default: system/i);
   assertFailure(run("unknown"), /Unknown command 'unknown'/);
   assertFailure(run("query", project, "--format"), /Option '--format' expects a value/);
   assertFailure(run("query", project, "--unknown"), /Unknown option '--unknown'/);
   assertFailure(run("query", project, "--format", "yaml"), /Unsupported format 'yaml'/);
   assertFailure(run("query", project, "--view", "unknown"), /Unknown view 'unknown'/);
+  assertFailure(run("render", project, "--theme", "sepia"), /expected system, light, or dark/);
   for (const command of ["query", "render"]) {
     assertFailure(
       run(command, project, "--view", "c1", "--query", "custom.aiq"),
@@ -63,6 +65,9 @@ system application
   const dot = assertSuccess(run("render", project));
   assert.match(dot.stdout, /^digraph /);
   assert.match(dot.stderr, /RENDER_FINISHED/);
+  const darkDot = assertSuccess(run("render", project, "--theme", "dark"));
+  const lightDot = assertSuccess(run("render", project, "--theme", "light"));
+  assert.notEqual(darkDot.stdout, lightDot.stdout);
 
   const svg = assertSuccess(run("render", project, "--format", "svg"));
   assert.match(svg.stdout, /<svg\b/);

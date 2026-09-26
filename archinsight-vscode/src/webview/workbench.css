@@ -14,14 +14,25 @@
   --archinsight-border: var(--vscode-panel-border, #3a3a3a);
   --archinsight-border-strong: var(--vscode-panel-border, #3b3b3b);
   --archinsight-foreground: var(--vscode-editor-foreground, #eeeeee);
+  --archinsight-muted: var(--vscode-descriptionForeground, #a8a8a8);
   --archinsight-muted-foreground: var(--vscode-descriptionForeground, #8f8f8f);
   --archinsight-disabled-foreground: var(--vscode-disabledForeground, #666666);
   --archinsight-tooltip-bg: var(--vscode-editorHoverWidget-background, #181818);
+  --archinsight-tooltip-fg: var(--vscode-editorHoverWidget-foreground, var(--vscode-editor-foreground, #eeeeee));
   --archinsight-tooltip-border: var(--vscode-editorHoverWidget-border, var(--vscode-panel-border, #444444));
   --archinsight-menu-bg: var(--vscode-menu-background, var(--vscode-editorWidget-background, #202020));
   --archinsight-menu-shadow: none;
+  --archinsight-shadow: none;
+  --archinsight-selection-overlay: var(--vscode-list-hoverBackground, rgb(255 255 255 / 8%));
   --archinsight-resize-bg: var(--vscode-sideBarSectionHeader-background, var(--vscode-editor-background, #262626));
   --archinsight-resize-hover-bg: var(--vscode-focusBorder, var(--color-primary));
+  --archinsight-border-subtle: var(--vscode-panel-border, #303030);
+  --archinsight-danger: var(--vscode-errorForeground, #ff5c57);
+  --archinsight-warning: var(--vscode-editorWarning-foreground, #ffb86c);
+  --archinsight-info: var(--vscode-editorInfo-foreground, #6fa8dc);
+  --archinsight-focus: var(--vscode-focusBorder, #007fd4);
+  --archinsight-hint-bg: var(--vscode-editorInlayHint-background, #2b3440);
+  --archinsight-hint-fg: var(--vscode-editorInlayHint-foreground, #abb6c7);
   --archinsight-svg-background-fill: transparent;
   --archinsight-svg-background-stroke: transparent;
 

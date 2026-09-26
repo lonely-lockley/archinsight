@@ -1,5 +1,5 @@
 import type { DiagnosticDto, FileTreeNode } from '@archinsight/contracts';
-import type { BuiltinDiagramView, QueryParameterValue, QueryTableResult } from '@insight/language';
+import type { BuiltinDiagramView, QueryParameterValue, QueryTableResult, RenderTheme } from '@insight/language';
 
 export type ProjectUiState = {
   sidebarVisible: boolean;
@@ -25,6 +25,7 @@ export type WorkspaceTab = {
   content: string;
   svg: string;
   dot?: string;
+  renderTheme?: RenderTheme;
   diagnostics: DiagnosticDto[];
   local: boolean;
   readOnly?: boolean;

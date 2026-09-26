@@ -27,6 +27,7 @@ function fixture() {
     analysis: vi.fn(), diagram: vi.fn(), layout: vi.fn(), monaco: vi.fn()
   };
   const handleGlobalKeydown = vi.fn();
+  const theme = { start: vi.fn(), dispose: vi.fn() };
   const lifecycle = createWorkspaceRuntimeLifecycle({
     host: {
       surface: () => 'editor',
@@ -44,12 +45,13 @@ function fixture() {
       startLanguageWorker: vi.fn(), setupEditor, dispose: dispose.monaco
     } as unknown as MonacoSession,
     projects: { loadProjects, loadPublication, loadProject } as unknown as ProjectSessionController,
+    theme,
     closeRepositoryMenu
   });
   return {
     lifecycle, authorizeWorkspace, redirectIfAuthRequired, setupEditor,
     loadProjects, loadPublication, loadProject, closeRepositoryMenu,
-    handleGlobalKeydown, error, dispose,
+    handleGlobalKeydown, error, dispose, theme,
     setState: (patch: Partial<typeof state>) => { state = { ...state, ...patch }; }
   };
 }
@@ -65,6 +67,7 @@ describe('workspace runtime lifecycle', () => {
 
     await subject.lifecycle.start();
 
+    expect(subject.theme.start).toHaveBeenCalledOnce();
     expect(subject.setupEditor).toHaveBeenCalledOnce();
     expect(subject.loadProjects).toHaveBeenCalledOnce();
     expect(subject.loadPublication).toHaveBeenCalledOnce();
@@ -99,6 +102,7 @@ describe('workspace runtime lifecycle', () => {
     subject.lifecycle.dispose();
 
     expect(Object.values(subject.dispose).every((callback) => callback.mock.calls.length === 1)).toBe(true);
+    expect(subject.theme.dispose).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledWith('keydown', subject.handleGlobalKeydown);
     expect(remove).toHaveBeenCalledWith('click', subject.closeRepositoryMenu);
   });

@@ -8,12 +8,13 @@ import {
 
 describe('shared transport contracts', () => {
   it('normalizes a valid HTTP link request', () => {
-    expect(parseLinkRequest({ view: 'c2', overlays: { 'main.ai': 'context demo' }, query: null })).toEqual({
+    expect(parseLinkRequest({ view: 'c2', overlays: { 'main.ai': 'context demo' }, query: null, theme: 'light' })).toEqual({
       openSourceIdentities: undefined,
       overlays: { 'main.ai': 'context demo' },
       query: null,
       view: 'c2',
-      environment: undefined
+      environment: undefined,
+      theme: 'light'
     });
     expect(parseLinkRequest({ forceFullAnalysis: true })).toEqual({
       openSourceIdentities: undefined,
@@ -28,6 +29,7 @@ describe('shared transport contracts', () => {
   it('rejects malformed HTTP and webview payloads', () => {
     expect(() => parseLinkRequest({ view: 'unknown' })).toThrow(ContractValidationError);
     expect(() => parseLinkRequest({ forceFullAnalysis: 'yes' })).toThrow(ContractValidationError);
+    expect(() => parseLinkRequest({ theme: 'system' })).toThrow(ContractValidationError);
     expect(() => parseWorkbenchWebviewToHostMessage({ command: 'complete', requestId: '1' }))
       .toThrow(ContractValidationError);
     expect(() => parseWorkbenchHostToWebviewMessage({ command: 'preview', state: { view: 'c1' } }))

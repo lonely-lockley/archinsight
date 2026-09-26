@@ -7,7 +7,8 @@ import {
   createGeneratedInsightSyntaxProvider,
   type CompletionKind,
   type LanguageSnapshot,
-  type LinkProjectResult
+  type LinkProjectResult,
+  type RenderTheme
 } from '@insight/language';
 import {
   completionDisplayLabel,
@@ -26,7 +27,7 @@ import {
   type InsightTokenVocabulary
 } from '@archinsight/workbench/monaco';
 import LanguageWorker from '$lib/language.worker?worker';
-import { defineInsightThemes, insightDarkTheme } from '@archinsight/workbench/monaco-themes';
+import { defineInsightThemes, insightDarkTheme, insightLightTheme } from '@archinsight/workbench/monaco-themes';
 import {
   visibleIdentifiersForSource,
   type WorkspaceCompletionSnapshot
@@ -64,6 +65,7 @@ export type MonacoSession = {
   refreshTokenVocabulary(options?: { readonly repaint?: boolean }): void;
   refreshMarkers(): void;
   refreshQueryScope(): void;
+  setTheme(theme: RenderTheme): void;
   layout(): void;
   reset(): void;
   dispose(): void;
@@ -81,6 +83,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
   let syntaxSequence = 0;
   const syntaxResolvers = new Map<number, (diagnostics: Diagnostic[]) => void>();
   const editorModels = new Map<string, Monaco.editor.ITextModel>();
+  let renderTheme: RenderTheme = 'dark';
 
   const sourceIdentityForModel = (model: Monaco.editor.ITextModel): string => {
     for (const [id, candidate] of editorModels) {
@@ -234,7 +237,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
       registerCompletionProvider();
       editor = monaco.editor.create(ports.editorHost(), {
         model: null,
-        theme: insightDarkTheme,
+        theme: renderTheme === 'dark' ? insightDarkTheme : insightLightTheme,
         automaticLayout: true,
         minimap: { enabled: true },
         autoIndent: 'full',
@@ -379,6 +382,11 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
     },
 
     refreshQueryScope() { queryScopeWidgets?.refresh(); },
+
+    setTheme(theme) {
+      renderTheme = theme;
+      monaco?.editor.setTheme(theme === 'dark' ? insightDarkTheme : insightLightTheme);
+    },
 
     layout() {
       editor?.layout();

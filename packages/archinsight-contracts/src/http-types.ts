@@ -4,7 +4,8 @@ import type {
   GraphRelation,
   LanguageSnapshot,
   LinkProjectResult,
-  ProjectStructure
+  ProjectStructure,
+  RenderTheme
 } from '@insight/language';
 
 export type ApiErrorCode =
@@ -82,6 +83,7 @@ export type LinkRequest = {
   forceFullAnalysis?: boolean;
   querySource?: string | null;
   queryContext?: string | null;
+  theme?: RenderTheme;
 };
 
 export type ProjectStructureRequest = { overlays?: Record<string, string> | null };

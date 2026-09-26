@@ -91,19 +91,19 @@
 </section>
 
 <style>
-  .table-result { display: grid; grid-template-rows: minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--panel-background, #1e1e1e); color: var(--foreground, #ddd); }
-  footer { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; min-height: 30px; gap: 12px; padding: 4px 12px; border-top: 1px solid var(--border-color, #3c3c3c); font-size: 12px; }
+  .table-result { display: grid; grid-template-rows: minmax(0, 1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--archinsight-panel-bg, #1e1e1e); color: var(--archinsight-foreground, #ddd); }
+  footer { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; min-height: 30px; gap: 12px; padding: 4px 12px; border-top: 1px solid var(--archinsight-border, #3c3c3c); font-size: 12px; }
   .result-metadata, .pagination { display: flex; align-items: center; gap: 12px; }
   .pagination { grid-column: 2; }
-  button { color: inherit; background: var(--button-secondary-background, #333); border: 1px solid var(--border-color, #555); border-radius: 3px; padding: 4px 8px; }
+  button { color: inherit; background: var(--archinsight-control-bg, #333); border: 1px solid var(--archinsight-border-strong, #555); border-radius: 3px; padding: 4px 8px; }
   button:disabled { opacity: .45; }
   .table-scroll { min-width: 0; min-height: 0; overflow: auto; }
   table { width: max-content; min-width: 100%; border-collapse: collapse; font: 12px/1.4 var(--monaco-monospace-font, monospace); }
-  th, td { max-width: 420px; padding: 7px 10px; border-right: 1px solid var(--border-color, #3c3c3c); border-bottom: 1px solid var(--border-color, #333); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-  th { position: sticky; top: 0; z-index: 1; background: var(--panel-background, #252526); }
+  th, td { max-width: 420px; padding: 7px 10px; border-right: 1px solid var(--archinsight-border, #3c3c3c); border-bottom: 1px solid var(--archinsight-border, #333); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  th { position: sticky; top: 0; z-index: 1; background: var(--archinsight-toolbar-bg, #252526); }
   th small { display: block; opacity: .65; font-weight: 400; }
   tbody tr:nth-child(even) { background: color-mix(in srgb, currentColor 3%, transparent); }
-  td:focus { outline: 2px solid var(--focus-border, #007fd4); outline-offset: -2px; }
+  td:focus { outline: 2px solid var(--archinsight-focus, #007fd4); outline-offset: -2px; }
   .null { opacity: .55; font-style: italic; }
   details summary { cursor: pointer; }
   pre { margin: 6px 0 0; white-space: pre-wrap; }
