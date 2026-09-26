@@ -37,7 +37,10 @@ describe('repository controller', () => {
     vi.clearAllMocks();
   });
 
-  it('creates a file and normalizes its extension', async () => {
+  it.each([
+    ['model', 'service.aiq', 'service.ai'],
+    ['query', 'service.ai', 'service.aiq']
+  ] as const)('creates a %s with its fixed extension', async (fileKind, fileName, expectedPath) => {
     const adapter = ports();
     const controller = createRepositoryController(adapter);
 
@@ -47,24 +50,25 @@ describe('repository controller', () => {
       dialog: {
         mode: 'new',
         target: 'file',
-        title: 'New file',
+        title: fileKind === 'model' ? 'New model' : 'New query',
         directory: 'domain',
-        fileName: 'service.ai',
+        fileName,
+        fileKind,
         content: 'system service'
       }
     });
 
     expect(adapter.saveFile).toHaveBeenCalledWith(
       'project-1',
-      'domain/service',
+      `domain/${expectedPath}`,
       { content: 'system service' }
     );
     expect(result).toEqual({
       ok: true,
-      normalizedFileName: 'service',
+      normalizedFileName: expectedPath,
       effect: {
         kind: 'file-saved',
-        path: 'domain/service',
+        path: `domain/${expectedPath}`,
         content: 'system service'
       }
     });

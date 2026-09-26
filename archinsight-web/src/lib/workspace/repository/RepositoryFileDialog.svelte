@@ -12,7 +12,7 @@
 
   $: targetPath = joinPath(
     dialog.directory,
-    normalizeDialogName(dialog.fileName, dialog.target)
+    normalizeDialogName(dialog.fileName, dialog.target, dialog.fileKind)
   ) || '-';
 
   function handleFileNameInput(event: Event): void {

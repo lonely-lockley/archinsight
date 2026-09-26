@@ -30,7 +30,8 @@ export type RepositoryDialogControllerPorts = {
 };
 
 export type RepositoryDialogController = {
-  newFile(directory: string): void;
+  newModel(directory: string): void;
+  newQuery(directory: string): void;
   newFolder(directory: string): void;
   renameFile(path: string): void;
   renameFolder(path: string): void;
@@ -68,11 +69,19 @@ export function createRepositoryDialogController(
   };
 
   return {
-    newFile(directory) {
+    newModel(directory) {
       if (!closeMenuAndAuthorize('repository.file.create')) return;
       openFileDialog({
-        mode: 'new', target: 'file', title: 'New file', directory,
-        fileName: defaultNewFileName, content: ''
+        mode: 'new', target: 'file', title: 'New model', directory,
+        fileName: defaultNewFileName, fileKind: 'model', content: ''
+      });
+    },
+
+    newQuery(directory) {
+      if (!closeMenuAndAuthorize('repository.file.create')) return;
+      openFileDialog({
+        mode: 'new', target: 'file', title: 'New query', directory,
+        fileName: defaultNewFileName, fileKind: 'query', content: ''
       });
     },
 

@@ -20,7 +20,8 @@
   export let menu: RepositoryContextMenuState;
   export let actions: RepositoryContextMenuActions;
   export let onClose: () => void;
-  export let onNewFile: (directory: string) => void;
+  export let onNewModel: (directory: string) => void;
+  export let onNewQuery: (directory: string) => void;
   export let onNewFolder: (directory: string) => void;
   export let onRenameFile: (path: string) => void;
   export let onRenameFolder: (path: string) => void;
@@ -39,9 +40,13 @@
 >
   {#if menu.node.type === 'directory'}
     {#if !actions.createFile.hidden}
-      <button type="button" role="menuitem" disabled={actions.createFile.disabled} title={actions.createFile.reason} on:click={() => onNewFile(menu.node.path)}>
+      <button type="button" role="menuitem" disabled={actions.createFile.disabled} title={actions.createFile.reason} on:click={() => onNewModel(menu.node.path)}>
         <span aria-hidden="true" class="codicon codicon-new-file"></span>
-        <span>New file</span>
+        <span>New model</span>
+      </button>
+      <button type="button" role="menuitem" disabled={actions.createFile.disabled} title={actions.createFile.reason} on:click={() => onNewQuery(menu.node.path)}>
+        <span aria-hidden="true" class="codicon codicon-new-file"></span>
+        <span>New query</span>
       </button>
     {/if}
     {#if !actions.createFolder.hidden}

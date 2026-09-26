@@ -1,6 +1,7 @@
 import type { TreeNode } from '@archinsight/workbench/types';
 import type { DeleteDialogState, FileDialogState } from './repository-dialog-types';
 import {
+  findRepositoryNode,
   findRepositoryNodeByDisplayPath,
   repositoryFilePathsInDirectory
 } from './repository-tree';
@@ -81,7 +82,7 @@ export type RepositoryController = {
 export function createRepositoryController(ports: RepositoryControllerPorts): RepositoryController {
   return {
     async submitFileDialog({ projectId, tree, dialog }) {
-      const targetFileName = normalizeDialogName(dialog.fileName, dialog.target);
+      const targetFileName = normalizeDialogName(dialog.fileName, dialog.target, dialog.fileKind);
       const nameValidation = validateNodeName(targetFileName, dialog.target);
       if (nameValidation !== undefined) {
         return {
@@ -96,7 +97,9 @@ export function createRepositoryController(ports: RepositoryControllerPorts): Re
         targetPath,
         dialog.target,
         dialog.mode === 'rename' ? dialog.sourcePath : undefined,
-        (candidate) => findRepositoryNodeByDisplayPath(tree, candidate) !== undefined
+        (candidate) => dialog.fileKind === undefined
+          ? findRepositoryNodeByDisplayPath(tree, candidate) !== undefined
+          : findRepositoryNode(tree, candidate, 'file') !== undefined
       );
       if (pathValidation !== undefined) {
         return {

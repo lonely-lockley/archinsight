@@ -181,7 +181,8 @@
     menu={view.state.repositoryMenu}
     actions={view.repositoryMenuActions}
     onClose={onCloseRepositoryMenu}
-    onNewFile={controllers.repositoryDialog.newFile}
+    onNewModel={controllers.repositoryDialog.newModel}
+    onNewQuery={controllers.repositoryDialog.newQuery}
     onNewFolder={controllers.repositoryDialog.newFolder}
     onRenameFile={controllers.repositoryDialog.renameFile}
     onRenameFolder={controllers.repositoryDialog.renameFolder}

@@ -45,11 +45,23 @@ describe('repository dialog controller', () => {
   it('checks authorization before opening a command dialog', () => {
     const subject = fixture();
     vi.mocked(subject.ports.authorize).mockReturnValueOnce(false);
-    subject.controller.newFile('domain');
+    subject.controller.newModel('domain');
 
     expect(subject.ports.closeMenu).toHaveBeenCalledOnce();
     expect(subject.ports.authorize).toHaveBeenCalledWith('repository.file.create');
     expect(subject.fileDialog()).toBeUndefined();
+  });
+
+  it('opens model and query dialogs with fixed file kinds', () => {
+    const subject = fixture();
+    subject.controller.newModel('domain');
+    expect(subject.fileDialog()).toMatchObject({
+      title: 'New model', directory: 'domain', fileName: 'untitled', fileKind: 'model'
+    });
+    subject.controller.newQuery('reports');
+    expect(subject.fileDialog()).toMatchObject({
+      title: 'New query', directory: 'reports', fileName: 'untitled', fileKind: 'query'
+    });
   });
 
   it('derives rename defaults from the selected file path', () => {
@@ -85,7 +97,7 @@ describe('repository dialog controller', () => {
 
   it('keeps controller validation feedback in the dialog', async () => {
     const subject = fixture();
-    subject.controller.newFile('');
+    subject.controller.newModel('');
     const rejected = { ...subject.fileDialog()!, error: 'File already exists' };
     vi.mocked(subject.commands.submitFileDialog).mockResolvedValueOnce({
       ok: false, reason: 'validation', dialog: rejected
@@ -98,7 +110,7 @@ describe('repository dialog controller', () => {
 
   it('accepts a successful file effect and refreshes dependent state', async () => {
     const subject = fixture();
-    subject.controller.newFile('');
+    subject.controller.newModel('');
     await subject.controller.confirmFileDialog();
 
     expect(subject.ports.acceptFileEffect).toHaveBeenCalledWith(expect.objectContaining({ kind: 'file-saved' }));
