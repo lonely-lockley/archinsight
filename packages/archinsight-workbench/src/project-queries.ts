@@ -53,6 +53,10 @@ export function selectedQueryName(tab: WorkspaceTab): string | undefined {
 export function resolveProjectQuery(tab: WorkspaceTab, queries: readonly ProjectQuery[]): ProjectQuery | undefined {
   const name = selectedQueryName(tab);
   const query = queries.find((item) => item.name === name);
+  if (isQueryFile(tab.sourceIdentity)) {
+    const path = tab.filePath ?? tab.sourceIdentity;
+    return query?.paths.includes(path) ? { ...query, paths: [path] } : undefined;
+  }
   if (query !== undefined && query.paths.length > 1) {
     throw new Error(`Query name '${name}' is ambiguous: ${query.paths.join(', ')}`);
   }

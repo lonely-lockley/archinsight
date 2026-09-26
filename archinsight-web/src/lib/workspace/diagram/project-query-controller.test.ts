@@ -67,7 +67,9 @@ describe('project query discovery', () => {
   });
   it('reports duplicate names instead of choosing by traversal order', () => {
     const files = tree('b/c2.aiq', 'a/c2.aiq');
-    expect(() => resolveProjectQuery(tab('shop.ai'), discoverProjectQueries(files))).toThrow("Query name 'c2' is ambiguous: a/c2.aiq, b/c2.aiq");
+    const queries = discoverProjectQueries(files);
+    expect(() => resolveProjectQuery(tab('shop.ai'), queries)).toThrow("Query name 'c2' is ambiguous: a/c2.aiq, b/c2.aiq");
+    expect(resolveProjectQuery(tab('b/c2.aiq'), queries)).toEqual({ name: 'c2', paths: ['b/c2.aiq'], view: 'c2' });
     expect(() => resolveProjectQuery(tab('shop.ai', { queryView: 'gone' }), [])).toThrow("'gone.aiq' was not found");
     expect(resolveProjectQuery(tab('shop.ai', { queryPreset: false }), discoverProjectQueries(files))).toBeUndefined();
   });
@@ -147,6 +149,23 @@ describe('project query execution', () => {
     subject.controller.selectQuery('q');
     expect(subject.ports.tabs()[0].queryView).toBe('q');
     expect(subject.ports.scheduleDiagram).toHaveBeenCalledOnce();
+  });
+  it('executes an opened query by exact path when another file has the same basename', async () => {
+    const content = 'MATCH (n:Element) RETURN TABLE elementId(n) AS id';
+    const active = tab('reports/technical-debt.aiq', { content });
+    const subject = fixture(active, tree(
+      'shop.ai',
+      'reports/technical-debt.aiq',
+      'archive/technical-debt.aiq'
+    ));
+
+    await expect(subject.controller.resolve(active, analysis)).resolves.toMatchObject({
+      query: content,
+      resultKind: 'table',
+      source: undefined,
+      context: undefined
+    });
+    expect(subject.ports.fetchFile).not.toHaveBeenCalled();
   });
   it('keeps scope chips exclusive to query documents and ignores invalid selections', () => {
     const subject = fixture(tab('shop.ai'));

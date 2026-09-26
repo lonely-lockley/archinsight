@@ -81,9 +81,12 @@ may compose `MATCH`, `OPTIONAL MATCH`, `WITH`, and `UNWIND`, ending in
 `RETURN TABLE`. They support `DISTINCT`, `ORDER BY`, `SKIP`, `LIMIT`, numeric,
 boolean, null and list values, and named parameters.
 
+For analysis, omit context and source predicates unless the user explicitly
+asks for that scope. A query without `$context` or `$tab` evaluates the whole
+linked project and does not require `--context` or `--source`.
+
 ```cypher
 MATCH (service:Service)
-WHERE service.context = $context
 RETURN TABLE elementId(service) AS service, service.type AS type
 ORDER BY service
 ```
@@ -138,7 +141,6 @@ Select all nodes:
 
 ```cypher
 MATCH (element)
-WHERE element.context = $context
 RETURN element
 ```
 
@@ -146,7 +148,6 @@ Select by type label:
 
 ```cypher
 MATCH (service:Service)
-WHERE service.context = $context
 RETURN service
 ```
 
@@ -167,7 +168,6 @@ Select real relationships:
 
 ```cypher
 MATCH (source)-[link]->(target)
-WHERE source.context = $context
 RETURN source, link, target
 ```
 
@@ -199,7 +199,6 @@ missing:
 
 ```cypher
 MATCH (container:ContainerElement)
-WHERE container.sourceIdentity = $tab
 OPTIONAL MATCH (container)-[link]->(target)
 RETURN container, link, target
 ```
