@@ -245,6 +245,107 @@ const missingPath = selectPathGraph(result, "shop/billing", "shop/isolated");
 assert.equal(missingPath.edges.length, 0, "disconnected elements have no path");
 assert.deepEqual(new Set(Object.keys(missingPath.elements)), new Set(["shop/billing", "shop/isolated"]));
 
+const multiEnvironmentResult = linkProject({
+  snapshot: definitions.snapshot,
+  sources: [
+    source("multi-eu.ai", `
+environment eu
+    name = Europe
+
+deployment production
+    compute:
+        compute node
+            name = EU node
+    network:
+        networkConnection network
+            projection:
+                source $from originalLink target $to
+`),
+    source("multi-us.ai", `
+environment us
+    name = United States
+
+deployment production
+    compute:
+        compute node
+            name = US node
+    network:
+        networkConnection network
+            projection:
+                source $from originalLink target $to
+`),
+    source("multi-model.ai", `
+context multi
+
+deploymentProfile multiRegion
+    appliesTo:
+        production from eu
+        production from us
+    runsOn compute
+
+system application
+    name = Application
+    service source
+        name = Source
+        deployment:
+            uses multiRegion
+        links:
+            -> target
+                deployment:
+                    uses network
+    service target
+        name = Target
+        deployment:
+            uses multiRegion
+`),
+  ],
+});
+assertNoErrors(multiEnvironmentResult.diagnostics);
+const euOnlyPath = selectPathGraph(
+  multiEnvironmentResult,
+  "multi/source",
+  "multi/target",
+  { context: "multi", tab: "multi-model.ai", view: "c2" },
+  { sourceEnvironment: "eu", targetEnvironment: "eu" },
+);
+assert(euOnlyPath.edges.length > 0, "an environment-scoped deployment path remains connected");
+assert.equal(
+  Object.keys(euOnlyPath.elements).some((id) => id.includes("@@us/")),
+  false,
+  "the same path materialized in another environment is excluded",
+);
+assert.equal(
+  Object.values(euOnlyPath.elements)
+    .filter((element) => element.capabilities?.includes("deployment-element") === true)
+    .every((element) => element.context === "eu"),
+  true,
+  "deployment elements come only from the selected endpoint environment",
+);
+const euPathSelectedFromAnotherTab = selectPathGraph(
+  multiEnvironmentResult,
+  "multi/source",
+  "multi/target",
+  { context: "eu", tab: "multi-eu.ai", view: "deployment-container", environment: "eu" },
+  { targetEnvironment: "eu" },
+);
+assert(
+  euPathSelectedFromAnotherTab.edges.length > 0,
+  "an environment-scoped path remains rooted at its source when the target is selected from another tab",
+);
+const mixedEnvironmentPath = selectPathGraph(
+  multiEnvironmentResult,
+  "multi/source",
+  "multi/target",
+  { context: "multi", tab: "multi-model.ai", view: "deployment-container", environment: "eu" },
+  { sourceEnvironment: "eu", targetEnvironment: "us" },
+);
+assert.equal(mixedEnvironmentPath.edges.length, 0, "endpoints selected in different environments have no path");
+assert.deepEqual(
+  new Set(Object.keys(mixedEnvironmentPath.elements)),
+  new Set(["multi/source", "multi/target"]),
+  "a mixed-environment result still renders both requested endpoints",
+);
+
 const rolledUpResult = linkProject({
   snapshot: coreLanguageSnapshot,
   sources: [source("rolled-up.ai", `

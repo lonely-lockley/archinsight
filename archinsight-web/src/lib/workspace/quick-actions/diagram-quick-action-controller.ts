@@ -64,10 +64,11 @@ export type DiagramQuickActionController = {
   reverseFindPath(): Promise<void>;
   cancelFindPath(): void;
   cancelIsolate(): void;
+  activeTabOwnsQuickActionMode(activeTabId: string | undefined): boolean;
   deploymentEnvironments(): readonly DeploymentEnvironment[];
   selectDeploymentEnvironment(environment: string | undefined): Promise<boolean>;
   closeDeploymentPicker(): boolean;
-  invalidateRender(): void;
+  invalidateRender(sourceIdentity?: string): void;
   reconcileAnalysis(analysis: LinkProjectResult | undefined): void;
   reset(reason?: 'project-change'): void;
 };
@@ -79,6 +80,10 @@ export function createDiagramQuickActionController(
   let rendering = false;
   let findPathDiagramSnapshot: DiagramSnapshot | undefined;
   let isolateDiagramSnapshot: DiagramSnapshot | undefined;
+  let findPathOwnerTabId: string | undefined;
+  let findPathOwnerSourceIdentity: string | undefined;
+  let isolateOwnerTabId: string | undefined;
+  let isolateOwnerSourceIdentity: string | undefined;
 
   const metadataFor = (elementId: string) => {
     const analysis = ports.analysis();
@@ -108,6 +113,14 @@ export function createDiagramQuickActionController(
       ...(view === undefined ? {} : { view }),
       ...(tab.deploymentEnvironment === undefined ? {} : { environment: tab.deploymentEnvironment })
     };
+  };
+
+  const currentPathEndpointEnvironment = (): string | undefined => {
+    const tab = ports.activeTab();
+    if (tab === undefined) return undefined;
+    return resolveBuiltinView(tab.diagramMode, true)?.environment === 'single-relevant'
+      ? tab.deploymentEnvironment
+      : undefined;
   };
 
   const restoreFindPathDiagram = (): void => {
@@ -176,7 +189,11 @@ export function createDiagramQuickActionController(
         analysis,
         resolving.sourceId,
         resolving.targetId,
-        currentQuickActionScope(analysis)
+        currentQuickActionScope(analysis),
+        {
+          sourceEnvironment: resolving.sourceEnvironment,
+          targetEnvironment: resolving.targetEnvironment
+        }
       );
     } catch (error) {
       if (ports.findPathMode() === resolving) {
@@ -219,6 +236,8 @@ export function createDiagramQuickActionController(
         if (ports.isolateMode().status !== 'idle') {
           restoreIsolateDiagram();
           ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
+          isolateOwnerTabId = undefined;
+          isolateOwnerSourceIdentity = undefined;
         }
         restoreFindPathDiagram();
         generation++;
@@ -226,7 +245,9 @@ export function createDiagramQuickActionController(
           rendering = false;
           ports.setLoading(false);
         }
-        ports.setFindPathMode(beginFindPath(metadata));
+        findPathOwnerTabId = ports.activeTab()?.id;
+        findPathOwnerSourceIdentity = ports.activeTab()?.sourceIdentity;
+        ports.setFindPathMode(beginFindPath(metadata, currentPathEndpointEnvironment()));
         return;
       }
       if (action === 'isolate') {
@@ -234,7 +255,10 @@ export function createDiagramQuickActionController(
         if (ports.findPathMode().status !== 'idle') {
           restoreFindPathDiagram();
           ports.setFindPathMode(cancelFindPath(ports.findPathMode()));
+          findPathOwnerTabId = undefined;
+          findPathOwnerSourceIdentity = undefined;
         }
+        const ownerTab = ports.activeTab();
         const previousMode = ports.isolateMode();
         const snapshot = previousMode.status === 'idle' ? diagramSnapshot() : undefined;
         const accepted = await render(
@@ -243,6 +267,8 @@ export function createDiagramQuickActionController(
         );
         if (accepted) {
           if (snapshot !== undefined) isolateDiagramSnapshot = snapshot;
+          isolateOwnerTabId = ownerTab?.id;
+          isolateOwnerSourceIdentity = ownerTab?.sourceIdentity;
           ports.setIsolateMode(beginIsolate(metadata));
         }
         return;
@@ -250,6 +276,8 @@ export function createDiagramQuickActionController(
       if (ports.isolateMode().status !== 'idle') {
         restoreIsolateDiagram();
         ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
+        isolateOwnerTabId = undefined;
+        isolateOwnerSourceIdentity = undefined;
       }
       if (!metadata.hasDeployment) return;
       const environments = deploymentEnvironmentsForElement(analysis, metadata.canonicalElementId);
@@ -273,7 +301,7 @@ export function createDiagramQuickActionController(
       const metadata = metadataFor(elementId);
       const selecting = ports.findPathMode();
       if (analysis === undefined || metadata === undefined || selecting.status !== 'selecting-target') return;
-      const resolving = resolveFindPathTarget(selecting, metadata);
+      const resolving = resolveFindPathTarget(selecting, metadata, currentPathEndpointEnvironment());
       if (resolving.status !== 'resolving-path') return;
       await resolveAndRenderPath(analysis, resolving, retryFindPathTarget(resolving), true);
     },
@@ -293,6 +321,8 @@ export function createDiagramQuickActionController(
       if (rendering) ports.setLoading(false);
       rendering = false;
       if (mode.status === 'showing-path') restoreFindPathDiagram();
+      findPathOwnerTabId = undefined;
+      findPathOwnerSourceIdentity = undefined;
       ports.setFindPathMode(cancelFindPath(mode));
     },
 
@@ -301,7 +331,19 @@ export function createDiagramQuickActionController(
       if (rendering) ports.setLoading(false);
       rendering = false;
       restoreIsolateDiagram();
+      isolateOwnerTabId = undefined;
+      isolateOwnerSourceIdentity = undefined;
       ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
+    },
+
+    activeTabOwnsQuickActionMode(activeTabId) {
+      if (ports.findPathMode().status !== 'idle') {
+        return findPathOwnerTabId === undefined || findPathOwnerTabId === activeTabId;
+      }
+      if (ports.isolateMode().status !== 'idle') {
+        return isolateOwnerTabId === undefined || isolateOwnerTabId === activeTabId;
+      }
+      return true;
     },
 
     deploymentEnvironments() {
@@ -330,11 +372,21 @@ export function createDiagramQuickActionController(
       return true;
     },
 
-    invalidateRender() {
+    invalidateRender(sourceIdentity) {
+      if (sourceIdentity !== undefined) {
+        if (ports.findPathMode().status !== 'idle'
+            && findPathOwnerSourceIdentity !== undefined
+            && sourceIdentity !== findPathOwnerSourceIdentity) return;
+        if (ports.isolateMode().status !== 'idle'
+            && isolateOwnerSourceIdentity !== undefined
+            && sourceIdentity !== isolateOwnerSourceIdentity) return;
+      }
       generation++;
       rendering = false;
       findPathDiagramSnapshot = undefined;
       isolateDiagramSnapshot = undefined;
+      isolateOwnerTabId = undefined;
+      isolateOwnerSourceIdentity = undefined;
       ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
     },
 
@@ -374,6 +426,10 @@ export function createDiagramQuickActionController(
       rendering = false;
       findPathDiagramSnapshot = undefined;
       isolateDiagramSnapshot = undefined;
+      findPathOwnerTabId = undefined;
+      findPathOwnerSourceIdentity = undefined;
+      isolateOwnerTabId = undefined;
+      isolateOwnerSourceIdentity = undefined;
       ports.setFindPathMode(idleFindPathMode);
       ports.setIsolateMode({ status: 'idle' });
       ports.setPendingDeploymentElementId(undefined);

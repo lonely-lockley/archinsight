@@ -86,9 +86,9 @@
     observedSvg = nextSvg;
 
     resizeObserver?.disconnect();
-    if (previewPane !== undefined) resizeObserver?.observe(previewPane);
-    if (svgHost !== undefined) resizeObserver?.observe(svgHost);
-    if (nextSvg !== undefined) resizeObserver?.observe(nextSvg);
+    if (previewPane instanceof Element) resizeObserver?.observe(previewPane);
+    if (svgHost instanceof Element) resizeObserver?.observe(svgHost);
+    if (nextSvg instanceof Element) resizeObserver?.observe(nextSvg);
 
     observeSvgMutations();
     scheduleTriggerSync();
@@ -96,7 +96,7 @@
 
   function observeSvgMutations(): void {
     mutationObserver?.disconnect();
-    if (svgHost !== undefined) mutationObserver?.observe(svgHost, { childList: true, subtree: true });
+    if (svgHost instanceof Node) mutationObserver?.observe(svgHost, { childList: true, subtree: true });
   }
 
   function scheduleTriggerSync(): void {
@@ -209,7 +209,7 @@
   }
 
   function actionAnchor(target: EventTarget | null): DiagramQuickActionAnchor | undefined {
-    if (!(target instanceof HTMLElement) || overlayHost === undefined) return undefined;
+    if (!(target instanceof HTMLElement) || !(overlayHost instanceof Element)) return undefined;
     const box = target.getBoundingClientRect();
     const parentBox = overlayHost.getBoundingClientRect();
     return {
@@ -234,7 +234,7 @@
   }
 
   function anchorFor(button: HTMLButtonElement | undefined): MenuAnchor | undefined {
-    if (overlayHost === undefined || button === undefined) return undefined;
+    if (!(overlayHost instanceof Element) || button === undefined) return undefined;
     const buttonBox = button.getBoundingClientRect();
     const overlayBox = overlayHost.getBoundingClientRect();
     return {

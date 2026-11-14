@@ -135,6 +135,7 @@ export {
 export type {
   DiagramElementQuickActionMetadata,
   DiagramQuickActionMetadata,
+  PathEndpointEnvironments,
 } from "./diagram-quick-actions.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
 export {

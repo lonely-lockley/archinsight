@@ -27,6 +27,7 @@ import {
   insightSemanticTokenModifiers,
   insightSemanticTokenTypes,
   InsightLanguageService,
+  resolveBuiltinView,
   semanticHighlightInsight,
   selectDeploymentGraph,
   selectIsolatedElementGraph,
@@ -1496,7 +1497,7 @@ class ArchinsightWorkbenchEditorSession {
     if (action === "find-path") {
       if (metadata.pathEligible) {
         if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
-        await this.writeFindPathMode(beginFindPath(metadata));
+        await this.writeFindPathMode(beginFindPath(metadata, this.currentPathEndpointEnvironment()));
       }
       return;
     }
@@ -1537,7 +1538,7 @@ class ArchinsightWorkbenchEditorSession {
     if (current === undefined || selecting.status !== "selecting-target") return;
     const metadata = diagramElementMetadata(diagramQuickActionMetadata(current.result), elementId);
     if (metadata === undefined) return;
-    const resolving = resolveFindPathTarget(selecting, metadata);
+    const resolving = resolveFindPathTarget(selecting, metadata, this.currentPathEndpointEnvironment());
     if (resolving.status !== "resolving-path") return;
     await this.resolveAndRenderPath(resolving, retryFindPathTarget(resolving), false);
   }
@@ -1554,6 +1555,13 @@ class ArchinsightWorkbenchEditorSession {
       view: queryState.view,
       ...(queryState.environment === undefined ? {} : { environment: queryState.environment }),
     };
+  }
+
+  private currentPathEndpointEnvironment(): string | undefined {
+    const queryState = this.diagram.queryState();
+    return resolveBuiltinView(queryState.view)?.environment === "single-relevant"
+      ? queryState.environment
+      : undefined;
   }
 
   private async reverseFindPath(): Promise<void> {
@@ -1580,6 +1588,10 @@ class ArchinsightWorkbenchEditorSession {
         resolving.sourceId,
         resolving.targetId,
         this.quickActionScope(latest),
+        {
+          sourceEnvironment: resolving.sourceEnvironment,
+          targetEnvironment: resolving.targetEnvironment,
+        },
       );
     } catch (error) {
       if (this.readFindPathMode() === resolving) {

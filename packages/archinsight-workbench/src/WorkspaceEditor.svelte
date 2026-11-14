@@ -43,6 +43,7 @@
   export let quickActionMetadata: DiagramQuickActionMetadata = {};
   export let findPathMode: FindPathMode = { status: 'idle' };
   export let isolateMode: IsolateMode = { status: 'idle' };
+  export let activeTabOwnsQuickActionMode = true;
 
   export let onSelectDiagramMode: (mode: DiagramMode) => void;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
@@ -70,8 +71,10 @@
   export let onReverseFindPath: () => void = () => {};
 
   function selectDiagramMode(mode: DiagramMode): void {
-    if (findPathMode.status !== 'idle') onCancelFindPath();
-    if (isolateMode.status !== 'idle') onCancelIsolate();
+    if (activeTabOwnsQuickActionMode) {
+      if (findPathMode.status !== 'idle') onCancelFindPath();
+      if (isolateMode.status !== 'idle') onCancelIsolate();
+    }
     onSelectDiagramMode(mode);
   }
 </script>

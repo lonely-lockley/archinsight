@@ -286,11 +286,11 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     acceptProjectStructure: editorSynchronization.acceptProjectStructure,
     clearDots: (sourceIdentities) => tabController.clearDots(sourceIdentities),
     acceptDiagram: (sourceIdentity, svg, dot, renderTheme) => {
-      quickActionController.invalidateRender();
+      quickActionController.invalidateRender(sourceIdentity);
       tabController.patchBySourceIdentity(sourceIdentity, { svg, dot, renderTheme });
     },
     acceptQueryResult: (sourceIdentity, queryResult) => {
-      quickActionController.invalidateRender();
+      quickActionController.invalidateRender(sourceIdentity);
       tabController.patchBySourceIdentity(sourceIdentity, { queryResult });
     },
     now: () => Date.now(),

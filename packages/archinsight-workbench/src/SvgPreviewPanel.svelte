@@ -54,10 +54,10 @@
 
   onMount(() => {
     resizeObserver = new ResizeObserver(() => reportVisibleScale());
-    if (previewPane !== undefined) {
+    if (previewPane instanceof Element) {
       resizeObserver.observe(previewPane);
     }
-    if (svgHost !== undefined) {
+    if (svgHost instanceof Element) {
       resizeObserver.observe(svgHost);
     }
     reportVisibleScale();
@@ -200,7 +200,7 @@
   }
 
   function syncDiagramNodeState(): void {
-    if (svgHost === undefined) return;
+    if (!(svgHost instanceof Element)) return;
     for (const group of svgHost.querySelectorAll<SVGGElement>('g[id]')) {
       group.classList.remove(
         'archinsight-node-selected',

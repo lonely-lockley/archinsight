@@ -87,4 +87,33 @@ describe('diagram quick action model', () => {
     expect(resolveFindPathTarget(selecting, incompatible)).toBe(selecting);
     expect(cancelFindPath(cancelFindPath(selecting))).toBe(idleFindPathMode);
   });
+
+  it('keeps endpoint environments through resolve, reverse and retry', () => {
+    const selecting = beginFindPath(metadata['shop/api']!, 'eu');
+    const resolving = resolveFindPathTarget(selecting, metadata['shop/db']!, 'us');
+    expect(resolving).toEqual({
+      status: 'resolving-path',
+      sourceId: 'shop/api',
+      sourceTitle: 'API',
+      sourceEnvironment: 'eu',
+      targetId: 'shop/db',
+      targetTitle: 'Database',
+      targetEnvironment: 'us'
+    });
+    expect(reverseFindPathResult(showResolvedFindPath(resolving))).toEqual({
+      status: 'resolving-path',
+      sourceId: 'shop/db',
+      sourceTitle: 'Database',
+      sourceEnvironment: 'us',
+      targetId: 'shop/api',
+      targetTitle: 'API',
+      targetEnvironment: 'eu'
+    });
+    expect(retryFindPathTarget(resolving)).toEqual({
+      status: 'selecting-target',
+      sourceId: 'shop/api',
+      sourceTitle: 'API',
+      sourceEnvironment: 'eu'
+    });
+  });
 });

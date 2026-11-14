@@ -205,4 +205,43 @@ describe('WorkspaceEditor composition', () => {
     await unmount(component);
     target.remove();
   });
+
+  it('does not exit a quick-action mode when another tab selects a diagram mode', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onCancelFindPath = vi.fn();
+    const onSelectDiagramMode = vi.fn();
+    const component = mount(WorkspaceEditor, {
+      target,
+      props: {
+        active: true,
+        svg: '<svg></svg>',
+        findPathMode: {
+          status: 'showing-path', sourceId: 'shop/api', sourceTitle: 'API',
+          targetId: 'shop/db', targetTitle: 'Database'
+        },
+        activeTabOwnsQuickActionMode: false,
+        diagramMode: 'default',
+        query: '',
+        editorHost: document.createElement('div'),
+        messagesPanel: document.createElement('div'),
+        onCancelFindPath,
+        onSelectDiagramMode,
+        onToggleQuery: vi.fn(), onQueryChange: vi.fn(), onQueryPanelHeightChange: vi.fn(),
+        onZoomIn: vi.fn(), onZoomOut: vi.fn(), onFitDiagram: vi.fn(),
+        onActualSize: vi.fn(), onSelectViewMode: vi.fn(), onRefresh: vi.fn(),
+        onEditorSplitRatioChange: vi.fn(), onDiagramVisibleScaleChange: vi.fn(),
+        onOpenDeclaration: vi.fn(), onBeginMessagesResize: vi.fn()
+      }
+    });
+    await tick();
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="C2 Containers view"]')?.click();
+
+    expect(onCancelFindPath).not.toHaveBeenCalled();
+    expect(onSelectDiagramMode).toHaveBeenCalledWith('c2');
+
+    await unmount(component);
+    target.remove();
+  });
 });

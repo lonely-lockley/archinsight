@@ -267,7 +267,10 @@ describe('SvgPreviewPanel quick actions', () => {
   it('remeasures and clamps the viewport whenever the rendered SVG changes', async () => {
     const target = document.createElement('div');
     document.body.append(target);
-    const props = new ReactiveTestProps({ svg, quickActionMetadata: metadata }).value;
+    const props = new ReactiveTestProps<{
+      svg: string | undefined;
+      quickActionMetadata: DiagramQuickActionMetadata;
+    }>({ svg, quickActionMetadata: metadata }).value;
     const component = mount(SvgPreviewPanel, {
       target,
       props
@@ -297,6 +300,28 @@ describe('SvgPreviewPanel quick actions', () => {
     expect(previewPane.scrollTop).toBe(0);
     expect(target.querySelector<HTMLElement>('.quick-actions-overlay')?.style.width).toBe('320px');
     expect(target.querySelector<HTMLElement>('.quick-actions-overlay')?.style.height).toBe('200px');
+
+    await unmount(component);
+  });
+
+  it('reconnects quick actions after the SVG host is removed and mounted again', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const props = new ReactiveTestProps<{
+      svg: string | undefined;
+      quickActionMetadata: DiagramQuickActionMetadata;
+    }>({ svg, quickActionMetadata: metadata }).value;
+    const component = mount(SvgPreviewPanel, { target, props });
+    await settle();
+    expect(target.querySelector('button[aria-label="Quick actions for API"]')).not.toBeNull();
+
+    props.svg = undefined;
+    await settle();
+    expect(target.querySelector('.svg-host')).toBeNull();
+
+    props.svg = svg;
+    await settle();
+    expect(target.querySelector('button[aria-label="Quick actions for API"]')).not.toBeNull();
 
     await unmount(component);
   });

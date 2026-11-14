@@ -120,6 +120,7 @@
       quickActionMetadata={view.quickActionMetadata}
       findPathMode={view.state.findPathMode}
       isolateMode={view.state.isolateMode}
+      activeTabOwnsQuickActionMode={controllers.quickActions.activeTabOwnsQuickActionMode(view.state.activeTabId)}
       queryResult={view.activeTab?.queryResult}
       resultLoading={view.state.analysisLoading}
       diagramMode={view.activeTab?.diagramMode ?? defaultDiagramMode}

@@ -26,6 +26,11 @@ export interface DiagramElementQuickActionMetadata {
 
 export type DiagramQuickActionMetadata = Readonly<Record<string, DiagramElementQuickActionMetadata>>;
 
+export interface PathEndpointEnvironments {
+  readonly sourceEnvironment?: string;
+  readonly targetEnvironment?: string;
+}
+
 export function diagramQuickActionMetadata(result: LinkProjectResult): DiagramQuickActionMetadata {
   const elementsById = new Map(result.elements.map((element) => [element.id, element]));
   const childrenByParent = new Map<string, LinkedElement[]>();
@@ -154,6 +159,7 @@ export function selectPathGraph(
   requestedSourceId: string,
   requestedTargetId: string,
   scope?: QueryScope,
+  endpointEnvironments?: PathEndpointEnvironments,
 ): RenderGraph {
   const sourceId = canonicalDiagramElementId(requestedSourceId);
   const targetId = canonicalDiagramElementId(requestedTargetId);
@@ -163,12 +169,33 @@ export function selectPathGraph(
     return emptyGraph(source?.context ?? target?.context ?? "-");
   }
   const endpoints = endpointGraph(source, target);
+  const sourceEnvironment = endpointEnvironments?.sourceEnvironment;
+  const targetEnvironment = endpointEnvironments?.targetEnvironment;
+  if (sourceEnvironment !== undefined && targetEnvironment !== undefined
+      && sourceEnvironment !== targetEnvironment) {
+    return endpoints;
+  }
+  const pathEnvironment = sourceEnvironment ?? targetEnvironment;
+  if (pathEnvironment !== undefined) {
+    const deploymentView = scope?.view !== undefined
+        && builtinViewHasStage(scope.view, "deployment-environment")
+      ? scope.view
+      : "deployment-container";
+    const environmentGraph = selectGraph(result, {
+      ...scope,
+      context: source.context,
+      tab: source.sourceIdentity,
+      view: deploymentView,
+      environment: pathEnvironment,
+    }, BUILTIN_VIEW_QUERIES[deploymentView]);
+    return directedPathCorridor(environmentGraph, sourceId, targetId) ?? endpoints;
+  }
   const scopedViewQuery = scope?.view === undefined ? undefined : BUILTIN_VIEW_QUERIES[scope.view];
   if (scope?.view !== undefined && scopedViewQuery !== undefined) {
     const viewGraph = selectGraph(result, {
       ...scope,
-      context: scope.context ?? source.context,
-      tab: scope.tab ?? source.sourceIdentity,
+      context: source.context,
+      tab: source.sourceIdentity,
     }, scopedViewQuery);
     const corridor = directedPathCorridor(viewGraph, sourceId, targetId);
     if (corridor !== undefined) return corridor;

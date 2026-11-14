@@ -280,6 +280,50 @@ describe('diagram quick action controller', () => {
     });
   });
 
+  it('keeps the source deployment environment when the target is selected on a C view', async () => {
+    const test = subject();
+    test.setActiveTab({ ...tab(), diagramMode: 'deployment-container', deploymentEnvironment: 'eu' });
+    await test.controller.execute('find-path', 'shop/api');
+    test.setActiveTab({ ...tab(), diagramMode: 'c2', deploymentEnvironment: 'us' });
+
+    await test.controller.selectPathTarget('shop/database');
+
+    expect(test.mode()).toEqual({
+      status: 'showing-path',
+      sourceId: 'shop/api',
+      sourceTitle: 'API',
+      sourceEnvironment: 'eu',
+      targetId: 'shop/database',
+      targetTitle: 'Database'
+    });
+    const dot = test.ports.renderInBrowser.mock.calls[0]?.[0]?.[0]?.dot ?? '';
+    expect(dot).not.toContain('US node');
+  });
+
+  it('returns no path when deployment endpoints were selected in different environments', async () => {
+    const test = subject();
+    const euEndpoint = analysis.elements.find((element) => element.attributes.name?.[0] === 'EU node');
+    const usEndpoint = analysis.elements.find((element) => element.attributes.name?.[0] === 'US node');
+    expect(euEndpoint).toBeDefined();
+    expect(usEndpoint).toBeDefined();
+    test.setActiveTab({ ...tab(), diagramMode: 'deployment-container', deploymentEnvironment: 'eu' });
+    await test.controller.execute('find-path', euEndpoint!.id);
+    test.setActiveTab({ ...tab(), diagramMode: 'deployment-container', deploymentEnvironment: 'us' });
+
+    await test.controller.selectPathTarget(usEndpoint!.id);
+
+    expect(test.mode()).toEqual({
+      status: 'showing-path',
+      sourceId: euEndpoint!.id,
+      sourceTitle: 'EU node',
+      sourceEnvironment: 'eu',
+      targetId: usEndpoint!.id,
+      targetTitle: 'US node',
+      targetEnvironment: 'us'
+    });
+    expect(test.ports.info).toHaveBeenCalledWith('No path found between EU node and US node.');
+  });
+
   it('reverses source and target while retaining the original diagram for Back', async () => {
     const test = subject();
     await test.controller.execute('find-path', 'shop/api');
@@ -354,6 +398,39 @@ describe('diagram quick action controller', () => {
     expect(test.ports.patchTab).toHaveBeenCalledWith('tab-2', expect.objectContaining({
       dot: expect.stringContaining('shop/database')
     }));
+  });
+
+  it('keeps Find path owned by the tab where its source was selected', async () => {
+    const test = subject();
+    await test.controller.execute('find-path', 'shop/api');
+
+    expect(test.controller.activeTabOwnsQuickActionMode('tab-1')).toBe(true);
+    test.setActiveTab({ ...tab(), id: 'tab-2', title: 'Second diagram' });
+    expect(test.controller.activeTabOwnsQuickActionMode('tab-2')).toBe(false);
+    test.setActiveTab(tab());
+    expect(test.controller.activeTabOwnsQuickActionMode('tab-1')).toBe(true);
+  });
+
+  it('keeps Isolate owned by the tab where the element was selected', async () => {
+    const test = subject();
+    await test.controller.execute('isolate', 'shop/api');
+
+    expect(test.controller.activeTabOwnsQuickActionMode('tab-1')).toBe(true);
+    test.setActiveTab({ ...tab(), id: 'tab-2', title: 'Second diagram' });
+    expect(test.controller.activeTabOwnsQuickActionMode('tab-2')).toBe(false);
+  });
+
+  it('does not invalidate Isolate when another tab accepts a diagram render', async () => {
+    const test = subject();
+    await test.controller.execute('isolate', 'shop/api');
+
+    test.controller.invalidateRender('other.ai');
+
+    expect(test.isolateMode()).toEqual({
+      status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API'
+    });
+    test.controller.invalidateRender('model.ai');
+    expect(test.isolateMode()).toEqual({ status: 'idle' });
   });
 
   it('renders both endpoints when the elements are disconnected', async () => {
