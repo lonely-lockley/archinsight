@@ -3,6 +3,7 @@ import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
   deploymentEnvironmentsForElement,
+  deploymentFocusElementIds,
   diagramQuickActionMetadata,
   linkProject,
   renderGraphviz,
@@ -181,8 +182,25 @@ assert.deepEqual(
 
 assert.deepEqual(deploymentEnvironmentsForElement(result, "shop/api"), [{ id: "eu", name: "Europe" }]);
 const deployment = selectDeploymentGraph(result, "shop/api", "eu");
+assert.deepEqual(deploymentFocusElementIds(result, "shop/api", deployment), ["shop/api"]);
 assert(Object.keys(deployment.elements).some((id) => id.startsWith("shop/api")), "deployment contains the selected logical occurrence");
 assert(deployment.edges.length > 0, "deployment retains the selected element's physical path");
+const deploymentFocus = new Set(Object.keys(deployment.elements).filter((id) => id === "shop/api" || id.startsWith("shop/api@@")));
+assert(
+  deployment.edges.every((edge) => deploymentFocus.has(edge.source) || deploymentFocus.has(edge.target)),
+  "deployment contains only the first-level environment of the selected component",
+);
+const storefrontDeployment = selectDeploymentGraph(result, "shop/storefront", "eu");
+assert.deepEqual(
+  deploymentFocusElementIds(result, "shop/storefront", storefrontDeployment),
+  ["shop/api", "shop/queue"],
+  "a deployment boundary focuses the materialized descendants rooted in its logical scope",
+);
+assert.deepEqual(
+  deployment.groups,
+  [{ owner: "eu/k8s", elements: ["shop/api", "shop/queue"] }],
+  "deployment retains the ownership boundary that expresses placement and its first-level neighbor",
+);
 assert(
   deployment.groups.every((group) => group.elements.every((id) =>
     deployment.elements[id] !== undefined || deployment.groups.some((candidate) => candidate.owner === id)

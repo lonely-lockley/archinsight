@@ -7,7 +7,7 @@
     type DiagramQuickActionMetadata
   } from '@insight/language';
   import DiagramQuickActions from './DiagramQuickActions.svelte';
-  import type { DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
+  import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import { sanitizeSvg } from './svg-sanitizer';
   import type { SourceLocation } from './workspace-types';
 
@@ -19,6 +19,7 @@
   export let quickActionMetadata: DiagramQuickActionMetadata = {};
   export let findPathMode: FindPathMode = { status: 'idle' };
   export let isolateMode: IsolateMode = { status: 'idle' };
+  export let deploymentMode: DeploymentMode = { status: 'idle' };
   export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
   export let deploymentEnvironment: string | undefined = undefined;
   export let deploymentPickerOpen = false;
@@ -215,7 +216,9 @@
       if (elementId === undefined || diagramElementMetadata(quickActionMetadata, elementId) === undefined) continue;
       const canonical = canonicalDiagramElementId(elementId);
       if ((findPathMode.status === 'idle' && selectedElementId === elementId)
-          || (isolateMode.status === 'showing-isolate' && canonical === isolateMode.elementId)) {
+          || (isolateMode.status === 'showing-isolate' && canonical === isolateMode.elementId)
+          || (deploymentMode.status === 'showing-deployment'
+            && deploymentMode.focusElementIds.includes(canonical))) {
         group.classList.add('archinsight-node-selected');
       }
       if (findPathMode.status !== 'idle' && canonical === findPathMode.sourceId) {
@@ -336,9 +339,9 @@
     cursor: not-allowed;
   }
 
-  .svg-host :global(g.archinsight-node-selected > polygon),
-  .svg-host :global(g.archinsight-node-selected > ellipse),
-  .svg-host :global(g.archinsight-node-selected > path) {
+  .svg-host :global(g.archinsight-node-selected polygon),
+  .svg-host :global(g.archinsight-node-selected ellipse),
+  .svg-host :global(g.archinsight-node-selected path) {
     stroke: var(--color-primary, #6a9955) !important;
     stroke-width: 3px !important;
   }

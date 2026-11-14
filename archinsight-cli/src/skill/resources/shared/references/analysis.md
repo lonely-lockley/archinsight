@@ -6,6 +6,13 @@ with scalar columns and answering the question does not require inspecting
 nested graph structure. Keep the exact query so the analysis is reproducible,
 but show its text to the user only when they explicitly ask for it.
 
+For a fixed one-hop neighborhood, deployment neighborhood, directed path, or
+declaration lookup, read [Deterministic Diagram Quick Actions](quick-actions.md)
+and use the corresponding CLI action before writing a one-off AIQ query. Find
+path is ordered: `--from A --to B` follows directed edges from A to B and says
+nothing about reachability from B to A. Reverse the arguments for the reverse
+question.
+
 Default analytical queries to the whole linked project. Add
 `element.context = $context`, `element.sourceIdentity = $tab`, or an equivalent
 scope predicate only when the user explicitly asks to restrict the answer to a
@@ -39,6 +46,8 @@ only after those explanations have been ruled out.
    relationship is sync, async, any dependency, containment, placement, or
    infrastructure use; whether traversal is incoming, outgoing, or both; and
    whether authored, ownership-level, or projected facts answer the question.
+   For Find path, preserve the user's source-to-target order; do not turn it
+   into an undirected or bidirectional search.
 4. Resolve every qualified anchor id through `structure` or an inventory report
    before interpreting an empty anchored result. An unknown id also returns zero
    rows and must not be reported as “no dependencies.”

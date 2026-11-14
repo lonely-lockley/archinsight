@@ -8,7 +8,7 @@
   import type { EmptyWorkspaceAction, EmptyWorkspaceStrategy } from './empty-workspace-strategy';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from './workspace-types';
   import type { DiagramQuickActionMetadata, QueryParameterValue, QueryTableResult } from '@insight/language';
-  import type { DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
+  import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
 
   export let active = false;
   export let svg: string | undefined;
@@ -43,6 +43,7 @@
   export let quickActionMetadata: DiagramQuickActionMetadata = {};
   export let findPathMode: FindPathMode = { status: 'idle' };
   export let isolateMode: IsolateMode = { status: 'idle' };
+  export let deploymentMode: DeploymentMode = { status: 'idle' };
   export let activeTabOwnsQuickActionMode = true;
 
   export let onSelectDiagramMode: (mode: DiagramMode) => void;
@@ -68,12 +69,14 @@
   export let onSelectPathTarget: (elementId: string) => void = () => {};
   export let onCancelFindPath: () => void = () => {};
   export let onCancelIsolate: () => void = () => {};
+  export let onCancelDeployment: () => void = () => {};
   export let onReverseFindPath: () => void = () => {};
 
   function selectDiagramMode(mode: DiagramMode): void {
     if (activeTabOwnsQuickActionMode) {
       if (findPathMode.status !== 'idle') onCancelFindPath();
       if (isolateMode.status !== 'idle') onCancelIsolate();
+      if (deploymentMode.status !== 'idle') onCancelDeployment();
     }
     onSelectDiagramMode(mode);
   }
@@ -110,8 +113,10 @@
         slot="mode-actions"
         mode={findPathMode}
         {isolateMode}
+        {deploymentMode}
         onCancel={onCancelFindPath}
         {onCancelIsolate}
+        {onCancelDeployment}
         onReverse={onReverseFindPath}
       />
       <DiagramActions
@@ -159,6 +164,7 @@
       {quickActionMetadata}
       {findPathMode}
       {isolateMode}
+      {deploymentMode}
       {deploymentEnvironments}
       {deploymentEnvironment}
       {deploymentPickerOpen}

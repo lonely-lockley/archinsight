@@ -6,8 +6,10 @@ import {
   type LinkProjectResult
 } from '@insight/language';
 import {
+  idleDeploymentMode,
   idleFindPathMode,
   idleIsolateMode,
+  type DeploymentMode,
   type FindPathMode,
   type IsolateMode
 } from '@archinsight/workbench/diagram-quick-actions';
@@ -135,6 +137,7 @@ function tab(): WorkspaceTab {
 function subject() {
   let mode: FindPathMode = idleFindPathMode;
   let isolateMode: IsolateMode = idleIsolateMode;
+  let deploymentMode: DeploymentMode = idleDeploymentMode;
   let pendingDeployment: string | undefined;
   let loading = false;
   let currentTab = tab();
@@ -149,6 +152,8 @@ function subject() {
     setFindPathMode: vi.fn((next: FindPathMode) => { mode = next; }),
     isolateMode: () => isolateMode,
     setIsolateMode: vi.fn((next: IsolateMode) => { isolateMode = next; }),
+    deploymentMode: () => deploymentMode,
+    setDeploymentMode: vi.fn((next: DeploymentMode) => { deploymentMode = next; }),
     pendingDeploymentElementId: () => pendingDeployment,
     setPendingDeploymentElementId: vi.fn((next: string | undefined) => { pendingDeployment = next; }),
     setDeploymentPickerOpen: vi.fn(),
@@ -168,6 +173,7 @@ function subject() {
     ports,
     mode: () => mode,
     isolateMode: () => isolateMode,
+    deploymentMode: () => deploymentMode,
     loading: () => loading,
     setActiveTab: (next: WorkspaceTab) => { currentTab = next; },
     setAnalysis: (next: LinkProjectResult) => { currentAnalysis = next; }
@@ -250,6 +256,53 @@ describe('diagram quick action controller', () => {
     await test.controller.selectDeploymentEnvironment('us');
     expect(test.ports.renderInBrowser).toHaveBeenCalledOnce();
     expect(test.ports.setDeploymentPickerOpen).toHaveBeenLastCalledWith(false);
+    expect(test.deploymentMode()).toEqual({
+      status: 'showing-deployment', elementId: 'shop/api', elementTitle: 'API', environment: 'us',
+      focusElementIds: ['shop/api']
+    });
+  });
+
+  it('tracks the deployed descendants as the visual focus of a C1 deployment result', async () => {
+    const test = subject();
+
+    await test.controller.execute('show-deployment', 'shop/storefront');
+    await test.controller.selectDeploymentEnvironment('eu');
+
+    expect(test.deploymentMode()).toEqual({
+      status: 'showing-deployment',
+      elementId: 'shop/storefront',
+      elementTitle: 'Storefront',
+      environment: 'eu',
+      focusElementIds: ['shop/api', 'shop/database']
+    });
+  });
+
+  it('keeps the current deployment visible while reopening its environment picker', async () => {
+    const test = subject();
+    await test.controller.execute('show-deployment', 'shop/api');
+    await test.controller.selectDeploymentEnvironment('us');
+    const renderedPatchCount = test.ports.patchTab.mock.calls.length;
+
+    await test.controller.execute('show-deployment', 'shop/api');
+
+    expect(test.ports.patchTab).toHaveBeenCalledTimes(renderedPatchCount);
+    expect(test.deploymentMode()).toMatchObject({
+      status: 'showing-deployment', elementId: 'shop/api', environment: 'us'
+    });
+    expect(test.ports.setDeploymentPickerOpen).toHaveBeenLastCalledWith(true);
+
+    expect(test.controller.closeDeploymentPicker()).toBe(true);
+    expect(test.ports.patchTab).toHaveBeenCalledTimes(renderedPatchCount);
+    expect(test.deploymentMode()).toMatchObject({ status: 'showing-deployment', environment: 'us' });
+
+    await test.controller.execute('show-deployment', 'shop/api');
+    await test.controller.selectDeploymentEnvironment('eu');
+    expect(test.deploymentMode()).toMatchObject({ status: 'showing-deployment', environment: 'eu' });
+
+    test.controller.cancelDeployment();
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
+      svg: '<svg/>', dot: undefined, queryResult: undefined
+    });
   });
 
   it('automatically renders deployment when exactly one environment is relevant', async () => {
@@ -259,6 +312,26 @@ describe('diagram quick action controller', () => {
 
     expect(test.ports.renderInBrowser).toHaveBeenCalledOnce();
     expect(test.ports.setDeploymentPickerOpen).not.toHaveBeenCalledWith(true);
+    expect(test.deploymentMode()).toEqual({
+      status: 'showing-deployment', elementId: 'shop/database', elementTitle: 'Database', environment: 'eu',
+      focusElementIds: ['shop/database']
+    });
+
+    test.controller.cancelDeployment();
+    expect(test.deploymentMode()).toEqual({ status: 'idle' });
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
+      svg: '<svg/>', dot: undefined, queryResult: undefined
+    });
+  });
+
+  it('keeps Deployment owned by the tab where the action was started', async () => {
+    const test = subject();
+    await test.controller.execute('show-deployment', 'shop/database');
+
+    expect(test.controller.activeTabOwnsQuickActionMode('tab-1')).toBe(true);
+    expect(test.controller.activeTabOwnsQuickActionMode('tab-2')).toBe(false);
+    test.controller.invalidateRender('other.ai');
+    expect(test.deploymentMode().status).toBe('showing-deployment');
   });
 
   it('keeps find path global until a target is selected and renders the path', async () => {

@@ -120,6 +120,7 @@
       quickActionMetadata={view.quickActionMetadata}
       findPathMode={view.state.findPathMode}
       isolateMode={view.state.isolateMode}
+      deploymentMode={view.state.deploymentMode}
       activeTabOwnsQuickActionMode={controllers.quickActions.activeTabOwnsQuickActionMode(view.state.activeTabId)}
       queryResult={view.activeTab?.queryResult}
       resultLoading={view.state.analysisLoading}
@@ -182,6 +183,7 @@
       onSelectPathTarget={(elementId) => void controllers.quickActions.selectPathTarget(elementId)}
       onCancelFindPath={controllers.quickActions.cancelFindPath}
       onCancelIsolate={controllers.quickActions.cancelIsolate}
+      onCancelDeployment={controllers.quickActions.cancelDeployment}
       onReverseFindPath={() => void controllers.quickActions.reverseFindPath()}
       onBeginMessagesResize={controllers.layout.beginMessagesResize}
       onCancelResult={controllers.analysis.cancelCurrent}

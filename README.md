@@ -97,19 +97,35 @@ Create an empty project directory and save the `storefront.ai` model shown above
 archinsight link .
 ```
 
-Then render its container view to an SVG image:
+Then render its container view to an SVG or PNG image:
 
 ```shell
 archinsight render . --source storefront.ai --view c2 --format svg --out architecture.svg
+archinsight render . --source storefront.ai --view c2 --format png --out architecture.png
 ```
 
 The resulting `architecture.svg` contains the systems, containers, services, and relationships selected by the built-in C2 query. You can now split the model across files, introduce definitions, or open the directory in the VSCode extension without changing its semantic identities.
 
 ## CLI
 
-The CLI is the local and automation interface for an Insight project. It links and validates models, prints project structure, executes graph queries, renders diagrams, and generates agent skills.
+The CLI is the local and automation interface for an Insight project. It links and validates models, prints project structure, executes graph queries, renders diagrams, runs deterministic diagram quick actions, and generates agent skills.
 
-The [CLI reference](archinsight-cli/README.md) describes the query, render, and output options. Diagram rendering follows the system light/dark preference by default and accepts an explicit `--theme light` or `--theme dark` override.
+The [CLI reference](archinsight-cli/README.md) describes the query, render, quick-action, and output options. Every diagram-producing command supports `text`, `json`, `dot`, `svg`, and `png`. Diagram rendering follows the system light/dark preference by default and accepts an explicit `--theme light` or `--theme dark` override.
+
+Use quick actions for common semantic subdiagrams without writing a temporary
+`.aiq` query:
+
+```shell
+archinsight quick-action isolate . --element storefront/frontend --format png --out frontend-neighborhood.png
+archinsight quick-action find-path . --from storefront/customer --to storefront/orders --format svg --out customer-to-orders.svg
+```
+
+Find path follows relationship direction from `--from` to `--to`; swapping the
+arguments performs a different query.
+
+The same commands back Isolate, Show deployment, Find path, and Go to
+declaration in the interactive diagram. See [Diagram Quick Actions](docs/diagram-quick-actions.md)
+for their directed-path, environment, and neighborhood semantics.
 
 ## VSCode extension
 
@@ -125,7 +141,7 @@ The CLI can place an Insight skill directly into a project:
 archinsight skill init . --target codex
 ```
 
-Targets are available for `codex`, `claude`, and `generic`. The generated skill contains the modeling workflow, language references, built-in framework sources, query recipes, and examples. It instructs the agent to inspect the existing project and validate changes through the CLI rather than approximating the language independently.
+Targets are available for `codex`, `claude`, and `generic`. The generated skill contains the modeling workflow, language references, built-in framework sources, query recipes, quick-action subdiagram workflows, and examples. It instructs the agent to inspect the existing project, use deterministic quick actions where they fit, and validate changes through the CLI rather than approximating the language independently.
 
 ```shell
 archinsight skill init . --target claude

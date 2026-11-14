@@ -6,7 +6,7 @@
   import TableResultPanel from './TableResultPanel.svelte';
   import type { QueryTableResult } from '@insight/language';
   import type { DiagramQuickActionMetadata } from '@insight/language';
-  import type { DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
+  import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import type { EmptyWorkspaceAction, EmptyWorkspaceStrategy } from './empty-workspace-strategy';
   import type { EditorViewMode, MessageView, SourceLocation } from './workspace-types';
 
@@ -31,6 +31,7 @@
   export let quickActionMetadata: DiagramQuickActionMetadata = {};
   export let findPathMode: FindPathMode = { status: 'idle' };
   export let isolateMode: IsolateMode = { status: 'idle' };
+  export let deploymentMode: DeploymentMode = { status: 'idle' };
   export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
   export let deploymentEnvironment: string | undefined = undefined;
   export let deploymentPickerOpen = false;
@@ -119,6 +120,7 @@
         {quickActionMetadata}
         {findPathMode}
         {isolateMode}
+        {deploymentMode}
         {deploymentEnvironments}
         {deploymentEnvironment}
         {deploymentPickerOpen}

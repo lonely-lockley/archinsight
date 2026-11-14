@@ -60,6 +60,36 @@ export type IsolateMode =
 
 export const idleIsolateMode: IsolateMode = { status: 'idle' };
 
+export type DeploymentMode =
+  | { readonly status: 'idle' }
+  | {
+      readonly status: 'showing-deployment';
+      readonly elementId: string;
+      readonly elementTitle: string;
+      readonly environment: string;
+      readonly focusElementIds: readonly string[];
+    };
+
+export const idleDeploymentMode: DeploymentMode = { status: 'idle' };
+
+export function beginDeployment(
+  metadata: DiagramElementQuickActionMetadata,
+  environment: string,
+  focusElementIds: readonly string[] = [metadata.canonicalElementId]
+): DeploymentMode {
+  return {
+    status: 'showing-deployment',
+    elementId: metadata.canonicalElementId,
+    elementTitle: metadata.title,
+    environment,
+    focusElementIds: [...new Set(focusElementIds)].sort()
+  };
+}
+
+export function cancelDeployment(_mode: DeploymentMode): DeploymentMode {
+  return idleDeploymentMode;
+}
+
 export function beginIsolate(metadata: DiagramElementQuickActionMetadata): IsolateMode {
   return {
     status: 'showing-isolate',

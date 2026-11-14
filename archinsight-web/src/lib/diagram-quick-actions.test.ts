@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagramQuickActionMetadata } from '@insight/language';
 import {
+  beginDeployment,
   beginIsolate,
   beginFindPath,
+  cancelDeployment,
   cancelIsolate,
   cancelFindPath,
   idleFindPathMode,
@@ -55,6 +57,15 @@ describe('diagram quick action model', () => {
       status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API'
     });
     expect(cancelIsolate(showing)).toEqual({ status: 'idle' });
+  });
+
+  it('tracks a deployment result and its environment until the result is closed', () => {
+    const showing = beginDeployment(metadata['shop/db']!, 'eu');
+    expect(showing).toEqual({
+      status: 'showing-deployment', elementId: 'shop/db', elementTitle: 'Database', environment: 'eu',
+      focusElementIds: ['shop/db']
+    });
+    expect(cancelDeployment(showing)).toEqual({ status: 'idle' });
   });
 
   it('keeps source identity while selecting, resolving, showing and retrying a path', () => {

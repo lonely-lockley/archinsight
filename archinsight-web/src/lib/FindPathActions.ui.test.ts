@@ -91,4 +91,28 @@ describe('FindPathActions', () => {
 
     await unmount(component);
   });
+
+  it('shows a deployment result and returns to the original diagram', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onCancelDeployment = vi.fn();
+    const component = mount(FindPathActions, {
+      target,
+      props: {
+        deploymentMode: {
+          status: 'showing-deployment', elementId: 'shop/api', elementTitle: 'API', environment: 'eu',
+          focusElementIds: ['shop/api']
+        },
+        onCancelDeployment
+      }
+    });
+    await tick();
+
+    expect(target.querySelector('[aria-label="Deployment mode"]')).not.toBeNull();
+    expect(target.textContent).toContain('Deployment: API · eu');
+    target.querySelector<HTMLButtonElement>('button[aria-label="Back to diagram"]')?.click();
+    expect(onCancelDeployment).toHaveBeenCalledOnce();
+
+    await unmount(component);
+  });
 });

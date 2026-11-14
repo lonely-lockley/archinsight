@@ -126,6 +126,7 @@ export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";
 export {
   canonicalDiagramElementId,
   deploymentEnvironmentsForElement,
+  deploymentFocusElementIds,
   diagramElementMetadata,
   diagramQuickActionMetadata,
   selectDeploymentGraph,

@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
 
 import SvgPreviewPanel from '@archinsight/workbench/svg-preview';
+import type { DeploymentMode } from '@archinsight/workbench/diagram-quick-actions';
 import { renderIdentity, type DiagramQuickActionMetadata } from '@insight/language';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { mount, tick, unmount } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReactiveTestProps } from './SvgPreviewPanel.test-state.svelte';
@@ -44,6 +47,20 @@ const compactSvg = `
   <g id="${renderIdentity('node', ['shop/api'])}" class="node">
     <polygon points="10,10 110,10 110,70 10,70" fill="#333" stroke="#777"/>
     <text x="60" y="40">API</text>
+  </g>
+</svg>`;
+
+const deploymentSvg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180" viewBox="0 0 300 180">
+  <g id="${renderIdentity('node', ['shop/api@@eu/k8s'])}" class="node">
+    <a href="insight://goto?source=model.ai&amp;line=4&amp;column=5">
+      <polygon points="20,20 130,20 130,80 20,80" fill="#333" stroke="#777"/>
+      <text x="75" y="50">API</text>
+    </a>
+  </g>
+  <g id="${renderIdentity('node', ['shop/db@@eu/k8s'])}" class="node">
+    <polygon points="170,90 280,90 280,150 170,150" fill="#333" stroke="#777"/>
+    <text x="225" y="120">Database</text>
   </g>
 </svg>`;
 
@@ -260,6 +277,46 @@ describe('SvgPreviewPanel quick actions', () => {
 
     expect(apiGroup.classList.contains('archinsight-node-selected')).toBe(true);
     expect(dbGroup.classList.contains('archinsight-node-selected')).toBe(false);
+
+    await unmount(component);
+  });
+
+  it('highlights a linked deployment occurrence with the ordinary selection frame', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const props = new ReactiveTestProps<{
+      svg: string | undefined;
+      quickActionMetadata: DiagramQuickActionMetadata;
+      deploymentMode: DeploymentMode;
+    }>({
+      svg,
+      quickActionMetadata: metadata,
+      deploymentMode: { status: 'idle' }
+    }).value;
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props
+    });
+    await settle();
+
+    props.svg = deploymentSvg;
+    props.deploymentMode = {
+      status: 'showing-deployment', elementId: 'shop/storefront', elementTitle: 'Storefront', environment: 'eu',
+      focusElementIds: ['shop/api']
+    };
+    await settle();
+
+    const apiGroup = target.querySelector<SVGGElement>(`#${CSS.escape(renderIdentity('node', ['shop/api@@eu/k8s']))}`)!;
+    const dbGroup = target.querySelector<SVGGElement>(`#${CSS.escape(renderIdentity('node', ['shop/db@@eu/k8s']))}`)!;
+
+    expect(apiGroup.classList.contains('archinsight-node-selected')).toBe(true);
+    expect(dbGroup.classList.contains('archinsight-node-selected')).toBe(false);
+    const source = readFileSync(
+      resolve(process.cwd(), '../packages/archinsight-workbench/src/SvgPreviewPanel.svelte'),
+      'utf8'
+    );
+    expect(source).toContain(':global(g.archinsight-node-selected polygon)');
+    expect(source).not.toContain(':global(g.archinsight-node-selected > polygon)');
 
     await unmount(component);
   });

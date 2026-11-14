@@ -244,4 +244,42 @@ describe('WorkspaceEditor composition', () => {
     await unmount(component);
     target.remove();
   });
+
+  it('exits Deployment before its owning tab selects another built-in diagram mode', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onCancelDeployment = vi.fn();
+    const onSelectDiagramMode = vi.fn();
+    const component = mount(WorkspaceEditor, {
+      target,
+      props: {
+        active: true,
+        svg: '<svg></svg>',
+        deploymentMode: {
+          status: 'showing-deployment', elementId: 'shop/api', elementTitle: 'API', environment: 'eu',
+          focusElementIds: ['shop/api']
+        },
+        diagramMode: 'default',
+        query: '',
+        editorHost: document.createElement('div'),
+        messagesPanel: document.createElement('div'),
+        onCancelDeployment,
+        onSelectDiagramMode,
+        onToggleQuery: vi.fn(), onQueryChange: vi.fn(), onQueryPanelHeightChange: vi.fn(),
+        onZoomIn: vi.fn(), onZoomOut: vi.fn(), onFitDiagram: vi.fn(),
+        onActualSize: vi.fn(), onSelectViewMode: vi.fn(), onRefresh: vi.fn(),
+        onEditorSplitRatioChange: vi.fn(), onDiagramVisibleScaleChange: vi.fn(),
+        onOpenDeclaration: vi.fn(), onBeginMessagesResize: vi.fn()
+      }
+    });
+    await tick();
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="C2 Containers view"]')?.click();
+
+    expect(onCancelDeployment).toHaveBeenCalledOnce();
+    expect(onSelectDiagramMode).toHaveBeenCalledWith('c2');
+
+    await unmount(component);
+    target.remove();
+  });
 });

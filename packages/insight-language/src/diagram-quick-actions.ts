@@ -154,6 +154,30 @@ export function selectDeploymentGraph(
   return filterDeploymentGraph(complete, logicalScope);
 }
 
+export function deploymentFocusElementIds(
+  result: LinkProjectResult,
+  requestedElementId: string,
+  graph: RenderGraph,
+): readonly string[] {
+  const rootElementId = canonicalDiagramElementId(requestedElementId);
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const belongsToRoot = (elementId: string): boolean => {
+    let current = elementsById.get(elementId);
+    const visited = new Set<string>();
+    while (current !== undefined && !visited.has(current.id)) {
+      if (current.id === rootElementId) return true;
+      visited.add(current.id);
+      current = current.parent === undefined ? undefined : elementsById.get(current.parent);
+    }
+    return false;
+  };
+  return [...new Set(
+    Object.keys(graph.elements)
+      .map(canonicalDiagramElementId)
+      .filter(belongsToRoot),
+  )].sort();
+}
+
 export function selectPathGraph(
   result: LinkProjectResult,
   requestedSourceId: string,
@@ -383,14 +407,13 @@ function endpointGraph(source: LinkedElement, target: LinkedElement): RenderGrap
 }
 
 function filterDeploymentGraph(graph: RenderGraph, logicalScope: ReadonlySet<string>): RenderGraph {
-  const selectedIds = new Set<string>();
-  const selectedEdges = graph.edges.filter((edge) => deploymentEdgeTouchesScope(edge, logicalScope));
+  const focusIds = new Set(Object.keys(graph.elements)
+    .filter((id) => logicalScope.has(canonicalDiagramElementId(id))));
+  const selectedIds = new Set(focusIds);
+  const selectedEdges = graph.edges.filter((edge) => focusIds.has(edge.source) || focusIds.has(edge.target));
   for (const edge of selectedEdges) {
     selectedIds.add(edge.source);
     selectedIds.add(edge.target);
-  }
-  for (const id of Object.keys(graph.elements)) {
-    if (logicalScope.has(canonicalDiagramElementId(id))) selectedIds.add(id);
   }
   let groupClosureChanged = true;
   while (groupClosureChanged) {
@@ -424,17 +447,6 @@ function filterDeploymentGraph(graph: RenderGraph, logicalScope: ReadonlySet<str
     groups,
     externalElements: [...external].sort(),
   };
-}
-
-function deploymentEdgeTouchesScope(edge: RenderGraphEdge, logicalScope: ReadonlySet<string>): boolean {
-  if (logicalScope.has(canonicalDiagramElementId(edge.source))
-      || logicalScope.has(canonicalDiagramElementId(edge.target))) return true;
-  const origins = edge.edge.projectionOrigins ?? [{
-    source: edge.edge.originSource ?? edge.edge.source,
-    target: edge.edge.originTarget ?? edge.edge.target,
-  }];
-  return origins.some((origin) => logicalScope.has(canonicalDiagramElementId(origin.source))
-    || logicalScope.has(canonicalDiagramElementId(origin.target)));
 }
 
 function childrenIndex(elements: readonly LinkedElement[]): Map<string, LinkedElement[]> {

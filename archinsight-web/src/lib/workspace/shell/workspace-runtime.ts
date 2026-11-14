@@ -402,6 +402,8 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     setFindPathMode: (findPathMode) => patch({ findPathMode }),
     isolateMode: () => state().isolateMode,
     setIsolateMode: (isolateMode) => patch({ isolateMode }),
+    deploymentMode: () => state().deploymentMode,
+    setDeploymentMode: (deploymentMode) => patch({ deploymentMode }),
     pendingDeploymentElementId: () => state().quickActionDeploymentElementId,
     setPendingDeploymentElementId: (quickActionDeploymentElementId) => patch({ quickActionDeploymentElementId }),
     setDeploymentPickerOpen: (deploymentPickerOpen) => patch({ deploymentPickerOpen }),
