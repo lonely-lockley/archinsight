@@ -307,6 +307,7 @@ function quickActionMetadata(value: unknown): DiagramQuickActionMetadata {
         line: number(declaration.line, `${label}.declaration.line`),
         column: number(declaration.column, `${label}.declaration.column`)
       } }),
+      isolateEligible: boolean(item.isolateEligible, `${label}.isolateEligible`),
       pathEligible: boolean(item.pathEligible, `${label}.pathEligible`)
     }];
   }));

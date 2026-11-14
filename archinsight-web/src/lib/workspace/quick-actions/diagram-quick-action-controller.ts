@@ -105,7 +105,8 @@ export function createDiagramQuickActionController(
     return {
       ...(context === undefined ? {} : { context }),
       tab: sourceIdentity,
-      ...(view === undefined ? {} : { view })
+      ...(view === undefined ? {} : { view }),
+      ...(tab.deploymentEnvironment === undefined ? {} : { environment: tab.deploymentEnvironment })
     };
   };
 
@@ -229,7 +230,7 @@ export function createDiagramQuickActionController(
         return;
       }
       if (action === 'isolate') {
-        if (!metadata.pathEligible) return;
+        if (!metadata.isolateEligible) return;
         if (ports.findPathMode().status !== 'idle') {
           restoreFindPathDiagram();
           ports.setFindPathMode(cancelFindPath(ports.findPathMode()));

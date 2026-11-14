@@ -5,6 +5,14 @@ import type {
 
 export type DiagramQuickActionId = 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path';
 
+export type DiagramQuickActionAnchor = {
+  /** Coordinates relative to the quick-actions overlay. */
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+};
+
 export type DiagramQuickActionItem = {
   readonly id: DiagramQuickActionId;
   readonly label: string;
@@ -104,7 +112,7 @@ export function quickActionItems(
   const metadata = allMetadata[elementId] ?? allMetadata[canonicalElementId];
   if (metadata === undefined) return [];
   return [
-    item('isolate', 'Isolate', '◎', metadata.pathEligible, 'Isolation is unavailable for this element'),
+    item('isolate', 'Isolate', '◎', metadata.isolateEligible, 'Isolation is unavailable for this element'),
     item('show-deployment', 'Show deployment', '▦', metadata.hasDeployment, 'No deployment'),
     item('go-to-declaration', 'Go to declaration', '⌘', metadata.declaration !== undefined, 'Declaration is unavailable'),
     item('find-path', 'Find path', '⌁', metadata.pathEligible, 'Path search is unavailable for this element')

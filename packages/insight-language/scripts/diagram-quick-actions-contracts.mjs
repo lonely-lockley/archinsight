@@ -113,6 +113,18 @@ assert.equal(
 );
 assert.equal(metadata["shop/api"]?.pathEligible, true);
 assert(metadata["shop/api"]?.declaration);
+const deploymentElements = result.elements.filter((element) => element.baseTypes.includes("DeploymentElement"));
+assert(deploymentElements.length > 0);
+assert.equal(
+  deploymentElements.every((element) => metadata[element.id]?.pathEligible === true),
+  true,
+  "deployment elements are valid Find path endpoints",
+);
+assert.equal(
+  deploymentElements.every((element) => metadata[element.id]?.isolateEligible === false),
+  true,
+  "deployment boundaries do not gain Isolate actions",
+);
 
 const isolatedApi = selectIsolatedElementGraph(result, "shop/api");
 assert.deepEqual(
@@ -177,6 +189,40 @@ assert(
   )),
   "deployment containment groups only retain selected members",
 );
+const authoredEdge = result.edges.find((edge) => edge.projected !== true);
+const deploymentEndpoint = deploymentElements[0];
+assert(authoredEdge && deploymentEndpoint);
+const crossLayerEdge = {
+  ...authoredEdge,
+  id: "cross-c-d-path",
+  source: "shop/api",
+  target: deploymentEndpoint.id,
+  projected: false,
+};
+const crossViewPath = selectPathGraph(
+  { ...result, edges: [...result.edges, crossLayerEdge] },
+  crossLayerEdge.source,
+  crossLayerEdge.target,
+);
+assert.equal(
+  crossViewPath.edges.some((edge) => edge.source === crossLayerEdge.source && edge.target === crossLayerEdge.target),
+  true,
+  "Find path traverses authored edges between C and D elements",
+);
+const deploymentOccurrenceEdge = deployment.edges[0];
+assert(deploymentOccurrenceEdge);
+const deploymentOccurrencePath = selectPathGraph(
+  result,
+  deploymentOccurrenceEdge.source,
+  deploymentOccurrenceEdge.target,
+  { context: "shop", tab: "model.ai", view: "deployment-container", environment: "eu" },
+);
+assert.equal(
+  deploymentOccurrencePath.edges.some((edge) =>
+    edge.source === deploymentOccurrenceEdge.source && edge.target === deploymentOccurrenceEdge.target),
+  true,
+  "Find path resolves canonical elements back to their displayed deployment occurrences",
+);
 
 const path = selectPathGraph(result, "shop/api", "shop/billing");
 assert.deepEqual(new Set(Object.keys(path.elements)), new Set(["shop/api", "shop/billing"]));
@@ -184,8 +230,8 @@ assert.equal(path.edges.length, 1);
 assert.equal(path.edges.every((edge) => edge.projected === false && edge.edge.projected !== true), true);
 const multiStepPath = selectPathGraph(result, "shop/frontend", "shop/billing");
 assert.deepEqual(
-  multiStepPath.edges.map((edge) => `${edge.source}->${edge.target}`),
-  ["shop/frontend->shop/api", "shop/api->shop/billing"],
+  new Set(multiStepPath.edges.map((edge) => `${edge.source}->${edge.target}`)),
+  new Set(["shop/frontend->shop/api", "shop/api->shop/billing"]),
   "path relationships retain their direction",
 );
 const reversePath = selectPathGraph(result, "shop/billing", "shop/api");

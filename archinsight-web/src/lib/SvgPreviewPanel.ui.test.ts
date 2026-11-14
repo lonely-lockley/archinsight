@@ -9,15 +9,15 @@ import { ReactiveTestProps } from './SvgPreviewPanel.test-state.svelte';
 const metadata: DiagramQuickActionMetadata = {
   'shop/storefront': {
     elementId: 'shop/storefront', canonicalElementId: 'shop/storefront', title: 'Storefront', hasChildren: true,
-    hasDeployment: false, declaration: { sourceName: 'model.ai', line: 1, column: 1 }, pathEligible: true
+    hasDeployment: false, declaration: { sourceName: 'model.ai', line: 1, column: 1 }, isolateEligible: true, pathEligible: true
   },
   'shop/api': {
     elementId: 'shop/api', canonicalElementId: 'shop/api', title: 'API', hasChildren: true,
-    hasDeployment: false, declaration: { sourceName: 'model.ai', line: 4, column: 5 }, pathEligible: true
+    hasDeployment: false, declaration: { sourceName: 'model.ai', line: 4, column: 5 }, isolateEligible: true, pathEligible: true
   },
   'shop/db': {
     elementId: 'shop/db', canonicalElementId: 'shop/db', title: 'Database', hasChildren: false,
-    hasDeployment: true, declaration: { sourceName: 'model.ai', line: 8, column: 5 }, pathEligible: true
+    hasDeployment: true, declaration: { sourceName: 'model.ai', line: 8, column: 5 }, isolateEligible: true, pathEligible: true
   }
 };
 
@@ -138,6 +138,7 @@ describe('SvgPreviewPanel quick actions', () => {
 
     const apiGroup = target.querySelector<SVGGElement>(`#${CSS.escape(renderIdentity('node', ['shop/api']))}`)!;
     const dbGroup = target.querySelector<SVGGElement>(`#${CSS.escape(renderIdentity('node', ['shop/db']))}`)!;
+    const storefrontBoundary = target.querySelector<SVGGElement>(`#${CSS.escape(`cluster_${renderIdentity('cluster', ['shop/storefront'])}`)}`)!;
     expect(apiGroup.classList.contains('archinsight-path-source')).toBe(true);
 
     const trigger = target.querySelector<HTMLButtonElement>('button[aria-label="Quick actions for Database"]')!;
@@ -151,9 +152,61 @@ describe('SvgPreviewPanel quick actions', () => {
     await tick();
     expect(target.querySelector('[role="menu"]')).toBeNull();
 
+    storefrontBoundary.querySelector('polygon')?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+    expect(onSelectPathTarget).not.toHaveBeenCalled();
+
     dbGroup.querySelector('polygon')?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
     expect(onSelectPathTarget).toHaveBeenCalledWith('shop/db');
     expect(onOpenDeclaration).not.toHaveBeenCalled();
+
+    await unmount(component);
+  });
+
+  it('reports the show deployment action button as the picker anchor', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onDiagramQuickAction = vi.fn();
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: { svg, quickActionMetadata: metadata, onDiagramQuickAction }
+    });
+    await settle();
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="Quick actions for Database"]')?.click();
+    await tick();
+    target.querySelector<HTMLButtonElement>('button[aria-label="Show deployment"]')?.click();
+
+    expect(onDiagramQuickAction).toHaveBeenCalledWith('show-deployment', 'shop/db', {
+      left: 0,
+      top: 0,
+      right: 320,
+      bottom: 200
+    });
+    await unmount(component);
+  });
+
+  it('renders a quick-action deployment picker inside the diagram overlay', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: {
+        svg,
+        quickActionMetadata: metadata,
+        deploymentEnvironments: [{ id: 'eu' }, { id: 'us' }],
+        deploymentPickerOpen: true,
+        deploymentPickerAnchor: { left: 100, top: 120, right: 134, bottom: 154 }
+      }
+    });
+    await settle();
+
+    const picker = target.querySelector<HTMLElement>('[aria-label="Select deployment environment"]');
+    const pickerPosition = picker?.parentElement;
+    expect(pickerPosition?.classList.contains('deployment-picker-position')).toBe(true);
+    expect(pickerPosition?.closest('.quick-actions-overlay')).not.toBeNull();
+    expect(pickerPosition?.style.left).toBe('8px');
+    expect(pickerPosition?.style.top).toBe('120px');
+    expect(picker?.style.position).toBe('');
 
     await unmount(component);
   });

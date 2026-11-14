@@ -21,6 +21,7 @@ const metadata: DiagramQuickActionMetadata = {
     hasChildren: true,
     hasDeployment: false,
     declaration: { sourceName: 'model.ai', line: 4, column: 5 },
+    isolateEligible: true,
     pathEligible: true
   },
   'shop/db': {
@@ -29,6 +30,7 @@ const metadata: DiagramQuickActionMetadata = {
     title: 'Database',
     hasChildren: false,
     hasDeployment: true,
+    isolateEligible: true,
     pathEligible: true
   }
 };

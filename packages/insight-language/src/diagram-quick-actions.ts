@@ -11,7 +11,7 @@ import type {
   IsolateRenderGraphLayout,
   SourceLocation,
 } from "./contracts.js";
-import { discoverDeploymentEnvironments, executeQuery, selectGraph } from "./query-engine.js";
+import { discoverDeploymentEnvironments, selectGraph } from "./query-engine.js";
 
 export interface DiagramElementQuickActionMetadata {
   readonly elementId: string;
@@ -20,19 +20,11 @@ export interface DiagramElementQuickActionMetadata {
   readonly hasChildren: boolean;
   readonly hasDeployment: boolean;
   readonly declaration?: SourceLocation;
+  readonly isolateEligible: boolean;
   readonly pathEligible: boolean;
 }
 
 export type DiagramQuickActionMetadata = Readonly<Record<string, DiagramElementQuickActionMetadata>>;
-
-const fallbackShortestPathQuery = `
-MATCH (source:Element)
-WHERE elementId(source) = $source
-MATCH (target:Element)
-WHERE elementId(target) = $target
-MATCH path = shortestPath((source)-[:REFERENCES*1.. {withDerived}]->(target))
-RETURN TABLE path AS evidence
-`.trim();
 
 export function diagramQuickActionMetadata(result: LinkProjectResult): DiagramQuickActionMetadata {
   const elementsById = new Map(result.elements.map((element) => [element.id, element]));
@@ -62,7 +54,8 @@ export function diagramQuickActionMetadata(result: LinkProjectResult): DiagramQu
       hasChildren: (childrenByParent.get(element.id)?.length ?? 0) > 0,
       hasDeployment: hasDeploymentInScope(element.id),
       ...(element.declaration === undefined ? {} : { declaration: element.declaration }),
-      pathEligible: isLogicalElement(element),
+      isolateEligible: isLogicalElement(element),
+      pathEligible: true,
     };
   }
   return metadata;
@@ -166,58 +159,39 @@ export function selectPathGraph(
   const targetId = canonicalDiagramElementId(requestedTargetId);
   const source = result.elements.find((element) => element.id === sourceId);
   const target = result.elements.find((element) => element.id === targetId);
-  if (source === undefined || target === undefined || !isLogicalElement(source) || !isLogicalElement(target)) {
+  if (source === undefined || target === undefined) {
     return emptyGraph(source?.context ?? target?.context ?? "-");
   }
   const endpoints = endpointGraph(source, target);
-  if (scope?.view !== undefined
-      && (scope.view === "no-filter" || builtinViewHasStage(scope.view, "logical-boundary"))) {
+  const scopedViewQuery = scope?.view === undefined ? undefined : BUILTIN_VIEW_QUERIES[scope.view];
+  if (scope?.view !== undefined && scopedViewQuery !== undefined) {
     const viewGraph = selectGraph(result, {
       ...scope,
       context: scope.context ?? source.context,
       tab: scope.tab ?? source.sourceIdentity,
-    }, BUILTIN_VIEW_QUERIES[scope.view]);
-    return directedPathCorridor(viewGraph, sourceId, targetId) ?? endpoints;
+    }, scopedViewQuery);
+    const corridor = directedPathCorridor(viewGraph, sourceId, targetId);
+    if (corridor !== undefined) return corridor;
   }
-  const queryResult = executeQuery(result, {
+  const completeGraph: RenderGraph = {
     context: source.context,
-    tab: source.sourceIdentity,
-  }, fallbackShortestPathQuery, { source: sourceId, target: targetId });
-  if (queryResult.kind !== "table" || queryResult.rows.length === 0) return endpoints;
-  const evidence = queryResult.rows[0]?.[0];
-  if (!isSerializedPath(evidence)) return endpoints;
-  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
-  const edgesById = new Map(result.edges.map((edge) => [edge.id as string, edge]));
-  const selectedIds = new Set(evidence.nodes.flatMap((node) => serializedNodeId(node) ?? []));
-  const edges = evidence.relationships.flatMap((relationship) => {
-    if (!isSerializedRelationship(relationship)) return [];
-    const edge = typeof relationship.originId === "string" ? edgesById.get(relationship.originId) : undefined;
-    if (edge === undefined) return [];
-    selectedIds.add(relationship.source);
-    selectedIds.add(relationship.target);
-    return [{
-      edge,
-      source: relationship.source,
-      target: relationship.target,
-      derived: relationship.derived === true,
-      projected: relationship.projected === true,
-    } satisfies RenderGraphEdge];
-  });
-  return edges.length === 0 ? endpoints : {
-    context: source.context,
-    elements: selectedElements(selectedIds, elementsById),
-    edges,
+    elements: Object.fromEntries(result.elements.map((element) => [element.id, element])),
+    edges: result.edges.map(renderEdge),
     groups: [],
-    externalElements: [],
+    externalElements: result.elements
+      .filter((element) => element.context !== source.context)
+      .map((element) => element.id),
   };
+  return directedPathCorridor(completeGraph, sourceId, targetId) ?? endpoints;
 }
 
 function directedPathCorridor(graph: RenderGraph, sourceId: string, targetId: string): RenderGraph | undefined {
-  if (graph.elements[sourceId] === undefined || graph.elements[targetId] === undefined) return undefined;
+  const sourceOccurrences = graphElementOccurrences(graph, sourceId);
+  const targetOccurrences = graphElementOccurrences(graph, targetId);
+  if (sourceOccurrences.length === 0 || targetOccurrences.length === 0) return undefined;
   const outgoing = new Map<string, RenderGraphEdge[]>();
   const incoming = new Map<string, RenderGraphEdge[]>();
   for (const edge of graph.edges) {
-    if (edge.projected || edge.edge.projected === true) continue;
     const sourceEdges = outgoing.get(edge.source) ?? [];
     sourceEdges.push(edge);
     outgoing.set(edge.source, sourceEdges);
@@ -225,12 +199,11 @@ function directedPathCorridor(graph: RenderGraph, sourceId: string, targetId: st
     targetEdges.push(edge);
     incoming.set(edge.target, targetEdges);
   }
-  const reachableFromSource = reachableNodes(sourceId, outgoing, (edge) => edge.target);
-  if (!reachableFromSource.has(targetId)) return undefined;
-  const reachingTarget = reachableNodes(targetId, incoming, (edge) => edge.source);
+  const reachableFromSource = reachableNodesFrom(sourceOccurrences, outgoing, (edge) => edge.target);
+  if (!targetOccurrences.some((id) => reachableFromSource.has(id))) return undefined;
+  const reachingTarget = reachableNodesFrom(targetOccurrences, incoming, (edge) => edge.source);
   const selected = new Set([...reachableFromSource].filter((id) => reachingTarget.has(id)));
-  const edges = graph.edges.filter((edge) => !edge.projected && edge.edge.projected !== true
-    && selected.has(edge.source) && selected.has(edge.target));
+  const edges = graph.edges.filter((edge) => selected.has(edge.source) && selected.has(edge.target));
   let changed = true;
   while (changed) {
     changed = false;
@@ -258,6 +231,12 @@ function directedPathCorridor(graph: RenderGraph, sourceId: string, targetId: st
     groups,
     externalElements: graph.externalElements.filter((id) => selected.has(id)),
   };
+}
+
+function graphElementOccurrences(graph: RenderGraph, canonicalId: string): string[] {
+  return Object.keys(graph.elements)
+    .filter((id) => canonicalDiagramElementId(id) === canonicalId)
+    .sort();
 }
 
 function isolateElementInGraph(graph: RenderGraph, elementId: string, context: string): RenderGraph {
@@ -354,6 +333,18 @@ function reachableNodes(
   return visited;
 }
 
+function reachableNodesFrom(
+  starts: readonly string[],
+  edgesByNode: ReadonlyMap<string, readonly RenderGraphEdge[]>,
+  nextNode: (edge: RenderGraphEdge) => string,
+): Set<string> {
+  const result = new Set<string>();
+  for (const start of starts) {
+    for (const id of reachableNodes(start, edgesByNode, nextNode)) result.add(id);
+  }
+  return result;
+}
+
 function endpointGraph(source: LinkedElement, target: LinkedElement): RenderGraph {
   return {
     context: source.context,
@@ -362,39 +353,6 @@ function endpointGraph(source: LinkedElement, target: LinkedElement): RenderGrap
     groups: [],
     externalElements: source.context === target.context ? [] : [target.id],
   };
-}
-
-function isSerializedPath(value: unknown): value is {
-  readonly kind: "path";
-  readonly nodes: readonly unknown[];
-  readonly relationships: readonly unknown[];
-} {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    && "kind" in value && value.kind === "path"
-    && "nodes" in value && Array.isArray(value.nodes)
-    && "relationships" in value && Array.isArray(value.relationships);
-}
-
-function serializedNodeId(value: unknown): string | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-      && "kind" in value && value.kind === "node" && "id" in value && typeof value.id === "string"
-    ? value.id
-    : undefined;
-}
-
-function isSerializedRelationship(value: unknown): value is {
-  readonly originId: string | null;
-  readonly source: string;
-  readonly target: string;
-  readonly derived: boolean;
-  readonly projected: boolean;
-} {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    && "source" in value && typeof value.source === "string"
-    && "target" in value && typeof value.target === "string"
-    && "originId" in value && (value.originId === null || typeof value.originId === "string")
-    && "derived" in value && typeof value.derived === "boolean"
-    && "projected" in value && typeof value.projected === "boolean";
 }
 
 function filterDeploymentGraph(graph: RenderGraph, logicalScope: ReadonlySet<string>): RenderGraph {

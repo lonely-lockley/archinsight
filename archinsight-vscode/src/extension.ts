@@ -1501,7 +1501,7 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     if (action === "isolate") {
-      if (!metadata.pathEligible) return;
+      if (!metadata.isolateEligible) return;
       if (this.readFindPathMode().status !== "idle") await this.cancelFindPathMode();
       const accepted = await this.renderQuickActionGraph(
         selectIsolatedElementGraph(current.result, metadata.canonicalElementId, this.quickActionScope(current)),
@@ -1552,6 +1552,7 @@ class ArchinsightWorkbenchEditorSession {
       ...(context === undefined ? {} : { context }),
       ...(sourceName === undefined ? {} : { tab: sourceName }),
       view: queryState.view,
+      ...(queryState.environment === undefined ? {} : { environment: queryState.environment }),
     };
   }
 

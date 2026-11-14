@@ -18,6 +18,7 @@
   } from '$lib/workspace/shell/layout-model';
   import WorkspaceTabs from '$lib/workspace/shell/WorkspaceTabs.svelte';
   import type { MessageView, TreeNode } from '@archinsight/workbench/types';
+  import type { DiagramQuickActionAnchor, DiagramQuickActionId } from '@archinsight/workbench/diagram-quick-actions';
   import type {
     WorkspaceShellControllers,
     WorkspaceShellView
@@ -31,6 +32,7 @@
 
   let messagesPanel: HTMLElement;
   let lastAutoScrolledMessagesSignature = '';
+  let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined;
 
   $: projectQueries = discoverProjectQueries(view.state.tree);
   $: sidebarVisible = view.state.projectUi.sidebarVisible;
@@ -50,6 +52,16 @@
     void tick().then(() => {
       if (messagesPanel !== undefined) messagesPanel.scrollTop = messagesPanel.scrollHeight;
     });
+  }
+
+  async function executeDiagramQuickAction(
+    action: DiagramQuickActionId,
+    elementId: string,
+    anchor?: DiagramQuickActionAnchor
+  ): Promise<void> {
+    deploymentPickerAnchor = action === 'show-deployment' ? anchor : undefined;
+    await controllers.quickActions.execute(action, elementId);
+    if (!view.state.deploymentPickerOpen) deploymentPickerAnchor = undefined;
   }
 </script>
 
@@ -121,6 +133,7 @@
       deploymentEnvironments={view.activeDeploymentEnvironments}
       deploymentEnvironment={view.activeTab?.deploymentEnvironment}
       deploymentPickerOpen={view.state.deploymentPickerOpen}
+      {deploymentPickerAnchor}
       queryVisible={view.activeTab?.queryVisible ?? false}
       queryPanelHeight={view.activeTab?.queryPanelHeight ?? 118}
       viewMode={view.activeTab?.viewMode ?? 'split'}
@@ -135,8 +148,12 @@
       refreshDisabled={view.state.refreshDisabled}
       emptyStrategy={view.emptyStrategy}
       onEmptyAction={controllers.action.handleEmptyAction}
-      onSelectDiagramMode={controllers.diagram.selectMode}
+      onSelectDiagramMode={(mode) => {
+        deploymentPickerAnchor = undefined;
+        controllers.diagram.selectMode(mode);
+      }}
       onSelectDeploymentEnvironment={(environment) => {
+        deploymentPickerAnchor = undefined;
         if (view.state.quickActionDeploymentElementId !== undefined) {
           void controllers.quickActions.selectDeploymentEnvironment(environment);
         } else {
@@ -144,6 +161,7 @@
         }
       }}
       onCloseDeploymentPicker={() => {
+        deploymentPickerAnchor = undefined;
         if (!controllers.quickActions.closeDeploymentPicker()) controllers.diagram.closeDeploymentPicker();
       }}
       onToggleQuery={controllers.diagram.toggleQuery}
@@ -159,7 +177,7 @@
       onEditorSplitRatioChange={controllers.diagram.updateEditorSplitRatio}
       onDiagramVisibleScaleChange={controllers.diagram.updateVisibleScale}
       onOpenDeclaration={controllers.file.goToDeclaration}
-      onDiagramQuickAction={(action, elementId) => void controllers.quickActions.execute(action, elementId)}
+      onDiagramQuickAction={(action, elementId, anchor) => void executeDiagramQuickAction(action, elementId, anchor)}
       onSelectPathTarget={(elementId) => void controllers.quickActions.selectPathTarget(elementId)}
       onCancelFindPath={controllers.quickActions.cancelFindPath}
       onCancelIsolate={controllers.quickActions.cancelIsolate}

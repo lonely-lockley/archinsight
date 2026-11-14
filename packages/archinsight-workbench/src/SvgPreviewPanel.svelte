@@ -7,7 +7,7 @@
     type DiagramQuickActionMetadata
   } from '@insight/language';
   import DiagramQuickActions from './DiagramQuickActions.svelte';
-  import type { DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
+  import type { DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import { sanitizeSvg } from './svg-sanitizer';
   import type { SourceLocation } from './workspace-types';
 
@@ -19,7 +19,13 @@
   export let quickActionMetadata: DiagramQuickActionMetadata = {};
   export let findPathMode: FindPathMode = { status: 'idle' };
   export let isolateMode: IsolateMode = { status: 'idle' };
-  export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string) => void = () => {};
+  export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
+  export let deploymentEnvironment: string | undefined = undefined;
+  export let deploymentPickerOpen = false;
+  export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
+  export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
+  export let onCloseDeploymentPicker: () => void = () => {};
+  export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
   export let onSelectPathTarget: (elementId: string) => void = () => {};
 
   let previewPane: HTMLDivElement;
@@ -171,7 +177,7 @@
       if (current === svgHost) break;
       if (current instanceof SVGGElement && current.id.length > 0) {
         const identity = parseRenderIdentity(current.id);
-        if (identity?.kind === 'node' || identity?.kind === 'cluster') {
+        if (identity?.kind === 'node') {
           const elementId = identity.provenance[0];
           if (elementId !== undefined && diagramElementMetadata(quickActionMetadata, elementId) !== undefined) {
             return elementId;
@@ -273,6 +279,12 @@
     metadata={quickActionMetadata}
     {findPathMode}
     renderToken={sanitizedSvg}
+    {deploymentEnvironments}
+    {deploymentEnvironment}
+    {deploymentPickerOpen}
+    {deploymentPickerAnchor}
+    {onSelectDeploymentEnvironment}
+    {onCloseDeploymentPicker}
     onAction={onDiagramQuickAction}
   />
 </div>

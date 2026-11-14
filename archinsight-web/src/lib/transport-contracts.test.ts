@@ -94,7 +94,7 @@ describe('shared transport contracts', () => {
         quickActionMetadata: {
           'shop/api': {
             elementId: 'shop/api', canonicalElementId: 'shop/api', title: 'API',
-            hasChildren: 'yes', hasDeployment: false, pathEligible: true
+            hasChildren: 'yes', hasDeployment: false, isolateEligible: true, pathEligible: true
           }
         }
       }

@@ -8,9 +8,11 @@
   } from '@insight/language';
   import {
     quickActionItems,
+    type DiagramQuickActionAnchor,
     type DiagramQuickActionId,
     type FindPathMode
   } from './diagram-quick-actions';
+  import DeploymentEnvironmentPicker from './DeploymentEnvironmentPicker.svelte';
 
   type MenuAnchor = { x: number; y: number };
 
@@ -22,7 +24,13 @@
   export let metadata: DiagramQuickActionMetadata = {};
   export let findPathMode: FindPathMode = { status: 'idle' };
   export let renderToken: string | undefined;
-  export let onAction: (action: DiagramQuickActionId, elementId: string) => void = () => {};
+  export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
+  export let deploymentEnvironment: string | undefined = undefined;
+  export let deploymentPickerOpen = false;
+  export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
+  export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
+  export let onCloseDeploymentPicker: () => void = () => {};
+  export let onAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
 
   let overlayHost: HTMLDivElement;
   let overlayWidth = '0px';
@@ -39,6 +47,7 @@
 
   $: openElement = openElementId === undefined ? undefined : diagramElementMetadata(metadata, openElementId);
   $: openItems = openElementId === undefined ? [] : quickActionItems(metadata, openElementId);
+  $: deploymentPickerStyle = pickerStyle(deploymentPickerAnchor);
   $: {
     void metadata;
     void findPathMode;
@@ -193,8 +202,35 @@
     event.stopPropagation();
     const item = openItems.find((candidate) => candidate.id === action);
     if (item?.enabled !== true) return;
+    const anchor = action === 'show-deployment' ? actionAnchor(event.currentTarget) : undefined;
     closeMenu();
-    onAction(action, elementId);
+    if (anchor === undefined) onAction(action, elementId);
+    else onAction(action, elementId, anchor);
+  }
+
+  function actionAnchor(target: EventTarget | null): DiagramQuickActionAnchor | undefined {
+    if (!(target instanceof HTMLElement) || overlayHost === undefined) return undefined;
+    const box = target.getBoundingClientRect();
+    const parentBox = overlayHost.getBoundingClientRect();
+    return {
+      left: box.left - parentBox.left,
+      top: box.top - parentBox.top,
+      right: box.right - parentBox.left,
+      bottom: box.bottom - parentBox.top
+    };
+  }
+
+  function pickerStyle(anchor: DiagramQuickActionAnchor | undefined): string | undefined {
+    if (anchor === undefined) return undefined;
+    const pickerWidth = 280;
+    const gap = 8;
+    const margin = 8;
+    let left = anchor.right + gap;
+    if (left + pickerWidth > Number.parseFloat(overlayWidth) - margin) {
+      left = anchor.left - pickerWidth - gap;
+    }
+    left = Math.max(margin, left);
+    return `left: ${left}px; top: ${Math.max(margin, anchor.top)}px;`;
   }
 
   function anchorFor(button: HTMLButtonElement | undefined): MenuAnchor | undefined {
@@ -230,7 +266,7 @@
   bind:this={overlayHost}
   class="quick-actions-overlay"
   style={`width: ${overlayWidth}; height: ${overlayHeight};`}
-  aria-hidden={openElementId === undefined}
+  aria-hidden={openElementId === undefined && !(deploymentPickerOpen && deploymentPickerAnchor !== undefined)}
 >
   {#if openElement !== undefined && menuAnchor !== undefined}
     <div
@@ -256,6 +292,16 @@
           </span>
         </button>
       {/each}
+    </div>
+  {/if}
+  {#if deploymentPickerOpen && deploymentPickerAnchor !== undefined && deploymentPickerStyle !== undefined}
+    <div class="deployment-picker-position" style={deploymentPickerStyle}>
+      <DeploymentEnvironmentPicker
+        environments={deploymentEnvironments}
+        selectedEnvironment={deploymentEnvironment}
+        onSelect={onSelectDeploymentEnvironment}
+        onClose={onCloseDeploymentPicker}
+      />
     </div>
   {/if}
 </div>
@@ -315,6 +361,12 @@
     width: 1px;
     height: 1px;
     pointer-events: none;
+  }
+
+  .deployment-picker-position {
+    position: absolute;
+    z-index: 8;
+    pointer-events: auto;
   }
 
   .radial-item {
