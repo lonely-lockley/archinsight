@@ -50,6 +50,15 @@ export async function selectedGraph(project: LoadedProject, args: ParsedArgs): P
   return selectGraph(project.result, selected.scope, selected.query);
 }
 
+export async function selectedBuiltinViewScope(
+  project: LoadedProject,
+  args: ParsedArgs,
+): Promise<QueryScope | undefined> {
+  if (args.view === undefined) return undefined;
+  if (args.queryFile !== undefined) throw new CliError("Quick actions do not accept --query; use --view for an optional built-in scope");
+  return (await selectedQuerySource(project, args)).scope;
+}
+
 export async function selectedQuery(
   project: LoadedProject,
   args: ParsedArgs,

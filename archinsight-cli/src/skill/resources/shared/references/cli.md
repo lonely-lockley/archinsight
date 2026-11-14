@@ -75,6 +75,19 @@ copying only the files that happen to be missing. Regenerate the entire package
 with the installed CLI, then restart the agent session when its runtime discovers
 skills only at startup.
 
+## Deterministic Quick Actions
+
+For a one-off element neighborhood, deployment projection, directed path, or
+declaration lookup, use `archinsight quick-action` instead of writing a custom
+AIQ filter. Read `references/quick-actions.md` for the exact commands and output
+contract. JSON uses schema `diagram-quick-action.v1`; every action can also
+produce text, DOT, SVG, or PNG output for subdiagram delivery.
+
+Resolve `--element`, `--from`, and `--to` as canonical ids through `structure`
+or query JSON. When the user requests an artifact, write the requested format
+with `--out` and return the file rather than reimplementing the selector or
+capturing the interactive UI.
+
 ## Query and Render Scope
 
 Use the model source as the normal diagram entry point:
@@ -82,12 +95,15 @@ Use the model source as the normal diagram entry point:
 ```shell
 archinsight query . -s <source.ai> -v c2 --format json
 archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
+archinsight render . -s <source.ai> -v c2 -f png -o diagram.png
 ```
 
 `render` follows the operating-system light/dark preference by default. Pass
 `--theme light` or `--theme dark` for reproducible output in CI or agent runs;
 `--theme system` explicitly restores automatic selection. If the system
 preference cannot be read, rendering uses the light theme without failing.
+Every diagram render accepts `text`, `json`, `dot`, `svg`, or `png`, including
+custom graph-returning `.aiq` queries. Use `--out` for SVG and PNG artifacts.
 
 The selected source supplies `$tab` and determines `$context`. C2, C3, C4,
 D1 (`deployment-system`), D2 (`deployment-container`), and the legacy

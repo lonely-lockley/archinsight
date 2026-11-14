@@ -9,17 +9,21 @@ import { CliError } from "./cli-error.js";
 import type { SkillTarget } from "./skill/skill-package.js";
 import { version } from "./version.js";
 
-export type Command = "link" | "render" | "query" | "structure" | "environments" | "skill";
+export type Command = "link" | "render" | "query" | "structure" | "environments" | "quick-action" | "skill";
 type SkillAction = "init";
+export type QuickAction = "isolate" | "deployment" | "find-path" | "declaration";
 export type OutputFormat = "text" | "json";
 export type QueryOutputFormat = OutputFormat | "csv";
-export type RenderFormat = "dot" | "svg" | "json";
+export type DiagramOutputFormat = "text" | "json" | "dot" | "svg" | "png";
+export type RenderFormat = DiagramOutputFormat;
+export type QuickActionOutputFormat = DiagramOutputFormat;
 export type DiagramView = BuiltinDiagramView;
 export type ThemeOption = RenderTheme | "system";
 
 export interface ParsedArgs {
   readonly command?: Command;
   readonly skillAction?: SkillAction;
+  readonly quickAction?: QuickAction;
   readonly input?: string;
   readonly context?: string;
   readonly tab?: string;
@@ -30,6 +34,9 @@ export interface ParsedArgs {
   readonly format?: string;
   readonly theme?: ThemeOption;
   readonly target?: string;
+  readonly element?: string;
+  readonly from?: string;
+  readonly to?: string;
   readonly parameters?: readonly string[];
   readonly parametersFile?: string;
   readonly maxExpansions?: number;
@@ -79,6 +86,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   const parsed: ParsedArgs = {
     command: command(positional[0]),
     skillAction: skillAction(positional[0], positional[1]),
+    quickAction: quickAction(positional[0], positional[1]),
     input: inputPath(positional),
     context: stringOption(options.context),
     tab: stringOption(options.tab),
@@ -89,6 +97,9 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     format: stringOption(options.format),
     theme: themeOption(options.theme),
     target: stringOption(options.target),
+    element: stringOption(options.element),
+    from: stringOption(options.from),
+    to: stringOption(options.to),
     parameters,
     parametersFile: stringOption(options.params),
     maxExpansions: positiveIntegerOption(options.maxExpansions, "--max-expansions"),
@@ -131,6 +142,9 @@ function optionKey(arg: string): string | undefined {
     "--theme": "theme",
     "-t": "theme",
     "--target": "target",
+    "--element": "element",
+    "--from": "from",
+    "--to": "to",
     "--param": "param",
     "--params": "params",
     "--max-expansions": "maxExpansions",
@@ -143,13 +157,22 @@ function optionKey(arg: string): string | undefined {
 
 function command(value: string | undefined): Command | undefined {
   if (value === "link" || value === "render" || value === "query" || value === "structure"
-      || value === "environments" || value === "skill") {
+      || value === "environments" || value === "quick-action" || value === "skill") {
     return value;
   }
   if (value === undefined) {
     return undefined;
   }
   throw new CliError(`Unknown command '${value}'`);
+}
+
+function quickAction(commandValue: string | undefined, value: string | undefined): QuickAction | undefined {
+  if (commandValue !== "quick-action") return undefined;
+  if (value === "isolate" || value === "deployment" || value === "find-path" || value === "declaration") {
+    return value;
+  }
+  if (value === undefined) return undefined;
+  throw new CliError(`Unknown quick action '${value}'`);
 }
 
 function skillAction(commandValue: string | undefined, value: string | undefined): SkillAction | undefined {
@@ -166,7 +189,7 @@ function skillAction(commandValue: string | undefined, value: string | undefined
 }
 
 function inputPath(positional: readonly string[]): string | undefined {
-  return positional[0] === "skill" ? positional[2] : positional[1];
+  return positional[0] === "skill" || positional[0] === "quick-action" ? positional[2] : positional[1];
 }
 
 export function skillTarget(value: string | undefined): SkillTarget {
@@ -216,10 +239,19 @@ export function renderFormat(value: string | undefined, fallback: RenderFormat):
   if (value === undefined) {
     return fallback;
   }
-  if (value === "dot" || value === "svg" || value === "json") {
+  if (value === "text" || value === "json" || value === "dot" || value === "svg" || value === "png") {
     return value;
   }
   throw new CliError(`Unsupported render format '${value}'`);
+}
+
+export function quickActionOutputFormat(
+  value: string | undefined,
+  fallback: QuickActionOutputFormat,
+): QuickActionOutputFormat {
+  if (value === undefined) return fallback;
+  if (value === "text" || value === "json" || value === "dot" || value === "svg" || value === "png") return value;
+  throw new CliError(`Unsupported quick-action format '${value}'`);
 }
 
 function stringOption(value: unknown): string | undefined {
@@ -240,10 +272,14 @@ export function helpText(): string {
 
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
-  archinsight render [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f dot|svg|json] [-o file]
+  archinsight render [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f text|json|dot|svg|png] [-o file]
   archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
+  archinsight quick-action isolate [project-dir] --element <id> [-s <source>] [-c <context>] [-v ${viewUsage}] [-f text|json|dot|svg|png] [-o file]
+  archinsight quick-action deployment [project-dir] --element <id> [-e <environment>] [-f text|json|dot|svg|png] [-o file]
+  archinsight quick-action find-path [project-dir] --from <id> --to <id> [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-f text|json|dot|svg|png] [-o file]
+  archinsight quick-action declaration [project-dir] --element <id> [-f text|json|dot|svg|png] [-o file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 
 Options:
@@ -264,6 +300,9 @@ Options:
   -f, --format <format>    Output format.
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
   -t, --theme <theme>      Render theme: system, light, or dark; default: system.
+      --element <id>       Canonical element id for isolate, deployment, or declaration.
+      --from <id>          Find path source element id.
+      --to <id>            Find path target element id.
       --target <target>    Skill target: generic, codex, or claude.
       --force              Replace the complete generated skill directory.
   -V, --version            Print version.

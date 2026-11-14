@@ -22,7 +22,10 @@ system application
   }
 
   assertSuccess(run("--version"), /\d+\.\d+\.\d+/);
-  assertSuccess(run("--help"), /Usage:/);
+  const help = assertSuccess(run("--help"), /Usage:/);
+  assert.match(help.stdout, /quick-action isolate/);
+  assert.match(help.stdout, /quick-action find-path/);
+  assert.match(help.stdout, /text\|json\|dot\|svg\|png/);
   assertSuccess(run("--help"), /theme: system, light, or dark; default: system/i);
   assertFailure(run("unknown"), /Unknown command 'unknown'/);
   assertFailure(run("query", project, "--format"), /Option '--format' expects a value/);
@@ -38,6 +41,12 @@ system application
   }
   assertFailure(run("skill"), /Usage: archinsight skill init/);
   assertFailure(run("skill", "unknown"), /Unknown skill command 'unknown'/);
+  assertFailure(run("quick-action", "unknown"), /Unknown quick action 'unknown'/);
+  assertFailure(run("quick-action"), /Usage: archinsight quick-action/);
+  assertFailure(
+    run("quick-action", "isolate", project, "--element", "sample/application", "--format", "webp"),
+    /Unsupported quick-action format 'webp'/,
+  );
   assertFailure(run("skill", "init", project, "--target", "unknown"), /Unknown skill target 'unknown'/);
 
   const empty = path.join(temporaryRoot, "empty");
@@ -72,13 +81,25 @@ system application
   const svg = assertSuccess(run("render", project, "--format", "svg"));
   assert.match(svg.stdout, /<svg\b/);
 
-  const badRenderFormat = assertFailure(run("render", project, "--format", "png"), /RENDER_FAILED/);
-  assert.match(badRenderFormat.stderr, /Unsupported render format 'png'/);
+  const textDiagram = assertSuccess(run("render", project, "--format", "text"));
+  assert.match(textDiagram.stdout, /context\tsample/);
+  const pngDiagram = path.join(temporaryRoot, "render.png");
+  assertSuccess(run("render", project, "--format", "png", "--out", pngDiagram));
+  assert.deepEqual([...readFileSync(pngDiagram).subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  const pngStdout = runBuffer("render", project, "--format", "png");
+  assert.equal(pngStdout.status, 0, pngStdout.stderr.toString("utf8"));
+  assert.deepEqual([...pngStdout.stdout.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+  const badRenderFormat = assertFailure(run("render", project, "--format", "webp"), /RENDER_FAILED/);
+  assert.match(badRenderFormat.stderr, /Unsupported render format 'webp'/);
 
   write("invalid.ai", "context\n");
   for (const command of ["render", "query", "structure", "environments"]) {
     assertFailure(run(command, path.join(project, "invalid.ai")), /ERROR/);
   }
+  assertFailure(
+    run("quick-action", "isolate", path.join(project, "invalid.ai"), "--element", "sample/application"),
+    /ERROR/,
+  );
 
   assertFailure(
     run("skill", "init", project, "--target", "generic", "--out", ".", "--force"),
@@ -107,6 +128,12 @@ function run(...args) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: path.resolve(".."),
     encoding: "utf8",
+  });
+}
+
+function runBuffer(...args) {
+  return spawnSync(process.execPath, [cli, ...args], {
+    cwd: path.resolve(".."),
   });
 }
 

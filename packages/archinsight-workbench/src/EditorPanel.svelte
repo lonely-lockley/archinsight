@@ -5,6 +5,8 @@
   import SvgPreviewPanel from './SvgPreviewPanel.svelte';
   import TableResultPanel from './TableResultPanel.svelte';
   import type { QueryTableResult } from '@insight/language';
+  import type { DiagramQuickActionMetadata } from '@insight/language';
+  import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import type { EmptyWorkspaceAction, EmptyWorkspaceStrategy } from './empty-workspace-strategy';
   import type { EditorViewMode, MessageView, SourceLocation } from './workspace-types';
 
@@ -26,6 +28,18 @@
   export let onEditorSplitRatioChange: (ratio: number) => void;
   export let onDiagramVisibleScaleChange: (scale: number) => void;
   export let onOpenDeclaration: (declaration: SourceLocation) => void;
+  export let quickActionMetadata: DiagramQuickActionMetadata = {};
+  export let findPathMode: FindPathMode = { status: 'idle' };
+  export let isolateMode: IsolateMode = { status: 'idle' };
+  export let deploymentMode: DeploymentMode = { status: 'idle' };
+  export let deploymentEnvironments: readonly { readonly id: string; readonly name?: string }[] = [];
+  export let deploymentEnvironment: string | undefined = undefined;
+  export let deploymentPickerOpen = false;
+  export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
+  export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
+  export let onCloseDeploymentPicker: () => void = () => {};
+  export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
+  export let onSelectPathTarget: (elementId: string) => void = () => {};
   export let onBeginMessagesResize: (event: PointerEvent) => void;
   export let emptyStrategy: EmptyWorkspaceStrategy | undefined = undefined;
   export let onEmptyAction: (action: EmptyWorkspaceAction) => void = () => {};
@@ -103,6 +117,18 @@
         onOpenDeclaration={onOpenDeclaration}
         onVisibleScaleChange={onDiagramVisibleScaleChange}
         scale={diagramScale}
+        {quickActionMetadata}
+        {findPathMode}
+        {isolateMode}
+        {deploymentMode}
+        {deploymentEnvironments}
+        {deploymentEnvironment}
+        {deploymentPickerOpen}
+        {deploymentPickerAnchor}
+        {onSelectDeploymentEnvironment}
+        {onCloseDeploymentPicker}
+        {onDiagramQuickAction}
+        {onSelectPathTarget}
         {svg}
       />
     {/if}

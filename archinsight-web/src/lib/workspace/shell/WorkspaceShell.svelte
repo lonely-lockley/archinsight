@@ -18,6 +18,7 @@
   } from '$lib/workspace/shell/layout-model';
   import WorkspaceTabs from '$lib/workspace/shell/WorkspaceTabs.svelte';
   import type { MessageView, TreeNode } from '@archinsight/workbench/types';
+  import type { DiagramQuickActionAnchor, DiagramQuickActionId } from '@archinsight/workbench/diagram-quick-actions';
   import type {
     WorkspaceShellControllers,
     WorkspaceShellView
@@ -31,6 +32,7 @@
 
   let messagesPanel: HTMLElement;
   let lastAutoScrolledMessagesSignature = '';
+  let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined;
 
   $: projectQueries = discoverProjectQueries(view.state.tree);
   $: sidebarVisible = view.state.projectUi.sidebarVisible;
@@ -50,6 +52,16 @@
     void tick().then(() => {
       if (messagesPanel !== undefined) messagesPanel.scrollTop = messagesPanel.scrollHeight;
     });
+  }
+
+  async function executeDiagramQuickAction(
+    action: DiagramQuickActionId,
+    elementId: string,
+    anchor?: DiagramQuickActionAnchor
+  ): Promise<void> {
+    deploymentPickerAnchor = action === 'show-deployment' ? anchor : undefined;
+    await controllers.quickActions.execute(action, elementId);
+    if (!view.state.deploymentPickerOpen) deploymentPickerAnchor = undefined;
   }
 </script>
 
@@ -105,6 +117,11 @@
     <WorkspaceEditor
       active={view.activeTab !== undefined}
       svg={view.activeTab?.svg}
+      quickActionMetadata={view.quickActionMetadata}
+      findPathMode={view.state.findPathMode}
+      isolateMode={view.state.isolateMode}
+      deploymentMode={view.state.deploymentMode}
+      activeTabOwnsQuickActionMode={controllers.quickActions.activeTabOwnsQuickActionMode(view.state.activeTabId)}
       queryResult={view.activeTab?.queryResult}
       resultLoading={view.state.analysisLoading}
       diagramMode={view.activeTab?.diagramMode ?? defaultDiagramMode}
@@ -118,6 +135,7 @@
       deploymentEnvironments={view.activeDeploymentEnvironments}
       deploymentEnvironment={view.activeTab?.deploymentEnvironment}
       deploymentPickerOpen={view.state.deploymentPickerOpen}
+      {deploymentPickerAnchor}
       queryVisible={view.activeTab?.queryVisible ?? false}
       queryPanelHeight={view.activeTab?.queryPanelHeight ?? 118}
       viewMode={view.activeTab?.viewMode ?? 'split'}
@@ -132,9 +150,22 @@
       refreshDisabled={view.state.refreshDisabled}
       emptyStrategy={view.emptyStrategy}
       onEmptyAction={controllers.action.handleEmptyAction}
-      onSelectDiagramMode={controllers.diagram.selectMode}
-      onSelectDeploymentEnvironment={controllers.diagram.selectDeploymentEnvironment}
-      onCloseDeploymentPicker={controllers.diagram.closeDeploymentPicker}
+      onSelectDiagramMode={(mode) => {
+        deploymentPickerAnchor = undefined;
+        controllers.diagram.selectMode(mode);
+      }}
+      onSelectDeploymentEnvironment={(environment) => {
+        deploymentPickerAnchor = undefined;
+        if (view.state.quickActionDeploymentElementId !== undefined) {
+          void controllers.quickActions.selectDeploymentEnvironment(environment);
+        } else {
+          controllers.diagram.selectDeploymentEnvironment(environment);
+        }
+      }}
+      onCloseDeploymentPicker={() => {
+        deploymentPickerAnchor = undefined;
+        if (!controllers.quickActions.closeDeploymentPicker()) controllers.diagram.closeDeploymentPicker();
+      }}
       onToggleQuery={controllers.diagram.toggleQuery}
       onQueryChange={controllers.diagram.updateQuery}
       onQueryParameterChange={controllers.query.setParameter}
@@ -148,6 +179,12 @@
       onEditorSplitRatioChange={controllers.diagram.updateEditorSplitRatio}
       onDiagramVisibleScaleChange={controllers.diagram.updateVisibleScale}
       onOpenDeclaration={controllers.file.goToDeclaration}
+      onDiagramQuickAction={(action, elementId, anchor) => void executeDiagramQuickAction(action, elementId, anchor)}
+      onSelectPathTarget={(elementId) => void controllers.quickActions.selectPathTarget(elementId)}
+      onCancelFindPath={controllers.quickActions.cancelFindPath}
+      onCancelIsolate={controllers.quickActions.cancelIsolate}
+      onCancelDeployment={controllers.quickActions.cancelDeployment}
+      onReverseFindPath={() => void controllers.quickActions.reverseFindPath()}
       onBeginMessagesResize={controllers.layout.beginMessagesResize}
       onCancelResult={controllers.analysis.cancelCurrent}
     >

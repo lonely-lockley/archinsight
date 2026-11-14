@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
+import { Resvg } from "@resvg/resvg-js";
 import { normalizeGraphvizSvgResult } from "@archinsight/graphviz";
 import {
   buildProjectStructure,
@@ -28,6 +29,49 @@ export async function renderSvg(dot: string): Promise<string> {
     throw new CliError(result.error);
   }
   return result.svg;
+}
+
+export function renderPng(svg: string): Uint8Array {
+  const dimensions = svgDimensions(svg);
+  validatePngDimensions(dimensions.width, dimensions.height);
+  const image = new Resvg(svg, {
+    dpi: 96,
+    font: { loadSystemFonts: false, defaultFontFamily: "sans-serif" },
+  }).render();
+  validatePngDimensions(image.width, image.height);
+  const png = image.asPng();
+  if (png.byteLength > 64 * 1024 * 1024) throw new CliError(`PNG output is too large: ${png.byteLength} bytes`);
+  return png;
+}
+
+function svgDimensions(svg: string): { readonly width: number; readonly height: number } {
+  const root = /<svg\b[^>]*>/i.exec(svg)?.[0];
+  const width = svgLengthToPixels(root === undefined ? undefined : /\bwidth="([^"]+)"/i.exec(root)?.[1]);
+  const height = svgLengthToPixels(root === undefined ? undefined : /\bheight="([^"]+)"/i.exec(root)?.[1]);
+  if (width === undefined || height === undefined) throw new CliError("SVG dimensions are unavailable for PNG export");
+  return { width, height };
+}
+
+function svgLengthToPixels(value: string | undefined): number | undefined {
+  const match = value === undefined ? undefined : /^\s*([0-9.]+)\s*(px|pt|in|cm|mm)?\s*$/i.exec(value);
+  if (match === undefined || match === null) return undefined;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return undefined;
+  switch ((match[2] ?? "px").toLowerCase()) {
+    case "pt": return amount * 96 / 72;
+    case "in": return amount * 96;
+    case "cm": return amount * 96 / 2.54;
+    case "mm": return amount * 96 / 25.4;
+    default: return amount;
+  }
+}
+
+function validatePngDimensions(width: number, height: number): void {
+  const pixels = Math.ceil(width) * Math.ceil(height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0
+      || width > 8192 || height > 8192 || !Number.isSafeInteger(pixels) || pixels > 16_777_216) {
+    throw new CliError(`Diagram is too large to rasterize: ${Math.ceil(width)} × ${Math.ceil(height)}`);
+  }
 }
 
 export function projectStructure(result: LinkProjectResult, snapshot: LanguageSnapshot): StructureTree {
@@ -161,6 +205,23 @@ export function exitWithDiagnostics(diagnostics: readonly LanguageDiagnostic[]):
 }
 
 export async function writeOutput(file: string | undefined, content: string): Promise<void> {
+  if (file === undefined || file === "-") {
+    process.stdout.write(content);
+    return;
+  }
+  const destination = path.resolve(file);
+  await mkdir(path.dirname(destination), { recursive: true });
+  const temporary = path.join(path.dirname(destination), `.${path.basename(destination)}.${randomUUID()}.tmp`);
+  try {
+    await writeFile(temporary, content);
+    await rename(temporary, destination);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+
+export async function writeBinaryOutput(file: string | undefined, content: Uint8Array): Promise<void> {
   if (file === undefined || file === "-") {
     process.stdout.write(content);
     return;

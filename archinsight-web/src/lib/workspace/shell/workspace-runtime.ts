@@ -50,6 +50,10 @@ import type {
 } from '$lib/workspace/shell/workspace-runtime-types';
 import { createBrowserThemeSource } from '$lib/workspace/theme/browser-theme-source';
 import { createWorkspaceThemeController } from '$lib/workspace/theme/workspace-theme-controller';
+import {
+  createDiagramQuickActionController,
+  type DiagramQuickActionController
+} from '$lib/workspace/quick-actions/diagram-quick-action-controller';
 
 export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRuntime {
   const { api, storage, diagram } = workspaceRuntimeDependencies;
@@ -64,6 +68,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
   let projectSession!: ProjectSessionController;
   let fileController!: WorkspaceFileController;
   let actionController!: WorkspaceActionController;
+  let quickActionController!: DiagramQuickActionController;
 
   const closeRepositoryMenu = (): void => patch({ repositoryMenu: undefined });
   const messageController = createMessageController({
@@ -271,17 +276,23 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     updateLinkerDiagnostics: (diagnostics, sources) => analysisController.updateLinkerDiagnostics(diagnostics, sources),
     setLoading: (analysisLoading) => patch({ analysisLoading }),
     acceptProjectSymbols: (projectSymbols) => patch({ projectSymbols }),
-    acceptLinkedAnalysis: (linkedAnalysis) => { patch({ linkedAnalysis }); monacoSession.refreshQueryScope(); },
+    acceptLinkedAnalysis: (linkedAnalysis) => {
+      patch({ linkedAnalysis });
+      quickActionController.reconcileAnalysis(linkedAnalysis);
+      monacoSession.refreshQueryScope();
+    },
     reconcileDeploymentEnvironment: (analysis) => diagramController.reconcileDeploymentEnvironment(analysis),
     refreshEditorSymbols: editorSynchronization.refreshEditorSymbols,
     acceptProjectStructure: editorSynchronization.acceptProjectStructure,
     clearDots: (sourceIdentities) => tabController.clearDots(sourceIdentities),
-    acceptDiagram: (sourceIdentity, svg, dot, renderTheme) => tabController.patchBySourceIdentity(sourceIdentity, {
-      svg,
-      dot,
-      renderTheme
-    }),
-    acceptQueryResult: (sourceIdentity, queryResult) => tabController.patchBySourceIdentity(sourceIdentity, { queryResult }),
+    acceptDiagram: (sourceIdentity, svg, dot, renderTheme) => {
+      quickActionController.invalidateRender(sourceIdentity);
+      tabController.patchBySourceIdentity(sourceIdentity, { svg, dot, renderTheme });
+    },
+    acceptQueryResult: (sourceIdentity, queryResult) => {
+      quickActionController.invalidateRender(sourceIdentity);
+      tabController.patchBySourceIdentity(sourceIdentity, { queryResult });
+    },
     now: () => Date.now(),
     queryFinished: messageController.queryFinished,
     cycleSummary: messageController.cycleSummary,
@@ -325,6 +336,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
       tabController.reset();
       analysisController.reset();
       diagramController.reset();
+      quickActionController.reset('project-change');
       messageController.reset();
     },
     refreshEditorSymbols: editorSynchronization.refreshEditorSymbols,
@@ -380,6 +392,29 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     fileSaved: messageController.fileSaved,
     renderTheme: () => state().renderTheme
   });
+  quickActionController = createDiagramQuickActionController({
+    analysis: () => state().linkedAnalysis,
+    activeTab,
+    projectId,
+    surface: host.surface,
+    theme: () => state().renderTheme,
+    findPathMode: () => state().findPathMode,
+    setFindPathMode: (findPathMode) => patch({ findPathMode }),
+    isolateMode: () => state().isolateMode,
+    setIsolateMode: (isolateMode) => patch({ isolateMode }),
+    deploymentMode: () => state().deploymentMode,
+    setDeploymentMode: (deploymentMode) => patch({ deploymentMode }),
+    pendingDeploymentElementId: () => state().quickActionDeploymentElementId,
+    setPendingDeploymentElementId: (quickActionDeploymentElementId) => patch({ quickActionDeploymentElementId }),
+    setDeploymentPickerOpen: (deploymentPickerOpen) => patch({ deploymentPickerOpen }),
+    setLoading: (analysisLoading) => patch({ analysisLoading }),
+    patchTab: (tabId, tabPatch) => tabController.patch(tabId, tabPatch),
+    renderInBrowser: diagram.renderDotInBrowser,
+    renderOnServer: api.renderProjectSvg,
+    goToDeclaration: fileController.goToDeclaration,
+    info: messageController.info,
+    error: messageController.error
+  });
   actionController = createWorkspaceActionController({
     surface: host.surface,
     capabilities: () => state().currentUser.capabilities ?? [],
@@ -420,6 +455,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     auth: authController,
     action: actionController,
     diagram: diagramController,
+    quickActions: quickActionController,
     download: downloadController,
     file: fileController,
     layout: layoutController,
@@ -432,6 +468,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     action: actionController,
     analysis: analysisController,
     diagram: diagramController,
+    quickActions: quickActionController,
     layout: layoutController,
     messages: messageController,
     monaco: monacoSession,
@@ -444,6 +481,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     authController,
     actionController,
     diagramController,
+    quickActionController,
     downloadController,
     fileController,
     layoutController,

@@ -6,6 +6,7 @@ import {
   runEnvironments,
   runLink,
   runQuery,
+  runQuickAction,
   runRender,
   runSkill,
   runStructure,
@@ -38,6 +39,9 @@ async function main(): Promise<void> {
       return;
     case "environments":
       await runEnvironments(args);
+      return;
+    case "quick-action":
+      await runQuickAction(args);
       return;
     case "skill":
       await runSkill(args);

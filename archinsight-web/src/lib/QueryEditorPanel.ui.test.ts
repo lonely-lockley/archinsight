@@ -38,6 +38,34 @@ describe('QueryEditorPanel built-in views', () => {
     await unmount(component);
     target.remove();
   });
+
+  it('renders the deployment picker inside its toolbar host', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const component = mount(QueryEditorPanel, {
+      target,
+      props: {
+        diagramMode: 'c2',
+        query: '',
+        deploymentEnvironments: [{ id: 'eu' }, { id: 'us' }],
+        deploymentPickerOpen: true,
+        onSelectDiagramMode: vi.fn(),
+        onToggleQuery: vi.fn(),
+        onQueryChange: vi.fn(),
+        onQueryPanelHeightChange: vi.fn()
+      }
+    });
+    await tick();
+
+    const picker = target.querySelector<HTMLElement>('[aria-label="Select deployment environment"]');
+    const pickerPosition = picker?.parentElement;
+    expect(pickerPosition?.classList.contains('environment-picker-position')).toBe(true);
+    expect(pickerPosition?.parentElement?.classList.contains('deployment-picker-host')).toBe(true);
+    expect(picker?.style.position).toBe('');
+
+    await unmount(component);
+    target.remove();
+  });
 });
 
 
@@ -64,7 +92,10 @@ it('offers named custom views and file navigation while keeping scope widgets ou
   expect(select).toHaveBeenCalledWith('impact');
   trigger.click();
   await tick();
-  target.querySelector<HTMLButtonElement>('[aria-label="Go to impact query file"]')?.click();
+  const openQuery = target.querySelector<HTMLButtonElement>('[aria-label="Go to impact query file"]');
+  expect(openQuery?.textContent?.trim()).toBe('⌘');
+  expect(openQuery?.querySelector('.codicon-go-to-file')).toBeNull();
+  openQuery?.click();
   expect(open).toHaveBeenCalledWith('impact.aiq');
   expect(target.querySelector('.query-scope-chip')).toBeNull();
   expect(target.querySelector('[aria-label="Edit query"]')).not.toBeNull();

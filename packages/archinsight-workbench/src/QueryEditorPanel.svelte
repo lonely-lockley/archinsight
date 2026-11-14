@@ -8,6 +8,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import { BUILTIN_VIEW_DEFINITIONS, queryVariableOccurrences, type BuiltinViewDefinition, type QueryParameterValue } from '@insight/language';
+  import DeploymentEnvironmentPicker from './DeploymentEnvironmentPicker.svelte';
 
   export let diagramMode: DiagramMode;
   export let query: string;
@@ -43,10 +44,6 @@
   let queryModel: Monaco.editor.ITextModel | undefined;
   let suppressQueryChange = false;
   let resizeStart: { pointerId: number; startY: number; height: number } | undefined;
-  let environmentFilter = '';
-  let deploymentPickerHost: HTMLDivElement;
-  let deploymentEnvironmentSet = '';
-  let deploymentPickerWasOpen = false;
   let customViewPickerHost: HTMLDivElement;
   let customViewPickerOpen = false;
   let invalidParameter: string | undefined;
@@ -74,22 +71,6 @@
   $: if (queryEditor !== undefined) {
     void tick().then(() => queryEditor?.layout());
   }
-  $: filteredDeploymentEnvironments = deploymentEnvironments.filter((environment) => {
-    const value = environmentFilter.trim().toLocaleLowerCase();
-    return value.length === 0
-      || environment.id.toLocaleLowerCase().includes(value)
-      || environment.name?.toLocaleLowerCase().includes(value) === true;
-  });
-  $: {
-    const nextEnvironmentSet = deploymentEnvironments.map((environment) => environment.id).join('\0');
-    const opened = deploymentPickerOpen && !deploymentPickerWasOpen;
-    if (!deploymentPickerOpen || opened || nextEnvironmentSet !== deploymentEnvironmentSet) {
-      environmentFilter = '';
-    }
-    deploymentEnvironmentSet = nextEnvironmentSet;
-    deploymentPickerWasOpen = deploymentPickerOpen;
-  }
-
   onMount(() => {
     window.addEventListener('pointerdown', handleWindowPointerDown);
     window.addEventListener('keydown', handleWindowKeydown);
@@ -103,11 +84,6 @@
   });
 
   function handleWindowPointerDown(event: PointerEvent): void {
-    if (deploymentPickerOpen
-      && event.target instanceof Node
-      && !deploymentPickerHost?.contains(event.target)) {
-      onCloseDeploymentPicker();
-    }
     if (customViewPickerOpen
       && event.target instanceof Node
       && !customViewPickerHost?.contains(event.target)) {
@@ -116,9 +92,8 @@
   }
 
   function handleWindowKeydown(event: KeyboardEvent): void {
-    if ((deploymentPickerOpen || customViewPickerOpen) && event.key === 'Escape') {
+    if (customViewPickerOpen && event.key === 'Escape') {
       event.preventDefault();
-      if (deploymentPickerOpen) onCloseDeploymentPicker();
       customViewPickerOpen = false;
     }
   }
@@ -236,37 +211,18 @@
     <div class:has-custom-views={customViews.length > 0} class="diagram-modes tool-group" aria-label="View query preset">
       {#each viewControls as control (control.definition.id)}
         {#if control.definition.environment === 'single-relevant'}
-          <div class="deployment-picker-host" bind:this={deploymentPickerHost}>
+          <div class="deployment-picker-host">
             <button aria-expanded={deploymentPickerOpen} aria-haspopup="listbox" aria-label={`${control.definition.label} view`} class:active-mode={selectedQuery === undefined && diagramMode === control.mode} class="has-tooltip" data-tooltip={control.definition.label} type="button" on:click={() => onSelectDiagramMode(control.mode)}>
               <span aria-hidden="true">{control.definition.shortLabel}</span>
             </button>
             {#if deploymentPickerOpen}
-              <div class="environment-picker" role="dialog" aria-label="Select deployment environment">
-                {#if deploymentEnvironments.length > 1}
-                  <input bind:value={environmentFilter} aria-label="Filter environments" placeholder="Filter environments" type="search" />
-                {/if}
-                <div class="environment-options" role="listbox">
-                  {#each filteredDeploymentEnvironments as environment (environment.id)}
-                    <button
-                      aria-selected={environment.id === deploymentEnvironment}
-                      class:selected={environment.id === deploymentEnvironment}
-                      role="option"
-                      type="button"
-                      on:click={() => onSelectDeploymentEnvironment(environment.id)}
-                    >
-                      <span>{environment.id}</span>
-                      {#if environment.name !== undefined && environment.name !== environment.id}<small>{environment.name}</small>{/if}
-                    </button>
-                  {/each}
-                  {#if filteredDeploymentEnvironments.length === 0}
-                    <div class="environment-empty">
-                      {deploymentEnvironments.length === 0
-                        ? 'No deployment environments are relevant to this source'
-                        : 'No matching environments'}
-                    </div>
-                  {/if}
-                </div>
-                <button class="environment-close" type="button" on:click={onCloseDeploymentPicker}>Cancel</button>
+              <div class="environment-picker-position">
+                <DeploymentEnvironmentPicker
+                  environments={deploymentEnvironments}
+                  selectedEnvironment={deploymentEnvironment}
+                  onSelect={onSelectDeploymentEnvironment}
+                  onClose={onCloseDeploymentPicker}
+                />
               </div>
             {/if}
           </div>
@@ -313,7 +269,7 @@
                       type="button"
                       on:click={() => openProjectQuery(projectQuery.paths[0]!)}
                     >
-                      <i class="codicon codicon-go-to-file" aria-hidden="true"></i>
+                      <span class="declaration-icon" aria-hidden="true">⌘</span>
                     </button>
                   {/if}
                 </div>
@@ -336,6 +292,7 @@
     <slot name="diagram-actions"></slot>
     <slot name="view-actions"></slot>
     <slot name="refresh-actions"></slot>
+    <slot name="mode-actions"></slot>
   </header>
 
   {#if requiredParameters.length > 0}
@@ -610,6 +567,10 @@
     cursor: default;
   }
 
+  .declaration-icon {
+    font: 600 16px/1 system-ui, sans-serif;
+  }
+
   .deployment-picker-host {
     position: relative;
     align-self: stretch;
@@ -625,67 +586,11 @@
     border-radius: 0;
   }
 
-  .environment-picker {
+  .environment-picker-position {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
     z-index: 80;
-    width: 280px;
-    padding: 8px;
-    border: 1px solid var(--archinsight-border, #454545);
-    border-radius: 6px;
-    background: var(--archinsight-toolbar-bg, #242424);
-    box-shadow: var(--archinsight-shadow, 0 10px 28px rgb(0 0 0 / 35%));
-  }
-
-  .environment-picker input {
-    box-sizing: border-box;
-    width: 100%;
-    height: 30px;
-    margin-bottom: 6px;
-    padding: 0 8px;
-    border: 1px solid var(--archinsight-border, #454545);
-    border-radius: 4px;
-    background: var(--archinsight-input-bg, #1f1f1f);
-    color: var(--archinsight-foreground, #eeeeee);
-  }
-
-  .environment-options {
-    max-height: 260px;
-    overflow-y: auto;
-  }
-
-  .environment-picker .environment-options button {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    width: 100%;
-    height: auto;
-    min-height: 38px;
-    padding: 6px 8px;
-    border: 0;
-    border-radius: 4px;
-    text-align: left;
-  }
-
-  .environment-picker .environment-options button.selected {
-    background: var(--archinsight-control-active-bg, #354436);
-  }
-
-  .environment-picker small {
-    color: var(--archinsight-muted, #a8a8a8);
-  }
-
-  .environment-empty {
-    padding: 10px 8px;
-    color: var(--archinsight-muted, #a8a8a8);
-    font-size: 12px;
-  }
-
-  .environment-picker .environment-close {
-    width: 100%;
-    margin-top: 6px;
-    border-radius: 4px;
   }
 
   .query-icon {

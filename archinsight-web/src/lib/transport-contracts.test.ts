@@ -59,6 +59,48 @@ describe('shared transport contracts', () => {
     });
   });
 
+  it('validates diagram quick-action messages and state', () => {
+    expect(parseWorkbenchWebviewToHostMessage({
+      command: 'diagramQuickAction', action: 'isolate', elementId: 'shop/api'
+    })).toEqual({ command: 'diagramQuickAction', action: 'isolate', elementId: 'shop/api' });
+    expect(parseWorkbenchWebviewToHostMessage({
+      command: 'selectPathTarget', elementId: 'shop/db'
+    })).toEqual({ command: 'selectPathTarget', elementId: 'shop/db' });
+    expect(parseWorkbenchWebviewToHostMessage({ command: 'reverseFindPath' }))
+      .toEqual({ command: 'reverseFindPath' });
+    expect(parseWorkbenchWebviewToHostMessage({ command: 'cancelIsolate' }))
+      .toEqual({ command: 'cancelIsolate' });
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'findPathMode',
+      state: {
+        status: 'showing-path', sourceId: 'shop/api', sourceTitle: 'API',
+        targetId: 'shop/db', targetTitle: 'Database'
+      }
+    })).toMatchObject({ state: { status: 'showing-path', targetId: 'shop/db' } });
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'isolateMode',
+      state: { status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API' }
+    })).toMatchObject({ state: { status: 'showing-isolate', elementId: 'shop/api' } });
+    expect(() => parseWorkbenchWebviewToHostMessage({
+      command: 'diagramQuickAction', action: 'impact', elementId: 'shop/api'
+    })).toThrow(ContractValidationError);
+    expect(() => parseWorkbenchHostToWebviewMessage({
+      command: 'findPathMode', state: { status: 'selecting-target', sourceId: 42, sourceTitle: 'API' }
+    })).toThrow(ContractValidationError);
+    expect(() => parseWorkbenchHostToWebviewMessage({
+      command: 'preview',
+      state: {
+        view: 'c2', query: '', sourceName: 'model.ai', fileName: 'model.ai', source: '',
+        quickActionMetadata: {
+          'shop/api': {
+            elementId: 'shop/api', canonicalElementId: 'shop/api', title: 'API',
+            hasChildren: 'yes', hasDeployment: false, isolateEligible: true, pathEligible: true
+          }
+        }
+      }
+    })).toThrow(ContractValidationError);
+  });
+
   it('validates AIQ built-in variable scope messages', () => {
     expect(parseWorkbenchWebviewToHostMessage({
       command: 'selectQueryScope', variable: 'context', value: 'archinsight'

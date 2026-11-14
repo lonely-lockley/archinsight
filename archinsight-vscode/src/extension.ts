@@ -19,12 +19,19 @@ import {
   coreLanguageSnapshot,
   coreSource,
   coreSources,
+  deploymentEnvironmentsForElement,
+  diagramElementMetadata,
+  diagramQuickActionMetadata,
   elementCompletionDocumentation,
   filterTypeHierarchy,
   insightSemanticTokenModifiers,
   insightSemanticTokenTypes,
   InsightLanguageService,
+  resolveBuiltinView,
   semanticHighlightInsight,
+  selectDeploymentGraph,
+  selectIsolatedElementGraph,
+  selectPathGraph,
   type CompletionKind,
   type ContextualIdentifier,
   type LanguageDiagnostic,
@@ -35,6 +42,7 @@ import {
   type ProjectAnalysisSession,
   type ProjectSource,
   type QueryParameterValue,
+  type QueryScope,
   type TypeHierarchyNode,
   type VisibleIdentifier,
 } from "@insight/language";
@@ -51,18 +59,35 @@ import {
   type QueryScopeContextChoice,
 } from "@archinsight/workbench/query-scope-state";
 import {
+  beginFindPath,
+  beginIsolate,
+  cancelIsolate,
+  cancelFindPath,
+  idleFindPathMode,
+  idleIsolateMode,
+  reverseFindPathResult,
+  resolveFindPathTarget,
+  retryFindPathTarget,
+  showResolvedFindPath,
+  type DiagramQuickActionId,
+  type FindPathMode,
+  type IsolateMode,
+} from "@archinsight/workbench/diagram-quick-actions";
+import {
   fileNameWithExtension,
   type DiagramArtifactKind,
   type DiagramSession,
   type DiagramQueryState as SessionDiagramQueryState,
 } from "./diagram-session.js";
 import {
+  buildQuickActionPreview,
   type DiagramRenderInput,
   type DiagramView,
   type PreviewState,
 } from "./diagram-rendering.js";
 import { createDiagramSession, saveBytes, viewQueries } from "./vscode-diagram-service.js";
 import { previewHtml } from "./preview-webview.js";
+import { renderThemeForColorThemeKind } from "./theme.js";
 
 type AgentSkillTarget = "generic" | "codex" | "claude";
 
@@ -956,6 +981,10 @@ class CoreSourceContentProvider implements vscode.TextDocumentContentProvider {
 class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly sessions = new Set<ArchinsightWorkbenchEditorSession>();
   private readonly pendingInitialStates = new Map<string, DiagramQueryState>();
+  private findPathMode: FindPathMode = idleFindPathMode;
+  private findPathProjectRoot: string | undefined;
+  private isolateMode: IsolateMode = idleIsolateMode;
+  private isolateProjectRoot: string | undefined;
 
   constructor(
     private readonly project: ProjectModel,
@@ -997,6 +1026,12 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       document,
       panel,
       (location, state) => this.openLocation(location, state),
+      () => this.findPathMode,
+      (mode) => this.setFindPathMode(mode),
+      () => this.cancelFindPathMode(),
+      () => this.isolateMode,
+      (mode) => this.setIsolateMode(mode),
+      () => this.cancelIsolateMode(),
       virtualDocument,
       initialState ?? pendingState ?? documentState,
     );
@@ -1020,7 +1055,74 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
   }
 
   async refreshFromProject(current: LinkedProject | undefined): Promise<void> {
+    for (const session of this.sessions) session.cancelQuickActionRendering();
+    const mode = this.findPathMode;
+    const projectChanged = mode.status !== "idle"
+      && current?.root.toString() !== this.findPathProjectRoot;
+    const sourceMissing = mode.status !== "idle"
+      && current?.result.elements.some((element) => element.id === mode.sourceId) !== true;
+    const targetMissing = (mode.status === "resolving-path" || mode.status === "showing-path")
+      && current?.result.elements.some((element) => element.id === mode.targetId) !== true;
+    if (projectChanged || sourceMissing || targetMissing) {
+      await this.cancelFindPathMode(false);
+      void vscode.window.showInformationMessage(
+        projectChanged
+          ? "Find path was cancelled because the project changed."
+          : `Find path was cancelled because the ${sourceMissing ? "source" : "target"} element is no longer available.`,
+      );
+    }
+    const isolateMode = this.isolateMode;
+    const isolateProjectChanged = isolateMode.status !== "idle"
+      && current?.root.toString() !== this.isolateProjectRoot;
+    const isolatedElementMissing = isolateMode.status === "showing-isolate"
+      && current?.result.elements.some((element) => element.id === isolateMode.elementId) !== true;
+    if (isolateProjectChanged || isolatedElementMissing) {
+      await this.cancelIsolateMode(false);
+      void vscode.window.showInformationMessage(
+        isolateProjectChanged
+          ? "Isolate was closed because the project changed."
+          : "Isolate was closed because the selected element is no longer available.",
+      );
+    }
     await Promise.all([...this.sessions].map((session) => session.refreshFromProject(current)));
+  }
+
+  private async setFindPathMode(mode: FindPathMode): Promise<void> {
+    if (mode.status === "idle") {
+      this.findPathProjectRoot = undefined;
+    } else if (this.findPathMode.status === "idle" || this.findPathProjectRoot === undefined) {
+      this.findPathProjectRoot = this.project.current?.root.toString();
+    }
+    this.findPathMode = mode;
+    await Promise.all([...this.sessions].map((session) => session.postFindPathMode(mode)));
+  }
+
+  private async cancelFindPathMode(restoreDiagram = true): Promise<void> {
+    const restoreFindPathResult = restoreDiagram && this.findPathMode.status === "showing-path";
+    for (const session of this.sessions) session.cancelQuickActionRendering();
+    await this.setFindPathMode(cancelFindPath(this.findPathMode));
+    if (restoreFindPathResult) {
+      await Promise.all([...this.sessions].map((session) => session.restoreQuickActionResult()));
+    }
+  }
+
+  private async setIsolateMode(mode: IsolateMode): Promise<void> {
+    if (mode.status === "idle") {
+      this.isolateProjectRoot = undefined;
+    } else if (this.isolateMode.status === "idle" || this.isolateProjectRoot === undefined) {
+      this.isolateProjectRoot = this.project.current?.root.toString();
+    }
+    this.isolateMode = mode;
+    await Promise.all([...this.sessions].map((session) => session.postIsolateMode(mode)));
+  }
+
+  private async cancelIsolateMode(restoreDiagram = true): Promise<void> {
+    const restoreIsolateResult = restoreDiagram && this.isolateMode.status === "showing-isolate";
+    for (const session of this.sessions) session.cancelQuickActionRendering();
+    await this.setIsolateMode(cancelIsolate(this.isolateMode));
+    if (restoreIsolateResult) {
+      await Promise.all([...this.sessions].map((session) => session.restoreQuickActionResult()));
+    }
   }
 
   async refreshTheme(): Promise<void> {
@@ -1131,6 +1233,8 @@ class ArchinsightWorkbenchEditorSession {
   private pendingReveal: vscode.Position | undefined;
   private queryScopeTab: string | undefined;
   private queryScopeContext: string | undefined;
+  private quickActionGeneration = 0;
+  private quickActionResultVisible = false;
 
   constructor(
     private readonly project: ProjectModel,
@@ -1139,6 +1243,12 @@ class ArchinsightWorkbenchEditorSession {
     private readonly document: vscode.TextDocument | undefined,
     private readonly panel: vscode.WebviewPanel,
     private readonly openLocation: (location: vscode.Location, state?: DiagramQueryState) => Promise<void>,
+    private readonly readFindPathMode: () => FindPathMode,
+    private readonly writeFindPathMode: (mode: FindPathMode) => Promise<void>,
+    private readonly cancelFindPathMode: () => Promise<void>,
+    private readonly readIsolateMode: () => IsolateMode,
+    private readonly writeIsolateMode: (mode: IsolateMode) => Promise<void>,
+    private readonly cancelIsolateMode: () => Promise<void>,
     private readonly virtualDocument?: VirtualWorkbenchDocument,
     initialState?: DiagramQueryState,
   ) {
@@ -1205,6 +1315,7 @@ class ArchinsightWorkbenchEditorSession {
   dispose(): void {
     this.disposed = true;
     this.diagram.dispose("Editor closed");
+    this.quickActionGeneration++;
   }
 
   async refreshFromProject(current: LinkedProject | undefined): Promise<void> {
@@ -1230,6 +1341,7 @@ class ArchinsightWorkbenchEditorSession {
 
   async refreshTheme(): Promise<void> {
     if (this.disposed) return;
+    this.cancelQuickActionRendering();
     const current = this.project.current;
     const input = current === undefined
       ? undefined
@@ -1244,6 +1356,8 @@ class ArchinsightWorkbenchEditorSession {
     requestedEnvironment: string | undefined = this.currentEnvironment(),
     parameters?: Readonly<Record<string, QueryParameterValue>>,
   ): Promise<void> {
+    this.cancelQuickActionRendering();
+    this.quickActionResultVisible = false;
     const current = this.project.current;
     await this.diagram.render(current === undefined ? undefined : this.renderInput(current, query), {
       view, query, forceEnvironmentPicker, requestedEnvironment, ...(parameters === undefined ? {} : { parameters })
@@ -1317,9 +1431,209 @@ class ArchinsightWorkbenchEditorSession {
       await vscode.env.clipboard.writeText(message.text);
       return;
     }
+    if (message.command === "diagramQuickAction") {
+      await this.executeDiagramQuickAction(message.action, message.elementId);
+      return;
+    }
+    if (message.command === "selectPathTarget") {
+      await this.selectPathTarget(message.elementId);
+      return;
+    }
+    if (message.command === "reverseFindPath") {
+      await this.reverseFindPath();
+      return;
+    }
+    if (message.command === "cancelFindPath") {
+      await this.cancelFindPathMode();
+      return;
+    }
+    if (message.command === "cancelIsolate") {
+      await this.cancelIsolateMode();
+      return;
+    }
     if (message.command === "openDeclaration") {
       await this.openDeclaration(message.declaration);
     }
+  }
+
+  async postFindPathMode(state = this.readFindPathMode()): Promise<void> {
+    if (!this.webviewReady) return;
+    await this.panel.webview.postMessage({ command: "findPathMode", state } satisfies WorkbenchHostToWebviewMessage);
+  }
+
+  async postIsolateMode(state = this.readIsolateMode()): Promise<void> {
+    if (!this.webviewReady) return;
+    await this.panel.webview.postMessage({ command: "isolateMode", state } satisfies WorkbenchHostToWebviewMessage);
+  }
+
+  cancelQuickActionRendering(): void {
+    this.quickActionGeneration++;
+  }
+
+  async restoreQuickActionResult(): Promise<void> {
+    if (!this.quickActionResultVisible) return;
+    this.quickActionResultVisible = false;
+    const current = this.project.current;
+    if (current === undefined) return;
+    const input = this.renderInput(current, this.diagram.queryState().query);
+    if (input !== undefined) await this.diagram.refresh(input);
+  }
+
+  private async executeDiagramQuickAction(action: DiagramQuickActionId, elementId: string): Promise<void> {
+    const current = this.project.current;
+    if (current === undefined) return;
+    const metadata = diagramElementMetadata(diagramQuickActionMetadata(current.result), elementId);
+    if (metadata === undefined) return;
+    if (action === "go-to-declaration") {
+      if (metadata.declaration !== undefined) {
+        await this.openDeclaration({
+          source: metadata.declaration.sourceName,
+          line: metadata.declaration.line,
+          column: metadata.declaration.column,
+        });
+      }
+      return;
+    }
+    if (action === "find-path") {
+      if (metadata.pathEligible) {
+        if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
+        await this.writeFindPathMode(beginFindPath(metadata, this.currentPathEndpointEnvironment()));
+      }
+      return;
+    }
+    if (action === "isolate") {
+      if (!metadata.isolateEligible) return;
+      if (this.readFindPathMode().status !== "idle") await this.cancelFindPathMode();
+      const accepted = await this.renderQuickActionGraph(
+        selectIsolatedElementGraph(current.result, metadata.canonicalElementId, this.quickActionScope(current)),
+        true,
+      );
+      if (accepted) await this.writeIsolateMode(beginIsolate(metadata));
+      return;
+    }
+    if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
+    if (!metadata.hasDeployment) return;
+    const environments = deploymentEnvironmentsForElement(current.result, metadata.canonicalElementId);
+    if (environments.length === 0) {
+      void vscode.window.showInformationMessage(`No deployment is available for ${metadata.title}.`);
+      return;
+    }
+    let environment = environments[0]!.id;
+    if (environments.length > 1) {
+      const picked = await vscode.window.showQuickPick(environments.map((candidate) => ({
+        label: candidate.id,
+        description: candidate.name === undefined || candidate.name === candidate.id ? undefined : candidate.name,
+        environment: candidate.id,
+      })), { title: "Deployment Environment", placeHolder: "Select the environment to show" });
+      if (picked === undefined) return;
+      if (this.project.current !== current || this.disposed) return;
+      environment = picked.environment;
+    }
+    await this.renderQuickActionGraph(selectDeploymentGraph(current.result, metadata.canonicalElementId, environment));
+  }
+
+  private async selectPathTarget(elementId: string): Promise<void> {
+    const current = this.project.current;
+    const selecting = this.readFindPathMode();
+    if (current === undefined || selecting.status !== "selecting-target") return;
+    const metadata = diagramElementMetadata(diagramQuickActionMetadata(current.result), elementId);
+    if (metadata === undefined) return;
+    const resolving = resolveFindPathTarget(selecting, metadata, this.currentPathEndpointEnvironment());
+    if (resolving.status !== "resolving-path") return;
+    await this.resolveAndRenderPath(resolving, retryFindPathTarget(resolving), false);
+  }
+
+  private quickActionScope(current: LinkedProject): QueryScope {
+    const queryState = this.diagram.queryState();
+    const input = this.renderInput(current, queryState.query);
+    const sourceName = input?.queryScope?.tab ?? input?.sourceName;
+    const context = input?.queryScope?.context
+      ?? current.result.contexts.find((candidate) => candidate.sourceIdentity === sourceName)?.id;
+    return {
+      ...(context === undefined ? {} : { context }),
+      ...(sourceName === undefined ? {} : { tab: sourceName }),
+      view: queryState.view,
+      ...(queryState.environment === undefined ? {} : { environment: queryState.environment }),
+    };
+  }
+
+  private currentPathEndpointEnvironment(): string | undefined {
+    const queryState = this.diagram.queryState();
+    return resolveBuiltinView(queryState.view)?.environment === "single-relevant"
+      ? queryState.environment
+      : undefined;
+  }
+
+  private async reverseFindPath(): Promise<void> {
+    const showing = this.readFindPathMode();
+    if (showing.status !== "showing-path") return;
+    const resolving = reverseFindPathResult(showing);
+    if (resolving.status !== "resolving-path") return;
+    await this.resolveAndRenderPath(resolving, showing, true);
+  }
+
+  private async resolveAndRenderPath(
+    resolving: Extract<FindPathMode, { readonly status: "resolving-path" }>,
+    failureMode: FindPathMode,
+    preserveVisibleResult: boolean,
+  ): Promise<void> {
+    await this.writeFindPathMode(resolving);
+    if (this.readFindPathMode() !== resolving) return;
+    const latest = this.project.current;
+    if (latest === undefined) return;
+    let graph: import("@insight/language").RenderGraph;
+    try {
+      graph = selectPathGraph(
+        latest.result,
+        resolving.sourceId,
+        resolving.targetId,
+        this.quickActionScope(latest),
+        {
+          sourceEnvironment: resolving.sourceEnvironment,
+          targetEnvironment: resolving.targetEnvironment,
+        },
+      );
+    } catch (error) {
+      if (this.readFindPathMode() === resolving) {
+        await this.writeFindPathMode(failureMode);
+        void vscode.window.showErrorMessage(
+          `Find path failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      return;
+    }
+    if (graph.edges.length === 0) {
+      output.appendLine(`No path found between ${resolving.sourceTitle} and ${resolving.targetTitle}.`);
+    }
+    if (this.readFindPathMode() !== resolving) return;
+    const showing = showResolvedFindPath(resolving);
+    await this.writeFindPathMode(showing);
+    if (this.readFindPathMode() !== showing) return;
+    const accepted = await this.renderQuickActionGraph(graph, true);
+    if (!accepted && this.readFindPathMode() === showing) {
+      if (preserveVisibleResult) this.quickActionResultVisible = true;
+      await this.writeFindPathMode(failureMode);
+    }
+  }
+
+  private async renderQuickActionGraph(
+    graph: import("@insight/language").RenderGraph,
+    findPathResult = false,
+  ): Promise<boolean> {
+    const current = this.project.current;
+    if (current === undefined) return false;
+    const input = this.renderInput(current, this.diagram.queryState().query);
+    if (input === undefined) return false;
+    const generation = ++this.quickActionGeneration;
+    const preview = await buildQuickActionPreview(input, this.diagram.queryState(), graph, {
+      theme: renderThemeForColorThemeKind(vscode.window.activeColorTheme.kind),
+      log: (message) => output.appendLine(message),
+    });
+    if (generation !== this.quickActionGeneration || this.disposed) return false;
+    await this.diagram.publishAdHoc(preview);
+    const accepted = preview.error === undefined;
+    this.quickActionResultVisible = findPathResult && accepted;
+    return accepted;
   }
 
   private async postSource(): Promise<void> {
@@ -1341,6 +1655,8 @@ class ArchinsightWorkbenchEditorSession {
       readOnly: this.isReadOnly(),
       queryScope: this.queryScopeState(this.project.current),
     });
+    await this.postFindPathMode();
+    await this.postIsolateMode();
   }
 
   private async postDiagnostics(diagnostics: readonly LanguageDiagnostic[]): Promise<void> {

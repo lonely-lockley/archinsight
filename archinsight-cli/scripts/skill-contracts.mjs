@@ -95,6 +95,10 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("references/importing-models.md"));
   assert(content.includes("references/analysis.md"));
   assert(content.includes("references/cli.md"));
+  assert(content.includes("references/quick-actions.md"));
+  assert(content.includes("quick-action"));
+  assert(content.includes("Generate a diagram or subdiagram"));
+  assert(content.includes("Do not modify the model merely to generate an artifact"));
   assert(content.includes("references/c4-code.md"));
   assert(content.includes("references/custom-views.md"));
   assert(content.includes("graph queries under `views/`"));
@@ -119,6 +123,21 @@ function verifySharedFiles(output) {
   assert(cli.includes("D1 spans every environment relevant to the selected source"));
   assert(cli.includes("archinsight environments . -s <source.ai> --format json"));
   assert(cli.includes("deployment-environments.v1"));
+  assert(cli.includes("## Deterministic Quick Actions"));
+  assert(cli.includes("diagram-quick-action.v1"));
+  assert(cli.includes("-f png -o diagram.png"));
+  assert.match(cli, /Every diagram render accepts `text`, `json`, `dot`, `svg`, or `png`/);
+  const quickActions = readFileSync(path.join(output, "references", "quick-actions.md"), "utf8");
+  for (const action of ["isolate", "deployment", "find-path", "declaration"]) {
+    assert(quickActions.includes(`quick-action ${action}`), `quick action docs omit '${action}'`);
+  }
+  assert(quickActions.includes("diagram-quick-action.v1"));
+  assert(quickActions.includes("--format png --out payment-path.png"));
+  assert.match(quickActions, /dimension, pixel-count, and output-size limits/);
+  assert(quickActions.includes("Do not guess ids from diagram titles"));
+  assert(quickActions.includes("Treat `pathFound: false` as a valid result"));
+  assert.match(quickActions, /custom\s+graph-returning `\.aiq` views/);
+  assert(quickActions.includes("--from <target-id> --to <source-id>"));
   const customViews = readFileSync(path.join(output, "references", "custom-views.md"), "utf8");
   assert(customViews.includes("graph-returning queries"));
   assert(customViews.includes("`RETURN TABLE` reports"));
@@ -230,6 +249,8 @@ function verifySharedFiles(output) {
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
   assert(analysis.includes("Use focused AIQ queries to answer architecture questions"));
+  assert(analysis.includes("[Deterministic Diagram Quick Actions](quick-actions.md)"));
+  assert.match(analysis, /`--from A --to B` follows directed edges from A to B/);
   assert(analysis.includes("show its text to the user only when they explicitly ask for it"));
   assert(analysis.includes("consider an engine defect"));
   assert(analysis.includes("If the result contains more than 10 rows"));

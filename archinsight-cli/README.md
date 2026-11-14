@@ -3,7 +3,8 @@
 Command-line interface for local Insight projects.
 
 The CLI scans `.ai` files recursively, builds the project language snapshot,
-links the full model, and then runs link, structure, query, or render commands.
+links the full model, and then runs link, structure, query, render, or
+deterministic diagram quick-action commands.
 It embeds `@insight/language` directly and does not call the web app.
 
 ## Commands
@@ -12,8 +13,12 @@ It embeds `@insight/language` directly and does not call the web app.
 archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
 archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
-archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f dot|svg|json] [-o file]
+archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json|dot|svg|png] [-o file]
 archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
+archinsight quick-action isolate [project-dir] --element <id> [-v <view>] [-s <source>] [-c <context>] [-f text|json|dot|svg|png] [-o file]
+archinsight quick-action deployment [project-dir] --element <id> [-e <environment>] [-f text|json|dot|svg|png] [-o file]
+archinsight quick-action find-path [project-dir] --from <id> --to <id> [-v <view>] [-s <source>] [-c <context>] [-e <environment>] [-f text|json|dot|svg|png] [-o file]
+archinsight quick-action declaration [project-dir] --element <id> [-f text|json|dot|svg|png] [-o file]
 archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 ```
 
@@ -29,6 +34,9 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `--tab <source>` - compatibility alias for `--source`.
 - `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment-system`, `deployment-container`, `deployment`, `no-filter`.
 - `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
+- `--element <id>` - canonical element id for Isolate, Deployment, or Go to
+  declaration.
+- `--from <id>` and `--to <id>` - ordered source and target ids for Find path.
 - `-q, --query <file>` - custom query file; mutually exclusive with `--view`;
   relative paths are resolved from `project-dir`.
 - `--param <name=json>` - query parameter; repeat for multiple parameters.
@@ -48,6 +56,18 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
   package has been generated successfully.
 - `-V, --version` - print version.
 - `-h, --help` - print help.
+
+Output formats follow the kind of result:
+
+| Commands | Formats |
+| --- | --- |
+| `link`, `structure`, `environments` | `text`, `json` |
+| `query` | `text`, `json`, `csv` for tables; `text`, `json` for graphs |
+| `render`, every `quick-action` | `text`, `json`, `dot`, `svg`, `png` |
+
+Use `render --query <file.aiq>` when a graph-returning custom query must be
+exported as DOT, SVG, or PNG. Table-returning queries are data rather than
+diagrams and remain available through `query` as text, JSON, or CSV.
 
 ## Diagram Scope
 
@@ -70,6 +90,59 @@ D1 selects every environment relevant to the source and does not accept
 `--environment`. D2 selects one environment. The CLI chooses it automatically
 when exactly one is relevant and otherwise lists the available environments and
 requires `--environment <id>`.
+
+## Deterministic Diagram Quick Actions
+
+Quick actions expose the same semantic graph operations as the diagram UI
+without requiring an agent to synthesize an AIQ filter:
+
+```shell
+archinsight quick-action isolate . --element shop/api --format json
+archinsight quick-action deployment . --element shop/api --environment eu --format json
+archinsight quick-action find-path . --from shop/user --to external/google --view c2 --source shop.ai --format json
+archinsight quick-action declaration . --element shop/api --format json
+```
+
+The element arguments are canonical linked ids. Resolve them with
+`archinsight structure . --format text|json` or read them from query JSON;
+display titles are not accepted as substitutes.
+
+JSON is the default and uses the versioned schema
+`diagram-quick-action.v1`. Isolate returns the selected element and its direct
+incoming/outgoing neighborhood. Deployment returns the selected logical
+element's occurrences and first-level physical environment. Find path returns
+the union of all directed routes in source-to-target order; a valid empty
+result has `pathFound: false` and retains both endpoints. Declaration returns
+the authored source, line, and column.
+
+Find path never treats edges as undirected. `--from A --to B` and
+`--from B --to A` are separate requests and may produce different results. To
+reverse the search, swap the two arguments explicitly.
+
+Every quick action also supports text, DOT, SVG, and PNG. Write binary output to a
+file:
+
+```shell
+archinsight quick-action find-path . \
+  --from shop/user --to external/google \
+  --format png --out user-to-google.png
+```
+
+PNG is rasterized from the same deterministic graph as SVG. The exporter
+limits image dimensions, total pixels, and output size so malformed or extreme
+graphs fail explicitly instead of exhausting the process. For graphical
+formats, Declaration produces a one-element subdiagram while JSON also includes
+the authored source coordinates.
+
+Use custom AIQ when the analysis needs predicates, aggregation, tables,
+unbounded traversal without a fixed target, or a reusable project-owned view.
+
+The ordinary `render` command supports the same diagram output formats. This
+also applies when `render` executes a custom graph-returning `.aiq` query:
+
+```shell
+archinsight render . --query views/dependencies.aiq --format png --out dependencies.png
+```
 
 ## Custom Query Files
 
@@ -176,6 +249,7 @@ The generic target writes a runtime-neutral guide:
     archinsight.md
     references/
         cli.md
+        quick-actions.md
         modeling.md
         importing-models.md
         syntax.md
@@ -338,8 +412,8 @@ The CLI version is generated from the Gradle project version into
 ## Package and Publish
 
 The npm package publishes the bundled CLI from `build/`. The TypeScript language
-core is bundled into the CLI artifact; `@viz-js/viz` remains an external runtime
-dependency for SVG rendering.
+core is bundled into the CLI artifact; `@viz-js/viz` and `@resvg/resvg-js`
+remain external runtime dependencies for SVG and PNG rendering.
 
 Prepare and inspect the package:
 

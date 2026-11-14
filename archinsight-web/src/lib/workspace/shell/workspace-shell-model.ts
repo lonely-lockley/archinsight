@@ -22,6 +22,7 @@ import {
   type WorkspaceRuntimeState
 } from '$lib/workspace/shell/workspace-runtime-state';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
+import { diagramQuickActionMetadata, type DiagramQuickActionMetadata } from '@insight/language';
 
 export type WorkspaceShellView = {
   surface: WorkspaceSurface;
@@ -31,6 +32,7 @@ export type WorkspaceShellView = {
   errorSourceIdentities: Set<string>;
   emptyStrategy: EmptyWorkspaceStrategy;
   canDownloadCurrentDiagram: boolean;
+  quickActionMetadata: DiagramQuickActionMetadata;
   newTabState: ReturnType<WorkspaceActionController['newTabState']>;
   saveState: ReturnType<WorkspaceActionController['saveState']>;
   repositoryMenuActions: RepositoryActionStates;
@@ -46,6 +48,7 @@ export type WorkspaceShellControllers = {
   auth: AuthController;
   action: WorkspaceActionController;
   diagram: DiagramController;
+  quickActions: WorkspaceRuntime['controllers']['quickActions'];
   download: DownloadController;
   file: WorkspaceFileController;
   layout: LayoutController;
@@ -63,13 +66,13 @@ export function createWorkspaceShellView(
     surface,
     state,
     activeTab,
-    activeDeploymentEnvironments: runtime.diagramController.deploymentEnvironmentsFor(
-      activeTab,
-      state.linkedAnalysis
-    ),
+    activeDeploymentEnvironments: state.quickActionDeploymentElementId === undefined
+      ? runtime.diagramController.deploymentEnvironmentsFor(activeTab, state.linkedAnalysis)
+      : runtime.quickActionController.deploymentEnvironments(),
     errorSourceIdentities: workspaceErrorSources(state),
     emptyStrategy: runtime.actionController.emptyStrategy(),
     canDownloadCurrentDiagram: canDownloadWorkspaceDiagram(state),
+    quickActionMetadata: state.linkedAnalysis === undefined ? {} : diagramQuickActionMetadata(state.linkedAnalysis),
     newTabState: runtime.actionController.newTabState(),
     saveState: runtime.actionController.saveState(),
     repositoryMenuActions: runtime.actionController.repositoryStates(),

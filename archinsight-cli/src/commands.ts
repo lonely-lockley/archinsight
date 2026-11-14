@@ -1,8 +1,24 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { AiqQueryError, discoverDeploymentEnvironments, renderGraphviz, type QueryParameterValue, type QueryResult } from "@insight/language";
+import {
+  AiqQueryError,
+  deploymentEnvironmentsForElement,
+  deploymentFocusElementIds,
+  diagramElementMetadata,
+  diagramQuickActionMetadata,
+  discoverDeploymentEnvironments,
+  renderGraphviz,
+  selectDeploymentGraph,
+  selectIsolatedElementGraph,
+  selectPathGraph,
+  type DiagramElementQuickActionMetadata,
+  type QueryParameterValue,
+  type QueryResult,
+  type RenderGraph,
+} from "@insight/language";
 import {
   outputFormat,
+  quickActionOutputFormat,
   queryOutputFormat,
   renderFormat,
   skillTarget,
@@ -21,7 +37,9 @@ import {
   linkerFinishedLine,
   projectStructure,
   renderFinishedLine,
+  renderPng,
   renderSvg,
+  writeBinaryOutput,
   writeOutput,
 } from "./cli-output.js";
 import {
@@ -30,6 +48,7 @@ import {
   loadProject,
   projectPath,
   selectedGraph,
+  selectedBuiltinViewScope,
   selectedQuery,
   selectedSource,
   type DeploymentEnvironmentEntry,
@@ -72,6 +91,11 @@ export async function runRender(args: ParsedArgs): Promise<void> {
     const graph = await selectedGraph(project, args);
     const dot = renderGraphviz(project.result, graph, await resolveRenderTheme(args.theme));
     const format = renderFormat(args.format, "dot");
+    if (format === "text") {
+      await writeOutput(args.output, formatGraph(graph));
+      process.stderr.write(renderFinishedLine(true, "diagram rendered successfully"));
+      return;
+    }
     if (format === "dot") {
       await writeOutput(args.output, dot);
       process.stderr.write(renderFinishedLine(true, "diagram rendered successfully"));
@@ -82,7 +106,12 @@ export async function runRender(args: ParsedArgs): Promise<void> {
       process.stderr.write(renderFinishedLine(true, "diagram rendered successfully"));
       return;
     }
-    await writeOutput(args.output, await renderSvg(dot));
+    const svg = await renderSvg(dot);
+    if (format === "svg") {
+      await writeOutput(args.output, svg);
+    } else {
+      await writeBinaryOutput(args.output, renderPng(svg));
+    }
     process.stderr.write(renderFinishedLine(true, "diagram rendered successfully"));
   } catch (error) {
     process.stderr.write(renderFinishedLine(false, error instanceof Error ? error.message : String(error)));
@@ -217,6 +246,197 @@ export async function runEnvironments(args: ParsedArgs): Promise<void> {
   await writeOutput(args.output, format === "json"
     ? JSON.stringify(result, null, 2)
     : formatDeploymentEnvironments(result.environments));
+}
+
+export async function runQuickAction(args: ParsedArgs): Promise<void> {
+  const action = args.quickAction;
+  if (action === undefined) {
+    throw new CliError("Usage: archinsight quick-action <isolate|deployment|find-path|declaration> [project-dir] [options]");
+  }
+  validateQuickActionOptions(args);
+  const project = await loadProject(projectPath(args));
+  if (hasErrors(project.diagnostics)) {
+    process.stderr.write(formatDiagnostics(project.diagnostics));
+    process.exitCode = 1;
+    return;
+  }
+  const warnings = project.diagnostics.filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE");
+  if (warnings.length > 0) process.stderr.write(formatDiagnostics(warnings));
+  const format = quickActionOutputFormat(args.format, "json");
+
+  if (action === "declaration") {
+    const metadata = quickActionElement(project.result, requiredOption(args.element, "--element"));
+    if (metadata.declaration === undefined) throw new CliError(`Element '${metadata.canonicalElementId}' has no declaration`);
+    const element = project.result.elements.find((candidate) => candidate.id === metadata.canonicalElementId);
+    if (element === undefined) throw new CliError(`Element '${metadata.canonicalElementId}' is not part of the linked project`);
+    await writeQuickActionGraph(args, format, project.result, {
+      context: element.context,
+      elements: { [element.id]: element },
+      edges: [],
+      groups: [],
+      externalElements: [],
+    }, {
+      schemaVersion: "diagram-quick-action.v1",
+      action,
+      element: quickActionElementReference(metadata),
+      declaration: metadata.declaration,
+    });
+    return;
+  }
+
+  if (action === "isolate") {
+    const metadata = quickActionElement(project.result, requiredOption(args.element, "--element"));
+    if (!metadata.isolateEligible) throw new CliError(`Isolation is unavailable for element '${metadata.canonicalElementId}'`);
+    const graph = selectIsolatedElementGraph(
+      project.result,
+      metadata.canonicalElementId,
+      await selectedBuiltinViewScope(project, args),
+    );
+    await writeQuickActionGraph(args, format, project.result, graph, {
+      schemaVersion: "diagram-quick-action.v1",
+      action,
+      element: quickActionElementReference(metadata),
+    });
+    return;
+  }
+
+  if (action === "deployment") {
+    const metadata = quickActionElement(project.result, requiredOption(args.element, "--element"));
+    if (!metadata.hasDeployment) throw new CliError(`No deployment is available for '${metadata.canonicalElementId}'`);
+    const environment = quickActionDeploymentEnvironment(project.result, metadata, args.environment);
+    const graph = selectDeploymentGraph(project.result, metadata.canonicalElementId, environment);
+    await writeQuickActionGraph(args, format, project.result, graph, {
+      schemaVersion: "diagram-quick-action.v1",
+      action,
+      element: quickActionElementReference(metadata),
+      environment,
+      focusElementIds: deploymentFocusElementIds(project.result, metadata.canonicalElementId, graph),
+    });
+    return;
+  }
+
+  const source = quickActionElement(project.result, requiredOption(args.from, "--from"));
+  const target = quickActionElement(project.result, requiredOption(args.to, "--to"));
+  if (!source.pathEligible) throw new CliError(`Find path is unavailable for source '${source.canonicalElementId}'`);
+  if (!target.pathEligible) throw new CliError(`Find path is unavailable for target '${target.canonicalElementId}'`);
+  if (source.canonicalElementId === target.canonicalElementId) {
+    throw new CliError("Find path source and target must be different elements");
+  }
+  const graph = selectPathGraph(
+    project.result,
+    source.canonicalElementId,
+    target.canonicalElementId,
+    await selectedBuiltinViewScope(project, args),
+    args.environment === undefined ? undefined : {
+      sourceEnvironment: args.environment,
+      targetEnvironment: args.environment,
+    },
+  );
+  await writeQuickActionGraph(args, format, project.result, graph, {
+    schemaVersion: "diagram-quick-action.v1",
+    action,
+    source: quickActionElementReference(source),
+    target: quickActionElementReference(target),
+    pathFound: graph.edges.length > 0,
+    ...(args.environment === undefined ? {} : { environment: args.environment }),
+  });
+}
+
+function validateQuickActionOptions(args: ParsedArgs): void {
+  if (args.queryFile !== undefined) throw new CliError("Quick actions do not accept --query; use --view for an optional built-in scope");
+  if ((args.parameters?.length ?? 0) > 0 || args.parametersFile !== undefined) {
+    throw new CliError("Quick actions do not accept query parameters");
+  }
+  if (args.quickAction === "isolate" || args.quickAction === "declaration" || args.quickAction === "deployment") {
+    if (args.from !== undefined || args.to !== undefined) throw new CliError(`Quick action '${args.quickAction}' does not accept --from or --to`);
+  }
+  if (args.quickAction === "find-path" && args.element !== undefined) {
+    throw new CliError("Quick action 'find-path' does not accept --element; use --from and --to");
+  }
+  if (args.quickAction === "declaration" || args.quickAction === "deployment") {
+    if (args.view !== undefined || args.tab !== undefined || args.context !== undefined) {
+      throw new CliError(`Quick action '${args.quickAction}' does not accept --view, --source, or --context`);
+    }
+  }
+  if (args.quickAction === "declaration" && args.environment !== undefined) {
+    throw new CliError("Quick action 'declaration' does not accept --environment");
+  }
+  if ((args.quickAction === "isolate" || args.quickAction === "find-path")
+      && args.view === undefined && (args.tab !== undefined || args.context !== undefined)) {
+    throw new CliError("Quick-action scope options --source and --context require --view");
+  }
+  if (args.quickAction === "find-path" && args.environment !== undefined
+      && args.view !== undefined && args.view !== "deployment-container") {
+    throw new CliError("Find path --environment may be combined only with --view deployment-container or with no --view");
+  }
+}
+
+function requiredOption(value: string | undefined, option: string): string {
+  if (value === undefined) throw new CliError(`Quick action requires ${option} <id>`);
+  return value;
+}
+
+function quickActionElement(result: Parameters<typeof diagramQuickActionMetadata>[0], elementId: string): DiagramElementQuickActionMetadata {
+  const metadata = diagramElementMetadata(diagramQuickActionMetadata(result), elementId);
+  if (metadata === undefined) throw new CliError(`Element '${elementId}' is not part of the linked project`);
+  return metadata;
+}
+
+function quickActionElementReference(metadata: DiagramElementQuickActionMetadata): { readonly id: string; readonly title: string } {
+  return { id: metadata.canonicalElementId, title: metadata.title };
+}
+
+function quickActionDeploymentEnvironment(
+  result: Parameters<typeof diagramQuickActionMetadata>[0],
+  metadata: DiagramElementQuickActionMetadata,
+  requested: string | undefined,
+): string {
+  const environments = deploymentEnvironmentsForElement(result, metadata.canonicalElementId);
+  if (requested !== undefined) {
+    if (environments.some((candidate) => candidate.id === requested)) return requested;
+    throw new CliError(`Environment '${requested}' is not available for '${metadata.canonicalElementId}'. Available environments: ${quickActionEnvironmentList(environments)}`);
+  }
+  if (environments.length === 1) return environments[0]!.id;
+  if (environments.length === 0) throw new CliError(`No deployment is available for '${metadata.canonicalElementId}'`);
+  throw new CliError(`Quick action 'deployment' requires --environment. Available environments: ${quickActionEnvironmentList(environments)}`);
+}
+
+function quickActionEnvironmentList(environments: readonly { readonly id: string; readonly name?: string }[]): string {
+  return environments.map((environment) => environment.name === undefined || environment.name === environment.id
+    ? environment.id
+    : `${environment.id} (${environment.name})`).join(", ") || "none";
+}
+
+async function writeQuickActionGraph(
+  args: ParsedArgs,
+  format: ReturnType<typeof quickActionOutputFormat>,
+  project: Parameters<typeof renderGraphviz>[0],
+  graph: RenderGraph,
+  metadata: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  if (format === "json") {
+    await writeOutput(args.output, JSON.stringify({ ...metadata, graph }, null, 2));
+    return;
+  }
+  if (format === "text") {
+    const header = Object.entries(metadata)
+      .filter(([key]) => key !== "schemaVersion")
+      .map(([key, value]) => `${key}\t${typeof value === "object" ? JSON.stringify(value) : String(value)}`)
+      .join("\n");
+    await writeOutput(args.output, `${header}${header.length === 0 ? "" : "\n"}${formatGraph(graph)}`);
+    return;
+  }
+  const dot = renderGraphviz(project, graph, await resolveRenderTheme(args.theme));
+  if (format === "dot") {
+    await writeOutput(args.output, dot);
+    return;
+  }
+  const svg = await renderSvg(dot);
+  if (format === "svg") {
+    await writeOutput(args.output, svg);
+    return;
+  }
+  await writeBinaryOutput(args.output, renderPng(svg));
 }
 
 export async function runSkill(args: ParsedArgs): Promise<void> {

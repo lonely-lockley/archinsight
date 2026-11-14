@@ -2,6 +2,7 @@ import { terminateBrowserGraphvizWorker } from '$lib/graphviz-renderer';
 import type { AnalysisController } from '$lib/workspace/analysis/analysis-controller';
 import type { AuthController } from '$lib/workspace/auth/auth-controller';
 import type { DiagramController } from '$lib/workspace/diagram/diagram-controller';
+import type { DiagramQuickActionController } from '$lib/workspace/quick-actions/diagram-quick-action-controller';
 import type { MonacoSession } from '$lib/workspace/editor/monaco-session';
 import type { MessageController } from '$lib/workspace/messages/message-controller';
 import { errorMessage } from '$lib/workspace/messages/message-controller';
@@ -22,6 +23,7 @@ export function createWorkspaceRuntimeLifecycle(ports: {
   action: WorkspaceActionController;
   analysis: AnalysisController;
   diagram: DiagramController;
+  quickActions: DiagramQuickActionController;
   layout: LayoutController;
   messages: MessageController;
   monaco: MonacoSession;
@@ -51,6 +53,7 @@ export function createWorkspaceRuntimeLifecycle(ports: {
     },
 
     dispose() {
+      ports.quickActions.reset();
       ports.analysis.dispose();
       ports.diagram.dispose();
       ports.layout.dispose();

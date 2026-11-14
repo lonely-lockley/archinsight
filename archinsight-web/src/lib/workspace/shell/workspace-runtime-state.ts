@@ -19,6 +19,14 @@ import type {
 import { defaultProjectUi } from '$lib/workspace/shell/layout-model';
 import type { MessageView, ProjectUiState, TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
 import {
+  idleDeploymentMode,
+  idleFindPathMode,
+  idleIsolateMode,
+  type DeploymentMode,
+  type FindPathMode,
+  type IsolateMode
+} from '@archinsight/workbench/diagram-quick-actions';
+import {
   diagnosticErrorSources,
   diagnosticsHaveErrors
 } from '$lib/workspace/analysis/diagnostics';
@@ -53,6 +61,10 @@ export type WorkspaceRuntimeState = {
   publishedProjectId: string | undefined;
   deploymentPickerOpen: boolean;
   renderTheme: RenderTheme;
+  findPathMode: FindPathMode;
+  isolateMode: IsolateMode;
+  deploymentMode: DeploymentMode;
+  quickActionDeploymentElementId: string | undefined;
 };
 
 export function initialWorkspaceRuntimeState(): WorkspaceRuntimeState {
@@ -85,7 +97,11 @@ export function initialWorkspaceRuntimeState(): WorkspaceRuntimeState {
     currentUser: { authenticated: false },
     publishedProjectId: undefined,
     deploymentPickerOpen: false,
-    renderTheme: 'dark'
+    renderTheme: 'dark',
+    findPathMode: idleFindPathMode,
+    isolateMode: idleIsolateMode,
+    deploymentMode: idleDeploymentMode,
+    quickActionDeploymentElementId: undefined
   };
 }
 

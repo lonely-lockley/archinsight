@@ -6,6 +6,7 @@
     coreLanguageSnapshot,
     queryVariableOccurrences,
     type BuiltinDiagramView,
+    type DiagramQuickActionMetadata,
     type LanguageSnapshot,
     type QueryTableResult
   } from '@insight/language';
@@ -46,6 +47,13 @@
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '@archinsight/workbench/types';
   import { registerQueryCompletionProvider, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
   import { createQueryScopeWidgets } from '@archinsight/workbench/query-scope-widgets';
+  import {
+    idleFindPathMode,
+    idleIsolateMode,
+    type DiagramQuickActionId,
+    type FindPathMode,
+    type IsolateMode
+  } from '@archinsight/workbench/diagram-quick-actions';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
   import { renderThemeForBodyClasses } from '../theme';
 
@@ -113,6 +121,9 @@
   let currentSymbols: LanguageSnapshot = coreLanguageSnapshot;
   let readOnly = false;
   let queryScope: WebviewQueryScopeState = { enabled: false, sources: [], contexts: [] };
+  let quickActionMetadata: DiagramQuickActionMetadata = {};
+  let findPathMode: FindPathMode = idleFindPathMode;
+  let isolateMode: IsolateMode = idleIsolateMode;
 
   $: messages = panelMessages(diagnostics, renderError);
   $: workAreaStyle = 'grid-template-rows: minmax(0, 1fr);';
@@ -311,6 +322,7 @@
       queryResult = message.state.error === undefined ? message.state.queryResult : undefined;
       dot = message.state.dot;
       renderError = message.state.error;
+      quickActionMetadata = message.state.quickActionMetadata ?? {};
       return;
     }
     if (message.command === 'diagnostics') {
@@ -339,6 +351,14 @@
     }
     if (message.command === 'exportPng') {
       void exportPng(message.svg);
+      return;
+    }
+    if (message.command === 'findPathMode') {
+      findPathMode = message.state;
+      return;
+    }
+    if (message.command === 'isolateMode') {
+      isolateMode = message.state;
       return;
     }
     if (message.command === 'reveal') {
@@ -627,6 +647,26 @@
     vscode.postMessage({ command: 'openDeclaration', declaration });
   }
 
+  function diagramQuickAction(action: DiagramQuickActionId, elementId: string): void {
+    vscode.postMessage({ command: 'diagramQuickAction', action, elementId });
+  }
+
+  function selectPathTarget(elementId: string): void {
+    vscode.postMessage({ command: 'selectPathTarget', elementId });
+  }
+
+  function cancelFindPath(): void {
+    vscode.postMessage({ command: 'cancelFindPath' });
+  }
+
+  function cancelIsolate(): void {
+    vscode.postMessage({ command: 'cancelIsolate' });
+  }
+
+  function reverseFindPath(): void {
+    vscode.postMessage({ command: 'reverseFindPath' });
+  }
+
   function toggleQuery(): void {
     vscode.postMessage({ command: 'editQuery', view: viewFromDiagramMode(diagramMode), query });
   }
@@ -738,6 +778,9 @@
   {svg}
   {queryResult}
   {resultLoading}
+  {quickActionMetadata}
+  {findPathMode}
+  {isolateMode}
   {diagramMode}
   {deploymentEnvironment}
   {query}
@@ -771,6 +814,11 @@
   onEditorSplitRatioChange={(ratio) => editorSplitRatio = ratio}
   onDiagramVisibleScaleChange={(scale) => diagramScale = scale}
   onOpenDeclaration={openDeclaration}
+  onDiagramQuickAction={diagramQuickAction}
+  onSelectPathTarget={selectPathTarget}
+  onCancelFindPath={cancelFindPath}
+  onCancelIsolate={cancelIsolate}
+  onReverseFindPath={reverseFindPath}
   onBeginMessagesResize={() => {}}
 >
   <VscodeDownloadActions

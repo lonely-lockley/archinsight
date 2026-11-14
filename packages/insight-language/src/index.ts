@@ -123,6 +123,21 @@ export { AiqQueryError } from "./query-syntax.js";
 export { renderGraphviz, type RenderTheme } from "./graphviz-renderer.js";
 export { parseRenderIdentity, renderIdentity } from "./render-identity.js";
 export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";
+export {
+  canonicalDiagramElementId,
+  deploymentEnvironmentsForElement,
+  deploymentFocusElementIds,
+  diagramElementMetadata,
+  diagramQuickActionMetadata,
+  selectDeploymentGraph,
+  selectIsolatedElementGraph,
+  selectPathGraph,
+} from "./diagram-quick-actions.js";
+export type {
+  DiagramElementQuickActionMetadata,
+  DiagramQuickActionMetadata,
+  PathEndpointEnvironments,
+} from "./diagram-quick-actions.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
 export {
   isSyntheticLinkedLocalId,
@@ -204,6 +219,7 @@ export type {
   EnumDefinition,
   FileContext,
   InsightSyntaxProvider,
+  IsolateRenderGraphLayout,
   LanguageBuildResult,
   LanguageDiagnostic,
   LanguageSnapshot,
@@ -233,6 +249,7 @@ export type {
   RenderGraph,
   RenderGraphEdge,
   RenderGraphGroup,
+  RenderGraphLayout,
   ResolvedPresentation,
   SourceLocation,
   SyntaxContext,
