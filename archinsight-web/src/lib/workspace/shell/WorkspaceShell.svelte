@@ -105,6 +105,9 @@
     <WorkspaceEditor
       active={view.activeTab !== undefined}
       svg={view.activeTab?.svg}
+      quickActionMetadata={view.quickActionMetadata}
+      findPathMode={view.state.findPathMode}
+      isolateMode={view.state.isolateMode}
       queryResult={view.activeTab?.queryResult}
       resultLoading={view.state.analysisLoading}
       diagramMode={view.activeTab?.diagramMode ?? defaultDiagramMode}
@@ -133,8 +136,16 @@
       emptyStrategy={view.emptyStrategy}
       onEmptyAction={controllers.action.handleEmptyAction}
       onSelectDiagramMode={controllers.diagram.selectMode}
-      onSelectDeploymentEnvironment={controllers.diagram.selectDeploymentEnvironment}
-      onCloseDeploymentPicker={controllers.diagram.closeDeploymentPicker}
+      onSelectDeploymentEnvironment={(environment) => {
+        if (view.state.quickActionDeploymentElementId !== undefined) {
+          void controllers.quickActions.selectDeploymentEnvironment(environment);
+        } else {
+          controllers.diagram.selectDeploymentEnvironment(environment);
+        }
+      }}
+      onCloseDeploymentPicker={() => {
+        if (!controllers.quickActions.closeDeploymentPicker()) controllers.diagram.closeDeploymentPicker();
+      }}
       onToggleQuery={controllers.diagram.toggleQuery}
       onQueryChange={controllers.diagram.updateQuery}
       onQueryParameterChange={controllers.query.setParameter}
@@ -148,6 +159,11 @@
       onEditorSplitRatioChange={controllers.diagram.updateEditorSplitRatio}
       onDiagramVisibleScaleChange={controllers.diagram.updateVisibleScale}
       onOpenDeclaration={controllers.file.goToDeclaration}
+      onDiagramQuickAction={(action, elementId) => void controllers.quickActions.execute(action, elementId)}
+      onSelectPathTarget={(elementId) => void controllers.quickActions.selectPathTarget(elementId)}
+      onCancelFindPath={controllers.quickActions.cancelFindPath}
+      onCancelIsolate={controllers.quickActions.cancelIsolate}
+      onReverseFindPath={() => void controllers.quickActions.reverseFindPath()}
       onBeginMessagesResize={controllers.layout.beginMessagesResize}
       onCancelResult={controllers.analysis.cancelCurrent}
     >

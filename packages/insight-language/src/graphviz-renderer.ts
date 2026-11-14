@@ -38,7 +38,7 @@ export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, th
   }
 
   const lines: string[] = [];
-  writeHeader(lines, result, graph.context, theme);
+  writeHeader(lines, result, graph.context, theme, graph.layout?.kind === "isolate" ? "LR" : undefined);
   const renderedGroups = new Set<string>();
   const renderedElements = new Set<string>();
   for (const group of groups) {
@@ -51,6 +51,7 @@ export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, th
       writeElement(lines, result, graph, element, theme, "  ");
     }
   }
+  if (graph.layout?.kind === "isolate") writeIsolateLayout(lines, graph.layout, hidden);
   lines.push("");
   for (const edge of graph.edges) {
     if (hidden.has(edge.source) || hidden.has(edge.target)) {
@@ -62,7 +63,13 @@ export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, th
   return lines.join("\n");
 }
 
-function writeHeader(lines: string[], result: LinkProjectResult, context: string, theme: RenderTheme): void {
+function writeHeader(
+  lines: string[],
+  result: LinkProjectResult,
+  context: string,
+  theme: RenderTheme,
+  rankdirOverride?: string,
+): void {
   const contextPresentation = presentation(result, "Context");
   const elementPresentation = presentation(result, "Element");
   const edgePresentation = presentation(result, "Edge");
@@ -93,16 +100,34 @@ function writeHeader(lines: string[], result: LinkProjectResult, context: string
   for (const [name, fallback] of Object.entries({
     overlap: "false",
     concentrate: "false",
-    rankdir: "TB",
+    rankdir: rankdirOverride ?? "TB",
     newrank: "true",
     compound: "true",
     nodesep: "1",
     ranksep: "1",
     splines: "spline",
   })) {
-    lines.push(`  ${name}=${unquoted(contextGraphviz[name] ?? fallback)}`);
+    const value = name === "rankdir" && rankdirOverride !== undefined
+      ? rankdirOverride
+      : contextGraphviz[name] ?? fallback;
+    lines.push(`  ${name}=${unquoted(value)}`);
   }
   lines.push("");
+}
+
+function writeIsolateLayout(
+  lines: string[],
+  layout: Extract<NonNullable<RenderGraph["layout"]>, { readonly kind: "isolate" }>,
+  hidden: ReadonlySet<string>,
+): void {
+  writeRankGroup(lines, layout.incoming.filter((id) => !hidden.has(id)));
+  writeRankGroup(lines, [layout.focus].filter((id) => !hidden.has(id)));
+  writeRankGroup(lines, layout.outgoing.filter((id) => !hidden.has(id)));
+}
+
+function writeRankGroup(lines: string[], elements: readonly string[]): void {
+  if (elements.length === 0) return;
+  lines.push(`  { rank=same; ${elements.map((id) => `${quoted(dotNodeId(id))};`).join(" ")} }`);
 }
 
 function writeGroup(
@@ -141,8 +166,6 @@ function writeGroup(
       undefined,
       ownerElement.constructor,
     )}`);
-    lines.push(`${contentIndent}tooltip=${quoted("Go to declaration")}`);
-    lines.push(`${contentIndent}URL=${quoted(declarationUrl(ownerElement))}`);
   } else if (ownerContext !== undefined) {
     const ownerPresentation = presentation(result, ownerContext.type);
     lines.push(`${contentIndent}label=${htmlLabel(
@@ -198,8 +221,6 @@ function writeElement(lines: string[], result: LinkProjectResult, graph: RenderG
   Object.assign(properties, section(resolvedPresentation, "graphviz"));
   applyAnnotations(properties, element.annotations ?? [], false);
   properties.id = nodeDomId(element.id);
-  properties.tooltip = "Go to declaration";
-  properties.URL = declarationUrl(element);
   properties.label = htmlLabel(
     field(resolvedPresentation, "header", element) ?? fallbackName(element.id),
     field(resolvedPresentation, "subtitle", element),

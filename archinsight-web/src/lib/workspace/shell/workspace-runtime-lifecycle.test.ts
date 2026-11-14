@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AnalysisController } from '$lib/workspace/analysis/analysis-controller';
 import type { AuthController } from '$lib/workspace/auth/auth-controller';
 import type { DiagramController } from '$lib/workspace/diagram/diagram-controller';
+import type { DiagramQuickActionController } from '$lib/workspace/quick-actions/diagram-quick-action-controller';
 import type { MonacoSession } from '$lib/workspace/editor/monaco-session';
 import type { MessageController } from '$lib/workspace/messages/message-controller';
 import type { ProjectSessionController } from '$lib/workspace/projects/project-session-controller';
@@ -24,7 +25,7 @@ function fixture() {
   const closeRepositoryMenu = vi.fn();
   const error = vi.fn();
   const dispose = {
-    analysis: vi.fn(), diagram: vi.fn(), layout: vi.fn(), monaco: vi.fn()
+    analysis: vi.fn(), diagram: vi.fn(), layout: vi.fn(), monaco: vi.fn(), quickActions: vi.fn()
   };
   const handleGlobalKeydown = vi.fn();
   const theme = { start: vi.fn(), dispose: vi.fn() };
@@ -39,6 +40,7 @@ function fixture() {
     action: { handleGlobalKeydown } as unknown as WorkspaceActionController,
     analysis: { dispose: dispose.analysis } as unknown as AnalysisController,
     diagram: { dispose: dispose.diagram } as unknown as DiagramController,
+    quickActions: { reset: dispose.quickActions } as unknown as DiagramQuickActionController,
     layout: { dispose: dispose.layout } as unknown as LayoutController,
     messages: { error } as unknown as MessageController,
     monaco: {

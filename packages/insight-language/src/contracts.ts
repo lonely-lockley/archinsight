@@ -403,12 +403,22 @@ export interface RenderGraphGroup {
   readonly elements: readonly string[];
 }
 
+export interface IsolateRenderGraphLayout {
+  readonly kind: "isolate";
+  readonly focus: string;
+  readonly incoming: readonly string[];
+  readonly outgoing: readonly string[];
+}
+
+export type RenderGraphLayout = IsolateRenderGraphLayout;
+
 export interface RenderGraph {
   readonly context: string;
   readonly elements: Readonly<Record<string, LinkedElement>>;
   readonly edges: readonly RenderGraphEdge[];
   readonly groups: readonly RenderGraphGroup[];
   readonly externalElements: readonly string[];
+  readonly layout?: RenderGraphLayout;
 }
 
 export interface VisibleIdentifier {

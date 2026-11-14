@@ -2,11 +2,13 @@
   import DiagramActions from './DiagramActions.svelte';
   import EditorPanel from './EditorPanel.svelte';
   import EditorViewActions from './EditorViewActions.svelte';
+  import FindPathActions from './FindPathActions.svelte';
   import QueryEditorPanel from './QueryEditorPanel.svelte';
   import RefreshActions from './RefreshActions.svelte';
   import type { EmptyWorkspaceAction, EmptyWorkspaceStrategy } from './empty-workspace-strategy';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from './workspace-types';
-  import type { QueryParameterValue, QueryTableResult } from '@insight/language';
+  import type { DiagramQuickActionMetadata, QueryParameterValue, QueryTableResult } from '@insight/language';
+  import type { DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
 
   export let active = false;
   export let svg: string | undefined;
@@ -37,6 +39,9 @@
   export let messagesPanel: HTMLElement;
   export let refreshDisabled = false;
   export let emptyStrategy: EmptyWorkspaceStrategy | undefined = undefined;
+  export let quickActionMetadata: DiagramQuickActionMetadata = {};
+  export let findPathMode: FindPathMode = { status: 'idle' };
+  export let isolateMode: IsolateMode = { status: 'idle' };
 
   export let onSelectDiagramMode: (mode: DiagramMode) => void;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
@@ -57,6 +62,17 @@
   export let onBeginMessagesResize: (event: PointerEvent) => void;
   export let onEmptyAction: (action: EmptyWorkspaceAction) => void = () => {};
   export let onCancelResult: () => void = () => {};
+  export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string) => void = () => {};
+  export let onSelectPathTarget: (elementId: string) => void = () => {};
+  export let onCancelFindPath: () => void = () => {};
+  export let onCancelIsolate: () => void = () => {};
+  export let onReverseFindPath: () => void = () => {};
+
+  function selectDiagramMode(mode: DiagramMode): void {
+    if (findPathMode.status !== 'idle') onCancelFindPath();
+    if (isolateMode.status !== 'idle') onCancelIsolate();
+    onSelectDiagramMode(mode);
+  }
 </script>
 
 <section class:inactive={!active} class="workspace-editor">
@@ -75,7 +91,7 @@
       {deploymentEnvironments}
       {deploymentEnvironment}
       {deploymentPickerOpen}
-      {onSelectDiagramMode}
+      onSelectDiagramMode={selectDiagramMode}
       {onSelectDeploymentEnvironment}
       {onCloseDeploymentPicker}
       {onToggleQuery}
@@ -86,6 +102,14 @@
       <svelte:fragment slot="leading-actions">
         <slot name="leading-actions"></slot>
       </svelte:fragment>
+      <FindPathActions
+        slot="mode-actions"
+        mode={findPathMode}
+        {isolateMode}
+        onCancel={onCancelFindPath}
+        {onCancelIsolate}
+        onReverse={onReverseFindPath}
+      />
       <DiagramActions
         slot="diagram-actions"
         onZoomIn={onZoomIn}
@@ -128,6 +152,11 @@
       {onEditorSplitRatioChange}
       {onDiagramVisibleScaleChange}
       {onOpenDeclaration}
+      {quickActionMetadata}
+      {findPathMode}
+      {isolateMode}
+      {onDiagramQuickAction}
+      {onSelectPathTarget}
       {onBeginMessagesResize}
     />
   </section>

@@ -1,5 +1,13 @@
 <script lang="ts">
   import { afterUpdate, onDestroy, onMount, tick } from 'svelte';
+  import {
+    canonicalDiagramElementId,
+    diagramElementMetadata,
+    parseRenderIdentity,
+    type DiagramQuickActionMetadata
+  } from '@insight/language';
+  import DiagramQuickActions from './DiagramQuickActions.svelte';
+  import type { DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import { sanitizeSvg } from './svg-sanitizer';
   import type { SourceLocation } from './workspace-types';
 
@@ -8,6 +16,11 @@
   export let fit = false;
   export let onVisibleScaleChange: (scale: number) => void = () => {};
   export let onOpenDeclaration: (declaration: SourceLocation) => void = () => {};
+  export let quickActionMetadata: DiagramQuickActionMetadata = {};
+  export let findPathMode: FindPathMode = { status: 'idle' };
+  export let isolateMode: IsolateMode = { status: 'idle' };
+  export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string) => void = () => {};
+  export let onSelectPathTarget: (elementId: string) => void = () => {};
 
   let previewPane: HTMLDivElement;
   let svgHost: HTMLDivElement;
@@ -16,10 +29,22 @@
   let lastReportedScale = Number.NaN;
   let naturalWidth = 0;
   let naturalHeight = 0;
+  let selectedElementId: string | undefined;
+  let lastSvgViewportToken: string | undefined;
+  let svgViewportGeneration = 0;
 
   $: diagramWidth = naturalWidth > 0 ? `${naturalWidth * Math.max(scale, 0.01)}px` : 'auto';
   $: diagramHeight = naturalHeight > 0 ? `${naturalHeight * Math.max(scale, 0.01)}px` : 'auto';
   $: sanitizedSvg = sanitizeSvg(svg);
+  $: {
+    if (sanitizedSvg !== lastSvgViewportToken) {
+      lastSvgViewportToken = sanitizedSvg;
+      naturalWidth = 0;
+      naturalHeight = 0;
+      lastReportedScale = Number.NaN;
+      void syncReplacedSvgViewport(++svgViewportGeneration);
+    }
+  }
 
   onMount(() => {
     resizeObserver = new ResizeObserver(() => reportVisibleScale());
@@ -34,6 +59,7 @@
 
   afterUpdate(() => {
     syncSvgClickHandler();
+    syncDiagramNodeState();
     void tick().then(reportVisibleScale);
   });
 
@@ -54,6 +80,20 @@
     }
     lastReportedScale = visibleScale;
     onVisibleScaleChange(visibleScale);
+  }
+
+  async function syncReplacedSvgViewport(generation: number): Promise<void> {
+    const previousScrollLeft = previewPane?.scrollLeft ?? 0;
+    const previousScrollTop = previewPane?.scrollTop ?? 0;
+    await tick();
+    if (generation !== svgViewportGeneration) return;
+    reportVisibleScale();
+    await tick();
+    if (generation !== svgViewportGeneration || previewPane?.isConnected !== true || svgHost?.isConnected !== true) return;
+    const maxScrollLeft = Math.max(0, svgHost.scrollWidth - previewPane.clientWidth);
+    const maxScrollTop = Math.max(0, svgHost.scrollHeight - previewPane.clientHeight);
+    previewPane.scrollLeft = Math.min(previousScrollLeft, maxScrollLeft);
+    previewPane.scrollTop = Math.min(previousScrollTop, maxScrollTop);
   }
 
   function fittedScale(element: SVGSVGElement): number {
@@ -97,15 +137,95 @@
   }
 
   function handleSvgClick(event: MouseEvent): void {
+    if (event.button !== 0) return;
+    const elementId = diagramElementIdFromEvent(event);
+    if (findPathMode.status === 'selecting-target' && elementId !== undefined) {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = diagramElementMetadata(quickActionMetadata, elementId);
+      if (item?.pathEligible === true && item.canonicalElementId !== findPathMode.sourceId) {
+        onSelectPathTarget(elementId);
+      }
+      return;
+    }
+
     const declaration = declarationFromEvent(event);
-    if (declaration === undefined) {
+    if (declaration !== undefined) {
+      event.preventDefault();
+      onOpenDeclaration(declaration);
       return;
     }
+    if (elementId === undefined) return;
     event.preventDefault();
-    if (event.button !== 0) {
-      return;
+    event.stopPropagation();
+    selectedElementId = selectedElementId === elementId ? undefined : elementId;
+    syncDiagramNodeState();
+  }
+
+  function diagramElementIdFromEvent(event: MouseEvent): string | undefined {
+    if (!(event.target instanceof Element)) return undefined;
+    const eventElements = event.composedPath()
+      .filter((candidate): candidate is Element => candidate instanceof Element);
+    const candidates = eventElements.length > 0 ? eventElements : ancestorElements(event.target);
+    for (const current of candidates) {
+      if (current === svgHost) break;
+      if (current instanceof SVGGElement && current.id.length > 0) {
+        const identity = parseRenderIdentity(current.id);
+        if (identity?.kind === 'node' || identity?.kind === 'cluster') {
+          const elementId = identity.provenance[0];
+          if (elementId !== undefined && diagramElementMetadata(quickActionMetadata, elementId) !== undefined) {
+            return elementId;
+          }
+        }
+      }
     }
-    onOpenDeclaration(declaration);
+    return undefined;
+  }
+
+  function ancestorElements(target: Element): Element[] {
+    const elements: Element[] = [];
+    let current: Element | null = target;
+    while (current !== null) {
+      elements.push(current);
+      if (current === svgHost) break;
+      current = current.parentElement;
+    }
+    return elements;
+  }
+
+  function syncDiagramNodeState(): void {
+    if (svgHost === undefined) return;
+    for (const group of svgHost.querySelectorAll<SVGGElement>('g[id]')) {
+      group.classList.remove(
+        'archinsight-node-selected',
+        'archinsight-path-source',
+        'archinsight-path-target',
+        'archinsight-path-compatible',
+        'archinsight-path-incompatible'
+      );
+      const identity = parseRenderIdentity(group.id);
+      if (identity === undefined || (identity.kind !== 'node' && identity.kind !== 'cluster')) continue;
+      const elementId = identity.provenance[0];
+      if (elementId === undefined || diagramElementMetadata(quickActionMetadata, elementId) === undefined) continue;
+      const canonical = canonicalDiagramElementId(elementId);
+      if ((findPathMode.status === 'idle' && selectedElementId === elementId)
+          || (isolateMode.status === 'showing-isolate' && canonical === isolateMode.elementId)) {
+        group.classList.add('archinsight-node-selected');
+      }
+      if (findPathMode.status !== 'idle' && canonical === findPathMode.sourceId) {
+        group.classList.add('archinsight-path-source');
+      }
+      if ((findPathMode.status === 'resolving-path' || findPathMode.status === 'showing-path')
+          && canonical === findPathMode.targetId) {
+        group.classList.add('archinsight-path-target');
+      }
+      if (findPathMode.status === 'selecting-target') {
+        const item = diagramElementMetadata(quickActionMetadata, elementId);
+        group.classList.add(item?.pathEligible === true && canonical !== findPathMode.sourceId
+          ? 'archinsight-path-compatible'
+          : 'archinsight-path-incompatible');
+      }
+    }
   }
 
   function declarationFromEvent(event: MouseEvent): SourceLocation | undefined {
@@ -147,10 +267,19 @@
   {#if sanitizedSvg !== undefined}
     <div bind:this={svgHost} class="svg-host">{@html sanitizedSvg}</div>
   {/if}
+  <DiagramQuickActions
+    {previewPane}
+    {svgHost}
+    metadata={quickActionMetadata}
+    {findPathMode}
+    renderToken={sanitizedSvg}
+    onAction={onDiagramQuickAction}
+  />
 </div>
 
 <style>
   .preview-pane {
+    position: relative;
     display: grid;
     min-width: 0;
     min-height: 0;
@@ -180,6 +309,40 @@
   .svg-host :global(a[href^="insight://goto"]),
   .svg-host :global(a[xlink\:href^="insight://goto"]) {
     cursor: pointer;
+  }
+
+  .svg-host :global(g[id^="insight_node_"]),
+  .svg-host :global(g[id^="cluster_insight_cluster_"]) {
+    cursor: pointer;
+  }
+
+  .svg-host :global(g.archinsight-path-compatible) {
+    cursor: crosshair;
+  }
+
+  .svg-host :global(g.archinsight-path-incompatible) {
+    cursor: not-allowed;
+  }
+
+  .svg-host :global(g.archinsight-node-selected > polygon),
+  .svg-host :global(g.archinsight-node-selected > ellipse),
+  .svg-host :global(g.archinsight-node-selected > path) {
+    stroke: var(--color-primary, #6a9955) !important;
+    stroke-width: 3px !important;
+  }
+
+  .svg-host :global(g.archinsight-path-source > polygon),
+  .svg-host :global(g.archinsight-path-source > ellipse),
+  .svg-host :global(g.archinsight-path-source > path) {
+    stroke: #ff9800 !important;
+    stroke-width: 4px !important;
+  }
+
+  .svg-host :global(g.archinsight-path-target > polygon),
+  .svg-host :global(g.archinsight-path-target > ellipse),
+  .svg-host :global(g.archinsight-path-target > path) {
+    stroke: #ab47bc !important;
+    stroke-width: 4px !important;
   }
 
   .preview-pane.fit {

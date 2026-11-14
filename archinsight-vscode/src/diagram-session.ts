@@ -1,5 +1,6 @@
 import { formatQueryTableCsv } from "@insight/language/query-result-format";
 import type { QueryTableResult } from "@insight/language";
+import type { DiagramQuickActionMetadata } from "@insight/language";
 
 export type DiagramArtifactKind = "source" | "svg" | "png" | "dot" | "csv" | "json";
 
@@ -17,6 +18,7 @@ export interface DiagramPreviewState<TView extends string> extends DiagramQueryS
   readonly dot?: string;
   readonly error?: string;
   readonly queryResult?: QueryTableResult;
+  readonly quickActionMetadata?: DiagramQuickActionMetadata;
 }
 
 export interface DiagramEnvironmentSelection {
@@ -91,6 +93,13 @@ export class DiagramSession<
 
   cancel(): void {
     this.generation++;
+  }
+
+  async publishAdHoc(state: TState): Promise<void> {
+    if (this.disposed) return;
+    this.generation++;
+    this.currentPreview = state;
+    await this.ports.publishPreview(state);
   }
 
   setQueryState(view: TView, query: string): void {

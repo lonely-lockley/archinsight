@@ -10,6 +10,7 @@ import type { RepositoryDialogController } from '$lib/workspace/repository/repos
 import type { LayoutController } from '$lib/workspace/shell/layout-controller';
 import type { WorkspaceActionController } from '$lib/workspace/shell/workspace-action-controller';
 import type { WorkspaceRuntimeState } from '$lib/workspace/shell/workspace-runtime-state';
+import type { DiagramQuickActionController } from '$lib/workspace/quick-actions/diagram-quick-action-controller';
 import type { TreeNode } from '@archinsight/workbench/types';
 
 export type WorkspaceRuntimeHost = {
@@ -25,6 +26,7 @@ export type WorkspaceRuntimeControllers = {
   auth: AuthController;
   action: WorkspaceActionController;
   diagram: DiagramController;
+  quickActions: DiagramQuickActionController;
   download: DownloadController;
   file: WorkspaceFileController;
   layout: LayoutController;
@@ -36,6 +38,7 @@ export type WorkspaceRuntime = {
   authController: AuthController;
   actionController: WorkspaceActionController;
   diagramController: DiagramController;
+  quickActionController: DiagramQuickActionController;
   downloadController: DownloadController;
   fileController: WorkspaceFileController;
   layoutController: LayoutController;

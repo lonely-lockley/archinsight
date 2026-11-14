@@ -336,6 +336,7 @@
     <slot name="diagram-actions"></slot>
     <slot name="view-actions"></slot>
     <slot name="refresh-actions"></slot>
+    <slot name="mode-actions"></slot>
   </header>
 
   {#if requiredParameters.length > 0}

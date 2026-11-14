@@ -89,6 +89,19 @@ test('theme refresh rerenders graphs but leaves tables and unopened previews unt
   assert.equal(tableHarness.previews.length, 1);
 });
 
+test('publishes an ad-hoc quick-action preview without replacing query state', async () => {
+  const harness = createHarness();
+  const session = harness.session();
+  const preview = { view: 'c1', query: 'scoped', fileName: 'main.ai', source: 'source', svg: '<svg>scoped</svg>' };
+  await session.publishAdHoc(preview);
+  assert.equal(session.previewState(), preview);
+  assert.deepEqual(session.queryState(), { view: 'c1', query: 'initial query' });
+  assert.deepEqual(harness.previews, [preview]);
+  session.dispose();
+  await session.publishAdHoc({ ...preview, query: 'ignored' });
+  assert.deepEqual(harness.previews, [preview]);
+});
+
 test('query parameters survive refresh and participate in query state changes', async () => {
   const harness = createHarness();
   const session = harness.session();

@@ -1,6 +1,7 @@
 import { normalizeGraphvizSvgResult } from "@archinsight/graphviz";
 import {
   builtinViewDefinition,
+  diagramQuickActionMetadata,
   discoverDeploymentEnvironments,
   executeQuery,
   renderGraphviz,
@@ -8,6 +9,7 @@ import {
   type LanguageDiagnostic,
   type LinkProjectResult,
   type QueryTableResult,
+  type RenderGraph,
   type RenderTheme,
 } from "@insight/language";
 import type { DiagramPreviewState, DiagramQueryState } from "./diagram-session.js";
@@ -59,6 +61,7 @@ export async function buildDiagramPreview(
       sourceName: input.sourceName,
       fileName: input.fileName,
       source: input.source,
+      quickActionMetadata: diagramQuickActionMetadata(input.current.result),
       error: "Fix linker errors before rendering a diagram.",
     };
   }
@@ -97,6 +100,7 @@ async function previewState(
         sourceName,
         fileName,
         source,
+        quickActionMetadata: diagramQuickActionMetadata(current.result),
         queryResult: result,
       };
     }
@@ -110,6 +114,7 @@ async function previewState(
       sourceName,
       fileName,
       source,
+      quickActionMetadata: diagramQuickActionMetadata(current.result),
       dot,
       svg,
     };
@@ -122,7 +127,41 @@ async function previewState(
       sourceName,
       fileName,
       source,
+      quickActionMetadata: diagramQuickActionMetadata(current.result),
       error: message,
+    };
+  }
+}
+
+export async function buildQuickActionPreview(
+  input: DiagramRenderInput,
+  state: DiagramQueryState<DiagramView>,
+  graph: RenderGraph,
+  renderingContext: DiagramRenderingContext,
+): Promise<PreviewState> {
+  const contextId = graph.context || "-";
+  try {
+    const dot = renderGraphviz(input.current.result, graph, renderingContext.theme);
+    const svg = await renderSvg(dot);
+    return {
+      ...state,
+      contextId,
+      sourceName: input.sourceName,
+      fileName: input.fileName,
+      source: input.source,
+      dot,
+      svg,
+      quickActionMetadata: diagramQuickActionMetadata(input.current.result),
+    };
+  } catch (error) {
+    return {
+      ...state,
+      contextId,
+      sourceName: input.sourceName,
+      fileName: input.fileName,
+      source: input.source,
+      error: error instanceof Error ? error.message : String(error),
+      quickActionMetadata: diagramQuickActionMetadata(input.current.result),
     };
   }
 }

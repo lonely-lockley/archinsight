@@ -3,6 +3,7 @@ import {
   type BuiltinDiagramView,
   type CompletionDocumentation,
   type CompletionKind,
+  type DiagramQuickActionMetadata,
   type LanguageSnapshot,
   type QueryParameterValue,
   type QueryTableResult
@@ -61,7 +62,22 @@ export type WebviewPreviewState = {
   error?: string;
   queryResult?: QueryTableResult;
   parameters?: Readonly<Record<string, QueryParameterValue>>;
+  quickActionMetadata?: DiagramQuickActionMetadata;
 };
+
+export type WebviewFindPathMode =
+  | { status: 'idle' }
+  | {
+      status: 'selecting-target';
+      sourceId: string;
+      sourceTitle: string;
+    }
+  | { status: 'resolving-path'; sourceId: string; sourceTitle: string; targetId: string; targetTitle: string }
+  | { status: 'showing-path'; sourceId: string; sourceTitle: string; targetId: string; targetTitle: string };
+
+export type WebviewIsolateMode =
+  | { status: 'idle' }
+  | { status: 'showing-isolate'; elementId: string; elementTitle: string };
 
 export type ControlsWebviewToHostMessage =
   | { command: 'ready' }
@@ -87,6 +103,11 @@ export type WorkbenchWebviewToHostMessage =
   | { command: 'complete'; requestId: number; sourceName: string; source: string; cursorOffset: number }
   | { command: 'clipboardRead'; requestId: number }
   | { command: 'clipboardWrite'; text: string }
+  | { command: 'diagramQuickAction'; action: 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path'; elementId: string }
+  | { command: 'selectPathTarget'; elementId: string }
+  | { command: 'reverseFindPath' }
+  | { command: 'cancelFindPath' }
+  | { command: 'cancelIsolate' }
   | { command: 'openDeclaration'; declaration: { source: string; line: number; column: number } };
 
 export type WorkbenchHostToWebviewMessage =
@@ -102,6 +123,8 @@ export type WorkbenchHostToWebviewMessage =
   | { command: 'completionResult'; requestId: number; items: WebviewCompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
   | { command: 'clipboardText'; requestId: number; text: string }
   | { command: 'exportPng'; svg: string }
+  | { command: 'findPathMode'; state: WebviewFindPathMode }
+  | { command: 'isolateMode'; state: WebviewIsolateMode }
   | { command: 'reveal'; line: number; column: number };
 
 export type PreviewWebviewToHostMessage = { command: 'ready' } | { command: 'png'; dataUrl: string };
@@ -138,7 +161,8 @@ export function parseControlsHostToWebviewMessage(value: unknown): ControlsHostT
 export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWebviewToHostMessage {
   const input = commandRecord(value);
   switch (input.command) {
-    case 'ready': case 'cancel': case 'selectDeploymentEnvironment': case 'refresh': return { command: input.command };
+    case 'ready': case 'cancel': case 'selectDeploymentEnvironment': case 'refresh':
+    case 'reverseFindPath': case 'cancelFindPath': case 'cancelIsolate': return { command: input.command };
     case 'sourceChanged': return { command: 'sourceChanged', source: string(input.source, 'source') };
     case 'selectQueryScope': {
       const variable = string(input.variable, 'variable');
@@ -162,6 +186,18 @@ export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWeb
     };
     case 'clipboardRead': return { command: 'clipboardRead', requestId: number(input.requestId, 'requestId') };
     case 'clipboardWrite': return { command: 'clipboardWrite', text: string(input.text, 'text') };
+    case 'diagramQuickAction': {
+      const action = string(input.action, 'action');
+      if (!['isolate', 'show-deployment', 'go-to-declaration', 'find-path'].includes(action)) {
+        throw new ContractValidationError('diagram quick action is invalid');
+      }
+      return {
+        command: 'diagramQuickAction',
+        action: action as 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path',
+        elementId: string(input.elementId, 'elementId')
+      };
+    }
+    case 'selectPathTarget': return { command: 'selectPathTarget', elementId: string(input.elementId, 'elementId') };
     case 'openDeclaration': {
       const declaration = record(input.declaration, 'declaration');
       return { command: 'openDeclaration', declaration: {
@@ -202,6 +238,8 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
     };
     case 'clipboardText': return { command: 'clipboardText', requestId: number(input.requestId, 'requestId'), text: string(input.text, 'text') };
     case 'exportPng': return { command: 'exportPng', svg: string(input.svg, 'svg') };
+    case 'findPathMode': return { command: 'findPathMode', state: findPathMode(input.state) };
+    case 'isolateMode': return { command: 'isolateMode', state: isolateMode(input.state) };
     case 'reveal': return { command: 'reveal', line: number(input.line, 'line'), column: number(input.column, 'column') };
     default: throw unknownCommand(input.command);
   }
@@ -247,8 +285,62 @@ function previewState(value: unknown): WebviewPreviewState {
     ...(input.dot === undefined ? {} : { dot: string(input.dot, 'preview.dot') }),
     ...(input.error === undefined ? {} : { error: string(input.error, 'preview.error') }),
     ...(input.queryResult === undefined ? {} : { queryResult: queryTableResult(input.queryResult) }),
-    ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) })
+    ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) }),
+    ...(input.quickActionMetadata === undefined ? {} : { quickActionMetadata: quickActionMetadata(input.quickActionMetadata) })
   };
+}
+
+function quickActionMetadata(value: unknown): DiagramQuickActionMetadata {
+  const input = record(value, 'preview.quickActionMetadata');
+  return Object.fromEntries(Object.entries(input).map(([key, value]) => {
+    const label = `preview.quickActionMetadata.${key}`;
+    const item = record(value, label);
+    const declaration = item.declaration === undefined ? undefined : record(item.declaration, `${label}.declaration`);
+    return [key, {
+      elementId: string(item.elementId, `${label}.elementId`),
+      canonicalElementId: string(item.canonicalElementId, `${label}.canonicalElementId`),
+      title: string(item.title, `${label}.title`),
+      hasChildren: boolean(item.hasChildren, `${label}.hasChildren`),
+      hasDeployment: boolean(item.hasDeployment, `${label}.hasDeployment`),
+      ...(declaration === undefined ? {} : { declaration: {
+        sourceName: string(declaration.sourceName, `${label}.declaration.sourceName`),
+        line: number(declaration.line, `${label}.declaration.line`),
+        column: number(declaration.column, `${label}.declaration.column`)
+      } }),
+      pathEligible: boolean(item.pathEligible, `${label}.pathEligible`)
+    }];
+  }));
+}
+
+function findPathMode(value: unknown): WebviewFindPathMode {
+  const input = record(value, 'find path mode');
+  const status = string(input.status, 'find path mode.status');
+  if (status === 'idle') return { status };
+  if (status === 'selecting-target') return {
+    status,
+    sourceId: string(input.sourceId, 'find path mode.sourceId'),
+    sourceTitle: string(input.sourceTitle, 'find path mode.sourceTitle')
+  };
+  if (status === 'resolving-path' || status === 'showing-path') return {
+    status,
+    sourceId: string(input.sourceId, 'find path mode.sourceId'),
+    sourceTitle: string(input.sourceTitle, 'find path mode.sourceTitle'),
+    targetId: string(input.targetId, 'find path mode.targetId'),
+    targetTitle: string(input.targetTitle, 'find path mode.targetTitle')
+  };
+  throw new ContractValidationError('find path mode status is invalid');
+}
+
+function isolateMode(value: unknown): WebviewIsolateMode {
+  const input = record(value, 'isolate mode');
+  const status = string(input.status, 'isolate mode.status');
+  if (status === 'idle') return { status };
+  if (status === 'showing-isolate') return {
+    status,
+    elementId: string(input.elementId, 'isolate mode.elementId'),
+    elementTitle: string(input.elementTitle, 'isolate mode.elementTitle')
+  };
+  throw new ContractValidationError('isolate mode status is invalid');
 }
 
 function queryParameters(value: unknown): Readonly<Record<string, QueryParameterValue>> {
