@@ -9,6 +9,7 @@
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from './workspace-types';
   import type { DiagramQuickActionMetadata, QueryParameterValue, QueryTableResult } from '@insight/language';
   import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
+  import type { DiagramDiffMode, DiagramDiffPickerState } from './versioned-diagram-diff';
 
   export let active = false;
   export let svg: string | undefined;
@@ -28,6 +29,9 @@
   export let deploymentEnvironment: string | undefined = undefined;
   export let deploymentPickerOpen = false;
   export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
+  export let versioningAvailable = false;
+  export let diffPickerState: DiagramDiffPickerState = { status: 'closed' };
+  export let diffPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let viewMode: EditorViewMode = 'split';
   export let diagramScale = 1;
   export let diagramFit = false;
@@ -44,11 +48,16 @@
   export let findPathMode: FindPathMode = { status: 'idle' };
   export let isolateMode: IsolateMode = { status: 'idle' };
   export let deploymentMode: DeploymentMode = { status: 'idle' };
+  export let diffMode: DiagramDiffMode = { status: 'idle' };
   export let activeTabOwnsQuickActionMode = true;
 
   export let onSelectDiagramMode: (mode: DiagramMode) => void;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
   export let onCloseDeploymentPicker: () => void = () => {};
+  export let onSelectDiffRevision: (side: 'before' | 'after', revision: string) => void = () => {};
+  export let onCompareDiff: () => void = () => {};
+  export let onCloseDiffPicker: () => void = () => {};
+  export let onCancelDiff: () => void = () => {};
   export let onToggleQuery: () => void;
   export let onQueryChange: (query: string) => void;
   export let onQueryParameterChange: (name: string, value: QueryParameterValue | undefined) => void = () => {};
@@ -114,9 +123,11 @@
         mode={findPathMode}
         {isolateMode}
         {deploymentMode}
+        {diffMode}
         onCancel={onCancelFindPath}
         {onCancelIsolate}
         {onCancelDeployment}
+        {onCancelDiff}
         onReverse={onReverseFindPath}
       />
       <DiagramActions
@@ -169,8 +180,14 @@
       {deploymentEnvironment}
       {deploymentPickerOpen}
       {deploymentPickerAnchor}
+      {versioningAvailable}
+      {diffPickerState}
+      {diffPickerAnchor}
       {onSelectDeploymentEnvironment}
       {onCloseDeploymentPicker}
+      {onSelectDiffRevision}
+      {onCompareDiff}
+      {onCloseDiffPicker}
       {onDiagramQuickAction}
       {onSelectPathTarget}
       {onBeginMessagesResize}

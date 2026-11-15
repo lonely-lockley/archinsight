@@ -120,7 +120,17 @@ export type {
   QueryVariableOccurrence,
 } from "./query-syntax.js";
 export { AiqQueryError } from "./query-syntax.js";
-export { renderGraphviz, type RenderTheme } from "./graphviz-renderer.js";
+export { renderDiagramDiffGraphviz, renderGraphviz, type RenderTheme } from "./graphviz-renderer.js";
+export { diffRenderGraphs, selectIsolatedDiagramDiff } from "./diagram-diff.js";
+export type {
+  DiagramDiff,
+  DiagramDiffCategory,
+  DiagramDiffCounts,
+  DiagramDiffEntry,
+  DiagramDiffOrigin,
+  DiagramDiffStatus,
+  DiagramEdgeDiff,
+} from "./diagram-diff.js";
 export { parseRenderIdentity, renderIdentity } from "./render-identity.js";
 export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";
 export {

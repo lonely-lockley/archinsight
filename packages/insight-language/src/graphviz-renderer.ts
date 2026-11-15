@@ -8,12 +8,52 @@ import type {
   ResolvedPresentation,
   SourceLocation,
 } from "./contracts.js";
+import type { DiagramDiff, DiagramDiffStatus } from "./diagram-diff.js";
 import { presentationText, type PresentationTextField } from "./presentation-resolver.js";
 import { renderIdentity } from "./render-identity.js";
 
 export type RenderTheme = "light" | "dark";
 
+interface DiffHighlight {
+  readonly elements: Readonly<Record<string, DiagramDiffStatus>>;
+  readonly edges: ReadonlyMap<RenderGraphEdge, DiagramDiffStatus>;
+  readonly groups: Readonly<Record<string, DiagramDiffStatus>>;
+}
+
 export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, theme: RenderTheme = "light"): string {
+  return renderGraphvizWithHighlight(result, graph, theme);
+}
+
+export function renderDiagramDiffGraphviz(
+  before: LinkProjectResult,
+  after: LinkProjectResult,
+  diff: DiagramDiff,
+  theme: RenderTheme = "light",
+): string {
+  if ([...before.diagnostics, ...after.diagnostics]
+      .some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
+    throw new Error("Cannot render diff of an invalid link result");
+  }
+  const result: LinkProjectResult = {
+    ...after,
+    diagnostics: [],
+    contexts: unionById(before.contexts, after.contexts),
+    elements: unionById(before.elements, after.elements),
+    presentations: { ...before.presentations, ...after.presentations },
+  };
+  return renderGraphvizWithHighlight(result, diff.graph, theme, {
+    elements: Object.fromEntries(Object.entries(diff.elements).map(([id, entry]) => [id, entry.status])),
+    edges: new Map(diff.edges.map((entry) => [entry.rendered, entry.status])),
+    groups: Object.fromEntries(Object.entries(diff.groups).map(([id, entry]) => [id, entry.status])),
+  });
+}
+
+function renderGraphvizWithHighlight(
+  result: LinkProjectResult,
+  graph: RenderGraph,
+  theme: RenderTheme,
+  highlight?: DiffHighlight,
+): string {
   if (result.diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
     throw new Error("Cannot render invalid link result");
   }
@@ -43,12 +83,12 @@ export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, th
   const renderedElements = new Set<string>();
   for (const group of groups) {
     if (!groupOwnerByChild.has(group.owner)) {
-      writeGroup(lines, result, graph, group, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, "  ");
+      writeGroup(lines, result, graph, group, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, "  ", highlight);
     }
   }
   for (const element of Object.values(graph.elements)) {
     if (!hidden.has(element.id) && !renderedElements.has(element.id) && !groupOwnerByChild.has(element.id)) {
-      writeElement(lines, result, graph, element, theme, "  ");
+      writeElement(lines, result, graph, element, theme, "  ", highlight);
     }
   }
   if (graph.layout?.kind === "isolate") writeIsolateLayout(lines, graph.layout, hidden);
@@ -57,7 +97,7 @@ export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, th
     if (hidden.has(edge.source) || hidden.has(edge.target)) {
       continue;
     }
-    writeEdge(lines, result, edge, groupByOwner, theme);
+    writeEdge(lines, result, edge, groupByOwner, theme, highlight);
   }
   lines.push("}");
   return lines.join("\n");
@@ -142,6 +182,7 @@ function writeGroup(
   hidden: ReadonlySet<string>,
   theme: RenderTheme,
   indent: string,
+  highlight?: DiffHighlight,
 ): void {
   if (renderedGroups.has(group.owner)) {
     return;
@@ -184,6 +225,7 @@ function writeGroup(
   lines.push(`${contentIndent}color=${quoted(contextTheme.stroke ?? "#08427B")}`);
   lines.push(`${contentIndent}fontcolor=${quoted(contextTheme.text ?? "#1e1e1e")}`);
   lines.push(`${contentIndent}style="dotted"`);
+  applyDiffHighlightToGroup(lines, contentIndent, highlight?.groups[group.owner] ?? highlight?.elements[group.owner]);
   lines.push("");
   if (clusterEdgeOwners.has(group.owner)) {
     writeStatement(lines, clusterAnchorId(group.owner), {
@@ -199,20 +241,20 @@ function writeGroup(
   for (const child of group.elements) {
     const childGroup = groupByOwner.get(child);
     if (childGroup !== undefined) {
-      writeGroup(lines, result, graph, childGroup, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, contentIndent);
+      writeGroup(lines, result, graph, childGroup, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, contentIndent, highlight);
       continue;
     }
     const element = graph.elements[child];
     if (element !== undefined && !hidden.has(element.id)) {
       renderedElements.add(element.id);
-      writeElement(lines, result, graph, element, theme, contentIndent);
+      writeElement(lines, result, graph, element, theme, contentIndent, highlight);
     }
   }
   lines.push("");
   lines.push(`${indent}}`);
 }
 
-function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: RenderTheme, indent: string): void {
+function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: RenderTheme, indent: string, highlight?: DiffHighlight): void {
   const basePresentation = presentation(result, element.type);
   const resolvedPresentation = graph.externalElements.includes(element.id)
     ? externalizedPresentation(basePresentation, theme)
@@ -220,6 +262,7 @@ function writeElement(lines: string[], result: LinkProjectResult, graph: RenderG
   const properties = dotProperties(resolvedPresentation, theme, false);
   Object.assign(properties, section(resolvedPresentation, "graphviz"));
   applyAnnotations(properties, element.annotations ?? [], false);
+  applyDiffHighlight(properties, highlight?.elements[element.id], false);
   properties.id = nodeDomId(element.id);
   properties.label = htmlLabel(
     field(resolvedPresentation, "header", element) ?? fallbackName(element.id),
@@ -240,11 +283,13 @@ function writeEdge(
   edge: RenderGraphEdge,
   groupByOwner: ReadonlyMap<string, RenderGraphGroup>,
   theme: RenderTheme,
+  highlight?: DiffHighlight,
 ): void {
   const resolvedPresentation = presentation(result, edge.edge.type);
   const properties = dotProperties(resolvedPresentation, theme, true);
   Object.assign(properties, section(resolvedPresentation, "graphviz"));
   applyAnnotations(properties, edge.edge.annotations ?? [], true);
+  applyDiffHighlight(properties, highlight?.edges.get(edge), true);
   properties.id = edgeId(edge);
   properties.tooltip = "Go to declaration";
   properties.URL = declarationUrlForLocation(edge.edge.declaration)
@@ -270,6 +315,52 @@ function writeEdge(
     properties.lhead = clusterId(edge.target);
   }
   lines.push(`  ${quoted(source)} -> ${quoted(target)} [${formatProperties(properties)}]`);
+}
+
+function applyDiffHighlight(
+  properties: Record<string, string>,
+  status: DiagramDiffStatus | undefined,
+  edge: boolean,
+): void {
+  const colors = diffColors(status);
+  if (colors === undefined) return;
+  properties.color = colors.stroke;
+  properties.fontcolor = colors.text;
+  properties.penwidth = "2.5";
+  if (!edge) {
+    properties.fillcolor = colors.fill;
+    properties.style = appendStyle(properties.style, "filled");
+  }
+}
+
+function applyDiffHighlightToGroup(
+  lines: string[],
+  indent: string,
+  status: DiagramDiffStatus | undefined,
+): void {
+  const colors = diffColors(status);
+  if (colors === undefined) return;
+  lines.push(`${indent}color=${quoted(colors.stroke)}`);
+  lines.push(`${indent}fontcolor=${quoted(colors.text)}`);
+  lines.push(`${indent}penwidth="2.5"`);
+}
+
+function diffColors(status: DiagramDiffStatus | undefined): { readonly fill: string; readonly stroke: string; readonly text: string } | undefined {
+  switch (status) {
+    case "added": return { fill: "#c8e6c9", stroke: "#2e7d32", text: "#1b5e20" };
+    case "removed": return { fill: "#ffcdd2", stroke: "#c62828", text: "#7f0000" };
+    case "changed": return { fill: "#fff59d", stroke: "#f9a825", text: "#6d4c00" };
+    default: return undefined;
+  }
+}
+
+function appendStyle(value: string | undefined, style: string): string {
+  const styles = (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+  return [...new Set([...styles, style])].join(",");
+}
+
+function unionById<T extends { readonly id: string }>(before: readonly T[], after: readonly T[]): readonly T[] {
+  return [...new Map([...before, ...after].map((item) => [item.id, item])).values()];
 }
 
 function writeNote(lines: string[], id: string, targetId: string, note: string, url: string, indent: string): void {

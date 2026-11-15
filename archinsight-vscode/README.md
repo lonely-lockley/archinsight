@@ -43,6 +43,9 @@ system application
   `$tab`, `$context`, and user-parameter controls.
 - `Project Structure` tree for contexts, types, and declarations.
 - Click-to-source navigation from structure and rendered diagram items.
+- A `Diff` diagram quick action in Git workspaces. Choose two commits that
+  changed the active model file, then keep navigating, exporting, or isolating
+  the green/removed-red/changed-yellow union diagram.
 - A contextual Download menu for source and diagram formats, or JSON and CSV
   when an AIQ query returns a table.
 
@@ -66,6 +69,22 @@ structure, generate skills, and render diagrams.
 6. Use the play button or **Archinsight: Run AIQ Query** to rerun the active
    query after changing its text or parameters.
 7. Open `Project Structure` in Explorer to navigate declarations.
+
+### Reviewing diagram changes
+
+In a Git-backed workspace, select a diagram element, open its radial quick
+actions, and choose `Diff`. The picker lists commits that changed the active
+`.ai` source plus `HEAD`; choose explicit Before and After revisions and press
+Compare. Archinsight reads both complete projects from Git objects without
+checkout, runs the active view/query against both, and keeps the result as an
+interactive diagram. `Isolate` preserves diff colors and Back returns first to
+the full diff and then to the current diagram.
+
+The result also retains per-change source provenance and local Git blame
+metadata for later review UI. It does not read review dates, modify files, the
+index, or repository history. The action stays disabled when the workspace
+repository does not provide version history; file dirty/tracked state does not
+define that workspace capability.
 
 Useful commands are available from the Command Palette:
 

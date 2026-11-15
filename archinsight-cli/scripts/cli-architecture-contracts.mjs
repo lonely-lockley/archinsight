@@ -10,7 +10,7 @@ const entrypoint = source("index.ts");
 assert.doesNotMatch(entrypoint, /from ["'](?:node:|@insight\/language|@viz-js\/viz|archy)/);
 assert.doesNotMatch(entrypoint, /function run(?:Link|Render|Query|Structure|Environments|QuickAction|Skill)\b/);
 assert.doesNotMatch(entrypoint, /references\/|examples\/|mkdtemp|writeFile|ProjectAnalysisSession/);
-for (const command of ["runLink", "runRender", "runQuery", "runStructure", "runEnvironments", "runQuickAction", "runSkill"]) {
+for (const command of ["runLink", "runRender", "runDiff", "runQuery", "runStructure", "runEnvironments", "runQuickAction", "runSkill"]) {
   assert.match(entrypoint, new RegExp(`\\b${command}\\b`), `entrypoint must dispatch ${command}`);
 }
 

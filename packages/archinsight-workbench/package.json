@@ -18,6 +18,8 @@
     "./query-scope-state": "./src/query-scope-state.ts",
     "./query-scope-widgets": "./src/query-scope-widgets.ts",
     "./diagram-quick-actions": "./src/diagram-quick-actions.ts",
+    "./versioned-diagram-diff": "./src/versioned-diagram-diff.ts",
+    "./diagram-diff-picker": "./src/DiagramDiffRevisionPicker.svelte",
     "./find-path-actions": "./src/FindPathActions.svelte",
     "./table-result-panel": "./src/TableResultPanel.svelte",
     "./types": "./src/workspace-types.ts"

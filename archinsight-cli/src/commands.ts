@@ -2,16 +2,19 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   AiqQueryError,
+  diffRenderGraphs,
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
   diagramElementMetadata,
   diagramQuickActionMetadata,
   discoverDeploymentEnvironments,
+  renderDiagramDiffGraphviz,
   renderGraphviz,
   selectDeploymentGraph,
   selectIsolatedElementGraph,
   selectPathGraph,
   type DiagramElementQuickActionMetadata,
+  type DiagramDiff,
   type QueryParameterValue,
   type QueryResult,
   type RenderGraph,
@@ -43,16 +46,20 @@ import {
   writeOutput,
 } from "./cli-output.js";
 import {
+  analyzeProjectSources,
   declaredDeploymentEnvironments,
   formatDeploymentEnvironments,
   loadProject,
+  projectHasSource,
   projectPath,
   selectedGraph,
   selectedBuiltinViewScope,
   selectedQuery,
   selectedSource,
   type DeploymentEnvironmentEntry,
+  type LoadedProject,
 } from "./project-runtime.js";
+import { readGitProject } from "./git-project.js";
 import { installSkillPackage } from "./skill/skill-installer.js";
 import { skillPackage } from "./skill/skill-package.js";
 import { resolveRenderTheme } from "./system-theme.js";
@@ -117,6 +124,99 @@ export async function runRender(args: ParsedArgs): Promise<void> {
     process.stderr.write(renderFinishedLine(false, error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;
   }
+}
+
+export async function runDiff(args: ParsedArgs): Promise<void> {
+  const from = requiredOption(args.from, "--from");
+  const to = requiredOption(args.to, "--to");
+  const root = projectPath(args);
+  const [beforeRevision, afterRevision] = await Promise.all([
+    readGitProject(root, from),
+    readGitProject(root, to),
+  ]);
+  const before = analyzeProjectSources(beforeRevision.projectRoot, beforeRevision.sources);
+  const after = analyzeProjectSources(afterRevision.projectRoot, afterRevision.sources);
+  const diagnostics = [
+    ...before.diagnostics.map((diagnostic) => ({ ...diagnostic, sourceName: `${from}:${diagnostic.sourceName}` })),
+    ...after.diagnostics.map((diagnostic) => ({ ...diagnostic, sourceName: `${to}:${diagnostic.sourceName}` })),
+  ];
+  if (hasErrors(diagnostics)) {
+    process.stderr.write(formatDiagnostics(diagnostics));
+    process.exitCode = 1;
+    return;
+  }
+  const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE");
+  if (warnings.length > 0) process.stderr.write(formatDiagnostics(warnings));
+
+  const beforeGraph = await selectedRevisionGraph(before, args);
+  const afterGraph = await selectedRevisionGraph(after, args);
+  if (beforeGraph === undefined && afterGraph === undefined) {
+    throw new CliError("The selected source is absent from both revisions");
+  }
+  const emptyGraph = (context: string): RenderGraph => ({
+    context,
+    elements: {},
+    edges: [],
+    groups: [],
+    externalElements: [],
+  });
+  const diff = diffRenderGraphs(
+    beforeGraph ?? emptyGraph(afterGraph!.context),
+    afterGraph ?? emptyGraph(beforeGraph!.context),
+  );
+  const attributionResult = await beforeRevision.repository.attribute({
+    before: beforeRevision.revision,
+    after: afterRevision.revision,
+    origins: Object.fromEntries([
+      ...Object.values(diff.elements),
+      ...diff.edges,
+      ...Object.values(diff.groups),
+    ].filter((entry) => entry.status !== "unchanged").map((entry) => [entry.changeId, entry.origins])),
+  }, new AbortController().signal);
+  const attributedDiff = {
+    schemaVersion: "attributed-diagram-diff.v1" as const,
+    revisions: { before: beforeRevision.revision, after: afterRevision.revision },
+    diff,
+    ...attributionResult,
+  };
+  const dot = renderDiagramDiffGraphviz(before.result, after.result, diff, await resolveRenderTheme(args.theme));
+  const format = renderFormat(args.format, "dot");
+  if (format === "text") {
+    await writeOutput(args.output, formatDiagramDiff(diff, beforeRevision.revision, afterRevision.revision));
+  } else if (format === "dot") {
+    await writeOutput(args.output, dot);
+  } else if (format === "json") {
+    await writeOutput(args.output, JSON.stringify({
+      revisions: { from: beforeRevision.revision, to: afterRevision.revision },
+      diff,
+      attributedDiff,
+      dot,
+    }, null, 2));
+  } else {
+    const svg = await renderSvg(dot);
+    if (format === "svg") await writeOutput(args.output, svg);
+    else await writeBinaryOutput(args.output, renderPng(svg));
+  }
+  process.stderr.write(renderFinishedLine(true, "diagram diff rendered successfully"));
+}
+
+async function selectedRevisionGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph | undefined> {
+  if (project.sources.length === 0) return undefined;
+  if (args.tab !== undefined && !projectHasSource(project, args.tab)) return undefined;
+  return selectedGraph(project, args);
+}
+
+function formatDiagramDiff(diff: DiagramDiff, from: string, to: string): string {
+  const rows: string[][] = [
+    ["from", from],
+    ["to", to],
+    ["context", `${diff.beforeContext} -> ${diff.afterContext}`],
+  ];
+  for (const category of ["elements", "edges", "groups"] as const) {
+    const counts = diff.summary[category];
+    rows.push([category, `added=${counts.added}\tremoved=${counts.removed}\tchanged=${counts.changed}\tunchanged=${counts.unchanged}`]);
+  }
+  return `${rows.map((row) => row.join("\t")).join("\n")}\n`;
 }
 
 export async function runQuery(args: ParsedArgs): Promise<void> {

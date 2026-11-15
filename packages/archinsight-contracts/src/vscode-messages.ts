@@ -9,6 +9,7 @@ import {
   type QueryTableResult
 } from '@insight/language';
 import { ContractValidationError, array, boolean, number, record, string } from './validation.js';
+import type { DiagramDiffRevisionCatalogue } from './versioned-repository.js';
 
 const COMPLETION_KINDS = new Set<CompletionKind>([
   'KEYWORD', 'TYPE', 'CONSTRUCTOR', 'OPERATOR', 'ATTRIBUTE',
@@ -79,6 +80,26 @@ export type WebviewIsolateMode =
   | { status: 'idle' }
   | { status: 'showing-isolate'; elementId: string; elementTitle: string };
 
+export type WebviewDeploymentMode =
+  | { status: 'idle' }
+  | {
+      status: 'showing-deployment';
+      elementId: string;
+      elementTitle: string;
+      environment: string;
+      focusElementIds: readonly string[];
+    };
+
+export type WebviewDiagramDiffPickerState =
+  | { status: 'closed' }
+  | { status: 'loading'; source: string; elementId: string }
+  | { status: 'ready'; source: string; elementId: string; catalogue: DiagramDiffRevisionCatalogue; before?: string; after: string; validationError?: string }
+  | { status: 'error'; source: string; elementId: string; message: string };
+
+export type WebviewDiagramDiffMode =
+  | { status: 'idle' }
+  | { status: 'showing-diff'; before: string; after: string; beforeShort: string; afterShort: string; selectedElementId: string };
+
 export type ControlsWebviewToHostMessage =
   | { command: 'ready' }
   | { command: 'render'; view: BuiltinDiagramView; query: string }
@@ -103,28 +124,35 @@ export type WorkbenchWebviewToHostMessage =
   | { command: 'complete'; requestId: number; sourceName: string; source: string; cursorOffset: number }
   | { command: 'clipboardRead'; requestId: number }
   | { command: 'clipboardWrite'; text: string }
-  | { command: 'diagramQuickAction'; action: 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path'; elementId: string }
+  | { command: 'diagramQuickAction'; action: 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff'; elementId: string }
+  | { command: 'compareDiagramDiff'; before: string; after: string; elementId: string }
+  | { command: 'cancelDiagramDiffPicker' }
+  | { command: 'cancelDiagramDiff' }
   | { command: 'selectPathTarget'; elementId: string }
   | { command: 'reverseFindPath' }
   | { command: 'cancelFindPath' }
   | { command: 'cancelIsolate' }
+  | { command: 'cancelDeployment' }
   | { command: 'openDeclaration'; declaration: { source: string; line: number; column: number } };
 
 export type WorkbenchHostToWebviewMessage =
   | {
     command: 'source'; source: string; sourceName: string; fileName: string; view: BuiltinDiagramView; query: string;
     environment?: string; parameters?: Readonly<Record<string, QueryParameterValue>>; diagnostics?: WebviewDiagnostic[]; symbols?: LanguageSnapshot; readOnly?: boolean;
-    queries?: Readonly<Record<BuiltinDiagramView, string>>; queryScope?: WebviewQueryScopeState;
+    queries?: Readonly<Record<BuiltinDiagramView, string>>; queryScope?: WebviewQueryScopeState; versioningAvailable?: boolean;
   }
   | { command: 'query'; view: BuiltinDiagramView; query: string; environment?: string; parameters?: Readonly<Record<string, QueryParameterValue>> }
   | { command: 'preview'; state: WebviewPreviewState }
   | { command: 'diagnostics'; diagnostics: WebviewDiagnostic[] }
-  | { command: 'queryScope'; state: WebviewQueryScopeState }
+  | { command: 'queryScope'; state: WebviewQueryScopeState; versioningAvailable?: boolean }
   | { command: 'completionResult'; requestId: number; items: WebviewCompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
   | { command: 'clipboardText'; requestId: number; text: string }
   | { command: 'exportPng'; svg: string }
   | { command: 'findPathMode'; state: WebviewFindPathMode }
   | { command: 'isolateMode'; state: WebviewIsolateMode }
+  | { command: 'deploymentMode'; state: WebviewDeploymentMode }
+  | { command: 'diagramDiffPicker'; state: WebviewDiagramDiffPickerState }
+  | { command: 'diagramDiffMode'; state: WebviewDiagramDiffMode }
   | { command: 'reveal'; line: number; column: number };
 
 export type PreviewWebviewToHostMessage = { command: 'ready' } | { command: 'png'; dataUrl: string };
@@ -162,7 +190,7 @@ export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWeb
   const input = commandRecord(value);
   switch (input.command) {
     case 'ready': case 'cancel': case 'selectDeploymentEnvironment': case 'refresh':
-    case 'reverseFindPath': case 'cancelFindPath': case 'cancelIsolate': return { command: input.command };
+    case 'reverseFindPath': case 'cancelFindPath': case 'cancelIsolate': case 'cancelDeployment': case 'cancelDiagramDiffPicker': case 'cancelDiagramDiff': return { command: input.command };
     case 'sourceChanged': return { command: 'sourceChanged', source: string(input.source, 'source') };
     case 'selectQueryScope': {
       const variable = string(input.variable, 'variable');
@@ -188,15 +216,21 @@ export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWeb
     case 'clipboardWrite': return { command: 'clipboardWrite', text: string(input.text, 'text') };
     case 'diagramQuickAction': {
       const action = string(input.action, 'action');
-      if (!['isolate', 'show-deployment', 'go-to-declaration', 'find-path'].includes(action)) {
+      if (!['isolate', 'show-deployment', 'go-to-declaration', 'find-path', 'diff'].includes(action)) {
         throw new ContractValidationError('diagram quick action is invalid');
       }
       return {
         command: 'diagramQuickAction',
-        action: action as 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path',
+        action: action as 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff',
         elementId: string(input.elementId, 'elementId')
       };
     }
+    case 'compareDiagramDiff': return {
+      command: 'compareDiagramDiff',
+      before: string(input.before, 'before'),
+      after: string(input.after, 'after'),
+      elementId: string(input.elementId, 'elementId')
+    };
     case 'selectPathTarget': return { command: 'selectPathTarget', elementId: string(input.elementId, 'elementId') };
     case 'openDeclaration': {
       const declaration = record(input.declaration, 'declaration');
@@ -221,7 +255,8 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
       ...(input.symbols === undefined ? {} : { symbols: input.symbols as LanguageSnapshot }),
       ...(input.readOnly === undefined ? {} : { readOnly: boolean(input.readOnly, 'readOnly') }),
       ...(input.queries === undefined ? {} : { queries: queryRecord(input.queries) }),
-      ...(input.queryScope === undefined ? {} : { queryScope: queryScopeState(input.queryScope) })
+      ...(input.queryScope === undefined ? {} : { queryScope: queryScopeState(input.queryScope) }),
+      ...(input.versioningAvailable === undefined ? {} : { versioningAvailable: boolean(input.versioningAvailable, 'versioningAvailable') })
     };
     case 'query': return {
       command: 'query', view: view(input.view), query: string(input.query, 'query'),
@@ -230,7 +265,10 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
     };
     case 'preview': return { command: 'preview', state: previewState(input.state) };
     case 'diagnostics': return { command: 'diagnostics', diagnostics: diagnostics(input.diagnostics, 'diagnostics') };
-    case 'queryScope': return { command: 'queryScope', state: queryScopeState(input.state) };
+    case 'queryScope': return {
+      command: 'queryScope', state: queryScopeState(input.state),
+      ...(input.versioningAvailable === undefined ? {} : { versioningAvailable: boolean(input.versioningAvailable, 'versioningAvailable') })
+    };
     case 'completionResult': return {
       command: 'completionResult', requestId: number(input.requestId, 'requestId'), items: completionItems(input.items),
       ...(input.replacementStartOffset === undefined ? {} : { replacementStartOffset: number(input.replacementStartOffset, 'replacementStartOffset') }),
@@ -240,6 +278,9 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
     case 'exportPng': return { command: 'exportPng', svg: string(input.svg, 'svg') };
     case 'findPathMode': return { command: 'findPathMode', state: findPathMode(input.state) };
     case 'isolateMode': return { command: 'isolateMode', state: isolateMode(input.state) };
+    case 'deploymentMode': return { command: 'deploymentMode', state: deploymentMode(input.state) };
+    case 'diagramDiffPicker': return { command: 'diagramDiffPicker', state: diagramDiffPickerState(input.state) };
+    case 'diagramDiffMode': return { command: 'diagramDiffMode', state: diagramDiffMode(input.state) };
     case 'reveal': return { command: 'reveal', line: number(input.line, 'line'), column: number(input.column, 'column') };
     default: throw unknownCommand(input.command);
   }
@@ -342,6 +383,84 @@ function isolateMode(value: unknown): WebviewIsolateMode {
     elementTitle: string(input.elementTitle, 'isolate mode.elementTitle')
   };
   throw new ContractValidationError('isolate mode status is invalid');
+}
+
+function deploymentMode(value: unknown): WebviewDeploymentMode {
+  const input = record(value, 'deployment mode');
+  const status = string(input.status, 'deployment mode.status');
+  if (status === 'idle') return { status };
+  if (status === 'showing-deployment') return {
+    status,
+    elementId: string(input.elementId, 'deployment mode.elementId'),
+    elementTitle: string(input.elementTitle, 'deployment mode.elementTitle'),
+    environment: string(input.environment, 'deployment mode.environment'),
+    focusElementIds: array(input.focusElementIds, 'deployment mode.focusElementIds')
+      .map((item, index) => string(item, `deployment mode.focusElementIds[${index}]`))
+  };
+  throw new ContractValidationError('deployment mode status is invalid');
+}
+
+function diagramDiffPickerState(value: unknown): WebviewDiagramDiffPickerState {
+  const input = record(value, 'diagram diff picker');
+  const status = string(input.status, 'diagram diff picker.status');
+  if (status === 'closed') return { status };
+  const source = string(input.source, 'diagram diff picker.source');
+  const elementId = string(input.elementId, 'diagram diff picker.elementId');
+  if (status === 'loading') return { status, source, elementId };
+  if (status === 'error') {
+    return { status, source, elementId, message: string(input.message, 'diagram diff picker.message') };
+  }
+  if (status !== 'ready') throw new ContractValidationError('diagram diff picker status is invalid');
+  return {
+    status,
+    source,
+    elementId,
+    catalogue: diagramDiffCatalogue(input.catalogue),
+    ...(input.before === undefined ? {} : { before: string(input.before, 'diagram diff picker.before') }),
+    after: string(input.after, 'diagram diff picker.after'),
+    ...(input.validationError === undefined ? {} : { validationError: string(input.validationError, 'diagram diff picker.validationError') })
+  };
+}
+
+function diagramDiffCatalogue(value: unknown): DiagramDiffRevisionCatalogue {
+  const input = record(value, 'diagram diff catalogue');
+  if (input.schemaVersion !== 'diagram-diff-revisions.v1') {
+    throw new ContractValidationError('diagram diff catalogue schema is invalid');
+  }
+  return {
+    schemaVersion: 'diagram-diff-revisions.v1',
+    workspaceIdentity: string(input.workspaceIdentity, 'diagram diff catalogue.workspaceIdentity'),
+    source: string(input.source, 'diagram diff catalogue.source'),
+    currentRevision: string(input.currentRevision, 'diagram diff catalogue.currentRevision'),
+    revisions: array(input.revisions, 'diagram diff catalogue.revisions').map((value, index) => {
+      const item = record(value, `diagram diff catalogue.revisions[${index}]`);
+      return {
+        id: string(item.id, 'revision.id'),
+        shortId: string(item.shortId, 'revision.shortId'),
+        actorName: string(item.actorName, 'revision.actorName'),
+        ...(item.actorEmail === undefined ? {} : { actorEmail: string(item.actorEmail, 'revision.actorEmail') }),
+        createdAt: string(item.createdAt, 'revision.createdAt'),
+        summary: string(item.summary, 'revision.summary'),
+        sourcePath: string(item.sourcePath, 'revision.sourcePath'),
+        current: boolean(item.current, 'revision.current')
+      };
+    })
+  };
+}
+
+function diagramDiffMode(value: unknown): WebviewDiagramDiffMode {
+  const input = record(value, 'diagram diff mode');
+  const status = string(input.status, 'diagram diff mode.status');
+  if (status === 'idle') return { status };
+  if (status !== 'showing-diff') throw new ContractValidationError('diagram diff mode status is invalid');
+  return {
+    status,
+    before: string(input.before, 'diagram diff mode.before'),
+    after: string(input.after, 'diagram diff mode.after'),
+    beforeShort: string(input.beforeShort, 'diagram diff mode.beforeShort'),
+    afterShort: string(input.afterShort, 'diagram diff mode.afterShort'),
+    selectedElementId: string(input.selectedElementId, 'diagram diff mode.selectedElementId')
+  };
 }
 
 function queryParameters(value: unknown): Readonly<Record<string, QueryParameterValue>> {

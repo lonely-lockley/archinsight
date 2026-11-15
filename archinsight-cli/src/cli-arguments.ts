@@ -9,7 +9,7 @@ import { CliError } from "./cli-error.js";
 import type { SkillTarget } from "./skill/skill-package.js";
 import { version } from "./version.js";
 
-export type Command = "link" | "render" | "query" | "structure" | "environments" | "quick-action" | "skill";
+export type Command = "link" | "render" | "diff" | "query" | "structure" | "environments" | "quick-action" | "skill";
 type SkillAction = "init";
 export type QuickAction = "isolate" | "deployment" | "find-path" | "declaration";
 export type OutputFormat = "text" | "json";
@@ -116,7 +116,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 }
 
 function validateOptionCombinations(args: ParsedArgs): void {
-  if ((args.command === "query" || args.command === "render")
+  if ((args.command === "query" || args.command === "render" || args.command === "diff")
       && args.view !== undefined && args.queryFile !== undefined) {
     throw new CliError(`Options '--view' and '--query' are mutually exclusive for command '${args.command}'`);
   }
@@ -156,7 +156,7 @@ function optionKey(arg: string): string | undefined {
 }
 
 function command(value: string | undefined): Command | undefined {
-  if (value === "link" || value === "render" || value === "query" || value === "structure"
+  if (value === "link" || value === "render" || value === "diff" || value === "query" || value === "structure"
       || value === "environments" || value === "quick-action" || value === "skill") {
     return value;
   }
@@ -273,6 +273,7 @@ export function helpText(): string {
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
   archinsight render [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f text|json|dot|svg|png] [-o file]
+  archinsight diff [project-dir] --from <commit> --to <commit> [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f text|json|dot|svg|png] [-o file]
   archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
@@ -301,8 +302,8 @@ Options:
   -o, --out <file>         Write output to file instead of stdout; for skill init, write the guide directory.
   -t, --theme <theme>      Render theme: system, light, or dark; default: system.
       --element <id>       Canonical element id for isolate, deployment, or declaration.
-      --from <id>          Find path source element id.
-      --to <id>            Find path target element id.
+      --from <value>       Source element for find-path, or earlier git revision for diff.
+      --to <value>         Target element for find-path, or later git revision for diff.
       --target <target>    Skill target: generic, codex, or claude.
       --force              Replace the complete generated skill directory.
   -V, --version            Print version.

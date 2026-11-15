@@ -9,6 +9,7 @@ import {
   cancelFindPath,
   idleFindPathMode,
   quickActionItems,
+  quickActionRadialOffsets,
   reverseFindPathResult,
   resolveFindPathTarget,
   retryFindPathTarget,
@@ -38,13 +39,37 @@ const metadata: DiagramQuickActionMetadata = {
 };
 
 describe('diagram quick action model', () => {
+  it('fans radial actions inward without moving their trigger anchor', () => {
+    const viewport = { left: 100, top: 50, right: 420, bottom: 250 };
+    const centered = quickActionRadialOffsets(5, { x: 240, y: 160 }, viewport);
+    expect(centered[0]).toEqual({ x: 0, y: -52 });
+
+    const rightEdge = quickActionRadialOffsets(5, { x: 410, y: 160 }, viewport);
+    expect(rightEdge.every((offset) => offset.x <= -20)).toBe(true);
+    expect(rightEdge[0]).toEqual({ x: -20, y: -52 });
+    expect(rightEdge[4]?.x).toBeCloseTo(-20);
+    expect(rightEdge[4]?.y).toBeCloseTo(52);
+
+    const topRightCorner = quickActionRadialOffsets(5, { x: 410, y: 60 }, viewport);
+    expect(topRightCorner.every((offset) => offset.x <= -19.999 && offset.y >= 19.999)).toBe(true);
+    expect(topRightCorner[0]?.x).toBeCloseTo(-112);
+    expect(topRightCorner[0]?.y).toBeCloseTo(20);
+    expect(topRightCorner[4]?.x).toBeCloseTo(-20);
+    expect(topRightCorner[4]?.y).toBeCloseTo(112);
+  });
+
   it('resolves visible enabled and disabled actions from semantic metadata', () => {
     expect(quickActionItems(metadata, 'shop/api')).toEqual([
       expect.objectContaining({ id: 'isolate', label: 'Isolate', enabled: true }),
       expect.objectContaining({ id: 'show-deployment', enabled: false, disabledReason: 'No deployment' }),
       expect.objectContaining({ id: 'go-to-declaration', enabled: true }),
-      expect.objectContaining({ id: 'find-path', enabled: true })
+      expect.objectContaining({ id: 'find-path', enabled: true }),
+      expect.objectContaining({ id: 'diff', enabled: false })
     ]);
+    expect(quickActionItems(metadata, 'shop/api').find((item) => item.id === 'diff'))
+      .not.toHaveProperty('disabledReason');
+    expect(quickActionItems(metadata, 'shop/api', { versioning: true }))
+      .toContainEqual(expect.objectContaining({ id: 'diff', enabled: true }));
     expect(quickActionItems(metadata, 'shop/api@@production')).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'isolate', enabled: true })])
     );

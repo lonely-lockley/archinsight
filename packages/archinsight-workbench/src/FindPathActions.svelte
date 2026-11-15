@@ -1,13 +1,16 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import type { DeploymentMode, FindPathMode, IsolateMode } from './diagram-quick-actions';
+  import type { DiagramDiffMode } from './versioned-diagram-diff';
 
   export let mode: FindPathMode = { status: 'idle' };
   export let isolateMode: IsolateMode = { status: 'idle' };
   export let deploymentMode: DeploymentMode = { status: 'idle' };
+  export let diffMode: DiagramDiffMode = { status: 'idle' };
   export let onCancel: () => void = () => {};
   export let onCancelIsolate: () => void = () => {};
   export let onCancelDeployment: () => void = () => {};
+  export let onCancelDiff: () => void = () => {};
   export let onReverse: () => void = () => {};
 
   onMount(() => window.addEventListener('keydown', handleKeydown, true));
@@ -15,24 +18,27 @@
 
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Escape'
-        || (mode.status === 'idle' && isolateMode.status === 'idle' && deploymentMode.status === 'idle')) return;
+        || (mode.status === 'idle' && isolateMode.status === 'idle' && deploymentMode.status === 'idle' && diffMode.status === 'idle')) return;
     if (document.querySelector('[data-diagram-quick-actions-menu]') !== null) return;
     event.preventDefault();
     event.stopPropagation();
     if (deploymentMode.status !== 'idle') onCancelDeployment();
     else if (isolateMode.status !== 'idle') onCancelIsolate();
+    else if (diffMode.status !== 'idle') onCancelDiff();
     else onCancel();
   }
 </script>
 
-{#if mode.status !== 'idle' || isolateMode.status !== 'idle' || deploymentMode.status !== 'idle'}
-  <div class="find-path-actions" aria-label={deploymentMode.status === 'showing-deployment' ? 'Deployment mode' : isolateMode.status === 'showing-isolate' ? 'Isolate mode' : 'Find path mode'}>
+{#if mode.status !== 'idle' || isolateMode.status !== 'idle' || deploymentMode.status !== 'idle' || diffMode.status !== 'idle'}
+  <div class="find-path-actions" aria-label={deploymentMode.status === 'showing-deployment' ? 'Deployment mode' : isolateMode.status === 'showing-isolate' ? 'Isolate mode' : diffMode.status === 'showing-diff' ? 'Diff mode' : 'Find path mode'}>
     <span class="source-dot" aria-hidden="true"></span>
     <span class="mode-status" role="status" aria-live="polite">
       {#if deploymentMode.status === 'showing-deployment'}
         Deployment: {deploymentMode.elementTitle} · {deploymentMode.environment}
       {:else if isolateMode.status === 'showing-isolate'}
         Isolated: {isolateMode.elementTitle}
+      {:else if diffMode.status === 'showing-diff'}
+        Diff: {diffMode.beforeShort} → {diffMode.afterShort}
       {:else if mode.status === 'selecting-target'}
         Find path: {mode.sourceTitle} → select target
       {:else if mode.status === 'resolving-path'}
@@ -55,11 +61,11 @@
     <button
       class="action back"
       type="button"
-      aria-label={mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' ? 'Back to diagram' : 'Cancel find path'}
-      title={mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' ? 'Back to diagram (Esc)' : 'Cancel find path (Esc)'}
-      on:click={deploymentMode.status === 'showing-deployment' ? onCancelDeployment : isolateMode.status === 'showing-isolate' ? onCancelIsolate : onCancel}
+      aria-label={mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' || diffMode.status === 'showing-diff' ? 'Back to diagram' : 'Cancel find path'}
+      title={mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' || diffMode.status === 'showing-diff' ? 'Back to diagram (Esc)' : 'Cancel find path (Esc)'}
+      on:click={deploymentMode.status === 'showing-deployment' ? onCancelDeployment : isolateMode.status === 'showing-isolate' ? onCancelIsolate : diffMode.status === 'showing-diff' ? onCancelDiff : onCancel}
     >
-      <span class={`codicon ${mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' ? 'codicon-arrow-left' : 'codicon-close'}`} aria-hidden="true"></span>
+      <span class={`codicon ${mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' || diffMode.status === 'showing-diff' ? 'codicon-arrow-left' : 'codicon-close'}`} aria-hidden="true"></span>
     </button>
   </div>
 {/if}

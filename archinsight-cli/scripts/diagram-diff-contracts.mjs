@@ -1,0 +1,139 @@
+import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+const root = mkdtempSync(path.join(os.tmpdir(), "archinsight-diagram-diff-"));
+const project = path.join(root, "model");
+const cli = path.resolve("build/index.js");
+
+try {
+  mkdirSync(project);
+  git("init", "-q");
+  write(`context sample
+
+system a
+    name = Service A
+
+system b
+    name = Service B
+    links:
+        -> a
+            technology = HTTP
+`);
+  mkdirSync(path.join(project, ".hidden"));
+  mkdirSync(path.join(project, "node_modules"));
+  writeFileSync(path.join(project, ".hidden", "broken.ai"), "not valid Insight");
+  writeFileSync(path.join(project, "node_modules", "broken.ai"), "not valid Insight");
+  writeFileSync(path.join(project, "README.md"), "fixture");
+  git("add", ".");
+  git("-c", "user.name=Archinsight Test", "-c", "user.email=test@archinsight.invalid", "commit", "-q", "-m", "before");
+  const before = git("rev-parse", "HEAD").stdout.trim();
+
+  write(`context sample
+
+system a
+    name = Service A renamed
+
+system b
+    name = Service B
+    links:
+        -> a
+            technology = gRPC
+
+system c
+    name = Service C
+    links:
+        -> a
+`);
+  git("add", "model/model.ai");
+  git("-c", "user.name=Archinsight Test", "-c", "user.email=test@archinsight.invalid", "commit", "-q", "-m", "after");
+  const after = git("rev-parse", "HEAD").stdout.trim();
+
+  const text = success("diff", project, "--from", before, "--to", after, "--view", "c1", "--format", "text");
+  assert.match(text.stdout, /elements\tadded=1\tremoved=0\tchanged=1\tunchanged=1/);
+  assert.match(text.stdout, /edges\tadded=1\tremoved=0\tchanged=1\tunchanged=0/);
+
+  const json = success("diff", project, "--from", before, "--to", after, "--view", "c1", "--format", "json");
+  const payload = JSON.parse(json.stdout);
+  assert.equal(payload.revisions.from, before);
+  assert.equal(payload.revisions.to, after);
+  assert.equal(payload.diff.schemaVersion, "diagram-diff.v1");
+  assert.equal(payload.diff.elements["sample/c"].status, "added");
+  assert.equal(payload.diff.elements["sample/a"].status, "changed");
+  assert.equal(payload.attributedDiff.schemaVersion, "attributed-diagram-diff.v1");
+  assert(payload.attributedDiff.attribution["element:sample/a"].some((item) =>
+    item.commits.some((commit) => commit.authorName === "Archinsight Test")
+  ), "changed elements must carry blame metadata");
+  assert(payload.diff.edges.some((entry) => entry.status === "added"
+    && entry.rendered.source === "sample/c" && entry.rendered.target === "sample/a"));
+
+  const dot = success("diff", project, "--from", before, "--to", after, "--view", "c1");
+  assert.match(dot.stdout, /#c8e6c9/);
+  assert.match(dot.stdout, /#fff59d/);
+  assert.match(dot.stdout, /#2e7d32/);
+  assert.match(dot.stdout, /#f9a825/);
+
+  const reverseDot = success("diff", project, "--from", after, "--to", before, "--view", "c1");
+  assert.match(reverseDot.stdout, /#ffcdd2/);
+  assert.match(reverseDot.stdout, /#c62828/);
+
+  const fileDiff = success("diff", path.join(project, "model.ai"), "--from", before, "--to", after, "--view", "c1", "--format", "text");
+  assert.match(fileDiff.stdout, /elements\tadded=1/);
+
+  const svg = success("diff", project, "--from", before, "--to", after, "--view", "c1", "--format", "svg");
+  assert.match(svg.stdout, /<svg\b/);
+  const png = path.join(root, "diff.png");
+  success("diff", project, "--from", before, "--to", after, "--view", "c1", "--format", "png", "--out", png);
+  assert.deepEqual([...readFileSync(png).subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+
+  failure("diff", project, "--to", after, "--view", "c1", /--from/);
+  failure("diff", project, "--from", "missing", "--to", after, "--view", "c1", /Needed a single revision|unknown revision|ambiguous argument/i);
+  failure("diff", path.join(root, "missing"), "--from", before, "--to", after, /Project path does not exist/);
+  failure("diff", project, "--from", before, "--to", after, "--source", "missing.ai", "--view", "c1", /absent from both revisions/);
+
+  write("context\n");
+  git("add", "model/model.ai");
+  git("-c", "user.name=Archinsight Test", "-c", "user.email=test@archinsight.invalid", "commit", "-q", "-m", "broken");
+  const broken = git("rev-parse", "HEAD").stdout.trim();
+  failure("diff", project, "--from", before, "--to", broken, "--view", "c1", /ERROR/);
+
+  rmSync(path.join(project, "model.ai"));
+  git("add", "-u", "model/model.ai");
+  git("-c", "user.name=Archinsight Test", "-c", "user.email=test@archinsight.invalid", "commit", "-q", "-m", "removed");
+  const removed = git("rev-parse", "HEAD").stdout.trim();
+  const removedDot = success("diff", project, "--from", after, "--to", removed, "--view", "c1");
+  assert.match(removedDot.stdout, /#ffcdd2/);
+  failure("diff", project, "--from", removed, "--to", removed, "--view", "c1", /absent from both revisions/);
+  console.log("CLI diagram diff contracts passed");
+} finally {
+  rmSync(root, { recursive: true, force: true });
+}
+
+function write(content) {
+  writeFileSync(path.join(project, "model.ai"), content);
+}
+
+function git(...args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  return result;
+}
+
+function run(...args) {
+  return spawnSync(process.execPath, [cli, ...args], { cwd: path.resolve(".."), encoding: "utf8" });
+}
+
+function success(...args) {
+  const result = run(...args);
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  return result;
+}
+
+function failure(...args) {
+  const pattern = args.pop();
+  const result = run(...args);
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, pattern);
+}

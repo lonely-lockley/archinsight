@@ -7,12 +7,17 @@
     type DiagramQuickActionMetadata
   } from '@insight/language';
   import {
+    quickActionRadialOffsets,
     quickActionItems,
     type DiagramQuickActionAnchor,
     type DiagramQuickActionId,
+    type DiagramQuickActionItem,
+    type DiagramQuickActionViewport,
     type FindPathMode
   } from './diagram-quick-actions';
   import DeploymentEnvironmentPicker from './DeploymentEnvironmentPicker.svelte';
+  import DiagramDiffRevisionPicker from './DiagramDiffRevisionPicker.svelte';
+  import type { DiagramDiffPickerState } from './versioned-diagram-diff';
 
   type MenuAnchor = { x: number; y: number };
 
@@ -28,14 +33,22 @@
   export let deploymentEnvironment: string | undefined = undefined;
   export let deploymentPickerOpen = false;
   export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
+  export let versioningAvailable = false;
+  export let diffPickerState: DiagramDiffPickerState = { status: 'closed' };
+  export let diffPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
   export let onCloseDeploymentPicker: () => void = () => {};
+  export let onSelectDiffRevision: (side: 'before' | 'after', revision: string) => void = () => {};
+  export let onCompareDiff: () => void = () => {};
+  export let onCloseDiffPicker: () => void = () => {};
   export let onAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
 
   let overlayHost: HTMLDivElement;
   let overlayWidth = '0px';
   let overlayHeight = '0px';
   let menuAnchor: MenuAnchor | undefined;
+  let openItemOffsets: readonly { readonly x: number; readonly y: number }[] = [];
+  let viewportBounds: DiagramQuickActionViewport | undefined;
   let openElementId: string | undefined;
   let resizeObserver: ResizeObserver | undefined;
   let mutationObserver: MutationObserver | undefined;
@@ -46,8 +59,12 @@
   const triggerButtons = new Map<string, HTMLButtonElement>();
 
   $: openElement = openElementId === undefined ? undefined : diagramElementMetadata(metadata, openElementId);
-  $: openItems = openElementId === undefined ? [] : quickActionItems(metadata, openElementId);
+  $: openItems = openElementId === undefined ? [] : quickActionItems(metadata, openElementId, { versioning: versioningAvailable });
   $: deploymentPickerStyle = pickerStyle(deploymentPickerAnchor);
+  $: diffPickerStyle = pickerStyle(diffPickerAnchor, 360);
+  $: openItemOffsets = menuAnchor === undefined || viewportBounds === undefined
+    ? []
+    : quickActionRadialOffsets(openItems.length, menuAnchor, viewportBounds);
   $: {
     void metadata;
     void findPathMode;
@@ -74,6 +91,7 @@
     window.removeEventListener('pointerdown', handleOutsidePointer, true);
     resizeObserver?.disconnect();
     mutationObserver?.disconnect();
+    observedPreviewPane?.removeEventListener('scroll', refreshLayout);
     removeTriggers();
   });
 
@@ -81,12 +99,14 @@
     const nextSvg = svgHost?.querySelector<SVGSVGElement>('svg') ?? undefined;
     if (observedPreviewPane === previewPane && observedSvgHost === svgHost && observedSvg === nextSvg) return;
 
+    observedPreviewPane?.removeEventListener('scroll', refreshLayout);
     observedPreviewPane = previewPane;
     observedSvgHost = svgHost;
     observedSvg = nextSvg;
 
     resizeObserver?.disconnect();
     if (previewPane instanceof Element) resizeObserver?.observe(previewPane);
+    previewPane?.addEventListener('scroll', refreshLayout, { passive: true });
     if (svgHost instanceof Element) resizeObserver?.observe(svgHost);
     if (nextSvg instanceof Element) resizeObserver?.observe(nextSvg);
 
@@ -202,7 +222,7 @@
     event.stopPropagation();
     const item = openItems.find((candidate) => candidate.id === action);
     if (item?.enabled !== true) return;
-    const anchor = action === 'show-deployment' ? actionAnchor(event.currentTarget) : undefined;
+    const anchor = action === 'show-deployment' || action === 'diff' ? actionAnchor(event.currentTarget) : undefined;
     closeMenu();
     if (anchor === undefined) onAction(action, elementId);
     else onAction(action, elementId, anchor);
@@ -220,17 +240,30 @@
     };
   }
 
-  function pickerStyle(anchor: DiagramQuickActionAnchor | undefined): string | undefined {
+  function pickerStyle(anchor: DiagramQuickActionAnchor | undefined, pickerWidth = 280): string | undefined {
     if (anchor === undefined) return undefined;
-    const pickerWidth = 280;
     const gap = 8;
     const margin = 8;
+    const viewport = viewportBounds ?? {
+      left: 0,
+      top: 0,
+      right: Number.parseFloat(overlayWidth),
+      bottom: Number.parseFloat(overlayHeight)
+    };
     let left = anchor.right + gap;
-    if (left + pickerWidth > Number.parseFloat(overlayWidth) - margin) {
+    if (left + pickerWidth > viewport.right - margin) {
       left = anchor.left - pickerWidth - gap;
     }
-    left = Math.max(margin, left);
-    return `left: ${left}px; top: ${Math.max(margin, anchor.top)}px;`;
+    const minimumLeft = viewport.left + margin;
+    const maximumLeft = Math.max(minimumLeft, viewport.right - margin - pickerWidth);
+    left = Math.min(maximumLeft, Math.max(minimumLeft, left));
+    return `left: ${left}px; top: ${Math.max(viewport.top + margin, anchor.top)}px;`;
+  }
+
+  function actionHint(item: DiagramQuickActionItem): string {
+    return item.enabled || item.disabledReason === undefined
+      ? item.label
+      : `${item.label}: ${item.disabledReason}`;
   }
 
   function anchorFor(button: HTMLButtonElement | undefined): MenuAnchor | undefined {
@@ -244,9 +277,28 @@
   }
 
   function refreshLayout(): void {
-    overlayWidth = `${Math.max(svgHost?.scrollWidth ?? 0, previewPane?.clientWidth ?? 0)}px`;
-    overlayHeight = `${Math.max(svgHost?.scrollHeight ?? 0, previewPane?.clientHeight ?? 0)}px`;
+    const width = Math.max(svgHost?.scrollWidth ?? 0, previewPane?.clientWidth ?? 0);
+    const height = Math.max(svgHost?.scrollHeight ?? 0, previewPane?.clientHeight ?? 0);
+    overlayWidth = `${width}px`;
+    overlayHeight = `${height}px`;
+    viewportBounds = visibleViewport(width, height);
     if (openElementId !== undefined) menuAnchor = anchorFor(triggerButtons.get(openElementId));
+  }
+
+  function visibleViewport(width: number, height: number): DiagramQuickActionViewport {
+    if (!(overlayHost instanceof Element) || !(previewPane instanceof Element)) {
+      return { left: 0, top: 0, right: width, bottom: height };
+    }
+    const overlayBox = overlayHost.getBoundingClientRect();
+    const previewBox = previewPane.getBoundingClientRect();
+    const left = Math.max(0, previewBox.left - overlayBox.left);
+    const top = Math.max(0, previewBox.top - overlayBox.top);
+    return {
+      left,
+      top,
+      right: Math.max(left, Math.min(width, previewBox.right - overlayBox.left)),
+      bottom: Math.max(top, Math.min(height, previewBox.bottom - overlayBox.top))
+    };
   }
 
   function handleKeydown(event: KeyboardEvent): void {
@@ -266,7 +318,9 @@
   bind:this={overlayHost}
   class="quick-actions-overlay"
   style={`width: ${overlayWidth}; height: ${overlayHeight};`}
-  aria-hidden={openElementId === undefined && !(deploymentPickerOpen && deploymentPickerAnchor !== undefined)}
+  aria-hidden={openElementId === undefined
+    && !(deploymentPickerOpen && deploymentPickerAnchor !== undefined)
+    && !(diffPickerState.status !== 'closed' && diffPickerAnchor !== undefined)}
 >
   {#if openElement !== undefined && menuAnchor !== undefined}
     <div
@@ -279,19 +333,30 @@
     >
       {#each openItems as item, index (item.id)}
         <button
-          class={`radial-item radial-item-${index}`}
+          class="radial-item"
+          style={`margin-left: ${openItemOffsets[index]?.x ?? 0}px; margin-top: ${openItemOffsets[index]?.y ?? 0}px;`}
           type="button"
           role="menuitem"
-          aria-label={item.enabled ? item.label : `${item.label}: ${item.disabledReason}`}
+          aria-label={actionHint(item)}
           aria-disabled={!item.enabled}
           on:click={(event) => execute(event, item.id, openElement.elementId)}
         >
           <span aria-hidden="true">{item.icon}</span>
           <span class="radial-label">
-            {item.enabled ? item.label : `${item.label}: ${item.disabledReason}`}
+            {actionHint(item)}
           </span>
         </button>
       {/each}
+    </div>
+  {/if}
+  {#if diffPickerState.status !== 'closed' && diffPickerAnchor !== undefined && diffPickerStyle !== undefined}
+    <div class="deployment-picker-position" style={diffPickerStyle}>
+      <DiagramDiffRevisionPicker
+        state={diffPickerState}
+        onSelect={onSelectDiffRevision}
+        onCompare={onCompareDiff}
+        onClose={onCloseDiffPicker}
+      />
     </div>
   {/if}
   {#if deploymentPickerOpen && deploymentPickerAnchor !== undefined && deploymentPickerStyle !== undefined}
@@ -381,11 +446,6 @@
     opacity: 0.38;
     cursor: not-allowed;
   }
-
-  .radial-item-0 { margin: -48px 0 0 0; }
-  .radial-item-1 { margin: 0 0 0 48px; }
-  .radial-item-2 { margin: 48px 0 0 0; }
-  .radial-item-3 { margin: 0 0 0 -48px; }
 
   .radial-label {
     position: absolute;

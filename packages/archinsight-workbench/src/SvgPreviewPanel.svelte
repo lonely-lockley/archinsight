@@ -10,6 +10,7 @@
   import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import { sanitizeSvg } from './svg-sanitizer';
   import type { SourceLocation } from './workspace-types';
+  import type { DiagramDiffPickerState } from './versioned-diagram-diff';
 
   export let svg: string | undefined;
   export let scale = 1;
@@ -24,8 +25,14 @@
   export let deploymentEnvironment: string | undefined = undefined;
   export let deploymentPickerOpen = false;
   export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
+  export let versioningAvailable = false;
+  export let diffPickerState: DiagramDiffPickerState = { status: 'closed' };
+  export let diffPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
   export let onCloseDeploymentPicker: () => void = () => {};
+  export let onSelectDiffRevision: (side: 'before' | 'after', revision: string) => void = () => {};
+  export let onCompareDiff: () => void = () => {};
+  export let onCloseDiffPicker: () => void = () => {};
   export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
   export let onSelectPathTarget: (elementId: string) => void = () => {};
 
@@ -286,8 +293,14 @@
     {deploymentEnvironment}
     {deploymentPickerOpen}
     {deploymentPickerAnchor}
+    {versioningAvailable}
+    {diffPickerState}
+    {diffPickerAnchor}
     {onSelectDeploymentEnvironment}
     {onCloseDeploymentPicker}
+    {onSelectDiffRevision}
+    {onCompareDiff}
+    {onCloseDiffPicker}
     onAction={onDiagramQuickAction}
   />
 </div>

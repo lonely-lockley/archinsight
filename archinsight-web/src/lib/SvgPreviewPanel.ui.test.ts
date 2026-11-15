@@ -121,6 +121,10 @@ describe('SvgPreviewPanel quick actions', () => {
     const deployment = target.querySelector<HTMLButtonElement>('button[aria-label^="Show deployment"]');
     expect(deployment?.getAttribute('aria-disabled')).toBe('true');
     expect(deployment?.hasAttribute('title')).toBe(false);
+    const diff = target.querySelector<HTMLButtonElement>('button[aria-label="Diff"]');
+    expect(diff?.getAttribute('aria-disabled')).toBe('true');
+    expect(diff?.textContent?.trim()).toBe('± Diff');
+    expect(target.textContent).not.toContain('Version history is unavailable');
     deployment?.focus();
     expect(document.activeElement).toBe(deployment);
     deployment?.click();
@@ -175,6 +179,49 @@ describe('SvgPreviewPanel quick actions', () => {
     dbGroup.querySelector('polygon')?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
     expect(onSelectPathTarget).toHaveBeenCalledWith('shop/db');
     expect(onOpenDeclaration).not.toHaveBeenCalled();
+
+    await unmount(component);
+  });
+
+  it('keeps the radial menu inside the visible viewport at an edge node', async () => {
+    Element.prototype.getBoundingClientRect = function () {
+      if (this instanceof HTMLButtonElement
+          && this.getAttribute('aria-label') === 'Quick actions for Database') {
+        return rect(304, 8, 16, 16);
+      }
+      return rect(0, 0, 320, 200);
+    };
+    const target = document.createElement('div');
+    document.body.append(target);
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: { svg, quickActionMetadata: metadata }
+    });
+    await settle();
+
+    const previewPane = target.querySelector<HTMLElement>('.preview-pane')!;
+    const svgHost = target.querySelector<HTMLElement>('.svg-host')!;
+    Object.defineProperties(previewPane, {
+      clientWidth: { configurable: true, value: 320 },
+      clientHeight: { configurable: true, value: 200 }
+    });
+    Object.defineProperties(svgHost, {
+      scrollWidth: { configurable: true, value: 320 },
+      scrollHeight: { configurable: true, value: 200 }
+    });
+    previewPane.dispatchEvent(new Event('scroll'));
+    target.querySelector<HTMLButtonElement>('button[aria-label="Quick actions for Database"]')?.click();
+    await tick();
+
+    const menu = target.querySelector<HTMLElement>('[data-diagram-quick-actions-menu]');
+    expect(menu?.style.left).toBe('312px');
+    expect(menu?.style.top).toBe('16px');
+    const itemCenters = [...target.querySelectorAll<HTMLElement>('.radial-item')].map((item) => ({
+      x: 312 + Number.parseFloat(item.style.marginLeft),
+      y: 16 + Number.parseFloat(item.style.marginTop)
+    }));
+    expect(itemCenters.every((center) => center.x >= 17 && center.x <= 303)).toBe(true);
+    expect(itemCenters.every((center) => center.y >= 17 && center.y <= 183)).toBe(true);
 
     await unmount(component);
   });

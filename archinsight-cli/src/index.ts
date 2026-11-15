@@ -4,6 +4,7 @@ import { helpText, parseArgs } from "./cli-arguments.js";
 import { CliError } from "./cli-error.js";
 import {
   runEnvironments,
+  runDiff,
   runLink,
   runQuery,
   runQuickAction,
@@ -30,6 +31,9 @@ async function main(): Promise<void> {
       return;
     case "render":
       await runRender(args);
+      return;
+    case "diff":
+      await runDiff(args);
       return;
     case "query":
       await runQuery(args);

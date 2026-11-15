@@ -368,6 +368,7 @@
   "devDependencies": {
     "@archinsight/contracts": "file:../packages/archinsight-contracts",
     "@archinsight/editor-support": "file:../packages/archinsight-editor-support",
+    "@archinsight/git": "file:../packages/archinsight-git",
     "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
     "@archinsight/workbench": "file:../packages/archinsight-workbench",
     "@insight/language": "file:../packages/insight-language",

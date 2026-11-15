@@ -48,12 +48,22 @@
   import { registerQueryCompletionProvider, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
   import { createQueryScopeWidgets } from '@archinsight/workbench/query-scope-widgets';
   import {
+    idleDeploymentMode,
     idleFindPathMode,
     idleIsolateMode,
+    type DeploymentMode,
     type DiagramQuickActionId,
+    type DiagramQuickActionAnchor,
     type FindPathMode,
     type IsolateMode
   } from '@archinsight/workbench/diagram-quick-actions';
+  import {
+    closedDiagramDiffPicker,
+    idleDiagramDiffMode,
+    selectDiagramDiffRevision,
+    type DiagramDiffMode,
+    type DiagramDiffPickerState
+  } from '@archinsight/workbench/versioned-diagram-diff';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
   import { renderThemeForBodyClasses } from '../theme';
 
@@ -124,6 +134,11 @@
   let quickActionMetadata: DiagramQuickActionMetadata = {};
   let findPathMode: FindPathMode = idleFindPathMode;
   let isolateMode: IsolateMode = idleIsolateMode;
+  let deploymentMode: DeploymentMode = idleDeploymentMode;
+  let versioningAvailable = false;
+  let diffPickerState: DiagramDiffPickerState = closedDiagramDiffPicker;
+  let diffPickerAnchor: DiagramQuickActionAnchor | undefined;
+  let diffMode: DiagramDiffMode = idleDiagramDiffMode;
 
   $: messages = panelMessages(diagnostics, renderError);
   $: workAreaStyle = 'grid-template-rows: minmax(0, 1fr);';
@@ -296,6 +311,9 @@
       currentSymbols = message.symbols;
       readOnly = message.readOnly ?? false;
       queryScope = message.queryScope ?? { enabled: false, sources: [], contexts: [] };
+      versioningAvailable = message.versioningAvailable ?? false;
+      diffPickerState = closedDiagramDiffPicker;
+      diffPickerAnchor = undefined;
       updateSymbols(currentSymbols);
       editor?.updateOptions({ readOnly });
       applySource(source);
@@ -333,6 +351,7 @@
     }
     if (message.command === 'queryScope') {
       queryScope = message.state;
+      versioningAvailable = message.versioningAvailable ?? versioningAvailable;
       queryScopeWidgets?.refresh();
       return;
     }
@@ -359,6 +378,18 @@
     }
     if (message.command === 'isolateMode') {
       isolateMode = message.state;
+      return;
+    }
+    if (message.command === 'deploymentMode') {
+      deploymentMode = message.state;
+      return;
+    }
+    if (message.command === 'diagramDiffPicker') {
+      diffPickerState = message.state;
+      return;
+    }
+    if (message.command === 'diagramDiffMode') {
+      diffMode = message.state;
       return;
     }
     if (message.command === 'reveal') {
@@ -647,8 +678,37 @@
     vscode.postMessage({ command: 'openDeclaration', declaration });
   }
 
-  function diagramQuickAction(action: DiagramQuickActionId, elementId: string): void {
+  function diagramQuickAction(action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor): void {
+    if (action === 'diff') {
+      diffPickerAnchor = anchor;
+      diffPickerState = { status: 'loading', source: sourceName, elementId };
+    }
     vscode.postMessage({ command: 'diagramQuickAction', action, elementId });
+  }
+
+  function selectDiffRevision(side: 'before' | 'after', revision: string): void {
+    diffPickerState = selectDiagramDiffRevision(diffPickerState, side, revision);
+  }
+
+  function compareDiff(): void {
+    if (diffPickerState.status !== 'ready' || diffPickerState.before === undefined) return;
+    vscode.postMessage({
+      command: 'compareDiagramDiff',
+      before: diffPickerState.before,
+      after: diffPickerState.after,
+      elementId: diffPickerState.elementId
+    });
+    diffPickerState = { status: 'loading', source: diffPickerState.source, elementId: diffPickerState.elementId };
+  }
+
+  function closeDiffPicker(): void {
+    vscode.postMessage({ command: 'cancelDiagramDiffPicker' });
+    diffPickerState = closedDiagramDiffPicker;
+    diffPickerAnchor = undefined;
+  }
+
+  function cancelDiff(): void {
+    vscode.postMessage({ command: 'cancelDiagramDiff' });
   }
 
   function selectPathTarget(elementId: string): void {
@@ -661,6 +721,10 @@
 
   function cancelIsolate(): void {
     vscode.postMessage({ command: 'cancelIsolate' });
+  }
+
+  function cancelDeployment(): void {
+    vscode.postMessage({ command: 'cancelDeployment' });
   }
 
   function reverseFindPath(): void {
@@ -781,6 +845,11 @@
   {quickActionMetadata}
   {findPathMode}
   {isolateMode}
+  {deploymentMode}
+  {versioningAvailable}
+  {diffPickerState}
+  {diffPickerAnchor}
+  {diffMode}
   {diagramMode}
   {deploymentEnvironment}
   {query}
@@ -818,6 +887,11 @@
   onSelectPathTarget={selectPathTarget}
   onCancelFindPath={cancelFindPath}
   onCancelIsolate={cancelIsolate}
+  onCancelDeployment={cancelDeployment}
+  onSelectDiffRevision={selectDiffRevision}
+  onCompareDiff={compareDiff}
+  onCloseDiffPicker={closeDiffPicker}
+  onCancelDiff={cancelDiff}
   onReverseFindPath={reverseFindPath}
   onBeginMessagesResize={() => {}}
 >

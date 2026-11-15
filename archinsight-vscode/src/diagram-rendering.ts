@@ -3,6 +3,7 @@ import {
   builtinViewDefinition,
   diagramQuickActionMetadata,
   discoverDeploymentEnvironments,
+  renderDiagramDiffGraphviz,
   executeQuery,
   renderGraphviz,
   type BuiltinDiagramView,
@@ -11,6 +12,7 @@ import {
   type QueryTableResult,
   type RenderGraph,
   type RenderTheme,
+  type DiagramDiff,
 } from "@insight/language";
 import type { DiagramPreviewState, DiagramQueryState } from "./diagram-session.js";
 import { makeGraphvizBackgroundsTransparent } from "./diagram-svg.js";
@@ -162,6 +164,46 @@ export async function buildQuickActionPreview(
       source: input.source,
       error: error instanceof Error ? error.message : String(error),
       quickActionMetadata: diagramQuickActionMetadata(input.current.result),
+    };
+  }
+}
+
+export async function buildDiagramDiffPreview(
+  input: DiagramRenderInput,
+  state: DiagramQueryState<DiagramView>,
+  before: LinkProjectResult,
+  after: LinkProjectResult,
+  diff: DiagramDiff,
+  renderingContext: DiagramRenderingContext,
+): Promise<PreviewState> {
+  try {
+    const dot = renderDiagramDiffGraphviz(before, after, diff, renderingContext.theme);
+    const svg = await renderSvg(dot);
+    return {
+      ...state,
+      contextId: diff.graph.context || '-',
+      sourceName: input.sourceName,
+      fileName: input.fileName,
+      source: input.source,
+      dot,
+      svg,
+      quickActionMetadata: {
+        ...diagramQuickActionMetadata(before),
+        ...diagramQuickActionMetadata(after),
+      },
+    };
+  } catch (error) {
+    return {
+      ...state,
+      contextId: diff.graph.context || '-',
+      sourceName: input.sourceName,
+      fileName: input.fileName,
+      source: input.source,
+      error: error instanceof Error ? error.message : String(error),
+      quickActionMetadata: {
+        ...diagramQuickActionMetadata(before),
+        ...diagramQuickActionMetadata(after),
+      },
     };
   }
 }

@@ -35,9 +35,13 @@ export async function loadProject(input: string): Promise<LoadedProject> {
   if (sources.length === 0) {
     throw new CliError(`No .ai sources found under '${input}'`);
   }
+  return analyzeProjectSources(root, sources);
+}
+
+export function analyzeProjectSources(root: string, sources: readonly ProjectSource[]): LoadedProject {
   const analysis = ProjectAnalysisSession.create(sources).analysis();
   return {
-    root,
+    root: path.resolve(root),
     sources,
     snapshot: analysis.snapshotBuild.snapshot,
     result: analysis.result,
@@ -174,6 +178,11 @@ async function readQueryFile(projectRoot: string, queryFile: string): Promise<st
 
 export function projectPath(args: ParsedArgs): string {
   return args.input ?? ".";
+}
+
+export function projectHasSource(project: LoadedProject, source: string): boolean {
+  const normalized = normalizeSourceName(project.root, source);
+  return project.sources.some((item) => item.sourceName === normalized);
 }
 
 export function selectedSource(

@@ -3,7 +3,7 @@
 Command-line interface for local Insight projects.
 
 The CLI scans `.ai` files recursively, builds the project language snapshot,
-links the full model, and then runs link, structure, query, render, or
+links the full model, and then runs link, structure, query, render, diff, or
 deterministic diagram quick-action commands.
 It embeds `@insight/language` directly and does not call the web app.
 
@@ -14,6 +14,7 @@ archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
 archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
 archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json|dot|svg|png] [-o file]
+archinsight diff [project-dir] --from <commit> --to <commit> [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json|dot|svg|png] [-o file]
 archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
 archinsight quick-action isolate [project-dir] --element <id> [-v <view>] [-s <source>] [-c <context>] [-f text|json|dot|svg|png] [-o file]
 archinsight quick-action deployment [project-dir] --element <id> [-e <environment>] [-f text|json|dot|svg|png] [-o file]
@@ -36,7 +37,8 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
 - `--element <id>` - canonical element id for Isolate, Deployment, or Go to
   declaration.
-- `--from <id>` and `--to <id>` - ordered source and target ids for Find path.
+- `--from <value>` and `--to <value>` - ordered source and target ids for Find
+  path, or the earlier and later git revisions for `diff`.
 - `-q, --query <file>` - custom query file; mutually exclusive with `--view`;
   relative paths are resolved from `project-dir`.
 - `--param <name=json>` - query parameter; repeat for multiple parameters.
@@ -63,11 +65,46 @@ Output formats follow the kind of result:
 | --- | --- |
 | `link`, `structure`, `environments` | `text`, `json` |
 | `query` | `text`, `json`, `csv` for tables; `text`, `json` for graphs |
-| `render`, every `quick-action` | `text`, `json`, `dot`, `svg`, `png` |
+| `render`, `diff`, every `quick-action` | `text`, `json`, `dot`, `svg`, `png` |
 
 Use `render --query <file.aiq>` when a graph-returning custom query must be
 exported as DOT, SVG, or PNG. Table-returning queries are data rather than
 diagrams and remain available through `query` as text, JSON, or CSV.
+
+## Visual Diff Between Git Revisions
+
+`diff` links the project independently at two commits, selects the same view in
+both models, and compares the resulting diagram graphs. This makes projected or
+rolled-up relationships visible at every place where the selected view changes,
+regardless of the source file that declared the underlying relationship.
+
+```shell
+archinsight diff . \
+  --from main~1 --to main \
+  --source models/storefront.ai --view c2 \
+  --format svg --out architecture-diff.svg
+```
+
+Added elements and relationships are green, removed ones are red, and changed
+ones are yellow. Unchanged graph content remains in its ordinary presentation.
+Element identity is its canonical linked id. Relationships are matched by their
+rendered endpoints and semantic content, so a source line shift alone does not
+create a false removal and addition.
+
+The default format is DOT. SVG and PNG produce a ready-to-view diagram; text
+prints counts by change kind. JSON returns `diagram-diff.v1` together with an
+`attributed-diagram-diff.v1` result: stable change ids, semantic source origins,
+Git blame commits/authors for changed entries, attribution diagnostics, both
+revisions, and the styled DOT source. Exact source ranges are used when the
+linked model provides them; otherwise attribution explicitly reports its
+declaration-level fallback. `project-dir` must be inside a git worktree, but the
+command reads both models directly from git objects and does not modify the
+working tree.
+
+A custom `--query` is evaluated unchanged against both revisions and is read
+from the current working tree. Use this when the comparison itself should stay
+fixed while the model moves between commits. As with `render`, `--query` and
+`--view` are mutually exclusive.
 
 ## Diagram Scope
 

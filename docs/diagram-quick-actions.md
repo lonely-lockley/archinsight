@@ -13,7 +13,8 @@ trigger opens a compact radial menu containing:
 - **Isolate**;
 - **Show deployment**;
 - **Go to declaration**;
-- **Find path**.
+- **Find path**;
+- **Diff**.
 
 An unavailable action remains visible and explains why it is disabled. The
 menu closes after an action, on an outside click, or with `Esc`. Its trigger and
@@ -29,7 +30,7 @@ SVG host safely; opening a new tab reconnects the controls.
 
 ## Temporary result modes
 
-Isolate, Find path, and web Show deployment use temporary results. Their mode
+Isolate, Find path, Diff, and web Show deployment use temporary results. Their mode
 control is appended to the end of the common toolbar and is hidden while no
 mode is active. `Esc` and the Back control restore the diagram captured before
 the first result in that mode.
@@ -41,6 +42,35 @@ result does not replace the original Back snapshot.
 
 These results are transient. They do not modify `.ai`, `.aiq`, or repository
 files and are not restored after a workspace reload.
+
+## Diff
+
+Diff is enabled by a versioning capability of the workspace repository, not by
+the tracked/dirty state of an individual file. The current VS Code adapter
+provides it for Git worktrees. The DB-backed web repository does not provide
+immutable revisions, so the same visible action remains disabled there.
+
+The selected element is only the entry point and retained focus. The picker
+uses the active `.ai` tab as its source, lists commits that changed that path
+plus `HEAD`, and requires explicit Before and After revisions. An untracked file
+therefore still has the action but normally has no historical pair and keeps
+Compare disabled.
+
+Both complete projects are read from repository objects without checkout. The
+active view or fixed custom query is evaluated against both snapshots, and the
+union diagram marks additions green, removals red, and semantic changes yellow.
+Changes in another file are included when they change the selected view.
+
+Every changed entry retains a stable change id, semantic source origins, and
+local Git blame commits/authors. Exact ranges are preferred; declaration-level
+fallback is recorded as an attribution diagnostic. This metadata is kept with
+the temporary result even though the first UI does not yet display it.
+
+The diagram remains interactive. Isolate filters the union rather than the
+After graph and preserves statuses and attribution; Back returns to the full
+diff, then to the ordinary diagram. DOT, SVG, and PNG export operate on the
+currently visible diff. Declaration navigation asks which compared revision to
+open when both contain the source.
 
 ## Isolate
 
@@ -163,11 +193,14 @@ derivations:
 - `selectIsolatedElementGraph`;
 - `selectDeploymentGraph`;
 - `selectPathGraph`.
+- `diffRenderGraphs` and `selectIsolatedDiagramDiff`.
 
 The workbench package owns the radial menu, mode state, toolbar controls, SVG
 highlighting, and accessible interaction. Host controllers own snapshots,
 tab ownership, environment selection, rendering, stale-result protection, and
-source navigation.
+source navigation. A common `VersionedRepository` port owns revision catalogue,
+immutable snapshot, pair validation, and attribution operations; Git is one
+Node adapter rather than a workbench dependency.
 
 The implemented contracts are covered by language graph tests, workbench
 component tests, web controller tests, VS Code tests, and the repository-wide
