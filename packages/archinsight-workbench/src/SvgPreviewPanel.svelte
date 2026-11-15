@@ -80,6 +80,7 @@
   onDestroy(() => {
     resizeObserver?.disconnect();
     clickHandlerHost?.removeEventListener('click', handleSvgClick);
+    clickHandlerHost?.removeEventListener('pointerdown', handleSvgPointerDown);
   });
 
   function reportVisibleScale(): void {
@@ -146,12 +147,30 @@
       return;
     }
     clickHandlerHost?.removeEventListener('click', handleSvgClick);
+    clickHandlerHost?.removeEventListener('pointerdown', handleSvgPointerDown);
     clickHandlerHost = svgHost;
     clickHandlerHost?.addEventListener('click', handleSvgClick);
+    clickHandlerHost?.addEventListener('pointerdown', handleSvgPointerDown);
+  }
+
+  function handleSvgPointerDown(event: PointerEvent): void {
+    if (event.button !== 0 || diagramBoundaryElementIdFromEvent(event) === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   function handleSvgClick(event: MouseEvent): void {
     if (event.button !== 0) return;
+    const boundaryElementId = diagramBoundaryElementIdFromEvent(event);
+    if (boundaryElementId !== undefined) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (findPathMode.status === 'idle') {
+        selectedElementId = selectedElementId === boundaryElementId ? undefined : boundaryElementId;
+        syncDiagramNodeState();
+      }
+      return;
+    }
     const elementId = diagramElementIdFromEvent(event);
     if (findPathMode.status === 'selecting-target' && elementId !== undefined) {
       event.preventDefault();
@@ -178,9 +197,7 @@
 
   function diagramElementIdFromEvent(event: MouseEvent): string | undefined {
     if (!(event.target instanceof Element)) return undefined;
-    const eventElements = event.composedPath()
-      .filter((candidate): candidate is Element => candidate instanceof Element);
-    const candidates = eventElements.length > 0 ? eventElements : ancestorElements(event.target);
+    const candidates = eventElements(event);
     for (const current of candidates) {
       if (current === svgHost) break;
       if (current instanceof SVGGElement && current.id.length > 0) {
@@ -194,6 +211,29 @@
       }
     }
     return undefined;
+  }
+
+  function diagramBoundaryElementIdFromEvent(event: Event): string | undefined {
+    for (const current of eventElements(event)) {
+      if (current === svgHost) break;
+      if (!(current instanceof SVGGElement) || current.id.length === 0) continue;
+      const identity = parseRenderIdentity(current.id);
+      if (identity === undefined) continue;
+      const elementId = identity.provenance[0];
+      return identity.kind === 'cluster'
+          && elementId !== undefined
+          && diagramElementMetadata(quickActionMetadata, elementId) !== undefined
+        ? elementId
+        : undefined;
+    }
+    return undefined;
+  }
+
+  function eventElements(event: Event): Element[] {
+    if (!(event.target instanceof Element)) return [];
+    const composed = event.composedPath()
+      .filter((candidate): candidate is Element => candidate instanceof Element);
+    return composed.length > 0 ? composed : ancestorElements(event.target);
   }
 
   function ancestorElements(target: Element): Element[] {

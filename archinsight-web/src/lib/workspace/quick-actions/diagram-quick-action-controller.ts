@@ -232,7 +232,7 @@ export function createDiagramQuickActionController(
         analysis,
         resolving.sourceId,
         resolving.targetId,
-        currentQuickActionScope(analysis),
+        resolving.scope ?? currentQuickActionScope(analysis),
         {
           sourceEnvironment: resolving.sourceEnvironment,
           targetEnvironment: resolving.targetEnvironment
@@ -291,7 +291,11 @@ export function createDiagramQuickActionController(
         }
         findPathOwnerTabId = ports.activeTab()?.id;
         findPathOwnerSourceIdentity = ports.activeTab()?.sourceIdentity;
-        ports.setFindPathMode(beginFindPath(metadata, currentPathEndpointEnvironment()));
+        ports.setFindPathMode(beginFindPath(
+          metadata,
+          currentPathEndpointEnvironment(),
+          currentQuickActionScope(analysis)
+        ));
         return;
       }
       if (action === 'isolate') {

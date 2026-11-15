@@ -339,16 +339,16 @@ assert.equal(
   true,
   "deployment elements come only from the selected endpoint environment",
 );
-const euPathSelectedFromAnotherTab = selectPathGraph(
+const euPathWithCapturedSourceScope = selectPathGraph(
   multiEnvironmentResult,
   "multi/source",
   "multi/target",
-  { context: "eu", tab: "multi-eu.ai", view: "deployment-container", environment: "eu" },
+  { context: "multi", tab: "multi-model.ai", view: "deployment-container", environment: "eu" },
   { targetEnvironment: "eu" },
 );
 assert(
-  euPathSelectedFromAnotherTab.edges.length > 0,
-  "an environment-scoped path remains rooted at its source when the target is selected from another tab",
+  euPathWithCapturedSourceScope.edges.length > 0,
+  "an environment-scoped path uses the scope captured when Find path started",
 );
 const mixedEnvironmentPath = selectPathGraph(
   multiEnvironmentResult,
@@ -409,6 +409,54 @@ assert.deepEqual(
   new Set(rolledUpPath.edges.map((edge) => `${edge.edge.source}->${edge.edge.target}`)),
   new Set(["demo/user->demo/ui", "demo/user->demo/oidc", "demo/oidc->demo/google"]),
   "rendered roll-up edges preserve their authored endpoint provenance",
+);
+const externalSourceResult = linkProject({
+  snapshot: coreLanguageSnapshot,
+  sources: [
+    source("app.ai", `
+context app
+
+import google from context identity
+import test from context tests
+
+system editor
+    name = Editor
+    service backend
+        name = Backend
+        component oidc
+            name = OIDC
+            links:
+                -> google from identity
+`),
+    source("identity.ai", `
+context identity
+
+external system google
+    name = Google Identity
+`),
+    source("tests.ai", `
+context tests
+
+import editor from context app
+
+external system test
+    name = Test System
+    links:
+        -> editor from app
+`),
+  ],
+});
+assertNoErrors(externalSourceResult.diagnostics);
+const externalSourcePath = selectPathGraph(
+  externalSourceResult,
+  "tests/test",
+  "identity/google",
+  { context: "app", tab: "app.ai", view: "c1" },
+);
+assert.deepEqual(
+  new Set(externalSourcePath.edges.map((edge) => `${edge.source}->${edge.target}`)),
+  new Set(["tests/test->app/editor", "app/editor->identity/google"]),
+  "Find path keeps the active view context when the source endpoint belongs to an external context",
 );
 const componentScalePath = selectPathGraph(
   rolledUpResult,

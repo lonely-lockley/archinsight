@@ -1611,7 +1611,11 @@ class ArchinsightWorkbenchEditorSession {
       if (metadata.pathEligible) {
         if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
         if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
-        await this.writeFindPathMode(beginFindPath(metadata, this.currentPathEndpointEnvironment()));
+        await this.writeFindPathMode(beginFindPath(
+          metadata,
+          this.currentPathEndpointEnvironment(),
+          this.quickActionScope(current),
+        ));
       }
       return;
     }
@@ -1956,7 +1960,7 @@ class ArchinsightWorkbenchEditorSession {
         latest.result,
         resolving.sourceId,
         resolving.targetId,
-        this.quickActionScope(latest),
+        resolving.scope ?? this.quickActionScope(latest),
         {
           sourceEnvironment: resolving.sourceEnvironment,
           targetEnvironment: resolving.targetEnvironment,

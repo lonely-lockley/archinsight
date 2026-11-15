@@ -207,8 +207,8 @@ export function selectPathGraph(
       : "deployment-container";
     const environmentGraph = selectGraph(result, {
       ...scope,
-      context: source.context,
-      tab: source.sourceIdentity,
+      context: scope?.context ?? source.context,
+      tab: scope?.tab ?? source.sourceIdentity,
       view: deploymentView,
       environment: pathEnvironment,
     }, BUILTIN_VIEW_QUERIES[deploymentView]);
@@ -218,8 +218,8 @@ export function selectPathGraph(
   if (scope?.view !== undefined && scopedViewQuery !== undefined) {
     const viewGraph = selectGraph(result, {
       ...scope,
-      context: source.context,
-      tab: source.sourceIdentity,
+      context: scope.context ?? source.context,
+      tab: scope.tab ?? source.sourceIdentity,
     }, scopedViewQuery);
     const corridor = directedPathCorridor(viewGraph, sourceId, targetId);
     if (corridor !== undefined) return corridor;

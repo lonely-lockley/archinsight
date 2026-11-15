@@ -140,6 +140,35 @@ describe('SvgPreviewPanel quick actions', () => {
     await unmount(component);
   });
 
+  it('selects a boundary for presentation without exposing quick actions', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onOpenDeclaration = vi.fn();
+    const onDiagramQuickAction = vi.fn();
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: { svg, quickActionMetadata: metadata, onOpenDeclaration, onDiagramQuickAction }
+    });
+    await settle();
+
+    const boundary = target.querySelector<SVGGElement>(
+      `#${CSS.escape(`cluster_${renderIdentity('cluster', ['shop/storefront'])}`)}`
+    )!;
+    const polygon = boundary.querySelector('polygon')!;
+    polygon.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+    polygon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+
+    expect(boundary.classList.contains('archinsight-node-selected')).toBe(true);
+    expect(target.querySelector('button[aria-label="Quick actions for Storefront"]')).toBeNull();
+    expect(onOpenDeclaration).not.toHaveBeenCalled();
+    expect(onDiagramQuickAction).not.toHaveBeenCalled();
+
+    polygon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+    expect(boundary.classList.contains('archinsight-node-selected')).toBe(false);
+
+    await unmount(component);
+  });
+
   it('selects a compatible target and gives an open menu priority on Escape', async () => {
     const target = document.createElement('div');
     document.body.append(target);
@@ -173,8 +202,16 @@ describe('SvgPreviewPanel quick actions', () => {
     await tick();
     expect(target.querySelector('[role="menu"]')).toBeNull();
 
-    storefrontBoundary.querySelector('polygon')?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+    const boundary = storefrontBoundary.querySelector('polygon')!;
+    const boundaryPointer = new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 });
+    const boundaryClick = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    boundary.dispatchEvent(boundaryPointer);
+    boundary.dispatchEvent(boundaryClick);
+    expect(boundaryPointer.defaultPrevented).toBe(true);
+    expect(boundaryClick.defaultPrevented).toBe(true);
     expect(onSelectPathTarget).not.toHaveBeenCalled();
+    expect(onOpenDeclaration).not.toHaveBeenCalled();
+    expect(storefrontBoundary.classList.contains('archinsight-node-selected')).toBe(false);
 
     dbGroup.querySelector('polygon')?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
     expect(onSelectPathTarget).toHaveBeenCalledWith('shop/db');

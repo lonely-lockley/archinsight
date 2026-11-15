@@ -1,6 +1,7 @@
 import type {
   DiagramElementQuickActionMetadata,
-  DiagramQuickActionMetadata
+  DiagramQuickActionMetadata,
+  QueryScope
 } from '@insight/language';
 
 export type DiagramQuickActionId = 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff';
@@ -86,6 +87,7 @@ export type FindPathMode =
       readonly sourceId: string;
       readonly sourceTitle: string;
       readonly sourceEnvironment?: string;
+      readonly scope?: QueryScope;
     }
   | {
       readonly status: 'resolving-path';
@@ -95,6 +97,7 @@ export type FindPathMode =
       readonly targetId: string;
       readonly targetTitle: string;
       readonly targetEnvironment?: string;
+      readonly scope?: QueryScope;
     }
   | {
       readonly status: 'showing-path';
@@ -104,6 +107,7 @@ export type FindPathMode =
       readonly targetId: string;
       readonly targetTitle: string;
       readonly targetEnvironment?: string;
+      readonly scope?: QueryScope;
     };
 
 export const idleFindPathMode: FindPathMode = { status: 'idle' };
@@ -166,13 +170,15 @@ export function cancelFindPath(_mode: FindPathMode): FindPathMode {
 
 export function beginFindPath(
   metadata: DiagramElementQuickActionMetadata,
-  environment?: string
+  environment?: string,
+  scope?: QueryScope
 ): FindPathMode {
   return {
     status: 'selecting-target',
     sourceId: metadata.canonicalElementId,
     sourceTitle: metadata.title,
-    ...(environment === undefined ? {} : { sourceEnvironment: environment })
+    ...(environment === undefined ? {} : { sourceEnvironment: environment }),
+    ...(scope === undefined ? {} : { scope })
   };
 }
 
@@ -188,6 +194,7 @@ export function resolveFindPathTarget(
     sourceId: mode.sourceId,
     sourceTitle: mode.sourceTitle,
     ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment }),
+    ...(mode.scope === undefined ? {} : { scope: mode.scope }),
     targetId: metadata.canonicalElementId,
     targetTitle: metadata.title,
     ...(environment === undefined ? {} : { targetEnvironment: environment })
@@ -207,7 +214,8 @@ export function reverseFindPathResult(mode: FindPathMode): FindPathMode {
     ...(mode.targetEnvironment === undefined ? {} : { sourceEnvironment: mode.targetEnvironment }),
     targetId: mode.sourceId,
     targetTitle: mode.sourceTitle,
-    ...(mode.sourceEnvironment === undefined ? {} : { targetEnvironment: mode.sourceEnvironment })
+    ...(mode.sourceEnvironment === undefined ? {} : { targetEnvironment: mode.sourceEnvironment }),
+    ...(mode.scope === undefined ? {} : { scope: mode.scope })
   };
 }
 
@@ -217,7 +225,8 @@ export function retryFindPathTarget(mode: FindPathMode): FindPathMode {
         status: 'selecting-target',
         sourceId: mode.sourceId,
         sourceTitle: mode.sourceTitle,
-        ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment })
+        ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment }),
+        ...(mode.scope === undefined ? {} : { scope: mode.scope })
       }
     : mode;
 }

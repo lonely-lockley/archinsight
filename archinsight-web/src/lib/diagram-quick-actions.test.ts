@@ -125,13 +125,20 @@ describe('diagram quick action model', () => {
   });
 
   it('keeps endpoint environments through resolve, reverse and retry', () => {
-    const selecting = beginFindPath(metadata['shop/api']!, 'eu');
+    const scope = {
+      context: 'shop',
+      tab: 'model.ai',
+      view: 'deployment-container',
+      environment: 'eu'
+    } as const;
+    const selecting = beginFindPath(metadata['shop/api']!, 'eu', scope);
     const resolving = resolveFindPathTarget(selecting, metadata['shop/db']!, 'us');
     expect(resolving).toEqual({
       status: 'resolving-path',
       sourceId: 'shop/api',
       sourceTitle: 'API',
       sourceEnvironment: 'eu',
+      scope,
       targetId: 'shop/db',
       targetTitle: 'Database',
       targetEnvironment: 'us'
@@ -143,13 +150,15 @@ describe('diagram quick action model', () => {
       sourceEnvironment: 'us',
       targetId: 'shop/api',
       targetTitle: 'API',
-      targetEnvironment: 'eu'
+      targetEnvironment: 'eu',
+      scope
     });
     expect(retryFindPathTarget(resolving)).toEqual({
       status: 'selecting-target',
       sourceId: 'shop/api',
       sourceTitle: 'API',
-      sourceEnvironment: 'eu'
+      sourceEnvironment: 'eu',
+      scope
     });
   });
 });
