@@ -320,11 +320,44 @@ function edgeSemanticFingerprint(edge: RenderGraphEdge): string {
 }
 
 function elementValue(element: LinkedElement): unknown {
-  return withoutKeys(element, new Set(["id", "context", "localId", "sourceIdentity", "declaration", "noteSource"]));
+  const value = withoutKeys(
+    element,
+    new Set(["id", "context", "localId", "sourceIdentity", "declaration", "noteSource", "annotations"]),
+  ) as Record<string, unknown>;
+  return element.annotations === undefined
+    ? value
+    : { ...value, annotations: semanticAnnotations(element.annotations) };
 }
 
 function edgeValue(edge: LinkedEdge): unknown {
-  return withoutKeys(edge, new Set(["id", "sourceIdentity", "declaration", "noteSource"]));
+  const value = withoutKeys(
+    edge,
+    new Set(["id", "sourceIdentity", "declaration", "noteSource", "annotations", "projectionOrigins"]),
+  ) as Record<string, unknown>;
+  return {
+    ...value,
+    ...(edge.annotations === undefined ? {} : { annotations: semanticAnnotations(edge.annotations) }),
+    ...(edge.projectionOrigins === undefined
+      ? {}
+      : {
+        projectionOrigins: edge.projectionOrigins
+          .map(({ source, target }) => ({ source, target }))
+          .sort((left, right) => stableValue(left).localeCompare(stableValue(right))),
+      }),
+  };
+}
+
+function semanticAnnotations(
+  annotations: NonNullable<LinkedElement["annotations"]>,
+): readonly unknown[] {
+  return annotations.map(annotationValue)
+    .sort((left, right) => stableValue(left).localeCompare(stableValue(right)));
+}
+
+function annotationValue(annotation: NonNullable<LinkedElement["annotations"]>[number]): unknown {
+  return annotation.value === undefined
+    ? { name: annotation.name }
+    : { name: annotation.name, value: annotation.value };
 }
 
 function groupValue(group: RenderGraphGroup): unknown {

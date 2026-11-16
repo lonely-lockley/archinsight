@@ -40,9 +40,11 @@ Return the focus occurrences, their direct physical neighbors, and retained
 archinsight quick-action deployment . --element <canonical-id> --environment <id> --format json
 ```
 
-The environment is optional when exactly one is relevant. If several are
-available, the command fails with their ids instead of choosing one
-arbitrarily.
+The environment is optional when exactly one D2 slice contains the selected
+element or one of its direct physical relationships. If several slices are
+relevant, the command fails with their ids instead of choosing one
+arbitrarily. Relevance is not the same as the element's execution placement:
+a cross-environment relationship can make the slice on either side relevant.
 
 ## Find Path
 
@@ -52,10 +54,16 @@ Return the union of all directed routes from source to target:
 archinsight quick-action find-path . --from <source-id> --to <target-id> --format json
 ```
 
-Add a built-in `--view` plus its scope options to preserve a particular C/D
-scale. Use `--environment <id>` to constrain a physical path to one deployment
-environment. A successful response with `pathFound: false` contains the two
-endpoints and no edge.
+Without `--view`, Find Path uses authored logical relationships only. Add a
+built-in `--view` plus its scope options to preserve a particular C/D scale.
+Use `--environment <id>` to select the source element's physical occurrence
+when it is deployed to more than one environment. Physical traversal uses the
+all-environment deployment graph, so a route can cross environment boundaries.
+In the diagram UI, the source and target occurrences retain the environments
+in which the user selected them.
+
+A successful response with `pathFound: false` contains the two endpoints and
+no edge.
 
 Source and target order is semantic. `--from A --to B` traverses only edges
 directed from A toward B. A path from B to A does not satisfy that request, and

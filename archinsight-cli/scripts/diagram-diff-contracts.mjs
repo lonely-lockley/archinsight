@@ -16,6 +16,7 @@ try {
 system a
     name = Service A
 
+@planned
 system b
     name = Service B
     links:
@@ -36,6 +37,7 @@ system b
 system a
     name = Service A renamed
 
+@planned
 system b
     name = Service B
     links:
@@ -96,8 +98,17 @@ system c
   failure("diff", path.join(root, "missing"), "--from", before, "--to", after, /Project path does not exist/);
   failure("diff", project, "--from", before, "--to", after, "--source", "missing.ai", "--view", "c1", /absent from both revisions/);
 
+  mkdirSync(path.join(project, "moved"));
+  git("mv", "model/model.ai", "model/moved/model.ai");
+  git("-c", "user.name=Archinsight Test", "-c", "user.email=test@archinsight.invalid", "commit", "-q", "-m", "move model file");
+  const moved = git("rev-parse", "HEAD").stdout.trim();
+  const movedOnly = success("diff", project, "--from", after, "--to", moved, "--view", "c1", "--format", "text");
+  assert.match(movedOnly.stdout, /elements\tadded=0\tremoved=0\tchanged=0\tunchanged=3/);
+  assert.match(movedOnly.stdout, /edges\tadded=0\tremoved=0\tchanged=0\tunchanged=2/);
+  git("mv", "model/moved/model.ai", "model/model.ai");
+
   write("context\n");
-  git("add", "model/model.ai");
+  git("add", "-A", "model");
   git("-c", "user.name=Archinsight Test", "-c", "user.email=test@archinsight.invalid", "commit", "-q", "-m", "broken");
   const broken = git("rev-parse", "HEAD").stdout.trim();
   failure("diff", project, "--from", before, "--to", broken, "--view", "c1", /ERROR/);

@@ -175,13 +175,29 @@ export function renderFinishedLine(success: boolean, message: string): string {
 }
 
 export function formatGraph(graph: RenderGraph): string {
-  return [
+  const summary = [
     `context\t${graph.context}`,
     `elements\t${Object.keys(graph.elements).length}`,
     `edges\t${graph.edges.length}`,
     `groups\t${graph.groups.length}`,
-    "",
-  ].join("\n");
+  ];
+  const elements = Object.keys(graph.elements).sort().map((id) => {
+    const element = graph.elements[id]!;
+    const title = element.attributes.name?.[0] ?? element.attributes.title?.[0] ?? "-";
+    return `element\t${textField(id)}\t${textField(element.type)}\t${textField(title)}`;
+  });
+  const edges = graph.edges.map((edge) => {
+    const technology = edge.edge.attributes.technology?.join(", ") ?? "-";
+    return `edge\t${textField(edge.source)} ${textField(edge.edge.operator)} ${textField(edge.target)}\t${textField(technology)}`;
+  });
+  const groups = graph.groups.map((group) =>
+    `group\t${textField(group.owner)}\t${group.elements.map(textField).join(", ")}`
+  );
+  return [...summary, ...elements, ...edges, ...groups, ""].join("\n");
+}
+
+function textField(value: string): string {
+  return value.replaceAll(/\s+/g, " ").trim();
 }
 
 export { formatQueryTableCsv, formatQueryTableText };

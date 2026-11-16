@@ -3,7 +3,7 @@ import type {
   DiagramDiffRevision,
   DiagramDiffRevisionCatalogue,
 } from '@archinsight/contracts';
-import type { DiagramElementQuickActionMetadata } from '@insight/language';
+import type { DiagramElementQuickActionMetadata, LinkProjectResult } from '@insight/language';
 
 export type DiagramDiffPickerState =
   | { readonly status: 'closed' }
@@ -47,6 +47,47 @@ export function diagramDiffDeclarationSource(
 ): string | undefined {
   const source = metadata.declaration?.sourceName;
   return source?.toLowerCase().endsWith('.ai') === true ? source : undefined;
+}
+
+/**
+ * Resolves the same model source after a repository-only file move. Source
+ * paths are provenance; stable tab roots and context ids carry model identity.
+ */
+export function correspondingRevisionSource(
+  current: Pick<LinkProjectResult, 'tabRoots' | 'contexts'>,
+  revision: Pick<LinkProjectResult, 'tabRoots' | 'contexts'>,
+  currentSource: string,
+): string | undefined {
+  if (revision.tabRoots[currentSource] !== undefined
+      || revision.contexts.some((context) => context.sourceIdentity === currentSource)) {
+    return currentSource;
+  }
+
+  const currentRoots = new Set(current.tabRoots[currentSource] ?? []);
+  if (currentRoots.size > 0) {
+    const candidates = Object.entries(revision.tabRoots)
+      .map(([source, roots]) => ({
+        source,
+        overlap: roots.filter((root) => currentRoots.has(root)).length,
+        distance: new Set([...currentRoots, ...roots]).size,
+      }))
+      .filter((candidate) => candidate.overlap > 0)
+      .sort((left, right) => right.overlap - left.overlap || left.distance - right.distance || left.source.localeCompare(right.source));
+    const best = candidates[0];
+    const next = candidates[1];
+    if (best !== undefined
+        && (next === undefined || best.overlap !== next.overlap || best.distance !== next.distance)) {
+      return best.source;
+    }
+  }
+
+  const contextIds = current.contexts
+    .filter((context) => context.sourceIdentity === currentSource)
+    .map((context) => context.id);
+  const contextSources = [...new Set(revision.contexts
+    .filter((context) => contextIds.includes(context.id))
+    .map((context) => context.sourceIdentity))];
+  return contextSources.length === 1 ? contextSources[0] : undefined;
 }
 
 export function readyDiagramDiffPicker(

@@ -1,6 +1,7 @@
 import {
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
+  diagramElementOccurrenceEnvironment,
   diagramElementMetadata,
   diagramQuickActionMetadata,
   selectDeploymentGraph,
@@ -56,7 +57,13 @@ export class DiagramQuickActionService {
 
   beginFindPath(elementId: string, scope: QueryScope, environment?: string): FindPathMode | undefined {
     const metadata = this.metadata(elementId);
-    return metadata?.pathEligible === true ? beginFindPath(metadata, scope, environment) : undefined;
+    return metadata?.pathEligible === true
+      ? beginFindPath(
+          metadata,
+          scope,
+          diagramElementOccurrenceEnvironment(this.result, metadata.elementId, environment),
+        )
+      : undefined;
   }
 
   selectPathTarget(
@@ -66,7 +73,11 @@ export class DiagramQuickActionService {
   ): PreparedFindPath | undefined {
     const metadata = this.metadata(targetElementId);
     if (metadata === undefined) return undefined;
-    return this.preparePath(resolveFindPathTarget(mode, metadata, environment));
+    return this.preparePath(resolveFindPathTarget(
+      mode,
+      metadata,
+      diagramElementOccurrenceEnvironment(this.result, metadata.elementId, environment),
+    ));
   }
 
   reversePath(mode: FindPathMode): PreparedFindPath | undefined {

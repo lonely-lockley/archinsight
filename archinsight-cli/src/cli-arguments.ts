@@ -277,10 +277,10 @@ Usage:
   archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
-  archinsight quick-action isolate [project-dir] --element <id> [-s <source>] [-c <context>] [-v ${viewUsage}] [-f text|json|dot|svg|png] [-o file]
-  archinsight quick-action deployment [project-dir] --element <id> [-e <environment>] [-f text|json|dot|svg|png] [-o file]
-  archinsight quick-action find-path [project-dir] --from <id> --to <id> [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-f text|json|dot|svg|png] [-o file]
-  archinsight quick-action declaration [project-dir] --element <id> [-f text|json|dot|svg|png] [-o file]
+  archinsight quick-action isolate [project-dir] --element <id> [-s <source>] [-c <context>] [-v ${viewUsage}] [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
+  archinsight quick-action deployment [project-dir] --element <id> [-e <environment>] [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
+  archinsight quick-action find-path [project-dir] --from <id> --to <id> [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
+  archinsight quick-action declaration [project-dir] --element <id> [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
   archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir] [--force]
 
 Options:
