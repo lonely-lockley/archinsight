@@ -124,12 +124,6 @@ test('built-in views come from the canonical language catalogue', () => {
   assert.equal(extensionSource.includes('./generated/builtin-view-queries'), false);
 });
 
-test('project analysis lifecycle is owned by the language session', () => {
-  assert(extensionSource.includes('createProjectAnalysisSession'));
-  assert.equal(extensionSource.includes('service.buildSnapshot'), false);
-  assert.equal(extensionSource.includes('service.link('), false);
-});
-
 test('webview trust boundaries use the shared runtime message contracts', () => {
   assert(extensionSource.includes('parseControlsWebviewToHostMessage'));
   assert(extensionSource.includes('parseWorkbenchWebviewToHostMessage'));
@@ -163,13 +157,12 @@ test('AIQ custom editor initializes and renders the document query', () => {
   assert(workbenchSource.includes("return fileName.toLocaleLowerCase().endsWith('.aiq')"));
 });
 
-test('VS Code Monaco uses the same Insight themes as the web editor', () => {
-  assert(workbenchSource.includes("from '@archinsight/workbench/monaco-themes'"));
-  assert(workbenchSource.includes('defineInsightThemes(monaco)'));
-  assert(workbenchSource.includes('insightDarkTheme'));
-  assert(workbenchSource.includes('insightLightTheme'));
-  assert.equal(workbenchSource.includes('function insightTokenRules('), false);
-  assert.equal(workbenchSource.includes("'insight-vscode-dark'"), false);
+test('VS Code and Web share the Monaco runtime contract and dependency versions', () => {
+  const webManifest = json('../archinsight-web/package.json');
+  const workbenchManifest = json('../packages/archinsight-workbench/package.json');
+  assert.equal(manifest.devDependencies['monaco-editor'], webManifest.dependencies['monaco-editor']);
+  assert.equal(manifest.devDependencies.svelte, webManifest.dependencies.svelte);
+  assert.equal(workbenchManifest.exports['./monaco-session'], './src/monaco-session.ts');
 });
 
 test('active VS Code theme changes refresh graph previews without project relinking', () => {
@@ -180,6 +173,21 @@ test('active VS Code theme changes refresh graph previews without project relink
   assert.equal(extensionSource.includes('project.refresh("theme")'), false);
   assert(workbenchSource.includes('renderThemeForBodyClasses'));
   assert(controlsSource.includes('renderThemeForBodyClasses'));
+});
+
+test('versioned diff comparison is workspace-owned and reprojects across editor views', () => {
+  assert(extensionSource.includes('class ArchinsightWorkbenchEditorProvider'));
+  assert(extensionSource.includes('private diffSession: DiagramDiffSessionState | undefined;'));
+  assert(extensionSource.includes('private readonly readDiagramDiffSession: () => DiagramDiffSessionState | undefined'));
+  assert(extensionSource.includes('projectVersionedDiagramDiff(session'));
+  assert(extensionSource.includes('if (status === "rendered" && this.readDiagramDiffSession() !== undefined)'));
+  assert(extensionSource.includes('if (this.diffProjection?.session !== diffSession) await this.renderCurrentDiagramDiff();'));
+  assert(extensionSource.includes('void session.activateDiagramDiff()'));
+  assert.equal(extensionSource.includes('if (this.diffSession !== undefined) await this.clearDiagramDiffState()'), false);
+  assert.equal(extensionSource.includes('Open declaration from diagram diff'), false);
+  assert.equal(extensionSource.includes('Select the compared revision'), false);
+  assert(extensionSource.includes('if (!this.declarationNavigationAvailable()) return;'));
+  assert(extensionSource.includes('session.afterRevision === session.catalogue.currentRevision'));
 });
 
 function assertPath(relativePath) {

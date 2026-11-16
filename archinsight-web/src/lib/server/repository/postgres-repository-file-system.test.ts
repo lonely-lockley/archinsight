@@ -61,4 +61,19 @@ describe('PostgresRepositoryFileSystem persistence adapter', () => {
       database.queries.findIndex((query) => query.sql.startsWith('insert into public.file'))
     );
   });
+
+  it('loads all project sources with one bounded file query', async () => {
+    const database = new FakeRepositoryDatabase();
+    const fs = new PostgresRepositoryFileSystem(database);
+    await fs.createFolder(TEST_OWNER_ID, TEST_REPOSITORY_ID, { path: 'nested' });
+    await fs.save(TEST_OWNER_ID, TEST_REPOSITORY_ID, 'nested/second.ai', { content: 'context second' });
+    database.queries.length = 0;
+
+    await expect(fs.sources(TEST_OWNER_ID, TEST_REPOSITORY_ID)).resolves.toEqual(new Map([
+      ['archinsight.ai', 'context demo'],
+      ['nested/second.ai', 'context second']
+    ]));
+    expect(database.queries.filter((query) => query.sql.includes('from public.file'))).toHaveLength(1);
+    expect(database.queries).toHaveLength(2);
+  });
 });

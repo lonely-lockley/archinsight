@@ -1,11 +1,7 @@
-import { normalizeGraphvizSvgResult } from "@archinsight/graphviz";
 import {
   builtinViewDefinition,
   diagramQuickActionMetadata,
   discoverDeploymentEnvironments,
-  renderDiagramDiffGraphviz,
-  executeQuery,
-  renderGraphviz,
   type BuiltinDiagramView,
   type LanguageDiagnostic,
   type LinkProjectResult,
@@ -15,7 +11,11 @@ import {
   type DiagramDiff,
 } from "@insight/language";
 import type { DiagramPreviewState, DiagramQueryState } from "./diagram-session.js";
-import { makeGraphvizBackgroundsTransparent } from "./diagram-svg.js";
+import {
+  executeDiagramQueryInWorker,
+  renderDiagramDiffInWorker,
+  renderDiagramGraphInWorker,
+} from "./diagram-viz-worker-client.js";
 
 export type DiagramView = BuiltinDiagramView;
 
@@ -52,6 +52,7 @@ export async function buildDiagramPreview(
   input: DiagramRenderInput,
   state: DiagramQueryState<DiagramView>,
   context: DiagramRenderingContext,
+  signal?: AbortSignal,
 ): Promise<PreviewState> {
   logQueryDiagnostics(input.current.diagnostics, context.log);
   if (input.blockOnLinkerErrors
@@ -67,13 +68,14 @@ export async function buildDiagramPreview(
       error: "Fix linker errors before rendering a diagram.",
     };
   }
-  return previewState(input, state, context);
+  return previewState(input, state, context, signal);
 }
 
 async function previewState(
   input: DiagramRenderInput,
   state: DiagramQueryState<DiagramView>,
   renderingContext: DiagramRenderingContext,
+  signal?: AbortSignal,
 ): Promise<PreviewState> {
   const { current, sourceName, source, fileName } = input;
   const { view, query, environment } = state;
@@ -88,12 +90,13 @@ async function previewState(
         ? "No deployment environments are relevant to this source."
         : "Select an environment for the D2 view.");
     }
-    const result = executeQuery(current.result, {
+    const rendered = await executeDiagramQueryInWorker(current.result, {
       context,
       tab,
       view,
       ...(environment === undefined ? {} : { environment }),
-    }, query, state.parameters ?? {});
+    }, query, state.parameters ?? {}, renderingContext.theme, signal);
+    const result = rendered.result;
     if (result.kind === "table") {
       renderingContext.log(`INFO ${queryFinishedMessage((renderingContext.now?.() ?? performance.now()) - startedAt, result.metadata.rowCount)}`);
       return {
@@ -106,9 +109,8 @@ async function previewState(
         queryResult: result,
       };
     }
-    const graph = result.graph;
-    const dot = renderGraphviz(current.result, graph, renderingContext.theme);
-    const svg = await renderSvg(dot);
+    const dot = rendered.dot!;
+    const svg = rendered.svg!;
     renderingContext.log(`INFO ${queryFinishedMessage((renderingContext.now?.() ?? performance.now()) - startedAt)}`);
     return {
       ...state,
@@ -140,11 +142,13 @@ export async function buildQuickActionPreview(
   state: DiagramQueryState<DiagramView>,
   graph: RenderGraph,
   renderingContext: DiagramRenderingContext,
+  signal?: AbortSignal,
 ): Promise<PreviewState> {
   const contextId = graph.context || "-";
   try {
-    const dot = renderGraphviz(input.current.result, graph, renderingContext.theme);
-    const svg = await renderSvg(dot);
+    const { dot, svg } = await renderDiagramGraphInWorker(
+      input.current.result, graph, renderingContext.theme, signal
+    );
     return {
       ...state,
       contextId,
@@ -175,10 +179,12 @@ export async function buildDiagramDiffPreview(
   after: LinkProjectResult,
   diff: DiagramDiff,
   renderingContext: DiagramRenderingContext,
+  signal?: AbortSignal,
 ): Promise<PreviewState> {
   try {
-    const dot = renderDiagramDiffGraphviz(before, after, diff, renderingContext.theme);
-    const svg = await renderSvg(dot);
+    const { dot, svg } = await renderDiagramDiffInWorker(
+      before, after, diff, renderingContext.theme, signal
+    );
     return {
       ...state,
       contextId: diff.graph.context || '-',
@@ -223,16 +229,6 @@ function logQueryDiagnostics(
     const level = diagnostic.level ?? "ERROR";
     log(`${level} ${diagnostic.code}: ${diagnostic.message} (${diagnostic.sourceName}:${diagnostic.line}:${diagnostic.column + 1})`);
   }
-}
-
-async function renderSvg(dot: string): Promise<string> {
-  const { instance } = await import("@viz-js/viz");
-  const viz = await instance();
-  const result = normalizeGraphvizSvgResult(viz.render(dot, { format: "svg", engine: "dot" }));
-  if (result.status === "failure") {
-    throw new Error(result.error);
-  }
-  return makeGraphvizBackgroundsTransparent(result.svg);
 }
 
 function viewUsesEnvironment(view: DiagramView): boolean {

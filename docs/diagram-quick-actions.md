@@ -16,13 +16,19 @@ trigger opens a compact radial menu containing:
 - **Find path**;
 - **Diff**.
 
-An unavailable action remains visible and explains why it is disabled. The
+An unavailable action remains visible. Other actions may explain why they are
+disabled; Diff deliberately keeps the same short `Diff` label without adding
+repository-state details to its tooltip. The
 menu closes after an action, on an outside click, or with `Esc`. Its trigger and
 items are keyboard accessible. The trigger uses the tooltip rendered by the
 workbench; it deliberately has no native `title` tooltip.
 
 A plain click on a diagram element changes the ordinary selection only. It no
-longer opens the source file. Use **Go to declaration** for source navigation.
+longer opens the source file. Clicking a relationship arrow is inert and never
+opens its declaration. Use **Go to declaration** for element source navigation.
+Boundaries, including the C1 context boundary, participate in ordinary
+selection for presentation but expose no quick actions and remain inert in
+Find path target selection.
 
 Quick-action controls are attached to the current SVG after every render and
 are repositioned after SVG replacement or resize. Closing every tab removes the
@@ -30,15 +36,14 @@ SVG host safely; opening a new tab reconnects the controls.
 
 ## Temporary result modes
 
-Isolate, Find path, Diff, and web Show deployment use temporary results. Their mode
-control is appended to the end of the common toolbar and is hidden while no
-mode is active. `Esc` and the Back control restore the diagram captured before
-the first result in that mode.
+Isolate, Find path, Diff, and web Show deployment use temporary results. Their
+mode control is appended to the end of the common toolbar and is hidden while
+no mode is active. `Esc` and the Back control restore the preceding result.
 
-The result mode belongs to the tab where it started. Pressing C1-C4 or D1-D2 in
-that owner tab exits the mode before opening the selected view. The same view
-buttons in another tab do not reset it. Repeating an action while viewing its
-result does not replace the original Back snapshot.
+Isolate, Find path, and web Show deployment retain their existing action
+ownership rules. Diff is workspace-level: switching tabs, built-in views,
+queries, or deployment environments keeps the selected revision pair and
+reprojects both complete revision snapshots into the new representation.
 
 These results are transient. They do not modify `.ai`, `.aiq`, or repository
 files and are not restored after a workspace reload.
@@ -51,15 +56,16 @@ provides it for Git worktrees. The DB-backed web repository does not provide
 immutable revisions, so the same visible action remains disabled there.
 
 The selected element is only the entry point and retained focus. The picker
-uses the active `.ai` tab as its source, lists commits that changed that path
-plus `HEAD`, and requires explicit Before and After revisions. An untracked file
-therefore still has the action but normally has no historical pair and keeps
-Compare disabled.
+uses the file that declares that element, lists commits that changed that path
+plus `HEAD`, and requires explicit Before and After revisions. An untracked
+file therefore still has the action but normally has no historical pair and
+keeps Compare disabled.
 
-Both complete projects are read from repository objects without checkout. The
-active view or fixed custom query is evaluated against both snapshots, and the
-union diagram marks additions green, removals red, and semantic changes yellow.
-Changes in another file are included when they change the selected view.
+Both complete projects are read from repository objects without checkout and
+kept in one workspace comparison session. The current tab's view or custom
+query is evaluated against both snapshots whenever the representation changes.
+The union diagram marks additions green, removals red, and semantic changes
+yellow. Changes in another file are included when they change that projection.
 
 Every changed entry retains a stable change id, semantic source origins, and
 local Git blame commits/authors. Exact ranges are preferred; declaration-level
@@ -69,25 +75,32 @@ the temporary result even though the first UI does not yet display it.
 The diagram remains interactive. Isolate filters the union rather than the
 After graph and preserves statuses and attribution; Back returns to the full
 diff, then to the ordinary diagram. DOT, SVG, and PNG export operate on the
-currently visible diff. Declaration navigation asks which compared revision to
-open when both contain the source.
+currently visible diff. Declaration navigation opens the current workspace
+source only when its checked-out Git commit is one of the compared revisions.
+For a wholly historical pair it is disabled; Archinsight never checks out a
+revision for navigation.
 
 ## Isolate
 
-Isolate is available for logical elements. It keeps the active logical scale
-and renders:
+Isolate is available for every rendered model element. It rebuilds the active
+built-in view with its current environment, preserves the exact displayed
+occurrence selected by the user, and renders:
 
 - the selected focus element;
 - every directly incoming neighbor and edge;
 - every directly outgoing neighbor and edge;
 - no second-hop elements or edges between neighbors.
 
+An incident relationship is retained whenever it is visible in the active
+view. This includes authored logical relationships and projected deployment
+segments; clients do not apply a second edge-type eligibility rule.
+
 Architectural boundaries are omitted. Incoming and outgoing neighbors are
 placed on opposite sides of the focus. A bidirectional neighbor is duplicated
 as two presentation occurrences, one in each direction, while retaining one
 canonical semantic identity.
 
-The focus uses the ordinary green selection outline. The toolbar displays
+The focus uses the ordinary accent-colored selection glow. The toolbar displays
 `Isolated: <element>` and Back.
 
 ## Show deployment
@@ -112,7 +125,7 @@ Infrastructure endpoints and boundaries are not part of the focus.
 A C1 or C2 boundary may not materialize as a node in D2. In that case the focus
 is its displayed deployed descendants. For example, showing deployment for a
 system can highlight its deployed frontend, backend, and renderer services.
-Every focus occurrence receives the ordinary green selection outline.
+Every focus occurrence receives the ordinary accent-colored selection glow.
 
 If one environment is relevant, it is selected automatically. With several
 environments:
@@ -128,8 +141,9 @@ Closing the picker changes nothing. Selecting an environment replaces the
 temporary result, while Back still returns to the diagram shown before the
 first Show deployment.
 
-VS Code currently publishes Show deployment as an ad-hoc diagram result rather
-than entering the web-specific Deployment toolbar mode.
+VS Code and web both enter the same Deployment result mode. The environment
+picker remains host-specific, while Back and view switching use the shared
+transient-result lifecycle.
 
 ## Go to declaration
 
@@ -164,7 +178,7 @@ valid graph edges. The active C/D view is used first so the result retains its
 scale rather than collapsing to C1 for a shorter derived route.
 
 The source is orange and the target has a distinct purple outline. The ordinary
-green selection outline is suppressed in a Find path result. The Reverse
+ordinary selection glow is suppressed in a Find path result. The Reverse
 button swaps source and target and recomputes the directed corridor without
 replacing the saved Back snapshot.
 
@@ -195,10 +209,11 @@ derivations:
 - `selectPathGraph`.
 - `diffRenderGraphs` and `selectIsolatedDiagramDiff`.
 
-The workbench package owns the radial menu, mode state, toolbar controls, SVG
-highlighting, and accessible interaction. Host controllers own snapshots,
-tab ownership, environment selection, rendering, stale-result protection, and
-source navigation. A common `VersionedRepository` port owns revision catalogue,
+The workbench package owns the radial menu, the shared quick-action service and
+coordinator, mode state, result ownership/baselines, toolbar controls, SVG
+highlighting, and accessible interaction. Host adapters own environment-picker
+presentation, rendering ports, persistence, and source navigation. A common
+`VersionedRepository` port owns revision catalogue,
 immutable snapshot, pair validation, and attribution operations; Git is one
 Node adapter rather than a workbench dependency.
 

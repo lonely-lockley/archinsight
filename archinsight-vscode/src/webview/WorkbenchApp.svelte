@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+  import type * as Monaco from 'monaco-editor/editor/editor.api';
   import {
     completeAiq,
     coreLanguageSnapshot,
+    diagramElementMetadata,
     queryVariableOccurrences,
     type BuiltinDiagramView,
     type DiagramQuickActionMetadata,
@@ -25,15 +26,12 @@
   } from '@archinsight/contracts';
   import WorkspaceEditor from '@archinsight/workbench/workspace-editor';
   import {
-    createInsightSemanticTokensProvider,
-    createInsightTokenVocabulary,
-    createInsightTokensProvider,
     refreshInsightTokenVocabulary,
     type InsightSemanticTokensProvider,
     type InsightTokenVocabulary
   } from '@archinsight/workbench/monaco';
+  import { insightEditorOptions, registerInsightMonaco } from '@archinsight/workbench/monaco-session';
   import {
-    defineInsightThemes,
     insightDarkTheme,
     insightLightTheme
   } from '@archinsight/workbench/monaco-themes';
@@ -59,7 +57,9 @@
   } from '@archinsight/workbench/diagram-quick-actions';
   import {
     closedDiagramDiffPicker,
+    diagramDiffDeclarationSource,
     idleDiagramDiffMode,
+    diagramDiffDeclarationNavigationAvailable,
     selectDiagramDiffRevision,
     type DiagramDiffMode,
     type DiagramDiffPickerState
@@ -143,6 +143,7 @@
   $: messages = panelMessages(diagnostics, renderError);
   $: workAreaStyle = 'grid-template-rows: minmax(0, 1fr);';
   $: canDownloadDiagram = svg !== undefined && renderError === undefined;
+  $: declarationNavigationAvailable = diagramDiffDeclarationNavigationAvailable(diffMode);
 
   onMount(() => {
     window.addEventListener('message', handleMessage);
@@ -181,14 +182,10 @@
   }
 
   async function setupMonaco(): Promise<void> {
-    monaco = await import('monaco-editor/esm/vs/editor/editor.api');
-    tokenVocabulary = createInsightTokenVocabulary({ schemaVersion: 'webview-empty', types: [], constructors: [], operators: [], enums: [], presentations: [] });
-    if (!monaco.languages.getLanguages().some((language) => language.id === 'insight')) {
-      monaco.languages.register({ id: 'insight' });
-    }
-    monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
-    semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
-    monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);
+    monaco = await import('monaco-editor/editor/editor.api');
+    const registration = registerInsightMonaco(monaco, { schemaVersion: 'webview-empty', types: [], constructors: [], operators: [], enums: [], presentations: [] });
+    tokenVocabulary = registration.vocabulary;
+    semanticTokensProvider = registration.semanticTokensProvider;
     registerQueryLanguage(monaco);
     queryCompletionProvider = registerQueryCompletionProvider(monaco, (source, cursorOffset) => completeAiq({
       source,
@@ -196,31 +193,14 @@
       snapshot: currentSymbols,
       parameters: Object.keys(queryParameters)
     }));
-    defineInsightThemes(monaco);
     registerCompletionProvider(monaco);
     observeThemeChanges(monaco);
     await tick();
     model = monaco.editor.createModel(source, editorLanguage(), monaco.Uri.parse(`archinsight://tab/${sourceName || 'active.ai'}`));
     editor = monaco.editor.create(editorHost, {
+      ...insightEditorOptions,
       model,
       theme: editorTheme(),
-      automaticLayout: true,
-      minimap: { enabled: true },
-      autoIndent: 'full',
-      suggest: {
-        showWords: false
-      },
-      fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace',
-      fontSize: 12,
-      tabSize: 4,
-      insertSpaces: true,
-      hover: { enabled: true },
-      fixedOverflowWidgets: true,
-      occurrencesHighlight: 'off',
-      selectionHighlight: false,
-      renderValidationDecorations: 'on',
-      'semanticHighlighting.enabled': true,
-      scrollBeyondLastLine: false
     });
     editor.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.Space, () => {
       editor?.trigger('keyboard', 'editor.action.triggerSuggest', {});
@@ -675,13 +655,20 @@
   }
 
   function openDeclaration(declaration: SourceLocation): void {
+    if (!declarationNavigationAvailable) return;
     vscode.postMessage({ command: 'openDeclaration', declaration });
   }
 
-  function diagramQuickAction(action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor): void {
+  function diagramQuickAction(
+    action: DiagramQuickActionId,
+    elementId: string,
+    anchor: DiagramQuickActionAnchor | undefined = undefined
+  ): void {
     if (action === 'diff') {
       diffPickerAnchor = anchor;
-      diffPickerState = { status: 'loading', source: sourceName, elementId };
+      const metadata = diagramElementMetadata(quickActionMetadata, elementId);
+      const source = metadata === undefined ? undefined : diagramDiffDeclarationSource(metadata);
+      if (source !== undefined) diffPickerState = { status: 'loading', source, elementId };
     }
     vscode.postMessage({ command: 'diagramQuickAction', action, elementId });
   }
@@ -847,6 +834,7 @@
   {isolateMode}
   {deploymentMode}
   {versioningAvailable}
+  {declarationNavigationAvailable}
   {diffPickerState}
   {diffPickerAnchor}
   {diffMode}

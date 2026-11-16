@@ -98,7 +98,15 @@ export type WebviewDiagramDiffPickerState =
 
 export type WebviewDiagramDiffMode =
   | { status: 'idle' }
-  | { status: 'showing-diff'; before: string; after: string; beforeShort: string; afterShort: string; selectedElementId: string };
+  | {
+      status: 'showing-diff';
+      before: string;
+      after: string;
+      beforeShort: string;
+      afterShort: string;
+      currentRevision: string;
+      selectedElementId: string;
+    };
 
 export type ControlsWebviewToHostMessage =
   | { command: 'ready' }
@@ -459,6 +467,7 @@ function diagramDiffMode(value: unknown): WebviewDiagramDiffMode {
     after: string(input.after, 'diagram diff mode.after'),
     beforeShort: string(input.beforeShort, 'diagram diff mode.beforeShort'),
     afterShort: string(input.afterShort, 'diagram diff mode.afterShort'),
+    currentRevision: string(input.currentRevision, 'diagram diff mode.currentRevision'),
     selectedElementId: string(input.selectedElementId, 'diagram diff mode.selectedElementId')
   };
 }

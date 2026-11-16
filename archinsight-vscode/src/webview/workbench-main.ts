@@ -1,7 +1,5 @@
-import 'monaco-editor/esm/vs/editor/editor.all.js';
-import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
-import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon-modifiers.css';
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import 'monaco-editor/editor/editor.all.js';
+import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import { mount } from 'svelte';
 import WorkbenchApp from './WorkbenchApp.svelte';
 import './workbench.css';

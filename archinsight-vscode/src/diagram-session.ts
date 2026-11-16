@@ -47,7 +47,7 @@ export interface DiagramSessionPorts<
     selected: string | undefined,
     forcePicker: boolean,
   ) => Promise<DiagramEnvironmentSelection>;
-  readonly buildPreview: (input: TInput, state: DiagramQueryState<TView>) => Promise<TState>;
+  readonly buildPreview: (input: TInput, state: DiagramQueryState<TView>, signal?: AbortSignal) => Promise<TState>;
   readonly publishPreview: (state: TState) => Promise<void>;
   readonly publishQuery?: (state: DiagramQueryState<TView>) => Promise<void>;
   readonly onQueryChanged?: (state: DiagramQueryState<TView>) => Promise<void>;
@@ -72,6 +72,7 @@ export class DiagramSession<
   private currentPreview: TState | undefined;
   private generation = 0;
   private disposed = false;
+  private renderAbort: AbortController | undefined;
   private pngResolve: ((value: Uint8Array) => void) | undefined;
   private pngReject: ((reason?: unknown) => void) | undefined;
 
@@ -93,11 +94,15 @@ export class DiagramSession<
 
   cancel(): void {
     this.generation++;
+    this.renderAbort?.abort();
+    this.renderAbort = undefined;
   }
 
   async publishAdHoc(state: TState): Promise<void> {
     if (this.disposed) return;
     this.generation++;
+    this.renderAbort?.abort();
+    this.renderAbort = undefined;
     this.currentPreview = state;
     await this.ports.publishPreview(state);
   }
@@ -195,6 +200,8 @@ export class DiagramSession<
     }
     this.disposed = true;
     this.generation++;
+    this.renderAbort?.abort();
+    this.renderAbort = undefined;
     this.pngReject?.(new Error(reason));
     this.clearPngRequest();
   }
@@ -243,10 +250,14 @@ export class DiagramSession<
     }
 
     const generation = ++this.generation;
-    const state = await this.ports.buildPreview(input, nextQuery);
+    this.renderAbort?.abort();
+    const renderAbort = new AbortController();
+    this.renderAbort = renderAbort;
+    const state = await this.ports.buildPreview(input, nextQuery, renderAbort.signal);
     if (this.disposed || generation !== this.generation) {
       return "stale";
     }
+    this.renderAbort = undefined;
     this.currentPreview = state;
     await this.ports.publishPreview(state);
     if (queryChanged) {

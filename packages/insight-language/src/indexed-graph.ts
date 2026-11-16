@@ -72,6 +72,11 @@ export interface GraphUpdateImpact {
   readonly dependentSources: ReadonlySet<SourceNodeId>;
 }
 
+export interface IndexedGraphSnapshot {
+  readonly nodes: readonly GraphNode[];
+  readonly relations: readonly GraphRelation[];
+}
+
 interface MutableSourceContribution {
   readonly source: SourceNodeId;
   readonly ownedNodes: Set<GraphNodeId>;
@@ -90,6 +95,20 @@ export class IndexedGraph {
   private readonly baseTypeIndex = new Map<TypeNodeId, Set<GraphNodeId>>();
   private readonly relationsByKindIndex = new Map<RelationKind, Set<RelationId>>();
   private readonly relationsByTypeIndex = new Map<string, Set<RelationId>>();
+
+  static fromSnapshot(snapshot: IndexedGraphSnapshot): IndexedGraph {
+    const graph = new IndexedGraph();
+    for (const node of snapshot.nodes) graph.addNode(node);
+    for (const relation of snapshot.relations) graph.addRelation(relation);
+    return graph;
+  }
+
+  snapshot(): IndexedGraphSnapshot {
+    return {
+      nodes: [...this.nodesById.values()],
+      relations: [...this.relationsById.values()],
+    };
+  }
 
   addNode(node: GraphNode): boolean {
     const previous = this.nodesById.get(node.id);

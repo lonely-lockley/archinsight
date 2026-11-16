@@ -90,6 +90,7 @@ export {
 export {
   DEFAULT_QUERY,
   DEFAULT_QUERY_EXECUTION_LIMITS,
+  declaredDeploymentEnvironments,
   discoverDeploymentEnvironments,
   executeQuery,
   selectGraph,
@@ -134,6 +135,12 @@ export type {
 export { parseRenderIdentity, renderIdentity } from "./render-identity.js";
 export type { RenderIdentity, RenderIdentityKind } from "./render-identity.js";
 export {
+  diagramOccurrenceId,
+  parseDiagramOccurrenceId,
+  replaceDiagramOccurrenceCanonical,
+} from "./occurrence-identity.js";
+export type { DiagramOccurrenceIdentity } from "./occurrence-identity.js";
+export {
   canonicalDiagramElementId,
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
@@ -149,6 +156,7 @@ export type {
   PathEndpointEnvironments,
 } from "./diagram-quick-actions.js";
 export { IndexedGraph, RELATION_KINDS } from "./indexed-graph.js";
+export type { IndexedGraphSnapshot } from "./indexed-graph.js";
 export {
   isSyntheticLinkedLocalId,
   parseSyntheticLinkedLocalId,
@@ -224,6 +232,7 @@ export type {
   ContextualIdentifier,
   ConstructorDefinition,
   DuplicateLinkedEdgeGroup,
+  DeclaredDeploymentEnvironment,
   DeploymentEnvironment,
   ElementFrame,
   EnumDefinition,

@@ -52,8 +52,8 @@ export type AnalysisRunnerPorts = {
     surface: WorkspaceSurface,
     options?: LinkRunOptions
   ): Promise<LinkResponse>;
-  renderInBrowser(renders: DotRender[]): Promise<SvgRenderResponse>;
-  renderOnServer(projectId: string, renders: DotRender[], surface: WorkspaceSurface): Promise<SvgRenderResponse>;
+  renderInBrowser(renders: DotRender[], signal?: AbortSignal): Promise<SvgRenderResponse>;
+  renderOnServer(projectId: string, renders: DotRender[], surface: WorkspaceSurface, signal?: AbortSignal): Promise<SvgRenderResponse>;
   checkSyntax(sources: Array<{ sourceIdentity: string; content: string }>): Promise<Diagnostic[]>;
   isCurrent(sequence: number, projectId?: string): boolean;
   updateLocalDiagnostics(sources: string[], diagnostics: Diagnostic[]): void;
@@ -88,15 +88,24 @@ export type AnalysisRunner = {
 };
 
 export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner {
+  let activeRender: AbortController | undefined;
   const renderWithFallback = async (
     projectId: string,
     surface: WorkspaceSurface,
     renders: DotRender[]
   ): Promise<SvgRenderResponse> => {
+    activeRender?.abort();
+    const controller = new AbortController();
+    activeRender = controller;
     try {
-      return await ports.renderInBrowser(renders);
-    } catch {
-      return ports.renderOnServer(projectId, renders, surface);
+      try {
+        return await ports.renderInBrowser(renders, controller.signal);
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        return ports.renderOnServer(projectId, renders, surface, controller.signal);
+      }
+    } finally {
+      if (activeRender === controller) activeRender = undefined;
     }
   };
 

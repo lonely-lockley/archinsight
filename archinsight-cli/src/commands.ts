@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   AiqQueryError,
-  diffRenderGraphs,
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
   diagramElementMetadata,
@@ -19,6 +18,11 @@ import {
   type QueryResult,
   type RenderGraph,
 } from "@insight/language";
+import { openGitVersionedRepository } from "@archinsight/git";
+import {
+  attributeVersionedDiagramDiff,
+  buildVersionedDiagramDiff,
+} from "@archinsight/workbench/versioned-diagram-diff-service";
 import {
   outputFormat,
   quickActionOutputFormat,
@@ -59,7 +63,6 @@ import {
   type DeploymentEnvironmentEntry,
   type LoadedProject,
 } from "./project-runtime.js";
-import { readGitProject } from "./git-project.js";
 import { installSkillPackage } from "./skill/skill-installer.js";
 import { skillPackage } from "./skill/skill-package.js";
 import { resolveRenderTheme } from "./system-theme.js";
@@ -130,16 +133,39 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
   const from = requiredOption(args.from, "--from");
   const to = requiredOption(args.to, "--to");
   const root = projectPath(args);
+  const signal = new AbortController().signal;
+  const repository = await openGitVersionedRepository(root, signal);
+  if (repository === undefined) throw new CliError(`Project path is not inside a Git repository: ${root}`, "GIT");
   const [beforeRevision, afterRevision] = await Promise.all([
-    readGitProject(root, from),
-    readGitProject(root, to),
+    repository.resolveRevision(from, signal),
+    repository.resolveRevision(to, signal),
   ]);
-  const before = analyzeProjectSources(beforeRevision.projectRoot, beforeRevision.sources);
-  const after = analyzeProjectSources(afterRevision.projectRoot, afterRevision.sources);
-  const diagnostics = [
-    ...before.diagnostics.map((diagnostic) => ({ ...diagnostic, sourceName: `${from}:${diagnostic.sourceName}` })),
-    ...after.diagnostics.map((diagnostic) => ({ ...diagnostic, sourceName: `${to}:${diagnostic.sourceName}` })),
-  ];
+  let diagnostics: import("@insight/language").LanguageDiagnostic[] = [];
+  let semantic;
+  try {
+    semantic = await buildVersionedDiagramDiff({
+      repository,
+      beforeRevision,
+      afterRevision,
+      signal,
+      buildRevision: (sources) => analyzeProjectSources(repository.projectRoot, sources),
+      validateRevision: (project, side) => {
+        diagnostics.push(...project.diagnostics.map((diagnostic) => ({
+          ...diagnostic,
+          sourceName: `${side === "before" ? from : to}:${diagnostic.sourceName}`,
+        })));
+        if (hasErrors(project.diagnostics)) throw new Error(`The ${side} revision contains model errors`);
+      },
+      selectGraph: (project) => selectedRevisionGraph(project, args),
+    });
+  } catch (cause) {
+    if (diagnostics.length > 0 && hasErrors(diagnostics)) {
+      process.stderr.write(formatDiagnostics(diagnostics));
+      process.exitCode = 1;
+      return;
+    }
+    throw cause;
+  }
   if (hasErrors(diagnostics)) {
     process.stderr.write(formatDiagnostics(diagnostics));
     process.exitCode = 1;
@@ -147,47 +173,22 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
   }
   const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE");
   if (warnings.length > 0) process.stderr.write(formatDiagnostics(warnings));
-
-  const beforeGraph = await selectedRevisionGraph(before, args);
-  const afterGraph = await selectedRevisionGraph(after, args);
-  if (beforeGraph === undefined && afterGraph === undefined) {
-    throw new CliError("The selected source is absent from both revisions");
-  }
-  const emptyGraph = (context: string): RenderGraph => ({
-    context,
-    elements: {},
-    edges: [],
-    groups: [],
-    externalElements: [],
-  });
-  const diff = diffRenderGraphs(
-    beforeGraph ?? emptyGraph(afterGraph!.context),
-    afterGraph ?? emptyGraph(beforeGraph!.context),
-  );
-  const attributionResult = await beforeRevision.repository.attribute({
-    before: beforeRevision.revision,
-    after: afterRevision.revision,
-    origins: Object.fromEntries([
-      ...Object.values(diff.elements),
-      ...diff.edges,
-      ...Object.values(diff.groups),
-    ].filter((entry) => entry.status !== "unchanged").map((entry) => [entry.changeId, entry.origins])),
-  }, new AbortController().signal);
-  const attributedDiff = {
-    schemaVersion: "attributed-diagram-diff.v1" as const,
-    revisions: { before: beforeRevision.revision, after: afterRevision.revision },
+  const attributedDiff = await attributeVersionedDiagramDiff(repository, semantic, signal);
+  const diff = semantic.diff;
+  const dot = renderDiagramDiffGraphviz(
+    semantic.before.result,
+    semantic.after.result,
     diff,
-    ...attributionResult,
-  };
-  const dot = renderDiagramDiffGraphviz(before.result, after.result, diff, await resolveRenderTheme(args.theme));
+    await resolveRenderTheme(args.theme),
+  );
   const format = renderFormat(args.format, "dot");
   if (format === "text") {
-    await writeOutput(args.output, formatDiagramDiff(diff, beforeRevision.revision, afterRevision.revision));
+    await writeOutput(args.output, formatDiagramDiff(diff, beforeRevision, afterRevision));
   } else if (format === "dot") {
     await writeOutput(args.output, dot);
   } else if (format === "json") {
     await writeOutput(args.output, JSON.stringify({
-      revisions: { from: beforeRevision.revision, to: afterRevision.revision },
+      revisions: { from: beforeRevision, to: afterRevision },
       diff,
       attributedDiff,
       dot,

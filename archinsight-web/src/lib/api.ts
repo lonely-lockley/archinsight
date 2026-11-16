@@ -238,12 +238,14 @@ export async function linkProject(
 export async function renderProjectSvg(
   projectId: string,
   renders: DotRender[],
-  surface: WorkspaceSurface = 'editor'
+  surface: WorkspaceSurface = 'editor',
+  signal?: AbortSignal
 ): Promise<SvgRenderResponse> {
   return postJson(
     surface === 'playground' ? '/api/playground/render/svg' : `/api/projects/${encodeURIComponent(projectId)}/render/svg`,
     { renders },
-    parseSvgRenderResponse
+    parseSvgRenderResponse,
+    signal
   );
 }
 
@@ -296,21 +298,28 @@ async function getJson<T>(path: string, parser: (value: unknown) => T): Promise<
   return parser(await response.json());
 }
 
-async function postJson<T>(path: string, body: unknown, parser: (value: unknown) => T): Promise<T> {
-  return requestJson('POST', path, body, parser);
+async function postJson<T>(
+  path: string,
+  body: unknown,
+  parser: (value: unknown) => T,
+  signal?: AbortSignal
+): Promise<T> {
+  return requestJson('POST', path, body, parser, signal);
 }
 
 async function requestJson<T>(
   method: 'POST' | 'PUT' | 'PATCH',
   path: string,
   body: unknown,
-  parser: (value: unknown) => T
+  parser: (value: unknown) => T,
+  signal?: AbortSignal
 ): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers: { 'content-type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    ...(signal === undefined ? {} : { signal })
   });
   if (response.status === 401) {
     throw new AuthRequiredError();

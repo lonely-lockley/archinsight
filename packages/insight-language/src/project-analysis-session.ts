@@ -104,24 +104,18 @@ export class ProjectAnalysisSession {
 
     try {
       const nextState = this.state.fork();
-      const relinkedSources = new Set<string>();
-      let relinkedSourceCount = 0;
-      for (const change of orderedChanges(changes)) {
-        const update = change.next === undefined
-          ? nextState.removeSource(change.sourceName)
-          : nextState.replaceSource({ sourceName: change.sourceName, source: change.next });
-        relinkedSourceCount += update.relinkedSources.size;
-        for (const sourceName of update.relinkedSources) {
-          relinkedSources.add(sourceName);
-        }
-      }
+      const update = nextState.replaceSources(orderedChanges(changes).map((change) => ({
+        sourceName: change.sourceName,
+        ...(change.next === undefined ? {} : { source: change.next }),
+      })));
+      const relinkedSources = update.relinkedSources;
       this.sourcesByName = nextSources;
       this.state = nextState;
       return this.updateResult(
         "incremental",
         changedSources,
         relinkedSources,
-        relinkedSourceCount,
+        relinkedSources.size,
         false,
       );
     } catch {

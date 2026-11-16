@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  diagramDiffDeclarationSource,
+  diagramDiffDeclarationNavigationAvailable,
   diagramDiffCompareDisabledReason,
+  orderedDiagramDiffRevisionPair,
   readyDiagramDiffPicker,
   selectDiagramDiffRevision,
+  updateDiagramDiffRevisionSelection,
 } from '@archinsight/workbench/versioned-diagram-diff';
 
 const revision = (id: string, current = false) => ({
@@ -16,6 +20,28 @@ const revision = (id: string, current = false) => ({
 });
 
 describe('versioned diagram diff model', () => {
+  it('allows declaration navigation only when the current Git revision participates in the diff', () => {
+    expect(diagramDiffDeclarationNavigationAvailable({ status: 'idle' })).toBe(true);
+    expect(diagramDiffDeclarationNavigationAvailable({
+      status: 'showing-diff', before: 'old', after: 'current', beforeShort: 'old', afterShort: 'HEAD',
+      currentRevision: 'current', selectedElementId: 'sample/api'
+    })).toBe(true);
+    expect(diagramDiffDeclarationNavigationAvailable({
+      status: 'showing-diff', before: 'old', after: 'newer', beforeShort: 'old', afterShort: 'newer',
+      currentRevision: 'current', selectedElementId: 'sample/api'
+    })).toBe(false);
+  });
+
+  it('uses the selected element declaration instead of the active diagram source', () => {
+    expect(diagramDiffDeclarationSource({
+      declaration: { sourceName: 'services/api-gateway.ai', line: 8, column: 5 },
+    })).toBe('services/api-gateway.ai');
+    expect(diagramDiffDeclarationSource({
+      declaration: { sourceName: 'views/architecture.aiq', line: 1, column: 1 },
+    })).toBeUndefined();
+    expect(diagramDiffDeclarationSource({})).toBeUndefined();
+  });
+
   it('defaults to HEAD and the nearest older file revision', () => {
     const state = readyDiagramDiffPicker({
       schemaVersion: 'diagram-diff-revisions.v1',
@@ -27,6 +53,11 @@ describe('versioned diagram diff model', () => {
     expect(state).toMatchObject({ status: 'ready', before: 'older', after: 'head' });
     expect(diagramDiffCompareDisabledReason(state)).toBeUndefined();
     expect(selectDiagramDiffRevision(state, 'before', 'head')).toMatchObject({ before: 'head' });
+    if (state.status !== 'ready') throw new Error('Expected ready picker');
+    expect(orderedDiagramDiffRevisionPair(state, 'head', 'older')).toEqual({ before: 'older', after: 'head' });
+    expect(orderedDiagramDiffRevisionPair(state, 'older', 'head')).toEqual({ before: 'older', after: 'head' });
+    expect(orderedDiagramDiffRevisionPair(state, 'head', 'head')).toBeUndefined();
+    expect(orderedDiagramDiffRevisionPair(state, 'missing', 'older')).toBeUndefined();
   });
 
   it('keeps the action usable but disables Compare without a historical pair', () => {
@@ -38,5 +69,25 @@ describe('versioned diagram diff model', () => {
       revisions: [revision('head', true)],
     }, 'sample/api');
     expect(diagramDiffCompareDisabledReason(state)).toBe('No earlier revision is available for this file');
+  });
+
+  it('moves at most two selected interval boundaries according to the clicked revision', () => {
+    const state = readyDiagramDiffPicker({
+      schemaVersion: 'diagram-diff-revisions.v1',
+      workspaceIdentity: '/repo',
+      source: 'model.ai',
+      currentRevision: 'head',
+      revisions: ['head', 'upper', 'inside', 'lower', 'below'].map((id) => revision(id, id === 'head')),
+    }, 'sample/api');
+    if (state.status !== 'ready') throw new Error('Expected ready picker');
+
+    expect(updateDiagramDiffRevisionSelection(state, [], 'upper')).toEqual(['upper']);
+    expect(updateDiagramDiffRevisionSelection(state, ['upper'], 'upper')).toEqual([]);
+    expect(updateDiagramDiffRevisionSelection(state, ['upper'], 'lower')).toEqual(['upper', 'lower']);
+    expect(updateDiagramDiffRevisionSelection(state, ['upper', 'lower'], 'below')).toEqual(['upper', 'below']);
+    expect(updateDiagramDiffRevisionSelection(state, ['upper', 'lower'], 'head')).toEqual(['head', 'lower']);
+    expect(updateDiagramDiffRevisionSelection(state, ['upper', 'lower'], 'inside')).toEqual(['upper', 'inside']);
+    expect(updateDiagramDiffRevisionSelection(state, ['upper', 'lower'], 'upper')).toEqual(['lower']);
+    expect(updateDiagramDiffRevisionSelection(state, ['upper', 'lower'], 'missing')).toEqual(['upper', 'lower']);
   });
 });

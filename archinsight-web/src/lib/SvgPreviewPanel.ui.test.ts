@@ -40,6 +40,11 @@ const svg = `
       <text x="225" y="120">Database</text>
     </a>
   </g>
+  <g id="${renderIdentity('edge', ['shop/api', 'shop/db', 'edge-1'])}" class="edge">
+    <a href="insight://goto?source=model.ai&amp;line=12&amp;column=9">
+      <path d="M130,50 L170,110" fill="none" stroke="#66ccff"/>
+    </a>
+  </g>
 </svg>`;
 
 const compactSvg = `
@@ -47,6 +52,16 @@ const compactSvg = `
   <g id="${renderIdentity('node', ['shop/api'])}" class="node">
     <polygon points="10,10 110,10 110,70 10,70" fill="#333" stroke="#777"/>
     <text x="60" y="40">API</text>
+  </g>
+</svg>`;
+
+const contextBoundarySvg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180" viewBox="0 0 300 180">
+  <g id="${renderIdentity('cluster', ['shop'])}" class="cluster">
+    <a href="insight://goto?source=model.ai&amp;line=1&amp;column=1">
+      <polygon points="5,5 295,5 295,175 5,175" fill="none" stroke="#777"/>
+      <text x="20" y="18">Shop context</text>
+    </a>
   </g>
 </svg>`;
 
@@ -140,6 +155,61 @@ describe('SvgPreviewPanel quick actions', () => {
     await unmount(component);
   });
 
+  it('does not navigate when a relationship arrow contains a declaration link', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onOpenDeclaration = vi.fn();
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: { svg, quickActionMetadata: metadata, onOpenDeclaration }
+    });
+    await settle();
+
+    const edge = target.querySelector<SVGGElement>(`#${CSS.escape(renderIdentity('edge', ['shop/api', 'shop/db', 'edge-1']))}`)!;
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    edge.querySelector('path')!.dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(onOpenDeclaration).not.toHaveBeenCalled();
+
+    await unmount(component);
+  });
+
+  it('blocks both SVG links and the declaration action when navigation is unavailable', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onOpenDeclaration = vi.fn();
+    const onDiagramQuickAction = vi.fn();
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: {
+        svg,
+        quickActionMetadata: metadata,
+        declarationNavigationAvailable: false,
+        onOpenDeclaration,
+        onDiagramQuickAction
+      }
+    });
+    await settle();
+
+    const declarationTarget = target.querySelector<SVGGElement>(
+      `#${CSS.escape(renderIdentity('node', ['shop/db']))}`
+    )!.querySelector('polygon')!;
+    const declarationClick = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    declarationTarget.dispatchEvent(declarationClick);
+    expect(declarationClick.defaultPrevented).toBe(true);
+    expect(onOpenDeclaration).not.toHaveBeenCalled();
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="Quick actions for API"]')?.click();
+    await tick();
+    const goto = target.querySelector<HTMLButtonElement>('button[aria-label^="Go to declaration"]');
+    expect(goto?.getAttribute('aria-disabled')).toBe('true');
+    goto?.click();
+    expect(onDiagramQuickAction).not.toHaveBeenCalled();
+
+    await unmount(component);
+  });
+
   it('selects a boundary for presentation without exposing quick actions', async () => {
     const target = document.createElement('div');
     document.body.append(target);
@@ -169,6 +239,29 @@ describe('SvgPreviewPanel quick actions', () => {
     await unmount(component);
   });
 
+  it('selects a context boundary even though contexts have no element quick-action metadata', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onOpenDeclaration = vi.fn();
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: { svg: contextBoundarySvg, quickActionMetadata: metadata, onOpenDeclaration }
+    });
+    await settle();
+
+    const context = target.querySelector<SVGGElement>(`#${CSS.escape(renderIdentity('cluster', ['shop']))}`)!;
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    context.querySelector('polygon')!.dispatchEvent(click);
+    await tick();
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(context.classList.contains('archinsight-node-selected')).toBe(true);
+    expect(onOpenDeclaration).not.toHaveBeenCalled();
+    expect(target.querySelector('[role="menu"]')).toBeNull();
+
+    await unmount(component);
+  });
+
   it('selects a compatible target and gives an open menu priority on Escape', async () => {
     const target = document.createElement('div');
     document.body.append(target);
@@ -179,7 +272,9 @@ describe('SvgPreviewPanel quick actions', () => {
       props: {
         svg,
         quickActionMetadata: metadata,
-        findPathMode: { status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API' },
+        findPathMode: {
+          status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope: { view: 'c2' }
+        },
         onSelectPathTarget,
         onOpenDeclaration
       }
@@ -303,6 +398,8 @@ describe('SvgPreviewPanel quick actions', () => {
 
     const picker = target.querySelector<HTMLElement>('[aria-label="Select deployment environment"]');
     const pickerPosition = picker?.parentElement;
+    expect(picker?.classList.contains('archinsight-picker')).toBe(true);
+    expect(picker?.querySelector('.archinsight-picker__button')).not.toBeNull();
     expect(pickerPosition?.classList.contains('deployment-picker-position')).toBe(true);
     expect(pickerPosition?.closest('.quick-actions-overlay')).not.toBeNull();
     expect(pickerPosition?.style.left).toBe('8px');
@@ -325,7 +422,8 @@ describe('SvgPreviewPanel quick actions', () => {
           sourceId: 'shop/api',
           sourceTitle: 'API',
           targetId: 'shop/db',
-          targetTitle: 'Database'
+          targetTitle: 'Database',
+          scope: { view: 'c2' }
         }
       }
     });
@@ -401,6 +499,9 @@ describe('SvgPreviewPanel quick actions', () => {
     );
     expect(source).toContain(':global(g.archinsight-node-selected polygon)');
     expect(source).not.toContain(':global(g.archinsight-node-selected > polygon)');
+    expect(source).toContain('drop-shadow(0 0 1px var(--color-primary');
+    expect(source).toContain('drop-shadow(0 0 7px color-mix(in srgb, var(--color-primary');
+    expect(source).not.toContain('g.archinsight-node-selected path) {\n    stroke:');
 
     await unmount(component);
   });

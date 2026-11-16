@@ -135,10 +135,13 @@ RETURN n, r, m
   assert.equal(Object.keys(projection.elements).length, 4);
   assert.equal(projection.edges.length, 2);
   assert.equal(projection.groups.length, 2);
-  assert(dot.includes(`subgraph "${clusterId("source")}"`));
+  const contextClusterStart = dot.indexOf(`subgraph "${clusterId("source")}"`);
+  assert(contextClusterStart >= 0);
+  const contextClusterHeader = dot.slice(contextClusterStart, dot.indexOf('margin="50"', contextClusterStart));
+  assert(!contextClusterHeader.includes("URL="));
+  assert(!contextClusterHeader.includes("tooltip="));
   assert(dot.includes("Source Context"));
   assert(dot.includes(`subgraph "${clusterId("source/app")}"`));
-  assert(dot.includes("URL=\"insight://goto?source=source.ai&line="));
   assert(dot.includes("style=\"dotted\""));
   assert(dot.includes("API"));
   assert(dot.includes("API note"));
@@ -297,9 +300,9 @@ RETURN n, r, m
   assert.equal(projection.edges.length, 2);
   assert.equal(countOccurrences(dot, '"source/app" -> "source/target"'), 2);
   assert.equal(countOccurrences(dot, 'id="insight_edge_'), 2);
-  assert(dot.includes("URL=\"insight://goto?source=source.ai"));
-  assert(dot.includes("&line="));
-  assert(dot.includes("&column="));
+  const edgeStatements = dot.split("\n").filter((line) => line.includes('"source/app" -> "source/target"'));
+  assert(edgeStatements.every((line) => !line.includes("URL=")));
+  assert(edgeStatements.every((line) => !line.includes("tooltip=")));
   assert(dot.includes("concentrate=false"));
 }
 

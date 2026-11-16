@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import type { DiagramDiffPickerState } from './versioned-diagram-diff';
-  import { diagramDiffCompareDisabledReason } from './versioned-diagram-diff';
+  import { orderedDiagramDiffRevisionPair, updateDiagramDiffRevisionSelection } from './versioned-diagram-diff';
+  import './overlay-picker.css';
 
   export let state: DiagramDiffPickerState = { status: 'closed' };
   export let onSelect: (side: 'before' | 'after', revision: string) => void = () => {};
@@ -9,10 +10,32 @@
   export let onClose: () => void = () => {};
 
   let host: HTMLDivElement | undefined;
-  $: disabledReason = diagramDiffCompareDisabledReason(state);
+  let filter = '';
+  let selectedRevisions: readonly string[] = [];
+  let revisionSet = '';
+  $: readyState = state.status === 'ready' ? state : undefined;
+  $: selectedPair = readyState !== undefined && selectedRevisions.length === 2
+    ? orderedDiagramDiffRevisionPair(readyState, selectedRevisions[0]!, selectedRevisions[1]!)
+    : undefined;
+  $: compareDisabled = readyState === undefined || selectedPair === undefined || readyState.validationError !== undefined;
+  $: filterValue = filter.trim().toLocaleLowerCase();
+  $: filteredRevisions = readyState?.catalogue.revisions.filter((revision) => filterValue.length === 0
+    || revision.shortId.toLocaleLowerCase().includes(filterValue)
+    || revision.summary.toLocaleLowerCase().includes(filterValue)
+    || revision.actorName.toLocaleLowerCase().includes(filterValue)) ?? [];
+  $: {
+    const nextRevisionSet = readyState?.catalogue.revisions.map((revision) => revision.id).join('\0') ?? '';
+    if (nextRevisionSet !== revisionSet) {
+      filter = '';
+      selectedRevisions = readyState === undefined
+        ? []
+        : [readyState.after, ...(readyState.before === undefined ? [] : [readyState.before])];
+    }
+    revisionSet = nextRevisionSet;
+  }
 
   onMount(() => {
-    void tick().then(() => host?.querySelector<HTMLElement>('select, button')?.focus());
+    void tick().then(() => host?.querySelector<HTMLElement>('input, button')?.focus());
   });
 
   function closeOutside(event: PointerEvent): void {
@@ -27,7 +50,7 @@
       return;
     }
     if (event.key !== 'Tab') return;
-    const focusable = [...(host?.querySelectorAll<HTMLElement>('select, button:not(:disabled)') ?? [])];
+    const focusable = [...(host?.querySelectorAll<HTMLElement>('input, button:not(:disabled)') ?? [])];
     if (focusable.length === 0) return;
     const first = focusable[0]!;
     const last = focusable.at(-1)!;
@@ -39,53 +62,89 @@
       first.focus();
     }
   }
+
+  function selectRevision(revision: string): void {
+    if (readyState === undefined) return;
+    selectedRevisions = updateDiagramDiffRevisionSelection(readyState, selectedRevisions, revision);
+    if (selectedRevisions.length !== 2) return;
+    const pair = orderedDiagramDiffRevisionPair(readyState, selectedRevisions[0]!, selectedRevisions[1]!);
+    if (pair !== undefined) {
+      onSelect('before', pair.before);
+      onSelect('after', pair.after);
+    }
+  }
+
+  function revisionRangePosition(
+    revision: string,
+    pair: { readonly before: string; readonly after: string } | undefined,
+  ): 'after' | 'between' | 'before' | undefined {
+    if (readyState === undefined || pair === undefined) return undefined;
+    const revisionIndex = readyState.catalogue.revisions.findIndex((item) => item.id === revision);
+    const afterIndex = readyState.catalogue.revisions.findIndex((item) => item.id === pair.after);
+    const beforeIndex = readyState.catalogue.revisions.findIndex((item) => item.id === pair.before);
+    if (revisionIndex < afterIndex || revisionIndex > beforeIndex || afterIndex >= beforeIndex) return undefined;
+    if (revisionIndex === afterIndex) return 'after';
+    if (revisionIndex === beforeIndex) return 'before';
+    return 'between';
+  }
+
+  function revisionSelected(revision: string, selection: readonly string[]): boolean {
+    return selection.includes(revision);
+  }
 </script>
 
 <svelte:window on:pointerdown={closeOutside} on:keydown={keydown} />
 
-<div bind:this={host} class="diff-picker" role="dialog" aria-label="Compare diagram revisions">
-  <strong>Compare diagram revisions</strong>
-  {#if state.status !== 'closed'}<small class="source">{state.source}</small>{/if}
+<div bind:this={host} class="archinsight-picker diff-picker" role="dialog" aria-label="Compare diagram revisions">
+  <strong class="archinsight-picker__title">Compare diagram revisions</strong>
+  {#if state.status !== 'closed'}<small class="archinsight-picker__subtitle source">{state.source}</small>{/if}
   {#if state.status === 'loading'}
-    <div class="message" role="status">Loading revision history…</div>
+    <div class="archinsight-picker__message message" role="status">Loading revision history…</div>
   {:else if state.status === 'error'}
-    <div class="message error" role="alert">{state.message}</div>
+    <div class="archinsight-picker__message message error" role="alert">{state.message}</div>
   {:else if state.status === 'ready'}
-    <label>
-      <span>Before</span>
-      <select aria-label="Before revision" value={state.before ?? ''} on:change={(event) => onSelect('before', event.currentTarget.value)}>
-        <option disabled value="">No earlier revision</option>
-        {#each state.catalogue.revisions as revision (revision.id)}
-          <option value={revision.id}>{revision.shortId} — {revision.summary}</option>
-        {/each}
-      </select>
-    </label>
-    <label>
-      <span>After</span>
-      <select aria-label="After revision" value={state.after} on:change={(event) => onSelect('after', event.currentTarget.value)}>
-        {#each state.catalogue.revisions as revision (revision.id)}
-          <option value={revision.id}>{revision.shortId} — {revision.summary}</option>
-        {/each}
-      </select>
-    </label>
-    <div class="revision-list" aria-label="Available revisions">
-      {#each state.catalogue.revisions as revision (revision.id)}
-        <div class="revision-row">
-          <code>{revision.shortId}</code>
-          <span>{revision.summary || 'No commit message'}</span>
-          <small>{revision.actorName} · {new Date(revision.createdAt).toLocaleString()}</small>
-        </div>
+    {#if state.catalogue.revisions.length > 1}
+      <input class="archinsight-picker__control revision-filter" bind:value={filter} aria-label="Filter commits" placeholder="Filter commits" type="search" />
+    {/if}
+    <div class="archinsight-picker__options revision-list" aria-label="Available revisions" aria-multiselectable="true" role="listbox">
+      {#each filteredRevisions as revision (revision.id)}
+        {@const rangePosition = revisionRangePosition(revision.id, selectedPair)}
+        {@const selected = revisionSelected(revision.id, selectedRevisions)}
+        <button
+          aria-label={`${revision.shortId}: ${revision.summary || 'No commit message'}, ${revision.actorName}`}
+          aria-selected={selected}
+          class="archinsight-picker__option revision-row"
+          class:archinsight-picker__option--selected={selected}
+          class:revision-row--in-range={rangePosition !== undefined}
+          class:revision-row--range-after={rangePosition === 'after'}
+          class:revision-row--range-before={rangePosition === 'before'}
+          data-range-position={rangePosition}
+          data-revision-id={revision.id}
+          role="option"
+          type="button"
+          on:click={() => selectRevision(revision.id)}
+        >
+          <code class="revision-id">{revision.shortId}</code>
+          <span class="revision-summary">{revision.summary || 'No commit message'}</span>
+          {#if selectedPair?.after === revision.id}
+            <small class="revision-edge">After</small>
+          {:else if selectedPair?.before === revision.id}
+            <small class="revision-edge">Before</small>
+          {/if}
+          <small class="archinsight-picker__muted revision-meta">{revision.actorName} · {new Date(revision.createdAt).toLocaleString()}</small>
+        </button>
       {/each}
+      {#if filteredRevisions.length === 0}
+        <div class="archinsight-picker__message">No matching commits</div>
+      {/if}
     </div>
-    {#if disabledReason !== undefined}<div class="reason">{disabledReason}</div>{/if}
   {/if}
-  <div class="actions">
-    <button type="button" on:click={onClose}>Cancel</button>
+  <div class="archinsight-picker__footer actions">
+    <button class="archinsight-picker__button" type="button" on:click={onClose}>Cancel</button>
     <button
-      class="primary"
+      class="archinsight-picker__button archinsight-picker__button--primary primary"
       type="button"
-      disabled={disabledReason !== undefined}
-      title={disabledReason}
+      disabled={compareDisabled}
       on:click={onCompare}
     >Compare</button>
   </div>
@@ -93,28 +152,25 @@
 
 <style>
   .diff-picker {
-    width: 360px;
-    box-sizing: border-box;
-    padding: 10px;
-    border: 1px solid var(--archinsight-border, #454545);
-    border-radius: 6px;
-    background: var(--archinsight-toolbar-bg, #242424);
-    color: var(--archinsight-foreground, #eeeeee);
-    box-shadow: var(--archinsight-shadow, 0 10px 28px rgb(0 0 0 / 35%));
+    --archinsight-picker-width: 360px;
   }
-  strong, .source { display: block; }
-  .source { margin: 3px 0 8px; color: var(--archinsight-muted, #a8a8a8); overflow-wrap: anywhere; }
-  label { display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 6px; margin: 6px 0; font-size: 11px; }
-  select { min-width: 0; height: 30px; border: 1px solid var(--archinsight-border, #454545); border-radius: 4px; background: var(--archinsight-input-bg, #1f1f1f); color: inherit; }
-  .revision-list { max-height: 190px; margin-top: 8px; overflow-y: auto; }
-  .revision-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 7px; padding: 6px; border-radius: 4px; background: var(--archinsight-control-bg, #2a2a2a); font-size: 11px; }
-  .revision-row + .revision-row { margin-top: 3px; }
-  .revision-row small { grid-column: 2; color: var(--archinsight-muted, #a8a8a8); }
-  .message, .reason { padding: 12px 4px; color: var(--archinsight-muted, #a8a8a8); font-size: 12px; }
+  .revision-filter { margin-bottom: 6px; }
+  .revision-list { max-height: 230px; }
+  .revision-row { position: relative; display: grid; grid-template-columns: 8ch minmax(0, 1fr) auto; gap: 2px 7px; }
+  .revision-id { white-space: nowrap; }
+  .revision-summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .revision-meta { grid-column: 2 / 4; }
+  .revision-edge { align-self: center; color: var(--color-primary, #6a9955); font-size: 9px; font-weight: 600; text-transform: uppercase; }
+  .revision-row--in-range::before {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    left: 2px;
+    width: 2px;
+    background: var(--color-primary, #6a9955);
+    content: '';
+  }
+  .revision-row--range-after::before { top: 50%; border-radius: 2px 2px 0 0; }
+  .revision-row--range-before::before { bottom: 50%; border-radius: 0 0 2px 2px; }
   .error { color: var(--archinsight-error, #f48771); }
-  .actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
-  button { min-width: 72px; height: 28px; border: 0; border-radius: 4px; background: var(--archinsight-control-bg, #2a2a2a); color: inherit; }
-  button:hover:not(:disabled), button:focus-visible { background: var(--archinsight-control-hover-bg, #343434); }
-  button.primary { background: var(--color-primary, #397a3f); }
-  button:disabled { opacity: .45; }
 </style>

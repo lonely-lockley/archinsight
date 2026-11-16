@@ -347,11 +347,13 @@ export class ProjectAnalysisCache {
         this.entries.delete(key);
       }
     }
-    while (this.entries.size > config.maxEntries || totalSourceBytes(this.entries) > config.maxTotalSourceBytes) {
+    let sourceBytes = totalSourceBytes(this.entries);
+    while (this.entries.size > config.maxEntries || sourceBytes > config.maxTotalSourceBytes) {
       const oldest = this.entries.keys().next().value as string | undefined;
       if (oldest === undefined) {
         break;
       }
+      sourceBytes -= this.entries.get(oldest)?.sourceBytes ?? 0;
       this.entries.delete(oldest);
     }
   }

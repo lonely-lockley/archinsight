@@ -105,7 +105,9 @@ describe('WorkspaceEditor composition', () => {
             skip: 0, limit: null, pathScopes: [], warnings: []
           }
         },
-        findPathMode: { status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API' },
+        findPathMode: {
+          status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope: { view: 'c2' }
+        },
         diagramMode: 'default',
         query: 'MATCH (n:Element) RETURN TABLE elementId(n) AS id',
         editorHost: document.createElement('div'),
@@ -143,7 +145,7 @@ describe('WorkspaceEditor composition', () => {
         svg: '<svg></svg>',
         findPathMode: {
           status: 'showing-path', sourceId: 'shop/api', sourceTitle: 'API',
-          targetId: 'shop/db', targetTitle: 'Database'
+          targetId: 'shop/db', targetTitle: 'Database', scope: { view: 'c2' }
         },
         diagramMode: 'default',
         query: '',
@@ -218,7 +220,7 @@ describe('WorkspaceEditor composition', () => {
         svg: '<svg></svg>',
         findPathMode: {
           status: 'showing-path', sourceId: 'shop/api', sourceTitle: 'API',
-          targetId: 'shop/db', targetTitle: 'Database'
+          targetId: 'shop/db', targetTitle: 'Database', scope: { view: 'c2' }
         },
         activeTabOwnsQuickActionMode: false,
         diagramMode: 'default',

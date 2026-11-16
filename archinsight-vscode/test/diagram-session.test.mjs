@@ -90,12 +90,18 @@ test('theme refresh rerenders graphs but leaves tables and unopened previews unt
 });
 
 test('publishes an ad-hoc quick-action preview without replacing query state', async () => {
-  const harness = createHarness();
+  let finishSlow;
+  const harness = createHarness({ slow: new Promise((resolve) => { finishSlow = resolve; }) });
   const session = harness.session();
   const preview = { view: 'c1', query: 'scoped', fileName: 'main.ai', source: 'source', svg: '<svg>scoped</svg>' };
+  const pending = session.render({ fileName: 'main.ai', source: 'source' }, { view: 'c1', query: 'slow' });
+  await new Promise((resolve) => setImmediate(resolve));
   await session.publishAdHoc(preview);
+  assert.equal(harness.signals[0].aborted, true);
+  finishSlow();
+  assert.equal(await pending, 'stale');
   assert.equal(session.previewState(), preview);
-  assert.deepEqual(session.queryState(), { view: 'c1', query: 'initial query' });
+  assert.deepEqual(session.queryState(), { view: 'c1', query: 'slow' });
   assert.deepEqual(harness.previews, [preview]);
   session.dispose();
   await session.publishAdHoc({ ...preview, query: 'ignored' });
@@ -132,6 +138,7 @@ test('newer renders and disposal suppress stale asynchronous results', async () 
   const first = session.render(input, { view: 'c1', query: 'slow' });
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(await session.render(input, { view: 'c2', query: 'fast' }), 'rendered');
+  assert.equal(harness.signals[0].aborted, true);
   finishSlow();
   assert.equal(await first, 'stale');
   assert.deepEqual(harness.previews.map((state) => state.query), ['fast']);
@@ -143,6 +150,7 @@ test('newer renders and disposal suppress stale asynchronous results', async () 
   const cancelledRender = cancelledSession.render(input, { view: 'c1', query: 'slow' });
   await new Promise((resolve) => setImmediate(resolve));
   cancelledSession.cancel();
+  assert.equal(cancelledHarness.signals[0].aborted, true);
   finishCancelled();
   assert.equal(await cancelledRender, 'stale');
   assert.deepEqual(cancelledHarness.previews, []);
@@ -156,6 +164,7 @@ test('newer renders and disposal suppress stale asynchronous results', async () 
   const disposedRender = disposedSession.render(input, { view: 'c3', query: 'slow' });
   await new Promise((resolve) => setImmediate(resolve));
   disposedSession.dispose();
+  assert.equal(disposedHarness.signals[0].aborted, true);
   finishDisposed();
   assert.equal(await disposedRender, 'stale');
   assert.equal(await disposedSession.render(input, { view: 'c4', query: 'ignored' }), 'stale');
@@ -284,6 +293,9 @@ test('standalone preview HTML keeps its message and content security contract', 
   assert.match(html, new RegExp(`<script nonce="${nonce}">`));
   assert.match(html, /default-src 'none'/);
   assert.match(html, /error\.textContent = state\.error/);
+  assert.match(html, /new DOMParser\(\)\.parseFromString/);
+  assert.match(html, /script, foreignObject, iframe, object, embed, style/);
+  assert.doesNotMatch(html, /preview\.innerHTML/);
   assert.match(html, /command: "ready"/);
   assert.match(html, /command: "png", dataUrl/);
 });
@@ -296,6 +308,7 @@ function createHarness(options = {}) {
   const saved = [];
   const warnings = [];
   const pngRequests = [];
+  const signals = [];
 
   return {
     previews,
@@ -305,6 +318,7 @@ function createHarness(options = {}) {
     saved,
     warnings,
     pngRequests,
+    signals,
     session: () => new DiagramSession({ view: 'c1', query: 'initial query' }, {
       usesEnvironment: (view) => view === 'deployment-container',
       chooseEnvironment: async (_input, selected, forcePicker) => {
@@ -313,7 +327,8 @@ function createHarness(options = {}) {
           ? { cancelled: true }
           : { cancelled: false, environment: options.environment };
       },
-      buildPreview: async (input, state) => {
+      buildPreview: async (input, state, signal) => {
+        signals.push(signal);
         if (state.query === 'slow') {
           await options.slow;
         }

@@ -6,6 +6,7 @@ import type {
   RenderGraphGroup,
   SourceLocation,
 } from "./contracts.js";
+import { parseDiagramOccurrenceId } from "./occurrence-identity.js";
 
 export type DiagramDiffStatus = "unchanged" | "added" | "removed" | "changed";
 export type DiagramDiffCategory = "elements" | "edges" | "groups";
@@ -94,7 +95,7 @@ export function diffRenderGraphs(before: RenderGraph, after: RenderGraph): Diagr
  * preserving the original change entries, statuses, origins and edge objects.
  */
 export function selectIsolatedDiagramDiff(diff: DiagramDiff, requestedElementId: string): DiagramDiff {
-  const elementId = requestedElementId.split("@@", 1)[0]!;
+  const elementId = parseDiagramOccurrenceId(requestedElementId).canonicalId;
   if (diff.graph.elements[elementId] === undefined) {
     return filteredDiff(diff, new Set());
   }

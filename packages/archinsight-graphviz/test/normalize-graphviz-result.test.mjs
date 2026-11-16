@@ -21,6 +21,20 @@ test('normalizes successful SVG output and preserves ordered warning messages', 
   });
 });
 
+test('removes Graphviz native title tooltips from graphs, nodes, and edges', () => {
+  const result = normalizeGraphvizSvgResult({
+    status: 'success',
+    output: '<svg><title>graph</title><g class="node"><title>shop/api</title></g><g class="edge"><title>api-&gt;db</title></g></svg>',
+    errors: []
+  });
+
+  assert.deepEqual(result, {
+    status: 'success',
+    svg: '<svg><g class="node"></g><g class="edge"></g></svg>',
+    warnings: []
+  });
+});
+
 test('joins non-empty failure messages in their original order', () => {
   assert.deepEqual(normalizeGraphvizSvgResult({
     status: 'failure',

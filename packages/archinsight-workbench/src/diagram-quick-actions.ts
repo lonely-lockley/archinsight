@@ -1,13 +1,16 @@
-import type {
-  DiagramElementQuickActionMetadata,
-  DiagramQuickActionMetadata,
-  QueryScope
+import {
+  canonicalDiagramElementId,
+  type DiagramElementQuickActionMetadata,
+  type DiagramQuickActionMetadata,
+  type QueryScope
 } from '@insight/language';
+import { diagramDiffDeclarationSource } from './versioned-diagram-diff.js';
 
 export type DiagramQuickActionId = 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff';
 
 export type DiagramQuickActionCapabilities = {
   readonly versioning: boolean;
+  readonly declarationNavigation?: boolean;
 };
 
 export type DiagramQuickActionAnchor = {
@@ -87,7 +90,7 @@ export type FindPathMode =
       readonly sourceId: string;
       readonly sourceTitle: string;
       readonly sourceEnvironment?: string;
-      readonly scope?: QueryScope;
+      readonly scope: QueryScope;
     }
   | {
       readonly status: 'resolving-path';
@@ -97,7 +100,7 @@ export type FindPathMode =
       readonly targetId: string;
       readonly targetTitle: string;
       readonly targetEnvironment?: string;
-      readonly scope?: QueryScope;
+      readonly scope: QueryScope;
     }
   | {
       readonly status: 'showing-path';
@@ -107,10 +110,26 @@ export type FindPathMode =
       readonly targetId: string;
       readonly targetTitle: string;
       readonly targetEnvironment?: string;
-      readonly scope?: QueryScope;
+      readonly scope: QueryScope;
     };
 
 export const idleFindPathMode: FindPathMode = { status: 'idle' };
+
+export type TransientDiagramResultKind = 'isolate' | 'find-path' | 'deployment' | 'diff';
+
+export type TransientDiagramResultState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'visible'; readonly kind: TransientDiagramResultKind };
+
+export const idleTransientDiagramResult: TransientDiagramResultState = { status: 'idle' };
+
+export function showTransientDiagramResult(kind: TransientDiagramResultKind): TransientDiagramResultState {
+  return { status: 'visible', kind };
+}
+
+export function clearTransientDiagramResult(): TransientDiagramResultState {
+  return idleTransientDiagramResult;
+}
 
 export type IsolateMode =
   | { readonly status: 'idle' }
@@ -170,15 +189,15 @@ export function cancelFindPath(_mode: FindPathMode): FindPathMode {
 
 export function beginFindPath(
   metadata: DiagramElementQuickActionMetadata,
-  environment?: string,
-  scope?: QueryScope
+  scope: QueryScope,
+  environment?: string
 ): FindPathMode {
   return {
     status: 'selecting-target',
     sourceId: metadata.canonicalElementId,
     sourceTitle: metadata.title,
     ...(environment === undefined ? {} : { sourceEnvironment: environment }),
-    ...(scope === undefined ? {} : { scope })
+    scope
   };
 }
 
@@ -194,7 +213,7 @@ export function resolveFindPathTarget(
     sourceId: mode.sourceId,
     sourceTitle: mode.sourceTitle,
     ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment }),
-    ...(mode.scope === undefined ? {} : { scope: mode.scope }),
+    scope: mode.scope,
     targetId: metadata.canonicalElementId,
     targetTitle: metadata.title,
     ...(environment === undefined ? {} : { targetEnvironment: environment })
@@ -215,7 +234,7 @@ export function reverseFindPathResult(mode: FindPathMode): FindPathMode {
     targetId: mode.sourceId,
     targetTitle: mode.sourceTitle,
     ...(mode.sourceEnvironment === undefined ? {} : { targetEnvironment: mode.sourceEnvironment }),
-    ...(mode.scope === undefined ? {} : { scope: mode.scope })
+    scope: mode.scope
   };
 }
 
@@ -226,7 +245,7 @@ export function retryFindPathTarget(mode: FindPathMode): FindPathMode {
         sourceId: mode.sourceId,
         sourceTitle: mode.sourceTitle,
         ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment }),
-        ...(mode.scope === undefined ? {} : { scope: mode.scope })
+        scope: mode.scope
       }
     : mode;
 }
@@ -236,16 +255,23 @@ export function quickActionItems(
   elementId: string,
   capabilities: DiagramQuickActionCapabilities = { versioning: false }
 ): readonly DiagramQuickActionItem[] {
-  const occurrenceSeparator = elementId.indexOf('@@');
-  const canonicalElementId = occurrenceSeparator < 0 ? elementId : elementId.slice(0, occurrenceSeparator);
+  const canonicalElementId = canonicalDiagramElementId(elementId);
   const metadata = allMetadata[elementId] ?? allMetadata[canonicalElementId];
   if (metadata === undefined) return [];
   return [
     item('isolate', 'Isolate', '◎', metadata.isolateEligible, 'Isolation is unavailable for this element'),
     item('show-deployment', 'Show deployment', '▦', metadata.hasDeployment, 'No deployment'),
-    item('go-to-declaration', 'Go to declaration', '⌘', metadata.declaration !== undefined, 'Declaration is unavailable'),
+    item(
+      'go-to-declaration',
+      'Go to declaration',
+      '⌘',
+      metadata.declaration !== undefined && capabilities.declarationNavigation !== false,
+      capabilities.declarationNavigation === false
+        ? 'Current Git revision is not part of this diff'
+        : 'Declaration is unavailable'
+    ),
     item('find-path', 'Find path', '⌁', metadata.pathEligible, 'Path search is unavailable for this element'),
-    item('diff', 'Diff', '±', capabilities.versioning)
+    item('diff', 'Diff', '±', capabilities.versioning && diagramDiffDeclarationSource(metadata) !== undefined)
   ];
 }
 

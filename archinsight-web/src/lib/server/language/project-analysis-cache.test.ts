@@ -198,6 +198,19 @@ describe('project analysis cache', () => {
     await cache.analyze('owner:a\0project:two', model('Two'), {}, boundedEnv);
     expect(cache.size()).toBe(1);
   });
+
+  it('evicts least-recently-used states at the aggregate source-byte bound', async () => {
+    const oneModelBytes = Buffer.byteLength('main.ai') + Buffer.byteLength(source('One'));
+    const boundedEnv = {
+      ...env,
+      ARCHINSIGHT_ANALYSIS_CACHE_MAX_ENTRIES: '10',
+      ARCHINSIGHT_ANALYSIS_CACHE_MAX_TOTAL_SOURCE_BYTES: String(oneModelBytes + 1)
+    };
+    const cache = new ProjectAnalysisCache(parseAnalysisCacheConfig(boundedEnv));
+    await cache.analyze('owner:a\0project:one', model('One'), {}, boundedEnv);
+    await cache.analyze('owner:a\0project:two', model('Two'), {}, boundedEnv);
+    expect(cache.size()).toBe(1);
+  });
 });
 
 async function expectEquivalentToClean(

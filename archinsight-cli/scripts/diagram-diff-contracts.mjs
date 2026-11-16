@@ -70,14 +70,17 @@ system c
     && entry.rendered.source === "sample/c" && entry.rendered.target === "sample/a"));
 
   const dot = success("diff", project, "--from", before, "--to", after, "--view", "c1");
-  assert.match(dot.stdout, /#c8e6c9/);
-  assert.match(dot.stdout, /#fff59d/);
+  assert.doesNotMatch(dot.stdout, /#(?:c8e6c9|ffcdd2|fff59d)/);
+  assert.match(dot.stdout, /fillcolor="#5A189A",color="#2e7d32"/);
+  assert.match(dot.stdout, /fillcolor="#5A189A",color="#f9a825"/);
   assert.match(dot.stdout, /#2e7d32/);
   assert.match(dot.stdout, /#f9a825/);
+  assert.match(dot.stdout, /color="#f9a825"[^\]]*penwidth="2.5"/);
+  assert.match(dot.stdout, /color="#2e7d32"[^\]]*penwidth="2.5"/);
+  assert.match(dot.stdout, /<font color="#2e7d32" point-size="11px"><b>\+<\/b><\/font>/);
+  assert.match(dot.stdout, /<font color="#f9a825" point-size="11px"><b>~<\/b><\/font>/);
 
-  const reverseDot = success("diff", project, "--from", after, "--to", before, "--view", "c1");
-  assert.match(reverseDot.stdout, /#ffcdd2/);
-  assert.match(reverseDot.stdout, /#c62828/);
+  failure("diff", project, "--from", after, "--to", before, "--view", "c1", /ancestor/i);
 
   const fileDiff = success("diff", path.join(project, "model.ai"), "--from", before, "--to", after, "--view", "c1", "--format", "text");
   assert.match(fileDiff.stdout, /elements\tadded=1/);
@@ -104,7 +107,9 @@ system c
   git("-c", "user.name=Archinsight Test", "-c", "user.email=test@archinsight.invalid", "commit", "-q", "-m", "removed");
   const removed = git("rev-parse", "HEAD").stdout.trim();
   const removedDot = success("diff", project, "--from", after, "--to", removed, "--view", "c1");
-  assert.match(removedDot.stdout, /#ffcdd2/);
+  assert.doesNotMatch(removedDot.stdout, /#ffcdd2/);
+  assert.match(removedDot.stdout, /color="#c62828"/);
+  assert.match(removedDot.stdout, /<font color="#c62828" point-size="11px"><b>−<\/b><\/font>/);
   failure("diff", project, "--from", removed, "--to", removed, "--view", "c1", /absent from both revisions/);
   console.log("CLI diagram diff contracts passed");
 } finally {

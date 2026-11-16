@@ -30,6 +30,7 @@
   export let deploymentPickerOpen = false;
   export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let versioningAvailable = false;
+  export let declarationNavigationAvailable = true;
   export let diffPickerState: DiagramDiffPickerState = { status: 'closed' };
   export let diffPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let viewMode: EditorViewMode = 'split';
@@ -181,6 +182,7 @@
       {deploymentPickerOpen}
       {deploymentPickerAnchor}
       {versioningAvailable}
+      {declarationNavigationAvailable}
       {diffPickerState}
       {diffPickerAnchor}
       {onSelectDeploymentEnvironment}

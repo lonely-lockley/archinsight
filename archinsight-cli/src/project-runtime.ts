@@ -5,10 +5,12 @@ import {
   BUILTIN_VIEW_QUERIES,
   analyzeQuery,
   builtinViewDefinition,
+  declaredDeploymentEnvironments as discoverDeclaredDeploymentEnvironments,
   discoverDeploymentEnvironments,
   executeQuery,
   ProjectAnalysisSession,
   selectGraph,
+  TYPE_CAPABILITIES,
   type LanguageDiagnostic,
   type LanguageSnapshot,
   type LinkProjectResult,
@@ -18,6 +20,7 @@ import {
   type QueryResult,
   type RenderGraph,
 } from "@insight/language";
+import { isIgnoredProjectSourceDirectory, normalizeProjectSourceIdentity } from "@archinsight/contracts";
 import type { DiagramView, ParsedArgs } from "./cli-arguments.js";
 import { CliError } from "./cli-error.js";
 
@@ -148,18 +151,11 @@ function environmentList(environments: readonly { readonly id: string; readonly 
 }
 
 export function declaredDeploymentEnvironments(result: LinkProjectResult): readonly DeploymentEnvironmentEntry[] {
-  return result.elements
-    .filter((element) => element.synthetic !== true
-      && element.parent === undefined
-      && (element.type === "Environment" || element.baseTypes.includes("Environment")))
-    .map((element) => ({
-      id: element.context,
-      ...(element.attributes.name?.[0] === undefined ? {} : { name: element.attributes.name[0] }),
-      source: element.sourceIdentity,
-    }))
-    .sort((left, right) =>
-      (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id)
-    );
+  return discoverDeclaredDeploymentEnvironments(result).map((environment) => ({
+    id: environment.id,
+    ...(environment.name === undefined ? {} : { name: environment.name }),
+    source: environment.sourceIdentity,
+  }));
 }
 
 export function formatDeploymentEnvironments(environments: readonly DeploymentEnvironmentEntry[]): string {
@@ -222,7 +218,7 @@ function selectedContext(
     throw new CliError(`Source '${source}' contains definitions and does not declare a renderable context or environment`);
   }
   if (view !== undefined && builtinViewDefinition(view).boundary?.scope === "context"
-      && sourceContext !== undefined && sourceContext.type !== "Context") {
+      && sourceContext !== undefined && !hasContextCapability(sourceContext, TYPE_CAPABILITIES.logicalContext)) {
     throw new CliError(`Source '${source}' does not declare a logical context for the C1 view`);
   }
 
@@ -252,13 +248,21 @@ function selectedContext(
 function availableContextIds(project: LoadedProject, view: DiagramView | undefined): string[] {
   return [...new Set(project.result.contexts
     .filter((context) => context.synthetic !== true
-      && (view === undefined || builtinViewDefinition(view).boundary?.scope !== "context" || context.type === "Context"))
+      && (view === undefined || builtinViewDefinition(view).boundary?.scope !== "context"
+        || hasContextCapability(context, TYPE_CAPABILITIES.logicalContext)))
     .map((context) => context.id))].sort();
+}
+
+function hasContextCapability(
+  context: { readonly capabilities?: readonly string[] },
+  capability: string,
+): boolean {
+  return context.capabilities?.includes(capability) === true;
 }
 
 function normalizeSourceName(root: string, source: string): string {
   const value = path.isAbsolute(source) ? path.relative(root, source) : source;
-  return value.replaceAll("\\", "/").replace(/^\.\//, "");
+  return normalizeProjectSourceIdentity(value);
 }
 
 async function readSources(root: string): Promise<ProjectSource[]> {
@@ -285,7 +289,7 @@ async function sourceFiles(directory: string): Promise<string[]> {
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      if (isIgnoredSourceDirectory(entry.name)) {
+      if (isIgnoredProjectSourceDirectory(entry.name)) {
         continue;
       }
       result.push(...await sourceFiles(entryPath));
@@ -294,10 +298,6 @@ async function sourceFiles(directory: string): Promise<string[]> {
     }
   }
   return result.sort((left, right) => left.localeCompare(right));
-}
-
-function isIgnoredSourceDirectory(name: string): boolean {
-  return name.startsWith(".") || name === "node_modules" || name === "build" || name === "dist";
 }
 
 export interface DeploymentEnvironmentEntry {

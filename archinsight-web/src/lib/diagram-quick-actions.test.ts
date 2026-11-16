@@ -7,13 +7,16 @@ import {
   cancelDeployment,
   cancelIsolate,
   cancelFindPath,
+  clearTransientDiagramResult,
   idleFindPathMode,
+  idleTransientDiagramResult,
   quickActionItems,
   quickActionRadialOffsets,
   reverseFindPathResult,
   resolveFindPathTarget,
   retryFindPathTarget,
-  showResolvedFindPath
+  showResolvedFindPath,
+  showTransientDiagramResult
 } from '@archinsight/workbench/diagram-quick-actions';
 
 const metadata: DiagramQuickActionMetadata = {
@@ -70,6 +73,10 @@ describe('diagram quick action model', () => {
       .not.toHaveProperty('disabledReason');
     expect(quickActionItems(metadata, 'shop/api', { versioning: true }))
       .toContainEqual(expect.objectContaining({ id: 'diff', enabled: true }));
+    expect(quickActionItems(metadata, 'shop/api', { versioning: true, declarationNavigation: false }))
+      .toContainEqual(expect.objectContaining({ id: 'go-to-declaration', enabled: false }));
+    expect(quickActionItems(metadata, 'shop/db', { versioning: true }))
+      .toContainEqual(expect.objectContaining({ id: 'diff', enabled: false }));
     expect(quickActionItems(metadata, 'shop/api@@production')).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'isolate', enabled: true })])
     );
@@ -94,14 +101,16 @@ describe('diagram quick action model', () => {
   });
 
   it('keeps source identity while selecting, resolving, showing and retrying a path', () => {
-    const selecting = beginFindPath(metadata['shop/api']!);
-    expect(selecting).toEqual({ status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API' });
+    const scope = { view: 'c2', tab: 'model.ai', context: 'shop' } as const;
+    const selecting = beginFindPath(metadata['shop/api']!, scope);
+    expect(selecting).toEqual({ status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope });
     expect(resolveFindPathTarget(selecting, metadata['shop/api']!)).toBe(selecting);
     const resolving = resolveFindPathTarget(selecting, metadata['shop/db']!);
     expect(resolving).toEqual({
       status: 'resolving-path',
       sourceId: 'shop/api',
       sourceTitle: 'API',
+      scope,
       targetId: 'shop/db',
       targetTitle: 'Database'
     });
@@ -110,6 +119,7 @@ describe('diagram quick action model', () => {
       status: 'resolving-path',
       sourceId: 'shop/db',
       sourceTitle: 'Database',
+      scope,
       targetId: 'shop/api',
       targetTitle: 'API'
     });
@@ -131,7 +141,7 @@ describe('diagram quick action model', () => {
       view: 'deployment-container',
       environment: 'eu'
     } as const;
-    const selecting = beginFindPath(metadata['shop/api']!, 'eu', scope);
+    const selecting = beginFindPath(metadata['shop/api']!, scope, 'eu');
     const resolving = resolveFindPathTarget(selecting, metadata['shop/db']!, 'us');
     expect(resolving).toEqual({
       status: 'resolving-path',
@@ -160,5 +170,14 @@ describe('diagram quick action model', () => {
       sourceEnvironment: 'eu',
       scope
     });
+  });
+
+  it('tracks each transient diagram result explicitly instead of collapsing them to a boolean', () => {
+    expect(idleTransientDiagramResult).toEqual({ status: 'idle' });
+    expect(showTransientDiagramResult('isolate')).toEqual({ status: 'visible', kind: 'isolate' });
+    expect(showTransientDiagramResult('deployment')).toEqual({ status: 'visible', kind: 'deployment' });
+    expect(showTransientDiagramResult('find-path')).toEqual({ status: 'visible', kind: 'find-path' });
+    expect(showTransientDiagramResult('diff')).toEqual({ status: 'visible', kind: 'diff' });
+    expect(clearTransientDiagramResult()).toBe(idleTransientDiagramResult);
   });
 });

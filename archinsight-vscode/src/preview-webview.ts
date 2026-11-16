@@ -63,14 +63,35 @@ export function previewHtml(): string {
 
       function render() {
         if (state?.error !== undefined) {
-          preview.innerHTML = "";
+          preview.replaceChildren();
           const error = document.createElement("section");
           error.className = "error";
           error.textContent = state.error;
           preview.append(error);
           return;
         }
-        preview.innerHTML = state?.svg ?? "";
+        renderTrustedSvg(state?.svg);
+      }
+
+      function renderTrustedSvg(rawSvg) {
+        preview.replaceChildren();
+        if (typeof rawSvg !== "string") return;
+        const parsed = new DOMParser().parseFromString(rawSvg, "image/svg+xml");
+        const root = parsed.documentElement;
+        if (parsed.querySelector("parsererror") !== null || root.nodeName.toLowerCase() !== "svg") return;
+        for (const unsafe of root.querySelectorAll("script, foreignObject, iframe, object, embed, style")) unsafe.remove();
+        for (const element of [root, ...root.querySelectorAll("*")]) {
+          for (const attribute of [...element.attributes]) {
+            const name = attribute.name.toLowerCase();
+            const value = attribute.value.trim();
+            if (name.startsWith("on") || name === "style"
+                || ((name === "href" || name === "xlink:href")
+                  && !value.startsWith("#") && !value.startsWith("insight://goto?"))) {
+              element.removeAttribute(attribute.name);
+            }
+          }
+        }
+        preview.append(document.importNode(root, true));
       }
 
       async function exportPng(svg) {

@@ -26,6 +26,7 @@
   export let deploymentPickerOpen = false;
   export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let versioningAvailable = false;
+  export let declarationNavigationAvailable = true;
   export let diffPickerState: DiagramDiffPickerState = { status: 'closed' };
   export let diffPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
@@ -181,11 +182,17 @@
       }
       return;
     }
+    if (diagramEdgeFromEvent(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
 
     const declaration = declarationFromEvent(event);
     if (declaration !== undefined) {
       event.preventDefault();
-      onOpenDeclaration(declaration);
+      event.stopPropagation();
+      if (declarationNavigationAvailable) onOpenDeclaration(declaration);
       return;
     }
     if (elementId === undefined) return;
@@ -220,13 +227,20 @@
       const identity = parseRenderIdentity(current.id);
       if (identity === undefined) continue;
       const elementId = identity.provenance[0];
-      return identity.kind === 'cluster'
-          && elementId !== undefined
-          && diagramElementMetadata(quickActionMetadata, elementId) !== undefined
-        ? elementId
-        : undefined;
+      return identity.kind === 'cluster' ? elementId : undefined;
     }
     return undefined;
+  }
+
+  function diagramEdgeFromEvent(event: Event): boolean {
+    for (const current of eventElements(event)) {
+      if (current === svgHost) break;
+      if (current instanceof SVGGElement && current.id.length > 0
+          && parseRenderIdentity(current.id)?.kind === 'edge') {
+        return true;
+      }
+    }
+    return false;
   }
 
   function eventElements(event: Event): Element[] {
@@ -260,7 +274,8 @@
       const identity = parseRenderIdentity(group.id);
       if (identity === undefined || (identity.kind !== 'node' && identity.kind !== 'cluster')) continue;
       const elementId = identity.provenance[0];
-      if (elementId === undefined || diagramElementMetadata(quickActionMetadata, elementId) === undefined) continue;
+      if (elementId === undefined
+          || (identity.kind === 'node' && diagramElementMetadata(quickActionMetadata, elementId) === undefined)) continue;
       const canonical = canonicalDiagramElementId(elementId);
       if ((findPathMode.status === 'idle' && selectedElementId === elementId)
           || (isolateMode.status === 'showing-isolate' && canonical === isolateMode.elementId)
@@ -334,6 +349,7 @@
     {deploymentPickerOpen}
     {deploymentPickerAnchor}
     {versioningAvailable}
+    {declarationNavigationAvailable}
     {diffPickerState}
     {diffPickerAnchor}
     {onSelectDeploymentEnvironment}
@@ -395,8 +411,10 @@
   .svg-host :global(g.archinsight-node-selected polygon),
   .svg-host :global(g.archinsight-node-selected ellipse),
   .svg-host :global(g.archinsight-node-selected path) {
-    stroke: var(--color-primary, #6a9955) !important;
-    stroke-width: 3px !important;
+    filter:
+      drop-shadow(0 0 1px var(--color-primary, #36d074))
+      drop-shadow(0 0 3px color-mix(in srgb, var(--color-primary, #36d074) 85%, transparent))
+      drop-shadow(0 0 7px color-mix(in srgb, var(--color-primary, #36d074) 55%, transparent));
   }
 
   .svg-host :global(g.archinsight-path-source > polygon),

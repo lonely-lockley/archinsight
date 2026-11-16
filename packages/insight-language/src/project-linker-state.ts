@@ -50,30 +50,48 @@ export class ProjectLinkerState {
   }
 
   replaceSource(replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
+    return this.replaceSources([replacement]);
+  }
+
+  replaceSources(replacements: readonly ProjectSourceReplacement[]): ProjectLinkerStateUpdate {
     const previous = this.currentResult;
-    const addingSource = replacement.source !== undefined && !this.sourcesByName.has(replacement.sourceName);
-    const replacedReferences = previous.graph.sourceContribution(replacement.sourceName)?.referencedNodes ?? new Set<string>();
-    const impact = previous.graph.removeSourceContribution(replacement.sourceName);
-    if (replacement.source === undefined) {
-      this.sourcesByName.delete(replacement.sourceName);
-    } else {
-      this.sourcesByName.set(replacement.sourceName, {
-        sourceName: replacement.sourceName,
-        source: replacement.source,
-      });
+    const uniqueReplacements = [...new Map(replacements.map((item) => [item.sourceName, item])).values()]
+      .sort((left, right) => left.sourceName.localeCompare(right.sourceName));
+    const existingSources = new Set(this.sourcesByName.keys());
+    const replacementNames = new Set(uniqueReplacements.map((item) => item.sourceName));
+    const preservedReferences = new Map<string, ReadonlySet<string>>();
+    const impacts: GraphUpdateImpact[] = [];
+    for (const replacement of uniqueReplacements) {
+      preservedReferences.set(
+        replacement.sourceName,
+        previous.graph.sourceContribution(replacement.sourceName)?.referencedNodes ?? new Set<string>(),
+      );
+      impacts.push(previous.graph.removeSourceContribution(replacement.sourceName));
+      if (replacement.source === undefined) {
+        this.sourcesByName.delete(replacement.sourceName);
+      } else {
+        this.sourcesByName.set(replacement.sourceName, {
+          sourceName: replacement.sourceName,
+          source: replacement.source,
+        });
+      }
     }
     // A new source can satisfy references that were unresolved in the previous
     // graph, so there is no dependency edge from those consumers to follow yet.
     // It can also introduce duplicates in an existing context. Relink every
     // source for additions; replacements and removals keep using graph impact.
+    const addingSource = uniqueReplacements.some((item) =>
+      item.source !== undefined && !existingSources.has(item.sourceName)
+    );
     const affectedSources = addingSource
-      ? new Set(this.sourcesByName.keys())
-      : new Set([replacement.sourceName, ...impact.dependentSources]);
-    const relinkedSources = this.relinkSupportSources(previous, affectedSources, new Map([
-      [replacement.sourceName, replacedReferences],
-    ]));
+      ? new Set([...this.sourcesByName.keys(), ...replacementNames])
+      : new Set([
+          ...replacementNames,
+          ...impacts.flatMap((impact) => [...impact.dependentSources]),
+        ]);
+    const relinkedSources = this.relinkSupportSources(previous, affectedSources, preservedReferences);
     for (const source of relinkedSources) {
-      if (source !== replacement.sourceName) {
+      if (!replacementNames.has(source)) {
         previous.graph.removeSourceContribution(source);
       }
     }
@@ -88,7 +106,7 @@ export class ProjectLinkerState {
     mergeGraph(previous.graph, partialResult.graph);
     this.currentResult = mergeResults(previous, partialResult, relinkedSources, previous.graph);
     return {
-      impact,
+      impact: mergeImpacts(impacts),
       affectedSources,
       relinkedSources,
       result: this.currentResult,
@@ -117,10 +135,15 @@ export class ProjectLinkerState {
     const pending = [...affectedSources];
     const contextBySource = new Map(previous.contexts.map((context) => [context.sourceIdentity, context.id]));
     const sourcesByContext = new Map<string, Set<string>>();
+    const importsBySource = new Map<string, typeof previous.imports>();
     for (const context of previous.contexts) {
       const sources = sourcesByContext.get(context.id) ?? new Set<string>();
       sources.add(context.sourceIdentity);
       sourcesByContext.set(context.id, sources);
+    }
+    for (const imported of previous.imports) {
+      const imports = importsBySource.get(imported.sourceIdentity) ?? [];
+      importsBySource.set(imported.sourceIdentity, [...imports, imported]);
     }
 
     while (pending.length > 0) {
@@ -140,7 +163,7 @@ export class ProjectLinkerState {
           }
         }
       }
-      for (const imported of previous.imports.filter((item) => item.sourceIdentity === source)) {
+      for (const imported of importsBySource.get(source) ?? []) {
         for (const providerSource of sourcesByContext.get(imported.sourceContext) ?? []) {
           if (this.sourcesByName.has(providerSource)) {
             pending.push(providerSource);
@@ -160,6 +183,14 @@ export class ProjectLinkerState {
 
     return result;
   }
+}
+
+function mergeImpacts(impacts: readonly GraphUpdateImpact[]): GraphUpdateImpact {
+  return {
+    removedNodes: new Set(impacts.flatMap((impact) => [...impact.removedNodes])),
+    removedRelations: new Set(impacts.flatMap((impact) => [...impact.removedRelations])),
+    dependentSources: new Set(impacts.flatMap((impact) => [...impact.dependentSources])),
+  };
 }
 
 function graphNodeSource(node: ReturnType<IndexedGraph["node"]>): string | undefined {

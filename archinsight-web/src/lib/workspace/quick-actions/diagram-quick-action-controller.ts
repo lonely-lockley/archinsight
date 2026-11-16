@@ -1,14 +1,7 @@
 import {
   canonicalDiagramElementId,
-  deploymentEnvironmentsForElement,
-  deploymentFocusElementIds,
-  diagramElementMetadata,
-  diagramQuickActionMetadata,
   renderGraphviz,
   resolveBuiltinView,
-  selectDeploymentGraph,
-  selectIsolatedElementGraph,
-  selectPathGraph,
   type DeploymentEnvironment,
   type LinkProjectResult,
   type QueryScope,
@@ -16,30 +9,28 @@ import {
   type RenderTheme
 } from '@insight/language';
 import {
-  beginDeployment,
-  beginFindPath,
-  beginIsolate,
   cancelDeployment,
   cancelIsolate,
   cancelFindPath,
   idleDeploymentMode,
   idleFindPathMode,
-  reverseFindPathResult,
-  resolveFindPathTarget,
   retryFindPathTarget,
-  showResolvedFindPath,
   type DeploymentMode,
   type DiagramQuickActionId,
   type FindPathMode,
   type IsolateMode
 } from '@archinsight/workbench/diagram-quick-actions';
+import {
+  DiagramQuickActionService,
+  type PreparedFindPath
+} from '@archinsight/workbench/diagram-quick-action-service';
+import { DiagramQuickActionCoordinator } from '@archinsight/workbench/diagram-quick-action-coordinator';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { DotRender, SvgRenderResponse } from '$lib/api';
 import type { SourceLocation, WorkspaceTab } from '@archinsight/workbench/types';
 
 type ResultPatch = Partial<Pick<WorkspaceTab, 'svg' | 'dot' | 'queryResult'>>;
 type DiagramSnapshot = { readonly tabId: string; readonly patch: ResultPatch };
-type ResolvingFindPathMode = Extract<FindPathMode, { readonly status: 'resolving-path' }>;
 type ShowingFindPathMode = Extract<FindPathMode, { readonly status: 'showing-path' }>;
 
 export type DiagramQuickActionControllerPorts = {
@@ -59,8 +50,8 @@ export type DiagramQuickActionControllerPorts = {
   setDeploymentPickerOpen(open: boolean): void;
   setLoading(loading: boolean): void;
   patchTab(tabId: string, patch: ResultPatch): void;
-  renderInBrowser(renders: DotRender[]): Promise<SvgRenderResponse>;
-  renderOnServer(projectId: string, renders: DotRender[], surface: WorkspaceSurface): Promise<SvgRenderResponse>;
+  renderInBrowser(renders: DotRender[], signal?: AbortSignal): Promise<SvgRenderResponse>;
+  renderOnServer(projectId: string, renders: DotRender[], surface: WorkspaceSurface, signal?: AbortSignal): Promise<SvgRenderResponse>;
   goToDeclaration(location: SourceLocation): Promise<void> | void;
   info(message: string): void;
   error(message: string): void;
@@ -85,24 +76,38 @@ export type DiagramQuickActionController = {
 export function createDiagramQuickActionController(
   ports: DiagramQuickActionControllerPorts
 ): DiagramQuickActionController {
-  let generation = 0;
   let rendering = false;
-  let findPathDiagramSnapshot: DiagramSnapshot | undefined;
-  let isolateDiagramSnapshot: DiagramSnapshot | undefined;
-  let deploymentDiagramSnapshot: DiagramSnapshot | undefined;
+  let renderAbort: AbortController | undefined;
+  const lifecycle = new DiagramQuickActionCoordinator<DiagramSnapshot>();
+  lifecycle.setFindPathMode(ports.findPathMode());
+  lifecycle.setIsolateMode(ports.isolateMode());
+  lifecycle.setDeploymentMode(ports.deploymentMode());
   let pendingDeploymentDiagramSnapshot: DiagramSnapshot | undefined;
-  let findPathOwnerTabId: string | undefined;
-  let findPathOwnerSourceIdentity: string | undefined;
-  let isolateOwnerTabId: string | undefined;
-  let isolateOwnerSourceIdentity: string | undefined;
-  let deploymentOwnerTabId: string | undefined;
-  let deploymentOwnerSourceIdentity: string | undefined;
+  const hostPorts = ports;
+  ports = {
+    ...hostPorts,
+    findPathMode: () => lifecycle.findPathMode(),
+    setFindPathMode: (mode) => {
+      lifecycle.setFindPathMode(mode);
+      hostPorts.setFindPathMode(mode);
+    },
+    isolateMode: () => lifecycle.isolateMode(),
+    setIsolateMode: (mode) => {
+      lifecycle.setIsolateMode(mode);
+      hostPorts.setIsolateMode(mode);
+    },
+    deploymentMode: () => lifecycle.deploymentMode(),
+    setDeploymentMode: (mode) => {
+      lifecycle.setDeploymentMode(mode);
+      hostPorts.setDeploymentMode(mode);
+    }
+  };
 
   const metadataFor = (elementId: string) => {
     const analysis = ports.analysis();
     return analysis === undefined
       ? undefined
-      : diagramElementMetadata(diagramQuickActionMetadata(analysis), elementId);
+      : new DiagramQuickActionService(analysis).metadata(elementId);
   };
 
   const diagramSnapshot = (): DiagramSnapshot | undefined => {
@@ -137,26 +142,22 @@ export function createDiagramQuickActionController(
   };
 
   const restoreFindPathDiagram = (): void => {
-    if (findPathDiagramSnapshot === undefined) return;
-    ports.patchTab(findPathDiagramSnapshot.tabId, findPathDiagramSnapshot.patch);
-    findPathDiagramSnapshot = undefined;
+    const snapshot = lifecycle.takeBaseline('find-path');
+    if (snapshot !== undefined) ports.patchTab(snapshot.tabId, snapshot.patch);
   };
 
   const restoreIsolateDiagram = (): void => {
-    if (isolateDiagramSnapshot === undefined) return;
-    ports.patchTab(isolateDiagramSnapshot.tabId, isolateDiagramSnapshot.patch);
-    isolateDiagramSnapshot = undefined;
+    const snapshot = lifecycle.takeBaseline('isolate');
+    if (snapshot !== undefined) ports.patchTab(snapshot.tabId, snapshot.patch);
   };
 
   const restoreDeploymentDiagram = (): void => {
-    if (deploymentDiagramSnapshot === undefined) return;
-    ports.patchTab(deploymentDiagramSnapshot.tabId, deploymentDiagramSnapshot.patch);
-    deploymentDiagramSnapshot = undefined;
+    const snapshot = lifecycle.takeBaseline('deployment');
+    if (snapshot !== undefined) ports.patchTab(snapshot.tabId, snapshot.patch);
   };
 
   const clearDeploymentOwnership = (): void => {
-    deploymentOwnerTabId = undefined;
-    deploymentOwnerSourceIdentity = undefined;
+    lifecycle.clear('deployment');
     pendingDeploymentDiagramSnapshot = undefined;
   };
 
@@ -166,15 +167,15 @@ export function createDiagramQuickActionController(
     environment: string,
     snapshot: DiagramSnapshot | undefined
   ): Promise<boolean> => {
-    const graph = selectDeploymentGraph(analysis, metadata.canonicalElementId, environment);
-    const focusElementIds = deploymentFocusElementIds(analysis, metadata.canonicalElementId, graph);
-    const accepted = await render(graph, 'Show deployment');
+    const prepared = new DiagramQuickActionService(analysis).deployment(metadata.canonicalElementId, environment);
+    if (prepared === undefined) return false;
+    const accepted = await render(prepared.graph, 'Show deployment');
     if (!accepted) {
       if (ports.deploymentMode().status === 'idle') clearDeploymentOwnership();
       return false;
     }
-    if (snapshot !== undefined) deploymentDiagramSnapshot = snapshot;
-    ports.setDeploymentMode(beginDeployment(metadata, environment, focusElementIds));
+    if (snapshot !== undefined) lifecycle.setBaseline('deployment', snapshot);
+    ports.setDeploymentMode(prepared.mode);
     return true;
   };
 
@@ -182,7 +183,10 @@ export function createDiagramQuickActionController(
     const analysis = ports.analysis();
     const tab = ports.activeTab();
     if (analysis === undefined || tab === undefined) return false;
-    const currentGeneration = ++generation;
+    renderAbort?.abort();
+    const controller = new AbortController();
+    renderAbort = controller;
+    const currentGeneration = lifecycle.nextGeneration();
     const projectId = ports.projectId();
     rendering = true;
     ports.setLoading(true);
@@ -191,11 +195,12 @@ export function createDiagramQuickActionController(
       const renders: DotRender[] = [{ sourceIdentity: tab.sourceIdentity, diagram: 'query', dot }];
       let rendered: SvgRenderResponse;
       try {
-        rendered = await ports.renderInBrowser(renders);
-      } catch {
-        rendered = await ports.renderOnServer(projectId, renders, ports.surface());
+        rendered = await ports.renderInBrowser(renders, controller.signal);
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        rendered = await ports.renderOnServer(projectId, renders, ports.surface(), controller.signal);
       }
-      if (currentGeneration !== generation || ports.projectId() !== projectId) {
+      if (!lifecycle.isCurrent(currentGeneration) || ports.projectId() !== projectId) {
         return false;
       }
       const error = rendered.diagnostics.find((diagnostic) => diagnostic.level === 'ERROR');
@@ -207,12 +212,13 @@ export function createDiagramQuickActionController(
       ports.patchTab(tab.id, { svg, dot, queryResult: undefined });
       return true;
     } catch (error) {
-      if (currentGeneration === generation) {
+      if (lifecycle.isCurrent(currentGeneration)) {
         ports.error(`${label} failed: ${error instanceof Error ? error.message : String(error)}`);
       }
       return false;
     } finally {
-      if (currentGeneration === generation) {
+      if (lifecycle.isCurrent(currentGeneration)) {
+        renderAbort = undefined;
         rendering = false;
         ports.setLoading(false);
       }
@@ -220,41 +226,21 @@ export function createDiagramQuickActionController(
   };
 
   const resolveAndRenderPath = async (
-    analysis: LinkProjectResult,
-    resolving: ResolvingFindPathMode,
+    prepared: PreparedFindPath,
     failureMode: FindPathMode,
     captureSnapshot: boolean
   ): Promise<void> => {
+    const { resolving, showing, graph } = prepared;
     ports.setFindPathMode(resolving);
-    let graph: RenderGraph;
-    try {
-      graph = selectPathGraph(
-        analysis,
-        resolving.sourceId,
-        resolving.targetId,
-        resolving.scope ?? currentQuickActionScope(analysis),
-        {
-          sourceEnvironment: resolving.sourceEnvironment,
-          targetEnvironment: resolving.targetEnvironment
-        }
-      );
-    } catch (error) {
-      if (ports.findPathMode() === resolving) {
-        ports.setFindPathMode(failureMode);
-        ports.error(`Find path failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-      return;
-    }
     if (graph.edges.length === 0) {
       const message = `No path found between ${resolving.sourceTitle} and ${resolving.targetTitle}.`;
       ports.info(message);
     }
     if (ports.findPathMode() !== resolving) return;
-    const showing = showResolvedFindPath(resolving);
     ports.setFindPathMode(showing);
     const snapshot = captureSnapshot ? diagramSnapshot() : undefined;
     const accepted = await render(graph, 'Find path');
-    if (accepted && snapshot !== undefined) findPathDiagramSnapshot = snapshot;
+    if (accepted && snapshot !== undefined) lifecycle.setBaseline('find-path', snapshot);
     if (!accepted && ports.findPathMode() === showing) {
       ports.setFindPathMode(failureMode);
     }
@@ -280,22 +266,26 @@ export function createDiagramQuickActionController(
         if (ports.isolateMode().status !== 'idle') {
           restoreIsolateDiagram();
           ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
-          isolateOwnerTabId = undefined;
-          isolateOwnerSourceIdentity = undefined;
+          lifecycle.clear('isolate');
         }
         restoreFindPathDiagram();
-        generation++;
+        lifecycle.invalidate();
+        renderAbort?.abort();
+        renderAbort = undefined;
         if (rendering) {
           rendering = false;
           ports.setLoading(false);
         }
-        findPathOwnerTabId = ports.activeTab()?.id;
-        findPathOwnerSourceIdentity = ports.activeTab()?.sourceIdentity;
-        ports.setFindPathMode(beginFindPath(
-          metadata,
-          currentPathEndpointEnvironment(),
-          currentQuickActionScope(analysis)
-        ));
+        lifecycle.begin('find-path', {
+          id: ports.activeTab()?.id,
+          sourceIdentity: ports.activeTab()?.sourceIdentity
+        });
+        const scope = currentQuickActionScope(analysis);
+        if (scope === undefined) return;
+        const mode = new DiagramQuickActionService(analysis).beginFindPath(
+          metadata.canonicalElementId, scope, currentPathEndpointEnvironment()
+        );
+        if (mode !== undefined) ports.setFindPathMode(mode);
         return;
       }
       if (action === 'isolate') {
@@ -304,21 +294,21 @@ export function createDiagramQuickActionController(
         if (ports.findPathMode().status !== 'idle') {
           restoreFindPathDiagram();
           ports.setFindPathMode(cancelFindPath(ports.findPathMode()));
-          findPathOwnerTabId = undefined;
-          findPathOwnerSourceIdentity = undefined;
+          lifecycle.clear('find-path');
         }
         const ownerTab = ports.activeTab();
         const previousMode = ports.isolateMode();
         const snapshot = previousMode.status === 'idle' ? diagramSnapshot() : undefined;
-        const accepted = await render(
-          selectIsolatedElementGraph(analysis, metadata.canonicalElementId, currentQuickActionScope(analysis)),
-          'Isolate'
-        );
+        const prepared = new DiagramQuickActionService(analysis)
+          .isolate(metadata.elementId, currentQuickActionScope(analysis));
+        if (prepared === undefined) return;
+        const accepted = await render(prepared.graph, 'Isolate');
         if (accepted) {
-          if (snapshot !== undefined) isolateDiagramSnapshot = snapshot;
-          isolateOwnerTabId = ownerTab?.id;
-          isolateOwnerSourceIdentity = ownerTab?.sourceIdentity;
-          ports.setIsolateMode(beginIsolate(metadata));
+          lifecycle.begin('isolate', {
+            id: ownerTab?.id,
+            sourceIdentity: ownerTab?.sourceIdentity
+          }, snapshot);
+          ports.setIsolateMode(prepared.mode);
         }
         return;
       }
@@ -326,25 +316,24 @@ export function createDiagramQuickActionController(
       if (ports.isolateMode().status !== 'idle') {
         restoreIsolateDiagram();
         ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
-        isolateOwnerTabId = undefined;
-        isolateOwnerSourceIdentity = undefined;
+        lifecycle.clear('isolate');
       }
       if (!metadata.hasDeployment) return;
       const ownerTab = ports.activeTab();
       const continuesCurrentDeployment = ports.deploymentMode().status !== 'idle'
-        && (deploymentOwnerTabId === undefined || deploymentOwnerTabId === ownerTab?.id);
+        && lifecycle.owns('deployment', ownerTab?.id);
       if (ports.deploymentMode().status !== 'idle' && !continuesCurrentDeployment) {
         controller.cancelDeployment();
       }
-      const environments = deploymentEnvironmentsForElement(analysis, metadata.canonicalElementId);
+      const environments = new DiagramQuickActionService(analysis)
+        .deploymentEnvironments(metadata.canonicalElementId);
       if (environments.length === 0) {
         ports.info(`No deployment is available for ${metadata.title}`);
         return;
       }
       if (environments.length > 1) {
         if (!continuesCurrentDeployment) {
-          deploymentOwnerTabId = ownerTab?.id;
-          deploymentOwnerSourceIdentity = ownerTab?.sourceIdentity;
+          lifecycle.begin('deployment', { id: ownerTab?.id, sourceIdentity: ownerTab?.sourceIdentity });
           pendingDeploymentDiagramSnapshot = diagramSnapshot();
         } else {
           pendingDeploymentDiagramSnapshot = undefined;
@@ -354,8 +343,7 @@ export function createDiagramQuickActionController(
         return;
       }
       if (!continuesCurrentDeployment) {
-        deploymentOwnerTabId = ownerTab?.id;
-        deploymentOwnerSourceIdentity = ownerTab?.sourceIdentity;
+        lifecycle.begin('deployment', { id: ownerTab?.id, sourceIdentity: ownerTab?.sourceIdentity });
       }
       await renderDeployment(
         analysis,
@@ -370,43 +358,56 @@ export function createDiagramQuickActionController(
       const metadata = metadataFor(elementId);
       const selecting = ports.findPathMode();
       if (analysis === undefined || metadata === undefined || selecting.status !== 'selecting-target') return;
-      const resolving = resolveFindPathTarget(selecting, metadata, currentPathEndpointEnvironment());
-      if (resolving.status !== 'resolving-path') return;
-      await resolveAndRenderPath(analysis, resolving, retryFindPathTarget(resolving), true);
+      try {
+        const prepared = new DiagramQuickActionService(analysis)
+          .selectPathTarget(selecting, metadata.canonicalElementId, currentPathEndpointEnvironment());
+        if (prepared === undefined) return;
+        await resolveAndRenderPath(prepared, retryFindPathTarget(prepared.resolving), true);
+      } catch (error) {
+        ports.error(`Find path failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     },
 
     async reverseFindPath() {
       const analysis = ports.analysis();
       const showing = ports.findPathMode();
       if (analysis === undefined || showing.status !== 'showing-path') return;
-      const resolving = reverseFindPathResult(showing);
-      if (resolving.status !== 'resolving-path') return;
-      await resolveAndRenderPath(analysis, resolving, showing as ShowingFindPathMode, false);
+      try {
+        const prepared = new DiagramQuickActionService(analysis).reversePath(showing);
+        if (prepared === undefined) return;
+        await resolveAndRenderPath(prepared, showing as ShowingFindPathMode, false);
+      } catch (error) {
+        ports.error(`Find path failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     },
 
     cancelFindPath() {
       const mode = ports.findPathMode();
-      generation++;
+      lifecycle.invalidate();
+      renderAbort?.abort();
+      renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
       if (mode.status === 'showing-path') restoreFindPathDiagram();
-      findPathOwnerTabId = undefined;
-      findPathOwnerSourceIdentity = undefined;
+      lifecycle.clear('find-path');
       ports.setFindPathMode(cancelFindPath(mode));
     },
 
     cancelIsolate() {
-      generation++;
+      lifecycle.invalidate();
+      renderAbort?.abort();
+      renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
       restoreIsolateDiagram();
-      isolateOwnerTabId = undefined;
-      isolateOwnerSourceIdentity = undefined;
+      lifecycle.clear('isolate');
       ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
     },
 
     cancelDeployment() {
-      generation++;
+      lifecycle.invalidate();
+      renderAbort?.abort();
+      renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
       restoreDeploymentDiagram();
@@ -418,13 +419,13 @@ export function createDiagramQuickActionController(
 
     activeTabOwnsQuickActionMode(activeTabId) {
       if (ports.findPathMode().status !== 'idle') {
-        return findPathOwnerTabId === undefined || findPathOwnerTabId === activeTabId;
+        return lifecycle.owns('find-path', activeTabId);
       }
       if (ports.isolateMode().status !== 'idle') {
-        return isolateOwnerTabId === undefined || isolateOwnerTabId === activeTabId;
+        return lifecycle.owns('isolate', activeTabId);
       }
       if (ports.deploymentMode().status !== 'idle') {
-        return deploymentOwnerTabId === undefined || deploymentOwnerTabId === activeTabId;
+        return lifecycle.owns('deployment', activeTabId);
       }
       return true;
     },
@@ -434,7 +435,7 @@ export function createDiagramQuickActionController(
       const elementId = ports.pendingDeploymentElementId();
       return analysis === undefined || elementId === undefined
         ? []
-        : deploymentEnvironmentsForElement(analysis, elementId);
+        : new DiagramQuickActionService(analysis).deploymentEnvironments(elementId);
     },
 
     async selectDeploymentEnvironment(environment) {
@@ -466,29 +467,28 @@ export function createDiagramQuickActionController(
     invalidateRender(sourceIdentity) {
       if (sourceIdentity !== undefined) {
         if (ports.findPathMode().status !== 'idle'
-            && findPathOwnerSourceIdentity !== undefined
-            && sourceIdentity !== findPathOwnerSourceIdentity) return;
+            && !lifecycle.belongsToSource('find-path', sourceIdentity)) return;
         if (ports.isolateMode().status !== 'idle'
-            && isolateOwnerSourceIdentity !== undefined
-            && sourceIdentity !== isolateOwnerSourceIdentity) return;
+            && !lifecycle.belongsToSource('isolate', sourceIdentity)) return;
         if (ports.deploymentMode().status !== 'idle'
-            && deploymentOwnerSourceIdentity !== undefined
-            && sourceIdentity !== deploymentOwnerSourceIdentity) return;
+            && !lifecycle.belongsToSource('deployment', sourceIdentity)) return;
       }
-      generation++;
+      lifecycle.invalidate();
+      renderAbort?.abort();
+      renderAbort = undefined;
       rendering = false;
-      findPathDiagramSnapshot = undefined;
-      isolateDiagramSnapshot = undefined;
-      deploymentDiagramSnapshot = undefined;
-      isolateOwnerTabId = undefined;
-      isolateOwnerSourceIdentity = undefined;
+      const isolate = ports.isolateMode();
+      const deployment = ports.deploymentMode();
+      lifecycle.reset();
       clearDeploymentOwnership();
-      ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
-      ports.setDeploymentMode(cancelDeployment(ports.deploymentMode()));
+      ports.setIsolateMode(cancelIsolate(isolate));
+      ports.setDeploymentMode(cancelDeployment(deployment));
     },
 
     reconcileAnalysis(analysis) {
-      generation++;
+      lifecycle.invalidate();
+      renderAbort?.abort();
+      renderAbort = undefined;
       if (rendering) {
         rendering = false;
         ports.setLoading(false);
@@ -526,19 +526,13 @@ export function createDiagramQuickActionController(
       const mode = ports.findPathMode();
       const isolate = ports.isolateMode();
       const deployment = ports.deploymentMode();
-      generation++;
+      lifecycle.invalidate();
+      renderAbort?.abort();
+      renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
-      findPathDiagramSnapshot = undefined;
-      isolateDiagramSnapshot = undefined;
-      deploymentDiagramSnapshot = undefined;
       pendingDeploymentDiagramSnapshot = undefined;
-      findPathOwnerTabId = undefined;
-      findPathOwnerSourceIdentity = undefined;
-      isolateOwnerTabId = undefined;
-      isolateOwnerSourceIdentity = undefined;
-      deploymentOwnerTabId = undefined;
-      deploymentOwnerSourceIdentity = undefined;
+      lifecycle.reset();
       ports.setFindPathMode(idleFindPathMode);
       ports.setIsolateMode({ status: 'idle' });
       ports.setDeploymentMode(idleDeploymentMode);

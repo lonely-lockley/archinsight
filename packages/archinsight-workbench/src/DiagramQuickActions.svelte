@@ -34,6 +34,7 @@
   export let deploymentPickerOpen = false;
   export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let versioningAvailable = false;
+  export let declarationNavigationAvailable = true;
   export let diffPickerState: DiagramDiffPickerState = { status: 'closed' };
   export let diffPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
@@ -59,7 +60,10 @@
   const triggerButtons = new Map<string, HTMLButtonElement>();
 
   $: openElement = openElementId === undefined ? undefined : diagramElementMetadata(metadata, openElementId);
-  $: openItems = openElementId === undefined ? [] : quickActionItems(metadata, openElementId, { versioning: versioningAvailable });
+  $: openItems = openElementId === undefined ? [] : quickActionItems(metadata, openElementId, {
+    versioning: versioningAvailable,
+    declarationNavigation: declarationNavigationAvailable
+  });
   $: deploymentPickerStyle = pickerStyle(deploymentPickerAnchor);
   $: diffPickerStyle = pickerStyle(diffPickerAnchor, 360);
   $: openItemOffsets = menuAnchor === undefined || viewportBounds === undefined
@@ -92,6 +96,7 @@
     resizeObserver?.disconnect();
     mutationObserver?.disconnect();
     observedPreviewPane?.removeEventListener('scroll', refreshLayout);
+    observedSvgHost?.removeEventListener('click', handleTriggerClick, true);
     removeTriggers();
   });
 
@@ -100,6 +105,7 @@
     if (observedPreviewPane === previewPane && observedSvgHost === svgHost && observedSvg === nextSvg) return;
 
     observedPreviewPane?.removeEventListener('scroll', refreshLayout);
+    observedSvgHost?.removeEventListener('click', handleTriggerClick, true);
     observedPreviewPane = previewPane;
     observedSvgHost = svgHost;
     observedSvg = nextSvg;
@@ -107,6 +113,7 @@
     resizeObserver?.disconnect();
     if (previewPane instanceof Element) resizeObserver?.observe(previewPane);
     previewPane?.addEventListener('scroll', refreshLayout, { passive: true });
+    svgHost?.addEventListener('click', handleTriggerClick, true);
     if (svgHost instanceof Element) resizeObserver?.observe(svgHost);
     if (nextSvg instanceof Element) resizeObserver?.observe(nextSvg);
 
@@ -130,7 +137,7 @@
 
   function syncTriggers(): void {
     mutationObserver?.disconnect();
-    removeTriggers();
+    const retained = new Set<string>();
 
     const svg = svgHost?.querySelector<SVGSVGElement>('svg');
     if (svg !== null && svg !== undefined) {
@@ -138,14 +145,26 @@
         const identity = parseRenderIdentity(group.id);
         if (identity?.kind !== 'node') continue;
         const elementId = identity.provenance[0];
-        if (elementId === undefined || triggerButtons.has(elementId)) continue;
+        if (elementId === undefined || retained.has(elementId)) continue;
         const item = diagramElementMetadata(metadata, elementId);
         if (item === undefined) continue;
         const box = safeBBox(group);
         if (box === undefined || box.width <= 0 || box.height <= 0) continue;
-        const button = createTrigger(group, elementId, item.title, box);
-        triggerButtons.set(elementId, button);
+        const existing = triggerButtons.get(elementId);
+        if (existing === undefined || !existing.isConnected || existing.closest('g') !== group) {
+          existing?.closest('[data-diagram-quick-action-host]')?.remove();
+          triggerButtons.set(elementId, createTrigger(group, elementId, item.title, box));
+        } else {
+          updateTrigger(existing, elementId, item.title, box);
+        }
+        retained.add(elementId);
       }
+    }
+
+    for (const [elementId, button] of triggerButtons) {
+      if (retained.has(elementId)) continue;
+      button.closest('[data-diagram-quick-action-host]')?.remove();
+      triggerButtons.delete(elementId);
     }
 
     if (openElementId !== undefined && !triggerButtons.has(openElementId)) closeMenu();
@@ -185,11 +204,32 @@
     button.setAttribute('aria-label', `Quick actions for ${title}`);
     button.setAttribute('aria-expanded', String(openElementId === elementId));
     button.setAttribute('data-diagram-quick-actions', '');
+    button.setAttribute('data-diagram-element-id', elementId);
     button.textContent = '✣';
-    button.addEventListener('click', (event) => toggleMenu(event, elementId, button));
     host.append(button);
     group.append(host);
     return button;
+  }
+
+  function updateTrigger(button: HTMLButtonElement, elementId: string, title: string, box: DOMRect): void {
+    const host = button.closest('[data-diagram-quick-action-host]');
+    host?.setAttribute('x', String(box.x + box.width - triggerSize));
+    host?.setAttribute('y', String(box.y));
+    button.setAttribute('aria-label', `Quick actions for ${title}`);
+    button.setAttribute('aria-expanded', String(openElementId === elementId));
+    button.classList.toggle(
+      'source',
+      findPathMode.status !== 'idle' && canonicalDiagramElementId(elementId) === findPathMode.sourceId
+    );
+  }
+
+  function handleTriggerClick(event: MouseEvent): void {
+    const target = event.target instanceof Element
+      ? event.target.closest<HTMLButtonElement>('[data-diagram-element-id]')
+      : null;
+    const elementId = target?.getAttribute('data-diagram-element-id');
+    if (target === null || elementId === null) return;
+    toggleMenu(event, elementId, target);
   }
 
   function removeTriggers(): void {

@@ -301,9 +301,12 @@ export class PostgresRepositoryFileSystem implements RepositoryFileSystem {
   async sources(ownerId: string, projectId: string): Promise<Map<string, string>> {
     const repository = await this.requireRepository(this.database, ownerId, projectId);
     const root = await this.loadTree(this.database, ownerId, repository);
+    const filesById = new Map(
+      (await this.listFiles(this.database, ownerId, repository.id)).map((file) => [file.id, file]),
+    );
     const result = new Map<string, string>();
     for (const entry of sourceFileNodes(root)) {
-      const file = await this.findFileById(this.database, ownerId, repository.id, entry.node.id);
+      const file = filesById.get(entry.node.id);
       if (file) {
         result.set(entry.path, file.content ?? '');
       }

@@ -8,35 +8,67 @@ type RenderResponse = {
   error?: string;
 };
 
+type RenderRequest = {
+  readonly requestId: number;
+  readonly renders: DotRender[];
+  readonly signal?: AbortSignal;
+  readonly resolve: (response: SvgRenderResponse) => void;
+  readonly reject: (error: Error) => void;
+  timeout?: number;
+  abort?: () => void;
+};
+
 const renderTimeoutMs = 5000;
 
 let worker: Worker | undefined;
 let requestSequence = 0;
-let pending = new Map<
-  number,
-  {
-    resolve: (response: SvgRenderResponse) => void;
-    reject: (error: Error) => void;
-    timeout: number;
-  }
->();
+let active: RenderRequest | undefined;
+const queued: RenderRequest[] = [];
 
-export async function renderDotInBrowser(renders: DotRender[]): Promise<SvgRenderResponse> {
-  if (renders.length === 0) {
-    return { diagnostics: [], svgs: [] };
-  }
+export async function renderDotInBrowser(
+  renders: DotRender[],
+  signal?: AbortSignal,
+): Promise<SvgRenderResponse> {
+  if (renders.length === 0) return { diagnostics: [], svgs: [] };
+  if (signal?.aborted === true) throw abortError();
   const requestId = ++requestSequence;
   return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      resetWorker(new Error('Browser Graphviz render timed out'));
-    }, renderTimeoutMs);
-    pending.set(requestId, { resolve, reject, timeout });
-    ensureWorker().postMessage({ requestId, renders });
+    const request: RenderRequest = { requestId, renders, signal, resolve, reject };
+    request.abort = () => cancelRequest(request);
+    signal?.addEventListener('abort', request.abort, { once: true });
+    queued.push(request);
+    pump();
   });
 }
 
 export function terminateBrowserGraphvizWorker(): void {
-  resetWorker(new Error('Browser Graphviz worker terminated'));
+  const error = new Error('Browser Graphviz worker terminated');
+  terminateWorker();
+  if (active !== undefined) {
+    const request = active;
+    active = undefined;
+    finish(request, () => request.reject(error));
+  }
+  while (queued.length > 0) {
+    const request = queued.shift()!;
+    finish(request, () => request.reject(error));
+  }
+}
+
+function pump(): void {
+  if (active !== undefined) return;
+  const request = queued.shift();
+  if (request === undefined) return;
+  if (request.signal?.aborted === true) {
+    finish(request, () => request.reject(abortError()));
+    pump();
+    return;
+  }
+  active = request;
+  request.timeout = window.setTimeout(() => {
+    failActive(new Error('Browser Graphviz render timed out'));
+  }, renderTimeoutMs);
+  ensureWorker().postMessage({ requestId: request.requestId, renders: request.renders });
 }
 
 function ensureWorker(): Worker {
@@ -45,38 +77,58 @@ function ensureWorker(): Worker {
   }
   worker = new GraphvizWorker();
   worker.onmessage = (event: MessageEvent<RenderResponse>) => {
-    const request = pending.get(event.data.requestId);
-    if (request === undefined) {
-      return;
-    }
-    pending.delete(event.data.requestId);
-    window.clearTimeout(request.timeout);
+    const request = active;
+    if (request === undefined || request.requestId !== event.data.requestId) return;
     if (event.data.error !== undefined) {
-      request.reject(new Error(event.data.error));
+      finishActive(() => request.reject(new Error(event.data.error)));
       return;
     }
-    request.resolve({
-      diagnostics: [],
-      svgs: event.data.svgs ?? []
-    });
+    finishActive(() => request.resolve({ diagnostics: [], svgs: event.data.svgs ?? [] }));
   };
-  worker.onerror = (event) => {
-    resetWorker(new Error(event.message || 'Browser Graphviz worker failed'));
-  };
+  worker.onerror = (event) => failActive(new Error(event.message || 'Browser Graphviz worker failed'));
   return worker;
 }
 
-function rejectAll(error: Error): void {
-  for (const [requestId, request] of pending) {
-    window.clearTimeout(request.timeout);
-    request.reject(error);
-    pending.delete(requestId);
+function cancelRequest(request: RenderRequest): void {
+  if (active === request) {
+    failActive(abortError());
+    return;
   }
+  const index = queued.indexOf(request);
+  if (index < 0) return;
+  queued.splice(index, 1);
+  finish(request, () => request.reject(abortError()));
 }
 
-function resetWorker(error: Error): void {
-  const activeWorker = worker;
+function failActive(error: Error): void {
+  const request = active;
+  if (request === undefined) return;
+  terminateWorker();
+  finishActive(() => request.reject(error));
+}
+
+function finishActive(complete: () => void): void {
+  const request = active;
+  if (request === undefined) return;
+  active = undefined;
+  finish(request, complete);
+  pump();
+}
+
+function finish(request: RenderRequest, complete: () => void): void {
+  if (request.timeout !== undefined) window.clearTimeout(request.timeout);
+  if (request.abort !== undefined) request.signal?.removeEventListener('abort', request.abort);
+  complete();
+}
+
+function terminateWorker(): void {
+  const previous = worker;
   worker = undefined;
-  activeWorker?.terminate();
-  rejectAll(error);
+  previous?.terminate();
+}
+
+function abortError(): Error {
+  const error = new Error('Browser Graphviz render aborted');
+  error.name = 'AbortError';
+  return error;
 }

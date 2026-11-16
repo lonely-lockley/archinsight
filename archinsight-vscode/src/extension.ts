@@ -19,11 +19,6 @@ import {
   coreLanguageSnapshot,
   coreSource,
   coreSources,
-  deploymentEnvironmentsForElement,
-  deploymentFocusElementIds,
-  diffRenderGraphs,
-  diagramElementMetadata,
-  diagramQuickActionMetadata,
   elementCompletionDocumentation,
   filterTypeHierarchy,
   insightSemanticTokenModifiers,
@@ -31,11 +26,7 @@ import {
   InsightLanguageService,
   resolveBuiltinView,
   semanticHighlightInsight,
-  selectDeploymentGraph,
   selectIsolatedDiagramDiff,
-  selectIsolatedElementGraph,
-  selectPathGraph,
-  executeQuery,
   type CompletionKind,
   type ContextualIdentifier,
   type LanguageDiagnostic,
@@ -43,7 +34,6 @@ import {
   type LinkedElement,
   type LinkProjectResult,
   type ProjectStructureDeclaration,
-  type ProjectAnalysisSession,
   type ProjectSource,
   type DiagramDiff,
   type QueryParameterValue,
@@ -66,24 +56,28 @@ import {
   type QueryScopeContextChoice,
 } from "@archinsight/workbench/query-scope-state";
 import {
-  beginDeployment,
-  beginFindPath,
   beginIsolate,
   cancelDeployment,
   cancelIsolate,
   cancelFindPath,
-  idleDeploymentMode,
-  idleFindPathMode,
-  idleIsolateMode,
-  reverseFindPathResult,
-  resolveFindPathTarget,
   retryFindPathTarget,
-  showResolvedFindPath,
   type DeploymentMode,
   type DiagramQuickActionId,
   type FindPathMode,
   type IsolateMode,
+  type TransientDiagramResultKind,
 } from "@archinsight/workbench/diagram-quick-actions";
+import {
+  DiagramQuickActionService,
+  type PreparedFindPath,
+} from "@archinsight/workbench/diagram-quick-action-service";
+import { DiagramQuickActionCoordinator } from "@archinsight/workbench/diagram-quick-action-coordinator";
+import {
+  attributeVersionedDiagramDiff,
+  buildVersionedDiagramDiff,
+  projectVersionedDiagramDiff,
+} from "@archinsight/workbench/versioned-diagram-diff-service";
+import { diagramDiffDeclarationSource } from "@archinsight/workbench/versioned-diagram-diff";
 import {
   fileNameWithExtension,
   type DiagramArtifactKind,
@@ -101,6 +95,22 @@ import { openGitVersionedRepository, type GitVersionedRepository } from "@archin
 import { createDiagramSession, saveBytes, viewQueries } from "./vscode-diagram-service.js";
 import { previewHtml } from "./preview-webview.js";
 import { renderThemeForColorThemeKind } from "./theme.js";
+import { LatestWinsCoordinator } from "./latest-wins.js";
+import { disposeDiagramVizWorker, selectDiagramQueryInWorker } from "./diagram-viz-worker-client.js";
+import {
+  analyzeProjectInWorker,
+  analyzeProjectRevisionInWorker,
+  disposeProjectAnalysisWorker,
+} from "./project-analysis-worker-client.js";
+import {
+  isIgnoredSource,
+  isInside,
+  isInsightDocument,
+  readWorkspaceSources,
+  sourceNameForUri,
+  sourceUris,
+  workspaceRoot,
+} from "./workspace-sources.js";
 
 type AgentSkillTarget = "generic" | "codex" | "claude";
 
@@ -120,13 +130,17 @@ interface DiagramDiffSessionState {
   readonly catalogue: DiagramDiffRevisionCatalogue;
   readonly before: LinkedProject;
   readonly after: LinkedProject;
-  readonly fullDiff: DiagramDiff;
-  readonly attributed: AttributedDiagramDiff;
   readonly selectedElementId: string;
   readonly beforeRevision: string;
   readonly afterRevision: string;
   readonly beforeShort: string;
   readonly afterShort: string;
+}
+
+interface DiagramDiffProjectionState {
+  readonly session: DiagramDiffSessionState;
+  readonly fullDiff: DiagramDiff;
+  readonly attributed?: AttributedDiagramDiff;
 }
 
 interface SemanticTokenCacheEntry {
@@ -213,6 +227,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     output,
+    project,
     diagnostics,
     aiqDiagnostics,
     sourceWatcher,
@@ -368,13 +383,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
   vscode.workspace.textDocuments.forEach(updateAiqDiagnostics);
 
-  project.onDidChange(() => {
+  context.subscriptions.push(project.onDidChange(() => {
     structure.refresh();
     void workbenchEditor.refreshFromProject(project.current);
     if (activePreview !== undefined) {
       void activePreview.refreshFromProject(project.current);
     }
-  });
+  }));
   void project.refresh("activation");
 }
 
@@ -416,6 +431,8 @@ async function runActiveAiqQuery(
 }
 
 export function deactivate(): void {
+  disposeDiagramVizWorker();
+  disposeProjectAnalysisWorker();
   output.dispose();
 }
 
@@ -555,17 +572,17 @@ function isArchinsightEditorTab(tab: vscode.Tab): boolean {
     || (tab.input instanceof vscode.TabInputWebview && tab.input.viewType === archinsightCoreEditorViewType);
 }
 
-class ProjectModel {
-  private readonly listeners = new Set<() => void>();
+class ProjectModel implements vscode.Disposable {
+  private readonly listeners = new Set<(revision: number) => void>();
+  private readonly refreshes = new LatestWinsCoordinator();
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
-  private analysisSession: ProjectAnalysisSession | undefined;
-  private analysisRoot: string | undefined;
+  private committedRevision = 0;
   current: LinkedProject | undefined;
 
   constructor(private readonly diagnostics: vscode.DiagnosticCollection) {
   }
 
-  onDidChange(listener: () => void): vscode.Disposable {
+  onDidChange(listener: (revision: number) => void): vscode.Disposable {
     this.listeners.add(listener);
     return new vscode.Disposable(() => this.listeners.delete(listener));
   }
@@ -580,10 +597,10 @@ class ProjectModel {
   }
 
   async refresh(reason: string): Promise<void> {
+    const operation = this.refreshes.begin();
     const root = workspaceRoot();
     if (root === undefined) {
-      this.analysisSession = undefined;
-      this.analysisRoot = undefined;
+      if (!operation.isCurrent()) return;
       this.current = undefined;
       this.diagnostics.clear();
       this.fire();
@@ -591,19 +608,9 @@ class ProjectModel {
     }
     try {
       const sources = await readWorkspaceSources(root);
-      const rootKey = root.toString();
-      let analysis;
-      let analysisMode;
-      if (this.analysisSession === undefined || this.analysisRoot !== rootKey) {
-        this.analysisSession = service.createProjectAnalysisSession(sources);
-        this.analysisRoot = rootKey;
-        analysis = this.analysisSession.analysis();
-        analysisMode = "full";
-      } else {
-        const update = this.analysisSession.update(sources);
-        analysis = update;
-        analysisMode = update.mode;
-      }
+      if (!operation.isCurrent()) return;
+      const analysis = await analyzeProjectInWorker(root.toString(), sources, operation.signal);
+      const analysisMode = analysis.mode;
       const project: LinkedProject = {
         root,
         sources,
@@ -613,14 +620,23 @@ class ProjectModel {
         diagnostics: analysis.diagnostics,
         tokenVocabulary: tokenVocabulary(analysis.snapshotBuild.snapshot, sources),
       };
+      if (!operation.isCurrent()) return;
       this.current = project;
       this.updateDiagnostics(project);
       output.appendLine(`Linker finished (${reason}, ${analysisMode}): ${summary(project.diagnostics)}`);
       this.fire();
     } catch (error) {
+      if (!operation.isCurrent() || operation.signal.aborted) return;
       output.appendLine(`Linker failed (${reason}): ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
+  }
+
+  dispose(): void {
+    if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
+    this.refreshTimer = undefined;
+    this.refreshes.dispose();
+    this.listeners.clear();
   }
 
   private updateDiagnostics(project: LinkedProject): void {
@@ -650,8 +666,9 @@ class ProjectModel {
   }
 
   private fire(): void {
+    const revision = ++this.committedRevision;
     for (const listener of this.listeners) {
-      listener();
+      listener(revision);
     }
   }
 }
@@ -1007,12 +1024,36 @@ class CoreSourceContentProvider implements vscode.TextDocumentContentProvider {
 class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly sessions = new Set<ArchinsightWorkbenchEditorSession>();
   private readonly pendingInitialStates = new Map<string, DiagramQueryState>();
-  private findPathMode: FindPathMode = idleFindPathMode;
+  private readonly quickActionCoordinator = new DiagramQuickActionCoordinator<never>();
   private findPathProjectRoot: string | undefined;
-  private isolateMode: IsolateMode = idleIsolateMode;
   private isolateProjectRoot: string | undefined;
-  private deploymentMode: DeploymentMode = idleDeploymentMode;
   private deploymentProjectRoot: string | undefined;
+  private diffProjectRoot: string | undefined;
+  private diffSession: DiagramDiffSessionState | undefined;
+
+  private get findPathMode(): FindPathMode {
+    return this.quickActionCoordinator.findPathMode();
+  }
+
+  private set findPathMode(mode: FindPathMode) {
+    this.quickActionCoordinator.setFindPathMode(mode);
+  }
+
+  private get isolateMode(): IsolateMode {
+    return this.quickActionCoordinator.isolateMode();
+  }
+
+  private set isolateMode(mode: IsolateMode) {
+    this.quickActionCoordinator.setIsolateMode(mode);
+  }
+
+  private get deploymentMode(): DeploymentMode {
+    return this.quickActionCoordinator.deploymentMode();
+  }
+
+  private set deploymentMode(mode: DeploymentMode) {
+    this.quickActionCoordinator.setDeploymentMode(mode);
+  }
 
   constructor(
     private readonly project: ProjectModel,
@@ -1063,6 +1104,9 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       () => this.deploymentMode,
       (mode) => this.setDeploymentMode(mode),
       () => this.cancelDeploymentMode(),
+      () => this.diffSession,
+      (state) => this.setDiagramDiffSession(state),
+      () => this.cancelDiagramDiff(),
       virtualDocument,
       initialState ?? pendingState ?? documentState,
     );
@@ -1078,6 +1122,7 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       if (event.webviewPanel.active) {
         activeWorkbenchEditor = session;
         this.syncControlsFromActiveSession();
+        void session.activateDiagramDiff();
       }
     });
     await session.open();
@@ -1087,6 +1132,9 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
 
   async refreshFromProject(current: LinkedProject | undefined): Promise<void> {
     for (const session of this.sessions) session.cancelQuickActionRendering();
+    if (this.diffSession !== undefined && current?.root.toString() !== this.diffProjectRoot) {
+      await this.setDiagramDiffSession(undefined);
+    }
     const mode = this.findPathMode;
     const projectChanged = mode.status !== "idle"
       && current?.root.toString() !== this.findPathProjectRoot;
@@ -1186,6 +1234,18 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     if (restoreDeploymentResult) {
       await Promise.all([...this.sessions].map((session) => session.restoreQuickActionResult()));
     }
+  }
+
+  private async setDiagramDiffSession(state: DiagramDiffSessionState | undefined): Promise<void> {
+    this.diffSession = state;
+    this.diffProjectRoot = state === undefined ? undefined : this.project.current?.root.toString();
+    await Promise.all([...this.sessions].map((session) => session.onDiagramDiffSessionChanged(state)));
+  }
+
+  private async cancelDiagramDiff(): Promise<void> {
+    if (this.diffSession === undefined) return;
+    for (const session of this.sessions) session.cancelQuickActionRendering();
+    await this.setDiagramDiffSession(undefined);
   }
 
   async refreshTheme(): Promise<void> {
@@ -1296,11 +1356,10 @@ class ArchinsightWorkbenchEditorSession {
   private pendingReveal: vscode.Position | undefined;
   private queryScopeTab: string | undefined;
   private queryScopeContext: string | undefined;
-  private quickActionGeneration = 0;
-  private quickActionResultVisible = false;
+  private readonly quickActionCoordinator = new DiagramQuickActionCoordinator<never>();
   private versionedRepositoryPromise: Promise<GitVersionedRepository | undefined> | undefined;
   private diffCatalogue: DiagramDiffRevisionCatalogue | undefined;
-  private diffSession: DiagramDiffSessionState | undefined;
+  private diffProjection: DiagramDiffProjectionState | undefined;
   private versioningOperation: AbortController | undefined;
 
   constructor(
@@ -1319,6 +1378,9 @@ class ArchinsightWorkbenchEditorSession {
     private readonly readDeploymentMode: () => DeploymentMode,
     private readonly writeDeploymentMode: (mode: DeploymentMode) => Promise<void>,
     private readonly cancelDeploymentMode: () => Promise<void>,
+    private readonly readDiagramDiffSession: () => DiagramDiffSessionState | undefined,
+    private readonly writeDiagramDiffSession: (state: DiagramDiffSessionState | undefined) => Promise<void>,
+    private readonly cancelDiagramDiffSession: () => Promise<void>,
     private readonly virtualDocument?: VirtualWorkbenchDocument,
     initialState?: DiagramQueryState,
   ) {
@@ -1385,17 +1447,13 @@ class ArchinsightWorkbenchEditorSession {
   dispose(): void {
     this.disposed = true;
     this.diagram.dispose("Editor closed");
-    this.quickActionGeneration++;
+    this.quickActionCoordinator.invalidate();
     this.versioningOperation?.abort();
   }
 
   async refreshFromProject(current: LinkedProject | undefined): Promise<void> {
     if (this.disposed) {
       return;
-    }
-    if (this.diffSession !== undefined) {
-      await this.clearDiagramDiffState();
-      this.quickActionResultVisible = false;
     }
     const sourceName = this.sourceName(current);
     const source = this.sourceText(current, sourceName);
@@ -1411,12 +1469,24 @@ class ArchinsightWorkbenchEditorSession {
     if (input === undefined) {
       return;
     }
+    const diffSession = this.readDiagramDiffSession();
+    if (diffSession !== undefined) {
+      if (this.diffProjection?.session !== diffSession) await this.renderCurrentDiagramDiff();
+      return;
+    }
     await this.diagram.refresh(input);
   }
 
   async refreshTheme(): Promise<void> {
     if (this.disposed) return;
     this.cancelQuickActionRendering();
+    const diffSession = this.readDiagramDiffSession();
+    if (diffSession !== undefined) {
+      const projection = this.diffProjection?.session === diffSession ? this.diffProjection : undefined;
+      if (projection !== undefined) await this.renderDiagramDiff(diffSession, projection.fullDiff);
+      else await this.renderCurrentDiagramDiff();
+      return;
+    }
     const current = this.project.current;
     const input = current === undefined
       ? undefined
@@ -1431,13 +1501,15 @@ class ArchinsightWorkbenchEditorSession {
     requestedEnvironment: string | undefined = this.currentEnvironment(),
     parameters?: Readonly<Record<string, QueryParameterValue>>,
   ): Promise<void> {
-    if (this.diffSession !== undefined) await this.clearDiagramDiffState();
     this.cancelQuickActionRendering();
-    this.quickActionResultVisible = false;
+    this.quickActionCoordinator.clearResult();
     const current = this.project.current;
-    await this.diagram.render(current === undefined ? undefined : this.renderInput(current, query), {
+    const status = await this.diagram.render(current === undefined ? undefined : this.renderInput(current, query), {
       view, query, forceEnvironmentPicker, requestedEnvironment, ...(parameters === undefined ? {} : { parameters })
     });
+    if (status === "rendered" && this.readDiagramDiffSession() !== undefined) {
+      await this.renderCurrentDiagramDiff();
+    }
   }
 
   private async handleMessage(message: ReturnType<typeof parseWorkbenchWebviewToHostMessage>): Promise<void> {
@@ -1454,10 +1526,6 @@ class ArchinsightWorkbenchEditorSession {
       }
       await this.replaceDocument(message.source);
       if (this.isQueryDocument()) {
-        if (this.diffSession !== undefined) {
-          await this.clearDiagramDiffState();
-          this.quickActionResultVisible = false;
-        }
         this.diagram.setQueryState("no-filter", message.source);
         const state = this.diagram.queryState();
         await this.controls.sync(state.view, state.query);
@@ -1520,13 +1588,13 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     if (message.command === "cancelDiagramDiffPicker") {
-      this.quickActionGeneration++;
+      this.quickActionCoordinator.invalidate();
       this.cancelVersioningOperation();
       this.diffCatalogue = undefined;
       return;
     }
     if (message.command === "cancelDiagramDiff") {
-      await this.cancelDiagramDiff();
+      await this.cancelDiagramDiffSession();
       return;
     }
     if (message.command === "selectPathTarget") {
@@ -1569,17 +1637,40 @@ class ArchinsightWorkbenchEditorSession {
     await this.panel.webview.postMessage({ command: "deploymentMode", state } satisfies WorkbenchHostToWebviewMessage);
   }
 
+  async onDiagramDiffSessionChanged(state: DiagramDiffSessionState | undefined): Promise<void> {
+    if (this.diffProjection?.session !== state) this.diffProjection = undefined;
+    await this.postDiagramDiffMode();
+    if (state === undefined) {
+      this.diffCatalogue = undefined;
+      this.quickActionCoordinator.clearResult();
+      const current = this.project.current;
+      const input = current === undefined ? undefined : this.renderInput(current, this.diagram.queryState().query);
+      if (input !== undefined) await this.diagram.refresh(input);
+      return;
+    }
+    if (this.isActive() && this.diffProjection === undefined) await this.renderCurrentDiagramDiff();
+  }
+
+  async activateDiagramDiff(): Promise<void> {
+    const state = this.readDiagramDiffSession();
+    if (state === undefined || this.diffProjection?.session === state) return;
+    await this.renderCurrentDiagramDiff();
+  }
+
   cancelQuickActionRendering(): void {
-    this.quickActionGeneration++;
+    this.quickActionCoordinator.invalidate();
     this.cancelVersioningOperation();
   }
 
   async restoreQuickActionResult(): Promise<void> {
-    if (!this.quickActionResultVisible) return;
-    this.quickActionResultVisible = false;
-    if (this.diffSession !== undefined) {
-      await this.renderDiagramDiff(this.diffSession, this.diffSession.fullDiff);
-      this.quickActionResultVisible = true;
+    if (this.quickActionCoordinator.resultState().status !== "visible") return;
+    const previousResult = this.quickActionCoordinator.resultState();
+    this.quickActionCoordinator.clearResult();
+    const diffSession = this.readDiagramDiffSession();
+    const diffProjection = this.diffProjection?.session === diffSession ? this.diffProjection : undefined;
+    if (diffSession !== undefined && diffProjection !== undefined) {
+      await this.renderDiagramDiff(diffSession, diffProjection.fullDiff);
+      if (previousResult.status === "visible") this.quickActionCoordinator.showResult(previousResult.kind);
       return;
     }
     const current = this.project.current;
@@ -1591,14 +1682,16 @@ class ArchinsightWorkbenchEditorSession {
   private async executeDiagramQuickAction(action: DiagramQuickActionId, elementId: string): Promise<void> {
     const current = this.project.current;
     if (current === undefined) return;
-    const metadata = diagramElementMetadata(diagramQuickActionMetadata(current.result), elementId);
+    const quickActions = new DiagramQuickActionService(current.result);
+    const metadata = quickActions.metadata(elementId);
     if (metadata === undefined) return;
     if (action === "diff") {
-      await this.openDiagramDiffPicker(elementId);
+      const source = diagramDiffDeclarationSource(metadata);
+      if (source !== undefined) await this.openDiagramDiffPicker(elementId, source);
       return;
     }
     if (action === "go-to-declaration") {
-      if (metadata.declaration !== undefined) {
+      if (metadata.declaration !== undefined && this.declarationNavigationAvailable()) {
         await this.openDeclaration({
           source: metadata.declaration.sourceName,
           line: metadata.declaration.line,
@@ -1611,11 +1704,12 @@ class ArchinsightWorkbenchEditorSession {
       if (metadata.pathEligible) {
         if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
         if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
-        await this.writeFindPathMode(beginFindPath(
-          metadata,
-          this.currentPathEndpointEnvironment(),
+        const mode = quickActions.beginFindPath(
+          metadata.canonicalElementId,
           this.quickActionScope(current),
-        ));
+          this.currentPathEndpointEnvironment(),
+        );
+        if (mode !== undefined) await this.writeFindPathMode(mode);
       }
       return;
     }
@@ -1623,21 +1717,22 @@ class ArchinsightWorkbenchEditorSession {
       if (!metadata.isolateEligible) return;
       if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
       if (this.readFindPathMode().status !== "idle") await this.cancelFindPathMode();
-      if (this.diffSession !== undefined) {
-        const isolated = selectIsolatedDiagramDiff(this.diffSession.fullDiff, metadata.canonicalElementId);
-        const accepted = await this.renderDiagramDiff(this.diffSession, isolated);
+      const diffSession = this.readDiagramDiffSession();
+      const diffProjection = this.diffProjection?.session === diffSession ? this.diffProjection : undefined;
+      if (diffSession !== undefined && diffProjection !== undefined) {
+        const isolated = selectIsolatedDiagramDiff(diffProjection.fullDiff, metadata.canonicalElementId);
+        const accepted = await this.renderDiagramDiff(diffSession, isolated);
         if (accepted) await this.writeIsolateMode(beginIsolate(metadata));
         return;
       }
-      const accepted = await this.renderQuickActionGraph(
-        selectIsolatedElementGraph(current.result, metadata.canonicalElementId, this.quickActionScope(current)),
-        true,
-      );
-      if (accepted) await this.writeIsolateMode(beginIsolate(metadata));
+      const prepared = quickActions.isolate(metadata.elementId, this.quickActionScope(current));
+      if (prepared === undefined) return;
+      const accepted = await this.renderQuickActionGraph(prepared.graph, "isolate");
+      if (accepted) await this.writeIsolateMode(prepared.mode);
       return;
     }
     if (!metadata.hasDeployment) return;
-    const environments = deploymentEnvironmentsForElement(current.result, metadata.canonicalElementId);
+    const environments = quickActions.deploymentEnvironments(metadata.canonicalElementId);
     if (environments.length === 0) {
       void vscode.window.showInformationMessage(`No deployment is available for ${metadata.title}.`);
       return;
@@ -1656,22 +1751,18 @@ class ArchinsightWorkbenchEditorSession {
     if (this.readFindPathMode().status !== "idle") await this.cancelFindPathMode();
     if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
     if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
-    const graph = selectDeploymentGraph(current.result, metadata.canonicalElementId, environment);
-    const accepted = await this.renderQuickActionGraph(graph, true);
+    const prepared = quickActions.deployment(metadata.canonicalElementId, environment);
+    if (prepared === undefined) return;
+    const accepted = await this.renderQuickActionGraph(prepared.graph, "deployment");
     if (accepted) {
-      await this.writeDeploymentMode(beginDeployment(
-        metadata,
-        environment,
-        deploymentFocusElementIds(current.result, metadata.canonicalElementId, graph),
-      ));
+      await this.writeDeploymentMode(prepared.mode);
     }
   }
 
-  private async openDiagramDiffPicker(elementId: string): Promise<void> {
+  private async openDiagramDiffPicker(elementId: string, source: string): Promise<void> {
     const current = this.project.current;
-    const source = this.diagramDiffSource(current);
-    if (current === undefined || source === undefined || !this.versioningEligibleSource()) return;
-    const generation = ++this.quickActionGeneration;
+    if (current === undefined || !this.versioningEligibleWorkspace()) return;
+    const generation = this.quickActionCoordinator.nextGeneration();
     const operation = this.beginVersioningOperation();
     await this.panel.webview.postMessage({
       command: "diagramDiffPicker",
@@ -1681,7 +1772,7 @@ class ArchinsightWorkbenchEditorSession {
       const repository = await this.versionedRepository();
       if (repository === undefined) throw new Error("Version history is unavailable for this workspace");
       const catalogue = await repository.catalogueForPath(source, operation.signal);
-      if (generation !== this.quickActionGeneration || this.disposed) return;
+      if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed) return;
       this.diffCatalogue = catalogue;
       const currentIndex = catalogue.revisions.findIndex((item) => item.id === catalogue.currentRevision);
       const before = catalogue.revisions.slice(Math.max(0, currentIndex + 1)).find((item) => item.id !== catalogue.currentRevision)?.id;
@@ -1697,7 +1788,7 @@ class ArchinsightWorkbenchEditorSession {
         },
       } satisfies WorkbenchHostToWebviewMessage);
     } catch (cause) {
-      if (generation !== this.quickActionGeneration || this.disposed) return;
+      if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed) return;
       await this.panel.webview.postMessage({
         command: "diagramDiffPicker",
         state: { status: "error", source, elementId, message: cause instanceof Error ? cause.message : String(cause) },
@@ -1714,79 +1805,64 @@ class ArchinsightWorkbenchEditorSession {
     const repository = await this.versionedRepository();
     const catalogue = this.diffCatalogue;
     if (current === undefined || input === undefined || repository === undefined || catalogue === undefined) return;
-    const generation = ++this.quickActionGeneration;
+    const generation = this.quickActionCoordinator.nextGeneration();
     const operation = this.beginVersioningOperation();
     const signal = operation.signal;
     try {
-      await repository.validatePair(beforeRevision, afterRevision, signal);
       const beforeRevisionEntry = catalogue.revisions.find((item) => item.id === beforeRevision);
       const afterRevisionEntry = catalogue.revisions.find((item) => item.id === afterRevision);
       if (beforeRevisionEntry === undefined || afterRevisionEntry === undefined) throw new Error("Selected revision is no longer available");
-      const [beforeSources, afterSources] = await Promise.all([
-        repository.readProjectAt(beforeRevision, signal),
-        repository.readProjectAt(afterRevision, signal),
-      ]);
-      const before = this.linkRevision(current.root, beforeSources);
-      const after = this.linkRevision(current.root, afterSources);
-      const blocking = [
-        ...before.diagnostics.filter((item) => (item.level ?? "ERROR") === "ERROR").map((item) => `Before: ${item.message}`),
-        ...after.diagnostics.filter((item) => (item.level ?? "ERROR") === "ERROR").map((item) => `After: ${item.message}`),
-      ];
-      if (blocking.length > 0) throw new Error(blocking.join("\n"));
-      const beforeGraph = this.revisionGraph(before, beforeRevisionEntry.sourcePath);
-      const afterGraph = this.revisionGraph(after, afterRevisionEntry.sourcePath);
-      if (beforeGraph === undefined && afterGraph === undefined) throw new Error("The selected source is absent from both revisions");
-      const empty = (context: string): import("@insight/language").RenderGraph => ({
-        context, elements: {}, edges: [], groups: [], externalElements: [],
+      const semantic = await buildVersionedDiagramDiff({
+        repository,
+        beforeRevision,
+        afterRevision,
+        signal,
+        buildRevision: (sources) => this.linkRevision(current.root, sources, signal),
+        validateRevision: (project, side) => {
+          const blocking = project.diagnostics
+            .filter((item) => (item.level ?? "ERROR") === "ERROR")
+            .map((item) => `${side === "before" ? "Before" : "After"}: ${item.message}`);
+          if (blocking.length > 0) throw new Error(blocking.join("\n"));
+        },
+        selectGraph: (project) => this.revisionGraph(project, signal),
       });
-      const diff = diffRenderGraphs(
-        beforeGraph ?? empty(afterGraph!.context),
-        afterGraph ?? empty(beforeGraph!.context),
-      );
-      const enriched = await repository.attribute({
-        before: beforeRevision,
-        after: afterRevision,
-        origins: Object.fromEntries([
-          ...Object.values(diff.elements),
-          ...diff.edges,
-          ...Object.values(diff.groups),
-        ].filter((entry) => entry.status !== "unchanged").map((entry) => [entry.changeId, entry.origins])),
-      }, signal);
-      if (generation !== this.quickActionGeneration || this.disposed) return;
-      const attributed: AttributedDiagramDiff = {
-        schemaVersion: "attributed-diagram-diff.v1",
-        revisions: { before: beforeRevision, after: afterRevision },
-        diff,
-        ...enriched,
-      };
+      if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed) return;
       const session: DiagramDiffSessionState = {
         catalogue,
-        before,
-        after,
-        fullDiff: diff,
-        attributed,
+        before: semantic.before,
+        after: semantic.after,
         selectedElementId: elementId,
         beforeRevision,
         afterRevision,
         beforeShort: beforeRevisionEntry.shortId,
         afterShort: afterRevisionEntry.shortId,
       };
-      this.diffSession = session;
-      const accepted = await this.renderDiagramDiff(session, diff);
+      this.diffProjection = { session, fullDiff: semantic.diff };
+      await this.writeDiagramDiffSession(session);
+      const accepted = await this.renderDiagramDiff(session, semantic.diff, generation);
       if (!accepted) {
-        this.diffSession = undefined;
-        await this.postDiagramDiffMode();
+        this.diffProjection = undefined;
+        await this.writeDiagramDiffSession(undefined);
         await this.panel.webview.postMessage({
           command: "diagramDiffPicker",
           state: { status: "error", source: catalogue.source, elementId, message: "Diagram diff could not be rendered" },
         } satisfies WorkbenchHostToWebviewMessage);
         return;
       }
-      this.quickActionResultVisible = true;
+      this.quickActionCoordinator.showResult("diff");
       await this.panel.webview.postMessage({ command: "diagramDiffPicker", state: { status: "closed" } } satisfies WorkbenchHostToWebviewMessage);
       await this.postDiagramDiffMode();
+      try {
+        const attributed = await attributeVersionedDiagramDiff(repository, semantic, signal);
+        if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed
+            || this.readDiagramDiffSession() !== session || this.diffProjection?.session !== session) return;
+        this.diffProjection = { ...this.diffProjection, attributed };
+      } catch (cause) {
+        if (signal.aborted || !this.quickActionCoordinator.isCurrent(generation) || this.disposed) return;
+        console.warn("Archinsight diagram diff attribution failed", cause);
+      }
     } catch (cause) {
-      if (generation !== this.quickActionGeneration || this.disposed) return;
+      if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed) return;
       await this.panel.webview.postMessage({
         command: "diagramDiffPicker",
         state: {
@@ -1799,22 +1875,38 @@ class ArchinsightWorkbenchEditorSession {
     }
   }
 
-  private revisionGraph(project: LinkedProject, sourceName: string): import("@insight/language").RenderGraph | undefined {
+  private async revisionGraph(
+    project: LinkedProject,
+    signal: AbortSignal,
+  ): Promise<import("@insight/language").RenderGraph | undefined> {
+    const current = this.project.current;
+    const input = current === undefined ? undefined : this.renderInput(current, this.diagram.queryState().query);
+    const sourceName = input?.queryScope?.tab ?? input?.sourceName;
+    if (sourceName === undefined) return undefined;
     if (!project.sources.some((item) => item.sourceName === sourceName)) return undefined;
     const state = this.diagram.queryState();
-    const currentScope = this.quickActionScope(project);
+    const currentScope: QueryScope = {
+      ...(input?.queryScope?.context === undefined ? {} : { context: input.queryScope.context }),
+      tab: sourceName,
+      view: state.view,
+      ...(state.environment === undefined ? {} : { environment: state.environment }),
+    };
     const sourceContext = project.result.contexts.find((item) => item.sourceIdentity === sourceName)?.id;
-    const result = executeQuery(project.result, {
+    const result = await selectDiagramQueryInWorker(project.result, {
       ...currentScope,
       tab: sourceName,
-      ...(sourceContext === undefined ? {} : { context: sourceContext }),
-    }, state.query, state.parameters ?? {});
+      ...(currentScope.context !== undefined || sourceContext === undefined ? {} : { context: sourceContext }),
+    }, state.query, state.parameters ?? {}, signal);
     if (result.kind !== "graph") throw new Error("The active query must return a graph to build a diagram diff");
     return result.graph;
   }
 
-  private linkRevision(root: vscode.Uri, sources: readonly ProjectSource[]): LinkedProject {
-    const analysis = service.createProjectAnalysisSession(sources).analysis();
+  private async linkRevision(
+    root: vscode.Uri,
+    sources: readonly ProjectSource[],
+    signal: AbortSignal,
+  ): Promise<LinkedProject> {
+    const analysis = await analyzeProjectRevisionInWorker(sources, signal);
     return {
       root,
       sources,
@@ -1826,12 +1918,51 @@ class ArchinsightWorkbenchEditorSession {
     };
   }
 
-  private async renderDiagramDiff(session: DiagramDiffSessionState, diff: DiagramDiff): Promise<boolean> {
+  private async renderCurrentDiagramDiff(): Promise<boolean> {
+    const session = this.readDiagramDiffSession();
+    if (session === undefined) return false;
+    const generation = this.quickActionCoordinator.nextGeneration();
+    const operation = this.beginVersioningOperation();
+    try {
+      const semantic = await projectVersionedDiagramDiff(session, (project) =>
+        this.revisionGraph(project, operation.signal));
+      if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed
+          || this.readDiagramDiffSession() !== session) return false;
+      this.diffProjection = { session, fullDiff: semantic.diff };
+      const accepted = await this.renderDiagramDiff(session, semantic.diff, generation);
+      if (!accepted) return false;
+      this.quickActionCoordinator.showResult("diff");
+      const repository = await this.versionedRepository();
+      if (repository !== undefined) {
+        void attributeVersionedDiagramDiff(repository, semantic, operation.signal).then((attributed) => {
+          if (!operation.signal.aborted && this.readDiagramDiffSession() === session
+              && this.diffProjection?.session === session && this.diffProjection.fullDiff === semantic.diff) {
+            this.diffProjection = { ...this.diffProjection, attributed };
+          }
+        }).catch((cause) => {
+          if (!operation.signal.aborted) console.warn("Archinsight diagram diff attribution failed", cause);
+        });
+      }
+      return true;
+    } catch (cause) {
+      if (!operation.signal.aborted && this.quickActionCoordinator.isCurrent(generation)) {
+        void vscode.window.showErrorMessage(
+          `Diagram diff failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+      return false;
+    }
+  }
+
+  private async renderDiagramDiff(
+    session: DiagramDiffSessionState,
+    diff: DiagramDiff,
+    generation = this.quickActionCoordinator.nextGeneration(),
+  ): Promise<boolean> {
     const current = this.project.current;
     if (current === undefined) return false;
     const input = this.renderInput(current, this.diagram.queryState().query);
     if (input === undefined) return false;
-    const generation = ++this.quickActionGeneration;
     const preview = await buildDiagramDiffPreview(
       input,
       this.diagram.queryState(),
@@ -1840,53 +1971,33 @@ class ArchinsightWorkbenchEditorSession {
       diff,
       { theme: renderThemeForColorThemeKind(vscode.window.activeColorTheme.kind), log: (message) => output.appendLine(message) },
     );
-    if (generation !== this.quickActionGeneration || this.disposed) return false;
+    if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed) return false;
     await this.diagram.publishAdHoc(preview);
     return preview.error === undefined;
   }
 
-  private async cancelDiagramDiff(): Promise<void> {
-    if (this.diffSession === undefined) return;
-    await this.clearDiagramDiffState();
-    this.quickActionResultVisible = false;
-    const current = this.project.current;
-    const input = current === undefined ? undefined : this.renderInput(current, this.diagram.queryState().query);
-    if (input !== undefined) await this.diagram.refresh(input);
-  }
-
-  private async clearDiagramDiffState(): Promise<void> {
-    this.diffSession = undefined;
-    this.diffCatalogue = undefined;
-    await this.postDiagramDiffMode();
-  }
-
   private async postDiagramDiffMode(): Promise<void> {
-    const state = this.diffSession === undefined ? { status: "idle" as const } : {
+    const session = this.readDiagramDiffSession();
+    const state = session === undefined ? { status: "idle" as const } : {
       status: "showing-diff" as const,
-      before: this.diffSession.beforeRevision,
-      after: this.diffSession.afterRevision,
-      beforeShort: this.diffSession.beforeShort,
-      afterShort: this.diffSession.afterShort,
-      selectedElementId: this.diffSession.selectedElementId,
+      before: session.beforeRevision,
+      after: session.afterRevision,
+      beforeShort: session.beforeShort,
+      afterShort: session.afterShort,
+      currentRevision: session.catalogue.currentRevision,
+      selectedElementId: session.selectedElementId,
     };
     if (this.webviewReady) {
       await this.panel.webview.postMessage({ command: "diagramDiffMode", state } satisfies WorkbenchHostToWebviewMessage);
     }
   }
 
-  private versioningEligibleSource(): boolean {
-    return this.document?.uri.scheme === "file" && this.diagramDiffSource(this.project.current) !== undefined;
-  }
-
-  private diagramDiffSource(current: LinkedProject | undefined): string | undefined {
-    if (current === undefined) return undefined;
-    const input = this.renderInput(current, this.diagram.queryState().query);
-    const source = input?.queryScope?.tab ?? (this.isQueryDocument() ? undefined : input?.sourceName);
-    return source?.toLocaleLowerCase().endsWith(".ai") === true ? source : undefined;
+  private versioningEligibleWorkspace(): boolean {
+    return this.project.current?.root.scheme === "file";
   }
 
   private versionedRepository(): Promise<GitVersionedRepository | undefined> {
-    if (!this.versioningEligibleSource()) return Promise.resolve(undefined);
+    if (!this.versioningEligibleWorkspace()) return Promise.resolve(undefined);
     this.versionedRepositoryPromise ??= openGitVersionedRepository(
       this.project.current?.root.fsPath ?? this.document!.uri.fsPath,
     );
@@ -1909,11 +2020,16 @@ class ArchinsightWorkbenchEditorSession {
     const current = this.project.current;
     const selecting = this.readFindPathMode();
     if (current === undefined || selecting.status !== "selecting-target") return;
-    const metadata = diagramElementMetadata(diagramQuickActionMetadata(current.result), elementId);
-    if (metadata === undefined) return;
-    const resolving = resolveFindPathTarget(selecting, metadata, this.currentPathEndpointEnvironment());
-    if (resolving.status !== "resolving-path") return;
-    await this.resolveAndRenderPath(resolving, retryFindPathTarget(resolving), false);
+    try {
+      const prepared = new DiagramQuickActionService(current.result)
+        .selectPathTarget(selecting, elementId, this.currentPathEndpointEnvironment());
+      if (prepared === undefined) return;
+      await this.resolveAndRenderPath(prepared, retryFindPathTarget(prepared.resolving), false);
+    } catch (error) {
+      void vscode.window.showErrorMessage(
+        `Find path failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   private quickActionScope(current: LinkedProject): QueryScope {
@@ -1940,72 +2056,58 @@ class ArchinsightWorkbenchEditorSession {
   private async reverseFindPath(): Promise<void> {
     const showing = this.readFindPathMode();
     if (showing.status !== "showing-path") return;
-    const resolving = reverseFindPathResult(showing);
-    if (resolving.status !== "resolving-path") return;
-    await this.resolveAndRenderPath(resolving, showing, true);
+    const current = this.project.current;
+    if (current === undefined) return;
+    try {
+      const prepared = new DiagramQuickActionService(current.result).reversePath(showing);
+      if (prepared === undefined) return;
+      await this.resolveAndRenderPath(prepared, showing, true);
+    } catch (error) {
+      void vscode.window.showErrorMessage(
+        `Find path failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   private async resolveAndRenderPath(
-    resolving: Extract<FindPathMode, { readonly status: "resolving-path" }>,
+    prepared: PreparedFindPath,
     failureMode: FindPathMode,
     preserveVisibleResult: boolean,
   ): Promise<void> {
+    const { resolving, showing, graph } = prepared;
     await this.writeFindPathMode(resolving);
     if (this.readFindPathMode() !== resolving) return;
-    const latest = this.project.current;
-    if (latest === undefined) return;
-    let graph: import("@insight/language").RenderGraph;
-    try {
-      graph = selectPathGraph(
-        latest.result,
-        resolving.sourceId,
-        resolving.targetId,
-        resolving.scope ?? this.quickActionScope(latest),
-        {
-          sourceEnvironment: resolving.sourceEnvironment,
-          targetEnvironment: resolving.targetEnvironment,
-        },
-      );
-    } catch (error) {
-      if (this.readFindPathMode() === resolving) {
-        await this.writeFindPathMode(failureMode);
-        void vscode.window.showErrorMessage(
-          `Find path failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      return;
-    }
     if (graph.edges.length === 0) {
       output.appendLine(`No path found between ${resolving.sourceTitle} and ${resolving.targetTitle}.`);
     }
     if (this.readFindPathMode() !== resolving) return;
-    const showing = showResolvedFindPath(resolving);
     await this.writeFindPathMode(showing);
     if (this.readFindPathMode() !== showing) return;
-    const accepted = await this.renderQuickActionGraph(graph, true);
+    const accepted = await this.renderQuickActionGraph(graph, "find-path");
     if (!accepted && this.readFindPathMode() === showing) {
-      if (preserveVisibleResult) this.quickActionResultVisible = true;
+      if (preserveVisibleResult) this.quickActionCoordinator.showResult("find-path");
       await this.writeFindPathMode(failureMode);
     }
   }
 
   private async renderQuickActionGraph(
     graph: import("@insight/language").RenderGraph,
-    findPathResult = false,
+    resultKind: TransientDiagramResultKind,
   ): Promise<boolean> {
     const current = this.project.current;
     if (current === undefined) return false;
     const input = this.renderInput(current, this.diagram.queryState().query);
     if (input === undefined) return false;
-    const generation = ++this.quickActionGeneration;
+    const generation = this.quickActionCoordinator.nextGeneration();
     const preview = await buildQuickActionPreview(input, this.diagram.queryState(), graph, {
       theme: renderThemeForColorThemeKind(vscode.window.activeColorTheme.kind),
       log: (message) => output.appendLine(message),
     });
-    if (generation !== this.quickActionGeneration || this.disposed) return false;
+    if (!this.quickActionCoordinator.isCurrent(generation) || this.disposed) return false;
     await this.diagram.publishAdHoc(preview);
     const accepted = preview.error === undefined;
-    this.quickActionResultVisible = findPathResult && accepted;
+    if (accepted) this.quickActionCoordinator.showResult(resultKind);
+    else this.quickActionCoordinator.clearResult();
     return accepted;
   }
 
@@ -2013,7 +2115,7 @@ class ArchinsightWorkbenchEditorSession {
     const sourceName = this.sourceName(this.project.current);
     const queryState = this.diagram.queryState();
     this.lastSource = this.sourceText(this.project.current, sourceName);
-    const versioningAvailable = this.versioningEligibleSource()
+    const versioningAvailable = this.versioningEligibleWorkspace()
       && await this.versionedRepository().then((repository) => repository !== undefined).catch(() => false);
     await this.panel.webview.postMessage({
       command: "source",
@@ -2042,7 +2144,7 @@ class ArchinsightWorkbenchEditorSession {
   }
 
   private async postQueryScope(current: LinkedProject | undefined): Promise<void> {
-    const versioningAvailable = this.versioningEligibleSource()
+    const versioningAvailable = this.versioningEligibleWorkspace()
       && await this.versionedRepository().then((repository) => repository !== undefined).catch(() => false);
     await this.panel.webview.postMessage({
       command: "queryScope",
@@ -2098,6 +2200,7 @@ class ArchinsightWorkbenchEditorSession {
   }
 
   private async openDeclaration(declaration: { readonly source: string; readonly line: number; readonly column: number }): Promise<void> {
+    if (!this.declarationNavigationAvailable()) return;
     const current = this.project.current;
     if (current === undefined) {
       return;
@@ -2107,31 +2210,19 @@ class ArchinsightWorkbenchEditorSession {
       await this.openLocation(new vscode.Location(coreSourceUriFor(declaration.source), locationRange({ line: declaration.line, column: declaration.column })), queryState);
       return;
     }
-    if (this.diffSession !== undefined) {
-      const candidates = [
-        { side: "Before", revision: this.diffSession.beforeShort, project: this.diffSession.before },
-        { side: "After", revision: this.diffSession.afterShort, project: this.diffSession.after },
-      ].filter((item) => item.project.sources.some((source) => source.sourceName === declaration.source));
-      const selected = candidates.length === 1 ? candidates[0] : await vscode.window.showQuickPick(
-        candidates.map((item) => ({ label: item.side, description: item.revision, item })),
-        { title: "Open declaration from diagram diff", placeHolder: "Select the compared revision" },
-      ).then((item) => item?.item);
-      if (selected === undefined) return;
-      const source = selected.project.sources.find((item) => item.sourceName === declaration.source);
-      if (source === undefined) return;
-      const document = await vscode.workspace.openTextDocument({ language: "insight", content: source.source });
-      const editor = await vscode.window.showTextDocument(document, { preview: true, preserveFocus: false });
-      const position = new vscode.Position(Math.max(0, declaration.line - 1), Math.max(0, declaration.column - 1));
-      editor.selection = new vscode.Selection(position, position);
-      editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-      return;
-    }
     const uri = current.sourceUris.get(declaration.source);
     if (uri === undefined) {
       return;
     }
     const position = new vscode.Position(Math.max(0, declaration.line - 1), Math.max(0, declaration.column - 1));
     await this.openLocation(new vscode.Location(uri, new vscode.Range(position, position)), queryState);
+  }
+
+  private declarationNavigationAvailable(): boolean {
+    const session = this.readDiagramDiffSession();
+    return session === undefined
+      || session.beforeRevision === session.catalogue.currentRevision
+      || session.afterRevision === session.catalogue.currentRevision;
   }
 
   async reveal(position: vscode.Position): Promise<void> {
@@ -2255,15 +2346,14 @@ class ArchinsightWorkbenchEditorSession {
       value,
     );
     if (selection === undefined) return;
-    if (this.diffSession !== undefined) {
-      await this.clearDiagramDiffState();
-      this.quickActionResultVisible = false;
-    }
     this.queryScopeTab = selection.tab;
     this.queryScopeContext = selection.context;
     await this.postQueryScope(current);
     const input = this.renderInput(current, this.diagram.queryState().query);
-    if (input !== undefined) await this.diagram.refresh(input);
+    if (input !== undefined) {
+      if (this.readDiagramDiffSession() !== undefined) await this.renderCurrentDiagramDiff();
+      else await this.diagram.refresh(input);
+    }
   }
 
   private queryScopeContexts(current: LinkedProject): readonly QueryScopeContextChoice[] {
@@ -2568,68 +2658,6 @@ function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function readWorkspaceSources(root: vscode.Uri): Promise<ProjectSource[]> {
-  const files = await vscode.workspace.findFiles(
-    new vscode.RelativePattern(root, "**/*.ai"),
-    "{**/node_modules/**,**/.*/**,**/build/**,**/dist/**}",
-  );
-  const sources = new Map<string, ProjectSource>();
-  for (const uri of files.sort((left, right) => left.fsPath.localeCompare(right.fsPath))) {
-    const sourceName = sourceNameForUri(root, uri);
-    if (isIgnoredSource(sourceName)) {
-      continue;
-    }
-    sources.set(sourceName, {
-      sourceName,
-      source: Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8"),
-    });
-  }
-  for (const document of vscode.workspace.textDocuments) {
-    if (isInsightDocument(document) && isInside(root, document.uri)) {
-      const sourceName = sourceNameForUri(root, document.uri);
-      if (isIgnoredSource(sourceName)) {
-        continue;
-      }
-      sources.set(sourceName, { sourceName, source: document.getText() });
-    }
-  }
-  return [...sources.values()];
-}
-
-function sourceUris(root: vscode.Uri, sources: readonly ProjectSource[]): ReadonlyMap<string, vscode.Uri> {
-  return new Map(sources.map((source) => [source.sourceName, vscode.Uri.joinPath(root, ...source.sourceName.split("/"))]));
-}
-
-function workspaceRoot(): vscode.Uri | undefined {
-  return vscode.workspace.workspaceFolders?.[0]?.uri;
-}
-
-function sourceNameForUri(root: vscode.Uri, uri: vscode.Uri): string {
-  return path.relative(root.fsPath, uri.fsPath).replaceAll("\\", "/").replace(/^\.\//, "");
-}
-
-function isIgnoredSource(sourceName: string): boolean {
-  const directories = sourceName.split("/").slice(0, -1);
-  return directories.some((directory) => (
-    directory.startsWith(".")
-    || directory === "node_modules"
-    || directory === "build"
-    || directory === "dist"
-  ));
-}
-
-function isInside(root: vscode.Uri, uri: vscode.Uri): boolean {
-  if (uri.scheme !== "file") {
-    return false;
-  }
-  const relative = path.relative(root.fsPath, uri.fsPath);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-function isInsightDocument(document: vscode.TextDocument): boolean {
-  return document.languageId === "insight" || document.uri.fsPath.endsWith(".ai");
 }
 
 function isAiqDocument(document: vscode.TextDocument): boolean {

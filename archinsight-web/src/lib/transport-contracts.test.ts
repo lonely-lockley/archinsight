@@ -80,7 +80,10 @@ describe('shared transport contracts', () => {
     })).toEqual({ command: 'compareDiagramDiff', before: 'abc', after: 'def', elementId: 'shop/api' });
     expect(parseWorkbenchHostToWebviewMessage({
       command: 'diagramDiffMode',
-      state: { status: 'showing-diff', before: 'abc', after: 'def', beforeShort: 'abc', afterShort: 'HEAD', selectedElementId: 'shop/api' }
+      state: {
+        status: 'showing-diff', before: 'abc', after: 'def', beforeShort: 'abc', afterShort: 'HEAD',
+        currentRevision: 'def', selectedElementId: 'shop/api'
+      }
     })).toMatchObject({ state: { status: 'showing-diff', afterShort: 'HEAD' } });
     expect(parseWorkbenchHostToWebviewMessage({
       command: 'findPathMode',

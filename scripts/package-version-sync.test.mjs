@@ -77,13 +77,22 @@ test("rejects duplicate package directories before writing", () => {
 
 test("Gradle version synchronization has no npm installation fallback", () => {
   const build = readFileSync(path.join(repositoryRoot, "build.gradle"), "utf8");
-  const syncTask = build.slice(
-    build.indexOf("tasks.register('syncPackageVersions')"),
-    build.indexOf("tasks.register('copyLicenses')"),
-  );
+  const syncTask = gradleTaskBlock(build, "syncPackageVersions");
   assert.match(syncTask, /scripts\/sync-package-versions\.mjs/);
   assert.doesNotMatch(syncTask, /commandLine\s+npmCommand|package-lock-only|['"]install['"]/);
 });
+
+function gradleTaskBlock(source, taskName) {
+  const start = source.indexOf(`tasks.register('${taskName}')`);
+  assert.notEqual(start, -1, `Missing Gradle task ${taskName}`);
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  for (let index = open; index < source.length; index++) {
+    if (source[index] === '{') depth++;
+    else if (source[index] === '}' && --depth === 0) return source.slice(start, index + 1);
+  }
+  assert.fail(`Unterminated Gradle task ${taskName}`);
+}
 
 test("Gradle dependency installation remains registry-capable without audit waits", () => {
   const gradleFiles = [

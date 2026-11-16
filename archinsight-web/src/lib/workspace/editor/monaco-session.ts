@@ -19,15 +19,13 @@ import type * as Monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/editor/editor.worker.js?worker';
 import type { Diagnostic } from '$lib/api';
 import {
-  createInsightSemanticTokensProvider,
-  createInsightTokenVocabulary,
-  createInsightTokensProvider,
   refreshInsightTokenVocabulary,
   type InsightSemanticTokensProvider,
   type InsightTokenVocabulary
 } from '@archinsight/workbench/monaco';
+import { insightEditorOptions, registerInsightMonaco } from '@archinsight/workbench/monaco-session';
 import LanguageWorker from '$lib/language.worker?worker';
-import { defineInsightThemes, insightDarkTheme, insightLightTheme } from '@archinsight/workbench/monaco-themes';
+import { insightDarkTheme, insightLightTheme } from '@archinsight/workbench/monaco-themes';
 import {
   visibleIdentifiersForSource,
   type WorkspaceCompletionSnapshot
@@ -220,8 +218,9 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
     async setupEditor() {
       monaco = await import('monaco-editor');
       completionEngine = new CompletionEngine(createGeneratedInsightSyntaxProvider());
-      tokenVocabulary = createInsightTokenVocabulary(ports.editorSymbols());
-      monaco.languages.register({ id: 'insight' });
+      const registration = registerInsightMonaco(monaco, ports.editorSymbols());
+      tokenVocabulary = registration.vocabulary;
+      semanticTokensProvider = registration.semanticTokensProvider;
       registerQueryLanguage(monaco);
       registerQueryCompletionProvider(monaco, (source, cursorOffset) => completeAiq({
         source,
@@ -230,29 +229,11 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
         analysis: ports.linkedAnalysis(),
         parameters: Object.keys(ports.activeTab()?.queryParameters ?? {})
       }));
-      monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
-      semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
-      monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);
-      defineInsightThemes(monaco);
       registerCompletionProvider();
       editor = monaco.editor.create(ports.editorHost(), {
+        ...insightEditorOptions,
         model: null,
         theme: renderTheme === 'dark' ? insightDarkTheme : insightLightTheme,
-        automaticLayout: true,
-        minimap: { enabled: true },
-        autoIndent: 'full',
-        suggest: { showWords: false },
-        fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace',
-        fontSize: 12,
-        tabSize: 4,
-        insertSpaces: true,
-        hover: { enabled: 'on' },
-        fixedOverflowWidgets: true,
-        occurrencesHighlight: 'off',
-        selectionHighlight: false,
-        renderValidationDecorations: 'on',
-        'semanticHighlighting.enabled': true,
-        scrollBeyondLastLine: false
       });
       editor.onDidChangeModelContent(() => {
         const activeTabId = ports.activeTabId();

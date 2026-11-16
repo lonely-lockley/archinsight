@@ -8,12 +8,12 @@ import {
 const unchanged = element("sample/unchanged", "Unchanged");
 const changedBefore = element("sample/changed", "Before");
 const changedAfter = element("sample/changed", "After");
-const removed = element("sample/removed", "Removed");
-const added = element("sample/added", "Added");
+const removed = { ...element("sample/removed", "Removed"), annotations: [{ name: "deprecated" }] };
+const added = { ...element("sample/added", "Added"), annotations: [{ name: "planned" }] };
 const beforeEdge = edge("unstable-before-id", unchanged.id, changedBefore.id, "HTTP");
 const afterEdge = edge("unstable-after-id", unchanged.id, changedAfter.id, "gRPC");
-const removedEdge = edge("removed-edge", changedBefore.id, removed.id, "HTTP");
-const addedEdge = edge("added-edge", changedAfter.id, added.id, "HTTP");
+const removedEdge = annotatedEdge(edge("removed-edge", changedBefore.id, removed.id, "HTTP"), "deprecated");
+const addedEdge = annotatedEdge(edge("added-edge", changedAfter.id, added.id, "HTTP"), "planned");
 
 const before = graph([unchanged, changedBefore, removed], [beforeEdge, removedEdge]);
 const after = graph([unchanged, changedAfter, added], [afterEdge, addedEdge]);
@@ -46,12 +46,14 @@ const stableIdOnly = diffRenderGraphs(
 assert.equal(stableIdOnly.summary.edges.unchanged, 1, "line-dependent linked edge IDs must not create diff noise");
 
 const dot = renderDiagramDiffGraphviz(result(before), result(after), diff, "light");
-assert.match(dot, /fillcolor="#c8e6c9",color="#2e7d32"|color="#2e7d32"[\s\S]*fillcolor="#c8e6c9"/);
-assert.match(dot, /fillcolor="#ffcdd2",color="#c62828"|color="#c62828"[\s\S]*fillcolor="#ffcdd2"/);
-assert.match(dot, /fillcolor="#fff59d",color="#f9a825"|color="#f9a825"[\s\S]*fillcolor="#fff59d"/);
-assert.match(dot, /color="#2e7d32"/);
-assert.match(dot, /color="#c62828"/);
+assert.doesNotMatch(dot, /fillcolor="#(?:c8e6c9|ffcdd2|fff59d)"/);
+assert.match(dot, /fillcolor="#0e8006",color="#2e7d32"|color="#2e7d32"[\s\S]*fillcolor="#0e8006"/);
+assert.match(dot, /fillcolor="#a80808",color="#c62828"|color="#c62828"[\s\S]*fillcolor="#a80808"/);
 assert.match(dot, /color="#f9a825"/);
+assert.doesNotMatch(dot, /color="#[0-9a-fA-F]{6}:/);
+assert.match(dot, /<font color="#2e7d32" point-size="11px"><b>\+<\/b><\/font>/);
+assert.match(dot, /<font color="#c62828" point-size="11px"><b>−<\/b><\/font>/);
+assert.match(dot, /<font color="#f9a825" point-size="11px"><b>~<\/b><\/font>/);
 assert.throws(
   () => renderDiagramDiffGraphviz(
     { ...result(before), diagnostics: [{ code: "BROKEN", message: "broken", sourceName: "model.ai", line: 1, column: 0 }] },
@@ -104,6 +106,10 @@ function edge(id, source, target, technology) {
     derived: true,
     projected: false,
   };
+}
+
+function annotatedEdge(value, name) {
+  return { ...value, edge: { ...value.edge, annotations: [{ name }] } };
 }
 
 function result(renderGraph) {

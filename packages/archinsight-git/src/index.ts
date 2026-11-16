@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type {
@@ -10,9 +10,15 @@ import type {
   DiagramDiffRevisionCatalogue,
   VersionedRepository,
 } from '@archinsight/contracts';
+import {
+  isIgnoredProjectSourceDirectory,
+  normalizeProjectSourceIdentity,
+} from '@archinsight/contracts';
 import type { DiagramDiffOrigin, ProjectSource } from '@insight/language';
 
 const maxBuffer = 32 * 1024 * 1024;
+const maxBlameCacheEntries = 64;
+const maxBlobsPerBatch = 64;
 
 export class GitRepositoryError extends Error {
   constructor(message: string, readonly code = 'GIT') {
@@ -31,7 +37,7 @@ export class GitVersionedRepository implements VersionedRepository {
   readonly projectPath: string;
   readonly repositoryRoot: string;
   readonly projectRoot: string;
-  private readonly blameCache = new Map<string, Promise<readonly DiagramDiffBlameCommit[]>>();
+  private readonly blameCache = new Map<string, Promise<ReadonlyMap<number, DiagramDiffBlameCommit>>>();
 
   constructor(options: GitVersionedRepositoryOptions) {
     this.projectPath = options.projectPath;
@@ -79,10 +85,12 @@ export class GitVersionedRepository implements VersionedRepository {
       .filter(Boolean)
       .filter((name) => name.endsWith('.ai'))
       .filter((name) => !this.ignoredSource(name));
-    return Promise.all(names.sort().map(async (name) => ({
+    const sortedNames = names.sort();
+    const contents = await this.readBlobs(commit, sortedNames, signal);
+    return sortedNames.map((name, index) => ({
       sourceName: this.sourceName(name),
-      source: await this.git(['show', `${commit}:${name}`], signal),
-    })));
+      source: contents[index]!,
+    }));
   }
 
   async validatePair(before: string, after: string, signal: AbortSignal): Promise<void> {
@@ -115,21 +123,44 @@ export class GitVersionedRepository implements VersionedRepository {
       this.resolveRevision(request.before, signal),
       this.resolveRevision(request.after, signal),
     ]);
-    const attribution: Record<string, DiagramDiffAttribution[]> = {};
+    const attribution: Record<string, DiagramDiffAttribution[]> = Object.fromEntries(
+      Object.keys(request.origins).map((changeId) => [changeId, []]),
+    );
     const diagnostics: DiagramDiffAttributionDiagnostic[] = [];
-    for (const [changeId, origins] of Object.entries(request.origins)) {
-      const entries: DiagramDiffAttribution[] = [];
-      for (const item of uniqueOrigins(origins)) {
-        const revision = item.side === 'before' ? resolvedBefore : resolvedAfter;
-        const endLine = Math.max(item.line, item.endLine ?? item.line);
+    const groups = groupAttributionOrigins(request.origins);
+    for (const group of groups) {
+      const revision = group.side === 'before' ? resolvedBefore : resolvedAfter;
+      const startLine = Math.min(...group.entries.map(({ origin }) => origin.line));
+      const endLine = Math.max(...group.entries.map(({ origin }) => Math.max(origin.line, origin.endLine ?? origin.line)));
+      let lines: ReadonlyMap<number, DiagramDiffBlameCommit>;
+      try {
+        lines = await this.blame(revision, group.sourceName, startLine, endLine, signal);
+      } catch (cause) {
+        for (const { changeId } of group.entries) {
+          diagnostics.push({
+            changeId,
+            side: group.side,
+            sourceName: group.sourceName,
+            message: cause instanceof Error ? cause.message : String(cause),
+          });
+        }
+        continue;
+      }
+      for (const { changeId, origin: item } of group.entries) {
+        const originEndLine = Math.max(item.line, item.endLine ?? item.line);
         try {
-          entries.push({
+          const commits = new Map<string, DiagramDiffBlameCommit>();
+          for (let line = item.line; line <= originEndLine; line++) {
+            const commit = lines.get(line);
+            if (commit !== undefined) commits.set(commit.hash, commit);
+          }
+          attribution[changeId]!.push({
             side: item.side,
             sourceName: item.sourceName,
             startLine: item.line,
-            endLine,
+            endLine: originEndLine,
             precision: item.precision,
-            commits: await this.blame(revision, item.sourceName, item.line, endLine, signal),
+            commits: [...commits.values()].sort((left, right) => left.hash.localeCompare(right.hash)),
           });
           if (item.precision === 'declaration') {
             diagnostics.push({
@@ -148,7 +179,6 @@ export class GitVersionedRepository implements VersionedRepository {
           });
         }
       }
-      attribution[changeId] = entries;
     }
     return { attribution, diagnostics };
   }
@@ -159,18 +189,42 @@ export class GitVersionedRepository implements VersionedRepository {
     startLine: number,
     endLine: number,
     signal: AbortSignal,
-  ): Promise<readonly DiagramDiffBlameCommit[]> {
+  ): Promise<ReadonlyMap<number, DiagramDiffBlameCommit>> {
     const repositoryPath = this.repositoryPath(sourceName);
     const key = `${revision}\0${repositoryPath}\0${startLine}\0${endLine}`;
     let pending = this.blameCache.get(key);
     if (pending === undefined) {
       pending = this.git([
         'blame', '--line-porcelain', '-L', `${startLine},${endLine}`, revision, '--', repositoryPath,
-      ], signal).then(parseBlame);
+      ], signal).then(parseBlameLines);
       this.blameCache.set(key, pending);
       pending.catch(() => this.blameCache.delete(key));
+      while (this.blameCache.size > maxBlameCacheEntries) {
+        const oldest = this.blameCache.keys().next().value as string | undefined;
+        if (oldest === undefined) break;
+        this.blameCache.delete(oldest);
+      }
     }
     return pending;
+  }
+
+  private async readBlobs(
+    revision: string,
+    repositoryPaths: readonly string[],
+    signal: AbortSignal,
+  ): Promise<readonly string[]> {
+    if (repositoryPaths.length === 0) return [];
+    if (repositoryPaths.some((name) => name.includes('\n') || name.includes('\r'))) {
+      throw new GitRepositoryError('Source paths containing line breaks are unsupported', 'INVALID_PATH');
+    }
+    const contents: string[] = [];
+    for (let offset = 0; offset < repositoryPaths.length; offset += maxBlobsPerBatch) {
+      const batch = repositoryPaths.slice(offset, offset + maxBlobsPerBatch);
+      const input = batch.map((name) => `${revision}:${name}\n`).join('');
+      const output = await runGitWithInput(this.repositoryRoot, ['cat-file', '--batch'], input, signal);
+      contents.push(...parseBatchBlobs(output, batch));
+    }
+    return contents;
   }
 
   private async commitMetadata(revision: string, signal: AbortSignal): Promise<DiagramDiffRevision> {
@@ -183,7 +237,7 @@ export class GitVersionedRepository implements VersionedRepository {
   }
 
   private repositoryPath(sourceName: string): string {
-    const raw = sourceName.replaceAll('\\', '/').replace(/^\.\//, '');
+    const raw = normalizeProjectSourceIdentity(sourceName);
     const normalized = path.posix.normalize(raw);
     if (raw.includes('\0') || normalized === '.' || path.posix.isAbsolute(normalized)
         || normalized === '..' || normalized.startsWith('../')) {
@@ -202,9 +256,7 @@ export class GitVersionedRepository implements VersionedRepository {
 
   private ignoredSource(repositoryPath: string): boolean {
     const relative = this.sourceName(repositoryPath);
-    return relative.split('/').slice(0, -1).some((part) =>
-      part.startsWith('.') || part === 'node_modules' || part === 'build' || part === 'dist'
-    );
+    return relative.split('/').slice(0, -1).some(isIgnoredProjectSourceDirectory);
   }
 
   private git(args: readonly string[], signal: AbortSignal): Promise<string> {
@@ -254,6 +306,51 @@ function runGit(cwd: string, args: readonly string[], signal: AbortSignal): Prom
   });
 }
 
+function runGitWithInput(
+  cwd: string,
+  args: readonly string[],
+  input: string,
+  signal: AbortSignal,
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['-C', cwd, ...args], {
+      windowsHide: true,
+      signal,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let outputBytes = 0;
+    let settled = false;
+    const fail = (cause: Error): void => {
+      if (settled) return;
+      settled = true;
+      reject(cause);
+    };
+    child.stdout.on('data', (chunk: Buffer) => {
+      outputBytes += chunk.length;
+      if (outputBytes > maxBuffer) {
+        child.kill();
+        fail(new GitRepositoryError('Git output exceeds the configured limit'));
+        return;
+      }
+      stdout.push(chunk);
+    });
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+    child.on('error', (error) => fail(error));
+    child.on('close', (code) => {
+      if (settled) return;
+      if (code === 0) {
+        settled = true;
+        resolve(Buffer.concat(stdout));
+        return;
+      }
+      fail(new GitRepositoryError(Buffer.concat(stderr).toString('utf8').trim() || `Git exited with code ${code}`));
+    });
+    child.stdin.end(input);
+  });
+}
+
 function parseHistory(raw: string, initialPath: string): DiagramDiffRevision[] {
   let currentPath = initialPath;
   const result: DiagramDiffRevision[] = [];
@@ -279,17 +376,19 @@ function parseHistory(raw: string, initialPath: string): DiagramDiffRevision[] {
   return result;
 }
 
-function parseBlame(raw: string): readonly DiagramDiffBlameCommit[] {
-  const commits = new Map<string, DiagramDiffBlameCommit>();
+function parseBlameLines(raw: string): ReadonlyMap<number, DiagramDiffBlameCommit> {
+  const commits = new Map<number, DiagramDiffBlameCommit>();
   let hash: string | undefined;
+  let finalLine: number | undefined;
   let authorName = '';
   let authorEmail: string | undefined;
   let authoredAt = '';
   let summary = '';
   for (const line of raw.split('\n')) {
-    const header = /^([0-9a-f]{40,64}) \d+ \d+(?: \d+)?$/.exec(line);
+    const header = /^([0-9a-f]{40,64}) \d+ (\d+)(?: \d+)?$/.exec(line);
     if (header !== null) {
       hash = header[1];
+      finalLine = Number(header[2]);
       authorName = '';
       authorEmail = undefined;
       authoredAt = '';
@@ -300,11 +399,58 @@ function parseBlame(raw: string): readonly DiagramDiffBlameCommit[] {
     else if (line.startsWith('author-mail ')) authorEmail = line.slice(12).replace(/^<|>$/g, '');
     else if (line.startsWith('author-time ')) authoredAt = new Date(Number(line.slice(12)) * 1000).toISOString();
     else if (line.startsWith('summary ')) summary = line.slice(8);
-    else if (line.startsWith('\t') && hash !== undefined) {
-      commits.set(hash, { hash, authorName, ...(authorEmail ? { authorEmail } : {}), authoredAt, summary });
+    else if (line.startsWith('\t') && hash !== undefined && finalLine !== undefined) {
+      commits.set(finalLine, { hash, authorName, ...(authorEmail ? { authorEmail } : {}), authoredAt, summary });
     }
   }
-  return [...commits.values()].sort((left, right) => left.hash.localeCompare(right.hash));
+  return commits;
+}
+
+function groupAttributionOrigins(
+  origins: DiagramDiffAttributionRequest['origins'],
+): readonly {
+  readonly side: 'before' | 'after';
+  readonly sourceName: string;
+  readonly entries: readonly { readonly changeId: string; readonly origin: DiagramDiffOrigin }[];
+}[] {
+  const groups = new Map<string, {
+    side: 'before' | 'after';
+    sourceName: string;
+    entries: { changeId: string; origin: DiagramDiffOrigin }[];
+  }>();
+  for (const [changeId, values] of Object.entries(origins)) {
+    for (const origin of uniqueOrigins(values)) {
+      const key = `${origin.side}\0${origin.sourceName}`;
+      const group = groups.get(key) ?? { side: origin.side, sourceName: origin.sourceName, entries: [] };
+      group.entries.push({ changeId, origin });
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()].sort((left, right) =>
+    left.side.localeCompare(right.side) || left.sourceName.localeCompare(right.sourceName)
+  );
+}
+
+function parseBatchBlobs(output: Buffer, repositoryPaths: readonly string[]): readonly string[] {
+  const result: string[] = [];
+  let offset = 0;
+  for (const repositoryPath of repositoryPaths) {
+    const headerEnd = output.indexOf(0x0a, offset);
+    if (headerEnd < 0) throw new GitRepositoryError(`Cannot read Git blob header for '${repositoryPath}'`);
+    const header = output.subarray(offset, headerEnd).toString('utf8');
+    const match = /^[0-9a-f]{40,64} blob (\d+)$/.exec(header);
+    if (match === null) throw new GitRepositoryError(`Cannot read '${repositoryPath}' at the selected revision: ${header}`);
+    const size = Number(match[1]);
+    const start = headerEnd + 1;
+    const end = start + size;
+    if (!Number.isSafeInteger(size) || end >= output.length) {
+      throw new GitRepositoryError(`Invalid Git blob size for '${repositoryPath}'`);
+    }
+    result.push(output.subarray(start, end).toString('utf8'));
+    if (output[end] !== 0x0a) throw new GitRepositoryError(`Invalid Git batch delimiter for '${repositoryPath}'`);
+    offset = end + 1;
+  }
+  return result;
 }
 
 function uniqueOrigins(origins: readonly DiagramDiffOrigin[]): readonly DiagramDiffOrigin[] {
