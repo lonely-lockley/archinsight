@@ -3,6 +3,7 @@ import {
   diagramDiffDeclarationSource,
   diagramDiffDeclarationNavigationAvailable,
   diagramDiffCompareDisabledReason,
+  correspondingRevisionSource,
   orderedDiagramDiffRevisionPair,
   readyDiagramDiffPicker,
   selectDiagramDiffRevision,
@@ -40,6 +41,36 @@ describe('versioned diagram diff model', () => {
       declaration: { sourceName: 'views/architecture.aiq', line: 1, column: 1 },
     })).toBeUndefined();
     expect(diagramDiffDeclarationSource({})).toBeUndefined();
+  });
+
+  it('maps a moved model file by stable tab roots instead of treating the view as replaced', () => {
+    const current = {
+      tabRoots: {
+        'services/api.ai': ['sample/api', 'sample/worker'],
+        'services/other.ai': ['sample/other'],
+      },
+      contexts: [{ id: 'sample', type: 'Context', sourceIdentity: 'services/api.ai', attributes: {} }],
+    };
+    const moved = {
+      tabRoots: {
+        'systems/api/model.ai': ['sample/api', 'sample/worker'],
+        'services/other.ai': ['sample/other'],
+      },
+      contexts: [{ id: 'sample', type: 'Context', sourceIdentity: 'systems/api/model.ai', attributes: {} }],
+    };
+
+    expect(correspondingRevisionSource(current, current, 'services/api.ai')).toBe('services/api.ai');
+    expect(correspondingRevisionSource(current, moved, 'services/api.ai')).toBe('systems/api/model.ai');
+    expect(correspondingRevisionSource({
+      tabRoots: {}, contexts: [{ id: 'sample', type: 'Context', sourceIdentity: 'old/context.ai', attributes: {} }],
+    }, {
+      tabRoots: {}, contexts: [{ id: 'sample', type: 'Context', sourceIdentity: 'new/context.ai', attributes: {} }],
+    }, 'old/context.ai')).toBe('new/context.ai');
+    expect(correspondingRevisionSource({
+      tabRoots: { 'old/extensions.ai': ['sample/api'] }, contexts: [],
+    }, {
+      tabRoots: { 'new/a.ai': ['sample/api'], 'new/b.ai': ['sample/api'] }, contexts: [],
+    }, 'old/extensions.ai')).toBeUndefined();
   });
 
   it('defaults to HEAD and the nearest older file revision', () => {

@@ -430,7 +430,6 @@ export async function runQuickAction(args: ParsedArgs): Promise<void> {
     await selectedBuiltinViewScope(project, args),
     args.environment === undefined ? undefined : {
       sourceEnvironment: args.environment,
-      targetEnvironment: args.environment,
     },
   );
   await writeQuickActionGraph(args, format, project.result, graph, {

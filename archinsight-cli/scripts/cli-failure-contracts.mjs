@@ -25,6 +25,7 @@ system application
   const help = assertSuccess(run("--help"), /Usage:/);
   assert.match(help.stdout, /quick-action isolate/);
   assert.match(help.stdout, /quick-action find-path/);
+  assert.match(help.stdout, /quick-action find-path[^\n]+\[-t system\|light\|dark\]/);
   assert.match(help.stdout, /text\|json\|dot\|svg\|png/);
   assertSuccess(run("--help"), /theme: system, light, or dark; default: system/i);
   assertFailure(run("unknown"), /Unknown command 'unknown'/);

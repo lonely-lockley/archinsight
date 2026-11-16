@@ -13,8 +13,12 @@ try {
   write("definitions.ai", `define type AppEnvironment of Environment
     Compute compute
     NetworkConnection network
+    ClusterLink clusterLink
+
+define type ClusterLink of NetworkConnection
+    constructor clusterLink
 `);
-  write("eu.ai", environment("eu", "Europe"));
+  write("eu.ai", environment("eu", "Europe", true));
   write("us.ai", environment("us", "United States"));
   write("model.ai", `context sample
 
@@ -29,10 +33,16 @@ deploymentProfile europeOnly
         production from eu
     runsOn compute
 
+deploymentProfile usOnly
+    appliesTo:
+        production from us
+    runsOn compute
+
 external actor user
     name = User
     links:
         -> frontend
+            technology = HTTPS
             deployment:
                 uses network
         -> backend
@@ -68,6 +78,20 @@ system platform
     service isolated
         name = Isolated
 
+    service cross_source
+        name = Cross source
+        deployment:
+            uses europeOnly
+        links:
+            -> cross_target
+                deployment:
+                    uses clusterLink
+
+    service cross_target
+        name = Cross target
+        deployment:
+            uses usOnly
+
 external system google
     name = Google
 `);
@@ -88,7 +112,13 @@ external system google
 
   const deployment = json("deployment", "--element", "sample/platform", "--environment", "eu");
   assert.equal(deployment.environment, "eu");
-  assert.deepEqual(deployment.focusElementIds, ["sample/backend", "sample/database", "sample/frontend"]);
+  assert.deepEqual(deployment.focusElementIds, [
+    "sample/backend",
+    "sample/cross_source",
+    "sample/cross_target",
+    "sample/database",
+    "sample/frontend",
+  ]);
   assert(deployment.graph.groups.some((group) => group.owner === "eu/compute"));
   assert(deployment.graph.edges.every((edge) =>
     deployment.focusElementIds.includes(edge.source.split("@@")[0])
@@ -106,6 +136,22 @@ external system google
     "sample/user->sample/backend",
     "sample/backend->sample/google",
   ]));
+  const pathText = success("find-path", "--from", "sample/user", "--to", "sample/google", "--format", "text").stdout;
+  assert.match(pathText, /^element\tsample\/frontend\tService\tFrontend$/m);
+  assert.match(pathText, /^edge\tsample\/user -> sample\/frontend\tHTTPS$/m);
+  assert.match(pathText, /^edge\tsample\/backend -> sample\/google\t-$/m);
+
+  const crossEnvironmentPath = json(
+    "find-path",
+    "--from", "sample/cross_source",
+    "--to", "sample/cross_target",
+    "--environment", "eu",
+  );
+  assert.equal(crossEnvironmentPath.pathFound, true);
+  assert.deepEqual(
+    crossEnvironmentPath.graph.edges.map((edge) => `${edge.source}->${edge.target}`),
+    ["sample/cross_source@@eu/compute->sample/cross_target@@us/compute"],
+  );
 
   const noPath = json("find-path", "--from", "sample/google", "--to", "sample/user");
   assert.equal(noPath.pathFound, false);
@@ -146,7 +192,7 @@ external system google
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
 
-function environment(id, name) {
+function environment(id, name, crossEnvironment = false) {
   return `environment ${id}
     name = ${name}
 
@@ -158,6 +204,11 @@ deployment production
         networkConnection network
             projection:
                 source $from originalLink target $to
+${crossEnvironment ? `    clusterLink:
+        clusterLink boundary
+            projection:
+                source $from originalLink target $to
+` : ""}
 `;
 }
 

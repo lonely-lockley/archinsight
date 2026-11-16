@@ -105,6 +105,29 @@ afterEach(() => {
 });
 
 describe('SvgPreviewPanel quick actions', () => {
+  it('keeps quick-action controls opaque when the host theme uses transparent controls', async () => {
+    const target = document.createElement('div');
+    target.style.setProperty('--archinsight-control-bg', 'transparent');
+    target.style.setProperty('--archinsight-panel-bg', 'transparent');
+    document.body.append(target);
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: { svg, quickActionMetadata: metadata }
+    });
+    await settle();
+
+    const trigger = target.querySelector<HTMLButtonElement>('button[aria-label="Quick actions for API"]')!;
+    expect(getComputedStyle(trigger).backgroundColor).not.toBe('transparent');
+    trigger.click();
+    await tick();
+    const item = target.querySelector<HTMLButtonElement>('button[aria-label="Isolate"]')!;
+    expect(getComputedStyle(item).backgroundColor).not.toBe('transparent');
+    const label = item.querySelector<HTMLElement>('.radial-label')!;
+    expect(getComputedStyle(label).backgroundColor).not.toBe('transparent');
+
+    await unmount(component);
+  });
+
   it('selects a node on a plain click and opens declaration only from the menu', async () => {
     const target = document.createElement('div');
     document.body.append(target);

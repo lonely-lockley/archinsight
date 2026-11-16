@@ -32,10 +32,14 @@ define type AppEnvironment of Environment
     Compute compute
     NetworkConnection network
     ReviewGateway gateway
+    ClusterLink clusterLink
 
 define type ReviewGateway of NetworkConnection
     constructor reviewGateway
     required InfrastructureComponent relay
+
+define type ClusterLink of NetworkConnection
+    constructor clusterLink
 `),
 ], [coreLanguageSnapshot]);
 assertNoErrors(definitions.diagnostics);
@@ -344,6 +348,63 @@ const missingPath = selectPathGraph(result, "shop/billing", "shop/isolated");
 assert.equal(missingPath.edges.length, 0, "disconnected elements have no path");
 assert.deepEqual(new Set(Object.keys(missingPath.elements)), new Set(["shop/billing", "shop/isolated"]));
 
+const cyclicPathResult = linkProject({
+  snapshot: coreLanguageSnapshot,
+  sources: [source("cyclic-path.ai", `
+context cyclic
+
+system application
+    name = Application
+    service source
+        name = Source
+        links:
+            -> target
+            -> side
+            -> branch
+
+    service target
+        name = Target
+
+    service side
+        name = Side
+        links:
+            -> source
+            -> audit
+
+    service audit
+        name = Audit
+        links:
+            -> side
+
+    service branch
+        name = Branch
+        links:
+            -> target
+            -> detour
+
+    service detour
+        name = Detour
+        links:
+            -> branch
+`)],
+});
+assertNoErrors(cyclicPathResult.diagnostics);
+const cycleFreePath = selectPathGraph(cyclicPathResult, "cyclic/source", "cyclic/target");
+assert.deepEqual(
+  new Set(cycleFreePath.edges.map((edge) => `${edge.source}->${edge.target}`)),
+  new Set([
+    "cyclic/source->cyclic/target",
+    "cyclic/source->cyclic/branch",
+    "cyclic/branch->cyclic/target",
+  ]),
+  "Find path keeps every simple route while excluding edges that require revisiting a node",
+);
+assert.deepEqual(
+  new Set(Object.keys(cycleFreePath.elements)),
+  new Set(["cyclic/source", "cyclic/branch", "cyclic/target"]),
+  "Find path removes side cycles that lie on no simple source-to-target path",
+);
+
 const multiEnvironmentResult = linkProject({
   snapshot: definitions.snapshot,
   sources: [
@@ -400,6 +461,17 @@ system application
   ],
 });
 assertNoErrors(multiEnvironmentResult.diagnostics);
+const logicalMultiEnvironmentPath = selectPathGraph(
+  multiEnvironmentResult,
+  "multi/source",
+  "multi/target",
+);
+assert.equal(logicalMultiEnvironmentPath.edges.length, 1);
+assert.equal(
+  logicalMultiEnvironmentPath.edges.every((edge) => edge.projected === false && edge.edge.projected !== true),
+  true,
+  "Find path without a view uses only authored logical relationships",
+);
 const euOnlyPath = selectPathGraph(
   multiEnvironmentResult,
   "multi/source",
@@ -443,6 +515,125 @@ assert.deepEqual(
   new Set(Object.keys(mixedEnvironmentPath.elements)),
   new Set(["multi/source", "multi/target"]),
   "a mixed-environment result still renders both requested endpoints",
+);
+
+const crossEnvironmentResult = linkProject({
+  snapshot: definitions.snapshot,
+  sources: [
+    source("cross-east.ai", `
+environment east
+    name = East
+
+deployment production
+    compute:
+        compute node
+            name = East node
+    clusterLink:
+        clusterLink boundary
+            name = Boundary link
+            projection:
+                source $from originalLink target $to
+`),
+    source("cross-west.ai", `
+environment west
+    name = West
+
+deployment production
+    compute:
+        compute node
+            name = West node
+    network:
+        networkConnection internal
+            name = Internal network
+            projection:
+                source $from originalLink target $to
+`),
+    source("cross-model.ai", `
+context cross
+
+deploymentProfile eastProfile
+    appliesTo:
+        production from east
+    runsOn compute
+
+deploymentProfile westProfile
+    appliesTo:
+        production from west
+    runsOn compute
+
+system application
+    name = Application
+    service source
+        name = Source
+        deployment:
+            uses eastProfile
+        links:
+            -> bridge
+                deployment:
+                    uses clusterLink
+
+    service bridge
+        name = Bridge
+        deployment:
+            uses westProfile
+        links:
+            -> target
+                deployment:
+                    uses network
+
+    service target
+        name = Target
+        deployment:
+            uses westProfile
+`),
+  ],
+});
+assertNoErrors(crossEnvironmentResult.diagnostics);
+assert.deepEqual(
+  deploymentEnvironmentsForElement(crossEnvironmentResult, "cross/bridge").map((environment) => environment.id),
+  ["east", "west"],
+  "deployment environments describe every D2 slice containing the element's neighborhood",
+);
+const eastDeployment = selectDeploymentGraph(crossEnvironmentResult, "cross/bridge", "east");
+assert.deepEqual(
+  eastDeployment.edges.map((edge) => `${edge.source}->${edge.target}`),
+  ["cross/source->cross/bridge"],
+  "a cross-environment relationship remains visible from its source-side D2 slice",
+);
+const eastOnlyCrossEnvironmentPath = selectPathGraph(
+  crossEnvironmentResult,
+  "cross/source",
+  "cross/target",
+  undefined,
+  { sourceEnvironment: "east", targetEnvironment: "east" },
+);
+assert.equal(
+  eastOnlyCrossEnvironmentPath.edges.length,
+  0,
+  "a target occurrence constrained to the wrong environment produces no physical path",
+);
+const selectedCrossEnvironmentPath = selectPathGraph(
+  crossEnvironmentResult,
+  "cross/source",
+  "cross/target",
+  { context: "cross", tab: "cross-model.ai", view: "deployment-container", environment: "east" },
+  { sourceEnvironment: "east", targetEnvironment: "west" },
+);
+assert.deepEqual(
+  new Set(selectedCrossEnvironmentPath.edges.map((edge) => `${edge.source}->${edge.target}`)),
+  new Set(["cross/source->cross/bridge", "cross/bridge->cross/target"]),
+  "Find path traverses the all-environment deployment graph between occurrences selected in different environments",
+);
+const allEnvironmentPath = selectPathGraph(
+  crossEnvironmentResult,
+  "cross/source",
+  "cross/target",
+  { context: "cross", tab: "cross-model.ai", view: "deployment" },
+);
+assert.deepEqual(
+  new Set(allEnvironmentPath.edges.map((edge) => `${edge.source}->${edge.target}`)),
+  new Set(["cross/source->cross/bridge", "cross/bridge->cross/target"]),
+  "the all-environment deployment view finds routes that cross D2 slices",
 );
 
 const rolledUpResult = linkProject({

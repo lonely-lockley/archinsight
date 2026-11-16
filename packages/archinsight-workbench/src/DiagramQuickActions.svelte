@@ -430,10 +430,10 @@
     display: grid;
     place-items: center;
     padding: 0;
-    border: 1px solid color-mix(in srgb, var(--archinsight-border-strong, #666) 75%, transparent);
+    border: 1px solid var(--archinsight-quick-action-border, #666);
     border-radius: 50%;
-    background: var(--archinsight-control-bg, #333);
-    color: var(--archinsight-foreground, #eee);
+    background: var(--archinsight-quick-action-bg, #2b2b2b);
+    color: var(--archinsight-quick-action-fg, #f2f2f2);
     font: 600 9px/1 system-ui, sans-serif;
     box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
     cursor: pointer;
@@ -493,8 +493,8 @@
     top: calc(100% + 3px);
     padding: 2px 4px;
     border-radius: 3px;
-    background: color-mix(in srgb, var(--archinsight-panel-bg, #252525) 94%, transparent);
-    color: var(--archinsight-foreground, #eee);
+    background: var(--archinsight-quick-action-bg, #2b2b2b);
+    color: var(--archinsight-quick-action-fg, #f2f2f2);
     font-size: 10px;
     font-weight: 400;
     line-height: 1.1;

@@ -380,7 +380,7 @@ describe('diagram quick action controller', () => {
     expect(dot).not.toContain('US node');
   });
 
-  it('returns no path when deployment endpoints were selected in different environments', async () => {
+  it('returns no path when deployment endpoints in different environments have no connecting route', async () => {
     const test = subject();
     const euEndpoint = analysis.elements.find((element) => element.attributes.name?.[0] === 'EU node');
     const usEndpoint = analysis.elements.find((element) => element.attributes.name?.[0] === 'US node');

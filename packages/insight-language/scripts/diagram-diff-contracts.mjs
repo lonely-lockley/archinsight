@@ -45,6 +45,37 @@ const stableIdOnly = diffRenderGraphs(
 );
 assert.equal(stableIdOnly.summary.edges.unchanged, 1, "line-dependent linked edge IDs must not create diff noise");
 
+const movedBefore = withSourceMetadata(
+  { ...unchanged, annotations: [{ name: "planned" }, { name: "deprecated", value: "later" }], note: "Same note" },
+  "old/model.ai",
+);
+const movedAfterWithSources = withSourceMetadata(movedBefore, "new/model.ai");
+const movedAfter = { ...movedAfterWithSources, annotations: [...movedAfterWithSources.annotations].reverse() };
+const movedEdgeBefore = withEdgeSourceMetadata(
+  annotatedEdge(edge("old-edge-id", unchanged.id, changedBefore.id, "HTTP"), "planned"),
+  "old/model.ai",
+);
+const movedEdgeAfter = withEdgeSourceMetadata(
+  { ...movedEdgeBefore, edge: { ...movedEdgeBefore.edge, id: "new-edge-id" } },
+  "new/model.ai",
+);
+const movedEdgeAfterReordered = {
+  ...movedEdgeAfter,
+  edge: {
+    ...movedEdgeAfter.edge,
+    annotations: [...movedEdgeAfter.edge.annotations].reverse(),
+    projectionOrigins: [...movedEdgeAfter.edge.projectionOrigins].reverse(),
+  },
+};
+const movedOnly = diffRenderGraphs(
+  graph([movedBefore, changedBefore], [movedEdgeBefore]),
+  graph([movedAfter, changedBefore], [movedEdgeAfterReordered]),
+);
+assert.equal(movedOnly.elements[unchanged.id].status, "unchanged", "moving a declaration must not change an element");
+assert.equal(movedOnly.edges[0].status, "unchanged", "moving relationship provenance must not change an edge");
+assert.deepEqual(movedOnly.summary.elements, { added: 0, removed: 0, changed: 0, unchanged: 2 });
+assert.deepEqual(movedOnly.summary.edges, { added: 0, removed: 0, changed: 0, unchanged: 1 });
+
 const dot = renderDiagramDiffGraphviz(result(before), result(after), diff, "light");
 assert.doesNotMatch(dot, /fillcolor="#(?:c8e6c9|ffcdd2|fff59d)"/);
 assert.match(dot, /fillcolor="#0e8006",color="#2e7d32"|color="#2e7d32"[\s\S]*fillcolor="#0e8006"/);
@@ -110,6 +141,41 @@ function edge(id, source, target, technology) {
 
 function annotatedEdge(value, name) {
   return { ...value, edge: { ...value.edge, annotations: [{ name }] } };
+}
+
+function withSourceMetadata(value, sourceName) {
+  const location = { sourceName, line: 2, column: 1, endLine: 4, endColumn: 1 };
+  return {
+    ...value,
+    sourceIdentity: sourceName,
+    declaration: location,
+    noteSource: location,
+    annotations: value.annotations?.map((annotation) => ({ ...annotation, source: location })),
+  };
+}
+
+function withEdgeSourceMetadata(value, sourceName) {
+  const location = { sourceName, line: 8, column: 1, endLine: 9, endColumn: 1 };
+  return {
+    ...value,
+    edge: {
+      ...value.edge,
+      sourceIdentity: sourceName,
+      declaration: location,
+      annotations: value.edge.annotations?.map((annotation) => ({ ...annotation, source: location })),
+      projectionOrigins: [{
+        source: value.edge.source,
+        target: value.edge.target,
+        sourceIdentity: sourceName,
+        declaration: location,
+      }, {
+        source: value.edge.source,
+        target: "sample/other",
+        sourceIdentity: sourceName,
+        declaration: location,
+      }],
+    },
+  };
 }
 
 function result(renderGraph) {

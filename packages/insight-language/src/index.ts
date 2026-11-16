@@ -144,6 +144,7 @@ export {
   canonicalDiagramElementId,
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
+  diagramElementOccurrenceEnvironment,
   diagramElementMetadata,
   diagramQuickActionMetadata,
   selectDeploymentGraph,

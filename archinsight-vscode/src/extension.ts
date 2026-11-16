@@ -77,7 +77,10 @@ import {
   buildVersionedDiagramDiff,
   projectVersionedDiagramDiff,
 } from "@archinsight/workbench/versioned-diagram-diff-service";
-import { diagramDiffDeclarationSource } from "@archinsight/workbench/versioned-diagram-diff";
+import {
+  correspondingRevisionSource,
+  diagramDiffDeclarationSource,
+} from "@archinsight/workbench/versioned-diagram-diff";
 import {
   fileNameWithExtension,
   type DiagramArtifactKind,
@@ -1880,10 +1883,14 @@ class ArchinsightWorkbenchEditorSession {
     signal: AbortSignal,
   ): Promise<import("@insight/language").RenderGraph | undefined> {
     const current = this.project.current;
-    const input = current === undefined ? undefined : this.renderInput(current, this.diagram.queryState().query);
-    const sourceName = input?.queryScope?.tab ?? input?.sourceName;
-    if (sourceName === undefined) return undefined;
-    if (!project.sources.some((item) => item.sourceName === sourceName)) return undefined;
+    if (current === undefined) return undefined;
+    const input = this.renderInput(current, this.diagram.queryState().query);
+    const currentSourceName = input?.queryScope?.tab ?? input?.sourceName;
+    if (currentSourceName === undefined) return undefined;
+    const sourceName = project.sources.some((item) => item.sourceName === currentSourceName)
+      ? currentSourceName
+      : correspondingRevisionSource(current.result, project.result, currentSourceName);
+    if (sourceName === undefined || !project.sources.some((item) => item.sourceName === sourceName)) return undefined;
     const state = this.diagram.queryState();
     const currentScope: QueryScope = {
       ...(input?.queryScope?.context === undefined ? {} : { context: input.queryScope.context }),
