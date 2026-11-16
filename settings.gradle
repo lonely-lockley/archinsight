@@ -15,16 +15,16 @@ dependencyResolutionManagement {
 rootProject.name = 'insight'
 
 gradle.ext.archinsightVersions = [
-    contracts: '3.1.2',
-    editorSupport: '3.1.2',
-    git      : '3.1.2',
-    graphviz : '3.1.2',
-    language: '3.1.2',
-    workbench: '3.1.2',
-    web     : '3.1.2',
-    renderer: '3.1.2',
-    cli     : '3.1.2',
-    vscode  : '3.1.2'
+    contracts: '3.1.3',
+    editorSupport: '3.1.3',
+    git      : '3.1.3',
+    graphviz : '3.1.3',
+    language: '3.1.3',
+    workbench: '3.1.3',
+    web     : '3.1.3',
+    renderer: '3.1.3',
+    cli     : '3.1.3',
+    vscode  : '3.1.3'
 ]
 
 include 'archinsight-web'
