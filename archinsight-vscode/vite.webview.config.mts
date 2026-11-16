@@ -1,11 +1,20 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';
 
+const sharedRuntimeDependencies = [
+  'svelte',
+  'monaco-editor',
+  '@insight/language',
+  '@archinsight/contracts',
+  '@archinsight/editor-support'
+];
+
 export default defineConfig({
   base: './',
   plugins: [svelte()],
   resolve: {
-    preserveSymlinks: true
+    preserveSymlinks: false,
+    dedupe: sharedRuntimeDependencies
   },
   optimizeDeps: {
     exclude: ['@insight/language']

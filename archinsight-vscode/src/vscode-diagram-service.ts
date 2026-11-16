@@ -32,10 +32,10 @@ export function createDiagramSession(
   return new DiagramSession<DiagramRenderInput, DiagramView, PreviewState>(initialState, {
     usesEnvironment: viewUsesEnvironment,
     chooseEnvironment,
-    buildPreview: (input, state) => buildDiagramPreview(input, state, {
+    buildPreview: (input, state, signal) => buildDiagramPreview(input, state, {
       theme: renderThemeForColorThemeKind(vscode.window.activeColorTheme.kind),
       log,
-    }),
+    }, signal),
     save: saveBytes,
     warn: (message) => void vscode.window.showWarningMessage(message),
     decodePng: decodePngDataUrl,

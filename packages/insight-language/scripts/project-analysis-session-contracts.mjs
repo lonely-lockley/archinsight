@@ -131,6 +131,24 @@ system vendor
 ]);
 assert.equal(formattingOnly.mode, "incremental");
 
+const batchSession = ProjectAnalysisSession.create([
+  source("one.ai", model("system", "One")),
+  source("two.ai", `context second\n\nsystem two\n    name = Two\n`),
+]);
+const batchSources = [
+  source("one.ai", model("system", "One changed")),
+  source("two.ai", `context second\n\nsystem two\n    name = Two changed\n`),
+];
+const batchUpdate = batchSession.update(batchSources);
+assert.equal(batchUpdate.mode, "incremental");
+assert.deepEqual(batchUpdate.changedSources, new Set(["one.ai", "two.ai"]));
+assert.equal(batchUpdate.relinkedSourceCount, batchUpdate.relinkedSources.size);
+assert.deepEqual(
+  resultSignature(batchUpdate.result),
+  resultSignature(ProjectAnalysisSession.create(batchSources).analysis().result),
+  "a batch update links the union of affected sources once and remains equivalent to a clean analysis",
+);
+
 const anonymousImportSession = ProjectAnalysisSession.create([
   source("main.ai", model("system", "Main")),
 ]);

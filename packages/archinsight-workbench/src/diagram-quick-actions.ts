@@ -1,9 +1,17 @@
-import type {
-  DiagramElementQuickActionMetadata,
-  DiagramQuickActionMetadata
+import {
+  canonicalDiagramElementId,
+  type DiagramElementQuickActionMetadata,
+  type DiagramQuickActionMetadata,
+  type QueryScope
 } from '@insight/language';
+import { diagramDiffDeclarationSource } from './versioned-diagram-diff.js';
 
-export type DiagramQuickActionId = 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path';
+export type DiagramQuickActionId = 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff';
+
+export type DiagramQuickActionCapabilities = {
+  readonly versioning: boolean;
+  readonly declarationNavigation?: boolean;
+};
 
 export type DiagramQuickActionAnchor = {
   /** Coordinates relative to the quick-actions overlay. */
@@ -12,6 +20,60 @@ export type DiagramQuickActionAnchor = {
   readonly right: number;
   readonly bottom: number;
 };
+
+export type DiagramQuickActionViewport = {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+};
+
+export type DiagramQuickActionOffset = { readonly x: number; readonly y: number };
+
+export function quickActionRadialOffsets(
+  count: number,
+  anchor: { readonly x: number; readonly y: number },
+  viewport: DiagramQuickActionViewport,
+  radius = 52
+): readonly DiagramQuickActionOffset[] {
+  if (count <= 0) return [];
+  const itemInset = 20;
+  const edgeExtent = radius + itemInset;
+  const nearLeft = anchor.x - viewport.left < edgeExtent;
+  const nearRight = viewport.right - anchor.x < edgeExtent;
+  const nearTop = anchor.y - viewport.top < edgeExtent;
+  const nearBottom = viewport.bottom - anchor.y < edgeExtent;
+  const horizontalEdge = nearLeft || nearRight;
+  const verticalEdge = nearTop || nearBottom;
+  if (!horizontalEdge && !verticalEdge) {
+    return Array.from({ length: count }, (_, index) => radialOffset(index * Math.PI * 2 / count, radius));
+  }
+
+  let start: number;
+  let end: number;
+  if (nearLeft && nearTop) [start, end] = [Math.PI / 2, Math.PI];
+  else if (nearRight && nearTop) [start, end] = [-Math.PI / 2, -Math.PI];
+  else if (nearLeft && nearBottom) [start, end] = [Math.PI / 2, 0];
+  else if (nearRight && nearBottom) [start, end] = [-Math.PI / 2, 0];
+  else if (nearLeft) [start, end] = [0, Math.PI];
+  else if (nearRight) [start, end] = [0, -Math.PI];
+  else if (nearTop) [start, end] = [Math.PI / 2, Math.PI * 3 / 2];
+  else [start, end] = [-Math.PI / 2, Math.PI / 2];
+
+  const corner = horizontalEdge && verticalEdge;
+  const fanRadius = corner ? 92 : radius;
+  const shiftX = nearLeft ? itemInset : nearRight ? -itemInset : 0;
+  const shiftY = nearTop ? itemInset : nearBottom ? -itemInset : 0;
+  return Array.from({ length: count }, (_, index) => {
+    const fraction = count === 1 ? 0.5 : index / (count - 1);
+    const offset = radialOffset(start + (end - start) * fraction, fanRadius);
+    return { x: offset.x + shiftX, y: offset.y + shiftY };
+  });
+}
+
+function radialOffset(angle: number, radius: number): DiagramQuickActionOffset {
+  return { x: Math.sin(angle) * radius, y: -Math.cos(angle) * radius };
+}
 
 export type DiagramQuickActionItem = {
   readonly id: DiagramQuickActionId;
@@ -28,6 +90,7 @@ export type FindPathMode =
       readonly sourceId: string;
       readonly sourceTitle: string;
       readonly sourceEnvironment?: string;
+      readonly scope: QueryScope;
     }
   | {
       readonly status: 'resolving-path';
@@ -37,6 +100,7 @@ export type FindPathMode =
       readonly targetId: string;
       readonly targetTitle: string;
       readonly targetEnvironment?: string;
+      readonly scope: QueryScope;
     }
   | {
       readonly status: 'showing-path';
@@ -46,9 +110,26 @@ export type FindPathMode =
       readonly targetId: string;
       readonly targetTitle: string;
       readonly targetEnvironment?: string;
+      readonly scope: QueryScope;
     };
 
 export const idleFindPathMode: FindPathMode = { status: 'idle' };
+
+export type TransientDiagramResultKind = 'isolate' | 'find-path' | 'deployment' | 'diff';
+
+export type TransientDiagramResultState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'visible'; readonly kind: TransientDiagramResultKind };
+
+export const idleTransientDiagramResult: TransientDiagramResultState = { status: 'idle' };
+
+export function showTransientDiagramResult(kind: TransientDiagramResultKind): TransientDiagramResultState {
+  return { status: 'visible', kind };
+}
+
+export function clearTransientDiagramResult(): TransientDiagramResultState {
+  return idleTransientDiagramResult;
+}
 
 export type IsolateMode =
   | { readonly status: 'idle' }
@@ -108,13 +189,15 @@ export function cancelFindPath(_mode: FindPathMode): FindPathMode {
 
 export function beginFindPath(
   metadata: DiagramElementQuickActionMetadata,
+  scope: QueryScope,
   environment?: string
 ): FindPathMode {
   return {
     status: 'selecting-target',
     sourceId: metadata.canonicalElementId,
     sourceTitle: metadata.title,
-    ...(environment === undefined ? {} : { sourceEnvironment: environment })
+    ...(environment === undefined ? {} : { sourceEnvironment: environment }),
+    scope
   };
 }
 
@@ -130,6 +213,7 @@ export function resolveFindPathTarget(
     sourceId: mode.sourceId,
     sourceTitle: mode.sourceTitle,
     ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment }),
+    scope: mode.scope,
     targetId: metadata.canonicalElementId,
     targetTitle: metadata.title,
     ...(environment === undefined ? {} : { targetEnvironment: environment })
@@ -149,7 +233,8 @@ export function reverseFindPathResult(mode: FindPathMode): FindPathMode {
     ...(mode.targetEnvironment === undefined ? {} : { sourceEnvironment: mode.targetEnvironment }),
     targetId: mode.sourceId,
     targetTitle: mode.sourceTitle,
-    ...(mode.sourceEnvironment === undefined ? {} : { targetEnvironment: mode.sourceEnvironment })
+    ...(mode.sourceEnvironment === undefined ? {} : { targetEnvironment: mode.sourceEnvironment }),
+    scope: mode.scope
   };
 }
 
@@ -159,24 +244,34 @@ export function retryFindPathTarget(mode: FindPathMode): FindPathMode {
         status: 'selecting-target',
         sourceId: mode.sourceId,
         sourceTitle: mode.sourceTitle,
-        ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment })
+        ...(mode.sourceEnvironment === undefined ? {} : { sourceEnvironment: mode.sourceEnvironment }),
+        scope: mode.scope
       }
     : mode;
 }
 
 export function quickActionItems(
   allMetadata: DiagramQuickActionMetadata,
-  elementId: string
+  elementId: string,
+  capabilities: DiagramQuickActionCapabilities = { versioning: false }
 ): readonly DiagramQuickActionItem[] {
-  const occurrenceSeparator = elementId.indexOf('@@');
-  const canonicalElementId = occurrenceSeparator < 0 ? elementId : elementId.slice(0, occurrenceSeparator);
+  const canonicalElementId = canonicalDiagramElementId(elementId);
   const metadata = allMetadata[elementId] ?? allMetadata[canonicalElementId];
   if (metadata === undefined) return [];
   return [
     item('isolate', 'Isolate', '◎', metadata.isolateEligible, 'Isolation is unavailable for this element'),
     item('show-deployment', 'Show deployment', '▦', metadata.hasDeployment, 'No deployment'),
-    item('go-to-declaration', 'Go to declaration', '⌘', metadata.declaration !== undefined, 'Declaration is unavailable'),
-    item('find-path', 'Find path', '⌁', metadata.pathEligible, 'Path search is unavailable for this element')
+    item(
+      'go-to-declaration',
+      'Go to declaration',
+      '⌘',
+      metadata.declaration !== undefined && capabilities.declarationNavigation !== false,
+      capabilities.declarationNavigation === false
+        ? 'Current Git revision is not part of this diff'
+        : 'Declaration is unavailable'
+    ),
+    item('find-path', 'Find path', '⌁', metadata.pathEligible, 'Path search is unavailable for this element'),
+    item('diff', 'Diff', '±', capabilities.versioning && diagramDiffDeclarationSource(metadata) !== undefined)
   ];
 }
 
@@ -185,7 +280,13 @@ function item(
   label: string,
   icon: string,
   enabled: boolean,
-  disabledReason: string
+  disabledReason?: string
 ): DiagramQuickActionItem {
-  return { id, label, icon, enabled, ...(enabled ? {} : { disabledReason }) };
+  return {
+    id,
+    label,
+    icon,
+    enabled,
+    ...(enabled || disabledReason === undefined ? {} : { disabledReason })
+  };
 }

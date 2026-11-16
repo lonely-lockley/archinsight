@@ -10,6 +10,7 @@
   import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import { sanitizeSvg } from './svg-sanitizer';
   import type { SourceLocation } from './workspace-types';
+  import type { DiagramDiffPickerState } from './versioned-diagram-diff';
 
   export let svg: string | undefined;
   export let scale = 1;
@@ -24,8 +25,15 @@
   export let deploymentEnvironment: string | undefined = undefined;
   export let deploymentPickerOpen = false;
   export let deploymentPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
+  export let versioningAvailable = false;
+  export let declarationNavigationAvailable = true;
+  export let diffPickerState: DiagramDiffPickerState = { status: 'closed' };
+  export let diffPickerAnchor: DiagramQuickActionAnchor | undefined = undefined;
   export let onSelectDeploymentEnvironment: (environment: string) => void = () => {};
   export let onCloseDeploymentPicker: () => void = () => {};
+  export let onSelectDiffRevision: (side: 'before' | 'after', revision: string) => void = () => {};
+  export let onCompareDiff: () => void = () => {};
+  export let onCloseDiffPicker: () => void = () => {};
   export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
   export let onSelectPathTarget: (elementId: string) => void = () => {};
 
@@ -73,6 +81,7 @@
   onDestroy(() => {
     resizeObserver?.disconnect();
     clickHandlerHost?.removeEventListener('click', handleSvgClick);
+    clickHandlerHost?.removeEventListener('pointerdown', handleSvgPointerDown);
   });
 
   function reportVisibleScale(): void {
@@ -139,12 +148,30 @@
       return;
     }
     clickHandlerHost?.removeEventListener('click', handleSvgClick);
+    clickHandlerHost?.removeEventListener('pointerdown', handleSvgPointerDown);
     clickHandlerHost = svgHost;
     clickHandlerHost?.addEventListener('click', handleSvgClick);
+    clickHandlerHost?.addEventListener('pointerdown', handleSvgPointerDown);
+  }
+
+  function handleSvgPointerDown(event: PointerEvent): void {
+    if (event.button !== 0 || diagramBoundaryElementIdFromEvent(event) === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   function handleSvgClick(event: MouseEvent): void {
     if (event.button !== 0) return;
+    const boundaryElementId = diagramBoundaryElementIdFromEvent(event);
+    if (boundaryElementId !== undefined) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (findPathMode.status === 'idle') {
+        selectedElementId = selectedElementId === boundaryElementId ? undefined : boundaryElementId;
+        syncDiagramNodeState();
+      }
+      return;
+    }
     const elementId = diagramElementIdFromEvent(event);
     if (findPathMode.status === 'selecting-target' && elementId !== undefined) {
       event.preventDefault();
@@ -155,11 +182,17 @@
       }
       return;
     }
+    if (diagramEdgeFromEvent(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
 
     const declaration = declarationFromEvent(event);
     if (declaration !== undefined) {
       event.preventDefault();
-      onOpenDeclaration(declaration);
+      event.stopPropagation();
+      if (declarationNavigationAvailable) onOpenDeclaration(declaration);
       return;
     }
     if (elementId === undefined) return;
@@ -171,9 +204,7 @@
 
   function diagramElementIdFromEvent(event: MouseEvent): string | undefined {
     if (!(event.target instanceof Element)) return undefined;
-    const eventElements = event.composedPath()
-      .filter((candidate): candidate is Element => candidate instanceof Element);
-    const candidates = eventElements.length > 0 ? eventElements : ancestorElements(event.target);
+    const candidates = eventElements(event);
     for (const current of candidates) {
       if (current === svgHost) break;
       if (current instanceof SVGGElement && current.id.length > 0) {
@@ -187,6 +218,36 @@
       }
     }
     return undefined;
+  }
+
+  function diagramBoundaryElementIdFromEvent(event: Event): string | undefined {
+    for (const current of eventElements(event)) {
+      if (current === svgHost) break;
+      if (!(current instanceof SVGGElement) || current.id.length === 0) continue;
+      const identity = parseRenderIdentity(current.id);
+      if (identity === undefined) continue;
+      const elementId = identity.provenance[0];
+      return identity.kind === 'cluster' ? elementId : undefined;
+    }
+    return undefined;
+  }
+
+  function diagramEdgeFromEvent(event: Event): boolean {
+    for (const current of eventElements(event)) {
+      if (current === svgHost) break;
+      if (current instanceof SVGGElement && current.id.length > 0
+          && parseRenderIdentity(current.id)?.kind === 'edge') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function eventElements(event: Event): Element[] {
+    if (!(event.target instanceof Element)) return [];
+    const composed = event.composedPath()
+      .filter((candidate): candidate is Element => candidate instanceof Element);
+    return composed.length > 0 ? composed : ancestorElements(event.target);
   }
 
   function ancestorElements(target: Element): Element[] {
@@ -213,7 +274,8 @@
       const identity = parseRenderIdentity(group.id);
       if (identity === undefined || (identity.kind !== 'node' && identity.kind !== 'cluster')) continue;
       const elementId = identity.provenance[0];
-      if (elementId === undefined || diagramElementMetadata(quickActionMetadata, elementId) === undefined) continue;
+      if (elementId === undefined
+          || (identity.kind === 'node' && diagramElementMetadata(quickActionMetadata, elementId) === undefined)) continue;
       const canonical = canonicalDiagramElementId(elementId);
       if ((findPathMode.status === 'idle' && selectedElementId === elementId)
           || (isolateMode.status === 'showing-isolate' && canonical === isolateMode.elementId)
@@ -286,8 +348,15 @@
     {deploymentEnvironment}
     {deploymentPickerOpen}
     {deploymentPickerAnchor}
+    {versioningAvailable}
+    {declarationNavigationAvailable}
+    {diffPickerState}
+    {diffPickerAnchor}
     {onSelectDeploymentEnvironment}
     {onCloseDeploymentPicker}
+    {onSelectDiffRevision}
+    {onCompareDiff}
+    {onCloseDiffPicker}
     onAction={onDiagramQuickAction}
   />
 </div>
@@ -342,8 +411,10 @@
   .svg-host :global(g.archinsight-node-selected polygon),
   .svg-host :global(g.archinsight-node-selected ellipse),
   .svg-host :global(g.archinsight-node-selected path) {
-    stroke: var(--color-primary, #6a9955) !important;
-    stroke-width: 3px !important;
+    filter:
+      drop-shadow(0 0 1px var(--color-primary, #36d074))
+      drop-shadow(0 0 3px color-mix(in srgb, var(--color-primary, #36d074) 85%, transparent))
+      drop-shadow(0 0 7px color-mix(in srgb, var(--color-primary, #36d074) 55%, transparent));
   }
 
   .svg-host :global(g.archinsight-path-source > polygon),

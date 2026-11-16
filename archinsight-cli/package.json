@@ -16,7 +16,10 @@
     "archinsight": "build/index.js"
   },
   "files": [
-    "build/",
+    "build/index.js",
+    "build/index.js.map",
+    "build/system-theme.js",
+    "build/system-theme.js.map",
     "LICENSE",
     "README.md"
   ],
@@ -27,9 +30,10 @@
     "generate:version": "node scripts/generate-version.mjs",
     "generate:skill-resources": "node scripts/generate-skill-resources.mjs",
     "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs && npm run generate:version && npm run generate:skill-resources",
-    "build": "esbuild src/index.ts src/system-theme.ts --bundle --platform=node --format=esm --sourcemap --outdir=build --external:@viz-js/viz --external:@resvg/resvg-js",
+    "build": "esbuild src/index.ts src/system-theme.ts src/git-adapter-contract-entry.ts --bundle --platform=node --format=esm --sourcemap --preserve-symlinks --outdir=build --external:@viz-js/viz --external:@resvg/resvg-js",
     "test:skill": "node scripts/run-test-suite.mjs skill",
     "test:cli": "node scripts/run-test-suite.mjs cli",
+    "test:git-package": "node scripts/git-versioned-repository-contracts.mjs",
     "test": "node scripts/run-test-suite.mjs all",
     "test:coverage": "c8 --all --src=build --include='build/*.js' --reporter=text --reporter=json-summary --reports-dir=coverage npm test && node ../scripts/filter-coverage-summary.mjs coverage/coverage-summary.json coverage/coverage-summary.json --include=/archinsight-cli/src/ --exclude=/src/generated/ --exclude=/src/version.ts",
     "coverage:check": "node ../scripts/check-coverage.mjs cli coverage/coverage-summary.json",
@@ -44,7 +48,10 @@
     "archy": "^1.0.0"
   },
   "devDependencies": {
+    "@archinsight/contracts": "file:../packages/archinsight-contracts",
+    "@archinsight/git": "file:../packages/archinsight-git",
     "@archinsight/graphviz": "file:../packages/archinsight-graphviz",
+    "@archinsight/workbench": "file:../packages/archinsight-workbench",
     "@insight/language": "file:../packages/insight-language",
     "@types/archy": "^0.0.36",
     "@types/node": "^24.0.0",

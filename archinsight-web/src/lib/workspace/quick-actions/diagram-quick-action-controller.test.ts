@@ -134,6 +134,8 @@ function tab(): WorkspaceTab {
   };
 }
 
+const defaultPathScope = { context: 'shop', tab: 'model.ai', view: 'no-filter' as const };
+
 function subject() {
   let mode: FindPathMode = idleFindPathMode;
   let isolateMode: IsolateMode = idleIsolateMode;
@@ -227,7 +229,9 @@ describe('diagram quick action controller', () => {
     await test.controller.execute('find-path', 'shop/api');
 
     expect(test.isolateMode()).toEqual({ status: 'idle' });
-    expect(test.mode()).toEqual({ status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API' });
+    expect(test.mode()).toEqual({
+      status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope: defaultPathScope
+    });
     expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
       svg: '<svg/>', dot: undefined, queryResult: undefined
     });
@@ -337,11 +341,13 @@ describe('diagram quick action controller', () => {
   it('keeps find path global until a target is selected and renders the path', async () => {
     const test = subject();
     await test.controller.execute('find-path', 'shop/api');
-    expect(test.mode()).toEqual({ status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API' });
+    expect(test.mode()).toEqual({
+      status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope: defaultPathScope
+    });
     await test.controller.selectPathTarget('shop/database');
     expect(test.mode()).toEqual({
       status: 'showing-path', sourceId: 'shop/api', sourceTitle: 'API',
-      targetId: 'shop/database', targetTitle: 'Database'
+      targetId: 'shop/database', targetTitle: 'Database', scope: defaultPathScope
     });
     expect(test.ports.patchTab).toHaveBeenCalledWith('tab-1', expect.objectContaining({
       dot: expect.stringContaining('shop/database')
@@ -367,7 +373,8 @@ describe('diagram quick action controller', () => {
       sourceTitle: 'API',
       sourceEnvironment: 'eu',
       targetId: 'shop/database',
-      targetTitle: 'Database'
+      targetTitle: 'Database',
+      scope: { context: 'shop', tab: 'model.ai', view: 'deployment-container', environment: 'eu' }
     });
     const dot = test.ports.renderInBrowser.mock.calls[0]?.[0]?.[0]?.dot ?? '';
     expect(dot).not.toContain('US node');
@@ -392,7 +399,8 @@ describe('diagram quick action controller', () => {
       sourceEnvironment: 'eu',
       targetId: usEndpoint!.id,
       targetTitle: 'US node',
-      targetEnvironment: 'us'
+      targetEnvironment: 'us',
+      scope: { context: 'shop', tab: 'model.ai', view: 'deployment-container', environment: 'eu' }
     });
     expect(test.ports.info).toHaveBeenCalledWith('No path found between EU node and US node.');
   });
@@ -409,7 +417,8 @@ describe('diagram quick action controller', () => {
       sourceId: 'shop/database',
       sourceTitle: 'Database',
       targetId: 'shop/api',
-      targetTitle: 'API'
+      targetTitle: 'API',
+      scope: defaultPathScope
     });
     expect(test.ports.info).toHaveBeenCalledWith('No path found between Database and API.');
     expect(test.ports.renderInBrowser).toHaveBeenCalledTimes(2);
@@ -420,7 +429,8 @@ describe('diagram quick action controller', () => {
       sourceId: 'shop/api',
       sourceTitle: 'API',
       targetId: 'shop/database',
-      targetTitle: 'Database'
+      targetTitle: 'Database',
+      scope: defaultPathScope
     });
     expect(test.ports.renderInBrowser).toHaveBeenCalledTimes(3);
 
@@ -452,7 +462,7 @@ describe('diagram quick action controller', () => {
 
     expect(test.mode()).toEqual({
       status: 'showing-path', sourceId: 'shop/database', sourceTitle: 'Database',
-      targetId: 'shop/api', targetTitle: 'API'
+      targetId: 'shop/api', targetTitle: 'API', scope: defaultPathScope
     });
     expect(test.ports.patchTab).toHaveBeenCalledWith('tab-1', expect.objectContaining({
       dot: expect.stringContaining('shop/database')
@@ -463,11 +473,24 @@ describe('diagram quick action controller', () => {
   it('keeps target selection active while the user changes diagram tabs', async () => {
     const test = subject();
     await test.controller.execute('find-path', 'shop/api');
-    test.setActiveTab({ ...tab(), id: 'tab-2', title: 'Second diagram' });
+    test.setActiveTab({
+      ...tab(),
+      id: 'tab-2',
+      sourceIdentity: 'second.ai',
+      title: 'Second diagram',
+      diagramMode: 'c3'
+    });
 
     await test.controller.selectPathTarget('shop/database');
 
-    expect(test.mode().status).toBe('showing-path');
+    expect(test.mode()).toEqual({
+      status: 'showing-path',
+      sourceId: 'shop/api',
+      sourceTitle: 'API',
+      targetId: 'shop/database',
+      targetTitle: 'Database',
+      scope: defaultPathScope
+    });
     expect(test.ports.patchTab).toHaveBeenCalledWith('tab-2', expect.objectContaining({
       dot: expect.stringContaining('shop/database')
     }));
@@ -515,7 +538,8 @@ describe('diagram quick action controller', () => {
       sourceId: 'shop/database',
       sourceTitle: 'Database',
       targetId: 'shop/isolated',
-      targetTitle: 'Isolated'
+      targetTitle: 'Isolated',
+      scope: defaultPathScope
     });
     expect(test.ports.info).toHaveBeenCalledWith('No path found between Database and Isolated.');
     expect(test.ports.renderInBrowser).toHaveBeenCalledOnce();
@@ -574,7 +598,9 @@ describe('diagram quick action controller', () => {
 
     await test.controller.selectPathTarget('shop/database');
 
-    expect(test.mode()).toEqual({ status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API' });
+    expect(test.mode()).toEqual({
+      status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope: defaultPathScope
+    });
     expect(test.ports.error).toHaveBeenCalledWith('Find path failed: Cannot render invalid link result');
     expect(test.ports.patchTab).not.toHaveBeenCalled();
   });

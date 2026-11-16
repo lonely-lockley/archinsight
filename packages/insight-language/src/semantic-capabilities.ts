@@ -9,6 +9,7 @@ export const TYPE_CAPABILITIES = Object.freeze({
   environment: "environment",
   externalElement: "external-element",
   infrastructure: "infrastructure",
+  logicalContext: "logical-context",
   networkConnection: "network-connection",
 } as const);
 

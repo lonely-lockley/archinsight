@@ -7,15 +7,22 @@ import {
   diagramElementMetadata,
   diagramQuickActionMetadata,
   discoverDeploymentEnvironments,
+  renderDiagramDiffGraphviz,
   renderGraphviz,
   selectDeploymentGraph,
   selectIsolatedElementGraph,
   selectPathGraph,
   type DiagramElementQuickActionMetadata,
+  type DiagramDiff,
   type QueryParameterValue,
   type QueryResult,
   type RenderGraph,
 } from "@insight/language";
+import { openGitVersionedRepository } from "@archinsight/git";
+import {
+  attributeVersionedDiagramDiff,
+  buildVersionedDiagramDiff,
+} from "@archinsight/workbench/versioned-diagram-diff-service";
 import {
   outputFormat,
   quickActionOutputFormat,
@@ -43,15 +50,18 @@ import {
   writeOutput,
 } from "./cli-output.js";
 import {
+  analyzeProjectSources,
   declaredDeploymentEnvironments,
   formatDeploymentEnvironments,
   loadProject,
+  projectHasSource,
   projectPath,
   selectedGraph,
   selectedBuiltinViewScope,
   selectedQuery,
   selectedSource,
   type DeploymentEnvironmentEntry,
+  type LoadedProject,
 } from "./project-runtime.js";
 import { installSkillPackage } from "./skill/skill-installer.js";
 import { skillPackage } from "./skill/skill-package.js";
@@ -117,6 +127,97 @@ export async function runRender(args: ParsedArgs): Promise<void> {
     process.stderr.write(renderFinishedLine(false, error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;
   }
+}
+
+export async function runDiff(args: ParsedArgs): Promise<void> {
+  const from = requiredOption(args.from, "--from");
+  const to = requiredOption(args.to, "--to");
+  const root = projectPath(args);
+  const signal = new AbortController().signal;
+  const repository = await openGitVersionedRepository(root, signal);
+  if (repository === undefined) throw new CliError(`Project path is not inside a Git repository: ${root}`, "GIT");
+  const [beforeRevision, afterRevision] = await Promise.all([
+    repository.resolveRevision(from, signal),
+    repository.resolveRevision(to, signal),
+  ]);
+  let diagnostics: import("@insight/language").LanguageDiagnostic[] = [];
+  let semantic;
+  try {
+    semantic = await buildVersionedDiagramDiff({
+      repository,
+      beforeRevision,
+      afterRevision,
+      signal,
+      buildRevision: (sources) => analyzeProjectSources(repository.projectRoot, sources),
+      validateRevision: (project, side) => {
+        diagnostics.push(...project.diagnostics.map((diagnostic) => ({
+          ...diagnostic,
+          sourceName: `${side === "before" ? from : to}:${diagnostic.sourceName}`,
+        })));
+        if (hasErrors(project.diagnostics)) throw new Error(`The ${side} revision contains model errors`);
+      },
+      selectGraph: (project) => selectedRevisionGraph(project, args),
+    });
+  } catch (cause) {
+    if (diagnostics.length > 0 && hasErrors(diagnostics)) {
+      process.stderr.write(formatDiagnostics(diagnostics));
+      process.exitCode = 1;
+      return;
+    }
+    throw cause;
+  }
+  if (hasErrors(diagnostics)) {
+    process.stderr.write(formatDiagnostics(diagnostics));
+    process.exitCode = 1;
+    return;
+  }
+  const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE");
+  if (warnings.length > 0) process.stderr.write(formatDiagnostics(warnings));
+  const attributedDiff = await attributeVersionedDiagramDiff(repository, semantic, signal);
+  const diff = semantic.diff;
+  const dot = renderDiagramDiffGraphviz(
+    semantic.before.result,
+    semantic.after.result,
+    diff,
+    await resolveRenderTheme(args.theme),
+  );
+  const format = renderFormat(args.format, "dot");
+  if (format === "text") {
+    await writeOutput(args.output, formatDiagramDiff(diff, beforeRevision, afterRevision));
+  } else if (format === "dot") {
+    await writeOutput(args.output, dot);
+  } else if (format === "json") {
+    await writeOutput(args.output, JSON.stringify({
+      revisions: { from: beforeRevision, to: afterRevision },
+      diff,
+      attributedDiff,
+      dot,
+    }, null, 2));
+  } else {
+    const svg = await renderSvg(dot);
+    if (format === "svg") await writeOutput(args.output, svg);
+    else await writeBinaryOutput(args.output, renderPng(svg));
+  }
+  process.stderr.write(renderFinishedLine(true, "diagram diff rendered successfully"));
+}
+
+async function selectedRevisionGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph | undefined> {
+  if (project.sources.length === 0) return undefined;
+  if (args.tab !== undefined && !projectHasSource(project, args.tab)) return undefined;
+  return selectedGraph(project, args);
+}
+
+function formatDiagramDiff(diff: DiagramDiff, from: string, to: string): string {
+  const rows: string[][] = [
+    ["from", from],
+    ["to", to],
+    ["context", `${diff.beforeContext} -> ${diff.afterContext}`],
+  ];
+  for (const category of ["elements", "edges", "groups"] as const) {
+    const counts = diff.summary[category];
+    rows.push([category, `added=${counts.added}\tremoved=${counts.removed}\tchanged=${counts.changed}\tunchanged=${counts.unchanged}`]);
+  }
+  return `${rows.map((row) => row.join("\t")).join("\n")}\n`;
 }
 
 export async function runQuery(args: ParsedArgs): Promise<void> {

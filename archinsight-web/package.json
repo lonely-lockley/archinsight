@@ -24,7 +24,11 @@
     "test:security": "vitest run src/lib/svg-sanitizer.test.ts src/lib/graphviz-renderer.test.ts --environment happy-dom",
     "test:ui": "vitest run --config vitest.ui.config.ts",
     "pretest:server": "node ../packages/insight-language/scripts/ensure-generated.mjs",
-    "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts src/lib/actions/*.test.ts"
+    "test:server": "vitest run src/routes/api/**/*.test.ts src/lib/server/**/*.test.ts src/lib/actions/*.test.ts",
+    "pretest:contracts-package": "node ../packages/insight-language/scripts/ensure-generated.mjs && svelte-kit sync",
+    "test:contracts-package": "vitest run src/lib/transport-contracts.test.ts src/lib/source-policy.test.ts",
+    "pretest:workbench-package": "node ../packages/insight-language/scripts/ensure-generated.mjs && svelte-kit sync",
+    "test:workbench-package": "vitest run src/lib/diagram-quick-actions.test.ts src/lib/diagram-quick-action-service.test.ts src/lib/diagram-quick-action-coordinator.test.ts src/lib/versioned-diagram-diff.test.ts src/lib/versioned-diagram-diff-service.test.ts"
   },
   "dependencies": {
     "@archinsight/contracts": "file:../packages/archinsight-contracts",
@@ -37,7 +41,7 @@
     "@vscode/codicons": "0.0.46-24",
     "monaco-editor": "0.56.0",
     "pg": "^8.22.0",
-    "svelte": "^5.0.0"
+    "svelte": "5.56.3"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.0.0",

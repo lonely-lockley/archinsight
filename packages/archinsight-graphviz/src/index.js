@@ -10,7 +10,12 @@ export function normalizeGraphvizSvgResult(result) {
   }
   return {
     status: 'success',
-    svg: result.output,
+    svg: stripGraphvizSvgTitles(result.output),
     warnings: messages
   };
+}
+
+/** Graphviz emits native SVG tooltips for every graph, node, and edge. */
+export function stripGraphvizSvgTitles(svg) {
+  return svg.replace(/<title>[\s\S]*?<\/title>/g, '');
 }

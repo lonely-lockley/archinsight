@@ -43,6 +43,10 @@ import {
 } from "./query-execution-context.js";
 import { runQueryViewPipeline } from "./query-view-pipeline.js";
 import { ATTRIBUTE_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
+import {
+  parseDiagramOccurrenceId,
+  replaceDiagramOccurrenceCanonical,
+} from "./occurrence-identity.js";
 import { aiqFunction } from "./query-function-catalog.js";
 
 export const DEFAULT_QUERY = "MATCH (n:Element {context: $context}) RETURN n";
@@ -510,6 +514,24 @@ export function discoverDeploymentEnvironments(
     .sort((left, right) => (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id));
 }
 
+/** All model-declared deployment environments, independent of a diagram scope. */
+export function declaredDeploymentEnvironments(
+  result: LinkProjectResult,
+): readonly import("./contracts.js").DeclaredDeploymentEnvironment[] {
+  return result.elements
+    .filter((element) => element.synthetic !== true
+      && element.parent === undefined
+      && elementHasCapability(element, TYPE_CAPABILITIES.environment))
+    .map((element) => ({
+      id: element.context,
+      ...(element.attributes.name?.[0] === undefined ? {} : { name: element.attributes.name[0] }),
+      sourceIdentity: element.sourceIdentity,
+    }))
+    .sort((left, right) =>
+      (left.name ?? left.id).localeCompare(right.name ?? right.id) || left.id.localeCompare(right.id)
+    );
+}
+
 function relationshipPatternsReturnedBy(query: ParsedGraphQuery): ReadonlyMap<string, RelationshipPattern> {
   const returned = new Set(query.returns);
   return new Map(query.matches.flatMap((match) => {
@@ -757,9 +779,9 @@ function deploymentOccurrenceEnvironment(
   id: string,
   elementsById: ReadonlyMap<string, LinkedElement>,
 ): string | undefined {
-  const separator = id.indexOf("@@");
-  if (separator >= 0) {
-    return elementEnvironment(id.slice(separator + 2), elementsById);
+  const occurrence = parseDiagramOccurrenceId(id);
+  if (occurrence.qualifier !== undefined) {
+    return elementEnvironment(occurrence.qualifier, elementsById);
   }
   const runsOn = semanticAttribute(elementsById.get(id), ATTRIBUTE_CAPABILITIES.placementOwner);
   return runsOn.length === 1 ? elementEnvironment(runsOn[0]!, elementsById) : undefined;
@@ -773,8 +795,7 @@ function elementEnvironment(
 }
 
 function baseOccurrenceId(id: string): string {
-  const separator = id.indexOf("@@");
-  return separator < 0 ? id : id.slice(0, separator);
+  return parseDiagramOccurrenceId(id).canonicalId;
 }
 
 function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph, rootType: string): RenderGraph {
@@ -786,8 +807,7 @@ function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph,
     if (system === undefined) {
       return id;
     }
-    const separator = id.indexOf("@@");
-    return separator < 0 ? system : `${system}${id.slice(separator)}`;
+    return replaceDiagramOccurrenceCanonical(id, system);
   };
   const foldedElement = (id: string): LinkedElement | undefined => {
     const folded = fold(id);

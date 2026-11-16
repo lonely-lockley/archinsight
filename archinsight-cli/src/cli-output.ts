@@ -1,6 +1,3 @@
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
-import path from "node:path";
 import archy from "archy";
 import { instance } from "@viz-js/viz";
 import { Resvg } from "@resvg/resvg-js";
@@ -19,6 +16,7 @@ import {
   type TypeHierarchyNode,
 } from "@insight/language";
 import { CliError } from "./cli-error.js";
+import { writeArtifact } from "./artifact-writer.js";
 
 const hiddenStructureTypes = new Set(["List", "Nothing", "Text"]);
 
@@ -205,37 +203,11 @@ export function exitWithDiagnostics(diagnostics: readonly LanguageDiagnostic[]):
 }
 
 export async function writeOutput(file: string | undefined, content: string): Promise<void> {
-  if (file === undefined || file === "-") {
-    process.stdout.write(content);
-    return;
-  }
-  const destination = path.resolve(file);
-  await mkdir(path.dirname(destination), { recursive: true });
-  const temporary = path.join(path.dirname(destination), `.${path.basename(destination)}.${randomUUID()}.tmp`);
-  try {
-    await writeFile(temporary, content);
-    await rename(temporary, destination);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
+  await writeArtifact(file, content);
 }
 
 export async function writeBinaryOutput(file: string | undefined, content: Uint8Array): Promise<void> {
-  if (file === undefined || file === "-") {
-    process.stdout.write(content);
-    return;
-  }
-  const destination = path.resolve(file);
-  await mkdir(path.dirname(destination), { recursive: true });
-  const temporary = path.join(path.dirname(destination), `.${path.basename(destination)}.${randomUUID()}.tmp`);
-  try {
-    await writeFile(temporary, content);
-    await rename(temporary, destination);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
+  await writeArtifact(file, content);
 }
 
 export interface StructureTree {

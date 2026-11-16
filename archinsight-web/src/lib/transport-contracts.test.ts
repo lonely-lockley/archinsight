@@ -70,6 +70,21 @@ describe('shared transport contracts', () => {
       .toEqual({ command: 'reverseFindPath' });
     expect(parseWorkbenchWebviewToHostMessage({ command: 'cancelIsolate' }))
       .toEqual({ command: 'cancelIsolate' });
+    expect(parseWorkbenchWebviewToHostMessage({ command: 'cancelDeployment' }))
+      .toEqual({ command: 'cancelDeployment' });
+    expect(parseWorkbenchWebviewToHostMessage({
+      command: 'diagramQuickAction', action: 'diff', elementId: 'shop/api'
+    })).toEqual({ command: 'diagramQuickAction', action: 'diff', elementId: 'shop/api' });
+    expect(parseWorkbenchWebviewToHostMessage({
+      command: 'compareDiagramDiff', before: 'abc', after: 'def', elementId: 'shop/api'
+    })).toEqual({ command: 'compareDiagramDiff', before: 'abc', after: 'def', elementId: 'shop/api' });
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'diagramDiffMode',
+      state: {
+        status: 'showing-diff', before: 'abc', after: 'def', beforeShort: 'abc', afterShort: 'HEAD',
+        currentRevision: 'def', selectedElementId: 'shop/api'
+      }
+    })).toMatchObject({ state: { status: 'showing-diff', afterShort: 'HEAD' } });
     expect(parseWorkbenchHostToWebviewMessage({
       command: 'findPathMode',
       state: {
@@ -81,11 +96,25 @@ describe('shared transport contracts', () => {
       command: 'isolateMode',
       state: { status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API' }
     })).toMatchObject({ state: { status: 'showing-isolate', elementId: 'shop/api' } });
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'deploymentMode',
+      state: {
+        status: 'showing-deployment', elementId: 'shop/api', elementTitle: 'API',
+        environment: 'eu', focusElementIds: ['shop/api']
+      }
+    })).toMatchObject({ state: { status: 'showing-deployment', environment: 'eu' } });
     expect(() => parseWorkbenchWebviewToHostMessage({
       command: 'diagramQuickAction', action: 'impact', elementId: 'shop/api'
     })).toThrow(ContractValidationError);
     expect(() => parseWorkbenchHostToWebviewMessage({
       command: 'findPathMode', state: { status: 'selecting-target', sourceId: 42, sourceTitle: 'API' }
+    })).toThrow(ContractValidationError);
+    expect(() => parseWorkbenchHostToWebviewMessage({
+      command: 'deploymentMode',
+      state: {
+        status: 'showing-deployment', elementId: 'shop/api', elementTitle: 'API',
+        environment: 'eu', focusElementIds: [42]
+      }
     })).toThrow(ContractValidationError);
     expect(() => parseWorkbenchHostToWebviewMessage({
       command: 'preview',

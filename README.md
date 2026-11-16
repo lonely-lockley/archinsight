@@ -108,9 +108,9 @@ The resulting `architecture.svg` contains the systems, containers, services, and
 
 ## CLI
 
-The CLI is the local and automation interface for an Insight project. It links and validates models, prints project structure, executes graph queries, renders diagrams, runs deterministic diagram quick actions, and generates agent skills.
+The CLI is the local and automation interface for an Insight project. It links and validates models, prints project structure, executes graph queries, renders diagrams, produces semantic visual diffs between git revisions, runs deterministic diagram quick actions, and generates agent skills.
 
-The [CLI reference](archinsight-cli/README.md) describes the query, render, quick-action, and output options. Every diagram-producing command supports `text`, `json`, `dot`, `svg`, and `png`. Diagram rendering follows the system light/dark preference by default and accepts an explicit `--theme light` or `--theme dark` override.
+The [CLI reference](archinsight-cli/README.md) describes the query, render, diff, quick-action, and output options. Every diagram-producing command supports `text`, `json`, `dot`, `svg`, and `png`. Diagram rendering follows the system light/dark preference by default and accepts an explicit `--theme light` or `--theme dark` override.
 
 Use quick actions for common semantic subdiagrams without writing a temporary
 `.aiq` query:
@@ -123,8 +123,10 @@ archinsight quick-action find-path . --from storefront/customer --to storefront/
 Find path follows relationship direction from `--from` to `--to`; swapping the
 arguments performs a different query.
 
-The same commands back Isolate, Show deployment, Find path, and Go to
-declaration in the interactive diagram. See [Diagram Quick Actions](docs/diagram-quick-actions.md)
+The same semantic graph operations back Isolate, Show deployment, Find path,
+Go to declaration, and versioned diagram Diff in the interactive diagram. In a
+Git-backed VS Code workspace, Diff compares two committed project snapshots,
+retains local blame metadata, and remains interactive. See [Diagram Quick Actions](docs/diagram-quick-actions.md)
 for their directed-path, environment, and neighborhood semantics.
 
 ## VSCode extension

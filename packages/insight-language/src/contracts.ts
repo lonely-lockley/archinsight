@@ -381,6 +381,10 @@ export interface DeploymentEnvironment {
   readonly name?: string;
 }
 
+export interface DeclaredDeploymentEnvironment extends DeploymentEnvironment {
+  readonly sourceIdentity: string;
+}
+
 export interface QueryScope {
   readonly context?: string;
   readonly tab?: string;

@@ -31,3 +31,5 @@ export type NormalizedGraphvizSvgResult =
 export declare function normalizeGraphvizSvgResult(
   result: GraphvizSvgRenderResult
 ): NormalizedGraphvizSvgResult;
+
+export declare function stripGraphvizSvgTitles(svg: string): string;

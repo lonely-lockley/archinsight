@@ -1,132 +1,92 @@
-import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
+import { IndexedGraph } from '../build/runtime/indexed-graph.js';
 
-const linker = source("../src/project-linker.ts");
-const antlrAdapter = source("../src/antlr-adapter.ts");
-const documentAggregate = source("../src/document-aggregate.ts");
-const queryEngine = source("../src/query-engine.ts");
-const querySyntax = source("../src/query-syntax.ts");
-const queryContext = source("../src/query-execution-context.ts");
-const queryPipeline = source("../src/query-view-pipeline.ts");
-const operatorRegistry = source("../src/operator-implementation-registry.ts");
-const graphvizRenderer = source("../src/graphviz-renderer.ts");
-const coreSnapshot = source("../src/core-snapshot.ts");
-const typeSystem = source("../src/type-system.ts");
-const coreCode = source("../../../src/main/resources/com/github/lonelylockley/insight/core_code.ai");
-const cliProjectRuntime = source("../../../archinsight-cli/src/project-runtime.ts");
-const diagramQueryPresets = source("../../archinsight-workbench/src/diagram-query-presets.ts");
-const tabPersistence = source("../../../archinsight-web/src/lib/workspace/editor/tab-persistence.ts");
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const repositoryRoot = path.resolve(packageRoot, '../..');
 
-assert(linker.includes('from "./presentation-resolver.js"'));
-assert(linker.includes('from "./linked-project-index.js"'));
-assert(linker.includes('from "./document-aggregate.js"'));
-assert(antlrAdapter.includes('from "./document-aggregate.js"'));
-assert(documentAggregate.includes("documentAggregateRoot"));
-assert(documentAggregate.includes("documentAggregateMember"));
-assert.equal(linker.includes('findConstructor("environment", "Environment")'), false,
-  "document aggregate roots must resolve from capabilities, not built-in names");
-assert.equal(linker.includes('constructorsForExpectedType("DeploymentElement")'), false,
-  "aggregate member fallback must resolve from the root schema");
-assert.deepEqual(stageCalls(linker), [
-  "createLinkingWorkspace",
-  "resolveDeploymentStage",
-  "materializeLogicalRelationshipsStage",
-  "expandProjectionStage",
-  "completeLinkingPipeline",
-], "linkProject must remain a readable orchestration over explicit phases");
-assert(linker.includes("LINK_INTROSPECTION_RULES"), "linked-project inspection must remain a rule registry");
+assertLayer('packages/insight-language/src', {
+  allowedPackages: new Set(['antlr4ng']),
+  forbidden: ['vscode', 'svelte', 'monaco-editor', '@sveltejs/', '@archinsight/', 'node:child_process', 'node:fs'],
+});
+assertLayer('packages/archinsight-workbench/src', {
+  allowedPackages: new Set([
+    '@insight/language', '@archinsight/contracts', '@archinsight/editor-support', 'monaco-editor', 'svelte',
+  ]),
+  forbidden: ['vscode', '@sveltejs/', 'node:child_process', 'node:fs', 'pg'],
+});
+assertHostsDoNotImportEachOther();
 
-assert(queryEngine.includes('from "./query-syntax.js"'));
-assert(queryEngine.includes('from "./query-execution-context.js"'));
-assert(queryEngine.includes('from "./query-view-pipeline.js"'));
-assert.equal(queryEngine.includes("class QueryParser"), false, "query syntax must not drift back into evaluation");
-assert.equal(queryEngine.includes("function tokenizeQuery"), false, "query tokenization belongs to query syntax");
-assert.equal(occurrences(queryEngine, "createQueryExecutionContext(result, scope)"), 3,
-  "graph selection, table execution, and standalone environment discovery each create one canonical context");
-assert(querySyntax.includes('from "./generated/AiqLexer.js"'));
-assert(querySyntax.includes('from "./generated/AiqParser.js"'));
-assert.equal(querySyntax.includes("class QueryParser"), false,
-  "AIQ syntax must use the generated ANTLR parser rather than a second handwritten parser");
-assert(queryContext.includes("elementsById"));
-assert(queryContext.includes("parentByChild"));
-assert(queryPipeline.includes("runQueryViewPipeline"));
-assert(queryPipeline.includes("queryViewPipeline(scope.view, scope.pipeline)"),
-  "custom and built-in views must resolve through the same explicit pipeline contract");
-assert.equal(queryPipeline.includes("builtinViewHasStage(scope.view"), false,
-  "pipeline execution must not dispatch directly on a built-in view name");
-assert(operatorRegistry.includes("ImmutableOperatorImplementationRegistry"));
-assert.equal(linker.includes("const operatorImplementations = new Map"), false,
-  "operator implementations must be supplied by the immutable registry contract");
-assert.equal(/action\.operator\s*[!=]==?\s*["'](?:uses|runsOn)["']/.test(linker), false,
-  "deployment behavior must be selected by semantic capability, not operator spelling");
-for (const builtInType of ["Wire", "Environment", "ComponentElement", "ContainerElement", "System", "Actor"]) {
-  assert.equal(linker.includes(`"${builtInType}"`), false,
-    `linker behavior must not dispatch on the built-in '${builtInType}' type name`);
-}
-assert.equal(queryEngine.includes('"SystemElement"'), false,
-  "deployment rollup types must come from the selected pipeline definition");
-assert.equal(linker.includes('slotOperator.targetType, "Environment"'), false,
-  "document aggregate slots must resolve from capabilities, not a built-in root name");
-assert.equal(/buildDeploymentAction(?:FromObject)?\([^\n]*["']Wire["']/.test(linker), false,
-  "nested deployment actions must retain their declared edge type");
-assert.equal(graphvizRenderer.includes('"ExternalActor"'), false,
-  "external presentation modifiers must come from the effective presentation");
-assert.equal(graphvizRenderer.includes('"ExternalSystem"'), false,
-  "external presentation modifiers must not dispatch on a built-in type name");
-assert(graphvizRenderer.includes('from "./render-identity.js"'));
-assert.equal(graphvizRenderer.includes("function safeId"), false,
-  "render identities must not collapse punctuation through lossy replacement");
-assert.equal(graphvizRenderer.includes('.replace("/", "__")'), false,
-  "qualified model ids must remain intact in DOT");
-assert.equal(coreSnapshot.includes("CONSTRUCTORLESS_EXTENSION_POINT_TYPES"), false,
-  "constructorless extension points must be declared explicitly, not privileged by name");
-assert(coreCode.includes("define abstract type CodeElement of Element"),
-  "the core extension point must exercise the public abstract-type contract");
-const operatorResolver = typeSystem.slice(
-  typeSystem.indexOf("operatorConstructor("),
-  typeSystem.indexOf("private inheritanceChain("),
-);
-assert.equal(operatorResolver.includes(".find("), false,
-  "linking and completion operator resolution must not depend on declaration order");
-assert.equal(occurrences(operatorResolver, "uniqueMostSpecificOperator("), 3,
-  "ordinary, relation, and type-slot operators must share specificity resolution");
-assert(cliProjectRuntime.includes("analyzeQuery(query)"),
-  "CLI scope requirements must come from parsed query metadata");
-assert.equal(cliProjectRuntime.includes("function queryUsesVariable"), false,
-  "CLI scope requirements must not scan raw query text");
-assert.equal(diagramQueryPresets.includes("legacyPresetQueries"), false,
-  "built-in query history must not be shipped as runtime presets");
-assert(tabPersistence.includes("presetId") && tabPersistence.includes("presetVersion")
-  && tabPersistence.includes("customizedQuery"),
-  "persisted tabs must distinguish identified presets from customized queries");
-
-const route = source("../../../archinsight-web/src/routes/+page.svelte");
-const workspacePage = source("../../../archinsight-web/src/lib/workspace/WorkspacePage.svelte");
-assert(route.split("\n").length < 20, "the route must remain a thin host");
-assert(workspacePage.split("\n").length < 100, "workspace composition must not absorb controller state again");
-for (const controller of [
-  "analysis/analysis-controller.ts",
-  "diagram/diagram-controller.ts",
-  "editor/workspace-file-controller.ts",
-  "projects/project-controller.ts",
-  "repository/repository-controller.ts",
-  "shell/workspace-runtime.ts",
+for (const relative of [
+  'packages/insight-language/src/presentation-resolver.ts',
+  'packages/insight-language/src/linked-project-index.ts',
+  'packages/insight-language/src/document-aggregate.ts',
+  'packages/insight-language/src/query-execution-context.ts',
+  'packages/insight-language/src/query-view-pipeline.ts',
+  'packages/insight-language/src/operator-implementation-registry.ts',
 ]) {
-  assert(source(`../../../archinsight-web/src/lib/workspace/${controller}`).length > 0, `${controller} is missing`);
+  assert(existsSync(path.join(repositoryRoot, relative)), `${relative} is missing`);
 }
 
-console.log("architecture phase boundary contracts passed");
+const graph = new IndexedGraph();
+graph.addNode({ kind: 'source', id: 'model.ai' });
+graph.addNode({ kind: 'context', id: 'shop' });
+graph.addRelation({ id: 'declares', kind: 'DECLARES', source: 'model.ai', target: 'shop', ownerSource: 'model.ai' });
+const restored = IndexedGraph.fromSnapshot(graph.snapshot());
+assert.equal(restored.node('shop')?.kind, 'context');
+assert.deepEqual([...restored.successors('model.ai')], ['shop']);
 
-function stageCalls(text) {
-  const body = text.slice(text.indexOf("export function linkProject"), text.indexOf("function createLinkingWorkspace"));
-  return [...body.matchAll(/\b(createLinkingWorkspace|resolveDeploymentStage|materializeLogicalRelationshipsStage|expandProjectionStage|completeLinkingPipeline)\(/g)]
-    .map((match) => match[1]);
+console.log('architecture import-layer and serialization contracts passed');
+
+function assertLayer(relativeRoot, policy) {
+  const absoluteRoot = path.join(repositoryRoot, relativeRoot);
+  for (const file of sourceFiles(absoluteRoot)) {
+    for (const specifier of importsOf(file)) {
+      assert(!policy.forbidden.some((prefix) => specifier === prefix || specifier.startsWith(prefix)),
+        `${path.relative(repositoryRoot, file)} imports forbidden dependency '${specifier}'`);
+      if (specifier.startsWith('.') || specifier.startsWith('node:')) continue;
+      const packageName = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0];
+      assert(policy.allowedPackages.has(packageName),
+        `${path.relative(repositoryRoot, file)} imports undeclared layer dependency '${specifier}'`);
+    }
+  }
 }
 
-function occurrences(text, fragment) {
-  return text.split(fragment).length - 1;
+function assertHostsDoNotImportEachOther() {
+  const hosts = ['archinsight-web', 'archinsight-vscode', 'archinsight-cli', 'archinsight-renderer'];
+  for (const host of hosts) {
+    const root = path.join(repositoryRoot, host, 'src');
+    for (const file of sourceFiles(root)) {
+      for (const specifier of importsOf(file)) {
+        for (const other of hosts.filter((candidate) => candidate !== host)) {
+          assert(!specifier.includes(`/${other}/src`) && !specifier.startsWith(`../../${other}/src`),
+            `${path.relative(repositoryRoot, file)} crosses into ${other}/src`);
+        }
+      }
+    }
+  }
 }
 
-function source(relativePath) {
-  return readFileSync(new URL(relativePath, import.meta.url), "utf8");
+function sourceFiles(root) {
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.(?:ts|svelte)$/.test(entry.name))
+    .map((entry) => path.join(entry.parentPath, entry.name));
+}
+
+function importsOf(file) {
+  const raw = readFileSync(file, 'utf8');
+  const source = file.endsWith('.svelte') ? /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/.exec(raw)?.[1] ?? '' : raw;
+  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, false,
+    file.endsWith('.svelte') ? ts.ScriptKind.TS : undefined);
+  return parsed.statements.flatMap((statement) => {
+    if ((ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement))
+        && statement.moduleSpecifier !== undefined && ts.isStringLiteral(statement.moduleSpecifier)) {
+      return [statement.moduleSpecifier.text];
+    }
+    return [];
+  });
 }

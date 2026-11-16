@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+  import type * as Monaco from 'monaco-editor/editor/editor.api';
   import type { BuiltinDiagramView } from '@insight/language';
   import {
     parseControlsHostToWebviewMessage,
     type ControlsWebviewToHostMessage
   } from '@archinsight/contracts';
+  import { registerQueryLanguage } from '@archinsight/workbench/query-monaco';
   import { renderThemeForBodyClasses } from '../theme';
 
   type DiagramView = BuiltinDiagramView;
@@ -53,7 +54,7 @@
   });
 
   async function setupEditor(): Promise<void> {
-    monaco = await import('monaco-editor/esm/vs/editor/editor.api');
+    monaco = await import('monaco-editor/editor/editor.api');
     registerQueryLanguage(monaco);
     defineThemes(monaco);
     observeThemeChanges(monaco);
@@ -258,47 +259,6 @@
       pasteOnNewLine: false,
       multicursorText: null,
       mode: null
-    });
-  }
-
-  function registerQueryLanguage(monacoInstance: typeof Monaco): void {
-    if (!monacoInstance.languages.getLanguages().some((language) => language.id === 'archinsight-query')) {
-      monacoInstance.languages.register({ id: 'archinsight-query' });
-    }
-    monacoInstance.languages.setMonarchTokensProvider('archinsight-query', {
-      ignoreCase: true,
-      keywords: [
-        'MATCH',
-        'OPTIONAL',
-        'WHERE',
-        'RETURN',
-        'GROUP',
-        'BY',
-        'AND',
-        'OR',
-        'NOT',
-        'CONTAINS',
-        'TRUE',
-        'FALSE',
-        'NULL',
-        'AS'
-      ],
-      tokenizer: {
-        root: [
-          [/--.*$/, 'comment'],
-          [/"([^"\\]|\\.)*$/, 'string.invalid'],
-          [/'([^'\\]|\\.)*$/, 'string.invalid'],
-          [/"([^"\\]|\\.)*"/, 'string'],
-          [/'([^'\\]|\\.)*'/, 'string'],
-          [/\$[A-Za-z_][\w]*/, 'variable.predefined'],
-          [/:[A-Za-z_][\w]*/, 'type.identifier'],
-          [/[A-Za-z_][\w]*/, { cases: { '@keywords': 'keyword', '@default': 'identifier' } }],
-          [/\d+/, 'number'],
-          [/[{}()[\],.;]/, 'delimiter'],
-          [/[-=<>!]+/, 'operator'],
-          [/\s+/, 'white']
-        ]
-      }
     });
   }
 

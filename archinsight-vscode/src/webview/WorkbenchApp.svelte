@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
+  import type * as Monaco from 'monaco-editor/editor/editor.api';
   import {
     completeAiq,
     coreLanguageSnapshot,
+    diagramElementMetadata,
     queryVariableOccurrences,
     type BuiltinDiagramView,
     type DiagramQuickActionMetadata,
@@ -25,15 +26,12 @@
   } from '@archinsight/contracts';
   import WorkspaceEditor from '@archinsight/workbench/workspace-editor';
   import {
-    createInsightSemanticTokensProvider,
-    createInsightTokenVocabulary,
-    createInsightTokensProvider,
     refreshInsightTokenVocabulary,
     type InsightSemanticTokensProvider,
     type InsightTokenVocabulary
   } from '@archinsight/workbench/monaco';
+  import { insightEditorOptions, registerInsightMonaco } from '@archinsight/workbench/monaco-session';
   import {
-    defineInsightThemes,
     insightDarkTheme,
     insightLightTheme
   } from '@archinsight/workbench/monaco-themes';
@@ -48,12 +46,24 @@
   import { registerQueryCompletionProvider, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
   import { createQueryScopeWidgets } from '@archinsight/workbench/query-scope-widgets';
   import {
+    idleDeploymentMode,
     idleFindPathMode,
     idleIsolateMode,
+    type DeploymentMode,
     type DiagramQuickActionId,
+    type DiagramQuickActionAnchor,
     type FindPathMode,
     type IsolateMode
   } from '@archinsight/workbench/diagram-quick-actions';
+  import {
+    closedDiagramDiffPicker,
+    diagramDiffDeclarationSource,
+    idleDiagramDiffMode,
+    diagramDiffDeclarationNavigationAvailable,
+    selectDiagramDiffRevision,
+    type DiagramDiffMode,
+    type DiagramDiffPickerState
+  } from '@archinsight/workbench/versioned-diagram-diff';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
   import { renderThemeForBodyClasses } from '../theme';
 
@@ -124,10 +134,16 @@
   let quickActionMetadata: DiagramQuickActionMetadata = {};
   let findPathMode: FindPathMode = idleFindPathMode;
   let isolateMode: IsolateMode = idleIsolateMode;
+  let deploymentMode: DeploymentMode = idleDeploymentMode;
+  let versioningAvailable = false;
+  let diffPickerState: DiagramDiffPickerState = closedDiagramDiffPicker;
+  let diffPickerAnchor: DiagramQuickActionAnchor | undefined;
+  let diffMode: DiagramDiffMode = idleDiagramDiffMode;
 
   $: messages = panelMessages(diagnostics, renderError);
   $: workAreaStyle = 'grid-template-rows: minmax(0, 1fr);';
   $: canDownloadDiagram = svg !== undefined && renderError === undefined;
+  $: declarationNavigationAvailable = diagramDiffDeclarationNavigationAvailable(diffMode);
 
   onMount(() => {
     window.addEventListener('message', handleMessage);
@@ -166,14 +182,10 @@
   }
 
   async function setupMonaco(): Promise<void> {
-    monaco = await import('monaco-editor/esm/vs/editor/editor.api');
-    tokenVocabulary = createInsightTokenVocabulary({ schemaVersion: 'webview-empty', types: [], constructors: [], operators: [], enums: [], presentations: [] });
-    if (!monaco.languages.getLanguages().some((language) => language.id === 'insight')) {
-      monaco.languages.register({ id: 'insight' });
-    }
-    monaco.languages.setTokensProvider('insight', createInsightTokensProvider(tokenVocabulary));
-    semanticTokensProvider = createInsightSemanticTokensProvider(tokenVocabulary);
-    monaco.languages.registerDocumentRangeSemanticTokensProvider('insight', semanticTokensProvider);
+    monaco = await import('monaco-editor/editor/editor.api');
+    const registration = registerInsightMonaco(monaco, { schemaVersion: 'webview-empty', types: [], constructors: [], operators: [], enums: [], presentations: [] });
+    tokenVocabulary = registration.vocabulary;
+    semanticTokensProvider = registration.semanticTokensProvider;
     registerQueryLanguage(monaco);
     queryCompletionProvider = registerQueryCompletionProvider(monaco, (source, cursorOffset) => completeAiq({
       source,
@@ -181,31 +193,14 @@
       snapshot: currentSymbols,
       parameters: Object.keys(queryParameters)
     }));
-    defineInsightThemes(monaco);
     registerCompletionProvider(monaco);
     observeThemeChanges(monaco);
     await tick();
     model = monaco.editor.createModel(source, editorLanguage(), monaco.Uri.parse(`archinsight://tab/${sourceName || 'active.ai'}`));
     editor = monaco.editor.create(editorHost, {
+      ...insightEditorOptions,
       model,
       theme: editorTheme(),
-      automaticLayout: true,
-      minimap: { enabled: true },
-      autoIndent: 'full',
-      suggest: {
-        showWords: false
-      },
-      fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace',
-      fontSize: 12,
-      tabSize: 4,
-      insertSpaces: true,
-      hover: { enabled: true },
-      fixedOverflowWidgets: true,
-      occurrencesHighlight: 'off',
-      selectionHighlight: false,
-      renderValidationDecorations: 'on',
-      'semanticHighlighting.enabled': true,
-      scrollBeyondLastLine: false
     });
     editor.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.Space, () => {
       editor?.trigger('keyboard', 'editor.action.triggerSuggest', {});
@@ -296,6 +291,9 @@
       currentSymbols = message.symbols;
       readOnly = message.readOnly ?? false;
       queryScope = message.queryScope ?? { enabled: false, sources: [], contexts: [] };
+      versioningAvailable = message.versioningAvailable ?? false;
+      diffPickerState = closedDiagramDiffPicker;
+      diffPickerAnchor = undefined;
       updateSymbols(currentSymbols);
       editor?.updateOptions({ readOnly });
       applySource(source);
@@ -333,6 +331,7 @@
     }
     if (message.command === 'queryScope') {
       queryScope = message.state;
+      versioningAvailable = message.versioningAvailable ?? versioningAvailable;
       queryScopeWidgets?.refresh();
       return;
     }
@@ -359,6 +358,18 @@
     }
     if (message.command === 'isolateMode') {
       isolateMode = message.state;
+      return;
+    }
+    if (message.command === 'deploymentMode') {
+      deploymentMode = message.state;
+      return;
+    }
+    if (message.command === 'diagramDiffPicker') {
+      diffPickerState = message.state;
+      return;
+    }
+    if (message.command === 'diagramDiffMode') {
+      diffMode = message.state;
       return;
     }
     if (message.command === 'reveal') {
@@ -644,11 +655,47 @@
   }
 
   function openDeclaration(declaration: SourceLocation): void {
+    if (!declarationNavigationAvailable) return;
     vscode.postMessage({ command: 'openDeclaration', declaration });
   }
 
-  function diagramQuickAction(action: DiagramQuickActionId, elementId: string): void {
+  function diagramQuickAction(
+    action: DiagramQuickActionId,
+    elementId: string,
+    anchor: DiagramQuickActionAnchor | undefined = undefined
+  ): void {
+    if (action === 'diff') {
+      diffPickerAnchor = anchor;
+      const metadata = diagramElementMetadata(quickActionMetadata, elementId);
+      const source = metadata === undefined ? undefined : diagramDiffDeclarationSource(metadata);
+      if (source !== undefined) diffPickerState = { status: 'loading', source, elementId };
+    }
     vscode.postMessage({ command: 'diagramQuickAction', action, elementId });
+  }
+
+  function selectDiffRevision(side: 'before' | 'after', revision: string): void {
+    diffPickerState = selectDiagramDiffRevision(diffPickerState, side, revision);
+  }
+
+  function compareDiff(): void {
+    if (diffPickerState.status !== 'ready' || diffPickerState.before === undefined) return;
+    vscode.postMessage({
+      command: 'compareDiagramDiff',
+      before: diffPickerState.before,
+      after: diffPickerState.after,
+      elementId: diffPickerState.elementId
+    });
+    diffPickerState = { status: 'loading', source: diffPickerState.source, elementId: diffPickerState.elementId };
+  }
+
+  function closeDiffPicker(): void {
+    vscode.postMessage({ command: 'cancelDiagramDiffPicker' });
+    diffPickerState = closedDiagramDiffPicker;
+    diffPickerAnchor = undefined;
+  }
+
+  function cancelDiff(): void {
+    vscode.postMessage({ command: 'cancelDiagramDiff' });
   }
 
   function selectPathTarget(elementId: string): void {
@@ -661,6 +708,10 @@
 
   function cancelIsolate(): void {
     vscode.postMessage({ command: 'cancelIsolate' });
+  }
+
+  function cancelDeployment(): void {
+    vscode.postMessage({ command: 'cancelDeployment' });
   }
 
   function reverseFindPath(): void {
@@ -781,6 +832,12 @@
   {quickActionMetadata}
   {findPathMode}
   {isolateMode}
+  {deploymentMode}
+  {versioningAvailable}
+  {declarationNavigationAvailable}
+  {diffPickerState}
+  {diffPickerAnchor}
+  {diffMode}
   {diagramMode}
   {deploymentEnvironment}
   {query}
@@ -818,6 +875,11 @@
   onSelectPathTarget={selectPathTarget}
   onCancelFindPath={cancelFindPath}
   onCancelIsolate={cancelIsolate}
+  onCancelDeployment={cancelDeployment}
+  onSelectDiffRevision={selectDiffRevision}
+  onCompareDiff={compareDiff}
+  onCloseDiffPicker={closeDiffPicker}
+  onCancelDiff={cancelDiff}
   onReverseFindPath={reverseFindPath}
   onBeginMessagesResize={() => {}}
 >

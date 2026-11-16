@@ -86,17 +86,17 @@ assert.deepEqual(edgeSignatures(d2), [
   "SyncWire:integration/producer->application/backend@@eu/compute:eu/network",
 ].sort(), "D2 must preserve the exact async projection and the direct sync relationship");
 
-const pathToBrokerSelectedFromEnvironmentTab = selectPathGraph(
+const pathToBrokerWithCapturedSourceScope = selectPathGraph(
   result,
   "integration/producer",
   "eu/broker",
-  { context: "eu", tab: "eu.ai", view: "deployment-container", environment: "eu" },
+  { context: "integration", tab: "integration.ai", view: "deployment-container", environment: "eu" },
   { targetEnvironment: "eu" },
 );
-assert(pathToBrokerSelectedFromEnvironmentTab.edges.length > 0,
-  "a C-level source must retain its EU path to a deployment target selected from the environment tab");
-assert(pathToBrokerSelectedFromEnvironmentTab.elements["integration/producer"]);
-assert(pathToBrokerSelectedFromEnvironmentTab.elements["eu/broker"]);
+assert(pathToBrokerWithCapturedSourceScope.edges.length > 0,
+  "a C-level source must retain its captured EU scope when the target is selected from the environment tab");
+assert(pathToBrokerWithCapturedSourceScope.elements["integration/producer"]);
+assert(pathToBrokerWithCapturedSourceScope.elements["eu/broker"]);
 
 const d1 = selectGraph(
   result,

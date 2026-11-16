@@ -816,7 +816,7 @@ function requiresConstructor(snapshot: LanguageSnapshot, type: string): boolean 
   if (snapshotTypeHasCapability(snapshot, type, TYPE_CAPABILITIES.documentAggregateRoot)) {
     return false;
   }
-  return type === "Context"
+  return snapshotTypeHasCapability(snapshot, type, TYPE_CAPABILITIES.logicalContext)
     || (type !== "Element" && isAssignable(snapshot, type, "Element"))
     || (type !== "Edge" && isAssignable(snapshot, type, "Edge"));
 }

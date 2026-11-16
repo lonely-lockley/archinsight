@@ -1,0 +1,14 @@
+{
+  "name": "@archinsight/git",
+  "version": "3.1.2",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@archinsight/contracts": "file:../archinsight-contracts",
+    "@insight/language": "file:../insight-language"
+  }
+}

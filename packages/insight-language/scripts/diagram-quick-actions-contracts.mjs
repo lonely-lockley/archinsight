@@ -2,21 +2,40 @@ import assert from "node:assert/strict";
 import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
+  declaredDeploymentEnvironments,
+  diagramOccurrenceId,
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
   diagramQuickActionMetadata,
   linkProject,
+  parseDiagramOccurrenceId,
+  replaceDiagramOccurrenceCanonical,
   renderGraphviz,
   selectDeploymentGraph,
   selectIsolatedElementGraph,
   selectPathGraph,
 } from "../build/runtime/index.js";
 
+assert.deepEqual(parseDiagramOccurrenceId("shop/api"), { canonicalId: "shop/api" });
+assert.deepEqual(parseDiagramOccurrenceId("shop/api@@eu/node"), {
+  canonicalId: "shop/api", qualifier: "eu/node",
+});
+assert.equal(diagramOccurrenceId("shop/api", "eu/node"), "shop/api@@eu/node");
+assert.equal(replaceDiagramOccurrenceCanonical("shop/api@@eu/node", "shop/backend"), "shop/backend@@eu/node");
+assert.equal(replaceDiagramOccurrenceCanonical("shop/api", "shop/backend"), "shop/backend");
+assert.throws(() => diagramOccurrenceId("shop/api@@old", "new"));
+assert.throws(() => diagramOccurrenceId("shop/api", ""));
+
 const definitions = buildLanguageSnapshotResultFromSources([
   source("definitions.ai", `
 define type AppEnvironment of Environment
     Compute compute
     NetworkConnection network
+    ReviewGateway gateway
+
+define type ReviewGateway of NetworkConnection
+    constructor reviewGateway
+    required InfrastructureComponent relay
 `),
 ], [coreLanguageSnapshot]);
 assertNoErrors(definitions.diagnostics);
@@ -36,6 +55,14 @@ deployment production
         networkConnection network
             projection:
                 source $from originalLink target $to
+    gateway:
+        reviewGateway gateway
+            relay:
+                infrastructureComponent proxy
+                    name = Review proxy
+            projection:
+                source $from originalLink target relay
+                target relay connectTo target $to
 `),
     source("target.ai", `
 context shop
@@ -89,16 +116,48 @@ system storefront
 
     service isolated
         name = Isolated
+
+system reviewSystem
+    name = Review system
+    service reviewSource
+        name = Review source
+        deployment:
+            uses appProfile
+        links:
+            -> reviewTarget
+                deployment:
+                    uses gateway
+
+    service reviewTarget
+        name = Review target
+        deployment:
+            uses appProfile
 `),
   ],
 });
+assert.deepEqual(declaredDeploymentEnvironments(result), [{
+  id: "eu",
+  name: "Europe",
+  sourceIdentity: "infra.ai",
+}]);
 assertNoErrors(result.diagnostics);
 
 const metadata = diagramQuickActionMetadata(result);
+assert.equal(
+  diagramQuickActionMetadata(result),
+  metadata,
+  "quick-action metadata is derived once for an immutable linked-project revision",
+);
 assert.equal(metadata["shop/storefront"]?.hasChildren, true);
 assert.equal(metadata["shop/storefront"]?.hasDeployment, true, "a boundary inherits deployment availability from descendants");
 assert.equal(metadata["shop/api"]?.hasChildren, true);
 assert.equal(metadata["shop/api"]?.hasDeployment, true);
+assert.equal(metadata["shop/api"]?.declaration?.sourceName, "model.ai");
+assert.equal(
+  metadata["shop/billing"]?.declaration?.sourceName,
+  "target.ai",
+  "quick actions retain the declaration file of imported elements",
+);
 const configuredWithoutOccurrence = {
   ...result,
   elements: result.elements.map((element) => {
@@ -122,9 +181,9 @@ assert.equal(
   "deployment elements are valid Find path endpoints",
 );
 assert.equal(
-  deploymentElements.every((element) => metadata[element.id]?.isolateEligible === false),
+  deploymentElements.every((element) => metadata[element.id]?.isolateEligible === true),
   true,
-  "deployment boundaries do not gain Isolate actions",
+  "every rendered deployment element can be isolated",
 );
 
 const isolatedApi = selectIsolatedElementGraph(result, "shop/api");
@@ -229,6 +288,28 @@ assert.equal(
 );
 const deploymentOccurrenceEdge = deployment.edges[0];
 assert(deploymentOccurrenceEdge);
+const visibleDeploymentElementId = "eu/proxy";
+assert(deploymentElements.some((element) => element.id === visibleDeploymentElementId));
+const isolatedDeploymentElement = selectIsolatedElementGraph(
+  result,
+  visibleDeploymentElementId,
+  { context: "shop", tab: "model.ai", view: "deployment-container", environment: "eu" },
+);
+assert.equal(
+  isolatedDeploymentElement.layout?.focus,
+  visibleDeploymentElementId,
+  "Isolate keeps the exact deployment occurrence selected on the current diagram",
+);
+assert(
+  isolatedDeploymentElement.edges.length > 0
+    && isolatedDeploymentElement.edges.every((edge) =>
+      edge.source === visibleDeploymentElementId || edge.target === visibleDeploymentElementId),
+  "Isolate keeps every visible relationship incident to a deployment element",
+);
+assert(
+  isolatedDeploymentElement.edges.some((edge) => edge.projected || edge.edge.projected === true),
+  "Isolate keeps projected relationships because they are visible to the user",
+);
 const deploymentOccurrencePath = selectPathGraph(
   result,
   deploymentOccurrenceEdge.source,
@@ -339,16 +420,16 @@ assert.equal(
   true,
   "deployment elements come only from the selected endpoint environment",
 );
-const euPathSelectedFromAnotherTab = selectPathGraph(
+const euPathWithCapturedSourceScope = selectPathGraph(
   multiEnvironmentResult,
   "multi/source",
   "multi/target",
-  { context: "eu", tab: "multi-eu.ai", view: "deployment-container", environment: "eu" },
+  { context: "multi", tab: "multi-model.ai", view: "deployment-container", environment: "eu" },
   { targetEnvironment: "eu" },
 );
 assert(
-  euPathSelectedFromAnotherTab.edges.length > 0,
-  "an environment-scoped path remains rooted at its source when the target is selected from another tab",
+  euPathWithCapturedSourceScope.edges.length > 0,
+  "an environment-scoped path uses the scope captured when Find path started",
 );
 const mixedEnvironmentPath = selectPathGraph(
   multiEnvironmentResult,
@@ -409,6 +490,54 @@ assert.deepEqual(
   new Set(rolledUpPath.edges.map((edge) => `${edge.edge.source}->${edge.edge.target}`)),
   new Set(["demo/user->demo/ui", "demo/user->demo/oidc", "demo/oidc->demo/google"]),
   "rendered roll-up edges preserve their authored endpoint provenance",
+);
+const externalSourceResult = linkProject({
+  snapshot: coreLanguageSnapshot,
+  sources: [
+    source("app.ai", `
+context app
+
+import google from context identity
+import test from context tests
+
+system editor
+    name = Editor
+    service backend
+        name = Backend
+        component oidc
+            name = OIDC
+            links:
+                -> google from identity
+`),
+    source("identity.ai", `
+context identity
+
+external system google
+    name = Google Identity
+`),
+    source("tests.ai", `
+context tests
+
+import editor from context app
+
+external system test
+    name = Test System
+    links:
+        -> editor from app
+`),
+  ],
+});
+assertNoErrors(externalSourceResult.diagnostics);
+const externalSourcePath = selectPathGraph(
+  externalSourceResult,
+  "tests/test",
+  "identity/google",
+  { context: "app", tab: "app.ai", view: "c1" },
+);
+assert.deepEqual(
+  new Set(externalSourcePath.edges.map((edge) => `${edge.source}->${edge.target}`)),
+  new Set(["tests/test->app/editor", "app/editor->identity/google"]),
+  "Find path keeps the active view context when the source endpoint belongs to an external context",
 );
 const componentScalePath = selectPathGraph(
   rolledUpResult,
@@ -471,7 +600,7 @@ assert.equal(dot.includes("subgraph cluster_"), false, "isolate renders no bound
 const workerStatement = dot.split("\n").find((line) => line.includes('"shop/worker" ['));
 assert(workerStatement);
 assert.equal(workerStatement.includes("URL="), false, "element nodes no longer navigate on a plain click");
-assert(dot.includes("insight://goto?"), "relationship declarations retain their own source navigation");
+assert.equal(dot.includes("insight://goto?"), false, "relationship arrows do not navigate on a plain click");
 
 console.log("diagram quick actions contracts passed");
 

@@ -1,4 +1,5 @@
 import { resolveBuiltinView, type BuiltinDiagramView } from '@insight/language';
+import { isIgnoredProjectSourceDirectory, normalizeProjectSourceIdentity } from '@archinsight/contracts';
 import type { TreeNode, WorkspaceTab } from './workspace-types';
 
 export type ProjectQuery = {
@@ -21,12 +22,10 @@ export function projectFilePaths(tree: TreeNode | undefined): string[] {
   return tree.type === 'file' ? [tree.path] : tree.children.flatMap(projectFilePaths);
 }
 
-const ignoredProjectDirectories = new Set(['node_modules', 'build', 'dist']);
-
 function hasIgnoredProjectDirectory(path: string, type: TreeNode['type']): boolean {
-  const segments = path.replaceAll('\\', '/').split('/').filter(Boolean);
+  const segments = normalizeProjectSourceIdentity(path).split('/').filter(Boolean);
   const directories = type === 'directory' ? segments : segments.slice(0, -1);
-  return directories.some((segment) => segment.startsWith('.') || ignoredProjectDirectories.has(segment));
+  return directories.some(isIgnoredProjectSourceDirectory);
 }
 
 /** Basenames are project-wide identities, independent of directory and traversal order. */

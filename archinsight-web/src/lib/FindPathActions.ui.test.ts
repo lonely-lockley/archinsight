@@ -16,7 +16,7 @@ describe('FindPathActions', () => {
     const component = mount(FindPathActions, {
       target,
       props: {
-        mode: { status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API' },
+        mode: { status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope: { view: 'c2' } },
         onCancel
       }
     });
@@ -42,7 +42,7 @@ describe('FindPathActions', () => {
       props: {
         mode: {
           status: 'showing-path', sourceId: 'shop/api', sourceTitle: 'API',
-          targetId: 'shop/db', targetTitle: 'Database'
+          targetId: 'shop/db', targetTitle: 'Database', scope: { view: 'c2' }
         },
         onCancel,
         onReverse

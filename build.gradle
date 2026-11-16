@@ -7,6 +7,7 @@ def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows')
 def npmArtifacts = [
     contracts: [dir: file('packages/archinsight-contracts'), versionKey: 'contracts', license: false],
     editorSupport: [dir: file('packages/archinsight-editor-support'), versionKey: 'editorSupport', license: false],
+    git      : [dir: file('packages/archinsight-git'), versionKey: 'git', license: false],
     graphviz : [dir: file('packages/archinsight-graphviz'), versionKey: 'graphviz', license: false],
     language: [dir: file('packages/insight-language'), versionKey: 'language', license: false],
     workbench: [dir: file('packages/archinsight-workbench'), versionKey: 'workbench', license: false],
@@ -95,6 +96,33 @@ tasks.register('testEditorSupportContracts', Exec) {
         'scripts/editor-package-boundaries.test.mjs'
 }
 
+tasks.register('testContractsPackage', Exec) {
+    group = 'verification'
+    description = 'Runs direct contracts package behavior checks.'
+    dependsOn ':archinsight-web:npmInstall', 'generateLanguageSources'
+    workingDir = file('archinsight-web')
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine npmCommand, 'run', 'test:contracts-package'
+}
+
+tasks.register('testWorkbenchPackage', Exec) {
+    group = 'verification'
+    description = 'Runs direct workbench workflow behavior checks.'
+    dependsOn ':archinsight-web:npmInstall', 'generateLanguageSources'
+    workingDir = file('archinsight-web')
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine npmCommand, 'run', 'test:workbench-package'
+}
+
+tasks.register('testGitPackage', Exec) {
+    group = 'verification'
+    description = 'Runs the Git versioned-repository adapter contract directly.'
+    dependsOn ':archinsight-cli:npmBuild'
+    workingDir = file('archinsight-cli')
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine npmCommand, 'run', 'test:git-package'
+}
+
 tasks.register('copyLicenses') {
     group = 'build'
     description = 'Copies the root Apache license into publishable package directories.'
@@ -167,7 +195,7 @@ def coverageSummary = tasks.register('coverageSummary', Exec) {
     commandLine 'node', 'scripts/print-coverage-summary.mjs'
 }
 
-tasks.register('cleanGenerated') {
+tasks.register('cleanGenerated', Delete) {
     group = 'build'
     description = 'Deletes generated sources, package build outputs, and distribution artifacts.'
     delete generatedPaths
@@ -196,7 +224,8 @@ tasks.register('dockerPush') {
 }
 
 tasks.named('check') {
-    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts', 'testPackageVersionSync'
+    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts',
+        'testPackageVersionSync', 'testContractsPackage', 'testWorkbenchPackage', 'testGitPackage'
 }
 
 gradle.projectsEvaluated {

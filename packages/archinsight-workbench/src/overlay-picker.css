@@ -1,0 +1,109 @@
+.archinsight-picker {
+  width: var(--archinsight-picker-width, 280px);
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid var(--archinsight-border, #454545);
+  border-radius: 6px;
+  background: var(--archinsight-toolbar-bg, #242424);
+  color: var(--archinsight-foreground, #eeeeee);
+  box-shadow: var(--archinsight-shadow, 0 10px 28px rgb(0 0 0 / 35%));
+  pointer-events: auto;
+}
+
+.archinsight-picker__title,
+.archinsight-picker__subtitle {
+  display: block;
+}
+
+.archinsight-picker__title {
+  font-size: 12px;
+}
+
+.archinsight-picker__subtitle {
+  margin: 3px 0 8px;
+  color: var(--archinsight-muted, #a8a8a8);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.archinsight-picker__control {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--archinsight-border, #454545);
+  border-radius: 4px;
+  background: var(--archinsight-input-bg, #1f1f1f);
+  color: var(--archinsight-foreground, #eeeeee);
+  font-size: 11px;
+}
+
+.archinsight-picker__options {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.archinsight-picker__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--archinsight-control-bg, #2a2a2a);
+  color: var(--archinsight-foreground, #eeeeee);
+  font-size: 11px;
+  text-align: left;
+}
+
+.archinsight-picker__option + .archinsight-picker__option {
+  margin-top: 3px;
+}
+
+button.archinsight-picker__option:hover,
+button.archinsight-picker__option:focus-visible,
+.archinsight-picker__button:hover:not(:disabled),
+.archinsight-picker__button:focus-visible {
+  background: var(--archinsight-control-hover-bg, #343434);
+}
+
+.archinsight-picker__option--selected,
+.archinsight-picker__button--primary {
+  background: var(--archinsight-control-active-bg, #354436);
+}
+
+.archinsight-picker__muted {
+  color: var(--archinsight-muted, #a8a8a8);
+}
+
+.archinsight-picker__message {
+  padding: 10px 8px;
+  color: var(--archinsight-muted, #a8a8a8);
+  font-size: 12px;
+}
+
+.archinsight-picker__footer {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.archinsight-picker__button {
+  width: 100%;
+  height: 26px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--archinsight-control-bg, #2a2a2a);
+  color: var(--archinsight-foreground, #eeeeee);
+  font-size: 11px;
+}
+
+.archinsight-picker__button:disabled {
+  opacity: .45;
+}
