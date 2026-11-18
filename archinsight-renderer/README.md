@@ -185,7 +185,8 @@ Archinsight artifacts:
 ```
 
 The default name is `lonelylockley/archinsight:renderer-<version>`, where the
-version comes from `settings.gradle`. Set
+version comes from the single `gradle.ext.archinsightVersion` value in
+`settings.gradle`. Set
 `-ParchinsightImageRepository=<repository>` to use another registry or
 repository.
 `dockerPush` publishes a `linux/amd64` image by default. Use

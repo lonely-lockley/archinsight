@@ -2,20 +2,20 @@ plugins {
     id 'base'
 }
 
-def artifactVersions = gradle.ext.archinsightVersions
+def artifactVersion = gradle.ext.archinsightVersion
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
 def npmArtifacts = [
-    icons    : [dir: file('packages/archinsight-icons'), versionKey: 'icons', license: false],
-    contracts: [dir: file('packages/archinsight-contracts'), versionKey: 'contracts', license: false],
-    editorSupport: [dir: file('packages/archinsight-editor-support'), versionKey: 'editorSupport', license: false],
-    git      : [dir: file('packages/archinsight-git'), versionKey: 'git', license: false],
-    graphviz : [dir: file('packages/archinsight-graphviz'), versionKey: 'graphviz', license: false],
-    language: [dir: file('packages/insight-language'), versionKey: 'language', license: false],
-    workbench: [dir: file('packages/archinsight-workbench'), versionKey: 'workbench', license: false],
-    web     : [dir: file('archinsight-web'), versionKey: 'web', license: false],
-    renderer: [dir: file('archinsight-renderer'), versionKey: 'renderer', license: false],
-    cli     : [dir: file('archinsight-cli'), versionKey: 'cli', license: true],
-    vscode  : [dir: file('archinsight-vscode'), versionKey: 'vscode', license: true]
+    icons    : [dir: file('packages/archinsight-icons'), license: false],
+    contracts: [dir: file('packages/archinsight-contracts'), license: false],
+    editorSupport: [dir: file('packages/archinsight-editor-support'), license: false],
+    git      : [dir: file('packages/archinsight-git'), license: false],
+    graphviz : [dir: file('packages/archinsight-graphviz'), license: false],
+    language: [dir: file('packages/insight-language'), license: false],
+    workbench: [dir: file('packages/archinsight-workbench'), license: false],
+    web     : [dir: file('archinsight-web'), license: false],
+    renderer: [dir: file('archinsight-renderer'), license: false],
+    cli     : [dir: file('archinsight-cli'), license: true],
+    vscode  : [dir: file('archinsight-vscode'), license: true]
 ]
 def generatedPaths = [
     file('archinsight-cli/build'),
@@ -29,15 +29,13 @@ def generatedPaths = [
 ]
 allprojects {
     group = 'com.github.lonelylockley.archinsight'
-    version = artifactVersions.find { entry ->
-        project.path.endsWith("-${entry.key}") || project.name == "archinsight-${entry.key}"
-    }?.value ?: artifactVersions.language
+    version = artifactVersion
 }
 
 tasks.register('syncPackageVersions') {
     group = 'build'
     description = 'Synchronizes package.json and package-lock.json versions from settings.gradle.'
-    inputs.properties(artifactVersions)
+    inputs.property('version', artifactVersion)
     inputs.file('scripts/sync-package-versions.mjs')
     inputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
     outputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
@@ -46,7 +44,7 @@ tasks.register('syncPackageVersions') {
     doLast {
         def plan = npmArtifacts.collect { name, artifact -> [
             directory: rootProject.relativePath(artifact.dir),
-            version: artifactVersions[artifact.versionKey]
+            version: artifactVersion
         ] }
         providers.exec {
             workingDir rootProject.projectDir

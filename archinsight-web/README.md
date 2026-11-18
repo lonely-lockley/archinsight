@@ -125,7 +125,8 @@ Gradle also exposes:
 
 `dockerBuild` creates
 `lonelylockley/archinsight:editor-ui-<version>` using the version from
-`settings.gradle`. The image is built for the `/app` context root by default.
+the single `gradle.ext.archinsightVersion` value in `settings.gradle`. The image
+is built for the `/app` context root by default.
 Use `-ParchinsightImageRepository=<repository>` or
 `-ParchinsightContextRoot=<path>` to override those release settings.
 `dockerPush` publishes a `linux/amd64` image by default; it requires registry
