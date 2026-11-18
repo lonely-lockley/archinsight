@@ -82,6 +82,18 @@ test("Gradle version synchronization has no npm installation fallback", () => {
   assert.doesNotMatch(syncTask, /commandLine\s+npmCommand|package-lock-only|['"]install['"]/);
 });
 
+test("Gradle uses one project version for every artifact", () => {
+  const settings = readFileSync(path.join(repositoryRoot, "settings.gradle"), "utf8");
+  const build = readFileSync(path.join(repositoryRoot, "build.gradle"), "utf8");
+
+  assert.match(settings, /gradle\.ext\.archinsightVersion\s*=\s*'[^']+'/);
+  assert.doesNotMatch(settings, /archinsightVersions/);
+  assert.match(build, /def artifactVersion = gradle\.ext\.archinsightVersion/);
+  assert.match(build, /allprojects\s*\{[\s\S]*?version = artifactVersion[\s\S]*?\}/);
+  assert.match(build, /inputs\.property\('version', artifactVersion\)/);
+  assert.doesNotMatch(build, /versionKey|artifactVersions/);
+});
+
 function gradleTaskBlock(source, taskName) {
   const start = source.indexOf(`tasks.register('${taskName}')`);
   assert.notEqual(start, -1, `Missing Gradle task ${taskName}`);

@@ -200,7 +200,9 @@ suite, including coverage non-regression checks, before producing artifacts.
 
 The release includes the CLI package, VSCode extension, web distribution, and
 versioned `editor-ui-<version>` and `renderer-<version>` container images. Image
-versions come from `settings.gradle`. Override the registry/repository with
+versions and every npm package version come from the single
+`gradle.ext.archinsightVersion` value in `settings.gradle`. Override the
+registry/repository with
 `-ParchinsightImageRepository=<repository>` and the web context root with
 `-ParchinsightContextRoot=<path>` when required.
 

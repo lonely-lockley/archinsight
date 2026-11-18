@@ -483,8 +483,9 @@ Publish to npm:
 npm --prefix archinsight-cli run publish:npm
 ```
 
-Before publishing, update the package version in `package.json`, commit the
-change, and make sure the working tree is clean.
+Before publishing, update `gradle.ext.archinsightVersion` in the root
+`settings.gradle`, run the Gradle build to synchronize package manifests and
+locks, commit those changes, and make sure the working tree is clean.
 
 ## License
 
