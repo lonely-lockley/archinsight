@@ -10,18 +10,25 @@ const sharedRuntimeDependencies = [
   'svelte',
   'monaco-editor',
   '@insight/language',
+  '@archinsight/icons',
   '@archinsight/contracts',
   '@archinsight/editor-support'
 ];
 
 export default defineConfig({
   plugins: [sveltekit()],
+  worker: {
+    format: 'es'
+  },
   resolve: {
     conditions: ['browser'],
     // Resolve the linked workbench to its physical sources and keep browser singletons canonical.
     // Separate symlink and physical module ids can register Monaco extensions more than once.
     preserveSymlinks: false,
-    dedupe: sharedRuntimeDependencies
+    dedupe: sharedRuntimeDependencies,
+    alias: {
+      '@archinsight/icons': fileURLToPath(new URL('../packages/archinsight-icons/src/index.js', import.meta.url))
+    }
   },
   test: {
     coverage: {

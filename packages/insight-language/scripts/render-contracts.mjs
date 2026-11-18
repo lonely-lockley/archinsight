@@ -148,7 +148,7 @@ RETURN n, r, m
   assert(dot.includes("Edge note"));
   assert(dot.includes("cellborder=\"1\""));
   assert(dot.includes("width=\"120\" height=\"44\""));
-  assert(!dot.includes("fixedsize=\"true\""));
+  assert(dot.includes("fixedsize=\"true\""));
   assert(dot.includes("shape=\"note\""));
   assert(dot.includes("fillcolor=\"#faf6a2\""));
   assert(dot.includes("dir=\"none\""));

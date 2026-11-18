@@ -8,6 +8,7 @@ import type {
   QueryScope,
   RenderGraph,
   RenderTheme,
+  GraphvizIconPlacement,
 } from '@insight/language';
 
 type RenderRequest = {
@@ -17,6 +18,7 @@ type RenderRequest = {
   readonly reject: (cause: Error) => void;
   readonly signal?: AbortSignal;
   readonly abort: () => void;
+  cancelled?: boolean;
 };
 
 let worker: Worker | undefined;
@@ -24,8 +26,8 @@ let active: RenderRequest | undefined;
 let nextRequestId = 0;
 const queue: RenderRequest[] = [];
 
-export function renderSvgInWorker(dot: string, signal?: AbortSignal): Promise<string> {
-  return submit({ kind: 'dot', dot }, signal).then((result) => result.svg);
+export function renderSvgInWorker(dot: string, icons: readonly GraphvizIconPlacement[] = [], signal?: AbortSignal): Promise<string> {
+  return submit({ kind: 'dot', dot, icons }, signal).then((result) => result.svg);
 }
 
 export function executeDiagramQueryInWorker(
@@ -113,7 +115,7 @@ function pump(): void {
 }
 
 function createWorker(): Worker {
-  const created = new Worker(path.join(__dirname, 'diagram-viz-worker.cjs'));
+  const created = new Worker(path.join(__dirname, 'diagram-viz-worker.mjs'));
   created.on('message', (message: { readonly id: number; readonly value?: any; readonly error?: string }) => {
     const request = active;
     if (request === undefined || request.id !== message.id) return;
@@ -134,13 +136,9 @@ function createWorker(): Worker {
 function abortRequest(id: number): void {
   const current = active;
   if (current?.id === id) {
-    const terminated = worker;
-    worker = undefined;
-    active = undefined;
+    current.cancelled = true;
     current.signal?.removeEventListener('abort', current.abort);
     current.reject(abortError());
-    if (terminated !== undefined) void terminated.terminate();
-    pump();
     return;
   }
   const index = queue.findIndex((request) => request.id === id);
@@ -164,6 +162,7 @@ function failActive(cause: Error): void {
 function settle(request: RenderRequest, value?: any, cause?: Error): void {
   request.signal?.removeEventListener('abort', request.abort);
   if (active === request) active = undefined;
+  if (request.cancelled === true) return;
   if (cause !== undefined) request.reject(cause);
   else if (value !== undefined) request.resolve(value);
   else request.reject(new Error('Diagram rendering worker returned an invalid response'));

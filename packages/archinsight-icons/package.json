@@ -1,0 +1,22 @@
+{
+  "name": "@archinsight/icons",
+  "version": "3.1.4",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "import:devicon": "node scripts/import-devicon.mjs",
+    "contact-sheet": "node scripts/contact-sheet.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "npm test && node scripts/verify-generated.mjs"
+  },
+  "devDependencies": {
+    "saxes": "^6.0.0"
+  }
+}

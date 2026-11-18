@@ -71,6 +71,12 @@ Use `render --query <file.aiq>` when a graph-returning custom query must be
 exported as DOT, SVG, or PNG. Table-returning queries are data rather than
 diagrams and remain available through `query` as text, JSON, or CSV.
 
+SVG and PNG rendering automatically include technology icons resolved from the
+model's `technology` attribute or explicit `@icon(...)` annotation. The CLI
+uses the bundled pinned catalog and performs no network access while rendering.
+See [Technology icons](https://github.com/lonely-lockley/archinsight/blob/master/docs/technology-icons.md)
+for matching and override rules.
+
 ## Visual Diff Between Git Revisions
 
 `diff` links the project independently at two commits, selects the same view in

@@ -1,5 +1,6 @@
 import {
   coreLanguageSnapshot,
+  type DiagramQuickActionMetadata,
   type LanguageSnapshot,
   type LinkProjectResult,
   type RenderTheme
@@ -36,6 +37,7 @@ export type WorkspaceRuntimeState = {
   projectSymbols: LanguageSnapshot;
   projectStructure: ProjectStructure | undefined;
   linkedAnalysis: LinkProjectResult | undefined;
+  renderedQuickActionMetadata: DiagramQuickActionMetadata;
   projectRegistry: ProjectRegistryState;
   activeProjectId: string | undefined;
   workspaceCompletionSnapshot: WorkspaceCompletionSnapshot;
@@ -73,6 +75,7 @@ export function initialWorkspaceRuntimeState(): WorkspaceRuntimeState {
     projectSymbols: emptyProjectSymbols(),
     projectStructure: undefined,
     linkedAnalysis: undefined,
+    renderedQuickActionMetadata: {},
     projectRegistry: { projects: [] },
     activeProjectId: undefined,
     workspaceCompletionSnapshot: emptyWorkspaceCompletionSnapshot,

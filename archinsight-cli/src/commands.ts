@@ -7,8 +7,8 @@ import {
   diagramElementMetadata,
   diagramQuickActionMetadata,
   discoverDeploymentEnvironments,
-  renderDiagramDiffGraphviz,
-  renderGraphviz,
+  renderDiagramDiffGraphvizArtifact,
+  renderGraphvizArtifact,
   selectDeploymentGraph,
   selectIsolatedElementGraph,
   selectPathGraph,
@@ -99,7 +99,8 @@ export async function runRender(args: ParsedArgs): Promise<void> {
   }
   try {
     const graph = await selectedGraph(project, args);
-    const dot = renderGraphviz(project.result, graph, await resolveRenderTheme(args.theme));
+    const artifact = renderGraphvizArtifact(project.result, graph, await resolveRenderTheme(args.theme));
+    const dot = artifact.dot;
     const format = renderFormat(args.format, "dot");
     if (format === "text") {
       await writeOutput(args.output, formatGraph(graph));
@@ -112,11 +113,11 @@ export async function runRender(args: ParsedArgs): Promise<void> {
       return;
     }
     if (format === "json") {
-      await writeOutput(args.output, JSON.stringify({ graph, dot }, null, 2));
+      await writeOutput(args.output, JSON.stringify({ graph, ...artifact }, null, 2));
       process.stderr.write(renderFinishedLine(true, "diagram rendered successfully"));
       return;
     }
-    const svg = await renderSvg(dot);
+    const svg = await renderSvg(dot, artifact.icons);
     if (format === "svg") {
       await writeOutput(args.output, svg);
     } else {
@@ -175,12 +176,13 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
   if (warnings.length > 0) process.stderr.write(formatDiagnostics(warnings));
   const attributedDiff = await attributeVersionedDiagramDiff(repository, semantic, signal);
   const diff = semantic.diff;
-  const dot = renderDiagramDiffGraphviz(
+  const artifact = renderDiagramDiffGraphvizArtifact(
     semantic.before.result,
     semantic.after.result,
     diff,
     await resolveRenderTheme(args.theme),
   );
+  const dot = artifact.dot;
   const format = renderFormat(args.format, "dot");
   if (format === "text") {
     await writeOutput(args.output, formatDiagramDiff(diff, beforeRevision, afterRevision));
@@ -191,10 +193,10 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
       revisions: { from: beforeRevision, to: afterRevision },
       diff,
       attributedDiff,
-      dot,
+      ...artifact,
     }, null, 2));
   } else {
-    const svg = await renderSvg(dot);
+    const svg = await renderSvg(dot, artifact.icons);
     if (format === "svg") await writeOutput(args.output, svg);
     else await writeBinaryOutput(args.output, renderPng(svg));
   }
@@ -510,7 +512,7 @@ function quickActionEnvironmentList(environments: readonly { readonly id: string
 async function writeQuickActionGraph(
   args: ParsedArgs,
   format: ReturnType<typeof quickActionOutputFormat>,
-  project: Parameters<typeof renderGraphviz>[0],
+  project: Parameters<typeof renderGraphvizArtifact>[0],
   graph: RenderGraph,
   metadata: Readonly<Record<string, unknown>>,
 ): Promise<void> {
@@ -526,12 +528,13 @@ async function writeQuickActionGraph(
     await writeOutput(args.output, `${header}${header.length === 0 ? "" : "\n"}${formatGraph(graph)}`);
     return;
   }
-  const dot = renderGraphviz(project, graph, await resolveRenderTheme(args.theme));
+  const artifact = renderGraphvizArtifact(project, graph, await resolveRenderTheme(args.theme));
+  const dot = artifact.dot;
   if (format === "dot") {
     await writeOutput(args.output, dot);
     return;
   }
-  const svg = await renderSvg(dot);
+  const svg = await renderSvg(dot, artifact.icons);
   if (format === "svg") {
     await writeOutput(args.output, svg);
     return;

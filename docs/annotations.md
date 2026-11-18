@@ -18,6 +18,10 @@ service legacy_catalog
 
 Annotations apply to element declarations and operator-created relationships. They do not annotate individual attribute assignments.
 
+## `@icon`
+
+`@icon(<catalog-id>)` selects one technology icon for an element, while `@icon(none)` disables the automatic icon inferred from its `technology` attribute. Relationships do not support icons. See [Technology icons](technology-icons.md) for matching, editor picker, export, and catalog details.
+
 ## `@planned`
 
 `@planned` marks architecture that is intended but not yet part of the current operating system:

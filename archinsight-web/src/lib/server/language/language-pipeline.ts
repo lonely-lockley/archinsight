@@ -157,21 +157,23 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
     : renderPaths(request, analysis.result).flatMap((sourceIdentity) => {
       const context = analysis.result.contexts.find((candidate) => candidate.sourceIdentity === (request?.querySource ?? sourceIdentity));
       try {
+        const artifact = service.render({
+          result: analysis.result,
+          scope: {
+            context: request?.queryContext ?? context?.id,
+            tab: request?.querySource ?? sourceIdentity,
+            ...(request?.view == null ? {} : { view: request.view }),
+            ...(request?.environment == null ? {} : { environment: request.environment })
+          },
+          query: request?.query ?? undefined,
+          theme: request?.theme ?? 'dark'
+        });
         return [
           {
             sourceIdentity,
             diagram: 'query',
-            dot: service.render({
-              result: analysis.result,
-              scope: {
-                context: request?.queryContext ?? context?.id,
-                tab: request?.querySource ?? sourceIdentity,
-                ...(request?.view == null ? {} : { view: request.view }),
-                ...(request?.environment == null ? {} : { environment: request.environment })
-              },
-              query: request?.query ?? undefined,
-              theme: request?.theme ?? 'dark'
-            }).dot
+            dot: artifact.dot,
+            ...(artifact.icons.length === 0 ? {} : { icons: [...artifact.icons] })
           }
         ];
       } catch (error) {

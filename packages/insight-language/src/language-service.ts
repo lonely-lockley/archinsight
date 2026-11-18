@@ -13,7 +13,7 @@ import type {
 } from "./contracts.js";
 import { buildLanguageSnapshotResultFromSources, coreLanguageSnapshot, type LanguageSnapshotSource } from "./core-snapshot.js";
 import { createGeneratedInsightSyntaxProvider } from "./generated-provider.js";
-import { renderGraphviz, type RenderTheme } from "./graphviz-renderer.js";
+import { renderGraphvizArtifact, type GraphvizIconPlacement, type RenderTheme } from "./graphviz-renderer.js";
 import { linkProject } from "./project-linker.js";
 import { ProjectLinkerState, type ProjectLinkerStateUpdate, type ProjectSourceReplacement } from "./project-linker-state.js";
 import { ProjectAnalysisSession } from "./project-analysis-session.js";
@@ -45,6 +45,7 @@ export interface ServiceRenderRequest {
 export interface ServiceRenderResult {
   readonly graph: RenderGraph;
   readonly dot: string;
+  readonly icons: readonly GraphvizIconPlacement[];
 }
 
 export class InsightLanguageService {
@@ -106,10 +107,7 @@ export class InsightLanguageService {
 
   render(request: ServiceRenderRequest): ServiceRenderResult {
     const graph = this.select(request.result, request.scope, request.query);
-    return {
-      graph,
-      dot: renderGraphviz(request.result, graph, request.theme ?? "light"),
-    };
+    return { graph, ...renderGraphvizArtifact(request.result, graph, request.theme ?? "light") };
   }
 
   linkAndRender(request: ServiceLinkRequest & Omit<ServiceRenderRequest, "result">): ServiceRenderResult & { readonly result: LinkProjectResult } {

@@ -24,6 +24,9 @@ import {
   type InsightTokenVocabulary
 } from '@archinsight/workbench/monaco';
 import { insightEditorOptions, registerInsightMonaco } from '@archinsight/workbench/monaco-session';
+import { openTechnologyIconPicker } from '@archinsight/workbench/technology-icon-picker';
+import { technologyIconEdit, technologyIconQuery } from '@archinsight/workbench/technology-icon-picker-model';
+import { technologyIconCompletionMarkdown } from '@archinsight/workbench/technology-icon-preview';
 import LanguageWorker from '$lib/language.worker?worker';
 import { insightDarkTheme, insightLightTheme } from '@archinsight/workbench/monaco-themes';
 import {
@@ -126,6 +129,7 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
           endColumn: replacementEnd.column
         };
         return {
+          incomplete: result.isIncomplete ?? false,
           suggestions: result.items.map((item) => {
             const documentation = completionDocumentationMarkdown(item.documentation);
             return {
@@ -135,12 +139,21 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
               insertTextRules: runtime.languages.CompletionItemInsertTextRule.KeepWhitespace,
               range,
               sortText: completionSortText(item),
+              ...(item.iconId === undefined ? {} : { iconId: item.iconId }),
               ...(documentation === undefined
                 ? {}
                 : { documentation: { value: documentation, isTrusted: false, supportHtml: false } })
             };
           })
         };
+      },
+      async resolveCompletionItem(item) {
+        const iconId = (item as Monaco.languages.CompletionItem & { readonly iconId?: string }).iconId;
+        if (iconId === undefined) return item;
+        const existing = typeof item.documentation === 'string' ? item.documentation : item.documentation?.value;
+        const markdown = await technologyIconCompletionMarkdown(iconId, existing);
+        if (markdown !== undefined) item.documentation = { value: markdown, isTrusted: false, supportHtml: false };
+        return item;
       }
     });
   };
@@ -234,6 +247,27 @@ export function createMonacoSession(ports: MonacoSessionPorts): MonacoSession {
         ...insightEditorOptions,
         model: null,
         theme: renderTheme === 'dark' ? insightDarkTheme : insightLightTheme,
+      });
+      editor.addAction({
+        id: 'archinsight.selectTechnologyIcon',
+        label: 'Select Technology Icon',
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 20,
+        run: async (activeEditor) => {
+          const activeModel = activeEditor.getModel();
+          const position = activeEditor.getPosition();
+          if (activeModel === null || position === null || activeModel.getLanguageId() !== 'insight') return;
+          const offset = activeModel.getOffsetAt(position);
+          const selected = await openTechnologyIconPicker(technologyIconQuery(activeModel.getValue(), offset));
+          if (selected === undefined) return;
+          const edit = technologyIconEdit(activeModel.getValue(), offset, selected);
+          activeEditor.executeEdits('archinsight.selectTechnologyIcon', [{
+            range: MonacoRange(monaco!, activeModel, edit.start, edit.end),
+            text: edit.text,
+            forceMoveMarkers: true,
+          }]);
+          activeEditor.focus();
+        },
       });
       editor.onDidChangeModelContent(() => {
         const activeTabId = ports.activeTabId();
@@ -418,4 +452,15 @@ function completionItemKind(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function MonacoRange(
+  runtime: typeof Monaco,
+  model: Monaco.editor.ITextModel,
+  start: number,
+  end: number,
+): Monaco.Range {
+  const from = model.getPositionAt(start);
+  const to = model.getPositionAt(end);
+  return new runtime.Range(from.lineNumber, from.column, to.lineNumber, to.column);
 }

@@ -53,13 +53,36 @@
 
   let splitHost: HTMLElement;
   let splitResizePointerId: number | undefined;
+  let resultLoadingTimer: ReturnType<typeof setTimeout> | undefined;
+  let showResultLoading = false;
 
   $: splitStyle = `--editor-split-width: ${editorSplitRatio}%; --diagram-split-width: ${100 - editorSplitRatio}%;`;
+  $: updateResultLoadingVisibility(resultLoading);
 
   onDestroy(() => {
     window.removeEventListener('pointermove', resizeEditorSplit);
     window.removeEventListener('pointerup', stopEditorSplitResize);
+    clearResultLoadingTimer();
   });
+
+  function updateResultLoadingVisibility(loading: boolean): void {
+    if (!loading) {
+      clearResultLoadingTimer();
+      showResultLoading = false;
+      return;
+    }
+    if (showResultLoading || resultLoadingTimer !== undefined) return;
+    resultLoadingTimer = setTimeout(() => {
+      resultLoadingTimer = undefined;
+      if (resultLoading) showResultLoading = true;
+    }, 500);
+  }
+
+  function clearResultLoadingTimer(): void {
+    if (resultLoadingTimer === undefined) return;
+    clearTimeout(resultLoadingTimer);
+    resultLoadingTimer = undefined;
+  }
 
   function beginEditorSplitResize(event: PointerEvent): void {
     if (viewMode !== 'split') {
@@ -145,7 +168,7 @@
         {svg}
       />
     {/if}
-    {#if resultLoading}
+    {#if showResultLoading}
       <div class="result-loading" role="status" aria-live="polite">
         <span>Running query…</span>
         <button type="button" on:click={onCancelResult}>Cancel</button>

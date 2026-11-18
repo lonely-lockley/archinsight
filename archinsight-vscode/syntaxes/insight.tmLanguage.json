@@ -4,6 +4,7 @@
     { "include": "#comments" },
     { "include": "#keywords" },
     { "include": "#operators" },
+    { "include": "#annotations" },
     { "include": "#strings" }
   ],
   "repository": {
@@ -28,6 +29,14 @@
         {
           "name": "keyword.operator.insight",
           "match": "(~>|->|<-|=|:)"
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "name": "storage.type.annotation.insight",
+          "match": "@(attribute|planned|deprecated|icon)\\b"
         }
       ]
     },

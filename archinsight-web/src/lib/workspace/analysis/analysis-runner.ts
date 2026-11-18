@@ -4,7 +4,7 @@ import { ProjectQuerySyntaxError, type ResolvedProjectQuery } from '../diagram/p
 import {
   IndexedGraph,
   executeQuery,
-  renderGraphviz,
+  renderGraphvizArtifact,
   resolveBuiltinView,
   type BuiltinDiagramView,
   type LanguageDiagnostic,
@@ -175,11 +175,28 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
             continue;
           }
           ports.acceptQueryResult(sourceIdentity, undefined);
+          const artifact = renderGraphvizArtifact(analysis, result.graph, state.theme);
           renders.push({
             sourceIdentity,
             diagram: 'query',
-            dot: renderGraphviz(analysis, result.graph, state.theme)
+            ...artifact
           });
+        }
+        if (!ports.isCurrent(sequence, projectId)) return;
+        if (renders.length === 0) {
+          ports.clearDots(sourceIdentities);
+          return;
+        }
+        const rendered = await renderWithFallback(projectId, state.surface, renders);
+        if (!ports.isCurrent(sequence, projectId)) return;
+        if (acceptRenderedDiagrams(renders, rendered, sourceIdentities, state.theme)) {
+          const durationMs = ports.now() - startedAt;
+          renders.forEach((render) => ports.queryFinished(
+            render.sourceIdentity,
+            durationMs,
+            undefined,
+            reportDiagnostics ? analysis.diagnostics : []
+          ));
         }
       } catch (error) {
         if (!ports.isCurrent(sequence, projectId)) return;
@@ -196,22 +213,6 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         return;
       } finally {
         if (ports.isCurrent(sequence, projectId)) ports.setLoading(false);
-      }
-      if (!ports.isCurrent(sequence, projectId)) return;
-      if (renders.length === 0) {
-        ports.clearDots(sourceIdentities);
-        return;
-      }
-      const rendered = await renderWithFallback(projectId, state.surface, renders);
-      if (!ports.isCurrent(sequence, projectId)) return;
-      if (acceptRenderedDiagrams(renders, rendered, sourceIdentities, state.theme)) {
-        const durationMs = ports.now() - startedAt;
-        renders.forEach((render) => ports.queryFinished(
-          render.sourceIdentity,
-          durationMs,
-          undefined,
-          reportDiagnostics ? analysis.diagnostics : []
-        ));
       }
     },
 
@@ -255,7 +256,6 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
             : { ...options, querySource: resolved.source, queryContext: resolved.context, theme: state.theme }
         );
         if (!ports.isCurrent(sequence, state.projectId)) return;
-        ports.setLoading(false);
         ports.acceptProjectSymbols(link.symbols);
         const linkHasErrors = hasErrorDiagnostics(link.diagnostics);
         const linkedAnalysis = linkHasErrors ? undefined : hydrateLinkedModel(link.linkedModel);
@@ -285,7 +285,6 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         if (ports.state().theme !== state.theme) ports.scheduleDiagramUpdate();
       } catch (error) {
         if (!ports.isCurrent(sequence, state.projectId)) return;
-        ports.setLoading(false);
         if (ports.redirectIfAuthRequired(error)) return;
         const message = errorMessage(error);
         if (isQueryErrorMessage(message)) {
@@ -294,6 +293,8 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           return;
         }
         ports.error(`Server error: ${message}`);
+      } finally {
+        if (ports.isCurrent(sequence, state.projectId)) ports.setLoading(false);
       }
     }
   };

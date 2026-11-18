@@ -309,6 +309,7 @@ system app
     const labels = itemLabels(result);
     assert(labels.has("@planned"), [...labels].join(", "));
     assert(labels.has("@deprecated"), [...labels].join(", "));
+    assert.equal(result.items.find(({ label }) => label === "@icon")?.insertText, "@icon(");
     assert.equal(result.replacementStartOffset, cursorOffset - 1);
     assert.equal(result.replacementEndOffset, cursorOffset);
   }
@@ -608,7 +609,7 @@ system application
 `, { snapshot, contextIds: ["eu"] }));
   assert(elementBody.has("uses"), [...elementBody].join(", "));
   assert(elementBody.has("runsOn"), [...elementBody].join(", "));
-  assert.deepEqual([...elementBody].sort(), ["@deprecated", "@planned", "runsOn", "uses"]);
+  assert.deepEqual([...elementBody].sort(), ["@deprecated", "@icon", "@planned", "runsOn", "uses"]);
 
   const elementTarget = itemLabels(completeAtMarker(`
 context app
@@ -750,7 +751,7 @@ deploymentProfile regional
   for (const expected of ["appliesTo", "uses", "runsOn"]) {
     assert(newProfileBody.has(expected), `${expected} missing from ${[...newProfileBody].join(", ")}`);
   }
-  assert.deepEqual([...newProfileBody].sort(), ["@deprecated", "@planned", "appliesTo", "runsOn", "uses"]);
+  assert.deepEqual([...newProfileBody].sort(), ["@deprecated", "@icon", "@planned", "appliesTo", "runsOn", "uses"]);
 
   const actionBody = itemLabels(completeAtMarker(`
 context app
@@ -760,7 +761,7 @@ deploymentProfile regional
         production from eu
     __CURSOR__
 `, options));
-  assert.deepEqual([...actionBody].sort(), ["@deprecated", "@planned", "runsOn", "uses"]);
+  assert.deepEqual([...actionBody].sort(), ["@deprecated", "@icon", "@planned", "runsOn", "uses"]);
 
   const memberIds = itemLabels(completeAtMarker(`
 context app
@@ -876,7 +877,7 @@ context app
 rolloutPolicy current
     __CURSOR__
 `, options));
-  assert.deepEqual([...bodyItems].sort(), ["@deprecated", "@planned", "assignHost", "drafts", "members"]);
+  assert.deepEqual([...bodyItems].sort(), ["@deprecated", "@icon", "@planned", "assignHost", "drafts", "members"]);
 
   const referenceItems = itemLabels(completeAtMarker(`
 context app

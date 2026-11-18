@@ -9,12 +9,12 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const repositoryRoot = path.resolve(packageRoot, '../..');
 
 assertLayer('packages/insight-language/src', {
-  allowedPackages: new Set(['antlr4ng']),
-  forbidden: ['vscode', 'svelte', 'monaco-editor', '@sveltejs/', '@archinsight/', 'node:child_process', 'node:fs'],
+  allowedPackages: new Set(['antlr4ng', '@archinsight/icons']),
+  forbidden: ['vscode', 'svelte', 'monaco-editor', '@sveltejs/', 'node:child_process', 'node:fs'],
 });
 assertLayer('packages/archinsight-workbench/src', {
   allowedPackages: new Set([
-    '@insight/language', '@archinsight/contracts', '@archinsight/editor-support', 'monaco-editor', 'svelte',
+    '@insight/language', '@archinsight/contracts', '@archinsight/editor-support', '@archinsight/icons', 'monaco-editor', 'svelte',
   ]),
   forbidden: ['vscode', '@sveltejs/', 'node:child_process', 'node:fs', 'pg'],
 });

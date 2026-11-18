@@ -109,7 +109,8 @@ export function parseSvgRenderRequest(value: unknown): SvgRenderRequest {
       return {
         sourceIdentity: string(render.sourceIdentity, `renders[${index}].sourceIdentity`),
         diagram: string(render.diagram, `renders[${index}].diagram`),
-        dot: string(render.dot, `renders[${index}].dot`)
+        dot: string(render.dot, `renders[${index}].dot`),
+        ...parseIconPlacements(render.icons, `renders[${index}].icons`)
       };
     })
   };
@@ -294,9 +295,24 @@ function parseDotRenders(value: unknown, label: string): DotRenderDto[] {
     return {
       sourceIdentity: string(input.sourceIdentity, `${itemLabel}.sourceIdentity`),
       diagram: string(input.diagram, `${itemLabel}.diagram`),
-      dot: string(input.dot, `${itemLabel}.dot`)
+      dot: string(input.dot, `${itemLabel}.dot`),
+      ...parseIconPlacements(input.icons, `${itemLabel}.icons`)
     };
   });
+}
+
+function parseIconPlacements(value: unknown, label: string): Pick<DotRenderDto, 'icons'> {
+  if (value === undefined) return {};
+  return {
+    icons: array(value, label).map((item, index) => {
+      const placement = record(item, `${label}[${index}]`);
+      return {
+        slotId: string(placement.slotId, `${label}[${index}].slotId`),
+        iconId: string(placement.iconId, `${label}[${index}].iconId`),
+        color: string(placement.color, `${label}[${index}].color`)
+      };
+    })
+  };
 }
 
 function nullableRecord(value: unknown, label: string): Record<string, unknown> | null {

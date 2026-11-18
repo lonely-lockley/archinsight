@@ -53,6 +53,7 @@ import {
   OPERATOR_CAPABILITIES,
   TYPE_CAPABILITIES,
 } from "./semantic-capabilities.js";
+import { resolveExplicitIcon } from "@archinsight/icons";
 
 const ELEMENT_TYPE = "Element";
 const APPLIES_TO_ATTRIBUTE = "appliesTo";
@@ -666,6 +667,7 @@ function completeLinkingPipeline(
   const graph = buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem);
   const graphElements = elements.filter(isGraphElement);
   inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, typeSystem, deployedElementIds, wireDeploymentCoverage, diagnostics);
+  validateIconAnnotations(elements, linkedEdges, diagnostics);
   const tabRoots = tabRootsBySource(documents, elementsByContextAndLocalId);
   for (const document of documents) {
     resolveAttributes(
@@ -721,6 +723,77 @@ function completeLinkingPipeline(
     tabRoots,
     duplicateEdges,
     presentations,
+  };
+}
+
+function validateIconAnnotations(
+  elements: readonly ParsedElement[],
+  edges: readonly LinkedEdge[],
+  diagnostics: LanguageDiagnostic[],
+): void {
+  for (const element of elements) {
+    const icons = element.annotations.filter(({ name }) => name === "icon");
+    for (const duplicate of icons.slice(1)) {
+      diagnostics.push(annotationDiagnostic(
+        duplicate,
+        element.sourceName,
+        element,
+        "ICON_ANNOTATION_DUPLICATE",
+        "Only one @icon annotation is allowed on an element",
+      ));
+    }
+    const icon = icons[0];
+    if (icon === undefined) continue;
+    const resolution = resolveExplicitIcon(icon.value ?? "");
+    if (resolution.status !== "unknown") continue;
+    const suffix = resolution.suggestions.length === 0
+      ? ""
+      : `; did you mean ${resolution.suggestions.map((id) => `'${id}'`).join(", ")}?`;
+    diagnostics.push(annotationDiagnostic(
+      icon,
+      element.sourceName,
+      element,
+      "ICON_NOT_FOUND",
+      `Unknown icon '${icon.value ?? ""}'${suffix}`,
+    ));
+  }
+
+  const reportedEdges = new Set<string>();
+  for (const edge of edges) {
+    for (const annotation of edge.annotations?.filter(({ name }) => name === "icon") ?? []) {
+      const source = annotation.source ?? edge.declaration;
+      const key = `${source?.sourceName ?? edge.sourceIdentity}:${source?.line ?? 0}:${source?.column ?? 0}`;
+      if (reportedEdges.has(key)) continue;
+      reportedEdges.add(key);
+      diagnostics.push(annotationDiagnostic(
+        annotation,
+        edge.sourceIdentity,
+        edge.declaration,
+        "ICON_TARGET_NOT_SUPPORTED",
+        "@icon can only be applied to elements, not relationships",
+      ));
+    }
+  }
+}
+
+function annotationDiagnostic(
+  annotation: LinkedAnnotation,
+  fallbackSourceName: string,
+  fallbackPosition: { readonly line: number; readonly column: number; readonly endLine?: number; readonly endColumn?: number } | SourceLocation | undefined,
+  code: string,
+  message: string,
+): LanguageDiagnostic {
+  const source = annotation.source;
+  const endLine = source?.endLine ?? fallbackPosition?.endLine;
+  const endColumn = source?.endColumn ?? fallbackPosition?.endColumn;
+  return {
+    code,
+    message,
+    sourceName: source?.sourceName ?? fallbackSourceName,
+    line: source?.line ?? fallbackPosition?.line ?? 1,
+    column: source?.column ?? fallbackPosition?.column ?? 0,
+    ...(endLine === undefined ? {} : { endLine }),
+    ...(endColumn === undefined ? {} : { endColumn }),
   };
 }
 

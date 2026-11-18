@@ -109,6 +109,7 @@ annotationName
     : ATTRIBUTE_ANNOTATION
     | PLANNED_ANNOTATION
     | DEPRECATED_ANNOTATION
+    | ICON_ANNOTATION
     ;
 
 annotationParameters

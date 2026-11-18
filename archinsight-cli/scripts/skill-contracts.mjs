@@ -285,6 +285,9 @@ function verifySharedFiles(output) {
   assert.equal(syntax.includes("Use built-in constructors for C4-style architecture"), false);
   assert(syntax.includes("Use built-in constructors for the C1-C3 parts of a C4 architecture"));
   assert(syntax.includes("constructorless `CodeElement` base"));
+  assert(syntax.includes("`@icon(<catalog-id>)`"));
+  assert(syntax.includes("`@icon(none)`"));
+  assert(syntax.includes("Relationships do not support `@icon`"));
 
   const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
   assert.match(queries, /Labels are case-sensitive[\s\S]*`CodeElement`/);

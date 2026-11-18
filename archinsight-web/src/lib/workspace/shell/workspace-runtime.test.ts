@@ -80,6 +80,31 @@ describe('workspace runtime composition', () => {
     expect(workspaceCoreSources.source('missing.ai').length).toBeGreaterThan(0);
   });
 
+  it('keeps rendered quick-action metadata while replacement analysis is pending', () => {
+    let state = initialWorkspaceRuntimeState();
+    const renderedQuickActionMetadata = {
+      'shop/api': {
+        elementId: 'shop/api',
+        canonicalElementId: 'shop/api',
+        title: 'API',
+        hasChildren: false,
+        hasDeployment: false,
+        isolateEligible: true,
+        pathEligible: true
+      }
+    };
+    state = { ...state, linkedAnalysis: undefined, renderedQuickActionMetadata };
+    const runtime = createWorkspaceRuntime({
+      surface: () => 'editor',
+      state: () => state,
+      patchState: (patch) => { state = { ...state, ...patch }; },
+      editorHost: () => document.createElement('div')
+    });
+
+    expect(createWorkspaceShellView('editor', state, runtime).quickActionMetadata)
+      .toBe(renderedQuickActionMetadata);
+  });
+
   it('synchronizes diagnostics, symbols, completion snapshots, and token vocabulary', () => {
     let state = initialWorkspaceRuntimeState();
     const replaceDiagnostics = vi.fn();

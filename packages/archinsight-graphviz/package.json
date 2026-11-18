@@ -12,5 +12,8 @@
   },
   "scripts": {
     "test": "node --experimental-test-coverage --test-coverage-include='src/**/*.js' --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@archinsight/icons": "file:../archinsight-icons"
   }
 }

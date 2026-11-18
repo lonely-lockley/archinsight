@@ -39,6 +39,7 @@ export interface CompletionItem {
   readonly typeName?: string;
   readonly imported?: boolean;
   readonly documentation?: CompletionDocumentation;
+  readonly iconId?: string;
 }
 
 export interface CompletionResult {
@@ -47,6 +48,7 @@ export interface CompletionResult {
   readonly ruleStack: readonly string[];
   readonly replacementStartOffset: number;
   readonly replacementEndOffset: number;
+  readonly isIncomplete?: boolean;
 }
 
 export interface TokenInfo {

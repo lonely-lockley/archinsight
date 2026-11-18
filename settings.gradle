@@ -15,6 +15,7 @@ dependencyResolutionManagement {
 rootProject.name = 'insight'
 
 gradle.ext.archinsightVersions = [
+    icons    : '3.1.4',
     contracts: '3.1.4',
     editorSupport: '3.1.4',
     git      : '3.1.4',

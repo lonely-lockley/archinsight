@@ -138,11 +138,16 @@ context demo
 
 @deprecated(replace after migration)
 Element api
+
+@icon(postgresql)
+Element database
 `.trimStart();
   const tokens = tokensByText(source);
 
   assertToken(tokens, "@deprecated", "annotation");
   assertToken(tokens, "replace after migration", "string");
+  assertToken(tokens, "@icon", "annotation");
+  assertToken(tokens, "postgresql", "string");
 }
 
 function operatorSnapshot() {

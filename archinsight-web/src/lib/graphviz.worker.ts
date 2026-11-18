@@ -1,5 +1,5 @@
 import { instance, type Viz } from '@viz-js/viz';
-import { normalizeGraphvizSvgResult } from '@archinsight/graphviz';
+import { inlineGraphvizIcons, normalizeGraphvizSvgResult } from '@archinsight/graphviz';
 import type { DotRender, SvgRender } from './api';
 
 type RenderRequest = {
@@ -39,7 +39,7 @@ async function render(request: RenderRequest): Promise<void> {
       svgs.push({
         sourceIdentity: item.sourceIdentity,
         diagram: item.diagram,
-        svg: result.svg
+        svg: await inlineGraphvizIcons(result.svg, item.icons)
       });
     }
     post({ requestId: request.requestId, svgs, warnings });

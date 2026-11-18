@@ -363,7 +363,7 @@ narrowEndpoint caller
     routes:
         `;
 for (const [line, expected] of [
-  ["__CURSOR__", ["->", "@deprecated", "@planned", "delivers", "~>"]],
+  ["__CURSOR__", ["->", "@deprecated", "@icon", "@planned", "delivers", "~>"]],
   ["delivers __CURSOR__", ["caller", "receiver"]],
   ["delivers __CURSOR__receiver", ["caller", "receiver"]],
   ["delivers rec__CURSOR__eiver", ["receiver"]],

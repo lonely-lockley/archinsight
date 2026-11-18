@@ -24,11 +24,16 @@
     "./versioned-diagram-diff": "./src/versioned-diagram-diff.ts",
     "./versioned-diagram-diff-service": "./src/versioned-diagram-diff-service.ts",
     "./diagram-diff-picker": "./src/DiagramDiffRevisionPicker.svelte",
+    "./technology-icon-picker": "./src/technology-icon-picker.ts",
+    "./technology-icon-picker-component": "./src/TechnologyIconPicker.svelte",
+    "./technology-icon-picker-model": "./src/technology-icon-picker-model.ts",
+    "./technology-icon-preview": "./src/technology-icon-preview.ts",
     "./find-path-actions": "./src/FindPathActions.svelte",
     "./table-result-panel": "./src/TableResultPanel.svelte",
     "./types": "./src/workspace-types.ts"
   },
   "dependencies": {
+    "@archinsight/icons": "file:../archinsight-icons",
     "@archinsight/contracts": "file:../archinsight-contracts",
     "@archinsight/editor-support": "file:../archinsight-editor-support",
     "@insight/language": "file:../insight-language"

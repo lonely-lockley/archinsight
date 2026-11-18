@@ -1,10 +1,12 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 const sharedRuntimeDependencies = [
   'svelte',
   'monaco-editor',
   '@insight/language',
+  '@archinsight/icons',
   '@archinsight/contracts',
   '@archinsight/editor-support'
 ];
@@ -14,7 +16,10 @@ export default defineConfig({
   plugins: [svelte()],
   resolve: {
     preserveSymlinks: false,
-    dedupe: sharedRuntimeDependencies
+    dedupe: sharedRuntimeDependencies,
+    alias: {
+      '@archinsight/icons': fileURLToPath(new URL('../packages/archinsight-icons/src/index.js', import.meta.url))
+    }
   },
   optimizeDeps: {
     exclude: ['@insight/language']

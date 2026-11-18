@@ -54,6 +54,7 @@ import {
   createDiagramQuickActionController,
   type DiagramQuickActionController
 } from '$lib/workspace/quick-actions/diagram-quick-action-controller';
+import { diagramQuickActionMetadata } from '@insight/language';
 
 export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRuntime {
   const { api, storage, diagram } = workspaceRuntimeDependencies;
@@ -287,6 +288,10 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
     clearDots: (sourceIdentities) => tabController.clearDots(sourceIdentities),
     acceptDiagram: (sourceIdentity, svg, dot, renderTheme) => {
       quickActionController.invalidateRender(sourceIdentity);
+      const analysis = state().linkedAnalysis;
+      if (analysis !== undefined) {
+        patch({ renderedQuickActionMetadata: diagramQuickActionMetadata(analysis) });
+      }
       tabController.patchBySourceIdentity(sourceIdentity, { svg, dot, renderTheme });
     },
     acceptQueryResult: (sourceIdentity, queryResult) => {
@@ -335,6 +340,7 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
       monacoSession.reset();
       tabController.reset();
       analysisController.reset();
+      patch({ renderedQuickActionMetadata: {} });
       diagramController.reset();
       quickActionController.reset('project-change');
       messageController.reset();

@@ -22,6 +22,7 @@
     "check": "npm run typecheck && npm run verify"
   },
   "dependencies": {
+    "@archinsight/icons": "file:../archinsight-icons",
     "antlr4ng": "^3.0.16"
   },
   "devDependencies": {

@@ -94,6 +94,10 @@ DEPRECATED_ANNOTATION
     : '@deprecated'
     ;
 
+ICON_ANNOTATION
+    : '@icon'
+    ;
+
 LIST_TYPE
     : 'List'
     ;

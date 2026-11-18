@@ -56,6 +56,7 @@ describe('WorkspaceEditor composition', () => {
   });
 
   it('shows cancellable query loading over the result pane', async () => {
+    vi.useFakeTimers();
     const target = document.createElement('div');
     document.body.append(target);
     const onCancelResult = vi.fn();
@@ -78,12 +79,19 @@ describe('WorkspaceEditor composition', () => {
         onBeginMessagesResize: vi.fn()
       }
     });
+    await tick();
+    expect(target.querySelector('[role="status"]')).toBeNull();
+    await vi.advanceTimersByTimeAsync(499);
+    expect(target.querySelector('[role="status"]')).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    await tick();
     const status = target.querySelector<HTMLElement>('[role="status"]');
     expect(status?.textContent).toContain('Running query');
     status?.querySelector<HTMLButtonElement>('button')?.click();
     expect(onCancelResult).toHaveBeenCalledOnce();
     await unmount(component);
     target.remove();
+    vi.useRealTimers();
   });
 
   it('keeps Find path visible and cancellable over a table result', async () => {

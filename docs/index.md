@@ -7,6 +7,7 @@ Archinsight is a toolkit for describing software architecture as code. Models wr
 - [The Insight Language](language.md) introduces names, types, constructors, text values, attributes, enumerations, operators, extensions, and presentations.
 - [Comments and Notes](comments-and-notes.md) explains standalone source comments and notes attached to linked declarations.
 - [Annotations](annotations.md) covers planned and deprecated architecture, their rendering, and the legacy Graphviz override annotation.
+- [Technology icons](technology-icons.md) covers automatic `technology` matching, `@icon(...)`, editor selection, and export.
 - [Built-in Archinsight Types](built-in-types.md) explains the graph foundations, the system, container, and component hierarchy, deployment types, and built-in relationships.
 - [Structuring an Insight Project](project-structure.md) covers source roles, context boundaries, imports, visibility, aliases, and object extensions.
 - [Building and Linking an Insight Project](project-processing.md) follows sources through parsing, linking, diagnostics, introspection, graph selection, DOT generation, and image rendering.
