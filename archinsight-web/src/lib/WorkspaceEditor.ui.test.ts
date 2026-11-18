@@ -55,8 +55,7 @@ describe('WorkspaceEditor composition', () => {
     target.remove();
   });
 
-  it('shows cancellable query loading over the result pane', async () => {
-    vi.useFakeTimers();
+  it('shows cancellable rendering progress in the toolbar without covering the result pane', async () => {
     const target = document.createElement('div');
     document.body.append(target);
     const onCancelResult = vi.fn();
@@ -64,10 +63,10 @@ describe('WorkspaceEditor composition', () => {
       target,
       props: {
         active: true,
-        svg: undefined,
+        svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
         resultLoading: true,
         diagramMode: 'default',
-        query: 'MATCH (n:Element) RETURN TABLE elementId(n) AS id',
+        query: '',
         editorHost: document.createElement('div'),
         messagesPanel: document.createElement('div'),
         onCancelResult,
@@ -80,18 +79,16 @@ describe('WorkspaceEditor composition', () => {
       }
     });
     await tick();
-    expect(target.querySelector('[role="status"]')).toBeNull();
-    await vi.advanceTimersByTimeAsync(499);
-    expect(target.querySelector('[role="status"]')).toBeNull();
-    await vi.advanceTimersByTimeAsync(1);
-    await tick();
-    const status = target.querySelector<HTMLElement>('[role="status"]');
-    expect(status?.textContent).toContain('Running query');
-    status?.querySelector<HTMLButtonElement>('button')?.click();
+
+    expect(target.querySelector('.result-loading')).toBeNull();
+    const cancel = target.querySelector<HTMLButtonElement>('button[aria-label="Cancel rendering"]');
+    expect(cancel).not.toBeNull();
+    expect(target.querySelector('.result-rendering-indicator')).not.toBeNull();
+    cancel?.click();
     expect(onCancelResult).toHaveBeenCalledOnce();
+
     await unmount(component);
     target.remove();
-    vi.useRealTimers();
   });
 
   it('keeps Find path visible and cancellable over a table result', async () => {

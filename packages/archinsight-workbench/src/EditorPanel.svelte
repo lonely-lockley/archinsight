@@ -14,8 +14,6 @@
   export let active = false;
   export let svg: string | undefined;
   export let queryResult: QueryTableResult | undefined = undefined;
-  export let resultLoading = false;
-  export let onCancelResult: () => void = () => {};
   export let viewMode: EditorViewMode = 'split';
   export let diagramScale = 1;
   export let diagramFit = false;
@@ -53,36 +51,13 @@
 
   let splitHost: HTMLElement;
   let splitResizePointerId: number | undefined;
-  let resultLoadingTimer: ReturnType<typeof setTimeout> | undefined;
-  let showResultLoading = false;
 
   $: splitStyle = `--editor-split-width: ${editorSplitRatio}%; --diagram-split-width: ${100 - editorSplitRatio}%;`;
-  $: updateResultLoadingVisibility(resultLoading);
 
   onDestroy(() => {
     window.removeEventListener('pointermove', resizeEditorSplit);
     window.removeEventListener('pointerup', stopEditorSplitResize);
-    clearResultLoadingTimer();
   });
-
-  function updateResultLoadingVisibility(loading: boolean): void {
-    if (!loading) {
-      clearResultLoadingTimer();
-      showResultLoading = false;
-      return;
-    }
-    if (showResultLoading || resultLoadingTimer !== undefined) return;
-    resultLoadingTimer = setTimeout(() => {
-      resultLoadingTimer = undefined;
-      if (resultLoading) showResultLoading = true;
-    }, 500);
-  }
-
-  function clearResultLoadingTimer(): void {
-    if (resultLoadingTimer === undefined) return;
-    clearTimeout(resultLoadingTimer);
-    resultLoadingTimer = undefined;
-  }
 
   function beginEditorSplitResize(event: PointerEvent): void {
     if (viewMode !== 'split') {
@@ -168,12 +143,6 @@
         {svg}
       />
     {/if}
-    {#if showResultLoading}
-      <div class="result-loading" role="status" aria-live="polite">
-        <span>Running query…</span>
-        <button type="button" on:click={onCancelResult}>Cancel</button>
-      </div>
-    {/if}
     {#if !active}
       <div class="empty-panel">
         <div class:single={emptyStrategy?.actions.length === 1} class="empty-actions">
@@ -216,24 +185,6 @@
     min-height: 0;
     overflow: hidden;
   }
-
-  .result-loading {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: calc(var(--editor-split-width) + 6px);
-    z-index: 4;
-    display: grid;
-    place-content: center;
-    gap: 10px;
-    justify-items: center;
-    background: color-mix(in srgb, var(--archinsight-panel-bg, #252525) 88%, transparent);
-  }
-
-  .split.diagram-only .result-loading { left: 0; }
-  .split.code-only .result-loading { display: none; }
-  .result-loading button { color: inherit; background: var(--archinsight-control-bg, #333); border: 1px solid var(--archinsight-border-strong, #555); border-radius: 3px; padding: 4px 10px; }
 
   .split.empty {
     grid-template-columns: minmax(0, 1fr) 0 0;

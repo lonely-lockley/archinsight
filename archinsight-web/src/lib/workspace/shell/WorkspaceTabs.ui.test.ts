@@ -89,4 +89,38 @@ describe('WorkspaceTabs', () => {
     await unmount(component);
     target.remove();
   });
+
+  it('keeps rendering progress out of the tab while preserving close access', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onClose = vi.fn();
+    const component = mount(WorkspaceTabs, {
+      target,
+      props: {
+        tabs: [tab(), tab({ id: 'other.ai', sourceIdentity: 'other.ai', title: 'other.ai' })],
+        activeTabId: 'main.ai',
+        errorSourceIdentities: new Set<string>(),
+        rightPadding: 0,
+        loading: true,
+        onActivate: vi.fn(),
+        onClose
+      }
+    });
+
+    const items = [...target.querySelectorAll<HTMLElement>('.tab')];
+    expect(items[0]?.getAttribute('aria-busy')).toBe('true');
+    expect(items[0]?.querySelector('.rendering-indicator')).toBeNull();
+    expect(items[0]?.querySelector('.rendering-placeholder')).toBeNull();
+    expect(items[0]?.querySelector('button[aria-label="Close main.ai"]')).not.toBeNull();
+    expect(items[1]?.getAttribute('aria-busy')).toBe('false');
+    expect(items[1]?.querySelector('.rendering-indicator')).toBeNull();
+    expect(items[1]?.querySelector('.rendering-placeholder')).toBeNull();
+    expect(target.querySelector('.result-loading')).toBeNull();
+
+    target.querySelector<HTMLButtonElement>('button[aria-label="Close main.ai"]')?.click();
+    expect(onClose).toHaveBeenCalledWith('main.ai');
+
+    await unmount(component);
+    target.remove();
+  });
 });

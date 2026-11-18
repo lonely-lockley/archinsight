@@ -5,6 +5,7 @@
   export let activeTabId: string | undefined;
   export let errorSourceIdentities: ReadonlySet<string>;
   export let rightPadding: number;
+  export let loading = false;
   export let onActivate: (tabId: string) => void;
   export let onClose: (tabId: string) => void;
 
@@ -19,6 +20,7 @@
       class:active={tab.id === activeTabId}
       class:error-tab={errorSourceIdentities.has(tab.sourceIdentity)}
       class="tab"
+      aria-busy={tab.id === activeTabId && loading}
     >
       <button class="tab-main" type="button" on:click={() => onActivate(tab.id)}>
         <span class="tab-title"><span class="tab-title-text">{tabTitle(tab)}</span></span>
