@@ -110,6 +110,7 @@
       activeTabId={view.state.activeTabId}
       errorSourceIdentities={view.errorSourceIdentities}
       rightPadding={tabsRightPadding}
+      loading={view.state.analysisLoading}
       onActivate={(tabId) => void controllers.file.activateTab(tabId)}
       onClose={controllers.file.closeTab}
     />
@@ -123,7 +124,6 @@
       deploymentMode={view.state.deploymentMode}
       activeTabOwnsQuickActionMode={controllers.quickActions.activeTabOwnsQuickActionMode(view.state.activeTabId)}
       queryResult={view.activeTab?.queryResult}
-      resultLoading={view.state.analysisLoading}
       diagramMode={view.activeTab?.diagramMode ?? defaultDiagramMode}
       query={isQueryFile(view.activeTab?.sourceIdentity ?? '') ? view.activeTab?.content ?? '' : view.activeTab?.query ?? defaultQuery}
       queryParameters={view.activeTab?.queryParameters}
@@ -186,7 +186,6 @@
       onCloseQuickActions={controllers.quickActions.closeQuickActions}
       onReverseFindPath={() => void controllers.quickActions.reverseFindPath()}
       onBeginMessagesResize={controllers.layout.beginMessagesResize}
-      onCancelResult={controllers.analysis.cancelCurrent}
     >
       <WorkspaceToolbar
         slot="leading-actions"

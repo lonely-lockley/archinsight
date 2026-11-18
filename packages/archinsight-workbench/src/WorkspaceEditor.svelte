@@ -74,7 +74,7 @@
   export let onOpenDeclaration: (declaration: SourceLocation) => void;
   export let onBeginMessagesResize: (event: PointerEvent) => void;
   export let onEmptyAction: (action: EmptyWorkspaceAction) => void = () => {};
-  export let onCancelResult: () => void = () => {};
+  export let onCancelResult: (() => void) | undefined = undefined;
   export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
   export let onSelectPathTarget: (elementId: string) => void = () => {};
   export let onCancelFindPath: () => void = () => {};
@@ -120,6 +120,21 @@
     >
       <svelte:fragment slot="leading-actions">
         <slot name="leading-actions"></slot>
+        {#if onCancelResult !== undefined}
+          {#if resultLoading}
+            <button
+              aria-label="Cancel rendering"
+              class="result-rendering"
+              title="Cancel rendering"
+              type="button"
+              on:click={onCancelResult}
+            >
+              <span aria-hidden="true" class="result-rendering-indicator"></span>
+            </button>
+          {:else}
+            <span aria-hidden="true" class="result-rendering-placeholder"></span>
+          {/if}
+        {/if}
       </svelte:fragment>
       <FindPathActions
         slot="mode-actions"
@@ -158,7 +173,6 @@
       {active}
       {svg}
       {queryResult}
-      {resultLoading}
       {viewMode}
       {diagramScale}
       {diagramFit}
@@ -171,7 +185,6 @@
       bind:messagesPanel
       {emptyStrategy}
       {onEmptyAction}
-      {onCancelResult}
       {onEditorSplitRatioChange}
       {onDiagramVisibleScaleChange}
       {onOpenDeclaration}
@@ -224,5 +237,45 @@
 
   .editor-slot.no-toolbar {
     min-height: 0;
+  }
+
+  .result-rendering,
+  .result-rendering-placeholder {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+  }
+
+  .result-rendering {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: var(--archinsight-control-bg, #2a2a2a);
+    color: var(--color-primary, var(--vscode-progressBar-background, #0e70c0));
+  }
+
+  .result-rendering:hover,
+  .result-rendering:focus-visible {
+    background: var(--archinsight-control-hover-bg, #343434);
+    outline: none;
+  }
+
+  .result-rendering-indicator {
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: result-rendering-spin 700ms linear infinite;
+  }
+
+  @keyframes result-rendering-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .result-rendering-indicator { animation: none; }
   }
 </style>
