@@ -236,7 +236,9 @@ export class ProjectAnalysisCache {
       observeAnalysis(env, 'language.link', {
         mode: 'incremental',
         changedSources: update.changedSources.size,
+        supportSources: update.supportSourceCount,
         relinkedSources: update.relinkedSourceCount,
+        reparsedSources: update.reparsedSourceCount,
         durationMs: elapsed(started)
       });
       return {
@@ -307,7 +309,9 @@ export class ProjectAnalysisCache {
       observeAnalysis(env, 'language.link', {
         mode: 'overlay-incremental',
         changedSources: update.changedSources.size,
+        supportSources: update.supportSourceCount,
         relinkedSources: update.relinkedSourceCount,
+        reparsedSources: update.reparsedSourceCount,
         durationMs: elapsed(started)
       });
       return {
