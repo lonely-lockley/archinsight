@@ -89,6 +89,7 @@ const annotationTokens = new Set([
   "ATTRIBUTE_ANNOTATION",
   "PLANNED_ANNOTATION",
   "DEPRECATED_ANNOTATION",
+  "ICON_ANNOTATION",
 ]);
 const projectionEndpointTokens = new Set(["PROJECTION_FROM", "PROJECTION_TO", "PROJECTION_THIS"]);
 const projectionDereferenceTokens = new Set(["PROJECTION_SLOT", "PROJECTION_OWNER"]);

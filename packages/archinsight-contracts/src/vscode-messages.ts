@@ -34,6 +34,7 @@ export type WebviewCompletionItem = {
   typeName?: string;
   imported?: boolean;
   documentation?: CompletionDocumentation;
+  iconId?: string;
 };
 
 export type WebviewQueryScopeChoice = {
@@ -153,7 +154,7 @@ export type WorkbenchHostToWebviewMessage =
   | { command: 'preview'; state: WebviewPreviewState }
   | { command: 'diagnostics'; diagnostics: WebviewDiagnostic[] }
   | { command: 'queryScope'; state: WebviewQueryScopeState; versioningAvailable?: boolean }
-  | { command: 'completionResult'; requestId: number; items: WebviewCompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number }
+  | { command: 'completionResult'; requestId: number; items: WebviewCompletionItem[]; replacementStartOffset?: number; replacementEndOffset?: number; isIncomplete?: boolean }
   | { command: 'clipboardText'; requestId: number; text: string }
   | { command: 'exportPng'; svg: string }
   | { command: 'findPathMode'; state: WebviewFindPathMode }
@@ -280,7 +281,8 @@ export function parseWorkbenchHostToWebviewMessage(value: unknown): WorkbenchHos
     case 'completionResult': return {
       command: 'completionResult', requestId: number(input.requestId, 'requestId'), items: completionItems(input.items),
       ...(input.replacementStartOffset === undefined ? {} : { replacementStartOffset: number(input.replacementStartOffset, 'replacementStartOffset') }),
-      ...(input.replacementEndOffset === undefined ? {} : { replacementEndOffset: number(input.replacementEndOffset, 'replacementEndOffset') })
+      ...(input.replacementEndOffset === undefined ? {} : { replacementEndOffset: number(input.replacementEndOffset, 'replacementEndOffset') }),
+      ...(input.isIncomplete === undefined ? {} : { isIncomplete: boolean(input.isIncomplete, 'isIncomplete') })
     };
     case 'clipboardText': return { command: 'clipboardText', requestId: number(input.requestId, 'requestId'), text: string(input.text, 'text') };
     case 'exportPng': return { command: 'exportPng', svg: string(input.svg, 'svg') };
@@ -524,6 +526,7 @@ function completionItems(value: unknown): WebviewCompletionItem[] {
       ...(input.typeName === undefined ? {} : { typeName: string(input.typeName, `${itemLabel}.typeName`) }),
       ...(input.insertText === undefined ? {} : { insertText: string(input.insertText, `${itemLabel}.insertText`) }),
       ...(input.imported === undefined ? {} : { imported: boolean(input.imported, `${itemLabel}.imported`) }),
+      ...(input.iconId === undefined ? {} : { iconId: string(input.iconId, `${itemLabel}.iconId`) }),
       ...(input.documentation === undefined
         ? {}
         : { documentation: completionDocumentation(input.documentation, `${itemLabel}.documentation`) })

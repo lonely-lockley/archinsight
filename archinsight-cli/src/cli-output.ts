@@ -1,7 +1,7 @@
 import archy from "archy";
 import { instance } from "@viz-js/viz";
 import { Resvg } from "@resvg/resvg-js";
-import { normalizeGraphvizSvgResult } from "@archinsight/graphviz";
+import { inlineGraphvizIcons, normalizeGraphvizSvgResult } from "@archinsight/graphviz";
 import {
   buildProjectStructure,
   buildTypeHierarchy,
@@ -13,6 +13,7 @@ import {
   type LinkProjectResult,
   type ProjectStructureDeclaration,
   type RenderGraph,
+  type GraphvizIconPlacement,
   type TypeHierarchyNode,
 } from "@insight/language";
 import { CliError } from "./cli-error.js";
@@ -20,13 +21,13 @@ import { writeArtifact } from "./artifact-writer.js";
 
 const hiddenStructureTypes = new Set(["List", "Nothing", "Text"]);
 
-export async function renderSvg(dot: string): Promise<string> {
+export async function renderSvg(dot: string, icons: readonly GraphvizIconPlacement[] = []): Promise<string> {
   const viz = await instance();
   const result = normalizeGraphvizSvgResult(viz.render(dot, { format: "svg", engine: "dot" }));
   if (result.status === "failure") {
     throw new CliError(result.error);
   }
-  return result.svg;
+  return inlineGraphvizIcons(result.svg, icons);
 }
 
 export function renderPng(svg: string): Uint8Array {

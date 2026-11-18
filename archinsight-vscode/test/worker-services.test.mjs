@@ -35,11 +35,18 @@ test('project analysis worker links immutable revisions without mutating the liv
 });
 
 test('diagram worker renders Graphviz outside the extension host', async () => {
-  const worker = new Worker(path.join(extensionRoot, 'dist', 'diagram-viz-worker.cjs'));
+  const worker = new Worker(path.join(extensionRoot, 'dist', 'diagram-viz-worker.mjs'));
   try {
-    const response = await request(worker, { id: 1, kind: 'dot', dot: 'digraph { a -> b }' });
+    const response = await request(worker, {
+      id: 1,
+      kind: 'dot',
+      dot: 'digraph { a [shape=plain,label=<<table border="0"><tr><td href="#slot-one" tooltip=" " bgcolor="transparent" width="40" height="40" fixedsize="true"> </td><td>App</td></tr></table>>] }',
+      icons: [{ slotId: 'slot-one', iconId: 'postgresql', color: '#f4f4f4' }],
+    });
     assert.equal(response.error, undefined);
     assert.match(response.value.svg, /<svg\b/);
+    assert.match(response.value.svg, /class="technology-icon"/);
+    assert.doesNotMatch(response.value.svg, /href="#slot-one"/);
   } finally {
     await worker.terminate();
   }

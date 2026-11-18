@@ -1,12 +1,13 @@
 import { parentPort } from 'node:worker_threads';
 import { instance } from '@viz-js/viz';
-import { normalizeGraphvizSvgResult } from '@archinsight/graphviz';
+import { inlineGraphvizIcons, normalizeGraphvizSvgResult } from '@archinsight/graphviz';
 import { makeGraphvizBackgroundsTransparent } from './diagram-svg.js';
 import {
   IndexedGraph,
   executeQuery,
-  renderDiagramDiffGraphviz,
-  renderGraphviz,
+  renderDiagramDiffGraphvizArtifact,
+  renderGraphvizArtifact,
+  type GraphvizArtifact,
   type LinkProjectResult,
 } from '@insight/language';
 
@@ -22,22 +23,22 @@ parentPort.on('message', async (message: any) => {
       const result = executeQuery(linked, message.scope, message.query, message.parameters);
       if (message.kind === 'select-query' || result.kind === 'table') value = { result };
       else {
-        const dot = renderGraphviz(linked, result.graph, message.theme);
-        value = { result, dot, svg: await renderSvg(dot) };
+        const artifact = renderGraphvizArtifact(linked, result.graph, message.theme);
+        value = { result, dot: artifact.dot, svg: await renderSvg(artifact) };
       }
     } else if (message.kind === 'graph') {
-      const dot = renderGraphviz(linkedResult(message.result), message.graph, message.theme);
-      value = { dot, svg: await renderSvg(dot) };
+      const artifact = renderGraphvizArtifact(linkedResult(message.result), message.graph, message.theme);
+      value = { dot: artifact.dot, svg: await renderSvg(artifact) };
     } else if (message.kind === 'diff') {
-      const dot = renderDiagramDiffGraphviz(
+      const artifact = renderDiagramDiffGraphvizArtifact(
         linkedResult(message.before),
         linkedResult(message.after),
         message.diff,
         message.theme,
       );
-      value = { dot, svg: await renderSvg(dot) };
+      value = { dot: artifact.dot, svg: await renderSvg(artifact) };
     } else {
-      value = { svg: await renderSvg(message.dot) };
+      value = { svg: await renderSvg({ dot: message.dot, icons: message.icons ?? [] }) };
     }
     parentPort!.postMessage({ id: message.id, value });
   } catch (cause) {
@@ -48,11 +49,11 @@ parentPort.on('message', async (message: any) => {
   }
 });
 
-async function renderSvg(dot: string): Promise<string> {
+async function renderSvg(artifact: GraphvizArtifact): Promise<string> {
   const renderer = await viz;
-  const result = normalizeGraphvizSvgResult(renderer.render(dot, { format: 'svg', engine: 'dot' }));
+  const result = normalizeGraphvizSvgResult(renderer.render(artifact.dot, { format: 'svg', engine: 'dot' }));
   if (result.status === 'failure') throw new Error(result.error);
-  return makeGraphvizBackgroundsTransparent(result.svg);
+  return makeGraphvizBackgroundsTransparent(await inlineGraphvizIcons(result.svg, artifact.icons));
 }
 
 function linkedResult(value: Omit<LinkProjectResult, 'graph'> & { readonly graphSnapshot: any }): LinkProjectResult {

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as fs from "node:fs";
 import { execFile } from "node:child_process";
 import path from "node:path";
+import { searchTechnologyIcons } from "@archinsight/icons";
 import {
   completionDetail,
   completionDisplayLabel,
@@ -67,6 +68,10 @@ import {
   type IsolateMode,
   type TransientDiagramResultKind,
 } from "@archinsight/workbench/diagram-quick-actions";
+import { technologyIconEdit, technologyIconQuery } from "@archinsight/workbench/technology-icon-picker-model";
+import {
+  technologyIconDataUri as technologyIconDataUriString,
+} from "@archinsight/workbench/technology-icon-preview";
 import {
   DiagramQuickActionService,
   type PreparedFindPath,
@@ -292,6 +297,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("archinsight.generateAgentSkill", async () => {
       await generateAgentSkillCommand();
     }),
+    vscode.commands.registerCommand("archinsight.selectTechnologyIcon", async () => {
+      await selectTechnologyIcon();
+    }),
     vscode.commands.registerCommand("archinsight.structure.filter", async () => {
       const value = await vscode.window.showInputBox({
         title: "Filter Project Structure",
@@ -394,6 +402,104 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }));
   void project.refresh("activation");
+}
+
+type TechnologyIconQuickPickItem = vscode.QuickPickItem & { readonly iconId: string };
+
+async function selectTechnologyIcon(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (editor === undefined || !isInsightDocument(editor.document)) {
+    void vscode.window.showInformationMessage("Open an Insight model before selecting a technology icon.");
+    return;
+  }
+  const initialOffset = editor.document.offsetAt(editor.selection.active);
+  const picker = vscode.window.createQuickPick<TechnologyIconQuickPickItem>();
+  picker.title = "Select technology icon";
+  picker.placeholder = "Filter Devicon catalog";
+  picker.matchOnDescription = true;
+  picker.value = technologyIconQuery(editor.document.getText(), initialOffset);
+  let generation = 0;
+  let accepted: string | undefined;
+
+  const refresh = async (query: string): Promise<void> => {
+    const current = ++generation;
+    picker.busy = true;
+    const entries = searchTechnologyIcons(query, 50);
+    const items = await Promise.all(entries.map(async (entry): Promise<TechnologyIconQuickPickItem> => {
+      const svg = await loadPackagedTechnologyIconSvg(entry.id);
+      return {
+        label: entry.label,
+        description: entry.id,
+        iconId: entry.id,
+        ...(svg === undefined ? {} : {
+          iconPath: {
+            light: technologyIconDataUri(svg, "#202020"),
+            dark: technologyIconDataUri(svg, "#f4f4f4"),
+          },
+        }),
+      };
+    }));
+    if (current !== generation) return;
+    picker.items = [
+      ...(query.trim().length === 0 || "none".includes(query.trim().toLocaleLowerCase())
+        ? [{ label: "None", description: "Disable automatic icon", iconId: "none" }]
+        : []),
+      ...items,
+    ];
+    picker.busy = false;
+  };
+
+  const selected = await new Promise<string | undefined>((resolve) => {
+    const disposables = [
+      picker.onDidChangeValue((value) => void refresh(value)),
+      picker.onDidAccept(() => {
+        accepted = picker.selectedItems[0]?.iconId;
+        picker.hide();
+      }),
+      picker.onDidHide(() => {
+        disposables.forEach((disposable) => disposable.dispose());
+        picker.dispose();
+        resolve(accepted);
+      }),
+    ];
+    picker.show();
+    void refresh(picker.value);
+  });
+  if (selected === undefined) return;
+
+  const active = vscode.window.activeTextEditor;
+  if (active === undefined || active.document.uri.toString() !== editor.document.uri.toString()) return;
+  const offset = active.document.offsetAt(active.selection.active);
+  const edit = technologyIconEdit(active.document.getText(), offset, selected);
+  await active.edit((builder) => {
+    builder.replace(new vscode.Range(active.document.positionAt(edit.start), active.document.positionAt(edit.end)), edit.text);
+  });
+}
+
+function technologyIconDataUri(svg: string, color: string): vscode.Uri {
+  return vscode.Uri.parse(technologyIconDataUriString(svg, color));
+}
+
+const technologyIconAssets = new Map<string, Promise<string>>();
+
+async function loadPackagedTechnologyIconSvg(iconId: string): Promise<string | undefined> {
+  if (!/^[a-z0-9][a-z0-9.-]*$/.test(iconId)) return undefined;
+  let pending = technologyIconAssets.get(iconId);
+  if (pending === undefined) {
+    pending = fs.promises.readFile(path.join(__dirname, "icon-assets", `${iconId}.svg`), "utf8");
+    technologyIconAssets.set(iconId, pending);
+  }
+  return pending;
+}
+
+async function packagedTechnologyIconCompletionMarkdown(
+  iconId: string,
+  existingDocumentation?: string,
+): Promise<string | undefined> {
+  const svg = await loadPackagedTechnologyIconSvg(iconId);
+  if (svg === undefined) return existingDocumentation;
+  const preview = `![${iconId} icon](${technologyIconDataUriString(svg, "#6ea8fe")})`;
+  return existingDocumentation === undefined ? `${preview}\n\n\`${iconId}\`` : `${preview}\n\n${existingDocumentation}`;
 }
 
 async function runActiveAiqQuery(
@@ -677,10 +783,12 @@ class ProjectModel implements vscode.Disposable {
 }
 
 class InsightCompletionProvider implements vscode.CompletionItemProvider {
+  private readonly technologyIconIds = new WeakMap<vscode.CompletionItem, string>();
+
   constructor(private readonly project: ProjectModel) {
   }
 
-  provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
+  provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionList {
     const current = this.project.current;
     const sourceName = current === undefined ? document.fileName : sourceNameForUri(current.root, document.uri);
     const result = service.complete({
@@ -693,7 +801,7 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
       contextIds: current === undefined ? [] : [...new Set(current.result.contexts.map((context) => context.id))],
       rootTypes: new Map(current?.result.contexts.map((root) => [root.id, root.type]) ?? []),
     });
-    return result.items.map((item) => {
+    const items = result.items.map((item) => {
       const completion = new vscode.CompletionItem(completionDisplayLabel(item), completionKind(item));
       completion.insertText = item.insertText;
       completion.keepWhitespace = true;
@@ -703,12 +811,23 @@ class InsightCompletionProvider implements vscode.CompletionItemProvider {
       );
       completion.detail = completionDetail(item);
       completion.sortText = completionSortText(item);
+      if (item.iconId !== undefined) this.technologyIconIds.set(completion, item.iconId);
       const documentation = completionDocumentationMarkdown(item.documentation);
       if (documentation !== undefined) {
         completion.documentation = new vscode.MarkdownString(documentation, false);
       }
       return completion;
     });
+    return new vscode.CompletionList(items, result.isIncomplete ?? false);
+  }
+
+  async resolveCompletionItem(item: vscode.CompletionItem): Promise<vscode.CompletionItem> {
+    const iconId = this.technologyIconIds.get(item);
+    if (iconId === undefined) return item;
+    const existing = typeof item.documentation === "string" ? item.documentation : item.documentation?.value;
+    const markdown = await packagedTechnologyIconCompletionMarkdown(iconId, existing);
+    if (markdown !== undefined) item.documentation = new vscode.MarkdownString(markdown, false);
+    return item;
   }
 }
 
@@ -2195,6 +2314,7 @@ class ArchinsightWorkbenchEditorSession {
       requestId,
       replacementStartOffset: result.replacementStartOffset,
       replacementEndOffset: result.replacementEndOffset,
+      ...(result.isIncomplete === undefined ? {} : { isIncomplete: result.isIncomplete }),
       items: result.items.map((item) => ({
         label: item.label,
         insertText: item.insertText,
@@ -2202,6 +2322,7 @@ class ArchinsightWorkbenchEditorSession {
         typeName: item.typeName,
         imported: item.imported,
         documentation: item.documentation,
+        iconId: item.iconId,
       })),
     });
   }

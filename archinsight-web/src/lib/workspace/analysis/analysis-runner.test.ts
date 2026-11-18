@@ -124,6 +124,26 @@ describe('analysis runner', () => {
     expect(subject.ports.queryFinished).toHaveBeenCalledWith('main.ai', 5, undefined, []);
   });
 
+  it('keeps the loading state active until Graphviz rendering completes', async () => {
+    const subject = fixture();
+    let finishRender!: () => void;
+    vi.mocked(subject.ports.renderInBrowser).mockImplementationOnce(() => new Promise((resolve) => {
+      finishRender = () => resolve({
+        diagnostics: [],
+        svgs: [{ sourceIdentity: 'main.ai', diagram: 'query', svg: '<svg/>' }]
+      });
+    }));
+
+    const rendering = subject.runner.runLink(1);
+    await vi.waitFor(() => expect(subject.ports.renderInBrowser).toHaveBeenCalledOnce());
+    expect(subject.ports.setLoading).toHaveBeenCalledTimes(1);
+    expect(subject.ports.setLoading).toHaveBeenLastCalledWith(true);
+
+    finishRender();
+    await rendering;
+    expect(subject.ports.setLoading).toHaveBeenLastCalledWith(false);
+  });
+
   it('forwards a forced full-analysis request to the web API', async () => {
     const subject = fixture();
 

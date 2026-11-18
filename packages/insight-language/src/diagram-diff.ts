@@ -402,6 +402,16 @@ function elementOrigins(
   const result: DiagramDiffOrigin[] = [];
   const semanticPaths = paths.length === 0 ? [undefined] : paths;
   for (const semanticPath of semanticPaths) {
+    if (semanticPath === "annotations") {
+      const annotationSources = (element.annotations ?? []).flatMap((annotation, index) =>
+        annotation.source === undefined ? [] : [{ source: annotation.source, index }]);
+      if (annotationSources.length > 0) {
+        for (const { source, index } of annotationSources) {
+          result.push(origin(side, "element-declaration", source, `annotations.${index}`, "exact"));
+        }
+        continue;
+      }
+    }
     const exact = semanticPath === "note" ? element.noteSource
       : semanticPath?.startsWith("annotations.")
         ? element.annotations?.[Number.parseInt(semanticPath.split(".")[1] ?? "", 10)]?.source
@@ -435,6 +445,16 @@ function edgeOrigins(
   }
   const semanticPaths = paths.length === 0 ? [undefined] : paths;
   for (const semanticPath of semanticPaths) {
+    if (semanticPath === "annotations") {
+      const annotationSources = (edge.annotations ?? []).flatMap((annotation, index) =>
+        annotation.source === undefined ? [] : [{ source: annotation.source, index }]);
+      if (annotationSources.length > 0) {
+        for (const { source, index } of annotationSources) {
+          result.push(origin(side, "relationship-declaration", source, `annotations.${index}`, "exact"));
+        }
+        continue;
+      }
+    }
     const exact = semanticPath === "note" ? edge.noteSource
       : semanticPath?.startsWith("annotations.")
         ? edge.annotations?.[Number.parseInt(semanticPath.split(".")[1] ?? "", 10)]?.source

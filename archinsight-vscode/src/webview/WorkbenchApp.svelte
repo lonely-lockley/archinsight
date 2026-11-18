@@ -31,6 +31,9 @@
     type InsightTokenVocabulary
   } from '@archinsight/workbench/monaco';
   import { insightEditorOptions, registerInsightMonaco } from '@archinsight/workbench/monaco-session';
+  import { openTechnologyIconPicker } from '@archinsight/workbench/technology-icon-picker';
+  import { technologyIconEdit, technologyIconQuery } from '@archinsight/workbench/technology-icon-picker-model';
+  import { technologyIconCompletionMarkdown } from '@archinsight/workbench/technology-icon-preview';
   import {
     insightDarkTheme,
     insightLightTheme
@@ -75,6 +78,7 @@
     items: CompletionItem[];
     replacementStartOffset: number;
     replacementEndOffset: number;
+    isIncomplete?: boolean;
   };
 
   type Diagnostic = WebviewDiagnostic;
@@ -205,6 +209,29 @@
     editor.addCommand(monaco.KeyMod.WinCtrl | monaco.KeyCode.Space, () => {
       editor?.trigger('keyboard', 'editor.action.triggerSuggest', {});
     });
+    editor.addAction({
+      id: 'archinsight.selectTechnologyIcon',
+      label: 'Select Technology Icon',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 20,
+      run: async (activeEditor) => {
+        const activeModel = activeEditor.getModel();
+        const position = activeEditor.getPosition();
+        if (activeModel === null || position === null || activeModel.getLanguageId() !== 'insight') return;
+        const offset = activeModel.getOffsetAt(position);
+        const selected = await openTechnologyIconPicker(technologyIconQuery(activeModel.getValue(), offset));
+        if (selected === undefined) return;
+        const edit = technologyIconEdit(activeModel.getValue(), offset, selected);
+        const from = activeModel.getPositionAt(edit.start);
+        const to = activeModel.getPositionAt(edit.end);
+        activeEditor.executeEdits('archinsight.selectTechnologyIcon', [{
+          range: new monaco!.Range(from.lineNumber, from.column, to.lineNumber, to.column),
+          text: edit.text,
+          forceMoveMarkers: true,
+        }]);
+        activeEditor.focus();
+      },
+    });
     editor.onDidChangeModelContent(() => {
       if (suppressEditorChange || readOnly || model === undefined) {
         return;
@@ -238,6 +265,7 @@
           endColumn: replacementEnd.column
         };
         return {
+          incomplete: response.isIncomplete ?? false,
           suggestions: response.items.map((item) => {
             const documentation = completionDocumentationMarkdown(item.documentation);
             return {
@@ -247,12 +275,21 @@
               kind: completionItemKind(monacoInstance, item),
               range,
               sortText: completionSortText(item),
+              ...(item.iconId === undefined ? {} : { iconId: item.iconId }),
               ...(documentation === undefined
                 ? {}
                 : { documentation: { value: documentation, isTrusted: false, supportHtml: false } })
             };
           })
         };
+      },
+      async resolveCompletionItem(item) {
+        const iconId = (item as Monaco.languages.CompletionItem & { readonly iconId?: string }).iconId;
+        if (iconId === undefined) return item;
+        const existing = typeof item.documentation === 'string' ? item.documentation : item.documentation?.value;
+        const markdown = await technologyIconCompletionMarkdown(iconId, existing);
+        if (markdown !== undefined) item.documentation = { value: markdown, isTrusted: false, supportHtml: false };
+        return item;
       }
     });
   }
@@ -339,7 +376,8 @@
       completionResolvers.get(message.requestId)?.({
         items: message.items,
         replacementStartOffset: message.replacementStartOffset ?? 0,
-        replacementEndOffset: message.replacementEndOffset ?? 0
+        replacementEndOffset: message.replacementEndOffset ?? 0,
+        ...(message.isIncomplete === undefined ? {} : { isIncomplete: message.isIncomplete })
       });
       completionResolvers.delete(message.requestId);
       return;

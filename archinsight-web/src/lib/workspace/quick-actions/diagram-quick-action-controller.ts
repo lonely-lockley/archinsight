@@ -1,6 +1,6 @@
 import {
   canonicalDiagramElementId,
-  renderGraphviz,
+  renderGraphvizArtifact,
   resolveBuiltinView,
   type DeploymentEnvironment,
   type LinkProjectResult,
@@ -191,8 +191,8 @@ export function createDiagramQuickActionController(
     rendering = true;
     ports.setLoading(true);
     try {
-      const dot = renderGraphviz(analysis, graph, ports.theme());
-      const renders: DotRender[] = [{ sourceIdentity: tab.sourceIdentity, diagram: 'query', dot }];
+      const artifact = renderGraphvizArtifact(analysis, graph, ports.theme());
+      const renders: DotRender[] = [{ sourceIdentity: tab.sourceIdentity, diagram: 'query', ...artifact }];
       let rendered: SvgRenderResponse;
       try {
         rendered = await ports.renderInBrowser(renders, controller.signal);
@@ -209,7 +209,7 @@ export function createDiagramQuickActionController(
         ports.error(error?.message ?? `Renderer returned no SVG for ${label}`);
         return false;
       }
-      ports.patchTab(tab.id, { svg, dot, queryResult: undefined });
+      ports.patchTab(tab.id, { svg, dot: artifact.dot, queryResult: undefined });
       return true;
     } catch (error) {
       if (lifecycle.isCurrent(currentGeneration)) {

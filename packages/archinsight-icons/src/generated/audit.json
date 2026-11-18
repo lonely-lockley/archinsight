@@ -1,0 +1,6423 @@
+{
+  "source": {
+    "name": "devicon",
+    "version": "2.18.0",
+    "sha512": "8e62d93dd4df3bd7741a59d35fc430d92c598fbd4ccba58054466d826584ad58eefee494aa69368712b35e8f4fc3b21fa95f4f13070e2abcb0640d5eb6bc913c"
+  },
+  "total": 657,
+  "included": 616,
+  "entries": [
+    {
+      "id": "aarch64",
+      "label": "Aarch64",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "adonisjs",
+      "label": "Adonisjs",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "aerospike",
+      "label": "Aerospike",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "aframe",
+      "label": "Aframe",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "aftereffects",
+      "label": "Aftereffects",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "aiassistant",
+      "label": "Aiassistant",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "algolia",
+      "label": "Algolia",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "almalinux",
+      "label": "Almalinux",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "amazonwebservices",
+      "label": "Amazonwebservices",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "anaconda",
+      "label": "Anaconda",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "android",
+      "label": "Android",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "androidstudio",
+      "label": "Androidstudio",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "angular",
+      "label": "Angular",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "angularjs",
+      "label": "Angularjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "angularmaterial",
+      "label": "Angularmaterial",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ansible",
+      "label": "Ansible",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ansys",
+      "label": "Ansys",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "antigravity",
+      "label": "Antigravity",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apache",
+      "label": "Apache",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apacheairflow",
+      "label": "Apacheairflow",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apacheignite",
+      "label": "Apacheignite",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apachekafka",
+      "label": "Apachekafka",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apachespark",
+      "label": "Apachespark",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apex",
+      "label": "Apex",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apify",
+      "label": "Apify",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apl",
+      "label": "Apl",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apollographql",
+      "label": "Apollographql",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "appcelerator",
+      "label": "Appcelerator",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "apple",
+      "label": "Apple",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "appwrite",
+      "label": "Appwrite",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "archlinux",
+      "label": "Archlinux",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "arduino",
+      "label": "Arduino",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "argocd",
+      "label": "Argocd",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "artixlinux",
+      "label": "Artixlinux",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "aspire",
+      "label": "Aspire",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "astro",
+      "label": "Astro",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "atom",
+      "label": "Atom",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "awk",
+      "label": "Awk",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "axios",
+      "label": "Axios",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "azure",
+      "label": "Azure",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "azuredatafactory",
+      "label": "Azuredatafactory",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "babel",
+      "label": "Babel",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "babylonjs",
+      "label": "Babylonjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "backbonejs",
+      "label": "Backbonejs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ballerina",
+      "label": "Ballerina",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "bash",
+      "label": "Bash",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "bazel",
+      "label": "Bazel",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "behance",
+      "label": "Behance",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "bevyengine",
+      "label": "Bevyengine",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "biome",
+      "label": "Biome",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "blazor",
+      "label": "Blazor",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "bootstrap",
+      "label": "Bootstrap",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "bower",
+      "label": "Bower",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "browserstack",
+      "label": "Browserstack",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "bulma",
+      "label": "Bulma",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "bun",
+      "label": "Bun",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "burpsuite",
+      "label": "Burpsuite",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "c",
+      "label": "C",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cairo",
+      "label": "Cairo",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cake",
+      "label": "Cake",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cakephp",
+      "label": "Cakephp",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "canva",
+      "label": "Canva",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "capacitor",
+      "label": "Capacitor",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "carbon",
+      "label": "Carbon",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cassandra",
+      "label": "Cassandra",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "centos",
+      "label": "Centos",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ceph",
+      "label": "Ceph",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ceylon",
+      "label": "Ceylon",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "chakraui",
+      "label": "Chakraui",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "chrome",
+      "label": "Chrome",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "circleci",
+      "label": "Circleci",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "clarity",
+      "label": "Clarity",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "claude",
+      "label": "Claude",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "claudecode",
+      "label": "Claudecode",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "clickhouse",
+      "label": "Clickhouse",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "clion",
+      "label": "Clion",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "clojure",
+      "label": "Clojure",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cloudflare",
+      "label": "Cloudflare",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cloudflareworkers",
+      "label": "Cloudflareworkers",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cloudrun",
+      "label": "Cloudrun",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cmake",
+      "label": "Cmake",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "codeac",
+      "label": "Codeac",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "codeberg",
+      "label": "Codeberg",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "codecov",
+      "label": "Codecov",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "codeigniter",
+      "label": "Codeigniter",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "codepen",
+      "label": "Codepen",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "codex",
+      "label": "Codex",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "coffeescript",
+      "label": "Coffeescript",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "composer",
+      "label": "Composer",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "confluence",
+      "label": "Confluence",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "consul",
+      "label": "Consul",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "contao",
+      "label": "Contao",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cordova",
+      "label": "Cordova",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "corejs",
+      "label": "Corejs",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cosmosdb",
+      "label": "Cosmosdb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "couchbase",
+      "label": "Couchbase",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "couchdb",
+      "label": "Couchdb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cpanel",
+      "label": "Cpanel",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cplusplus",
+      "label": "Cplusplus",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "crystal",
+      "label": "Crystal",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "csharp",
+      "label": "Csharp",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "css",
+      "label": "Css",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "css3",
+      "label": "Css3",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cucumber",
+      "label": "Cucumber",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "cypressio",
+      "label": "Cypressio",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dart",
+      "label": "Dart",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "datadog",
+      "label": "Datadog",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "datagrip",
+      "label": "Datagrip",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dataspell",
+      "label": "Dataspell",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "datatables",
+      "label": "Datatables",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "debian",
+      "label": "Debian",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "delphi",
+      "label": "Delphi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "denojs",
+      "label": "Denojs",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "detaspace",
+      "label": "Detaspace",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "devicon",
+      "label": "Devicon",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "digitalocean",
+      "label": "Digitalocean",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "discloud",
+      "label": "Discloud",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "discordjs",
+      "label": "Discordjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "django",
+      "label": "Django",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "djangorest",
+      "label": "Djangorest",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "docker",
+      "label": "Docker",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "doctrine",
+      "label": "Doctrine",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dot-net",
+      "label": "Dot Net",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dotnetcore",
+      "label": "Dotnetcore",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dovecot",
+      "label": "Dovecot",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dreamweaver",
+      "label": "Dreamweaver",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dropwizard",
+      "label": "Dropwizard",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "drupal",
+      "label": "Drupal",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "duckdb",
+      "label": "Duckdb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dyalog",
+      "label": "Dyalog",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dynamodb",
+      "label": "Dynamodb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "dynatrace",
+      "label": "Dynatrace",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ecto",
+      "label": "Ecto",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "elasticsearch",
+      "label": "Elasticsearch",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "electron",
+      "label": "Electron",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "eleventy",
+      "label": "Eleventy",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "elixir",
+      "label": "Elixir",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "elm",
+      "label": "Elm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "emacs",
+      "label": "Emacs",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "emailjs",
+      "label": "Emailjs",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "embeddedc",
+      "label": "Embeddedc",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ember",
+      "label": "Ember",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "entityframeworkcore",
+      "label": "Entityframeworkcore",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "erlang",
+      "label": "Erlang",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "eslint",
+      "label": "Eslint",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "expo",
+      "label": "Expo",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "express",
+      "label": "Express",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "facebook",
+      "label": "Facebook",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fastapi",
+      "label": "Fastapi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fastify",
+      "label": "Fastify",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "faunadb",
+      "label": "Faunadb",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "feathersjs",
+      "label": "Feathersjs",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fedora",
+      "label": "Fedora",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fiber",
+      "label": "Fiber",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "figma",
+      "label": "Figma",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "filamentphp",
+      "label": "Filamentphp",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "filezilla",
+      "label": "Filezilla",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "firebase",
+      "label": "Firebase",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "firebird",
+      "label": "Firebird",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "firefox",
+      "label": "Firefox",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fish",
+      "label": "Fish",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "flask",
+      "label": "Flask",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "flutter",
+      "label": "Flutter",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "flyway",
+      "label": "Flyway",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "forgejo",
+      "label": "Forgejo",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fortran",
+      "label": "Fortran",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "foundation",
+      "label": "Foundation",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "framework7",
+      "label": "Framework7",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fsharp",
+      "label": "Fsharp",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "fusion",
+      "label": "Fusion",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gardener",
+      "label": "Gardener",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gatling",
+      "label": "Gatling",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gatsby",
+      "label": "Gatsby",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gazebo",
+      "label": "Gazebo",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gcc",
+      "label": "Gcc",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gentoo",
+      "label": "Gentoo",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ghidra",
+      "label": "Ghidra",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ghost",
+      "label": "Ghost",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gimp",
+      "label": "Gimp",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "git",
+      "label": "Git",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gitbook",
+      "label": "Gitbook",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gitea",
+      "label": "Gitea",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "github",
+      "label": "Github",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "githubactions",
+      "label": "Githubactions",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "githubcodespaces",
+      "label": "Githubcodespaces",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "githubcopilot",
+      "label": "Githubcopilot",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gitkraken",
+      "label": "Gitkraken",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gitlab",
+      "label": "Gitlab",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gitter",
+      "label": "Gitter",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gleam",
+      "label": "Gleam",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "glitch",
+      "label": "Glitch",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gnuradio",
+      "label": "Gnuradio",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "go",
+      "label": "Go",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "godot",
+      "label": "Godot",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "goland",
+      "label": "Goland",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "google",
+      "label": "Google",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "googleappscript",
+      "label": "Googleappscript",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "googlecloud",
+      "label": "Googlecloud",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "googlecolab",
+      "label": "Googlecolab",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gradle",
+      "label": "Gradle",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "grafana",
+      "label": "Grafana",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "grafanaloki",
+      "label": "Grafanaloki",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "grails",
+      "label": "Grails",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "graphql",
+      "label": "Graphql",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "groovy",
+      "label": "Groovy",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "grpc",
+      "label": "Grpc",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "grunt",
+      "label": "Grunt",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "gulp",
+      "label": "Gulp",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "hadoop",
+      "label": "Hadoop",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "handlebars",
+      "label": "Handlebars",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "harbor",
+      "label": "Harbor",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "hardhat",
+      "label": "Hardhat",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "harvester",
+      "label": "Harvester",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "haskell",
+      "label": "Haskell",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "haxe",
+      "label": "Haxe",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "helix",
+      "label": "Helix",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "helm",
+      "label": "Helm",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "heroku",
+      "label": "Heroku",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "hibernate",
+      "label": "Hibernate",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "homebrew",
+      "label": "Homebrew",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "hoppscotch",
+      "label": "Hoppscotch",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "html5",
+      "label": "Html5",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "htmx",
+      "label": "Htmx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "huggingface",
+      "label": "Huggingface",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "hugo",
+      "label": "Hugo",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "hyperv",
+      "label": "Hyperv",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "hyprland",
+      "label": "Hyprland",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "icinga",
+      "label": "Icinga",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "idris",
+      "label": "Idris",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ie10",
+      "label": "Ie10",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ifttt",
+      "label": "Ifttt",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "illustrator",
+      "label": "Illustrator",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "inertiajs",
+      "label": "Inertiajs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "influxdb",
+      "label": "Influxdb",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "inkscape",
+      "label": "Inkscape",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "insomnia",
+      "label": "Insomnia",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "intellij",
+      "label": "Intellij",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ionic",
+      "label": "Ionic",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "istio",
+      "label": "Istio",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jaegertracing",
+      "label": "Jaegertracing",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jamstack",
+      "label": "Jamstack",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jasmine",
+      "label": "Jasmine",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "java",
+      "label": "Java",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "javascript",
+      "label": "Javascript",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jeet",
+      "label": "Jeet",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jekyll",
+      "label": "Jekyll",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jenkins",
+      "label": "Jenkins",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jest",
+      "label": "Jest",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jetbrains",
+      "label": "Jetbrains",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jhipster",
+      "label": "Jhipster",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jira",
+      "label": "Jira",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jiraalign",
+      "label": "Jiraalign",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jquery",
+      "label": "Jquery",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "json",
+      "label": "Json",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jule",
+      "label": "Jule",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "julia",
+      "label": "Julia",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "junie",
+      "label": "Junie",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "junit",
+      "label": "Junit",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jupyter",
+      "label": "Jupyter",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "jwt",
+      "label": "Jwt",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "k3os",
+      "label": "K3os",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "k3s",
+      "label": "K3s",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "k6",
+      "label": "K6",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kaggle",
+      "label": "Kaggle",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kaldi",
+      "label": "Kaldi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kalilinux",
+      "label": "Kalilinux",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "karatelabs",
+      "label": "Karatelabs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "karma",
+      "label": "Karma",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kdeneon",
+      "label": "Kdeneon",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "keras",
+      "label": "Keras",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kibana",
+      "label": "Kibana",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "knexjs",
+      "label": "Knexjs",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kotlin",
+      "label": "Kotlin",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "krakenjs",
+      "label": "Krakenjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ktor",
+      "label": "Ktor",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kubeflow",
+      "label": "Kubeflow",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "kubernetes",
+      "label": "Kubernetes",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "laminas",
+      "label": "Laminas",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "laravel",
+      "label": "Laravel",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "laraveljetstream",
+      "label": "Laraveljetstream",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "latex",
+      "label": "Latex",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "leetcode",
+      "label": "Leetcode",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "libgdx",
+      "label": "Libgdx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "linear",
+      "label": "Linear",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "linkedin",
+      "label": "Linkedin",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "linux",
+      "label": "Linux",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "linuxmint",
+      "label": "Linuxmint",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "liquibase",
+      "label": "Liquibase",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "llvm",
+      "label": "Llvm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "lodash",
+      "label": "Lodash",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "logstash",
+      "label": "Logstash",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "lovable",
+      "label": "Lovable",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "love2d",
+      "label": "Love2d",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "lua",
+      "label": "Lua",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "luau",
+      "label": "Luau",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "lumen",
+      "label": "Lumen",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "magento",
+      "label": "Magento",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mapbox",
+      "label": "Mapbox",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mariadb",
+      "label": "Mariadb",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "materializecss",
+      "label": "Materializecss",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "materialui",
+      "label": "Materialui",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "matlab",
+      "label": "Matlab",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "matplotlib",
+      "label": "Matplotlib",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mattermost",
+      "label": "Mattermost",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "maven",
+      "label": "Maven",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "maya",
+      "label": "Maya",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "memcached",
+      "label": "Memcached",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mercurial",
+      "label": "Mercurial",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "metabase",
+      "label": "Metabase",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "meteor",
+      "label": "Meteor",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "microsoftsqlserver",
+      "label": "Microsoftsqlserver",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "minitab",
+      "label": "Minitab",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mithril",
+      "label": "Mithril",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mobx",
+      "label": "Mobx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mocha",
+      "label": "Mocha",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "modx",
+      "label": "Modx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "moleculer",
+      "label": "Moleculer",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mongock",
+      "label": "Mongock",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mongodb",
+      "label": "Mongodb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mongoose",
+      "label": "Mongoose",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "monogame",
+      "label": "Monogame",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "moodle",
+      "label": "Moodle",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "motion",
+      "label": "Motion",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "msbuild",
+      "label": "Msbuild",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "msdos",
+      "label": "Msdos",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "mysql",
+      "label": "Mysql",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "n8n",
+      "label": "N8n",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nano",
+      "label": "Nano",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nasm",
+      "label": "Nasm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nats",
+      "label": "Nats",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "neo4j",
+      "label": "Neo4j",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "neovim",
+      "label": "Neovim",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nestjs",
+      "label": "Nestjs",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "netbeans",
+      "label": "Netbeans",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "netbox",
+      "label": "Netbox",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "netlify",
+      "label": "Netlify",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "networkx",
+      "label": "Networkx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "newrelic",
+      "label": "Newrelic",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nextjs",
+      "label": "Nextjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nginx",
+      "label": "Nginx",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ngrok",
+      "label": "Ngrok",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ngrx",
+      "label": "Ngrx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nhibernate",
+      "label": "Nhibernate",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nim",
+      "label": "Nim",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nimble",
+      "label": "Nimble",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nixos",
+      "label": "Nixos",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nodejs",
+      "label": "Nodejs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nodemon",
+      "label": "Nodemon",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nodered",
+      "label": "Nodered",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nodewebkit",
+      "label": "Nodewebkit",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nomad",
+      "label": "Nomad",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "norg",
+      "label": "Norg",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "notion",
+      "label": "Notion",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "novelwriter",
+      "label": "Novelwriter",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "npm",
+      "label": "Npm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "npss",
+      "label": "Npss",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nuget",
+      "label": "Nuget",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "numpy",
+      "label": "Numpy",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nuxt",
+      "label": "Nuxt",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "nuxtjs",
+      "label": "Nuxtjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "oauth",
+      "label": "Oauth",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "objectivec",
+      "label": "Objectivec",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ocaml",
+      "label": "Ocaml",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "odin",
+      "label": "Odin",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ohmyzsh",
+      "label": "Ohmyzsh",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "okta",
+      "label": "Okta",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ollama",
+      "label": "Ollama",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "openal",
+      "label": "Openal",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "openapi",
+      "label": "Openapi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "opencl",
+      "label": "Opencl",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "opencv",
+      "label": "Opencv",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "opengl",
+      "label": "Opengl",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "openstack",
+      "label": "Openstack",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "opensuse",
+      "label": "Opensuse",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "opentelemetry",
+      "label": "Opentelemetry",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "opera",
+      "label": "Opera",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "opnsense",
+      "label": "Opnsense",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "oracle",
+      "label": "Oracle",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ory",
+      "label": "Ory",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "p5js",
+      "label": "P5js",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "packer",
+      "label": "Packer",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pandas",
+      "label": "Pandas",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "passport",
+      "label": "Passport",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "payloadcms",
+      "label": "Payloadcms",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "perl",
+      "label": "Perl",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pfsense",
+      "label": "Pfsense",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "phalcon",
+      "label": "Phalcon",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "phoenix",
+      "label": "Phoenix",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "photonengine",
+      "label": "Photonengine",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "photoshop",
+      "label": "Photoshop",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "php",
+      "label": "Php",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "phpstorm",
+      "label": "Phpstorm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pixijs",
+      "label": "Pixijs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "playwright",
+      "label": "Playwright",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "plotly",
+      "label": "Plotly",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pm2",
+      "label": "Pm2",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pnpm",
+      "label": "Pnpm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "podman",
+      "label": "Podman",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "polygon",
+      "label": "Polygon",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "portainer",
+      "label": "Portainer",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "positron",
+      "label": "Positron",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "postcss",
+      "label": "Postcss",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "postgresql",
+      "label": "Postgresql",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "postman",
+      "label": "Postman",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "powershell",
+      "label": "Powershell",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "premierepro",
+      "label": "Premierepro",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "prestashop",
+      "label": "Prestashop",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "primeng",
+      "label": "Primeng",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "prisma",
+      "label": "Prisma",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "processing",
+      "label": "Processing",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "processwire",
+      "label": "Processwire",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "prolog",
+      "label": "Prolog",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "prometheus",
+      "label": "Prometheus",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "protractor",
+      "label": "Protractor",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "proxmox",
+      "label": "Proxmox",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pug",
+      "label": "Pug",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pulsar",
+      "label": "Pulsar",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pulumi",
+      "label": "Pulumi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "puppeteer",
+      "label": "Puppeteer",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "purescript",
+      "label": "Purescript",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "putty",
+      "label": "Putty",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pycharm",
+      "label": "Pycharm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pypi",
+      "label": "Pypi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pytest",
+      "label": "Pytest",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "python",
+      "label": "Python",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "pytorch",
+      "label": "Pytorch",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "qiskit",
+      "label": "Qiskit",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "qodana",
+      "label": "Qodana",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "qt",
+      "label": "Qt",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "qtest",
+      "label": "Qtest",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "quarkus",
+      "label": "Quarkus",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "quasar",
+      "label": "Quasar",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "r",
+      "label": "R",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rabbitmq",
+      "label": "Rabbitmq",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "racket",
+      "label": "Racket",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "radstudio",
+      "label": "Radstudio",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rails",
+      "label": "Rails",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "railway",
+      "label": "Railway",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rancher",
+      "label": "Rancher",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "raspberrypi",
+      "label": "Raspberrypi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ravendb",
+      "label": "Ravendb",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "reach",
+      "label": "Reach",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "react",
+      "label": "React",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "reactbootstrap",
+      "label": "Reactbootstrap",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "reactnative",
+      "label": "Reactnative",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "reactnavigation",
+      "label": "Reactnavigation",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "reactrouter",
+      "label": "Reactrouter",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "readthedocs",
+      "label": "Readthedocs",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "realm",
+      "label": "Realm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rect",
+      "label": "Rect",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "redhat",
+      "label": "Redhat",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "redis",
+      "label": "Redis",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "redux",
+      "label": "Redux",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "reflex",
+      "label": "Reflex",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "remix",
+      "label": "Remix",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "renpy",
+      "label": "Renpy",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "replit",
+      "label": "Replit",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rexx",
+      "label": "Rexx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rider",
+      "label": "Rider",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rocksdb",
+      "label": "Rocksdb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rockylinux",
+      "label": "Rockylinux",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rollup",
+      "label": "Rollup",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ros",
+      "label": "Ros",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rspec",
+      "label": "Rspec",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rstudio",
+      "label": "Rstudio",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ruby",
+      "label": "Ruby",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rubymine",
+      "label": "Rubymine",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rust",
+      "label": "Rust",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "rxjs",
+      "label": "Rxjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "safari",
+      "label": "Safari",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "salesforce",
+      "label": "Salesforce",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sanity",
+      "label": "Sanity",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sass",
+      "label": "Sass",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "scala",
+      "label": "Scala",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "scaleway",
+      "label": "Scaleway",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "scalingo",
+      "label": "Scalingo",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "scikitlearn",
+      "label": "Scikitlearn",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sdl",
+      "label": "Sdl",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "seaborn",
+      "label": "Seaborn",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "selenium",
+      "label": "Selenium",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sema",
+      "label": "Sema",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sentry",
+      "label": "Sentry",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sequelize",
+      "label": "Sequelize",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sfml",
+      "label": "Sfml",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "shadcn",
+      "label": "Shadcn",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "shopware",
+      "label": "Shopware",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "shotgrid",
+      "label": "Shotgrid",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sketch",
+      "label": "Sketch",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "slack",
+      "label": "Slack",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "solidity",
+      "label": "Solidity",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "solidjs",
+      "label": "Solidjs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sonarqube",
+      "label": "Sonarqube",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sourceengine",
+      "label": "Sourceengine",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sourcetree",
+      "label": "Sourcetree",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "spack",
+      "label": "Spack",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "spring",
+      "label": "Spring",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "spss",
+      "label": "Spss",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "spyder",
+      "label": "Spyder",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sqlalchemy",
+      "label": "Sqlalchemy",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sqldeveloper",
+      "label": "Sqldeveloper",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sqlite",
+      "label": "Sqlite",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ssh",
+      "label": "Ssh",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "stackblitz",
+      "label": "Stackblitz",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "stackoverflow",
+      "label": "Stackoverflow",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "stenciljs",
+      "label": "Stenciljs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "stimulus",
+      "label": "Stimulus",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "storybook",
+      "label": "Storybook",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "styledcomponents",
+      "label": "Styledcomponents",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "stylus",
+      "label": "Stylus",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "subversion",
+      "label": "Subversion",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "sulu",
+      "label": "Sulu",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "supabase",
+      "label": "Supabase",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "surrealdb",
+      "label": "Surrealdb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "svelte",
+      "label": "Svelte",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "svgo",
+      "label": "Svgo",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "swagger",
+      "label": "Swagger",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "swift",
+      "label": "Swift",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "swiper",
+      "label": "Swiper",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "symfony",
+      "label": "Symfony",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "systemverilog",
+      "label": "Systemverilog",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tailwindcss",
+      "label": "Tailwindcss",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "talos",
+      "label": "Talos",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tauri",
+      "label": "Tauri",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "teamcity",
+      "label": "Teamcity",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "teleport",
+      "label": "Teleport",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tensorflow",
+      "label": "Tensorflow",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tenzir",
+      "label": "Tenzir",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "terraform",
+      "label": "Terraform",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "terramate",
+      "label": "Terramate",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "testrail",
+      "label": "Testrail",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tex",
+      "label": "Tex",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "thealgorithms",
+      "label": "Thealgorithms",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "threedsmax",
+      "label": "Threedsmax",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "thymeleaf",
+      "label": "Thymeleaf",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tigerbeetle",
+      "label": "Tigerbeetle",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "titaniumsdk",
+      "label": "Titaniumsdk",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tmux",
+      "label": "Tmux",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tomcat",
+      "label": "Tomcat",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "toml",
+      "label": "Toml",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "tortoisegit",
+      "label": "Tortoisegit",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "traefikmesh",
+      "label": "Traefikmesh",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "traefikproxy",
+      "label": "Traefikproxy",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "travis",
+      "label": "Travis",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "trello",
+      "label": "Trello",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "trpc",
+      "label": "Trpc",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "turbo",
+      "label": "Turbo",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "twilio",
+      "label": "Twilio",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "typeorm",
+      "label": "Typeorm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "typer",
+      "label": "Typer",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "typescript",
+      "label": "Typescript",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "typo3",
+      "label": "Typo3",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "ubuntu",
+      "label": "Ubuntu",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "unifiedmodelinglanguage",
+      "label": "Unifiedmodelinglanguage",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "unity",
+      "label": "Unity",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "unix",
+      "label": "Unix",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "unrealengine",
+      "label": "Unrealengine",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "uv",
+      "label": "Uv",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "uwsgi",
+      "label": "Uwsgi",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "v8",
+      "label": "V8",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vaadin",
+      "label": "Vaadin",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vagrant",
+      "label": "Vagrant",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vala",
+      "label": "Vala",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vapor",
+      "label": "Vapor",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vault",
+      "label": "Vault",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "veevalidate",
+      "label": "Veevalidate",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vercel",
+      "label": "Vercel",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "verilog",
+      "label": "Verilog",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vertx",
+      "label": "Vertx",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vim",
+      "label": "Vim",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "visualbasic",
+      "label": "Visualbasic",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "visualstudio",
+      "label": "Visualstudio",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vite",
+      "label": "Vite",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vitejs",
+      "label": "Vitejs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vitess",
+      "label": "Vitess",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vitest",
+      "label": "Vitest",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vlang",
+      "label": "Vlang",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vscode",
+      "label": "Vscode",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vscodium",
+      "label": "Vscodium",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vsphere",
+      "label": "Vsphere",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vuejs",
+      "label": "Vuejs",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vuestorefront",
+      "label": "Vuestorefront",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vuetify",
+      "label": "Vuetify",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vulkan",
+      "label": "Vulkan",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "vyper",
+      "label": "Vyper",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "waku",
+      "label": "Waku",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "wasm",
+      "label": "Wasm",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "wasp",
+      "label": "Wasp",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "web2py",
+      "label": "Web2py",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "web3js",
+      "label": "Web3js",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "webflow",
+      "label": "Webflow",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "webgl",
+      "label": "Webgl",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "webgpu",
+      "label": "Webgpu",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "weblate",
+      "label": "Weblate",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "webpack",
+      "label": "Webpack",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "webstorm",
+      "label": "Webstorm",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "windows11",
+      "label": "Windows11",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "windows8",
+      "label": "Windows8",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "wireguard",
+      "label": "Wireguard",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "wolfram",
+      "label": "Wolfram",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "woocommerce",
+      "label": "Woocommerce",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "wordpress",
+      "label": "Wordpress",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "xamarin",
+      "label": "Xamarin",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "xcode",
+      "label": "Xcode",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "xd",
+      "label": "Xd",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "xml",
+      "label": "Xml",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "yaml",
+      "label": "Yaml",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "yarn",
+      "label": "Yarn",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "yii",
+      "label": "Yii",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "youtrack",
+      "label": "Youtrack",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "yugabytedb",
+      "label": "Yugabytedb",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "yunohost",
+      "label": "Yunohost",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "zed",
+      "label": "Zed",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "zend",
+      "label": "Zend",
+      "variant": "line",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "zig",
+      "label": "Zig",
+      "variant": "original",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "zsh",
+      "label": "Zsh",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    },
+    {
+      "id": "zustand",
+      "label": "Zustand",
+      "variant": "plain",
+      "features": {
+        "masks": false,
+        "clips": false,
+        "gradients": false
+      }
+    }
+  ],
+  "excluded": [
+    {
+      "id": "akka",
+      "variant": "original",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "alpinejs",
+      "variant": "original",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "antdesign",
+      "variant": "plain",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "azuredevops",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: gradient cannot be safely normalized"
+    },
+    {
+      "id": "azuresqldatabase",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "bamboo",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: gradient cannot be safely normalized"
+    },
+    {
+      "id": "beats",
+      "variant": "original",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "bitbucket",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: gradient cannot be safely normalized"
+    },
+    {
+      "id": "blender",
+      "variant": "original",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "bruno",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "cachyos",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "chartjs",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "clojurescript",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "cobol",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "cursor",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "d3js",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: gradient cannot be safely normalized"
+    },
+    {
+      "id": "dbeaver",
+      "variant": "original",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "eclipse",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: gradient cannot be safely normalized"
+    },
+    {
+      "id": "envoy",
+      "variant": "original",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "frankenphp",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "gitpod",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: gradient cannot be safely normalized"
+    },
+    {
+      "id": "haproxy",
+      "variant": "original",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "jetpackcompose",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "knockout",
+      "reason": "no supported non-wordmark SVG variant"
+    },
+    {
+      "id": "labview",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "less",
+      "reason": "no supported non-wordmark SVG variant"
+    },
+    {
+      "id": "livewire",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "markdown",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "poetry",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "pyscript",
+      "reason": "no supported non-wordmark SVG variant"
+    },
+    {
+      "id": "qwik",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "socketio",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "spicedb",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "splunk",
+      "reason": "no supported non-wordmark SVG variant"
+    },
+    {
+      "id": "starship",
+      "variant": "plain",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "stata",
+      "reason": "no supported non-wordmark SVG variant"
+    },
+    {
+      "id": "streamlit",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "threejs",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "tinygo",
+      "variant": "plain",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    },
+    {
+      "id": "towergit",
+      "variant": "plain",
+      "reason": "multiple fixed paints cannot be safely normalized"
+    },
+    {
+      "id": "twitter",
+      "variant": "original",
+      "reason": "invalid or unsafe SVG: inline style cannot be safely normalized"
+    }
+  ],
+  "aliases": {
+    "count": 291,
+    "conflicts": [
+      {
+        "alias": "fastapi",
+        "candidates": [
+          "fastapi",
+          "typer"
+        ],
+        "resolution": "catalog-id",
+        "selected": "fastapi"
+      },
+      {
+        "alias": "jestjs",
+        "candidates": [
+          "jekyll",
+          "jest"
+        ],
+        "resolution": "ambiguous-excluded"
+      },
+      {
+        "alias": "vite",
+        "candidates": [
+          "vite",
+          "vitejs"
+        ],
+        "resolution": "catalog-id",
+        "selected": "vite"
+      }
+    ]
+  },
+  "features": {
+    "masks": [],
+    "clips": [],
+    "gradients": [
+      "azuredevops",
+      "bamboo",
+      "bitbucket",
+      "d3js",
+      "eclipse",
+      "gitpod"
+    ]
+  },
+  "changes": {
+    "previousVersion": "2.18.0",
+    "added": [],
+    "removed": [],
+    "variantChanged": []
+  },
+  "contentDigest": "92a3bf24bd45e3b0b2a4c8586c99c4f054aba21820bbd80a94782b1e4b302748"
+}

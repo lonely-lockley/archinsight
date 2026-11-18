@@ -99,7 +99,7 @@ describe('browser Graphviz worker lifecycle', () => {
     const activeFailure = expect(active).rejects.toMatchObject({ name: 'AbortError' });
     activeController.abort();
     await activeFailure;
-    expect(workerState.instances[0].terminated).toBe(true);
+    expect(workerState.instances[0].terminated).toBe(false);
 
     const alreadyAborted = new AbortController();
     alreadyAborted.abort();
@@ -107,5 +107,35 @@ describe('browser Graphviz worker lifecycle', () => {
       [{ sourceIdentity: 'never.ai', diagram: 'query', dot: 'digraph never {}' }],
       alreadyAborted.signal
     )).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('keeps the worker warm and runs the newest request after a cancelled render finishes', async () => {
+    const controller = new AbortController();
+    const cancelled = renderDotInBrowser(
+      [{ sourceIdentity: 'cancelled.ai', diagram: 'query', dot: 'digraph cancelled {}' }],
+      controller.signal
+    );
+    const next = renderDotInBrowser([
+      { sourceIdentity: 'next.ai', diagram: 'query', dot: 'digraph next {}' }
+    ]);
+
+    const cancellation = expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    await cancellation;
+    expect(workerState.instances).toHaveLength(1);
+    expect(workerState.instances[0].terminated).toBe(false);
+    expect(workerState.instances[0].messages).toHaveLength(1);
+
+    const firstRequest = workerState.instances[0].messages[0];
+    workerState.instances[0].onmessage?.({
+      data: { requestId: firstRequest.requestId, svgs: [] }
+    } as MessageEvent);
+    expect(workerState.instances[0].messages).toHaveLength(2);
+
+    const nextRequest = workerState.instances[0].messages[1];
+    workerState.instances[0].onmessage?.({
+      data: { requestId: nextRequest.requestId, svgs: [{ sourceIdentity: 'next.ai', diagram: 'query', svg: '<svg/>' }] }
+    } as MessageEvent);
+    await expect(next).resolves.toMatchObject({ svgs: [{ sourceIdentity: 'next.ai' }] });
   });
 });

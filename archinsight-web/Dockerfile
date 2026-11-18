@@ -1,6 +1,8 @@
 FROM node:22-alpine AS dependencies
 
 WORKDIR /workspace
+COPY packages/archinsight-icons/package*.json ./packages/archinsight-icons/
+COPY packages/archinsight-icons/src ./packages/archinsight-icons/src
 COPY packages/insight-language/package*.json ./packages/insight-language/
 COPY packages/insight-language/src ./packages/insight-language/src
 COPY packages/archinsight-contracts/package*.json ./packages/archinsight-contracts/
@@ -31,6 +33,7 @@ ENV NODE_ENV=production \
 
 WORKDIR /workspace/archinsight-web
 COPY --from=dependencies --chown=node:node /workspace/archinsight-web/node_modules ./node_modules
+COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-icons ../packages/archinsight-icons
 COPY --from=dependencies --chown=node:node /workspace/packages/insight-language ../packages/insight-language
 COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-contracts ../packages/archinsight-contracts
 COPY --from=dependencies --chown=node:node /workspace/packages/archinsight-editor-support ../packages/archinsight-editor-support

@@ -69,7 +69,13 @@ export type DiagnosticDto = {
   category?: 'SOURCE' | 'SYSTEM' | string;
 };
 
-export type DotRenderDto = { sourceIdentity: string; diagram: string; dot: string };
+export type GraphvizIconPlacementDto = { slotId: string; iconId: string; color: string };
+export type DotRenderDto = {
+  sourceIdentity: string;
+  diagram: string;
+  dot: string;
+  icons?: readonly GraphvizIconPlacementDto[];
+};
 export type SvgRenderDto = { sourceIdentity: string; diagram: string; svg: string };
 export type SvgRenderRequest = { renders?: DotRenderDto[] | null };
 export type SvgRenderResponse = { diagnostics: DiagnosticDto[]; svgs: SvgRenderDto[] };

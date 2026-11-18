@@ -27,6 +27,7 @@ Insight is the language used to define both architecture models and the framewor
 - [The Insight Language](docs/language.md)
 - [Comments and Notes](docs/comments-and-notes.md)
 - [Annotations](docs/annotations.md)
+- [Technology icons](docs/technology-icons.md)
 - [Built-in Archinsight Types](docs/built-in-types.md)
 - [Structuring an Insight Project](docs/project-structure.md)
 - [Building and Linking an Insight Project](docs/project-processing.md)

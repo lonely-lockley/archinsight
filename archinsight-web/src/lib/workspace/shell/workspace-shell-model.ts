@@ -22,7 +22,7 @@ import {
   type WorkspaceRuntimeState
 } from '$lib/workspace/shell/workspace-runtime-state';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
-import { diagramQuickActionMetadata, type DiagramQuickActionMetadata } from '@insight/language';
+import type { DiagramQuickActionMetadata } from '@insight/language';
 
 export type WorkspaceShellView = {
   surface: WorkspaceSurface;
@@ -72,7 +72,7 @@ export function createWorkspaceShellView(
     errorSourceIdentities: workspaceErrorSources(state),
     emptyStrategy: runtime.actionController.emptyStrategy(),
     canDownloadCurrentDiagram: canDownloadWorkspaceDiagram(state),
-    quickActionMetadata: state.linkedAnalysis === undefined ? {} : diagramQuickActionMetadata(state.linkedAnalysis),
+    quickActionMetadata: state.renderedQuickActionMetadata,
     newTabState: runtime.actionController.newTabState(),
     saveState: runtime.actionController.saveState(),
     repositoryMenuActions: runtime.actionController.repositoryStates(),

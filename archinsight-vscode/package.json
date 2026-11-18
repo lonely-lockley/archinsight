@@ -45,6 +45,7 @@
     "onCommand:archinsight.checkCli",
     "onCommand:archinsight.installCli",
     "onCommand:archinsight.generateAgentSkill",
+    "onCommand:archinsight.selectTechnologyIcon",
     "onCommand:archinsight.structure.filter",
     "onCommand:archinsight.structure.clearFilter",
     "onCommand:archinsight.structure.toggleLanguageTypes",
@@ -157,6 +158,10 @@
       {
         "command": "archinsight.generateAgentSkill",
         "title": "Archinsight: Generate Agent Skill"
+      },
+      {
+        "command": "archinsight.selectTechnologyIcon",
+        "title": "Archinsight: Select Technology Icon"
       },
       {
         "command": "archinsight.structure.filter",
@@ -354,7 +359,7 @@
   "scripts": {
     "prebuild": "node ../packages/insight-language/scripts/ensure-generated.mjs",
     "build:webview": "vite build --config vite.webview.config.mts",
-    "build:extension": "esbuild src/extension.ts src/diagram-viz-worker.ts src/project-analysis-worker.ts --bundle --platform=node --format=cjs --preserve-symlinks --outdir=dist --entry-names=[name] --out-extension:.js=.cjs --external:vscode --external:@viz-js/viz",
+    "build:extension": "node scripts/build-extension.mjs",
     "build": "npm run build:webview && npm run build:extension",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "pretest": "npm run build:extension",
@@ -367,6 +372,7 @@
     "@viz-js/viz": "^3.28.0"
   },
   "devDependencies": {
+    "@archinsight/icons": "file:../packages/archinsight-icons",
     "@archinsight/contracts": "file:../packages/archinsight-contracts",
     "@archinsight/editor-support": "file:../packages/archinsight-editor-support",
     "@archinsight/git": "file:../packages/archinsight-git",

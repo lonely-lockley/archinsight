@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   ContractValidationError,
   parseLinkRequest,
+  parseLinkResponse,
+  parseSvgRenderRequest,
   parseWorkbenchHostToWebviewMessage,
   parseWorkbenchWebviewToHostMessage
 } from '@archinsight/contracts';
+import { coreLanguageSnapshot } from '@insight/language';
 
 describe('shared transport contracts', () => {
   it('normalizes a valid HTTP link request', () => {
@@ -47,6 +50,29 @@ describe('shared transport contracts', () => {
     expect(() => parseWorkbenchHostToWebviewMessage({
       command: 'completionResult', requestId: 1, items: [{ label: 'entry', kind: 'IDENTIFIER', typeName: 42 }]
     })).toThrow(ContractValidationError);
+  });
+
+  it('preserves the shared icon placement sidecar in render transports', () => {
+    const render = {
+      sourceIdentity: 'main.ai', diagram: 'query', dot: 'digraph {}',
+      icons: [{ slotId: 'icon-slot-1', iconId: 'postgresql', color: '#f4f4f4' }]
+    };
+    expect(parseSvgRenderRequest({ renders: [render] })).toEqual({ renders: [render] });
+    const response = {
+      revision: '1', analysis: { mode: 'full', relinkedSources: 1 }, symbols: coreLanguageSnapshot,
+      linkedModel: { contexts: [], elements: [], edges: [], graph: { nodes: [], relations: [] } },
+      diagnostics: [], renders: [render], structure: { schemaVersion: 'project-structure.v1', contexts: [] }
+    };
+    expect(parseLinkResponse(response).renders).toEqual([render]);
+    expect(() => parseSvgRenderRequest({ renders: [{ ...render, icons: [{ ...render.icons[0], color: 42 }] }] }))
+      .toThrow(ContractValidationError);
+  });
+
+  it('preserves completion icon metadata and incomplete state', () => {
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'completionResult', requestId: 1, isIncomplete: true,
+      items: [{ label: 'postgresql', kind: 'ENUM_VALUE', iconId: 'postgresql' }]
+    })).toMatchObject({ isIncomplete: true, items: [{ iconId: 'postgresql' }] });
   });
 
   it('accepts a complete declaration navigation message', () => {

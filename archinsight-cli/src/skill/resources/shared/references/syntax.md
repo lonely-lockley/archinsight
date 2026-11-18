@@ -388,6 +388,7 @@ system fulfillment_platform
     name = Fulfillment Platform
 
     @planned
+    @icon(java)
     container fulfillment_adapter
         name = Fulfillment adapter
         links:
@@ -405,6 +406,9 @@ Available annotations:
 - `@deprecated` marks an element or relationship as legacy or scheduled for
   removal. Add optional text in parentheses when the replacement or reason is
   useful. The default Graphviz renderer highlights it in red.
+- `@icon(<catalog-id>)` selects one technology icon for an element and
+  overrides automatic matching from its `technology` value. Use `@icon(none)`
+  to disable the automatic icon. Relationships do not support `@icon`.
 
 Annotations can be stacked and are preserved on projected relationships, so a
 Deployment projection can still show that the original logical relationship was planned

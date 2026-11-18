@@ -8,6 +8,7 @@ export default defineConfig({
     conditions: ['browser'],
     alias: [
       { find: '@insight/language', replacement: fileURLToPath(new URL('../packages/insight-language/src/index.ts', import.meta.url)) },
+      { find: '@archinsight/icons', replacement: fileURLToPath(new URL('../packages/archinsight-icons/src/index.js', import.meta.url)) },
       { find: /^monaco-editor$/, replacement: fileURLToPath(new URL('./node_modules/monaco-editor/esm/vs/editor/editor.api.js', import.meta.url)) }
     ]
   },

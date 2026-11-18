@@ -33,3 +33,14 @@ export declare function normalizeGraphvizSvgResult(
 ): NormalizedGraphvizSvgResult;
 
 export declare function stripGraphvizSvgTitles(svg: string): string;
+
+export interface GraphvizIconPlacement {
+  readonly slotId: string;
+  readonly iconId: string;
+  readonly color: string;
+}
+
+export declare function inlineGraphvizIcons(
+  svg: string,
+  placements?: readonly GraphvizIconPlacement[]
+): Promise<string>;

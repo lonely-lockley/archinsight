@@ -12,14 +12,16 @@ test('validates and normalizes render payload', () => {
     renders: [{
       sourceIdentity: 'app.ai',
       diagram: 'query',
-      dot: 'digraph app { a -> b }'
+      dot: 'digraph app { a -> b }',
+      icons: [{ slotId: 'slot', iconId: 'postgresql', color: '#fff' }]
     }]
   }, { maxRenderCount: 2, maxDotBytes: 1024 });
 
   assert.deepEqual(payload.renders, [{
     sourceIdentity: 'app.ai',
     diagram: 'query',
-    dot: 'digraph app { a -> b }'
+    dot: 'digraph app { a -> b }',
+    icons: [{ slotId: 'slot', iconId: 'postgresql', color: '#fff' }]
   }]);
   assert.deepEqual(validateRenderPayload({ renders: payload.renders }, { maxRenderCount: 2, maxDotBytes: 1024 }), payload.renders);
 });
@@ -36,6 +38,17 @@ test('rejects arbitrary malformed payloads', () => {
   assert.throws(() => validateRenderPayload({
     renders: [{ sourceIdentity: 'app.ai', diagram: 42, dot: 'digraph app {}' }]
   }, { maxRenderCount: 2, maxDotBytes: 1024 }), /diagram is required/);
+  assert.throws(() => validateRenderPayload({ renders: [{ sourceIdentity: 'app.ai', diagram: 'q', dot: 'digraph {}', icons: {} }] }, { maxRenderCount: 2, maxDotBytes: 1024 }), /icons must be an array/);
+  assert.throws(() => validateRenderPayload({ renders: [{ sourceIdentity: 'app.ai', diagram: 'q', dot: 'digraph {}', icons: Array(2049).fill({}) }] }, { maxRenderCount: 2, maxDotBytes: 1024 }), /too many icons/);
+  assert.throws(() => validateRenderPayload({ renders: [{ sourceIdentity: 'app.ai', diagram: 'q', dot: 'digraph {}', icons: [null] }] }, { maxRenderCount: 2, maxDotBytes: 1024 }), /icon 0 must be an object/);
+  for (const icon of [
+    { slotId: '', iconId: 'postgresql', color: '#fff' },
+    { slotId: 'slot', iconId: '', color: '#fff' },
+    { slotId: 'slot', iconId: 'postgresql', color: '' }
+  ]) {
+    assert.throws(() => validateRenderPayload({ renders: [{ sourceIdentity: 'app.ai', diagram: 'q', dot: 'digraph {}', icons: [icon] }] }, { maxRenderCount: 2, maxDotBytes: 1024 }), /is required/);
+  }
+  assert.throws(() => validateRenderPayload({ renders: [{ sourceIdentity: 'app.ai', diagram: 'q', dot: 'digraph {}', icons: [{ slotId: 'x'.repeat(513), iconId: 'postgresql', color: '#fff' }] }] }, { maxRenderCount: 2, maxDotBytes: 1024 }), /metadata is too long/);
 });
 
 test('enforces count and DOT byte limits', () => {

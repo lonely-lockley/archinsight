@@ -16,6 +16,7 @@ type RenderRequest = {
   readonly reject: (error: Error) => void;
   timeout?: number;
   abort?: () => void;
+  cancelled?: boolean;
 };
 
 const renderTimeoutMs = 5000;
@@ -91,7 +92,9 @@ function ensureWorker(): Worker {
 
 function cancelRequest(request: RenderRequest): void {
   if (active === request) {
-    failActive(abortError());
+    request.cancelled = true;
+    if (request.abort !== undefined) request.signal?.removeEventListener('abort', request.abort);
+    request.reject(abortError());
     return;
   }
   const index = queued.indexOf(request);
@@ -111,7 +114,7 @@ function finishActive(complete: () => void): void {
   const request = active;
   if (request === undefined) return;
   active = undefined;
-  finish(request, complete);
+  finish(request, request.cancelled === true ? () => {} : complete);
   pump();
 }
 

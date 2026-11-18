@@ -5,6 +5,7 @@ plugins {
 def artifactVersions = gradle.ext.archinsightVersions
 def npmCommand = System.getProperty('os.name').toLowerCase().contains('windows') ? 'npm.cmd' : 'npm'
 def npmArtifacts = [
+    icons    : [dir: file('packages/archinsight-icons'), versionKey: 'icons', license: false],
     contracts: [dir: file('packages/archinsight-contracts'), versionKey: 'contracts', license: false],
     editorSupport: [dir: file('packages/archinsight-editor-support'), versionKey: 'editorSupport', license: false],
     git      : [dir: file('packages/archinsight-git'), versionKey: 'git', license: false],
@@ -77,6 +78,16 @@ tasks.register('testGraphvizContracts', Exec) {
         '--test',
         'packages/archinsight-graphviz/test/*.test.mjs',
         'scripts/graphviz-boundaries.test.mjs'
+}
+
+tasks.register('testIconContracts', Exec) {
+    group = 'verification'
+    description = 'Tests the pinned technology icon catalog, resolver, and generated assets.'
+    inputs.dir('packages/archinsight-icons/src')
+    inputs.dir('packages/archinsight-icons/test')
+    inputs.dir('packages/archinsight-icons/scripts')
+    workingDir = file('packages/archinsight-icons')
+    commandLine npmCommand, 'run', 'check'
 }
 
 tasks.register('testEditorSupportContracts', Exec) {
@@ -224,7 +235,7 @@ tasks.register('dockerPush') {
 }
 
 tasks.named('check') {
-    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts',
+    dependsOn 'languageNpmTest', 'testEditorSupportContracts', 'testGraphvizContracts', 'testIconContracts',
         'testPackageVersionSync', 'testContractsPackage', 'testWorkbenchPackage', 'testGitPackage'
 }
 

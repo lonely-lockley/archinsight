@@ -12,6 +12,7 @@ import { lineContextAt, type LineContext } from "./line-context.js";
 import { tokenizeInsightSource, tokenName, tokenStart, tokenStop, tokenType } from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, PROJECTION_TERM, TYPE_SLOT_REFERENCE, TypeSystem } from "./type-system.js";
 import { ATTRIBUTE_CAPABILITIES, OPERATOR_CAPABILITIES, TYPE_CAPABILITIES } from "./semantic-capabilities.js";
+import { searchTechnologyIcons } from "@archinsight/icons";
 
 const PRESENTATION_FIELDS = ["header", "subtitle", "body"];
 const PRESENTATION_SECTIONS = ["light", "dark", "externalLight", "externalDark", "graphviz"];
@@ -44,6 +45,39 @@ export class CompletionEngine {
   complete(request: CompletionRequest): CompletionResult {
     const offset = Math.max(0, Math.min(request.cursorOffset, request.source.length));
     const originalLine = lineContextAt(request.source, offset);
+    const iconValue = iconValueCompletion(request.source, offset);
+    if (iconValue !== undefined) {
+      const matches = searchTechnologyIcons(iconValue.query, 51);
+      const normalizedIconQuery = iconValue.query.trim().toLocaleLowerCase("en-US");
+      const noneItems = (normalizedIconQuery.length === 0 || "none".startsWith(normalizedIconQuery))
+        ? [{
+          label: "none",
+          insertText: "none",
+          kind: "ENUM_VALUE" as const,
+          typeName: "TechnologyIcon",
+          documentation: { header: "None", subtitle: "Disable automatic technology icon" },
+        }]
+        : [];
+      const items = [
+        ...noneItems,
+        ...matches.map((entry) => ({
+          label: entry.id,
+          insertText: entry.id,
+          kind: "ENUM_VALUE" as const,
+          typeName: "TechnologyIcon",
+          iconId: entry.id,
+          documentation: { header: entry.label, subtitle: `Devicon ${entry.variant}` },
+        })),
+      ];
+      return {
+        items: items.slice(0, 50),
+        expectedTokens: new Set(["ANNOTATION_VALUE"]),
+        ruleStack: ["annotation", "annotationParameters"],
+        replacementStartOffset: iconValue.start,
+        replacementEndOffset: iconValue.end,
+        isIncomplete: true,
+      };
+    }
     const normalized = shouldNormalizeCurrentWord(request.source, offset, originalLine)
       ? sourceWithoutReplacementWord(request.source, originalLine)
       : { source: request.source, cursorOffset: offset };
@@ -1161,12 +1195,27 @@ function enumValue(text: string, typeName: string): CompletionItem {
   return { label: text, insertText: text, kind: "ENUM_VALUE", typeName };
 }
 
-function annotation(text: string): CompletionItem {
-  return { label: text, insertText: text, kind: "ANNOTATION" };
+function annotation(insertText: string, label = insertText): CompletionItem {
+  return { label, insertText, kind: "ANNOTATION" };
 }
 
 function annotationItems(): CompletionItem[] {
-  return [annotation("@planned"), annotation("@deprecated")];
+  return [annotation("@planned"), annotation("@deprecated"), annotation("@icon(", "@icon")];
+}
+
+function iconValueCompletion(
+  source: string,
+  cursorOffset: number,
+): { readonly query: string; readonly start: number; readonly end: number } | undefined {
+  const lineStart = source.lastIndexOf("\n", Math.max(0, cursorOffset - 1)) + 1;
+  const before = source.slice(lineStart, cursorOffset);
+  const match = /@icon\(\s*([a-zA-Z0-9_.+#-]*)$/.exec(before);
+  if (match === null) return undefined;
+  const query = match[1] ?? "";
+  const start = cursorOffset - query.length;
+  let end = cursorOffset;
+  while (end < source.length && /[a-zA-Z0-9_.+#-]/.test(source[end] ?? "")) end++;
+  return { query, start, end };
 }
 
 function unique<T>(items: readonly T[]): T[] {

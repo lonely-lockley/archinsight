@@ -17,6 +17,8 @@ test('worker renders svg and png payloads', async () => {
   });
 
   assert.match(svg.svgs[0].svg, /<svg/);
+  assert.match(svg.svgs[0].svg, /class="technology-icon"/);
+  assert.doesNotMatch(svg.svgs[0].svg, /xlink:href="#slot-one"/);
   assert.equal(svg.svgs[0].sourceIdentity, 'app.ai');
 
   const png = await render({
@@ -61,6 +63,24 @@ test('worker reports Graphviz failures without crashing the worker process', asy
   }), /syntax error|Graphviz render failed/i);
 });
 
+test('worker enforces warning and PNG byte budgets after icon-aware rendering', async () => {
+  await assert.rejects(render({
+    mode: 'svg',
+    renders: [{
+      sourceIdentity: 'warning.ai', diagram: 'query',
+      dot: 'digraph warning { a [color="definitely-not-a-color"] }'
+    }],
+    limits: { ...limits, maxWarningBytes: 1 }
+  }), /warnings are too large/i);
+
+  await assert.rejects(render({
+    mode: 'png',
+    renders: [renderItem()],
+    dpi: 96,
+    limits: { ...limits, maxPngBytes: 1 }
+  }), /PNG output is too large/i);
+});
+
 function render(workerData) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(workerPath, { workerData });
@@ -84,6 +104,7 @@ function renderItem() {
   return {
     sourceIdentity: 'app.ai',
     diagram: 'query',
-    dot: 'digraph app { a -> b }'
+    dot: 'digraph app { a [shape=plain,label=<<table border="0"><tr><td href="#slot-one" tooltip=" " bgcolor="transparent" width="40" height="40" fixedsize="true"> </td><td>App</td></tr></table>>] }',
+    icons: [{ slotId: 'slot-one', iconId: 'postgresql', color: '#f4f4f4' }]
   };
 }

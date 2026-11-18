@@ -11,8 +11,20 @@ import type {
 import type { DiagramDiff, DiagramDiffStatus } from "./diagram-diff.js";
 import { presentationText, type PresentationTextField } from "./presentation-resolver.js";
 import { renderIdentity } from "./render-identity.js";
+import { resolveExplicitIcon, resolveTechnologyIcon } from "@archinsight/icons";
 
 export type RenderTheme = "light" | "dark";
+
+export interface GraphvizIconPlacement {
+  readonly slotId: string;
+  readonly iconId: string;
+  readonly color: string;
+}
+
+export interface GraphvizArtifact {
+  readonly dot: string;
+  readonly icons: readonly GraphvizIconPlacement[];
+}
 
 interface DiffHighlight {
   readonly elements: Readonly<Record<string, DiagramDiffStatus>>;
@@ -21,6 +33,10 @@ interface DiffHighlight {
 }
 
 export function renderGraphviz(result: LinkProjectResult, graph: RenderGraph, theme: RenderTheme = "light"): string {
+  return renderGraphvizArtifact(result, graph, theme).dot;
+}
+
+export function renderGraphvizArtifact(result: LinkProjectResult, graph: RenderGraph, theme: RenderTheme = "light"): GraphvizArtifact {
   return renderGraphvizWithHighlight(result, graph, theme);
 }
 
@@ -30,6 +46,15 @@ export function renderDiagramDiffGraphviz(
   diff: DiagramDiff,
   theme: RenderTheme = "light",
 ): string {
+  return renderDiagramDiffGraphvizArtifact(before, after, diff, theme).dot;
+}
+
+export function renderDiagramDiffGraphvizArtifact(
+  before: LinkProjectResult,
+  after: LinkProjectResult,
+  diff: DiagramDiff,
+  theme: RenderTheme = "light",
+): GraphvizArtifact {
   if ([...before.diagnostics, ...after.diagnostics]
       .some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
     throw new Error("Cannot render diff of an invalid link result");
@@ -53,7 +78,7 @@ function renderGraphvizWithHighlight(
   graph: RenderGraph,
   theme: RenderTheme,
   highlight?: DiffHighlight,
-): string {
+): GraphvizArtifact {
   if (result.diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
     throw new Error("Cannot render invalid link result");
   }
@@ -78,17 +103,18 @@ function renderGraphvizWithHighlight(
   }
 
   const lines: string[] = [];
+  const icons: GraphvizIconPlacement[] = [];
   writeHeader(lines, result, graph.context, theme, graph.layout?.kind === "isolate" ? "LR" : undefined);
   const renderedGroups = new Set<string>();
   const renderedElements = new Set<string>();
   for (const group of groups) {
     if (!groupOwnerByChild.has(group.owner)) {
-      writeGroup(lines, result, graph, group, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, "  ", highlight);
+      writeGroup(lines, result, graph, group, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, "  ", icons, highlight);
     }
   }
   for (const element of Object.values(graph.elements)) {
     if (!hidden.has(element.id) && !renderedElements.has(element.id) && !groupOwnerByChild.has(element.id)) {
-      writeElement(lines, result, graph, element, theme, "  ", highlight);
+      writeElement(lines, result, graph, element, theme, "  ", icons, highlight);
     }
   }
   if (graph.layout?.kind === "isolate") writeIsolateLayout(lines, graph.layout, hidden);
@@ -100,7 +126,7 @@ function renderGraphvizWithHighlight(
     writeEdge(lines, result, edge, groupByOwner, theme, highlight);
   }
   lines.push("}");
-  return lines.join("\n");
+  return { dot: lines.join("\n"), icons };
 }
 
 function writeHeader(
@@ -182,6 +208,7 @@ function writeGroup(
   hidden: ReadonlySet<string>,
   theme: RenderTheme,
   indent: string,
+  icons: GraphvizIconPlacement[],
   highlight?: DiffHighlight,
 ): void {
   if (renderedGroups.has(group.owner)) {
@@ -198,15 +225,22 @@ function writeGroup(
   const contentIndent = `${indent}  `;
   lines.push(`${contentIndent}id=${quoted(clusterId(group.owner))}`);
   const contextTheme = section(presentation(result, "Context"), theme);
+  const groupTextColor = unquoted(contextTheme.text ?? "#1e1e1e");
   if (ownerElement !== undefined) {
     const ownerPresentation = presentation(result, ownerElement.type);
+    const resolvedOwnerPresentation = graph.externalElements.includes(ownerElement.id)
+      ? externalizedPresentation(ownerPresentation, theme)
+      : ownerPresentation;
+    const icon = iconPlacement(ownerElement, resolvedOwnerPresentation, theme, groupTextColor);
+    if (icon !== undefined) icons.push(icon);
     lines.push(`${contentIndent}label=${htmlLabel(
-      field(ownerPresentation, "header", ownerElement) ?? fallbackName(ownerElement.id),
-      field(ownerPresentation, "subtitle", ownerElement),
-      field(ownerPresentation, "body", ownerElement),
+      field(resolvedOwnerPresentation, "header", ownerElement) ?? fallbackName(ownerElement.id),
+      field(resolvedOwnerPresentation, "subtitle", ownerElement),
+      field(resolvedOwnerPresentation, "body", ownerElement),
       undefined,
       ownerElement.constructor,
       highlight?.groups[group.owner] ?? highlight?.elements[group.owner],
+      icon?.slotId,
     )}`);
   } else if (ownerContext !== undefined) {
     const ownerPresentation = presentation(result, ownerContext.type);
@@ -232,7 +266,7 @@ function writeGroup(
   }
   lines.push(`${contentIndent}margin="50"`);
   lines.push(`${contentIndent}color=${quoted(contextTheme.stroke ?? "#08427B")}`);
-  lines.push(`${contentIndent}fontcolor=${quoted(contextTheme.text ?? "#1e1e1e")}`);
+  lines.push(`${contentIndent}fontcolor=${quoted(groupTextColor)}`);
   lines.push(`${contentIndent}style="dotted"`);
   applyDiffHighlightToGroup(lines, contentIndent, highlight?.groups[group.owner] ?? highlight?.elements[group.owner]);
   lines.push("");
@@ -250,20 +284,20 @@ function writeGroup(
   for (const child of group.elements) {
     const childGroup = groupByOwner.get(child);
     if (childGroup !== undefined) {
-      writeGroup(lines, result, graph, childGroup, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, contentIndent, highlight);
+      writeGroup(lines, result, graph, childGroup, groupByOwner, clusterEdgeOwners, renderedGroups, renderedElements, hidden, theme, contentIndent, icons, highlight);
       continue;
     }
     const element = graph.elements[child];
     if (element !== undefined && !hidden.has(element.id)) {
       renderedElements.add(element.id);
-      writeElement(lines, result, graph, element, theme, contentIndent, highlight);
+      writeElement(lines, result, graph, element, theme, contentIndent, icons, highlight);
     }
   }
   lines.push("");
   lines.push(`${indent}}`);
 }
 
-function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: RenderTheme, indent: string, highlight?: DiffHighlight): void {
+function writeElement(lines: string[], result: LinkProjectResult, graph: RenderGraph, element: LinkedElement, theme: RenderTheme, indent: string, icons: GraphvizIconPlacement[], highlight?: DiffHighlight): void {
   const basePresentation = presentation(result, element.type);
   const resolvedPresentation = graph.externalElements.includes(element.id)
     ? externalizedPresentation(basePresentation, theme)
@@ -273,6 +307,8 @@ function writeElement(lines: string[], result: LinkProjectResult, graph: RenderG
   applyAnnotations(properties, element.annotations ?? [], false);
   applyDiffHighlight(properties, highlight?.elements[element.id]);
   properties.id = nodeDomId(element.id);
+  const icon = iconPlacement(element, resolvedPresentation, theme);
+  if (icon !== undefined) icons.push(icon);
   properties.label = htmlLabel(
     field(resolvedPresentation, "header", element) ?? fallbackName(element.id),
     field(resolvedPresentation, "subtitle", element),
@@ -280,6 +316,7 @@ function writeElement(lines: string[], result: LinkProjectResult, graph: RenderG
     undefined,
     element.constructor,
     highlight?.elements[element.id],
+    icon?.slotId,
   ) ?? "";
   writeStatement(lines, dotNodeId(element.id), properties, indent);
   if (element.note !== undefined) {
@@ -480,6 +517,7 @@ function htmlLabel(
   note?: string,
   typeLabel?: string,
   diffStatus?: DiagramDiffStatus,
+  iconSlotId?: string,
 ): string | undefined {
   if (header === undefined && subtitle === undefined && body === undefined && note === undefined
       && typeLabel === undefined && diffStatusRow(diffStatus) === undefined) {
@@ -492,8 +530,38 @@ function htmlLabel(
     labelRow(subtitle, false, "point-size=\"10px\"", "[", "]"),
     labelRow(body, false, "point-size=\"10px\""),
     noteRow(note),
-  ].filter((row): row is string => row !== undefined).join("");
-  return `<<table border="0">${rows}</table>>`;
+  ].filter((row): row is string => row !== undefined);
+  if (rows.length === 0) return undefined;
+  if (iconSlotId !== undefined) {
+    rows[0] = rows[0]!.replace(
+      "<tr>",
+      `<tr><td id="${escapeHtml(iconSlotId)}" href="#${escapeHtml(iconSlotId)}" tooltip=" " bgcolor="transparent" rowspan="${rows.length}" width="40" height="40" fixedsize="true" align="center" valign="middle"> </td>`,
+    );
+  }
+  return `<<table border="0" cellspacing="0" cellpadding="2">${rows.join("")}</table>>`;
+}
+
+function iconPlacement(
+  element: LinkedElement,
+  resolvedPresentation: ResolvedPresentation,
+  theme: RenderTheme,
+  colorOverride?: string,
+): GraphvizIconPlacement | undefined {
+  const explicit = element.annotations?.find(({ name }) => name === "icon");
+  let iconId: string | undefined;
+  if (explicit !== undefined) {
+    const resolution = resolveExplicitIcon(explicit.value ?? "");
+    if (resolution.status !== "resolved") return undefined;
+    iconId = resolution.id;
+  } else {
+    iconId = resolveTechnologyIcon(element.attributes.technology ?? [])?.id;
+  }
+  if (iconId === undefined) return undefined;
+  return {
+    slotId: renderIdentity("icon-slot", [element.id]),
+    iconId,
+    color: colorOverride ?? unquoted(section(resolvedPresentation, theme).text ?? "#f4f4f4"),
+  };
 }
 
 function diffStatusRow(status: DiagramDiffStatus | undefined): string | undefined {

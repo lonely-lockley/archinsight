@@ -11,6 +11,7 @@ const defaultMaxSvgBytes = 2 * 1024 * 1024;
 const defaultMaxTotalOutputBytes = 12 * 1024 * 1024;
 const defaultMaxResponseBytes = 16 * 1024 * 1024;
 const defaultMaxWarningBytes = 64 * 1024;
+const maxIconCountPerRender = 2048;
 
 export function requestLimitsFromEnv(env = process.env) {
   return {
@@ -71,7 +72,23 @@ function validateRender(render, index, limits) {
   if (byteLength(dot) > limits.maxDotBytes) {
     throw new Error(`render ${index} DOT payload is too large`);
   }
-  return { sourceIdentity, diagram, dot };
+  const icons = validateIcons(render.icons, index);
+  return { sourceIdentity, diagram, dot, ...(icons === undefined ? {} : { icons }) };
+}
+
+function validateIcons(value, renderIndex) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error(`render ${renderIndex} icons must be an array`);
+  if (value.length > maxIconCountPerRender) throw new Error(`render ${renderIndex} has too many icons`);
+  return value.map((item, iconIndex) => {
+    if (item === null || typeof item !== 'object') throw new Error(`render ${renderIndex} icon ${iconIndex} must be an object`);
+    const prefix = `render ${renderIndex} icon ${iconIndex}`;
+    const slotId = requiredString(item.slotId, `${prefix} slotId`);
+    const iconId = requiredString(item.iconId, `${prefix} iconId`);
+    const color = requiredString(item.color, `${prefix} color`);
+    if (slotId.length > 512 || iconId.length > 128 || color.length > 128) throw new Error(`${prefix} metadata is too long`);
+    return { slotId, iconId, color };
+  });
 }
 
 function requiredString(value, label) {

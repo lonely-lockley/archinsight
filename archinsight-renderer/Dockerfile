@@ -1,6 +1,8 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY archinsight-renderer/package*.json ./
+COPY packages/archinsight-icons/package.json /packages/archinsight-icons/package.json
+COPY packages/archinsight-icons/src /packages/archinsight-icons/src
 COPY packages/archinsight-graphviz/package.json /packages/archinsight-graphviz/package.json
 COPY packages/archinsight-graphviz/src /packages/archinsight-graphviz/src
 RUN npm ci --omit=dev --prefer-offline --no-audit --no-fund

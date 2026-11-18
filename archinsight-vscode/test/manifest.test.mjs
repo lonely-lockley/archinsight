@@ -111,6 +111,13 @@ test('language configuration uses balanced editor pairs', () => {
   }
 });
 
+test('technology icon annotation is highlighted and has a supported picker command', () => {
+  const grammar = json('syntaxes/insight.tmLanguage.json');
+  assert(grammar.repository.annotations.patterns.some(({ match }) => match.includes('icon')));
+  assert(manifest.contributes.commands.some(({ command, title }) =>
+    command === 'archinsight.selectTechnologyIcon' && title.endsWith('Select Technology Icon')));
+});
+
 test('project structure uses the canonical language-core builders', () => {
   assert(extensionSource.includes('buildProjectStructure'));
   assert(extensionSource.includes('buildTypeHierarchy'));

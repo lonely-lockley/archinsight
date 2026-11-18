@@ -1,4 +1,4 @@
-export type RenderIdentityKind = "node" | "edge" | "cluster" | "cluster-anchor" | "note";
+export type RenderIdentityKind = "node" | "edge" | "cluster" | "cluster-anchor" | "note" | "icon-slot";
 
 export interface RenderIdentity {
   readonly kind: RenderIdentityKind;
@@ -12,6 +12,7 @@ const RENDER_IDENTITY_KINDS: readonly RenderIdentityKind[] = [
   "node",
   "edge",
   "note",
+  "icon-slot",
 ];
 
 export function renderIdentity(

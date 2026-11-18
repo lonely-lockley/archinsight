@@ -5,6 +5,10 @@
 !archinsight-renderer/src
 !archinsight-renderer/src/**
 !packages
+!packages/archinsight-icons
+!packages/archinsight-icons/package.json
+!packages/archinsight-icons/src
+!packages/archinsight-icons/src/**
 !packages/archinsight-graphviz
 !packages/archinsight-graphviz/package.json
 !packages/archinsight-graphviz/src

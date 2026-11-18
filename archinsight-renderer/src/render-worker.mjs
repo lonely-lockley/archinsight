@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { instance } from '@viz-js/viz';
-import { normalizeGraphvizSvgResult } from '@archinsight/graphviz';
+import { inlineGraphvizIcons, normalizeGraphvizSvgResult } from '@archinsight/graphviz';
 import { Resvg } from '@resvg/resvg-js';
 import {
   addOutputBytes,
@@ -18,7 +18,7 @@ try {
   let outputBytes = 0;
   let warningBytes = 0;
   for (const item of workerData.renders) {
-    const result = renderSvg(viz, item.dot);
+    const result = await renderSvg(viz, item.dot, item.icons);
     for (const warning of result.warnings) {
       warningBytes += Buffer.byteLength(warning, 'utf8');
       if (warningBytes > limits.maxWarningBytes) {
@@ -46,13 +46,13 @@ try {
   });
 }
 
-function renderSvg(viz, dot) {
+async function renderSvg(viz, dot, icons) {
   const result = normalizeGraphvizSvgResult(viz.render(dot, { format: 'svg', engine: 'dot' }));
   if (result.status === 'failure') {
     throw new Error(result.error);
   }
   return {
-    svg: result.svg,
+    svg: await inlineGraphvizIcons(result.svg, icons),
     warnings: result.warnings
   };
 }
