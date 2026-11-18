@@ -119,6 +119,12 @@ those values. `--param name=<json>` can be repeated. `--params` reads one JSON
 object relative to the current working directory. Missing, unused, duplicated,
 or attempts to set reserved `$context`/`$tab` parameters are errors.
 
+Plain graph-returning queries use parameters in graph predicates and accept
+strings or lists of strings. The CLI applies the same validation when such a
+query is used by `query`, `render`, or `diff`; for `diff`, one validated
+parameter map is evaluated unchanged against both revisions. The wider scalar
+and nested value set above applies to `RETURN TABLE` reports.
+
 Variable paths use relationship trails, so a single query-visible relationship
 does not repeat within one path. Nodes may repeat. Enumerating paths must have
 a finite maximum. An endpoint-only `RETURN TABLE DISTINCT` reachability query

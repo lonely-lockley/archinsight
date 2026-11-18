@@ -273,7 +273,7 @@ export function helpText(): string {
 Usage:
   archinsight link [project-dir] [--format text|json] [--out file]
   archinsight render [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f text|json|dot|svg|png] [-o file]
-  archinsight diff [project-dir] --from <commit> --to <commit> [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [-f text|json|dot|svg|png] [-o file]
+  archinsight diff [project-dir] --from <commit> --to <commit> [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [--param name=<json>] [--params file.json] [-f text|json|dot|svg|png] [-o file]
   archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]

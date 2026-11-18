@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   AiqQueryError,
   deploymentEnvironmentsForElement,
+  deploymentOccurrenceEnvironmentsForElement,
   deploymentFocusElementIds,
   diagramElementMetadata,
   diagramQuickActionMetadata,
@@ -142,7 +143,9 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
     repository.resolveRevision(from, signal),
     repository.resolveRevision(to, signal),
   ]);
+  const parameters = await queryParameters(args);
   let diagnostics: import("@insight/language").LanguageDiagnostic[] = [];
+  const scopeWarnings: import("@insight/language").LanguageDiagnostic[] = [];
   let semantic;
   try {
     semantic = await buildVersionedDiagramDiff({
@@ -158,7 +161,14 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
         })));
         if (hasErrors(project.diagnostics)) throw new Error(`The ${side} revision contains model errors`);
       },
-      selectGraph: (project) => selectedRevisionGraph(project, args),
+      selectGraph: (project, side) => selectedRevisionGraph(
+        project,
+        args,
+        parameters,
+        side,
+        side === "before" ? from : to,
+        scopeWarnings,
+      ),
     });
   } catch (cause) {
     if (diagnostics.length > 0 && hasErrors(diagnostics)) {
@@ -173,7 +183,10 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const warnings = diagnostics.filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE");
+  const warnings = [
+    ...diagnostics.filter((diagnostic) => diagnostic.level === "WARNING" || diagnostic.level === "NOTE"),
+    ...scopeWarnings,
+  ];
   if (warnings.length > 0) process.stderr.write(formatDiagnostics(warnings));
   const attributedDiff = await attributeVersionedDiagramDiff(repository, semantic, signal);
   const diff = semantic.diff;
@@ -204,10 +217,27 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
   process.stderr.write(renderFinishedLine(true, "diagram diff rendered successfully"));
 }
 
-async function selectedRevisionGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph | undefined> {
+async function selectedRevisionGraph(
+  project: LoadedProject,
+  args: ParsedArgs,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+  side: "before" | "after",
+  revision: string,
+  warnings: import("@insight/language").LanguageDiagnostic[],
+): Promise<RenderGraph | undefined> {
   if (project.sources.length === 0) return undefined;
-  if (args.tab !== undefined && !projectHasSource(project, args.tab)) return undefined;
-  return selectedGraph(project, args);
+  if (args.tab !== undefined && !projectHasSource(project, args.tab)) {
+    warnings.push({
+      level: "WARNING",
+      code: "DIFF_SOURCE_MISSING",
+      sourceName: revision,
+      line: 1,
+      column: 1,
+      message: `Source '${args.tab}' is absent from the ${side} revision; that side is compared as an empty graph`,
+    });
+    return undefined;
+  }
+  return selectedGraph(project, args, parameters);
 }
 
 function formatDiagramDiff(diff: DiagramDiff, from: string, to: string): string {
@@ -219,6 +249,32 @@ function formatDiagramDiff(diff: DiagramDiff, from: string, to: string): string 
   for (const category of ["elements", "edges", "groups"] as const) {
     const counts = diff.summary[category];
     rows.push([category, `added=${counts.added}\tremoved=${counts.removed}\tchanged=${counts.changed}\tunchanged=${counts.unchanged}`]);
+  }
+  for (const [id, entry] of Object.entries(diff.elements).sort(([left], [right]) => left.localeCompare(right))) {
+    if (entry.status === "unchanged") continue;
+    const element = entry.rendered;
+    rows.push([
+      "element",
+      entry.status,
+      id,
+      element.type,
+      element.attributes.name?.[0] ?? element.attributes.title?.[0] ?? element.localId,
+    ]);
+  }
+  for (const entry of diff.edges) {
+    if (entry.status === "unchanged") continue;
+    const edge = entry.rendered;
+    rows.push([
+      "edge",
+      entry.status,
+      entry.key,
+      `${edge.source} -> ${edge.target}`,
+      edge.edge.attributes.technology?.[0] ?? "-",
+    ]);
+  }
+  for (const [owner, entry] of Object.entries(diff.groups).sort(([left], [right]) => left.localeCompare(right))) {
+    if (entry.status === "unchanged") continue;
+    rows.push(["group", entry.status, owner, entry.rendered.elements.join(",")]);
   }
   return `${rows.map((row) => row.join("\t")).join("\n")}\n`;
 }
@@ -438,6 +494,9 @@ export async function runQuickAction(args: ParsedArgs): Promise<void> {
   if (source.canonicalElementId === target.canonicalElementId) {
     throw new CliError("Find path source and target must be different elements");
   }
+  if (args.environment !== undefined) {
+    validateFindPathSourceEnvironment(project.result, source, args.environment);
+  }
   const graph = selectPathGraph(
     project.result,
     source.canonicalElementId,
@@ -455,6 +514,19 @@ export async function runQuickAction(args: ParsedArgs): Promise<void> {
     pathFound: graph.edges.length > 0,
     ...(args.environment === undefined ? {} : { environment: args.environment }),
   });
+}
+
+function validateFindPathSourceEnvironment(
+  result: Parameters<typeof diagramQuickActionMetadata>[0],
+  source: DiagramElementQuickActionMetadata,
+  requested: string,
+): void {
+  const environments = deploymentOccurrenceEnvironmentsForElement(result, source.canonicalElementId);
+  if (environments.some((environment) => environment.id === requested)) return;
+  if (environments.length === 0) {
+    throw new CliError(`No deployment is available for '${source.canonicalElementId}'`);
+  }
+  throw new CliError(`Environment '${requested}' is not available for '${source.canonicalElementId}'. Available environments: ${quickActionEnvironmentList(environments)}`);
 }
 
 function validateQuickActionOptions(args: ParsedArgs): void {

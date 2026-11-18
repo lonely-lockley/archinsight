@@ -39,6 +39,7 @@ const cases = [
   optionalMatchKeepsPreviouslySelectedNodeWhenRelationshipIsMissing,
   optionalMatchWhereFiltersOptionalPatternOnly,
   filtersWithWhereAndBuiltinVariables,
+  graphQueriesAcceptValidatedUserParameters,
   missingScopeValuesDoNotMatchMissingOrDefinedProperties,
   filtersWithWhereOr,
   supportsWhereParenthesesAndNot,
@@ -134,6 +135,47 @@ system app
   assertNoErrors(result);
   assert(exact.elements["shared/api"]);
   assert.equal(Object.keys(lowercase.elements).length, 0);
+}
+
+function graphQueriesAcceptValidatedUserParameters() {
+  const result = linkWithCore(source("architecture.ai", `
+context shared
+
+system app
+    name = App
+
+system worker
+    name = Worker
+`));
+  const graph = selectGraph(
+    result,
+    { context: "shared" },
+    "MATCH (n:Element) WHERE n.id IN $ids RETURN n",
+    { parameters: { ids: ["app", "worker"] } },
+  );
+  assert.deepEqual(Object.keys(graph.elements).sort(), ["shared/app", "shared/worker"]);
+  assert.throws(
+    () => selectGraph(result, { context: "shared" }, "MATCH (n:Element {id: $id}) RETURN n"),
+    /Missing query parameter: \$id/,
+  );
+  assert.throws(
+    () => selectGraph(
+      result,
+      { context: "shared" },
+      "MATCH (n:Element {id: $id}) RETURN n",
+      { parameters: { id: "app", extra: "worker" } },
+    ),
+    /Unused query parameter: \$extra/,
+  );
+  assert.throws(
+    () => selectGraph(
+      result,
+      { context: "shared" },
+      "MATCH (n:Element {id: $id}) RETURN n",
+      { parameters: { id: 42 } },
+    ),
+    /must be a string or a list of strings/,
+  );
 }
 
 function selectsReferencesReturnedByCypher() {

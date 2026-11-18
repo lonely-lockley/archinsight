@@ -52,9 +52,22 @@ export function analyzeProjectSources(root: string, sources: readonly ProjectSou
   };
 }
 
-export async function selectedGraph(project: LoadedProject, args: ParsedArgs): Promise<RenderGraph> {
+export async function selectedGraph(
+  project: LoadedProject,
+  args: ParsedArgs,
+  parameters: Readonly<Record<string, QueryParameterValue>> = {},
+): Promise<RenderGraph> {
   const selected = await selectedQuerySource(project, args);
-  return selectGraph(project.result, selected.scope, selected.query);
+  return selectGraph(project.result, selected.scope, selected.query, {
+    parameters,
+    limits: {
+      ...(args.maxExpansions === undefined ? {} : { maxExpansions: args.maxExpansions }),
+      ...(args.maxRows === undefined ? {} : { maxRows: args.maxRows }),
+      ...(args.maxValues === undefined ? {} : { maxValues: args.maxValues }),
+      ...(args.maxOutputBytes === undefined ? {} : { maxOutputBytes: args.maxOutputBytes }),
+      ...(args.timeoutMs === undefined ? {} : { timeoutMs: args.timeoutMs }),
+    },
+  });
 }
 
 export async function selectedBuiltinViewScope(

@@ -151,6 +151,7 @@ export type { DiagramOccurrenceIdentity } from "./occurrence-identity.js";
 export {
   canonicalDiagramElementId,
   deploymentEnvironmentsForElement,
+  deploymentOccurrenceEnvironmentsForElement,
   deploymentFocusElementIds,
   diagramElementOccurrenceEnvironment,
   diagramElementMetadata,

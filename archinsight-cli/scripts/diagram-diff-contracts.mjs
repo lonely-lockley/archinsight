@@ -23,6 +23,12 @@ system b
         -> a
             technology = HTTP
 `);
+  writeFileSync(path.join(project, "consumers.aiq"), `MATCH (target:Element {id: $target})
+OPTIONAL MATCH (consumer)-[link:REFERENCES]->(target)
+RETURN target, consumer, link
+`);
+  const paramsFile = path.join(project, "params.json");
+  writeFileSync(paramsFile, JSON.stringify({ target: "a" }));
   mkdirSync(path.join(project, ".hidden"));
   mkdirSync(path.join(project, "node_modules"));
   writeFileSync(path.join(project, ".hidden", "broken.ai"), "not valid Insight");
@@ -56,6 +62,10 @@ system c
   const text = success("diff", project, "--from", before, "--to", after, "--view", "c1", "--format", "text");
   assert.match(text.stdout, /elements\tadded=1\tremoved=0\tchanged=1\tunchanged=1/);
   assert.match(text.stdout, /edges\tadded=1\tremoved=0\tchanged=1\tunchanged=0/);
+  assert.match(text.stdout, /^element\tadded\tsample\/c\tSystem\tService C$/m);
+  assert.match(text.stdout, /^element\tchanged\tsample\/a\tSystem\tService A renamed$/m);
+  assert.match(text.stdout, /^edge\tadded\t[^\t]+\tsample\/c -> sample\/a\t-$/m);
+  assert.match(text.stdout, /^edge\tchanged\t[^\t]+\tsample\/b -> sample\/a\tgRPC$/m);
 
   const json = success("diff", project, "--from", before, "--to", after, "--view", "c1", "--format", "json");
   const payload = JSON.parse(json.stdout);
@@ -70,6 +80,24 @@ system c
   ), "changed elements must carry blame metadata");
   assert(payload.diff.edges.some((entry) => entry.status === "added"
     && entry.rendered.source === "sample/c" && entry.rendered.target === "sample/a"));
+
+  const parameterized = success(
+    "diff", project, "--from", before, "--to", after,
+    "--query", "consumers.aiq", "--param", 'target="a"', "--format", "json",
+  );
+  const parameterizedPayload = JSON.parse(parameterized.stdout);
+  assert.equal(parameterizedPayload.diff.elements["sample/c"].status, "added");
+  assert(parameterizedPayload.diff.edges.some((entry) => entry.status === "added"
+    && entry.rendered.source === "sample/c" && entry.rendered.target === "sample/a"));
+  const parameterFilePayload = JSON.parse(success(
+    "diff", project, "--from", before, "--to", after,
+    "--query", "consumers.aiq", "--params", paramsFile, "--format", "json",
+  ).stdout);
+  assert.equal(parameterFilePayload.diff.elements["sample/c"].status, "added");
+  failure(
+    "diff", project, "--from", before, "--to", after,
+    "--query", "consumers.aiq", "--format", "json", /Missing query parameter: \$target/,
+  );
 
   const dot = success("diff", project, "--from", before, "--to", after, "--view", "c1");
   assert.doesNotMatch(dot.stdout, /#(?:c8e6c9|ffcdd2|fff59d)/);
@@ -105,6 +133,16 @@ system c
   const movedOnly = success("diff", project, "--from", after, "--to", moved, "--view", "c1", "--format", "text");
   assert.match(movedOnly.stdout, /elements\tadded=0\tremoved=0\tchanged=0\tunchanged=3/);
   assert.match(movedOnly.stdout, /edges\tadded=0\tremoved=0\tchanged=0\tunchanged=2/);
+  const movedPathScope = success(
+    "diff", project, "--from", after, "--to", moved,
+    "--source", "moved/model.ai", "--view", "c1", "--format", "text",
+  );
+  assert.match(movedPathScope.stderr, /WARNING\tDIFF_SOURCE_MISSING\t[^\n]+\t1\t1\tSource 'moved\/model\.ai' is absent from the before revision/);
+  const oldPathScope = success(
+    "diff", project, "--from", after, "--to", moved,
+    "--source", "model.ai", "--view", "c1", "--format", "text",
+  );
+  assert.match(oldPathScope.stderr, /WARNING\tDIFF_SOURCE_MISSING\t[^\n]+\t1\t1\tSource 'model\.ai' is absent from the after revision/);
   git("mv", "model/moved/model.ai", "model/model.ai");
 
   write("context\n");
@@ -121,6 +159,8 @@ system c
   assert.doesNotMatch(removedDot.stdout, /#ffcdd2/);
   assert.match(removedDot.stdout, /color="#c62828"/);
   assert.match(removedDot.stdout, /<font color="#c62828" point-size="11px"><b>−<\/b><\/font>/);
+  const removedText = success("diff", project, "--from", after, "--to", removed, "--view", "c1", "--format", "text");
+  assert.match(removedText.stdout, /^element\tremoved\tsample\/a\tSystem\tService A renamed$/m);
   failure("diff", project, "--from", removed, "--to", removed, "--view", "c1", /absent from both revisions/);
   console.log("CLI diagram diff contracts passed");
 } finally {
