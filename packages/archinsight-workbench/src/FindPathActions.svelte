@@ -8,10 +8,14 @@
   export let deploymentMode: DeploymentMode = { status: 'idle' };
   export let diffMode: DiagramDiffMode = { status: 'idle' };
   export let onCancel: () => void = () => {};
-  export let onCancelIsolate: () => void = () => {};
-  export let onCancelDeployment: () => void = () => {};
+  export let onBackQuickAction: () => void = () => {};
+  export let onCloseQuickActions: () => void = () => {};
   export let onCancelDiff: () => void = () => {};
   export let onReverse: () => void = () => {};
+
+  $: hasQuickActionResult = mode.status === 'showing-path'
+    || isolateMode.status !== 'idle'
+    || deploymentMode.status === 'showing-deployment';
 
   onMount(() => window.addEventListener('keydown', handleKeydown, true));
   onDestroy(() => window.removeEventListener('keydown', handleKeydown, true));
@@ -22,21 +26,22 @@
     if (document.querySelector('[data-diagram-quick-actions-menu]') !== null) return;
     event.preventDefault();
     event.stopPropagation();
-    if (deploymentMode.status !== 'idle') onCancelDeployment();
-    else if (isolateMode.status !== 'idle') onCancelIsolate();
+    if (hasQuickActionResult) onBackQuickAction();
     else if (diffMode.status !== 'idle') onCancelDiff();
     else onCancel();
   }
 </script>
 
 {#if mode.status !== 'idle' || isolateMode.status !== 'idle' || deploymentMode.status !== 'idle' || diffMode.status !== 'idle'}
-  <div class="find-path-actions" aria-label={deploymentMode.status === 'showing-deployment' ? 'Deployment mode' : isolateMode.status === 'showing-isolate' ? 'Isolate mode' : diffMode.status === 'showing-diff' ? 'Diff mode' : 'Find path mode'}>
+  <div class="find-path-actions" aria-label={deploymentMode.status === 'showing-deployment' ? 'Deployment mode' : isolateMode.status === 'showing-drill-down' ? 'Drill down mode' : isolateMode.status === 'showing-isolate' ? 'Isolate mode' : diffMode.status === 'showing-diff' ? 'Diff mode' : 'Find path mode'}>
     <span class="source-dot" aria-hidden="true"></span>
     <span class="mode-status" role="status" aria-live="polite">
       {#if deploymentMode.status === 'showing-deployment'}
         Deployment: {deploymentMode.elementTitle} · {deploymentMode.environment}
       {:else if isolateMode.status === 'showing-isolate'}
         Isolated: {isolateMode.elementTitle}
+      {:else if isolateMode.status === 'showing-drill-down'}
+        Drill down: {isolateMode.elementTitle}
       {:else if diffMode.status === 'showing-diff'}
         Diff: {diffMode.beforeShort} → {diffMode.afterShort}
       {:else if mode.status === 'selecting-target'}
@@ -60,13 +65,25 @@
     {/if}
     <button
       class="action back"
+      class:with-close={hasQuickActionResult}
       type="button"
-      aria-label={mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' || diffMode.status === 'showing-diff' ? 'Back to diagram' : 'Cancel find path'}
-      title={mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' || diffMode.status === 'showing-diff' ? 'Back to diagram (Esc)' : 'Cancel find path (Esc)'}
-      on:click={deploymentMode.status === 'showing-deployment' ? onCancelDeployment : isolateMode.status === 'showing-isolate' ? onCancelIsolate : diffMode.status === 'showing-diff' ? onCancelDiff : onCancel}
+      aria-label={hasQuickActionResult || diffMode.status === 'showing-diff' ? 'Back to diagram' : 'Cancel find path'}
+      title={hasQuickActionResult || diffMode.status === 'showing-diff' ? 'Back to diagram (Esc)' : 'Cancel find path (Esc)'}
+      on:click={hasQuickActionResult ? onBackQuickAction : diffMode.status === 'showing-diff' ? onCancelDiff : onCancel}
     >
-      <span class={`codicon ${mode.status === 'showing-path' || isolateMode.status === 'showing-isolate' || deploymentMode.status === 'showing-deployment' || diffMode.status === 'showing-diff' ? 'codicon-arrow-left' : 'codicon-close'}`} aria-hidden="true"></span>
+      <span class={`codicon ${hasQuickActionResult || diffMode.status === 'showing-diff' ? 'codicon-arrow-left' : 'codicon-close'}`} aria-hidden="true"></span>
     </button>
+    {#if hasQuickActionResult}
+      <button
+        class="action close"
+        type="button"
+        aria-label="Exit to diagram"
+        title="Exit to diagram"
+        on:click={onCloseQuickActions}
+      >
+        <span class="codicon codicon-close" aria-hidden="true"></span>
+      </button>
+    {/if}
   </div>
 {/if}
 
@@ -122,6 +139,14 @@
   }
 
   .back {
+    border-radius: 0 3px 3px 0;
+  }
+
+  .back.with-close {
+    border-radius: 0;
+  }
+
+  .close {
     border-radius: 0 3px 3px 0;
   }
 

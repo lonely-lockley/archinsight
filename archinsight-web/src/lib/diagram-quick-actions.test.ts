@@ -4,10 +4,9 @@ import {
   beginDeployment,
   beginIsolate,
   beginFindPath,
-  cancelDeployment,
-  cancelIsolate,
   cancelFindPath,
   clearTransientDiagramResult,
+  diagramQuickActionResultKind,
   idleFindPathMode,
   idleTransientDiagramResult,
   quickActionItems,
@@ -63,6 +62,7 @@ describe('diagram quick action model', () => {
 
   it('resolves visible enabled and disabled actions from semantic metadata', () => {
     expect(quickActionItems(metadata, 'shop/api')).toEqual([
+      expect.objectContaining({ id: 'drill-down', label: 'Drill down', enabled: true }),
       expect.objectContaining({ id: 'isolate', label: 'Isolate', enabled: true }),
       expect.objectContaining({ id: 'show-deployment', enabled: false, disabledReason: 'No deployment' }),
       expect.objectContaining({ id: 'go-to-declaration', enabled: true }),
@@ -77,6 +77,10 @@ describe('diagram quick action model', () => {
       .toContainEqual(expect.objectContaining({ id: 'go-to-declaration', enabled: false }));
     expect(quickActionItems(metadata, 'shop/db', { versioning: true }))
       .toContainEqual(expect.objectContaining({ id: 'diff', enabled: false }));
+    expect(quickActionItems(metadata, 'shop/db'))
+      .toContainEqual(expect.objectContaining({ id: 'drill-down', enabled: false }));
+    expect(quickActionItems(metadata, 'shop/db').find((action) => action.id === 'drill-down'))
+      .not.toHaveProperty('disabledReason');
     expect(quickActionItems(metadata, 'shop/api@@production')).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'isolate', enabled: true })])
     );
@@ -88,7 +92,6 @@ describe('diagram quick action model', () => {
     expect(showing).toEqual({
       status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API'
     });
-    expect(cancelIsolate(showing)).toEqual({ status: 'idle' });
   });
 
   it('tracks a deployment result and its environment until the result is closed', () => {
@@ -97,7 +100,18 @@ describe('diagram quick action model', () => {
       status: 'showing-deployment', elementId: 'shop/db', elementTitle: 'Database', environment: 'eu',
       focusElementIds: ['shop/db']
     });
-    expect(cancelDeployment(showing)).toEqual({ status: 'idle' });
+  });
+
+  it('maps every rendered quick-action mode to its shared result kind', () => {
+    expect(diagramQuickActionResultKind(beginIsolate(metadata['shop/api']!))).toBe('isolate');
+    const deployment = beginDeployment(metadata['shop/db']!, 'eu');
+    if (deployment.status !== 'showing-deployment') throw new Error('Expected deployment result');
+    expect(diagramQuickActionResultKind(deployment)).toBe('deployment');
+    const selecting = beginFindPath(metadata['shop/api']!, { view: 'c2' });
+    const resolving = resolveFindPathTarget(selecting, metadata['shop/db']!);
+    const showing = showResolvedFindPath(resolving);
+    if (showing.status !== 'showing-path') throw new Error('Expected path result');
+    expect(diagramQuickActionResultKind(showing)).toBe('find-path');
   });
 
   it('keeps source identity while selecting, resolving, showing and retrying a path', () => {

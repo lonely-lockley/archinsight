@@ -155,7 +155,7 @@ describe('SvgPreviewPanel quick actions', () => {
     trigger?.click();
     await tick();
     expect(target.querySelector<HTMLButtonElement>('button[aria-label="Isolate"]')).not.toBeNull();
-    expect(target.querySelector<HTMLButtonElement>('button[aria-label="Drill down"]')).toBeNull();
+    expect(target.querySelector<HTMLButtonElement>('button[aria-label="Drill down"]')).not.toBeNull();
     const deployment = target.querySelector<HTMLButtonElement>('button[aria-label^="Show deployment"]');
     expect(deployment?.getAttribute('aria-disabled')).toBe('true');
     expect(deployment?.hasAttribute('title')).toBe(false);

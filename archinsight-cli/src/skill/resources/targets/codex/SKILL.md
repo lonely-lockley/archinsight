@@ -46,7 +46,7 @@ Choose one mode before acting:
   mention a limitation only when it could change the verdict. Search the whole
   project unless the user explicitly requests a context or source-file scope;
   only then add `$context` or `$tab` filtering.
-  Prefer `quick-action` for a one-off Isolate, Deployment, Find path, or
+  Prefer `quick-action` for a one-off Drill down, Isolate, Deployment, Find path, or
   declaration lookup before writing a custom AIQ filter.
 - **Generate a diagram or subdiagram:** read `references/quick-actions.md` and
   `references/cli.md`. Use a deterministic quick action when it matches the
@@ -148,6 +148,6 @@ architecture.
   results.
 - Read `references/analysis.md` for inventories, dependency impact, paths,
   topics, missing relationships, aggregation, and resource-bounded reports.
-- Read `references/quick-actions.md` for deterministic Isolate, Deployment,
+- Read `references/quick-actions.md` for deterministic Drill down, Isolate, Deployment,
   Find path, declaration lookup, and subdiagram export without custom AIQ.
 - Use `examples/layered-architecture.ai` as a compact valid model.

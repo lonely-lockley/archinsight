@@ -160,7 +160,9 @@ function subject() {
     setPendingDeploymentElementId: vi.fn((next: string | undefined) => { pendingDeployment = next; }),
     setDeploymentPickerOpen: vi.fn(),
     setLoading: vi.fn((next: boolean) => { loading = next; }),
-    patchTab: vi.fn(),
+    patchTab: vi.fn((tabId: string, patch: Partial<WorkspaceTab>) => {
+      if (currentTab.id === tabId) currentTab = { ...currentTab, ...patch };
+    }),
     renderInBrowser: vi.fn(async (renders) => ({
       diagnostics: [],
       svgs: [{ sourceIdentity: renders[0]!.sourceIdentity, diagram: 'query', svg: '<svg>quick</svg>' }]
@@ -183,6 +185,24 @@ function subject() {
 }
 
 describe('diagram quick action controller', () => {
+  it('drills into nested elements and restores the previous diagram with Back', async () => {
+    const test = subject();
+    await test.controller.execute('drill-down', 'shop/api');
+
+    expect(test.ports.renderInBrowser).toHaveBeenCalledOnce();
+    expect(test.ports.patchTab).toHaveBeenCalledWith('tab-1', {
+      svg: '<svg>quick</svg>', dot: expect.stringContaining('shop/worker'), queryResult: undefined
+    });
+    expect(test.isolateMode()).toEqual({
+      status: 'showing-drill-down', elementId: 'shop/api', elementTitle: 'API'
+    });
+
+    test.controller.backQuickAction();
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
+      svg: '<svg/>', dot: undefined, queryResult: undefined
+    });
+  });
+
   it('isolates the selected element and its direct neighborhood at the current scale', async () => {
     const test = subject();
     await test.controller.execute('isolate', 'shop/api');
@@ -200,14 +220,14 @@ describe('diagram quick action controller', () => {
     });
     expect(test.loading()).toBe(false);
 
-    test.controller.cancelIsolate();
+    test.controller.backQuickAction();
     expect(test.isolateMode()).toEqual({ status: 'idle' });
     expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
       svg: '<svg/>', dot: undefined, queryResult: undefined
     });
   });
 
-  it('keeps the original diagram when another element is isolated before Back', async () => {
+  it('stacks repeated isolate transitions and restores one level per Back', async () => {
     const test = subject();
     await test.controller.execute('isolate', 'shop/api');
     await test.controller.execute('isolate', 'shop/database');
@@ -215,14 +235,87 @@ describe('diagram quick action controller', () => {
     expect(test.isolateMode()).toEqual({
       status: 'showing-isolate', elementId: 'shop/database', elementTitle: 'Database'
     });
-    test.controller.cancelIsolate();
+    test.controller.backQuickAction();
+
+    expect(test.isolateMode()).toEqual({
+      status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API'
+    });
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', expect.objectContaining({
+      svg: '<svg>quick</svg>', dot: expect.stringContaining('shop/database')
+    }));
+
+    test.controller.backQuickAction();
 
     expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
       svg: '<svg/>', dot: undefined, queryResult: undefined
     });
   });
 
-  it('restores an isolated diagram before entering Find path', async () => {
+  it('applies Isolate to the current Drill down projection and pops both transitions', async () => {
+    const test = subject();
+    await test.controller.execute('drill-down', 'shop/storefront');
+    await test.controller.execute('isolate', 'shop/api');
+
+    const isolatedDot = test.ports.renderInBrowser.mock.calls[1]?.[0]?.[0]?.dot ?? '';
+    expect(isolatedDot).toContain('shop/database');
+    expect(isolatedDot).not.toContain('shop/worker');
+    expect(test.isolateMode()).toEqual({
+      status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API'
+    });
+
+    test.controller.backQuickAction();
+    expect(test.isolateMode()).toEqual({
+      status: 'showing-drill-down', elementId: 'shop/storefront', elementTitle: 'Storefront'
+    });
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', expect.objectContaining({
+      svg: '<svg>quick</svg>', dot: expect.stringContaining('shop/api')
+    }));
+
+    test.controller.backQuickAction();
+    expect(test.isolateMode()).toEqual({ status: 'idle' });
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
+      svg: '<svg/>', dot: undefined, queryResult: undefined
+    });
+  });
+
+  it('closes the complete mixed quick-action stack in one action', async () => {
+    const test = subject();
+    await test.controller.execute('drill-down', 'shop/storefront');
+    await test.controller.execute('isolate', 'shop/api');
+    await test.controller.execute('find-path', 'shop/api');
+    await test.controller.selectPathTarget('shop/database');
+    await test.controller.execute('show-deployment', 'shop/database');
+
+    test.controller.closeQuickActions();
+
+    expect(test.mode()).toEqual({ status: 'idle' });
+    expect(test.isolateMode()).toEqual({ status: 'idle' });
+    expect(test.deploymentMode()).toEqual({ status: 'idle' });
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
+      svg: '<svg/>', dot: undefined, queryResult: undefined
+    });
+  });
+
+  it('restores the base diagram of every tab touched by the stack', async () => {
+    const test = subject();
+    await test.controller.execute('isolate', 'shop/api');
+    test.setActiveTab({
+      ...tab(), id: 'tab-2', sourceIdentity: 'second.ai', title: 'Second diagram', svg: '<svg-second/>'
+    });
+    await test.controller.execute('find-path', 'shop/api');
+    await test.controller.selectPathTarget('shop/database');
+
+    test.controller.closeQuickActions();
+
+    expect(test.ports.patchTab).toHaveBeenCalledWith('tab-1', {
+      svg: '<svg/>', dot: undefined, queryResult: undefined
+    });
+    expect(test.ports.patchTab).toHaveBeenCalledWith('tab-2', {
+      svg: '<svg-second/>', dot: undefined, queryResult: undefined
+    });
+  });
+
+  it('keeps the current scoped diagram under Find path selection', async () => {
     const test = subject();
     await test.controller.execute('isolate', 'shop/api');
 
@@ -232,6 +325,43 @@ describe('diagram quick action controller', () => {
     expect(test.mode()).toEqual({
       status: 'selecting-target', sourceId: 'shop/api', sourceTitle: 'API', scope: defaultPathScope
     });
+    expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', expect.objectContaining({
+      svg: '<svg>quick</svg>', dot: expect.stringContaining('shop/database')
+    }));
+
+    test.controller.cancelFindPath();
+    expect(test.isolateMode()).toEqual({
+      status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API'
+    });
+  });
+
+  it('stacks Find path and Deployment over Drill down and restores every result with Back', async () => {
+    const test = subject();
+    await test.controller.execute('drill-down', 'shop/storefront');
+    await test.controller.execute('find-path', 'shop/api');
+    await test.controller.selectPathTarget('shop/database');
+    await test.controller.execute('show-deployment', 'shop/database');
+
+    expect(test.deploymentMode()).toMatchObject({
+      status: 'showing-deployment', elementId: 'shop/database', environment: 'eu'
+    });
+    expect(test.mode()).toEqual({ status: 'idle' });
+    expect(test.isolateMode()).toEqual({ status: 'idle' });
+
+    test.controller.backQuickAction();
+    expect(test.mode()).toMatchObject({
+      status: 'showing-path', sourceId: 'shop/api', targetId: 'shop/database'
+    });
+    expect(test.deploymentMode()).toEqual({ status: 'idle' });
+
+    test.controller.backQuickAction();
+    expect(test.isolateMode()).toEqual({
+      status: 'showing-drill-down', elementId: 'shop/storefront', elementTitle: 'Storefront'
+    });
+    expect(test.mode()).toEqual({ status: 'idle' });
+
+    test.controller.closeQuickActions();
+    expect(test.isolateMode()).toEqual({ status: 'idle' });
     expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
       svg: '<svg/>', dot: undefined, queryResult: undefined
     });
@@ -303,7 +433,7 @@ describe('diagram quick action controller', () => {
     await test.controller.selectDeploymentEnvironment('eu');
     expect(test.deploymentMode()).toMatchObject({ status: 'showing-deployment', environment: 'eu' });
 
-    test.controller.cancelDeployment();
+    test.controller.backQuickAction();
     expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
       svg: '<svg/>', dot: undefined, queryResult: undefined
     });
@@ -321,7 +451,7 @@ describe('diagram quick action controller', () => {
       focusElementIds: ['shop/database']
     });
 
-    test.controller.cancelDeployment();
+    test.controller.backQuickAction();
     expect(test.deploymentMode()).toEqual({ status: 'idle' });
     expect(test.ports.patchTab).toHaveBeenLastCalledWith('tab-1', {
       svg: '<svg/>', dot: undefined, queryResult: undefined

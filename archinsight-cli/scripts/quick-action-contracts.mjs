@@ -106,6 +106,14 @@ external system google
     "sample/user->sample/frontend", "sample/frontend->sample/backend",
   ]));
 
+  const drilled = json("drill-down", "--element", "sample/platform");
+  assert.equal(drilled.action, "drill-down");
+  assert.deepEqual(new Set(Object.keys(drilled.graph.elements)), new Set([
+    "sample/platform", "sample/frontend", "sample/backend", "sample/database", "sample/isolated",
+    "sample/cross_source", "sample/cross_target", "sample/user", "sample/google",
+  ]));
+  assert(drilled.graph.groups.some((group) => group.owner === "sample/platform"));
+
   const missingEnvironment = run("quick-action", "deployment", project, "--element", "sample/frontend");
   assert.equal(missingEnvironment.status, 1);
   assert.match(missingEnvironment.stderr, /requires --environment.*eu \(Europe\).*us \(United States\)/);
@@ -183,6 +191,7 @@ external system google
   assert.deepEqual([...readFileSync(declarationPng).subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
 
   failure("isolate", /requires --element/, "--format", "json");
+  failure("drill-down", /has no deeper logical level/, "--element", "sample/frontend");
   failure("deployment", /No deployment is available/, "--element", "sample/isolated");
   failure("find-path", /must be different/, "--from", "sample/user", "--to", "sample/user");
   failure("declaration", /not part of the linked project/, "--element", "sample/missing");

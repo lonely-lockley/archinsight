@@ -35,7 +35,8 @@ describe('FindPathActions', () => {
     const menu = document.createElement('div');
     menu.dataset.diagramQuickActionsMenu = '';
     document.body.append(menu);
-    const onCancel = vi.fn();
+    const onBackQuickAction = vi.fn();
+    const onCloseQuickActions = vi.fn();
     const onReverse = vi.fn();
     const component = mount(FindPathActions, {
       target,
@@ -44,7 +45,8 @@ describe('FindPathActions', () => {
           status: 'showing-path', sourceId: 'shop/api', sourceTitle: 'API',
           targetId: 'shop/db', targetTitle: 'Database', scope: { view: 'c2' }
         },
-        onCancel,
+        onBackQuickAction,
+        onCloseQuickActions,
         onReverse
       }
     });
@@ -60,13 +62,15 @@ describe('FindPathActions', () => {
     expect(onReverse).toHaveBeenCalledOnce();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(onCancel).not.toHaveBeenCalled();
+    expect(onBackQuickAction).not.toHaveBeenCalled();
     menu.remove();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onBackQuickAction).toHaveBeenCalledOnce();
 
     target.querySelector<HTMLButtonElement>('button[aria-label="Back to diagram"]')?.click();
-    expect(onCancel).toHaveBeenCalledTimes(2);
+    expect(onBackQuickAction).toHaveBeenCalledTimes(2);
+    target.querySelector<HTMLButtonElement>('button[aria-label="Exit to diagram"]')?.click();
+    expect(onCloseQuickActions).toHaveBeenCalledOnce();
 
     await unmount(component);
   });
@@ -74,12 +78,12 @@ describe('FindPathActions', () => {
   it('shows an isolated element and returns to the original diagram', async () => {
     const target = document.createElement('div');
     document.body.append(target);
-    const onCancelIsolate = vi.fn();
+    const onBackQuickAction = vi.fn();
     const component = mount(FindPathActions, {
       target,
       props: {
         isolateMode: { status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API' },
-        onCancelIsolate
+        onBackQuickAction
       }
     });
     await tick();
@@ -87,7 +91,32 @@ describe('FindPathActions', () => {
     expect(target.querySelector('[aria-label="Isolate mode"]')).not.toBeNull();
     expect(target.textContent).toContain('Isolated: API');
     target.querySelector<HTMLButtonElement>('button[aria-label="Back to diagram"]')?.click();
-    expect(onCancelIsolate).toHaveBeenCalledOnce();
+    expect(onBackQuickAction).toHaveBeenCalledOnce();
+
+    await unmount(component);
+  });
+
+  it('shows a drill-down result and returns to the original diagram', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const onBackQuickAction = vi.fn();
+    const onCloseQuickActions = vi.fn();
+    const component = mount(FindPathActions, {
+      target,
+      props: {
+        isolateMode: { status: 'showing-drill-down', elementId: 'shop/api', elementTitle: 'API' },
+        onBackQuickAction,
+        onCloseQuickActions
+      }
+    });
+    await tick();
+
+    expect(target.querySelector('[aria-label="Drill down mode"]')).not.toBeNull();
+    expect(target.textContent).toContain('Drill down: API');
+    target.querySelector<HTMLButtonElement>('button[aria-label="Back to diagram"]')?.click();
+    expect(onBackQuickAction).toHaveBeenCalledOnce();
+    target.querySelector<HTMLButtonElement>('button[aria-label="Exit to diagram"]')?.click();
+    expect(onCloseQuickActions).toHaveBeenCalledOnce();
 
     await unmount(component);
   });
@@ -95,7 +124,8 @@ describe('FindPathActions', () => {
   it('shows a deployment result and returns to the original diagram', async () => {
     const target = document.createElement('div');
     document.body.append(target);
-    const onCancelDeployment = vi.fn();
+    const onBackQuickAction = vi.fn();
+    const onCloseQuickActions = vi.fn();
     const component = mount(FindPathActions, {
       target,
       props: {
@@ -103,7 +133,8 @@ describe('FindPathActions', () => {
           status: 'showing-deployment', elementId: 'shop/api', elementTitle: 'API', environment: 'eu',
           focusElementIds: ['shop/api']
         },
-        onCancelDeployment
+        onBackQuickAction,
+        onCloseQuickActions
       }
     });
     await tick();
@@ -111,7 +142,9 @@ describe('FindPathActions', () => {
     expect(target.querySelector('[aria-label="Deployment mode"]')).not.toBeNull();
     expect(target.textContent).toContain('Deployment: API · eu');
     target.querySelector<HTMLButtonElement>('button[aria-label="Back to diagram"]')?.click();
-    expect(onCancelDeployment).toHaveBeenCalledOnce();
+    expect(onBackQuickAction).toHaveBeenCalledOnce();
+    target.querySelector<HTMLButtonElement>('button[aria-label="Exit to diagram"]')?.click();
+    expect(onCloseQuickActions).toHaveBeenCalledOnce();
 
     await unmount(component);
   });

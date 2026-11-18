@@ -744,12 +744,12 @@
     vscode.postMessage({ command: 'cancelFindPath' });
   }
 
-  function cancelIsolate(): void {
-    vscode.postMessage({ command: 'cancelIsolate' });
+  function backQuickAction(): void {
+    vscode.postMessage({ command: 'backQuickAction' });
   }
 
-  function cancelDeployment(): void {
-    vscode.postMessage({ command: 'cancelDeployment' });
+  function closeQuickActions(): void {
+    vscode.postMessage({ command: 'closeQuickActions' });
   }
 
   function reverseFindPath(): void {
@@ -912,8 +912,8 @@
   onDiagramQuickAction={diagramQuickAction}
   onSelectPathTarget={selectPathTarget}
   onCancelFindPath={cancelFindPath}
-  onCancelIsolate={cancelIsolate}
-  onCancelDeployment={cancelDeployment}
+  onBackQuickAction={backQuickAction}
+  onCloseQuickActions={closeQuickActions}
   onSelectDiffRevision={selectDiffRevision}
   onCompareDiff={compareDiff}
   onCloseDiffPicker={closeDiffPicker}

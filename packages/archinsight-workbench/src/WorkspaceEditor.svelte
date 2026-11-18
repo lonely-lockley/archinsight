@@ -78,15 +78,17 @@
   export let onDiagramQuickAction: (action: DiagramQuickActionId, elementId: string, anchor?: DiagramQuickActionAnchor) => void = () => {};
   export let onSelectPathTarget: (elementId: string) => void = () => {};
   export let onCancelFindPath: () => void = () => {};
-  export let onCancelIsolate: () => void = () => {};
-  export let onCancelDeployment: () => void = () => {};
+  export let onBackQuickAction: () => void = () => {};
+  export let onCloseQuickActions: () => void = () => {};
   export let onReverseFindPath: () => void = () => {};
 
   function selectDiagramMode(mode: DiagramMode): void {
     if (activeTabOwnsQuickActionMode) {
-      if (findPathMode.status !== 'idle') onCancelFindPath();
-      if (isolateMode.status !== 'idle') onCancelIsolate();
-      if (deploymentMode.status !== 'idle') onCancelDeployment();
+      const hasResult = findPathMode.status === 'showing-path'
+        || isolateMode.status !== 'idle'
+        || deploymentMode.status === 'showing-deployment';
+      if (hasResult) onCloseQuickActions();
+      else if (findPathMode.status !== 'idle') onCancelFindPath();
     }
     onSelectDiagramMode(mode);
   }
@@ -126,8 +128,8 @@
         {deploymentMode}
         {diffMode}
         onCancel={onCancelFindPath}
-        {onCancelIsolate}
-        {onCancelDeployment}
+        {onBackQuickAction}
+        {onCloseQuickActions}
         {onCancelDiff}
         onReverse={onReverseFindPath}
       />

@@ -128,7 +128,7 @@ function verifySharedFiles(output) {
   assert(cli.includes("-f png -o diagram.png"));
   assert.match(cli, /Every diagram render accepts `text`, `json`, `dot`, `svg`, or `png`/);
   const quickActions = readFileSync(path.join(output, "references", "quick-actions.md"), "utf8");
-  for (const action of ["isolate", "deployment", "find-path", "declaration"]) {
+  for (const action of ["drill-down", "isolate", "deployment", "find-path", "declaration"]) {
     assert(quickActions.includes(`quick-action ${action}`), `quick action docs omit '${action}'`);
   }
   assert(quickActions.includes("diagram-quick-action.v1"));
