@@ -144,7 +144,7 @@ describe('WorkspaceEditor composition', () => {
   it('exits Find path before selecting another built-in diagram mode', async () => {
     const target = document.createElement('div');
     document.body.append(target);
-    const onCancelFindPath = vi.fn();
+    const onCloseQuickActions = vi.fn();
     const onSelectDiagramMode = vi.fn();
     const component = mount(WorkspaceEditor, {
       target,
@@ -159,7 +159,7 @@ describe('WorkspaceEditor composition', () => {
         query: '',
         editorHost: document.createElement('div'),
         messagesPanel: document.createElement('div'),
-        onCancelFindPath,
+        onCloseQuickActions,
         onSelectDiagramMode,
         onToggleQuery: vi.fn(), onQueryChange: vi.fn(), onQueryPanelHeightChange: vi.fn(),
         onZoomIn: vi.fn(), onZoomOut: vi.fn(), onFitDiagram: vi.fn(),
@@ -172,18 +172,18 @@ describe('WorkspaceEditor composition', () => {
 
     target.querySelector<HTMLButtonElement>('button[aria-label="C2 Containers view"]')?.click();
 
-    expect(onCancelFindPath).toHaveBeenCalledOnce();
+    expect(onCloseQuickActions).toHaveBeenCalledOnce();
     expect(onSelectDiagramMode).toHaveBeenCalledWith('c2');
-    expect(onCancelFindPath.mock.invocationCallOrder[0]).toBeLessThan(onSelectDiagramMode.mock.invocationCallOrder[0]!);
+    expect(onCloseQuickActions.mock.invocationCallOrder[0]).toBeLessThan(onSelectDiagramMode.mock.invocationCallOrder[0]!);
 
     await unmount(component);
     target.remove();
   });
 
-  it('exits Isolate before selecting another built-in diagram mode', async () => {
+  it('closes the scoped diagram stack before selecting another built-in diagram mode', async () => {
     const target = document.createElement('div');
     document.body.append(target);
-    const onCancelIsolate = vi.fn();
+    const onCloseQuickActions = vi.fn();
     const onSelectDiagramMode = vi.fn();
     const component = mount(WorkspaceEditor, {
       target,
@@ -195,7 +195,7 @@ describe('WorkspaceEditor composition', () => {
         query: '',
         editorHost: document.createElement('div'),
         messagesPanel: document.createElement('div'),
-        onCancelIsolate,
+        onCloseQuickActions,
         onSelectDiagramMode,
         onToggleQuery: vi.fn(), onQueryChange: vi.fn(), onQueryPanelHeightChange: vi.fn(),
         onZoomIn: vi.fn(), onZoomOut: vi.fn(), onFitDiagram: vi.fn(),
@@ -208,9 +208,9 @@ describe('WorkspaceEditor composition', () => {
 
     target.querySelector<HTMLButtonElement>('button[aria-label="C3 Components view"]')?.click();
 
-    expect(onCancelIsolate).toHaveBeenCalledOnce();
+    expect(onCloseQuickActions).toHaveBeenCalledOnce();
     expect(onSelectDiagramMode).toHaveBeenCalledWith('c3');
-    expect(onCancelIsolate.mock.invocationCallOrder[0]).toBeLessThan(onSelectDiagramMode.mock.invocationCallOrder[0]!);
+    expect(onCloseQuickActions.mock.invocationCallOrder[0]).toBeLessThan(onSelectDiagramMode.mock.invocationCallOrder[0]!);
 
     await unmount(component);
     target.remove();
@@ -219,7 +219,7 @@ describe('WorkspaceEditor composition', () => {
   it('does not exit a quick-action mode when another tab selects a diagram mode', async () => {
     const target = document.createElement('div');
     document.body.append(target);
-    const onCancelFindPath = vi.fn();
+    const onCloseQuickActions = vi.fn();
     const onSelectDiagramMode = vi.fn();
     const component = mount(WorkspaceEditor, {
       target,
@@ -235,7 +235,7 @@ describe('WorkspaceEditor composition', () => {
         query: '',
         editorHost: document.createElement('div'),
         messagesPanel: document.createElement('div'),
-        onCancelFindPath,
+        onCloseQuickActions,
         onSelectDiagramMode,
         onToggleQuery: vi.fn(), onQueryChange: vi.fn(), onQueryPanelHeightChange: vi.fn(),
         onZoomIn: vi.fn(), onZoomOut: vi.fn(), onFitDiagram: vi.fn(),
@@ -248,7 +248,7 @@ describe('WorkspaceEditor composition', () => {
 
     target.querySelector<HTMLButtonElement>('button[aria-label="C2 Containers view"]')?.click();
 
-    expect(onCancelFindPath).not.toHaveBeenCalled();
+    expect(onCloseQuickActions).not.toHaveBeenCalled();
     expect(onSelectDiagramMode).toHaveBeenCalledWith('c2');
 
     await unmount(component);
@@ -258,7 +258,7 @@ describe('WorkspaceEditor composition', () => {
   it('exits Deployment before its owning tab selects another built-in diagram mode', async () => {
     const target = document.createElement('div');
     document.body.append(target);
-    const onCancelDeployment = vi.fn();
+    const onCloseQuickActions = vi.fn();
     const onSelectDiagramMode = vi.fn();
     const component = mount(WorkspaceEditor, {
       target,
@@ -273,7 +273,7 @@ describe('WorkspaceEditor composition', () => {
         query: '',
         editorHost: document.createElement('div'),
         messagesPanel: document.createElement('div'),
-        onCancelDeployment,
+        onCloseQuickActions,
         onSelectDiagramMode,
         onToggleQuery: vi.fn(), onQueryChange: vi.fn(), onQueryPanelHeightChange: vi.fn(),
         onZoomIn: vi.fn(), onZoomOut: vi.fn(), onFitDiagram: vi.fn(),
@@ -286,7 +286,7 @@ describe('WorkspaceEditor composition', () => {
 
     target.querySelector<HTMLButtonElement>('button[aria-label="C2 Containers view"]')?.click();
 
-    expect(onCancelDeployment).toHaveBeenCalledOnce();
+    expect(onCloseQuickActions).toHaveBeenCalledOnce();
     expect(onSelectDiagramMode).toHaveBeenCalledWith('c2');
 
     await unmount(component);

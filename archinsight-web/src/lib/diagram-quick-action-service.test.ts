@@ -112,6 +112,14 @@ system application
 });
 
 describe('shared diagram quick action service', () => {
+  it('drills into the next logical level and keeps its one-hop context folded', () => {
+    const drilled = new DiagramQuickActionService(crossEnvironmentAnalysis).drillDown('cross/application');
+    expect(drilled?.mode).toMatchObject({ status: 'showing-drill-down', elementId: 'cross/application' });
+    expect(new Set(Object.keys(drilled?.graph.elements ?? {}))).toEqual(new Set([
+      'cross/application', 'cross/source', 'cross/bridge', 'cross/target'
+    ]));
+  });
+
   it('prepares the same isolate and directed path semantics for every host', () => {
     const service = new DiagramQuickActionService(analysis);
     const scope = { context: 'shop', tab: 'model.ai', view: 'c1' } as const;
@@ -135,6 +143,7 @@ describe('shared diagram quick action service', () => {
     expect(service.selectPathTarget({ status: 'idle' }, 'shop/db')).toBeUndefined();
     expect(service.reversePath({ status: 'idle' })).toBeUndefined();
     expect(service.isolate('missing')).toBeUndefined();
+    expect(service.drillDown('shop/api')).toBeUndefined();
     expect(service.deploymentEnvironments('shop/api')).toEqual([]);
     expect(service.deployment('shop/api', 'production')).toBeUndefined();
   });

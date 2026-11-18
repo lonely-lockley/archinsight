@@ -9,13 +9,12 @@ import {
   type RenderTheme
 } from '@insight/language';
 import {
-  cancelDeployment,
-  cancelIsolate,
-  cancelFindPath,
   idleDeploymentMode,
   idleFindPathMode,
+  idleIsolateMode,
   retryFindPathTarget,
   type DeploymentMode,
+  type DiagramQuickActionResultMode,
   type DiagramQuickActionId,
   type FindPathMode,
   type IsolateMode
@@ -24,13 +23,20 @@ import {
   DiagramQuickActionService,
   type PreparedFindPath
 } from '@archinsight/workbench/diagram-quick-action-service';
-import { DiagramQuickActionCoordinator } from '@archinsight/workbench/diagram-quick-action-coordinator';
+import {
+  DiagramQuickActionCoordinator,
+  DiagramQuickActionStack
+} from '@archinsight/workbench/diagram-quick-action-coordinator';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { DotRender, SvgRenderResponse } from '$lib/api';
 import type { SourceLocation, WorkspaceTab } from '@archinsight/workbench/types';
 
 type ResultPatch = Partial<Pick<WorkspaceTab, 'svg' | 'dot' | 'queryResult'>>;
-type DiagramSnapshot = { readonly tabId: string; readonly patch: ResultPatch };
+type DiagramSnapshot = {
+  readonly tabId: string;
+  readonly sourceIdentity: string;
+  readonly patch: ResultPatch;
+};
 type ShowingFindPathMode = Extract<FindPathMode, { readonly status: 'showing-path' }>;
 
 export type DiagramQuickActionControllerPorts = {
@@ -62,8 +68,8 @@ export type DiagramQuickActionController = {
   selectPathTarget(elementId: string): Promise<void>;
   reverseFindPath(): Promise<void>;
   cancelFindPath(): void;
-  cancelIsolate(): void;
-  cancelDeployment(): void;
+  backQuickAction(): void;
+  closeQuickActions(): void;
   activeTabOwnsQuickActionMode(activeTabId: string | undefined): boolean;
   deploymentEnvironments(): readonly DeploymentEnvironment[];
   selectDeploymentEnvironment(environment: string | undefined): Promise<boolean>;
@@ -78,11 +84,13 @@ export function createDiagramQuickActionController(
 ): DiagramQuickActionController {
   let rendering = false;
   let renderAbort: AbortController | undefined;
-  const lifecycle = new DiagramQuickActionCoordinator<DiagramSnapshot>();
+  const lifecycle = new DiagramQuickActionCoordinator();
+  const scopedResults = new DiagramQuickActionStack<DiagramSnapshot, RenderGraph>();
   lifecycle.setFindPathMode(ports.findPathMode());
   lifecycle.setIsolateMode(ports.isolateMode());
   lifecycle.setDeploymentMode(ports.deploymentMode());
   let pendingDeploymentDiagramSnapshot: DiagramSnapshot | undefined;
+  let pendingDeploymentReplacesCurrent = false;
   const hostPorts = ports;
   ports = {
     ...hostPorts,
@@ -114,6 +122,7 @@ export function createDiagramQuickActionController(
     const tab = ports.activeTab();
     return tab === undefined ? undefined : {
       tabId: tab.id,
+      sourceIdentity: tab.sourceIdentity,
       patch: { svg: tab.svg, dot: tab.dot, queryResult: tab.queryResult }
     };
   };
@@ -141,41 +150,63 @@ export function createDiagramQuickActionController(
       : undefined;
   };
 
-  const restoreFindPathDiagram = (): void => {
-    const snapshot = lifecycle.takeBaseline('find-path');
-    if (snapshot !== undefined) ports.patchTab(snapshot.tabId, snapshot.patch);
+  const setResultMode = (mode: DiagramQuickActionResultMode | undefined): void => {
+    ports.setFindPathMode(mode?.status === 'showing-path' ? mode : idleFindPathMode);
+    ports.setIsolateMode(
+      mode?.status === 'showing-isolate' || mode?.status === 'showing-drill-down'
+        ? mode
+        : idleIsolateMode
+    );
+    ports.setDeploymentMode(mode?.status === 'showing-deployment' ? mode : idleDeploymentMode);
   };
 
-  const restoreIsolateDiagram = (): void => {
-    const snapshot = lifecycle.takeBaseline('isolate');
-    if (snapshot !== undefined) ports.patchTab(snapshot.tabId, snapshot.patch);
+  const popScopedDiagram = (): boolean => {
+    const previous = scopedResults.pop();
+    if (previous === undefined) {
+      setResultMode(undefined);
+      return false;
+    }
+    ports.patchTab(previous.snapshot.tabId, previous.snapshot.patch);
+    setResultMode(previous.mode);
+    return true;
   };
 
-  const restoreDeploymentDiagram = (): void => {
-    const snapshot = lifecycle.takeBaseline('deployment');
-    if (snapshot !== undefined) ports.patchTab(snapshot.tabId, snapshot.patch);
-  };
-
-  const clearDeploymentOwnership = (): void => {
+  const clearScopedDiagrams = (): void => {
+    const baselines = new Map<string, DiagramSnapshot>();
+    for (const frame of scopedResults.clearFrames()) {
+      if (!baselines.has(frame.snapshot.tabId)) baselines.set(frame.snapshot.tabId, frame.snapshot);
+    }
+    for (const baseline of baselines.values()) ports.patchTab(baseline.tabId, baseline.patch);
+    setResultMode(undefined);
+    lifecycle.clear('find-path');
+    lifecycle.clear('isolate');
     lifecycle.clear('deployment');
+  };
+
+  const clearPendingDeployment = (): void => {
     pendingDeploymentDiagramSnapshot = undefined;
+    pendingDeploymentReplacesCurrent = false;
   };
 
   const renderDeployment = async (
     analysis: LinkProjectResult,
     metadata: NonNullable<ReturnType<typeof metadataFor>>,
     environment: string,
-    snapshot: DiagramSnapshot | undefined
+    snapshot: DiagramSnapshot | undefined,
+    replaceCurrent: boolean
   ): Promise<boolean> => {
     const prepared = new DiagramQuickActionService(analysis).deployment(metadata.canonicalElementId, environment);
     if (prepared === undefined) return false;
     const accepted = await render(prepared.graph, 'Show deployment');
-    if (!accepted) {
-      if (ports.deploymentMode().status === 'idle') clearDeploymentOwnership();
+    if (!accepted) return false;
+    if (replaceCurrent) {
+      scopedResults.replaceCurrent(prepared.mode, prepared.graph);
+    } else if (snapshot !== undefined) {
+      scopedResults.push({ mode: prepared.mode, snapshot, projection: prepared.graph });
+    } else {
       return false;
     }
-    if (snapshot !== undefined) lifecycle.setBaseline('deployment', snapshot);
-    ports.setDeploymentMode(prepared.mode);
+    setResultMode(prepared.mode);
     return true;
   };
 
@@ -228,20 +259,29 @@ export function createDiagramQuickActionController(
   const resolveAndRenderPath = async (
     prepared: PreparedFindPath,
     failureMode: FindPathMode,
-    captureSnapshot: boolean
+    replaceCurrent: boolean
   ): Promise<void> => {
     const { resolving, showing, graph } = prepared;
+    const snapshot = replaceCurrent ? undefined : diagramSnapshot();
     ports.setFindPathMode(resolving);
     if (graph.edges.length === 0) {
       const message = `No path found between ${resolving.sourceTitle} and ${resolving.targetTitle}.`;
       ports.info(message);
     }
     if (ports.findPathMode() !== resolving) return;
-    ports.setFindPathMode(showing);
-    const snapshot = captureSnapshot ? diagramSnapshot() : undefined;
     const accepted = await render(graph, 'Find path');
-    if (accepted && snapshot !== undefined) lifecycle.setBaseline('find-path', snapshot);
-    if (!accepted && ports.findPathMode() === showing) {
+    if (accepted) {
+      if (replaceCurrent) {
+        scopedResults.replaceCurrent(showing, graph);
+      } else if (snapshot !== undefined) {
+        scopedResults.push({ mode: showing, snapshot, projection: graph });
+      } else {
+        return;
+      }
+      lifecycle.clear('find-path');
+      setResultMode(showing);
+    }
+    if (!accepted && ports.findPathMode() === resolving) {
       ports.setFindPathMode(failureMode);
     }
   };
@@ -262,13 +302,6 @@ export function createDiagramQuickActionController(
       }
       if (action === 'find-path') {
         if (!metadata.pathEligible) return;
-        if (ports.deploymentMode().status !== 'idle') controller.cancelDeployment();
-        if (ports.isolateMode().status !== 'idle') {
-          restoreIsolateDiagram();
-          ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
-          lifecycle.clear('isolate');
-        }
-        restoreFindPathDiagram();
         lifecycle.invalidate();
         renderAbort?.abort();
         renderAbort = undefined;
@@ -285,46 +318,43 @@ export function createDiagramQuickActionController(
         const mode = new DiagramQuickActionService(analysis).beginFindPath(
           metadata.canonicalElementId, scope, currentPathEndpointEnvironment()
         );
-        if (mode !== undefined) ports.setFindPathMode(mode);
+        if (mode !== undefined) {
+          ports.setIsolateMode(idleIsolateMode);
+          ports.setDeploymentMode(idleDeploymentMode);
+          ports.setFindPathMode(mode);
+        }
         return;
       }
-      if (action === 'isolate') {
-        if (!metadata.isolateEligible) return;
-        if (ports.deploymentMode().status !== 'idle') controller.cancelDeployment();
-        if (ports.findPathMode().status !== 'idle') {
-          restoreFindPathDiagram();
-          ports.setFindPathMode(cancelFindPath(ports.findPathMode()));
-          lifecycle.clear('find-path');
+      if (action === 'drill-down' || action === 'isolate') {
+        if (action === 'drill-down' ? !metadata.hasChildren : !metadata.isolateEligible) return;
+        if (ports.findPathMode().status === 'selecting-target'
+            || ports.findPathMode().status === 'resolving-path') {
+          controller.cancelFindPath();
         }
-        const ownerTab = ports.activeTab();
-        const previousMode = ports.isolateMode();
-        const snapshot = previousMode.status === 'idle' ? diagramSnapshot() : undefined;
-        const prepared = new DiagramQuickActionService(analysis)
-          .isolate(metadata.elementId, currentQuickActionScope(analysis));
+        const snapshot = diagramSnapshot();
+        if (snapshot === undefined) return;
+        const service = new DiagramQuickActionService(analysis);
+        const prepared = action === 'drill-down'
+          ? service.drillDown(metadata.elementId)
+          : scopedResults.currentProjection() === undefined
+            ? service.isolate(metadata.elementId, currentQuickActionScope(analysis))
+            : service.isolateInGraph(metadata.elementId, scopedResults.currentProjection()!);
         if (prepared === undefined) return;
-        const accepted = await render(prepared.graph, 'Isolate');
+        const accepted = await render(prepared.graph, action === 'drill-down' ? 'Drill down' : 'Isolate');
         if (accepted) {
-          lifecycle.begin('isolate', {
-            id: ownerTab?.id,
-            sourceIdentity: ownerTab?.sourceIdentity
-          }, snapshot);
-          ports.setIsolateMode(prepared.mode);
+          scopedResults.push({ mode: prepared.mode, snapshot, projection: prepared.graph });
+          setResultMode(prepared.mode);
         }
         return;
       }
-      if (ports.findPathMode().status !== 'idle') controller.cancelFindPath();
-      if (ports.isolateMode().status !== 'idle') {
-        restoreIsolateDiagram();
-        ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
-        lifecycle.clear('isolate');
+      if (ports.findPathMode().status === 'selecting-target'
+          || ports.findPathMode().status === 'resolving-path') {
+        controller.cancelFindPath();
       }
       if (!metadata.hasDeployment) return;
-      const ownerTab = ports.activeTab();
-      const continuesCurrentDeployment = ports.deploymentMode().status !== 'idle'
-        && lifecycle.owns('deployment', ownerTab?.id);
-      if (ports.deploymentMode().status !== 'idle' && !continuesCurrentDeployment) {
-        controller.cancelDeployment();
-      }
+      const currentMode = scopedResults.currentMode();
+      const continuesCurrentDeployment = currentMode?.status === 'showing-deployment'
+        && currentMode.elementId === metadata.canonicalElementId;
       const environments = new DiagramQuickActionService(analysis)
         .deploymentEnvironments(metadata.canonicalElementId);
       if (environments.length === 0) {
@@ -332,24 +362,18 @@ export function createDiagramQuickActionController(
         return;
       }
       if (environments.length > 1) {
-        if (!continuesCurrentDeployment) {
-          lifecycle.begin('deployment', { id: ownerTab?.id, sourceIdentity: ownerTab?.sourceIdentity });
-          pendingDeploymentDiagramSnapshot = diagramSnapshot();
-        } else {
-          pendingDeploymentDiagramSnapshot = undefined;
-        }
+        pendingDeploymentDiagramSnapshot = continuesCurrentDeployment ? undefined : diagramSnapshot();
+        pendingDeploymentReplacesCurrent = continuesCurrentDeployment;
         ports.setPendingDeploymentElementId(metadata.canonicalElementId);
         ports.setDeploymentPickerOpen(true);
         return;
-      }
-      if (!continuesCurrentDeployment) {
-        lifecycle.begin('deployment', { id: ownerTab?.id, sourceIdentity: ownerTab?.sourceIdentity });
       }
       await renderDeployment(
         analysis,
         metadata,
         environments[0]!.id,
-        continuesCurrentDeployment ? undefined : diagramSnapshot()
+        continuesCurrentDeployment ? undefined : diagramSnapshot(),
+        continuesCurrentDeployment
       );
     },
 
@@ -362,7 +386,7 @@ export function createDiagramQuickActionController(
         const prepared = new DiagramQuickActionService(analysis)
           .selectPathTarget(selecting, metadata.canonicalElementId, currentPathEndpointEnvironment());
         if (prepared === undefined) return;
-        await resolveAndRenderPath(prepared, retryFindPathTarget(prepared.resolving), true);
+        await resolveAndRenderPath(prepared, retryFindPathTarget(prepared.resolving), false);
       } catch (error) {
         ports.error(`Find path failed: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -375,7 +399,7 @@ export function createDiagramQuickActionController(
       try {
         const prepared = new DiagramQuickActionService(analysis).reversePath(showing);
         if (prepared === undefined) return;
-        await resolveAndRenderPath(prepared, showing as ShowingFindPathMode, false);
+        await resolveAndRenderPath(prepared, showing as ShowingFindPathMode, true);
       } catch (error) {
         ports.error(`Find path failed: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -383,51 +407,47 @@ export function createDiagramQuickActionController(
 
     cancelFindPath() {
       const mode = ports.findPathMode();
+      if (mode.status === 'showing-path') {
+        controller.backQuickAction();
+        return;
+      }
       lifecycle.invalidate();
       renderAbort?.abort();
       renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
-      if (mode.status === 'showing-path') restoreFindPathDiagram();
       lifecycle.clear('find-path');
-      ports.setFindPathMode(cancelFindPath(mode));
+      setResultMode(scopedResults.currentMode());
     },
 
-    cancelIsolate() {
+    backQuickAction() {
       lifecycle.invalidate();
       renderAbort?.abort();
       renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
-      restoreIsolateDiagram();
-      lifecycle.clear('isolate');
-      ports.setIsolateMode(cancelIsolate(ports.isolateMode()));
+      popScopedDiagram();
     },
 
-    cancelDeployment() {
+    closeQuickActions() {
       lifecycle.invalidate();
       renderAbort?.abort();
       renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
-      restoreDeploymentDiagram();
-      clearDeploymentOwnership();
+      clearPendingDeployment();
       ports.setPendingDeploymentElementId(undefined);
       ports.setDeploymentPickerOpen(false);
-      ports.setDeploymentMode(cancelDeployment(ports.deploymentMode()));
+      clearScopedDiagrams();
     },
 
     activeTabOwnsQuickActionMode(activeTabId) {
-      if (ports.findPathMode().status !== 'idle') {
+      if (ports.findPathMode().status === 'selecting-target'
+          || ports.findPathMode().status === 'resolving-path') {
         return lifecycle.owns('find-path', activeTabId);
       }
-      if (ports.isolateMode().status !== 'idle') {
-        return lifecycle.owns('isolate', activeTabId);
-      }
-      if (ports.deploymentMode().status !== 'idle') {
-        return lifecycle.owns('deployment', activeTabId);
-      }
-      return true;
+      const mode = scopedResults.currentMode();
+      return mode === undefined || scopedResults.currentSnapshot()?.tabId === activeTabId;
     },
 
     deploymentEnvironments() {
@@ -444,14 +464,14 @@ export function createDiagramQuickActionController(
       if (elementId === undefined) return false;
       const metadata = metadataFor(elementId);
       const snapshot = pendingDeploymentDiagramSnapshot;
+      const replaceCurrent = pendingDeploymentReplacesCurrent;
       ports.setPendingDeploymentElementId(undefined);
       ports.setDeploymentPickerOpen(false);
-      pendingDeploymentDiagramSnapshot = undefined;
+      clearPendingDeployment();
       if (analysis === undefined || metadata === undefined || environment === undefined) {
-        if (ports.deploymentMode().status === 'idle') clearDeploymentOwnership();
         return true;
       }
-      await renderDeployment(analysis, metadata, environment, snapshot);
+      await renderDeployment(analysis, metadata, environment, snapshot, replaceCurrent);
       return true;
     },
 
@@ -459,30 +479,27 @@ export function createDiagramQuickActionController(
       if (ports.pendingDeploymentElementId() === undefined) return false;
       ports.setPendingDeploymentElementId(undefined);
       ports.setDeploymentPickerOpen(false);
-      pendingDeploymentDiagramSnapshot = undefined;
-      if (ports.deploymentMode().status === 'idle') clearDeploymentOwnership();
+      clearPendingDeployment();
       return true;
     },
 
     invalidateRender(sourceIdentity) {
       if (sourceIdentity !== undefined) {
-        if (ports.findPathMode().status !== 'idle'
+        const interaction = ports.findPathMode();
+        if ((interaction.status === 'selecting-target' || interaction.status === 'resolving-path')
             && !lifecycle.belongsToSource('find-path', sourceIdentity)) return;
-        if (ports.isolateMode().status !== 'idle'
-            && !lifecycle.belongsToSource('isolate', sourceIdentity)) return;
-        if (ports.deploymentMode().status !== 'idle'
-            && !lifecycle.belongsToSource('deployment', sourceIdentity)) return;
+        const currentMode = scopedResults.currentMode();
+        if (currentMode !== undefined
+            && scopedResults.currentSnapshot()?.sourceIdentity !== sourceIdentity) return;
       }
       lifecycle.invalidate();
       renderAbort?.abort();
       renderAbort = undefined;
       rendering = false;
-      const isolate = ports.isolateMode();
-      const deployment = ports.deploymentMode();
       lifecycle.reset();
-      clearDeploymentOwnership();
-      ports.setIsolateMode(cancelIsolate(isolate));
-      ports.setDeploymentMode(cancelDeployment(deployment));
+      scopedResults.clear();
+      clearPendingDeployment();
+      setResultMode(undefined);
     },
 
     reconcileAnalysis(analysis) {
@@ -503,22 +520,22 @@ export function createDiagramQuickActionController(
         ports.info(`Find path was cancelled because the ${sourceMissing ? 'source' : 'target'} element is no longer available`);
       }
       const isolate = ports.isolateMode();
-      if (isolate.status === 'showing-isolate'
+      if (isolate.status !== 'idle'
           && analysis?.elements.some((element) => element.id === isolate.elementId) !== true) {
-        controller.cancelIsolate();
-        ports.info('Isolate was closed because the selected element is no longer available');
+        controller.backQuickAction();
+        ports.info(`${isolate.status === 'showing-drill-down' ? 'Drill down' : 'Isolate'} was closed because the selected element is no longer available`);
       }
       const deployment = ports.deploymentMode();
       if (deployment.status === 'showing-deployment'
           && analysis?.elements.some((element) => element.id === deployment.elementId) !== true) {
-        controller.cancelDeployment();
+        controller.backQuickAction();
         ports.info('Deployment was closed because the selected element is no longer available');
       }
       const pending = ports.pendingDeploymentElementId();
       if (pending !== undefined && analysis?.elements.some((element) => element.id === pending) !== true) {
         ports.setPendingDeploymentElementId(undefined);
         ports.setDeploymentPickerOpen(false);
-        clearDeploymentOwnership();
+        clearPendingDeployment();
       }
     },
 
@@ -531,11 +548,10 @@ export function createDiagramQuickActionController(
       renderAbort = undefined;
       if (rendering) ports.setLoading(false);
       rendering = false;
-      pendingDeploymentDiagramSnapshot = undefined;
+      clearPendingDeployment();
+      scopedResults.clear();
       lifecycle.reset();
-      ports.setFindPathMode(idleFindPathMode);
-      ports.setIsolateMode({ status: 'idle' });
-      ports.setDeploymentMode(idleDeploymentMode);
+      setResultMode(undefined);
       ports.setPendingDeploymentElementId(undefined);
       ports.setDeploymentPickerOpen(false);
       if (reason === 'project-change' && mode.status !== 'idle') {

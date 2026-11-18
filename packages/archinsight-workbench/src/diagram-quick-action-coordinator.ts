@@ -6,6 +6,7 @@ import {
   idleTransientDiagramResult,
   showTransientDiagramResult,
   type DeploymentMode,
+  type DiagramQuickActionResultMode,
   type FindPathMode,
   type IsolateMode,
   type TransientDiagramResultKind,
@@ -17,14 +18,66 @@ export interface DiagramActionOwner {
   readonly sourceIdentity?: string;
 }
 
-export interface DiagramActionLifecycle<TBaseline> extends DiagramActionOwner {
+export interface DiagramActionLifecycle extends DiagramActionOwner {
   readonly kind: TransientDiagramResultKind;
-  readonly baseline?: TBaseline;
+}
+
+export interface DiagramQuickActionStackFrame<TSnapshot, TProjection> {
+  readonly mode: DiagramQuickActionResultMode;
+  readonly snapshot: TSnapshot;
+  readonly projection: TProjection;
+}
+
+/** Host-neutral LIFO history for composable diagram quick-action results. */
+export class DiagramQuickActionStack<TSnapshot, TProjection> {
+  private readonly frames: DiagramQuickActionStackFrame<TSnapshot, TProjection>[] = [];
+
+  push(frame: DiagramQuickActionStackFrame<TSnapshot, TProjection>): void {
+    this.frames.push(frame);
+  }
+
+  currentMode(): DiagramQuickActionResultMode | undefined {
+    return this.frames.at(-1)?.mode;
+  }
+
+  currentProjection(): TProjection | undefined {
+    return this.frames.at(-1)?.projection;
+  }
+
+  currentSnapshot(): TSnapshot | undefined {
+    return this.frames.at(-1)?.snapshot;
+  }
+
+  replaceCurrent(mode: DiagramQuickActionResultMode, projection: TProjection): boolean {
+    const current = this.frames.at(-1);
+    if (current === undefined) return false;
+    this.frames[this.frames.length - 1] = { ...current, mode, projection };
+    return true;
+  }
+
+  pop(): { readonly snapshot: TSnapshot; readonly mode: DiagramQuickActionResultMode | undefined } | undefined {
+    const frame = this.frames.pop();
+    return frame === undefined ? undefined : { snapshot: frame.snapshot, mode: this.currentMode() };
+  }
+
+  clear(): TSnapshot | undefined {
+    const baseline = this.frames[0]?.snapshot;
+    this.frames.length = 0;
+    return baseline;
+  }
+
+  clearFrames(): readonly DiagramQuickActionStackFrame<TSnapshot, TProjection>[] {
+    return this.frames.splice(0);
+  }
+
+  depth(): number {
+    return this.frames.length;
+  }
 }
 
 /** Host-neutral mode, owner, baseline, result, and stale-generation lifecycle. */
-export class DiagramQuickActionCoordinator<TBaseline> {
-  private readonly actions = new Map<TransientDiagramResultKind, DiagramActionLifecycle<TBaseline>>();
+export class DiagramQuickActionCoordinator {
+  private readonly actions = new Map<TransientDiagramResultKind, DiagramActionLifecycle>();
   private generation = 0;
   private result: TransientDiagramResultState = idleTransientDiagramResult;
   private findPath: FindPathMode = idleFindPathMode;
@@ -79,29 +132,15 @@ export class DiagramQuickActionCoordinator<TBaseline> {
     this.result = clearTransientDiagramResult();
   }
 
-  begin(kind: TransientDiagramResultKind, owner: DiagramActionOwner, baseline?: TBaseline): void {
-    const retainedBaseline = baseline ?? this.actions.get(kind)?.baseline;
+  begin(kind: TransientDiagramResultKind, owner: DiagramActionOwner): void {
     this.actions.set(kind, {
       kind,
       ...owner,
-      ...(retainedBaseline === undefined ? {} : { baseline: retainedBaseline }),
     });
   }
 
-  setBaseline(kind: TransientDiagramResultKind, baseline: TBaseline): void {
-    const current = this.actions.get(kind) ?? { kind };
-    this.actions.set(kind, { ...current, baseline });
-  }
-
-  lifecycle(kind: TransientDiagramResultKind): DiagramActionLifecycle<TBaseline> | undefined {
+  lifecycle(kind: TransientDiagramResultKind): DiagramActionLifecycle | undefined {
     return this.actions.get(kind);
-  }
-
-  takeBaseline(kind: TransientDiagramResultKind): TBaseline | undefined {
-    const current = this.actions.get(kind);
-    if (current?.baseline === undefined) return undefined;
-    this.actions.set(kind, { kind, id: current.id, sourceIdentity: current.sourceIdentity });
-    return current.baseline;
   }
 
   clear(kind: TransientDiagramResultKind): void {

@@ -16,6 +16,7 @@ archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|dep
 archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json|dot|svg|png] [-o file]
 archinsight diff [project-dir] --from <commit> --to <commit> [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json|dot|svg|png] [-o file]
 archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
+archinsight quick-action drill-down [project-dir] --element <id> [-f text|json|dot|svg|png] [-o file]
 archinsight quick-action isolate [project-dir] --element <id> [-v <view>] [-s <source>] [-c <context>] [-f text|json|dot|svg|png] [-o file]
 archinsight quick-action deployment [project-dir] --element <id> [-e <environment>] [-f text|json|dot|svg|png] [-o file]
 archinsight quick-action find-path [project-dir] --from <id> --to <id> [-v <view>] [-s <source>] [-c <context>] [-e <environment>] [-f text|json|dot|svg|png] [-o file]
@@ -35,7 +36,7 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 - `--tab <source>` - compatibility alias for `--source`.
 - `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment-system`, `deployment-container`, `deployment`, `no-filter`.
 - `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
-- `--element <id>` - canonical element id for Isolate, Deployment, or Go to
+- `--element <id>` - canonical element id for Drill down, Isolate, Deployment, or Go to
   declaration.
 - `--from <value>` and `--to <value>` - ordered source and target ids for Find
   path, or the earlier and later git revisions for `diff`.
@@ -140,6 +141,7 @@ Quick actions expose the same semantic graph operations as the diagram UI
 without requiring an agent to synthesize an AIQ filter:
 
 ```shell
+archinsight quick-action drill-down . --element shop --format json
 archinsight quick-action isolate . --element shop/api --format json
 archinsight quick-action deployment . --element shop/api --environment eu --format json
 archinsight quick-action find-path . --from shop/user --to external/google --view c2 --source shop.ai --format json
@@ -151,7 +153,9 @@ The element arguments are canonical linked ids. Resolve them with
 display titles are not accepted as substitutes.
 
 JSON is the default and uses the versioned schema
-`diagram-quick-action.v1`. Isolate returns the selected element and its direct
+`diagram-quick-action.v1`. Drill down opens the selected boundary's next logical
+C-level and rolls crossing relationships up to one-hop external boundary cubes.
+Isolate returns the selected element and its direct
 incoming/outgoing neighborhood. Deployment returns the selected logical
 element's occurrences and first-level physical environment. Find path returns
 the union of all directed routes in source-to-target order; a valid empty

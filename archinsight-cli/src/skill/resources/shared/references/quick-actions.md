@@ -1,6 +1,6 @@
 # Deterministic Diagram Quick Actions
 
-Use CLI quick actions for one-off neighborhood, deployment, path, and source
+Use CLI quick actions for one-off next-level, neighborhood, deployment, path, and source
 lookup requests, including requests to export those results as subdiagrams.
 They call the same semantic selectors as the diagram UI and do not require a
 temporary `.aiq` filter.
@@ -18,6 +18,20 @@ temporary `.aiq` filter.
 4. Report the selected element, direction, view, and environment when those
    choices affect interpretation. Treat `pathFound: false` as a valid result,
    not a command failure.
+
+## Drill Down
+
+Open the next logical C-level below an architecture boundary and retain its
+rolled-up crossing relationships:
+
+```shell
+archinsight quick-action drill-down . --element <canonical-id> --format json
+```
+
+Use Drill down to move exactly one level, such as C1 to C2 or C2 to C3,
+without creating a temporary query. Deeper descendants remain folded. Opposite
+endpoints are one-hop context and remain closed boundary cubes; unrelated model
+content and physical deployment descendants are omitted.
 
 ## Isolate
 
@@ -105,7 +119,7 @@ dimension, pixel-count, and output-size limits.
 The ordinary `archinsight render` command uses the same
 `text|json|dot|svg|png` diagram formats for built-in views and custom
 graph-returning `.aiq` views. Use it when the requested diagram is not one of
-the four fixed quick-action slices.
+the five fixed quick-action slices.
 
 Use custom AIQ only when the question needs predicates, aggregation, a table,
 more than one hop without a fixed target, or a reusable project-owned view.

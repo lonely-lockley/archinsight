@@ -6,7 +6,7 @@ import {
 } from '@insight/language';
 import { diagramDiffDeclarationSource } from './versioned-diagram-diff.js';
 
-export type DiagramQuickActionId = 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff';
+export type DiagramQuickActionId = 'drill-down' | 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff';
 
 export type DiagramQuickActionCapabilities = {
   readonly versioning: boolean;
@@ -137,6 +137,11 @@ export type IsolateMode =
       readonly status: 'showing-isolate';
       readonly elementId: string;
       readonly elementTitle: string;
+    }
+  | {
+      readonly status: 'showing-drill-down';
+      readonly elementId: string;
+      readonly elementTitle: string;
     };
 
 export const idleIsolateMode: IsolateMode = { status: 'idle' };
@@ -153,11 +158,24 @@ export type DeploymentMode =
 
 export const idleDeploymentMode: DeploymentMode = { status: 'idle' };
 
+export type DiagramQuickActionResultMode =
+  | Extract<FindPathMode, { readonly status: 'showing-path' }>
+  | Exclude<IsolateMode, { readonly status: 'idle' }>
+  | Extract<DeploymentMode, { readonly status: 'showing-deployment' }>;
+
+export function diagramQuickActionResultKind(
+  mode: DiagramQuickActionResultMode
+): Exclude<TransientDiagramResultKind, 'diff'> {
+  if (mode.status === 'showing-path') return 'find-path';
+  if (mode.status === 'showing-deployment') return 'deployment';
+  return 'isolate';
+}
+
 export function beginDeployment(
   metadata: DiagramElementQuickActionMetadata,
   environment: string,
   focusElementIds: readonly string[] = [metadata.canonicalElementId]
-): DeploymentMode {
+): Extract<DeploymentMode, { readonly status: 'showing-deployment' }> {
   return {
     status: 'showing-deployment',
     elementId: metadata.canonicalElementId,
@@ -167,11 +185,9 @@ export function beginDeployment(
   };
 }
 
-export function cancelDeployment(_mode: DeploymentMode): DeploymentMode {
-  return idleDeploymentMode;
-}
-
-export function beginIsolate(metadata: DiagramElementQuickActionMetadata): IsolateMode {
+export function beginIsolate(
+  metadata: DiagramElementQuickActionMetadata
+): Extract<IsolateMode, { readonly status: 'showing-isolate' }> {
   return {
     status: 'showing-isolate',
     elementId: metadata.canonicalElementId,
@@ -179,8 +195,14 @@ export function beginIsolate(metadata: DiagramElementQuickActionMetadata): Isola
   };
 }
 
-export function cancelIsolate(_mode: IsolateMode): IsolateMode {
-  return idleIsolateMode;
+export function beginDrillDown(
+  metadata: DiagramElementQuickActionMetadata
+): Extract<IsolateMode, { readonly status: 'showing-drill-down' }> {
+  return {
+    status: 'showing-drill-down',
+    elementId: metadata.canonicalElementId,
+    elementTitle: metadata.title
+  };
 }
 
 export function cancelFindPath(_mode: FindPathMode): FindPathMode {
@@ -191,7 +213,7 @@ export function beginFindPath(
   metadata: DiagramElementQuickActionMetadata,
   scope: QueryScope,
   environment?: string
-): FindPathMode {
+): Extract<FindPathMode, { readonly status: 'selecting-target' }> {
   return {
     status: 'selecting-target',
     sourceId: metadata.canonicalElementId,
@@ -259,6 +281,7 @@ export function quickActionItems(
   const metadata = allMetadata[elementId] ?? allMetadata[canonicalElementId];
   if (metadata === undefined) return [];
   return [
+    item('drill-down', 'Drill down', '↧', metadata.hasChildren),
     item('isolate', 'Isolate', '◎', metadata.isolateEligible, 'Isolation is unavailable for this element'),
     item('show-deployment', 'Show deployment', '▦', metadata.hasDeployment, 'No deployment'),
     item(

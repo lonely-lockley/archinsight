@@ -87,6 +87,9 @@ describe('shared transport contracts', () => {
 
   it('validates diagram quick-action messages and state', () => {
     expect(parseWorkbenchWebviewToHostMessage({
+      command: 'diagramQuickAction', action: 'drill-down', elementId: 'shop/api'
+    })).toEqual({ command: 'diagramQuickAction', action: 'drill-down', elementId: 'shop/api' });
+    expect(parseWorkbenchWebviewToHostMessage({
       command: 'diagramQuickAction', action: 'isolate', elementId: 'shop/api'
     })).toEqual({ command: 'diagramQuickAction', action: 'isolate', elementId: 'shop/api' });
     expect(parseWorkbenchWebviewToHostMessage({
@@ -94,10 +97,12 @@ describe('shared transport contracts', () => {
     })).toEqual({ command: 'selectPathTarget', elementId: 'shop/db' });
     expect(parseWorkbenchWebviewToHostMessage({ command: 'reverseFindPath' }))
       .toEqual({ command: 'reverseFindPath' });
-    expect(parseWorkbenchWebviewToHostMessage({ command: 'cancelIsolate' }))
-      .toEqual({ command: 'cancelIsolate' });
-    expect(parseWorkbenchWebviewToHostMessage({ command: 'cancelDeployment' }))
-      .toEqual({ command: 'cancelDeployment' });
+    expect(parseWorkbenchWebviewToHostMessage({ command: 'backQuickAction' }))
+      .toEqual({ command: 'backQuickAction' });
+    expect(parseWorkbenchWebviewToHostMessage({ command: 'closeQuickActions' }))
+      .toEqual({ command: 'closeQuickActions' });
+    expect(() => parseWorkbenchWebviewToHostMessage({ command: 'closeIsolate' }))
+      .toThrow("Unknown webview command 'closeIsolate'");
     expect(parseWorkbenchWebviewToHostMessage({
       command: 'diagramQuickAction', action: 'diff', elementId: 'shop/api'
     })).toEqual({ command: 'diagramQuickAction', action: 'diff', elementId: 'shop/api' });
@@ -122,6 +127,10 @@ describe('shared transport contracts', () => {
       command: 'isolateMode',
       state: { status: 'showing-isolate', elementId: 'shop/api', elementTitle: 'API' }
     })).toMatchObject({ state: { status: 'showing-isolate', elementId: 'shop/api' } });
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'isolateMode',
+      state: { status: 'showing-drill-down', elementId: 'shop/api', elementTitle: 'API' }
+    })).toMatchObject({ state: { status: 'showing-drill-down', elementId: 'shop/api' } });
     expect(parseWorkbenchHostToWebviewMessage({
       command: 'deploymentMode',
       state: {

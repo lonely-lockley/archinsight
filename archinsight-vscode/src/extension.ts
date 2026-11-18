@@ -39,6 +39,7 @@ import {
   type DiagramDiff,
   type QueryParameterValue,
   type QueryScope,
+  type RenderGraph,
   type TypeHierarchyNode,
   type VisibleIdentifier,
 } from "@insight/language";
@@ -58,11 +59,13 @@ import {
 } from "@archinsight/workbench/query-scope-state";
 import {
   beginIsolate,
-  cancelDeployment,
-  cancelIsolate,
-  cancelFindPath,
+  diagramQuickActionResultKind,
+  idleDeploymentMode,
+  idleFindPathMode,
+  idleIsolateMode,
   retryFindPathTarget,
   type DeploymentMode,
+  type DiagramQuickActionResultMode,
   type DiagramQuickActionId,
   type FindPathMode,
   type IsolateMode,
@@ -76,7 +79,10 @@ import {
   DiagramQuickActionService,
   type PreparedFindPath,
 } from "@archinsight/workbench/diagram-quick-action-service";
-import { DiagramQuickActionCoordinator } from "@archinsight/workbench/diagram-quick-action-coordinator";
+import {
+  DiagramQuickActionCoordinator,
+  DiagramQuickActionStack,
+} from "@archinsight/workbench/diagram-quick-action-coordinator";
 import {
   attributeVersionedDiagramDiff,
   buildVersionedDiagramDiff,
@@ -150,6 +156,10 @@ interface DiagramDiffProjectionState {
   readonly fullDiff: DiagramDiff;
   readonly attributed?: AttributedDiagramDiff;
 }
+
+type ScopedDiagramProjection =
+  | { readonly kind: "graph"; readonly graph: RenderGraph }
+  | { readonly kind: "diff"; readonly diff: DiagramDiff };
 
 interface SemanticTokenCacheEntry {
   readonly version: number;
@@ -1146,7 +1156,8 @@ class CoreSourceContentProvider implements vscode.TextDocumentContentProvider {
 class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly sessions = new Set<ArchinsightWorkbenchEditorSession>();
   private readonly pendingInitialStates = new Map<string, DiagramQueryState>();
-  private readonly quickActionCoordinator = new DiagramQuickActionCoordinator<never>();
+  private readonly quickActionCoordinator = new DiagramQuickActionCoordinator();
+  private readonly quickActionModes = new DiagramQuickActionStack<ArchinsightWorkbenchEditorSession, undefined>();
   private findPathProjectRoot: string | undefined;
   private isolateProjectRoot: string | undefined;
   private deploymentProjectRoot: string | undefined;
@@ -1218,14 +1229,15 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
       panel,
       (location, state) => this.openLocation(location, state),
       () => this.findPathMode,
-      (mode) => this.setFindPathMode(mode),
+      (mode) => this.setFindPathInteractionMode(mode),
       () => this.cancelFindPathMode(),
       () => this.isolateMode,
-      (mode) => this.setIsolateMode(mode),
-      () => this.cancelIsolateMode(),
       () => this.deploymentMode,
-      (mode) => this.setDeploymentMode(mode),
-      () => this.cancelDeploymentMode(),
+      (mode, owner) => this.pushQuickActionMode(mode, owner),
+      (mode, owner) => this.replaceQuickActionMode(mode, owner),
+      (owner) => this.quickActionModes.currentSnapshot() === owner,
+      () => this.backQuickActionMode(),
+      () => this.closeQuickActionModes(),
       () => this.diffSession,
       (state) => this.setDiagramDiffSession(state),
       () => this.cancelDiagramDiff(),
@@ -1265,7 +1277,8 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     const targetMissing = (mode.status === "resolving-path" || mode.status === "showing-path")
       && current?.result.elements.some((element) => element.id === mode.targetId) !== true;
     if (projectChanged || sourceMissing || targetMissing) {
-      await this.cancelFindPathMode(false);
+      if (projectChanged && this.quickActionModes.depth() > 0) await this.closeQuickActionModes(false);
+      else await this.cancelFindPathMode(false);
       void vscode.window.showInformationMessage(
         projectChanged
           ? "Find path was cancelled because the project changed."
@@ -1275,14 +1288,15 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     const isolateMode = this.isolateMode;
     const isolateProjectChanged = isolateMode.status !== "idle"
       && current?.root.toString() !== this.isolateProjectRoot;
-    const isolatedElementMissing = isolateMode.status === "showing-isolate"
+    const isolatedElementMissing = isolateMode.status !== "idle"
       && current?.result.elements.some((element) => element.id === isolateMode.elementId) !== true;
     if (isolateProjectChanged || isolatedElementMissing) {
-      await this.cancelIsolateMode(false);
+      if (isolateProjectChanged) await this.closeQuickActionModes(false);
+      else await this.backQuickActionMode(false);
       void vscode.window.showInformationMessage(
         isolateProjectChanged
-          ? "Isolate was closed because the project changed."
-          : "Isolate was closed because the selected element is no longer available.",
+          ? `${isolateMode.status === "showing-drill-down" ? "Drill down" : "Isolate"} was closed because the project changed.`
+          : `${isolateMode.status === "showing-drill-down" ? "Drill down" : "Isolate"} was closed because the selected element is no longer available.`,
       );
     }
     const deploymentMode = this.deploymentMode;
@@ -1291,7 +1305,8 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     const deployedElementMissing = deploymentMode.status === "showing-deployment"
       && current?.result.elements.some((element) => element.id === deploymentMode.elementId) !== true;
     if (deploymentProjectChanged || deployedElementMissing) {
-      await this.cancelDeploymentMode(false);
+      if (deploymentProjectChanged) await this.closeQuickActionModes(false);
+      else await this.backQuickActionMode(false);
       void vscode.window.showInformationMessage(
         deploymentProjectChanged
           ? "Deployment view was closed because the project changed."
@@ -1311,13 +1326,50 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     await Promise.all([...this.sessions].map((session) => session.postFindPathMode(mode)));
   }
 
+  private async setFindPathInteractionMode(mode: FindPathMode): Promise<void> {
+    await Promise.all([
+      this.setIsolateMode(idleIsolateMode),
+      this.setDeploymentMode(idleDeploymentMode),
+      this.setFindPathMode(mode),
+    ]);
+  }
+
+  private async setQuickActionResultMode(mode: DiagramQuickActionResultMode | undefined): Promise<void> {
+    await Promise.all([
+      this.setFindPathMode(mode?.status === "showing-path" ? mode : idleFindPathMode),
+      this.setIsolateMode(
+        mode?.status === "showing-isolate" || mode?.status === "showing-drill-down"
+          ? mode
+          : idleIsolateMode,
+      ),
+      this.setDeploymentMode(mode?.status === "showing-deployment" ? mode : idleDeploymentMode),
+    ]);
+  }
+
+  private async pushQuickActionMode(
+    mode: DiagramQuickActionResultMode,
+    owner: ArchinsightWorkbenchEditorSession,
+  ): Promise<void> {
+    this.quickActionModes.push({ mode, snapshot: owner, projection: undefined });
+    await this.setQuickActionResultMode(mode);
+  }
+
+  private async replaceQuickActionMode(
+    mode: DiagramQuickActionResultMode,
+    owner: ArchinsightWorkbenchEditorSession,
+  ): Promise<void> {
+    if (this.quickActionModes.currentSnapshot() !== owner) return;
+    this.quickActionModes.replaceCurrent(mode, undefined);
+    await this.setQuickActionResultMode(mode);
+  }
+
   private async cancelFindPathMode(restoreDiagram = true): Promise<void> {
-    const restoreFindPathResult = restoreDiagram && this.findPathMode.status === "showing-path";
-    for (const session of this.sessions) session.cancelQuickActionRendering();
-    await this.setFindPathMode(cancelFindPath(this.findPathMode));
-    if (restoreFindPathResult) {
-      await Promise.all([...this.sessions].map((session) => session.restoreQuickActionResult()));
+    if (this.findPathMode.status === "showing-path") {
+      await this.backQuickActionMode(restoreDiagram);
+      return;
     }
+    for (const session of this.sessions) session.cancelQuickActionRendering();
+    await this.setQuickActionResultMode(this.quickActionModes.currentMode());
   }
 
   private async setIsolateMode(mode: IsolateMode): Promise<void> {
@@ -1330,13 +1382,20 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     await Promise.all([...this.sessions].map((session) => session.postIsolateMode(mode)));
   }
 
-  private async cancelIsolateMode(restoreDiagram = true): Promise<void> {
-    const restoreIsolateResult = restoreDiagram && this.isolateMode.status === "showing-isolate";
+  private async backQuickActionMode(restoreDiagram = true): Promise<void> {
     for (const session of this.sessions) session.cancelQuickActionRendering();
-    await this.setIsolateMode(cancelIsolate(this.isolateMode));
-    if (restoreIsolateResult) {
-      await Promise.all([...this.sessions].map((session) => session.restoreQuickActionResult()));
+    const previous = this.quickActionModes.pop();
+    await this.setQuickActionResultMode(previous?.mode);
+    if (restoreDiagram && previous !== undefined) {
+      await previous.snapshot.restoreScopedQuickActionResult();
     }
+  }
+
+  private async closeQuickActionModes(restoreDiagram = true): Promise<void> {
+    for (const session of this.sessions) session.cancelQuickActionRendering();
+    this.quickActionModes.clear();
+    await this.setQuickActionResultMode(undefined);
+    await Promise.all([...this.sessions].map((session) => session.clearScopedQuickActionResults(restoreDiagram)));
   }
 
   private async setDeploymentMode(mode: DeploymentMode): Promise<void> {
@@ -1347,15 +1406,6 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     }
     this.deploymentMode = mode;
     await Promise.all([...this.sessions].map((session) => session.postDeploymentMode(mode)));
-  }
-
-  private async cancelDeploymentMode(restoreDiagram = true): Promise<void> {
-    const restoreDeploymentResult = restoreDiagram && this.deploymentMode.status === "showing-deployment";
-    for (const session of this.sessions) session.cancelQuickActionRendering();
-    await this.setDeploymentMode(cancelDeployment(this.deploymentMode));
-    if (restoreDeploymentResult) {
-      await Promise.all([...this.sessions].map((session) => session.restoreQuickActionResult()));
-    }
   }
 
   private async setDiagramDiffSession(state: DiagramDiffSessionState | undefined): Promise<void> {
@@ -1478,7 +1528,8 @@ class ArchinsightWorkbenchEditorSession {
   private pendingReveal: vscode.Position | undefined;
   private queryScopeTab: string | undefined;
   private queryScopeContext: string | undefined;
-  private readonly quickActionCoordinator = new DiagramQuickActionCoordinator<never>();
+  private readonly quickActionCoordinator = new DiagramQuickActionCoordinator();
+  private readonly scopedQuickActions = new DiagramQuickActionStack<PreviewState, ScopedDiagramProjection>();
   private versionedRepositoryPromise: Promise<GitVersionedRepository | undefined> | undefined;
   private diffCatalogue: DiagramDiffRevisionCatalogue | undefined;
   private diffProjection: DiagramDiffProjectionState | undefined;
@@ -1495,11 +1546,18 @@ class ArchinsightWorkbenchEditorSession {
     private readonly writeFindPathMode: (mode: FindPathMode) => Promise<void>,
     private readonly cancelFindPathMode: () => Promise<void>,
     private readonly readIsolateMode: () => IsolateMode,
-    private readonly writeIsolateMode: (mode: IsolateMode) => Promise<void>,
-    private readonly cancelIsolateMode: () => Promise<void>,
     private readonly readDeploymentMode: () => DeploymentMode,
-    private readonly writeDeploymentMode: (mode: DeploymentMode) => Promise<void>,
-    private readonly cancelDeploymentMode: () => Promise<void>,
+    private readonly pushQuickActionMode: (
+      mode: DiagramQuickActionResultMode,
+      owner: ArchinsightWorkbenchEditorSession,
+    ) => Promise<void>,
+    private readonly replaceQuickActionMode: (
+      mode: DiagramQuickActionResultMode,
+      owner: ArchinsightWorkbenchEditorSession,
+    ) => Promise<void>,
+    private readonly ownsQuickActionMode: (owner: ArchinsightWorkbenchEditorSession) => boolean,
+    private readonly backQuickActionMode: () => Promise<void>,
+    private readonly closeQuickActionModes: () => Promise<void>,
     private readonly readDiagramDiffSession: () => DiagramDiffSessionState | undefined,
     private readonly writeDiagramDiffSession: (state: DiagramDiffSessionState | undefined) => Promise<void>,
     private readonly cancelDiagramDiffSession: () => Promise<void>,
@@ -1731,12 +1789,12 @@ class ArchinsightWorkbenchEditorSession {
       await this.cancelFindPathMode();
       return;
     }
-    if (message.command === "cancelIsolate") {
-      await this.cancelIsolateMode();
+    if (message.command === "backQuickAction") {
+      await this.backQuickActionMode();
       return;
     }
-    if (message.command === "cancelDeployment") {
-      await this.cancelDeploymentMode();
+    if (message.command === "closeQuickActions") {
+      await this.closeQuickActionModes();
       return;
     }
     if (message.command === "openDeclaration") {
@@ -1784,21 +1842,19 @@ class ArchinsightWorkbenchEditorSession {
     this.cancelVersioningOperation();
   }
 
-  async restoreQuickActionResult(): Promise<void> {
-    if (this.quickActionCoordinator.resultState().status !== "visible") return;
-    const previousResult = this.quickActionCoordinator.resultState();
+  async restoreScopedQuickActionResult(): Promise<void> {
+    const previous = this.scopedQuickActions.pop();
+    if (previous === undefined) return;
+    await this.diagram.publishAdHoc(previous.snapshot);
+    const currentMode = this.scopedQuickActions.currentMode();
+    if (currentMode === undefined) this.quickActionCoordinator.clearResult();
+    else this.quickActionCoordinator.showResult(diagramQuickActionResultKind(currentMode));
+  }
+
+  async clearScopedQuickActionResults(restoreDiagram = true): Promise<void> {
+    const baseline = this.scopedQuickActions.clear();
     this.quickActionCoordinator.clearResult();
-    const diffSession = this.readDiagramDiffSession();
-    const diffProjection = this.diffProjection?.session === diffSession ? this.diffProjection : undefined;
-    if (diffSession !== undefined && diffProjection !== undefined) {
-      await this.renderDiagramDiff(diffSession, diffProjection.fullDiff);
-      if (previousResult.status === "visible") this.quickActionCoordinator.showResult(previousResult.kind);
-      return;
-    }
-    const current = this.project.current;
-    if (current === undefined) return;
-    const input = this.renderInput(current, this.diagram.queryState().query);
-    if (input !== undefined) await this.diagram.refresh(input);
+    if (restoreDiagram && baseline !== undefined) await this.diagram.publishAdHoc(baseline);
   }
 
   private async executeDiagramQuickAction(action: DiagramQuickActionId, elementId: string): Promise<void> {
@@ -1824,8 +1880,6 @@ class ArchinsightWorkbenchEditorSession {
     }
     if (action === "find-path") {
       if (metadata.pathEligible) {
-        if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
-        if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
         const mode = quickActions.beginFindPath(
           metadata.canonicalElementId,
           this.quickActionScope(current),
@@ -1835,22 +1889,55 @@ class ArchinsightWorkbenchEditorSession {
       }
       return;
     }
+    if (action === "drill-down") {
+      if (!metadata.hasChildren) return;
+      if (this.readFindPathMode().status === "selecting-target"
+          || this.readFindPathMode().status === "resolving-path") await this.cancelFindPathMode();
+      const prepared = quickActions.drillDown(metadata.elementId);
+      if (prepared === undefined) return;
+      const diffSession = this.readDiagramDiffSession();
+      if (diffSession !== undefined) {
+        const drilled = await projectVersionedDiagramDiff(diffSession, (project) =>
+          new DiagramQuickActionService(project.result).drillDown(metadata.canonicalElementId)?.graph);
+        const accepted = await this.renderScopedDiagramDiff(diffSession, drilled.diff, prepared.mode);
+        if (accepted) await this.pushQuickActionMode(prepared.mode, this);
+        return;
+      }
+      const accepted = await this.renderScopedQuickActionGraph(prepared.graph, prepared.mode);
+      if (accepted) await this.pushQuickActionMode(prepared.mode, this);
+      return;
+    }
     if (action === "isolate") {
       if (!metadata.isolateEligible) return;
-      if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
-      if (this.readFindPathMode().status !== "idle") await this.cancelFindPathMode();
+      if (this.readFindPathMode().status === "selecting-target"
+          || this.readFindPathMode().status === "resolving-path") await this.cancelFindPathMode();
+      const scopedProjection = this.scopedQuickActions.currentProjection();
+      const isolateMode = beginIsolate(metadata);
       const diffSession = this.readDiagramDiffSession();
+      if (scopedProjection?.kind === "diff" && diffSession !== undefined) {
+        const isolated = selectIsolatedDiagramDiff(scopedProjection.diff, metadata.canonicalElementId);
+        const accepted = await this.renderScopedDiagramDiff(diffSession, isolated, isolateMode);
+        if (accepted) await this.pushQuickActionMode(isolateMode, this);
+        return;
+      }
+      if (scopedProjection?.kind === "graph") {
+        const prepared = quickActions.isolateInGraph(metadata.elementId, scopedProjection.graph);
+        if (prepared === undefined) return;
+        const accepted = await this.renderScopedQuickActionGraph(prepared.graph, prepared.mode);
+        if (accepted) await this.pushQuickActionMode(prepared.mode, this);
+        return;
+      }
       const diffProjection = this.diffProjection?.session === diffSession ? this.diffProjection : undefined;
       if (diffSession !== undefined && diffProjection !== undefined) {
         const isolated = selectIsolatedDiagramDiff(diffProjection.fullDiff, metadata.canonicalElementId);
-        const accepted = await this.renderDiagramDiff(diffSession, isolated);
-        if (accepted) await this.writeIsolateMode(beginIsolate(metadata));
+        const accepted = await this.renderScopedDiagramDiff(diffSession, isolated, isolateMode);
+        if (accepted) await this.pushQuickActionMode(isolateMode, this);
         return;
       }
       const prepared = quickActions.isolate(metadata.elementId, this.quickActionScope(current));
       if (prepared === undefined) return;
-      const accepted = await this.renderQuickActionGraph(prepared.graph, "isolate");
-      if (accepted) await this.writeIsolateMode(prepared.mode);
+      const accepted = await this.renderScopedQuickActionGraph(prepared.graph, prepared.mode);
+      if (accepted) await this.pushQuickActionMode(prepared.mode, this);
       return;
     }
     if (!metadata.hasDeployment) return;
@@ -1870,14 +1957,20 @@ class ArchinsightWorkbenchEditorSession {
       if (this.project.current !== current || this.disposed) return;
       environment = picked.environment;
     }
-    if (this.readFindPathMode().status !== "idle") await this.cancelFindPathMode();
-    if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
-    if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
+    if (this.readFindPathMode().status === "selecting-target"
+        || this.readFindPathMode().status === "resolving-path") await this.cancelFindPathMode();
     const prepared = quickActions.deployment(metadata.canonicalElementId, environment);
     if (prepared === undefined) return;
-    const accepted = await this.renderQuickActionGraph(prepared.graph, "deployment");
+    const currentDeployment = this.readDeploymentMode();
+    const replacesCurrent = currentDeployment.status === "showing-deployment"
+      && currentDeployment.elementId === metadata.canonicalElementId
+      && this.ownsQuickActionMode(this);
+    const accepted = replacesCurrent
+      ? await this.replaceScopedQuickActionGraph(prepared.graph, prepared.mode)
+      : await this.renderScopedQuickActionGraph(prepared.graph, prepared.mode);
     if (accepted) {
-      await this.writeDeploymentMode(prepared.mode);
+      if (replacesCurrent) await this.replaceQuickActionMode(prepared.mode, this);
+      else await this.pushQuickActionMode(prepared.mode, this);
     }
   }
 
@@ -1919,9 +2012,9 @@ class ArchinsightWorkbenchEditorSession {
   }
 
   private async compareDiagramDiff(beforeRevision: string, afterRevision: string, elementId: string): Promise<void> {
-    if (this.readDeploymentMode().status !== "idle") await this.cancelDeploymentMode();
-    if (this.readIsolateMode().status !== "idle") await this.cancelIsolateMode();
-    if (this.readFindPathMode().status !== "idle") await this.cancelFindPathMode();
+    if (this.readFindPathMode().status === "selecting-target"
+        || this.readFindPathMode().status === "resolving-path") await this.cancelFindPathMode();
+    if (this.scopedQuickActions.depth() > 0) await this.closeQuickActionModes();
     const current = this.project.current;
     const input = current === undefined ? undefined : this.renderInput(current, this.diagram.queryState().query);
     const repository = await this.versionedRepository();
@@ -2181,7 +2274,7 @@ class ArchinsightWorkbenchEditorSession {
 
   private async reverseFindPath(): Promise<void> {
     const showing = this.readFindPathMode();
-    if (showing.status !== "showing-path") return;
+    if (showing.status !== "showing-path" || !this.ownsQuickActionMode(this)) return;
     const current = this.project.current;
     if (current === undefined) return;
     try {
@@ -2198,7 +2291,7 @@ class ArchinsightWorkbenchEditorSession {
   private async resolveAndRenderPath(
     prepared: PreparedFindPath,
     failureMode: FindPathMode,
-    preserveVisibleResult: boolean,
+    replaceCurrent: boolean,
   ): Promise<void> {
     const { resolving, showing, graph } = prepared;
     await this.writeFindPathMode(resolving);
@@ -2207,11 +2300,18 @@ class ArchinsightWorkbenchEditorSession {
       output.appendLine(`No path found between ${resolving.sourceTitle} and ${resolving.targetTitle}.`);
     }
     if (this.readFindPathMode() !== resolving) return;
-    await this.writeFindPathMode(showing);
-    if (this.readFindPathMode() !== showing) return;
-    const accepted = await this.renderQuickActionGraph(graph, "find-path");
-    if (!accepted && this.readFindPathMode() === showing) {
-      if (preserveVisibleResult) this.quickActionCoordinator.showResult("find-path");
+    const accepted = replaceCurrent
+      ? await this.replaceScopedQuickActionGraph(graph, showing)
+      : await this.renderScopedQuickActionGraph(graph, showing);
+    if (accepted) {
+      if (replaceCurrent) await this.replaceQuickActionMode(showing, this);
+      else await this.pushQuickActionMode(showing, this);
+    }
+    if (!accepted && this.readFindPathMode() === resolving) {
+      const currentMode = this.scopedQuickActions.currentMode();
+      if (currentMode !== undefined) {
+        this.quickActionCoordinator.showResult(diagramQuickActionResultKind(currentMode));
+      }
       await this.writeFindPathMode(failureMode);
     }
   }
@@ -2234,6 +2334,43 @@ class ArchinsightWorkbenchEditorSession {
     const accepted = preview.error === undefined;
     if (accepted) this.quickActionCoordinator.showResult(resultKind);
     else this.quickActionCoordinator.clearResult();
+    return accepted;
+  }
+
+  private async renderScopedQuickActionGraph(
+    graph: RenderGraph,
+    mode: DiagramQuickActionResultMode,
+  ): Promise<boolean> {
+    const snapshot = this.diagram.previewState();
+    if (snapshot === undefined) return false;
+    const accepted = await this.renderQuickActionGraph(graph, diagramQuickActionResultKind(mode));
+    if (accepted) {
+      this.scopedQuickActions.push({ mode, snapshot, projection: { kind: "graph", graph } });
+    }
+    return accepted;
+  }
+
+  private async replaceScopedQuickActionGraph(
+    graph: RenderGraph,
+    mode: DiagramQuickActionResultMode,
+  ): Promise<boolean> {
+    const accepted = await this.renderQuickActionGraph(graph, diagramQuickActionResultKind(mode));
+    if (accepted) this.scopedQuickActions.replaceCurrent(mode, { kind: "graph", graph });
+    return accepted;
+  }
+
+  private async renderScopedDiagramDiff(
+    session: DiagramDiffSessionState,
+    diff: DiagramDiff,
+    mode: Exclude<IsolateMode, { readonly status: "idle" }>,
+  ): Promise<boolean> {
+    const snapshot = this.diagram.previewState();
+    if (snapshot === undefined) return false;
+    const accepted = await this.renderDiagramDiff(session, diff);
+    if (accepted) {
+      this.scopedQuickActions.push({ mode, snapshot, projection: { kind: "diff", diff } });
+      this.quickActionCoordinator.showResult(diagramQuickActionResultKind(mode));
+    }
     return accepted;
   }
 

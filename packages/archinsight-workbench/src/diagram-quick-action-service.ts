@@ -5,7 +5,9 @@ import {
   diagramElementMetadata,
   diagramQuickActionMetadata,
   selectDeploymentGraph,
+  selectElementDrillDown,
   selectIsolatedElementGraph,
+  selectIsolatedRenderGraph,
   selectPathGraph,
   type DeploymentEnvironment,
   type DiagramElementQuickActionMetadata,
@@ -15,6 +17,7 @@ import {
 } from '@insight/language';
 import {
   beginDeployment,
+  beginDrillDown,
   beginFindPath,
   beginIsolate,
   reverseFindPathResult,
@@ -34,6 +37,12 @@ export interface PreparedFindPath {
 export interface PreparedIsolate {
   readonly metadata: DiagramElementQuickActionMetadata;
   readonly mode: Extract<IsolateMode, { readonly status: 'showing-isolate' }>;
+  readonly graph: RenderGraph;
+}
+
+export interface PreparedDrillDown {
+  readonly metadata: DiagramElementQuickActionMetadata;
+  readonly mode: Extract<IsolateMode, { readonly status: 'showing-drill-down' }>;
   readonly graph: RenderGraph;
 }
 
@@ -91,6 +100,26 @@ export class DiagramQuickActionService {
       metadata,
       mode: beginIsolate(metadata) as Extract<IsolateMode, { readonly status: 'showing-isolate' }>,
       graph: selectIsolatedElementGraph(this.result, metadata.elementId, scope),
+    };
+  }
+
+  isolateInGraph(elementId: string, graph: RenderGraph): PreparedIsolate | undefined {
+    const metadata = this.metadata(elementId);
+    if (metadata?.isolateEligible !== true) return undefined;
+    return {
+      metadata,
+      mode: beginIsolate(metadata) as Extract<IsolateMode, { readonly status: 'showing-isolate' }>,
+      graph: selectIsolatedRenderGraph(graph, metadata.elementId),
+    };
+  }
+
+  drillDown(elementId: string): PreparedDrillDown | undefined {
+    const metadata = this.metadata(elementId);
+    if (metadata?.hasChildren !== true) return undefined;
+    return {
+      metadata,
+      mode: beginDrillDown(metadata) as Extract<IsolateMode, { readonly status: 'showing-drill-down' }>,
+      graph: selectElementDrillDown(this.result, metadata.elementId),
     };
   }
 

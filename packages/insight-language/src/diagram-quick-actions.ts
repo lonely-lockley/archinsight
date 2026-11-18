@@ -1,4 +1,4 @@
-import { BUILTIN_VIEW_QUERIES, builtinViewDefinition } from "./builtin-views.js";
+import { BUILTIN_VIEW_DEFINITIONS, BUILTIN_VIEW_QUERIES, builtinViewDefinition } from "./builtin-views.js";
 import type {
   DeploymentEnvironment,
   LinkedEdge,
@@ -71,7 +71,7 @@ export function diagramQuickActionMetadata(result: LinkProjectResult): DiagramQu
       elementId: element.id,
       canonicalElementId: element.id,
       title: elementTitle(element),
-      hasChildren: (childrenByParent.get(element.id)?.length ?? 0) > 0,
+      hasChildren: drillDownLevel(element, childrenByParent.get(element.id) ?? []) !== undefined,
       hasDeployment: hasDeploymentInScope(element.id),
       ...(element.declaration === undefined ? {} : { declaration: element.declaration }),
       isolateEligible: true,
@@ -160,6 +160,68 @@ export function selectIsolatedElementGraph(
     groups: [],
     externalElements: [],
   }, elementId);
+}
+
+/** Applies Isolate to an already projected diagram without rebuilding its view. */
+export function selectIsolatedRenderGraph(
+  graph: RenderGraph,
+  requestedElementId: string,
+): RenderGraph {
+  const elementId = canonicalDiagramElementId(requestedElementId);
+  const occurrenceId = resolveGraphElementOccurrence(graph, requestedElementId, elementId);
+  return occurrenceId === undefined
+    ? emptyGraph(graph.context)
+    : isolateElementInGraph(graph, occurrenceId, graph.context);
+}
+
+/** Opens exactly the next logical architecture level below one boundary. */
+export function selectElementDrillDown(
+  result: LinkProjectResult,
+  requestedElementId: string,
+): RenderGraph {
+  const elementId = canonicalDiagramElementId(requestedElementId);
+  const index = diagramQuickActionIndex(result);
+  const root = index.elementsById.get(elementId);
+  if (root === undefined) return emptyGraph("-");
+
+  const directChildren = (index.childrenByParent.get(elementId) ?? []);
+  const level = drillDownLevel(root, directChildren);
+  if (level === undefined) return emptyGraph(root.context);
+  const visibleChildren = directChildren.filter((child) => elementHasType(child, level.visibleType));
+  const visibleChildIds = new Set(visibleChildren.map((child) => child.id));
+  const inside = new Set([elementId]);
+  for (const child of visibleChildren) {
+    for (const descendant of logicalDescendantIds(child.id, index.childrenByParent)) inside.add(descendant);
+  }
+  const selected = new Set([elementId, ...visibleChildIds]);
+  const external = new Set<string>();
+  const edges: RenderGraphEdge[] = [];
+  for (const edge of result.edges) {
+    if (edge.projected === true) continue;
+    const sourceInside = inside.has(edge.source);
+    const targetInside = inside.has(edge.target);
+    if (!sourceInside && !targetInside) continue;
+    const source = sourceInside
+      ? openedDrillDownEndpoint(edge.source, elementId, visibleChildIds, index.elementsById)
+      : closedDrillDownEndpoint(edge.source, level.boundaryType, index.elementsById);
+    const target = targetInside
+      ? openedDrillDownEndpoint(edge.target, elementId, visibleChildIds, index.elementsById)
+      : closedDrillDownEndpoint(edge.target, level.boundaryType, index.elementsById);
+    if (source === undefined || target === undefined || source === target) continue;
+    selected.add(source);
+    selected.add(target);
+    if (!sourceInside) external.add(source);
+    if (!targetInside) external.add(target);
+    edges.push(renderEdge(edge, source, target, source !== edge.source || target !== edge.target));
+  }
+  const elements = selectedElements(selected, index.elementsById);
+  return {
+    context: root.context,
+    elements,
+    edges: deduplicateEdges(edges),
+    groups: [{ owner: elementId, elements: [...visibleChildIds].sort() }],
+    externalElements: [...external].filter((id) => elements[id] !== undefined).sort(),
+  };
 }
 
 export function deploymentEnvironmentsForElement(
@@ -270,7 +332,7 @@ export function selectPathGraph(
     completeGraph = {
       context: source.context,
       elements: Object.fromEntries(result.elements.map((element) => [element.id, element])),
-      edges: result.edges.filter((edge) => edge.projected !== true).map(renderEdge),
+      edges: result.edges.filter((edge) => edge.projected !== true).map((edge) => renderEdge(edge)),
       groups: [],
       externalElements: result.elements
         .filter((element) => element.context !== source.context)
@@ -643,6 +705,71 @@ function descendantIds(
   return result;
 }
 
+interface DrillDownLevel {
+  readonly boundaryType: string;
+  readonly visibleType: string;
+}
+
+function drillDownLevel(
+  root: LinkedElement,
+  children: readonly LinkedElement[],
+): DrillDownLevel | undefined {
+  for (const definition of BUILTIN_VIEW_DEFINITIONS) {
+    const boundary = definition.boundary;
+    if (boundary === null || !elementHasType(root, boundary.boundaryType)) continue;
+    if (children.some((child) => elementHasType(child, boundary.visibleType))) return boundary;
+  }
+  return undefined;
+}
+
+function logicalDescendantIds(
+  root: string,
+  childrenByParent: ReadonlyMap<string, readonly LinkedElement[]>,
+): Set<string> {
+  const result = new Set<string>();
+  const pending = [root];
+  while (pending.length > 0) {
+    const current = pending.pop()!;
+    if (result.has(current)) continue;
+    result.add(current);
+    for (const child of childrenByParent.get(current) ?? []) {
+      if (isLogicalElement(child)) pending.push(child.id);
+    }
+  }
+  return result;
+}
+
+function openedDrillDownEndpoint(
+  id: string,
+  root: string,
+  visibleChildren: ReadonlySet<string>,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): string | undefined {
+  let current = elementsById.get(id);
+  const visited = new Set<string>();
+  while (current !== undefined && !visited.has(current.id)) {
+    if (current.id === root || visibleChildren.has(current.id)) return current.id;
+    visited.add(current.id);
+    current = current.parent === undefined ? undefined : elementsById.get(current.parent);
+  }
+  return undefined;
+}
+
+function closedDrillDownEndpoint(
+  id: string,
+  boundaryType: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): string {
+  let current = elementsById.get(id);
+  const visited = new Set<string>();
+  while (current !== undefined && !visited.has(current.id)) {
+    if (elementHasType(current, boundaryType)) return current.id;
+    visited.add(current.id);
+    current = current.parent === undefined ? undefined : elementsById.get(current.parent);
+  }
+  return id;
+}
+
 function selectedElements(
   selected: ReadonlySet<string>,
   elementsById: ReadonlyMap<string, LinkedElement>,
@@ -655,8 +782,13 @@ function selectedElements(
   );
 }
 
-function renderEdge(edge: LinkedEdge): RenderGraphEdge {
-  return { edge, source: edge.source, target: edge.target, derived: false, projected: edge.projected === true };
+function renderEdge(
+  edge: LinkedEdge,
+  source = edge.source,
+  target = edge.target,
+  derived = false,
+): RenderGraphEdge {
+  return { edge, source, target, derived, projected: edge.projected === true };
 }
 
 function deduplicateEdges(edges: readonly RenderGraphEdge[]): RenderGraphEdge[] {
@@ -670,6 +802,10 @@ function elementHasDeployment(element: LinkedElement): boolean {
 function isLogicalElement(element: LinkedElement | undefined): boolean {
   return element !== undefined
     && element.capabilities?.includes(TYPE_CAPABILITIES.deploymentElement) !== true;
+}
+
+function elementHasType(element: LinkedElement | undefined, type: string): boolean {
+  return element !== undefined && (element.type === type || element.baseTypes.includes(type));
 }
 
 function elementTitle(element: LinkedElement): string {

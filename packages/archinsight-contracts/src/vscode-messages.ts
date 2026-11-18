@@ -79,7 +79,7 @@ export type WebviewFindPathMode =
 
 export type WebviewIsolateMode =
   | { status: 'idle' }
-  | { status: 'showing-isolate'; elementId: string; elementTitle: string };
+  | { status: 'showing-isolate' | 'showing-drill-down'; elementId: string; elementTitle: string };
 
 export type WebviewDeploymentMode =
   | { status: 'idle' }
@@ -133,15 +133,15 @@ export type WorkbenchWebviewToHostMessage =
   | { command: 'complete'; requestId: number; sourceName: string; source: string; cursorOffset: number }
   | { command: 'clipboardRead'; requestId: number }
   | { command: 'clipboardWrite'; text: string }
-  | { command: 'diagramQuickAction'; action: 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff'; elementId: string }
+  | { command: 'diagramQuickAction'; action: 'drill-down' | 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff'; elementId: string }
   | { command: 'compareDiagramDiff'; before: string; after: string; elementId: string }
   | { command: 'cancelDiagramDiffPicker' }
   | { command: 'cancelDiagramDiff' }
   | { command: 'selectPathTarget'; elementId: string }
   | { command: 'reverseFindPath' }
   | { command: 'cancelFindPath' }
-  | { command: 'cancelIsolate' }
-  | { command: 'cancelDeployment' }
+  | { command: 'backQuickAction' }
+  | { command: 'closeQuickActions' }
   | { command: 'openDeclaration'; declaration: { source: string; line: number; column: number } };
 
 export type WorkbenchHostToWebviewMessage =
@@ -199,7 +199,7 @@ export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWeb
   const input = commandRecord(value);
   switch (input.command) {
     case 'ready': case 'cancel': case 'selectDeploymentEnvironment': case 'refresh':
-    case 'reverseFindPath': case 'cancelFindPath': case 'cancelIsolate': case 'cancelDeployment': case 'cancelDiagramDiffPicker': case 'cancelDiagramDiff': return { command: input.command };
+    case 'reverseFindPath': case 'cancelFindPath': case 'backQuickAction': case 'closeQuickActions': case 'cancelDiagramDiffPicker': case 'cancelDiagramDiff': return { command: input.command };
     case 'sourceChanged': return { command: 'sourceChanged', source: string(input.source, 'source') };
     case 'selectQueryScope': {
       const variable = string(input.variable, 'variable');
@@ -225,12 +225,12 @@ export function parseWorkbenchWebviewToHostMessage(value: unknown): WorkbenchWeb
     case 'clipboardWrite': return { command: 'clipboardWrite', text: string(input.text, 'text') };
     case 'diagramQuickAction': {
       const action = string(input.action, 'action');
-      if (!['isolate', 'show-deployment', 'go-to-declaration', 'find-path', 'diff'].includes(action)) {
+      if (!['drill-down', 'isolate', 'show-deployment', 'go-to-declaration', 'find-path', 'diff'].includes(action)) {
         throw new ContractValidationError('diagram quick action is invalid');
       }
       return {
         command: 'diagramQuickAction',
-        action: action as 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff',
+        action: action as 'drill-down' | 'isolate' | 'show-deployment' | 'go-to-declaration' | 'find-path' | 'diff',
         elementId: string(input.elementId, 'elementId')
       };
     }
@@ -387,7 +387,7 @@ function isolateMode(value: unknown): WebviewIsolateMode {
   const input = record(value, 'isolate mode');
   const status = string(input.status, 'isolate mode.status');
   if (status === 'idle') return { status };
-  if (status === 'showing-isolate') return {
+  if (status === 'showing-isolate' || status === 'showing-drill-down') return {
     status,
     elementId: string(input.elementId, 'isolate mode.elementId'),
     elementTitle: string(input.elementTitle, 'isolate mode.elementTitle')

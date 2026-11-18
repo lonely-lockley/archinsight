@@ -182,8 +182,8 @@
       onDiagramQuickAction={(action, elementId, anchor) => void executeDiagramQuickAction(action, elementId, anchor)}
       onSelectPathTarget={(elementId) => void controllers.quickActions.selectPathTarget(elementId)}
       onCancelFindPath={controllers.quickActions.cancelFindPath}
-      onCancelIsolate={controllers.quickActions.cancelIsolate}
-      onCancelDeployment={controllers.quickActions.cancelDeployment}
+      onBackQuickAction={controllers.quickActions.backQuickAction}
+      onCloseQuickActions={controllers.quickActions.closeQuickActions}
       onReverseFindPath={() => void controllers.quickActions.reverseFindPath()}
       onBeginMessagesResize={controllers.layout.beginMessagesResize}
       onCancelResult={controllers.analysis.cancelCurrent}

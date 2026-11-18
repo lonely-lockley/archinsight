@@ -12,7 +12,9 @@ import {
   replaceDiagramOccurrenceCanonical,
   renderGraphviz,
   selectDeploymentGraph,
+  selectElementDrillDown,
   selectIsolatedElementGraph,
+  selectIsolatedRenderGraph,
   selectPathGraph,
 } from "../build/runtime/index.js";
 
@@ -156,6 +158,11 @@ assert.equal(metadata["shop/storefront"]?.hasChildren, true);
 assert.equal(metadata["shop/storefront"]?.hasDeployment, true, "a boundary inherits deployment availability from descendants");
 assert.equal(metadata["shop/api"]?.hasChildren, true);
 assert.equal(metadata["shop/api"]?.hasDeployment, true);
+assert.equal(
+  metadata["eu/eu"]?.hasChildren,
+  false,
+  "physical deployment descendants do not enable logical Drill down",
+);
 assert.equal(metadata["shop/api"]?.declaration?.sourceName, "model.ai");
 assert.equal(
   metadata["shop/billing"]?.declaration?.sourceName,
@@ -188,6 +195,47 @@ assert.equal(
   deploymentElements.every((element) => metadata[element.id]?.isolateEligible === true),
   true,
   "every rendered deployment element can be isolated",
+);
+
+const drillDown = selectElementDrillDown(result, "shop/api");
+assert.deepEqual(
+  new Set(Object.keys(drillDown.elements)),
+  new Set(["shop/api", "shop/worker", "shop/queue", "shop/billing", "shop/frontend"]),
+  "drill-down includes the next logical level and one-hop external endpoints",
+);
+assert.equal(drillDown.externalElements.includes("shop/billing"), true);
+assert.equal(
+  drillDown.groups.some((group) => group.owner === "shop/api" && group.elements.includes("shop/worker")),
+  true,
+);
+assert.deepEqual(
+  new Set(drillDown.edges.map((edge) => `${edge.source}->${edge.target}`)),
+  new Set(["shop/api->shop/worker", "shop/api->shop/queue", "shop/api->shop/billing", "shop/frontend->shop/api"]),
+);
+assert.deepEqual(Object.keys(selectElementDrillDown(result, "shop/missing").elements), []);
+
+const systemDrillDown = selectElementDrillDown(result, "shop/storefront");
+assert.deepEqual(
+  new Set(Object.keys(systemDrillDown.elements)),
+  new Set(["shop/storefront", "shop/api", "shop/queue", "shop/frontend", "shop/isolated", "shop/backend"]),
+  "drill-down opens only the next logical level and folds an external descendant to its closed boundary",
+);
+assert.equal(systemDrillDown.elements["shop/worker"], undefined, "deeper descendants stay folded");
+assert.deepEqual(systemDrillDown.groups, [{
+  owner: "shop/storefront",
+  elements: ["shop/api", "shop/frontend", "shop/isolated", "shop/queue"],
+}]);
+assert.equal(
+  systemDrillDown.edges.some((edge) => edge.source === "shop/api" && edge.target === "shop/backend" && edge.derived),
+  true,
+  "a relationship to a nested external element is rolled up to one external boundary cube",
+);
+const isolatedSystemDrillDown = selectIsolatedRenderGraph(systemDrillDown, "shop/api");
+assert.equal(isolatedSystemDrillDown.elements["shop/worker"], undefined);
+assert.deepEqual(
+  new Set(Object.keys(isolatedSystemDrillDown.elements)),
+  new Set(["shop/api", "shop/queue", "shop/frontend", "shop/backend"]),
+  "Isolate composes with the current Drill down projection instead of rebuilding the original view",
 );
 
 const isolatedApi = selectIsolatedElementGraph(result, "shop/api");

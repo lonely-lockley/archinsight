@@ -156,6 +156,8 @@ export {
   diagramElementMetadata,
   diagramQuickActionMetadata,
   selectDeploymentGraph,
+  selectElementDrillDown,
+  selectIsolatedRenderGraph,
   selectIsolatedElementGraph,
   selectPathGraph,
 } from "./diagram-quick-actions.js";

@@ -10,6 +10,7 @@ Supported element nodes show a small quick-action trigger near their top-right
 corner. Ownership boundaries and Graphviz clusters do not have triggers. The
 trigger opens a compact radial menu containing:
 
+- **Drill down**;
 - **Isolate**;
 - **Show deployment**;
 - **Go to declaration**;
@@ -36,11 +37,17 @@ SVG host safely; opening a new tab reconnects the controls.
 
 ## Temporary result modes
 
-Isolate, Find path, Diff, and web Show deployment use temporary results. Their
+Drill down, Isolate, Find path, Diff, and Show deployment use temporary results. Their
 mode control is appended to the end of the common toolbar and is hidden while
-no mode is active. `Esc` and the Back control restore the preceding result.
+no mode is active. Every rendered quick-action result except Diff composes in
+one LIFO navigation stack. A successful Drill down, Isolate, Find path, or Show
+deployment saves the currently visible projection before showing its result;
+`Esc` or Back restores exactly one preceding result. The adjacent close action
+clears the complete stack and returns directly to the base diagram. The stack
+has no fixed depth. Find path target selection does not push a frame until its
+result is rendered, and cancelling selection reveals the previous frame.
 
-Isolate, Find path, and web Show deployment retain their existing action
+Drill down, Isolate, Find path, and Show deployment retain their existing action
 ownership rules. Diff is workspace-level: switching tabs, built-in views,
 queries, or deployment environments keeps the selected revision pair and
 reprojects both complete revision snapshots into the new representation.
@@ -72,13 +79,29 @@ local Git blame commits/authors. Exact ranges are preferred; declaration-level
 fallback is recorded as an attribution diagnostic. This metadata is kept with
 the temporary result even though the first UI does not yet display it.
 
-The diagram remains interactive. Isolate filters the union rather than the
-After graph and preserves statuses and attribution; Back returns to the full
-diff, then to the ordinary diagram. DOT, SVG, and PNG export operate on the
-currently visible diff. Declaration navigation opens the current workspace
+The diagram remains interactive. Drill down reprojects both revisions through
+the selected next-level logical scope, while Isolate filters the union; both
+preserve diff statuses, and Back returns to the full diff, then to the ordinary
+diagram. DOT, SVG, and PNG export operate on the currently visible diff.
+Declaration navigation opens the current workspace
 source only when its checked-out Git commit is one of the compared revisions.
 For a wholly historical pair it is disabled; Archinsight never checks out a
 revision for navigation.
+
+## Drill down
+
+Drill down is available when the selected architecture boundary has elements at
+the next logical C-level. It opens exactly that level: a system shows its
+containers, a container shows its components, and a component shows its code
+elements. Deeper descendants remain folded. Authored relationships touching
+the selected logical scope are rolled up to the visible level; a related element
+outside the selected scope remains one closed boundary cube. Physical deployment
+descendants do not enable this action.
+
+The toolbar displays `Drill down: <element>` and Back. Running Drill down from
+an active diff applies the same selector independently to both immutable model
+revisions before comparing them. Isolate inside a Drill down filters that
+drilled projection rather than rebuilding the original built-in view.
 
 ## Isolate
 
@@ -134,16 +157,17 @@ environments:
   button inside the diagram overlay;
 - VS Code uses its native Quick Pick.
 
-In web, the toolbar displays
+The toolbar displays
 `Deployment: <element> · <environment>` and Back. Reopening Show deployment
 from an active deployment result leaves that result visible under the picker.
 Closing the picker changes nothing. Selecting an environment replaces the
-temporary result, while Back still returns to the diagram shown before the
-first Show deployment.
+top Deployment result without pushing another frame, while Back returns to the
+result that preceded that Deployment frame.
 
 VS Code and web both enter the same Deployment result mode. The environment
 picker remains host-specific, while Back and view switching use the shared
-transient-result lifecycle.
+quick-action stack. A deployment can therefore be opened over Drill down,
+Isolate, or Find path and Back returns to that exact preceding result.
 
 ## Go to declaration
 
@@ -178,9 +202,9 @@ valid graph edges. The active C/D view is used first so the result retains its
 scale rather than collapsing to C1 for a shorter derived route.
 
 The source is orange and the target has a distinct purple outline. The ordinary
-ordinary selection glow is suppressed in a Find path result. The Reverse
-button swaps source and target and recomputes the directed corridor without
-replacing the saved Back snapshot.
+selection glow is suppressed in a Find path result. The Reverse
+button swaps source and target and recomputes the directed corridor by replacing
+the top Find path result without pushing another frame.
 
 If no directed route exists, the request is still a successful result. The
 diagram shows source and target without a connecting edge, and Output records
@@ -205,6 +229,7 @@ The language package owns semantic availability metadata and the pure graph
 derivations:
 
 - `selectIsolatedElementGraph`;
+- `selectElementDrillDown`;
 - `selectDeploymentGraph`;
 - `selectPathGraph`.
 - `diffRenderGraphs` and `selectIsolatedDiagramDiff`.
@@ -228,6 +253,7 @@ jobs do not need to construct one-off AIQ filters:
 
 | Action | Command | Result |
 | --- | --- | --- |
+| Drill down | `archinsight quick-action drill-down . --element <id>` | The next logical C-level with rolled-up one-hop external boundary cubes. |
 | Isolate | `archinsight quick-action isolate . --element <id>` | The selected element and its directed first-level neighborhood. |
 | Show deployment | `archinsight quick-action deployment . --element <id> --environment <environment>` | The selected logical scope as deployed in one environment, with its first-level physical neighborhood and ownership groups. |
 | Find path | `archinsight quick-action find-path . --from <source-id> --to <target-id>` | The union of all directed routes from source to target, or the two endpoints when no route exists. |
@@ -265,7 +291,7 @@ archinsight quick-action find-path . \
 ```
 
 PNG is rasterized from the same Graphviz result as SVG and enforces limits on
-dimensions, total pixels, and encoded output size. All four actions accept the
+dimensions, total pixels, and encoded output size. All five actions accept the
 same output formats. For graphical formats, Go to declaration produces a
 one-element subdiagram; JSON also includes its authored source coordinates.
 The ordinary CLI `render` command uses the same

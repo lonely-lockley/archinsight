@@ -10,6 +10,7 @@ import {
   renderDiagramDiffGraphvizArtifact,
   renderGraphvizArtifact,
   selectDeploymentGraph,
+  selectElementDrillDown,
   selectIsolatedElementGraph,
   selectPathGraph,
   type DiagramElementQuickActionMetadata,
@@ -354,7 +355,7 @@ export async function runEnvironments(args: ParsedArgs): Promise<void> {
 export async function runQuickAction(args: ParsedArgs): Promise<void> {
   const action = args.quickAction;
   if (action === undefined) {
-    throw new CliError("Usage: archinsight quick-action <isolate|deployment|find-path|declaration> [project-dir] [options]");
+    throw new CliError("Usage: archinsight quick-action <drill-down|isolate|deployment|find-path|declaration> [project-dir] [options]");
   }
   validateQuickActionOptions(args);
   const project = await loadProject(projectPath(args));
@@ -395,6 +396,18 @@ export async function runQuickAction(args: ParsedArgs): Promise<void> {
       metadata.canonicalElementId,
       await selectedBuiltinViewScope(project, args),
     );
+    await writeQuickActionGraph(args, format, project.result, graph, {
+      schemaVersion: "diagram-quick-action.v1",
+      action,
+      element: quickActionElementReference(metadata),
+    });
+    return;
+  }
+
+  if (action === "drill-down") {
+    const metadata = quickActionElement(project.result, requiredOption(args.element, "--element"));
+    if (!metadata.hasChildren) throw new CliError(`Element '${metadata.canonicalElementId}' has no deeper logical level`);
+    const graph = selectElementDrillDown(project.result, metadata.canonicalElementId);
     await writeQuickActionGraph(args, format, project.result, graph, {
       schemaVersion: "diagram-quick-action.v1",
       action,
@@ -449,19 +462,19 @@ function validateQuickActionOptions(args: ParsedArgs): void {
   if ((args.parameters?.length ?? 0) > 0 || args.parametersFile !== undefined) {
     throw new CliError("Quick actions do not accept query parameters");
   }
-  if (args.quickAction === "isolate" || args.quickAction === "declaration" || args.quickAction === "deployment") {
+  if (args.quickAction === "drill-down" || args.quickAction === "isolate" || args.quickAction === "declaration" || args.quickAction === "deployment") {
     if (args.from !== undefined || args.to !== undefined) throw new CliError(`Quick action '${args.quickAction}' does not accept --from or --to`);
   }
   if (args.quickAction === "find-path" && args.element !== undefined) {
     throw new CliError("Quick action 'find-path' does not accept --element; use --from and --to");
   }
-  if (args.quickAction === "declaration" || args.quickAction === "deployment") {
+  if (args.quickAction === "drill-down" || args.quickAction === "declaration" || args.quickAction === "deployment") {
     if (args.view !== undefined || args.tab !== undefined || args.context !== undefined) {
       throw new CliError(`Quick action '${args.quickAction}' does not accept --view, --source, or --context`);
     }
   }
-  if (args.quickAction === "declaration" && args.environment !== undefined) {
-    throw new CliError("Quick action 'declaration' does not accept --environment");
+  if ((args.quickAction === "drill-down" || args.quickAction === "declaration") && args.environment !== undefined) {
+    throw new CliError(`Quick action '${args.quickAction}' does not accept --environment`);
   }
   if ((args.quickAction === "isolate" || args.quickAction === "find-path")
       && args.view === undefined && (args.tab !== undefined || args.context !== undefined)) {
