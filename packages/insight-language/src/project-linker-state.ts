@@ -6,7 +6,10 @@ import type {
   LinkProjectResult,
   ProjectSource,
 } from "./contracts.js";
-import { linkProject } from "./project-linker.js";
+import {
+  linkProjectWithSourceCache,
+  ProjectLinkerSourceCache,
+} from "./project-linker.js";
 
 export interface ProjectSourceReplacement {
   readonly sourceName: string;
@@ -16,7 +19,9 @@ export interface ProjectSourceReplacement {
 export interface ProjectLinkerStateUpdate {
   readonly impact: GraphUpdateImpact;
   readonly affectedSources: ReadonlySet<string>;
+  readonly supportSources: ReadonlySet<string>;
   readonly relinkedSources: ReadonlySet<string>;
+  readonly reparsedSourceCount: number;
   readonly result: LinkProjectResult;
 }
 
@@ -24,13 +29,19 @@ export class ProjectLinkerState {
   private readonly snapshot: LinkProjectRequest["snapshot"];
   private readonly operatorImplementations: LinkProjectRequest["operatorImplementations"];
   private readonly sourcesByName: Map<string, ProjectSource>;
+  private readonly sourceCache: ProjectLinkerSourceCache;
   private currentResult: LinkProjectResult;
 
-  constructor(request: LinkProjectRequest, existingResult?: LinkProjectResult) {
+  constructor(
+    request: LinkProjectRequest,
+    existingResult?: LinkProjectResult,
+    sourceCache = new ProjectLinkerSourceCache(),
+  ) {
     this.snapshot = request.snapshot;
     this.operatorImplementations = request.operatorImplementations;
     this.sourcesByName = new Map(request.sources.map((source) => [source.sourceName, source]));
-    this.currentResult = existingResult ?? linkProject(this.request());
+    this.sourceCache = sourceCache;
+    this.currentResult = existingResult ?? linkProjectWithSourceCache(this.request(), this.sourceCache);
   }
 
   result(): LinkProjectResult {
@@ -46,7 +57,7 @@ export class ProjectLinkerState {
     return new ProjectLinkerState(this.request(), {
       ...this.currentResult,
       graph: this.currentResult.graph.clone(),
-    });
+    }, this.sourceCache.fork());
   }
 
   replaceSource(replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
@@ -55,6 +66,7 @@ export class ProjectLinkerState {
 
   replaceSources(replacements: readonly ProjectSourceReplacement[]): ProjectLinkerStateUpdate {
     const previous = this.currentResult;
+    const candidateGraph = previous.graph.clone();
     const uniqueReplacements = [...new Map(replacements.map((item) => [item.sourceName, item])).values()]
       .sort((left, right) => left.sourceName.localeCompare(right.sourceName));
     const existingSources = new Set(this.sourcesByName.keys());
@@ -66,9 +78,10 @@ export class ProjectLinkerState {
         replacement.sourceName,
         previous.graph.sourceContribution(replacement.sourceName)?.referencedNodes ?? new Set<string>(),
       );
-      impacts.push(previous.graph.removeSourceContribution(replacement.sourceName));
+      impacts.push(candidateGraph.removeSourceContribution(replacement.sourceName));
       if (replacement.source === undefined) {
         this.sourcesByName.delete(replacement.sourceName);
+        this.sourceCache.delete(replacement.sourceName);
       } else {
         this.sourcesByName.set(replacement.sourceName, {
           sourceName: replacement.sourceName,
@@ -89,26 +102,36 @@ export class ProjectLinkerState {
           ...replacementNames,
           ...impacts.flatMap((impact) => [...impact.dependentSources]),
         ]);
-    const relinkedSources = this.relinkSupportSources(previous, affectedSources, preservedReferences);
-    for (const source of relinkedSources) {
+    const supportSources = this.relinkSupportSources(previous, affectedSources, preservedReferences);
+    for (const source of supportSources) {
       if (!replacementNames.has(source)) {
-        previous.graph.removeSourceContribution(source);
+        candidateGraph.removeSourceContribution(source);
       }
     }
-    const partialResult = linkProject({
+    const parseCountBefore = this.sourceCache.parseCount();
+    const partialResult = linkProjectWithSourceCache({
       snapshot: this.snapshot,
-      sources: [...relinkedSources].flatMap((source) => {
+      sources: [...supportSources].flatMap((source) => {
         const projectSource = this.sourcesByName.get(source);
         return projectSource === undefined ? [] : [projectSource];
       }),
       ...(this.operatorImplementations === undefined ? {} : { operatorImplementations: this.operatorImplementations }),
-    });
-    mergeGraph(previous.graph, partialResult.graph);
-    this.currentResult = mergeResults(previous, partialResult, relinkedSources, previous.graph);
+    }, this.sourceCache);
+    mergeGraph(candidateGraph, partialResult.graph);
+    const candidateResult = mergeResults(previous, partialResult, supportSources, candidateGraph);
+    const relinkedSources = changedResultSources(previous, candidateResult, supportSources);
+    const graph = previous.graph.clone();
+    for (const source of relinkedSources) {
+      graph.removeSourceContribution(source);
+    }
+    mergeGraph(graph, partialResult.graph);
+    this.currentResult = mergeResults(previous, partialResult, relinkedSources, graph);
     return {
       impact: mergeImpacts(impacts),
       affectedSources,
+      supportSources,
       relinkedSources,
+      reparsedSourceCount: this.sourceCache.parseCount() - parseCountBefore,
       result: this.currentResult,
     };
   }
@@ -183,6 +206,38 @@ export class ProjectLinkerState {
 
     return result;
   }
+}
+
+function changedResultSources(
+  previous: LinkProjectResult,
+  next: LinkProjectResult,
+  candidates: ReadonlySet<string>,
+): ReadonlySet<string> {
+  return new Set([...candidates].filter((source) => sourceResultSignature(previous, source) !== sourceResultSignature(next, source)));
+}
+
+function sourceResultSignature(result: LinkProjectResult, source: string): string {
+  const contribution = result.graph.sourceContribution(source);
+  const byJson = (left: unknown, right: unknown): number => JSON.stringify(left).localeCompare(JSON.stringify(right));
+  return JSON.stringify({
+    diagnostics: result.diagnostics.filter((item) => item.sourceName === source).sort(byJson),
+    contexts: result.contexts.filter((item) => item.sourceIdentity === source).sort(byJson),
+    elements: result.elements.filter((item) => item.sourceIdentity === source).sort(byJson),
+    imports: result.imports.filter((item) => item.sourceIdentity === source).sort(byJson),
+    edges: result.edges.filter((item) => item.sourceIdentity === source).sort(byJson),
+    tabRoots: result.tabRoots[source] ?? [],
+    graph: contribution === undefined ? undefined : {
+      nodes: [...contribution.ownedNodes].flatMap((id) => {
+        const node = result.graph.node(id);
+        return node === undefined ? [] : [node];
+      }).sort(byJson),
+      relations: [...contribution.ownedRelations].flatMap((id) => {
+        const relation = result.graph.relation(id);
+        return relation === undefined ? [] : [relation];
+      }).sort(byJson),
+      referencedNodes: [...contribution.referencedNodes].sort(),
+    },
+  });
 }
 
 function mergeImpacts(impacts: readonly GraphUpdateImpact[]): GraphUpdateImpact {

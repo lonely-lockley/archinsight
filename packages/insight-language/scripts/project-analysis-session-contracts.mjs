@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { InsightLanguageService, ProjectAnalysisSession } from "../build/runtime/index.js";
+import { ProjectLinkerSourceCache } from "../build/runtime/project-linker.js";
+import { ProjectLinkerState } from "../build/runtime/project-linker-state.js";
 
 const service = new InsightLanguageService();
 const initialSources = [
@@ -26,9 +28,72 @@ const editedSources = [
 const incremental = session.update(editedSources);
 assert.equal(incremental.mode, "incremental");
 assert(incremental.changedSources.has("models/main.ai"));
+assert(incremental.supportSources.has("models/main.ai"));
 assert(incremental.relinkedSources.has("models/main.ai"));
+assert.equal(incremental.reparsedSourceCount, 1);
 assert.equal(elementName(incremental.result), "Incremental");
 assert.deepEqual(resultSignature(incremental.result), resultSignature(ProjectAnalysisSession.create(editedSources).analysis().result));
+
+const cachedSupportSources = [
+  source("external.ai", `context external
+
+system vendor
+    name = Vendor
+`),
+  source("sibling.ai", `context demo
+
+system sibling
+    name = Sibling
+`),
+  source("main.ai", `context demo
+
+import vendor from context external
+
+system app
+    name = Initial
+    links:
+        -> vendor
+`),
+];
+const sourceCache = new ProjectLinkerSourceCache();
+const cachedState = new ProjectLinkerState({
+  snapshot: service.snapshot(),
+  sources: cachedSupportSources,
+}, undefined, sourceCache);
+const initialParseCount = sourceCache.parseCount();
+const cachedUpdate = cachedState.replaceSource(source("main.ai", `context demo
+
+import vendor from context external
+
+system app
+    name = Changed
+    links:
+        -> vendor
+`));
+assert.equal(sourceCache.parseCount() - initialParseCount, 1,
+  "an incremental replacement must parse only the changed source and reuse unchanged providers");
+assert(cachedUpdate.supportSources.has("external.ai"),
+  "the cached provider must remain available as linking support");
+assert(cachedUpdate.supportSources.has("sibling.ai"),
+  "an unchanged same-context sibling must remain available from the parse cache");
+assert.deepEqual(cachedUpdate.relinkedSources, new Set(["main.ai"]),
+  "unchanged linking support must not be reported or merged as recomputed output");
+assert.deepEqual(
+  resultSignature(cachedUpdate.result),
+  resultSignature(ProjectAnalysisSession.create([
+    cachedSupportSources[0],
+    cachedSupportSources[1],
+    source("main.ai", `context demo
+
+import vendor from context external
+
+system app
+    name = Changed
+    links:
+        -> vendor
+`),
+  ]).analysis().result),
+);
 
 const sourceLifecycle = session.fork();
 const addedSources = [
@@ -143,6 +208,7 @@ const batchUpdate = batchSession.update(batchSources);
 assert.equal(batchUpdate.mode, "incremental");
 assert.deepEqual(batchUpdate.changedSources, new Set(["one.ai", "two.ai"]));
 assert.equal(batchUpdate.relinkedSourceCount, batchUpdate.relinkedSources.size);
+assert.equal(batchUpdate.reparsedSourceCount, 2);
 assert.deepEqual(
   resultSignature(batchUpdate.result),
   resultSignature(ProjectAnalysisSession.create(batchSources).analysis().result),

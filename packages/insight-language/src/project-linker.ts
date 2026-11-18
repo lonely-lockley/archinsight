@@ -46,6 +46,7 @@ import {
   tokenText,
   tokenType as tokenTypeOf,
   type AntlrParseTreeLike,
+  type ParsedSource,
 } from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
 import {
@@ -375,18 +376,64 @@ interface LinkingWorkspace {
 }
 
 export function linkProject(request: LinkProjectRequest): LinkProjectResult {
-  const pipeline = createLinkingWorkspace(request);
+  return linkProjectWithSourceCache(request, new ProjectLinkerSourceCache());
+}
+
+export class ProjectLinkerSourceCache {
+  private readonly entries: Map<string, { readonly source: string; readonly parsed: ParsedSource }>;
+  private parseMisses: number;
+
+  constructor(
+    entries: ReadonlyMap<string, { readonly source: string; readonly parsed: ParsedSource }> = new Map(),
+    parseMisses = 0,
+  ) {
+    this.entries = new Map(entries);
+    this.parseMisses = parseMisses;
+  }
+
+  fork(): ProjectLinkerSourceCache {
+    return new ProjectLinkerSourceCache(this.entries, this.parseMisses);
+  }
+
+  parseCount(): number {
+    return this.parseMisses;
+  }
+
+  delete(sourceName: string): void {
+    this.entries.delete(sourceName);
+  }
+
+  parse(sourceName: string, source: string): ParsedSource {
+    const cached = this.entries.get(sourceName);
+    if (cached?.source === source) {
+      return cached.parsed;
+    }
+    const parsed = parseInsightSource({ sourceName, source });
+    this.entries.set(sourceName, { source, parsed });
+    this.parseMisses += 1;
+    return parsed;
+  }
+}
+
+export function linkProjectWithSourceCache(
+  request: LinkProjectRequest,
+  sourceCache: ProjectLinkerSourceCache,
+): LinkProjectResult {
+  const pipeline = createLinkingWorkspace(request, sourceCache);
   resolveDeploymentStage(pipeline);
   materializeLogicalRelationshipsStage(pipeline);
   expandProjectionStage(pipeline);
   return completeLinkingPipeline(request, pipeline);
 }
 
-function createLinkingWorkspace(request: LinkProjectRequest): LinkingWorkspace {
+function createLinkingWorkspace(
+  request: LinkProjectRequest,
+  sourceCache: ProjectLinkerSourceCache,
+): LinkingWorkspace {
   const typeSystem = new TypeSystem(request.snapshot);
   const operatorImplementations = request.operatorImplementations ?? coreOperatorImplementationRegistry;
   const documents = request.sources.map((source) =>
-    parseDocument(source.sourceName, source.source, typeSystem, operatorImplementations)
+    parseDocument(sourceCache.parse(source.sourceName, source.source), typeSystem, operatorImplementations)
   );
   const diagnostics: LanguageDiagnostic[] = [];
   const elementsByContextAndLocalId = new Map<string, ParsedElement[]>();
@@ -836,12 +883,11 @@ function linkedElementSnapshot(
 }
 
 function parseDocument(
-  sourceName: string,
-  source: string,
+  parsed: ParsedSource,
   typeSystem: TypeSystem,
   operatorImplementations: OperatorImplementationRegistry,
 ): MutableParsedDocument {
-  const parsed = parseInsightSource({ sourceName, source });
+  const { sourceName } = parsed;
   const diagnostics = [...parsed.diagnostics];
   const architecture = parsed.syntax.firstDescendant<RuleNode>("architectureFile");
   const contextDeclaration = architecture === undefined ? undefined : firstChild(architecture, "contextDeclaration");

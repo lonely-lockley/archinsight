@@ -22,8 +22,11 @@ export interface ProjectAnalysis {
 export interface ProjectAnalysisUpdate extends ProjectAnalysis {
   readonly mode: ProjectAnalysisUpdateMode;
   readonly changedSources: ReadonlySet<string>;
+  readonly supportSources: ReadonlySet<string>;
+  readonly supportSourceCount: number;
   readonly relinkedSources: ReadonlySet<string>;
   readonly relinkedSourceCount: number;
+  readonly reparsedSourceCount: number;
   readonly incrementalFallback: boolean;
 }
 
@@ -95,11 +98,11 @@ export class ProjectAnalysisSession {
     const changes = sourceChanges(this.sourcesByName, nextSources);
     const changedSources = new Set(changes.map((change) => change.sourceName));
     if (changes.length === 0) {
-      return this.updateResult("unchanged", changedSources, new Set(), 0, false);
+      return this.updateResult("unchanged", changedSources, new Set(), new Set(), 0, 0, false);
     }
     if (!canUpdateIncrementally(changes)) {
       this.rebuild(nextSources);
-      return this.updateResult("full", changedSources, new Set(nextSources.keys()), nextSources.size, false);
+      return this.updateResult("full", changedSources, new Set(nextSources.keys()), new Set(nextSources.keys()), nextSources.size, nextSources.size, false);
     }
 
     try {
@@ -114,13 +117,15 @@ export class ProjectAnalysisSession {
       return this.updateResult(
         "incremental",
         changedSources,
+        update.supportSources,
         relinkedSources,
         relinkedSources.size,
+        update.reparsedSourceCount,
         false,
       );
     } catch {
       this.rebuild(nextSources);
-      return this.updateResult("full", changedSources, new Set(nextSources.keys()), nextSources.size, true);
+      return this.updateResult("full", changedSources, new Set(nextSources.keys()), new Set(nextSources.keys()), nextSources.size, nextSources.size, true);
     }
   }
 
@@ -135,16 +140,21 @@ export class ProjectAnalysisSession {
   private updateResult(
     mode: ProjectAnalysisUpdateMode,
     changedSources: ReadonlySet<string>,
+    supportSources: ReadonlySet<string>,
     relinkedSources: ReadonlySet<string>,
     relinkedSourceCount: number,
+    reparsedSourceCount: number,
     incrementalFallback: boolean,
   ): ProjectAnalysisUpdate {
     return {
       ...this.analysis(),
       mode,
       changedSources,
+      supportSources,
+      supportSourceCount: supportSources.size,
       relinkedSources,
       relinkedSourceCount,
+      reparsedSourceCount,
       incrementalFallback,
     };
   }
