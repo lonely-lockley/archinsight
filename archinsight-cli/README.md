@@ -14,7 +14,7 @@ archinsight link [project-dir] [--format text|json] [--out file]
 archinsight structure [project-dir] [--format text|json] [--out file]
 archinsight query [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
 archinsight render [project-dir] [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json|dot|svg|png] [-o file]
-archinsight diff [project-dir] --from <commit> --to <commit> [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [-f text|json|dot|svg|png] [-o file]
+archinsight diff [project-dir] --from <commit> --to <commit> [-s <source>] [-c <context>] [-v c1|c2|c3|c4|deployment-system|deployment-container|deployment|no-filter] [-e <environment>] [-q <query.aiq>] [--param name=<json>] [--params file.json] [-f text|json|dot|svg|png] [-o file]
 archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
 archinsight quick-action drill-down [project-dir] --element <id> [-f text|json|dot|svg|png] [-o file]
 archinsight quick-action isolate [project-dir] --element <id> [-v <view>] [-s <source>] [-c <context>] [-f text|json|dot|svg|png] [-o file]
@@ -99,7 +99,8 @@ rendered endpoints and semantic content, so a source line shift alone does not
 create a false removal and addition.
 
 The default format is DOT. SVG and PNG produce a ready-to-view diagram; text
-prints counts by change kind. JSON returns `diagram-diff.v1` together with an
+prints counts by change kind followed by one line for every added, removed, or
+changed element, edge, and group. JSON returns `diagram-diff.v1` together with an
 `attributed-diagram-diff.v1` result: stable change ids, semantic source origins,
 Git blame commits/authors for changed entries, attribution diagnostics, both
 revisions, and the styled DOT source. Exact source ranges are used when the
@@ -109,9 +110,16 @@ command reads both models directly from git objects and does not modify the
 working tree.
 
 A custom `--query` is evaluated unchanged against both revisions and is read
-from the current working tree. Use this when the comparison itself should stay
-fixed while the model moves between commits. As with `render`, `--query` and
-`--view` are mutually exclusive.
+from the current working tree. Supply its graph-query parameters with repeated
+`--param name=<json>` options or one `--params file.json` object; the same
+validated values are used for both revisions. Use this when the comparison
+itself should stay fixed while the model moves between commits. As with
+`render`, `--query` and `--view` are mutually exclusive.
+
+If an explicitly selected source exists in only one revision, the missing side
+is compared with an empty graph and stderr reports `DIFF_SOURCE_MISSING`. The
+warning keeps a complete source addition or removal visible without presenting
+the absent scope as a silent empty result.
 
 ## Diagram Scope
 

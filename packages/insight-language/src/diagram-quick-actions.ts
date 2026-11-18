@@ -11,7 +11,7 @@ import type {
   IsolateRenderGraphLayout,
   SourceLocation,
 } from "./contracts.js";
-import { discoverDeploymentEnvironments, selectGraph } from "./query-engine.js";
+import { declaredDeploymentEnvironments, selectGraph } from "./query-engine.js";
 import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 import { diagramOccurrenceId, parseDiagramOccurrenceId } from "./occurrence-identity.js";
 
@@ -20,6 +20,7 @@ interface DiagramQuickActionIndex {
   readonly childrenByParent: ReadonlyMap<string, readonly LinkedElement[]>;
   readonly deploymentGraphs: Map<string, RenderGraph>;
   readonly completeGraphs: Map<string, RenderGraph>;
+  completeDeploymentGraph?: RenderGraph;
   metadata?: DiagramQuickActionMetadata;
 }
 
@@ -231,14 +232,33 @@ export function deploymentEnvironmentsForElement(
   const elementId = canonicalDiagramElementId(requestedElementId);
   const root = diagramQuickActionIndex(result).elementsById.get(elementId);
   if (root === undefined) return [];
-  const candidates = discoverDeploymentEnvironments(result, {
-    context: root.context,
-    tab: root.sourceIdentity,
-  });
-  return candidates.filter((environment) => {
+  const candidates = declaredDeploymentEnvironments(result);
+  return candidates.flatMap((environment) => {
     const graph = selectDeploymentGraph(result, elementId, environment.id);
-    return Object.keys(graph.elements).length > 0;
+    return Object.keys(graph.elements).length === 0
+      ? []
+      : [{ id: environment.id, ...(environment.name === undefined ? {} : { name: environment.name }) }];
   });
+}
+
+/** Environments containing concrete physical occurrences of the selected element. */
+export function deploymentOccurrenceEnvironmentsForElement(
+  result: LinkProjectResult,
+  requestedElementId: string,
+): readonly DeploymentEnvironment[] {
+  const elementId = canonicalDiagramElementId(requestedElementId);
+  const index = diagramQuickActionIndex(result);
+  if (!index.elementsById.has(elementId)) return [];
+  const graph = completeDeploymentGraph(result);
+  const environmentIds = new Set(Object.keys(graph.elements)
+    .filter((id) => canonicalDiagramElementId(id) === elementId)
+    .flatMap((id) => [...graphOccurrenceEnvironments(graph, id, index.elementsById)]));
+  return declaredDeploymentEnvironments(result)
+    .filter((environment) => environmentIds.has(environment.id))
+    .map((environment) => ({
+      id: environment.id,
+      ...(environment.name === undefined ? {} : { name: environment.name }),
+    }));
 }
 
 export function selectDeploymentGraph(
@@ -254,13 +274,8 @@ export function selectDeploymentGraph(
   const cached = index.deploymentGraphs.get(cacheKey);
   if (cached !== undefined) return cached;
   const logicalScope = descendantIds(elementId, index.childrenByParent);
-  const complete = selectGraph(result, {
-    context: root.context,
-    tab: root.sourceIdentity,
-    view: "deployment-container",
-    environment,
-  }, BUILTIN_VIEW_QUERIES["deployment-container"]);
-  const graph = filterDeploymentGraph(complete, logicalScope);
+  const complete = completeDeploymentGraph(result);
+  const graph = filterDeploymentGraph(complete, logicalScope, environment, index.elementsById, root.context);
   index.deploymentGraphs.set(cacheKey, graph);
   return graph;
 }
@@ -308,12 +323,10 @@ export function selectPathGraph(
   const sourceEnvironment = endpointEnvironments?.sourceEnvironment;
   const targetEnvironment = endpointEnvironments?.targetEnvironment;
   if (sourceEnvironment !== undefined || targetEnvironment !== undefined) {
-    const deploymentGraph = selectGraph(result, {
+    const deploymentGraph = {
+      ...completeDeploymentGraph(result),
       context: scope?.context ?? source.context,
-      tab: scope?.tab ?? source.sourceIdentity,
-      view: "deployment-container",
-      pipeline: allEnvironmentDeploymentPipeline,
-    }, BUILTIN_VIEW_QUERIES["deployment-container"]);
+    };
     return directedPathCorridor(deploymentGraph, sourceId, targetId, endpointEnvironments, index.elementsById)
       ?? endpoints;
   }
@@ -645,11 +658,26 @@ function endpointGraph(source: LinkedElement, target: LinkedElement): RenderGrap
   };
 }
 
-function filterDeploymentGraph(graph: RenderGraph, logicalScope: ReadonlySet<string>): RenderGraph {
+function filterDeploymentGraph(
+  graph: RenderGraph,
+  logicalScope: ReadonlySet<string>,
+  environment: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+  context: string,
+): RenderGraph {
+  const environmentGroups = graph.groups.filter((group) =>
+    elementsById.get(group.owner)?.context === environment
+  );
+  const groupedInEnvironment = new Set(environmentGroups.flatMap((group) => group.elements));
+  const environmentEdges = graph.edges.filter((edge) => deploymentEdgeInEnvironment(edge, environment, elementsById));
+  const environmentEdgeEndpoints = new Set(environmentEdges.flatMap((edge) => [edge.source, edge.target]));
   const focusIds = new Set(Object.keys(graph.elements)
-    .filter((id) => logicalScope.has(canonicalDiagramElementId(id))));
+    .filter((id) => logicalScope.has(canonicalDiagramElementId(id)))
+    .filter((id) => groupedInEnvironment.has(id)
+      || deploymentOccurrenceEnvironment(id, elementsById) === environment
+      || environmentEdgeEndpoints.has(id)));
   const selectedIds = new Set(focusIds);
-  const selectedEdges = graph.edges.filter((edge) => focusIds.has(edge.source) || focusIds.has(edge.target));
+  const selectedEdges = environmentEdges.filter((edge) => focusIds.has(edge.source) || focusIds.has(edge.target));
   for (const edge of selectedEdges) {
     selectedIds.add(edge.source);
     selectedIds.add(edge.target);
@@ -671,12 +699,66 @@ function filterDeploymentGraph(graph: RenderGraph, logicalScope: ReadonlySet<str
     if (!logicalScope.has(canonical) && isLogicalElement(graph.elements[id])) external.add(id);
   }
   return {
-    context: graph.context,
+    context,
     elements,
     edges: selectedEdges.filter((edge) => elements[edge.source] !== undefined && elements[edge.target] !== undefined),
     groups,
     externalElements: [...external].sort(),
   };
+}
+
+function deploymentEdgeInEnvironment(
+  edge: RenderGraphEdge,
+  environment: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): boolean {
+  const scopes = [edge.edge.projectionRoot, edge.edge.sourcePlacement, edge.edge.targetPlacement]
+    .filter((id): id is string => id !== undefined);
+  if (scopes.some((id) => elementsById.get(id)?.context === environment)) return true;
+  return [edge.source, edge.target]
+    .some((id) => deploymentOccurrenceEnvironment(id, elementsById) === environment);
+}
+
+function deploymentOccurrenceEnvironment(
+  id: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): string | undefined {
+  const occurrence = parseDiagramOccurrenceId(id);
+  if (occurrence.qualifier !== undefined) return elementsById.get(occurrence.qualifier)?.context;
+  const element = elementsById.get(occurrence.canonicalId);
+  if (element?.capabilities?.includes(TYPE_CAPABILITIES.infrastructure) === true) return element.context;
+  const placements = element?.semanticAttributes?.["placement-owner"] ?? [];
+  return placements.length === 1 ? elementsById.get(placements[0]!)?.context : undefined;
+}
+
+function completeDeploymentGraph(result: LinkProjectResult): RenderGraph {
+  const index = diagramQuickActionIndex(result);
+  if (index.completeDeploymentGraph !== undefined) return index.completeDeploymentGraph;
+  const graphs = Object.keys(result.tabRoots).sort().map((tab) => selectGraph(result, {
+    context: index.elementsById.get(result.tabRoots[tab]?.[0] ?? "")?.context ?? "",
+    tab,
+    view: "deployment-container",
+    pipeline: allEnvironmentDeploymentPipeline,
+  }, BUILTIN_VIEW_QUERIES["deployment-container"]));
+  const groupsByOwner = new Map<string, Set<string>>();
+  for (const group of graphs.flatMap((graph) => graph.groups)) {
+    const members = groupsByOwner.get(group.owner) ?? new Set<string>();
+    for (const member of group.elements) members.add(member);
+    groupsByOwner.set(group.owner, members);
+  }
+  const edges = new Map<string, RenderGraphEdge>();
+  for (const edge of graphs.flatMap((graph) => graph.edges)) {
+    edges.set(`${edge.edge.id}\0${edge.source}\0${edge.target}\0${edge.derived}\0${edge.projected}`, edge);
+  }
+  const complete: RenderGraph = {
+    context: "",
+    elements: Object.assign({}, ...graphs.map((graph) => graph.elements)),
+    edges: [...edges.values()],
+    groups: [...groupsByOwner].map(([owner, members]) => ({ owner, elements: [...members].sort() })),
+    externalElements: [...new Set(graphs.flatMap((graph) => graph.externalElements))].sort(),
+  };
+  index.completeDeploymentGraph = complete;
+  return complete;
 }
 
 function childrenIndex(elements: readonly LinkedElement[]): Map<string, readonly LinkedElement[]> {

@@ -79,6 +79,29 @@ in which the user selected them.
 A successful response with `pathFound: false` contains the two endpoints and
 no edge.
 
+In JSON, graph relationships are wrapper objects under `.graph.edges[]`:
+
+```json
+{
+  "source": "commerce/api@@eu/k8s",
+  "target": "commerce/database@@eu/postgres",
+  "derived": false,
+  "projected": true,
+  "edge": {
+    "source": "commerce/api",
+    "target": "commerce/database",
+    "sourcePlacement": "eu/k8s",
+    "targetPlacement": "eu/postgres"
+  }
+}
+```
+
+Treat outer `source` and `target` occurrence ids as opaque diagram identities.
+Whether they contain `@@<placement>` can change when another element gains an
+additional placement. Read the concrete endpoint placements from nested
+`edge.sourcePlacement` and `edge.targetPlacement`; use the nested logical
+endpoints or the quick-action `source`/`target` metadata for canonical ids.
+
 Source and target order is semantic. `--from A --to B` traverses only edges
 directed from A toward B. A path from B to A does not satisfy that request, and
 `pathFound: false` for A to B does not establish that B cannot reach A. Do not

@@ -684,6 +684,111 @@ assert.deepEqual(
   "the all-environment deployment view finds routes that cross D2 slices",
 );
 
+const splitSourceCrossEnvironmentResult = linkProject({
+  snapshot: definitions.snapshot,
+  sources: [
+    source("split-east.ai", `
+environment east
+    name = East
+
+deployment production
+    compute:
+        compute node
+            name = East node
+    clusterLink:
+        clusterLink boundary
+            name = Boundary link
+            projection:
+                source $from originalLink target $to
+`),
+    source("split-west.ai", `
+environment west
+    name = West
+
+deployment production
+    compute:
+        compute node
+            name = West node
+    network:
+        networkConnection internal
+            name = Internal network
+            projection:
+                source $from originalLink target $to
+`),
+    source("split-caller.ai", `
+context split
+
+import bridge from context split
+
+deploymentProfile eastProfile
+    appliesTo:
+        production from east
+    runsOn compute
+
+system application
+    name = Application
+    service source
+        name = Source
+        deployment:
+            uses eastProfile
+        links:
+            -> bridge
+                deployment:
+                    uses clusterLink
+`),
+    source("split-target.ai", `
+context split
+
+deploymentProfile westProfile
+    appliesTo:
+        production from west
+    runsOn compute
+
+system backend
+    name = Backend
+    service bridge
+        name = Bridge
+        deployment:
+            uses westProfile
+        links:
+            -> target
+                deployment:
+                    uses network
+
+    service target
+        name = Target
+        deployment:
+            uses westProfile
+`),
+  ],
+});
+assertNoErrors(splitSourceCrossEnvironmentResult.diagnostics);
+assert.deepEqual(
+  deploymentEnvironmentsForElement(splitSourceCrossEnvironmentResult, "split/bridge").map((environment) => environment.id),
+  ["east", "west"],
+  "deployment environment discovery includes a relationship declared in another source file",
+);
+assert.equal(
+  selectDeploymentGraph(splitSourceCrossEnvironmentResult, "split/bridge", "east").edges
+    .some((edge) => edge.edge.originSource === "split/source" && edge.edge.originTarget === "split/bridge"),
+  true,
+  "deployment keeps an incoming cross-environment relationship declared in another source file",
+);
+const splitSourcePhysicalPath = selectPathGraph(
+  splitSourceCrossEnvironmentResult,
+  "split/source",
+  "split/target",
+  undefined,
+  { sourceEnvironment: "east" },
+);
+assert.equal(
+  splitSourcePhysicalPath.edges.some((edge) =>
+    edge.edge.originSource === "split/bridge" && edge.edge.originTarget === "split/target"
+  ),
+  true,
+  "a physical route continues through relationships declared in another source file",
+);
+
 const rolledUpResult = linkProject({
   snapshot: coreLanguageSnapshot,
   sources: [source("rolled-up.ai", `

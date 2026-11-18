@@ -88,6 +88,28 @@ or query JSON. When the user requests an artifact, write the requested format
 with `--out` and return the file rather than reimplementing the selector or
 capturing the interactive UI.
 
+## Versioned Diagram Diff
+
+Compare one semantic diagram scope between explicit Git revisions without
+checking either revision out:
+
+```shell
+archinsight diff . --from <baseline> --to <target> \
+  --source <source.ai> --view c2 --format text
+```
+
+For a custom graph-returning query, replace `--view` with `--query` and pass its
+string or string-list parameters with repeated `--param name=<json>` options or
+one `--params file.json` object. The CLI validates one parameter map and applies
+it unchanged to both revisions.
+
+Text output prints the summary followed by one line for every added, removed,
+or changed element, edge, and group. JSON includes `diagram-diff.v1` and
+`attributed-diagram-diff.v1`; DOT, SVG, and PNG preserve the status styling. If
+the selected source exists in only one revision, the missing side is compared
+with an empty graph and stderr reports `DIFF_SOURCE_MISSING`. Treat that warning
+as an explicit source addition/removal, not as a silent empty selection.
+
 ## Query and Render Scope
 
 Use the model source as the normal diagram entry point:
@@ -147,6 +169,10 @@ object relative to the current working directory. Do not supply `$context` or
 `$tab`; they are reserved for query scope. Missing, unused, duplicate, and
 invalid parameter values fail before output is written. `--out` uses atomic
 replacement, so an execution failure does not leave a partial report.
+
+For plain graph-returning queries, user parameters are limited to strings and
+lists of strings. The broader JSON value set is available to analytical
+`RETURN TABLE` queries.
 
 Resource controls are `--max-expansions`, `--max-rows`, `--max-values`,
 `--max-output-bytes`, and `--timeout-ms`; every value must be a positive integer.

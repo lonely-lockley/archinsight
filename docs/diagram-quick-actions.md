@@ -214,14 +214,17 @@ shown.
 ### Deployment environments
 
 An endpoint selected from a single-environment deployment view carries that
-environment into the request. The path is evaluated only in that environment,
-so identical physical routes from other environments are not duplicated. If
-source and target were selected from different environments, no path is
-returned.
+environment into the request. Those constraints select the concrete source and
+target occurrences while traversal uses the complete all-environment physical
+graph. A route may therefore cross an environment boundary, including between
+source and target occurrences selected in different environments. Identical
+routes starting from other source occurrences are not duplicated.
 
 Deployment occurrence ids normalize to canonical logical element ids when the
 selection moves between C and D views. The visible occurrence in the active
-view is used for rendering the result.
+view is used for rendering the result. Occurrence ids are opaque presentation
+identities: consumers read placement from `edge.sourcePlacement` and
+`edge.targetPlacement`, not by parsing an optional `@@placement` suffix.
 
 ## Implementation boundaries
 

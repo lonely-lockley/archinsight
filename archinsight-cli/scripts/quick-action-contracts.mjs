@@ -161,6 +161,22 @@ external system google
     ["sample/cross_source@@eu/compute->sample/cross_target@@us/compute"],
   );
 
+  failure(
+    "find-path",
+    /Environment 'nosuch' is not available for 'sample\/cross_source'.*eu \(Europe\)/,
+    "--from", "sample/cross_source", "--to", "sample/cross_target", "--environment", "nosuch",
+  );
+  failure(
+    "find-path",
+    /Environment 'us' is not available for 'sample\/cross_source'.*eu \(Europe\)/,
+    "--from", "sample/cross_source", "--to", "sample/cross_target", "--environment", "us",
+  );
+  failure(
+    "find-path",
+    /No deployment is available for 'sample\/user'/,
+    "--from", "sample/user", "--to", "sample/google", "--environment", "eu",
+  );
+
   const noPath = json("find-path", "--from", "sample/google", "--to", "sample/user");
   assert.equal(noPath.pathFound, false);
   assert.deepEqual(Object.keys(noPath.graph.elements).sort(), ["sample/google", "sample/user"]);

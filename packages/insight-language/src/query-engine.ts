@@ -117,6 +117,7 @@ export interface QueryExecutionLimits {
 export interface QueryExecutionOptions {
   readonly limits?: Partial<QueryExecutionLimits>;
   readonly signal?: AbortSignal;
+  readonly parameters?: Readonly<Record<string, QueryParameterValue>>;
 }
 
 export const DEFAULT_QUERY_EXECUTION_LIMITS: QueryExecutionLimits = Object.freeze({
@@ -148,6 +149,7 @@ interface EvaluationContext extends QueryExecutionContext {
   readonly relationshipsByTarget: ReadonlyMap<string, readonly QueryRelationship[]>;
   readonly relationshipsByEndpoint: ReadonlyMap<string, readonly QueryRelationship[]>;
   readonly budget: QueryBudget;
+  readonly parameters: Readonly<Record<string, QueryParameterValue>>;
 }
 
 interface QueryBudget {
@@ -215,9 +217,12 @@ function selectGraphInternal(
   if (parsed.kind !== "graph") {
     throw new Error("selectGraph requires a graph RETURN; use executeQuery for RETURN TABLE");
   }
+  const source = query === undefined || query.trim() === "" ? DEFAULT_QUERY : query;
+  validateGraphQueryParameters(source, options.parameters ?? {});
   const execution = evaluationContext(
     createQueryExecutionContext(result, scope),
     createQueryBudget(normalizedLimits(options.limits), options.signal),
+    options.parameters,
   );
   const rows = evaluate(execution, parsed);
   const selectedElements = new Map<string, LinkedElement>();
@@ -345,11 +350,11 @@ export function executeQuery(
     const source = query === undefined || query.trim() === "" ? DEFAULT_QUERY : query;
     const parsed = parseQuery(source);
     if (parsed.kind === "graph") {
-      if (Object.keys(parameters).length > 0) {
-        throw new AiqQueryError("AIQ_PARAMETER", "Graph queries do not accept user parameters");
-      }
       const limits = normalizedLimits(options.limits);
-      const graphResult: QueryResult = { kind: "graph", graph: selectGraph(result, scope, source, options) };
+      const graphResult: QueryResult = {
+        kind: "graph",
+        graph: selectGraph(result, scope, source, { ...options, parameters }),
+      };
       assertOutputBudget(graphResult, limits);
       return graphResult;
     }
@@ -396,6 +401,27 @@ function validateQueryParameters(
   if (references.includes("context") && scope.context === undefined) throw new Error("Query requires $context scope");
   if (references.includes("tab") && scope.tab === undefined) throw new Error("Query requires $tab scope");
   for (const [name, value] of Object.entries(parameters)) validateParameterValue(name, value);
+}
+
+function validateGraphQueryParameters(
+  source: string,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): void {
+  const required = analyzeQuery(source).requiredParameters;
+  const supplied = Object.keys(parameters);
+  for (const reserved of ["context", "tab"]) {
+    if (Object.hasOwn(parameters, reserved)) throw new Error(`Parameter $${reserved} is reserved for query scope`);
+  }
+  const missing = required.filter((name) => !Object.hasOwn(parameters, name));
+  if (missing.length > 0) throw new Error(`Missing query parameter${missing.length === 1 ? "" : "s"}: ${missing.map((name) => `$${name}`).join(", ")}`);
+  const unused = supplied.filter((name) => !required.includes(name));
+  if (unused.length > 0) throw new Error(`Unused query parameter${unused.length === 1 ? "" : "s"}: ${unused.map((name) => `$${name}`).join(", ")}`);
+  for (const [name, value] of Object.entries(parameters)) {
+    validateParameterValue(name, value);
+    if (typeof value !== "string" && !(Array.isArray(value) && value.every((item) => typeof item === "string"))) {
+      throw new Error(`Graph query parameter '$${name}' must be a string or a list of strings`);
+    }
+  }
 }
 
 function analyzeTableParameterNames(source: string): readonly string[] {
@@ -1307,6 +1333,7 @@ function explicitlyExternal(element: LinkedElement): boolean {
 function evaluationContext(
   base: QueryExecutionContext,
   budget = createQueryBudget(DEFAULT_QUERY_EXECUTION_LIMITS),
+  parameters: Readonly<Record<string, QueryParameterValue>> = {},
 ): EvaluationContext {
   const nodes = queryNodes(base);
   const relationships = queryRelationships(base, budget);
@@ -1320,6 +1347,7 @@ function evaluationContext(
     relationshipsByTarget: indexRelationships(relationships, (relationship) => relationship.target),
     relationshipsByEndpoint: indexRelationshipEndpoints(relationships),
     budget,
+    parameters,
   };
 }
 
@@ -3119,7 +3147,7 @@ function matchesNodeProperty(node: QueryNode, name: string, value: QueryValue, c
   if (name === "sourceIdentity" && isTabVariable(value) && node.kind === "element") {
     return context.tabClosure.has(node.id);
   }
-  return equalQueryValues(property(node, name), resolveValue(value, context.scope));
+  return equalQueryValues(property(node, name), resolveValue(value, context.scope, context.parameters));
 }
 
 function matchesRelationship(edge: QueryRelationship, pattern: RelationshipPattern, context: EvaluationContext): boolean {
@@ -3154,7 +3182,7 @@ function matchesRelationshipProperty(edge: QueryRelationship, name: string, valu
   if (name === "sourceIdentity" && isTabVariable(value)) {
     return relationshipInTab(edge, context);
   }
-  return equalQueryValues(edgePropertyValue(edge, name), resolveValue(value, context.scope));
+  return equalQueryValues(edgePropertyValue(edge, name), resolveValue(value, context.scope, context.parameters));
 }
 
 function evaluateExpression(row: Row, expression: Expression | undefined, context: EvaluationContext): boolean {
@@ -3192,12 +3220,12 @@ function evaluateExpression(row: Row, expression: Expression | undefined, contex
 
 function evaluateValue(row: Row, expression: ValueExpression, context: EvaluationContext): RuntimeValue {
   if (expression.kind === "literal" || expression.kind === "variable") {
-    return resolveValue(expression, context.scope) ?? null;
+    return resolveValue(expression, context.scope, context.parameters) ?? null;
   }
   if (expression.kind === "list") {
     return expression.values.flatMap((value) => {
-      const resolved = resolveValue(value, context.scope);
-      return resolved === undefined ? [] : [resolved];
+      const resolved = resolveValue(value, context.scope, context.parameters);
+      return resolved === undefined ? [] : Array.isArray(resolved) ? resolved : [resolved];
     });
   }
   if (expression.kind === "binding") {
@@ -3583,7 +3611,11 @@ function isQueryNode(value: unknown): value is QueryNode {
     && "kind" in value;
 }
 
-function resolveValue(value: QueryValue, scope: QueryScope): string | undefined {
+function resolveValue(
+  value: QueryValue,
+  scope: QueryScope,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): string | readonly string[] | undefined {
   if (value.kind === "literal") {
     return value.value;
   }
@@ -3593,7 +3625,12 @@ function resolveValue(value: QueryValue, scope: QueryScope): string | undefined 
   if (value.name === "tab") {
     return scope.tab ?? "";
   }
-  throw new Error(`Unknown query variable: $${value.name}`);
+  const parameter = parameters[value.name];
+  if (typeof parameter === "string") return parameter;
+  if (Array.isArray(parameter) && parameter.every((item) => typeof item === "string")) {
+    return parameter as readonly string[];
+  }
+  throw new Error(`Graph query parameter '$${value.name}' must be a string or a list of strings`);
 }
 
 function elementById(result: LinkProjectResult, id: string): LinkedElement | undefined {
