@@ -39,13 +39,18 @@ deploymentProfile regional
         production from cluster_b
     runsOn compute
 
+deploymentProfile cluster_a_only
+    appliesTo:
+        production from cluster_a
+    runsOn compute
+
 system storefront
     name = Storefront
 
     service web
         name = Web
         deployment:
-            uses regional
+            uses cluster_a_only
         links:
             -> worker
                 deployment:
@@ -106,10 +111,42 @@ const d2 = selectGraph(
 );
 assert(Object.keys(d2.elements).some((id) => id.includes("cluster_a")), "D2 must include the selected placement");
 assert.equal(Object.keys(d2.elements).some((id) => id.includes("cluster_b")), false, "D2 must exclude sibling placements");
+assert.equal(
+  Object.keys(d2.elements).filter((id) => id.startsWith("shop/worker")).length,
+  1,
+  "D2 must keep only the selected-environment occurrence when a linked endpoint also has sibling placements",
+);
 assert.equal(d2.groups.some((group) => group.owner.startsWith("cluster_b/")), false);
 assert(
   d2.externalElements.some((id) => id.startsWith("shop/api")),
   "a cross-environment logical endpoint must remain visible as an external participant",
+);
+
+const siblingD2 = selectGraph(
+  result,
+  { context: "shop", tab: "caller.ai", view: "deployment-container", environment: "cluster_b" },
+  view("deployment-container"),
+);
+const siblingGroup = siblingD2.groups.find((group) => group.owner === "cluster_b/k8s_b");
+assert(siblingGroup, "D2 must preserve the selected environment's compute group");
+assert.deepEqual(
+  Object.keys(siblingD2.elements).filter((id) => id.startsWith("shop/worker")),
+  ["shop/worker@@cluster_b/k8s_b"],
+  "D2 must materialize the shared endpoint only in the selected sibling environment",
+);
+assert.deepEqual(
+  siblingGroup.elements.filter((id) => id.startsWith("shop/")),
+  ["shop/worker@@cluster_b/k8s_b"],
+  "only endpoints deployed in the selected sibling environment may belong to its compute group",
+);
+assert(
+  siblingD2.externalElements.some((id) => id.startsWith("shop/web@@cluster_a/")),
+  "a caller deployed only in another environment must remain an external participant",
+);
+assert.equal(
+  siblingD2.groups.some((group) => group.elements.some((id) => id.startsWith("shop/web"))),
+  false,
+  "a cross-environment caller must not be placed inside the selected environment",
 );
 
 const d1 = selectGraph(
