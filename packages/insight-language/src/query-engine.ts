@@ -792,8 +792,15 @@ function deploymentEndpointAllowed(
   environment: string,
   elementsById: ReadonlyMap<string, LinkedElement>,
 ): boolean {
-  return isLogicalDeploymentEndpoint(id, elementsById)
-    || elementEnvironment(id, elementsById) === environment;
+  if (!isLogicalDeploymentEndpoint(id, elementsById)) {
+    return elementEnvironment(id, elementsById) === environment;
+  }
+  if (deploymentOccurrenceEnvironment(id, elementsById) === environment) {
+    return true;
+  }
+  const element = elementsById.get(baseOccurrenceId(id));
+  return !semanticAttribute(element, ATTRIBUTE_CAPABILITIES.placementOwner)
+    .some((placement) => elementEnvironment(placement, elementsById) === environment);
 }
 
 function isLogicalDeploymentEndpoint(id: string, elementsById: ReadonlyMap<string, LinkedElement>): boolean {
