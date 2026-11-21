@@ -1,6 +1,7 @@
 import { formatQueryTableCsv } from "@insight/language/query-result-format";
 import type { QueryTableResult } from "@insight/language";
 import type { DiagramQuickActionMetadata } from "@insight/language";
+import type { DiagramNotice } from "@archinsight/contracts";
 
 export type DiagramArtifactKind = "source" | "svg" | "png" | "dot" | "csv" | "json";
 
@@ -19,6 +20,7 @@ export interface DiagramPreviewState<TView extends string> extends DiagramQueryS
   readonly error?: string;
   readonly queryResult?: QueryTableResult;
   readonly quickActionMetadata?: DiagramQuickActionMetadata;
+  readonly diagramNotice?: DiagramNotice;
 }
 
 export interface DiagramEnvironmentSelection {

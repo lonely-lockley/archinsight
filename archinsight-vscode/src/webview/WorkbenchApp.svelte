@@ -18,6 +18,7 @@
   } from '@archinsight/editor-support';
   import {
     parseWorkbenchHostToWebviewMessage,
+    type DiagramNotice,
     type WebviewCompletionItem,
     type WebviewDiagnostic,
     type WebviewPreviewState,
@@ -120,6 +121,7 @@
   let sourceName = '';
   let fileName = '';
   let svg: string | undefined;
+  let diagramNotice: DiagramNotice | undefined;
   let dot: string | undefined;
   let diagramMode: DiagramMode = defaultDiagramMode;
   let query = defaultQuery;
@@ -353,9 +355,14 @@
       query = message.state.query;
       queryParameters = message.state.parameters ?? {};
       deploymentEnvironment = message.state.environment;
-      svg = message.state.error === undefined ? message.state.svg : undefined;
-      queryResult = message.state.error === undefined ? message.state.queryResult : undefined;
-      dot = message.state.dot;
+      if (message.state.error === undefined) {
+        svg = message.state.svg;
+        queryResult = message.state.queryResult;
+        diagramNotice = message.state.diagramNotice;
+        dot = message.state.dot;
+      } else if (svg === undefined && queryResult === undefined && diagramNotice === undefined) {
+        diagramNotice = message.state.diagramNotice;
+      }
       renderError = message.state.error;
       quickActionMetadata = message.state.quickActionMetadata ?? {};
       return;
@@ -865,6 +872,7 @@
 <WorkspaceEditor
   active={true}
   {svg}
+  {diagramNotice}
   {queryResult}
   {resultLoading}
   {quickActionMetadata}

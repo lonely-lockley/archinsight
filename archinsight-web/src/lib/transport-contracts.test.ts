@@ -55,9 +55,17 @@ describe('shared transport contracts', () => {
   it('preserves the shared icon placement sidecar in render transports', () => {
     const render = {
       sourceIdentity: 'main.ai', diagram: 'query', dot: 'digraph {}',
+      empty: false,
       icons: [{ slotId: 'icon-slot-1', iconId: 'postgresql', color: '#f4f4f4' }]
     };
-    expect(parseSvgRenderRequest({ renders: [render] })).toEqual({ renders: [render] });
+    expect(parseSvgRenderRequest({ renders: [render] })).toEqual({
+      renders: [{
+        sourceIdentity: render.sourceIdentity,
+        diagram: render.diagram,
+        dot: render.dot,
+        icons: render.icons
+      }]
+    });
     const response = {
       revision: '1', analysis: { mode: 'full', relinkedSources: 1 }, symbols: coreLanguageSnapshot,
       linkedModel: { contexts: [], elements: [], edges: [], graph: { nodes: [], relations: [] } },
@@ -66,6 +74,29 @@ describe('shared transport contracts', () => {
     expect(parseLinkResponse(response).renders).toEqual([render]);
     expect(() => parseSvgRenderRequest({ renders: [{ ...render, icons: [{ ...render.icons[0], color: 42 }] }] }))
       .toThrow(ContractValidationError);
+    expect(() => parseSvgRenderRequest({ renders: [{ ...render, empty: 'no' }] }))
+      .toThrow(ContractValidationError);
+  });
+
+  it('preserves factual diagram notices in VS Code preview messages', () => {
+    expect(parseWorkbenchHostToWebviewMessage({
+      command: 'preview',
+      state: {
+        view: 'c4', query: 'MATCH (n) RETURN n', sourceName: 'main.ai', fileName: 'main.ai', source: '',
+        diagramNotice: {
+          kind: 'empty', title: 'C4 diagram is empty', detail: 'The current source contains no code-level elements.'
+        }
+      }
+    })).toMatchObject({
+      state: { diagramNotice: { kind: 'empty', title: 'C4 diagram is empty' } }
+    });
+    expect(() => parseWorkbenchHostToWebviewMessage({
+      command: 'preview',
+      state: {
+        view: 'c4', query: '', sourceName: 'main.ai', fileName: 'main.ai', source: '',
+        diagramNotice: { kind: 'action', title: 'Retry', detail: 'Open Output' }
+      }
+    })).toThrow(ContractValidationError);
   });
 
   it('preserves completion icon metadata and incomplete state', () => {

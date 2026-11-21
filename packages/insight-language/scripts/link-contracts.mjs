@@ -1086,7 +1086,7 @@ function linksCoreWirePresentationFields() {
   assert.equal(result.presentations.PhysicalWire?.assignments.body, "description");
   assert.equal(result.presentations.ConnectTo?.assignments.header, "technology");
   assert.equal(result.presentations.ConnectTo?.assignments.body, "description");
-  assert.equal(result.presentations.ConnectTo?.sections.light?.stroke, "\"#000000\"");
+  assert.equal(result.presentations.ConnectTo?.sections.light?.stroke, "\"#666666\"");
   assert.equal(result.presentations.ReplicateFrom?.sections.graphviz?.style, "dashed");
 }
 

@@ -5,8 +5,7 @@
 # https://archinsight.org/doc/querying-the-architecture-graph/#4-follow-outgoing-relationships
 
 MATCH (source:Component)-[dependency:REFERENCES]->(target:Element)
-WHERE source.context = $context
-  AND source.parent <> target.parent
+WHERE source.parent <> target.parent
 RETURN TABLE elementId(source) AS source,
              source.name AS sourceName,
              elementId(source.parent) AS sourceOwner,

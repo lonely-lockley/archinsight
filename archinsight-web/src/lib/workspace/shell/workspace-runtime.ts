@@ -292,16 +292,29 @@ export function createWorkspaceRuntime(host: WorkspaceRuntimeHost): WorkspaceRun
       if (analysis !== undefined) {
         patch({ renderedQuickActionMetadata: diagramQuickActionMetadata(analysis) });
       }
-      tabController.patchBySourceIdentity(sourceIdentity, { svg, dot, renderTheme });
+      tabController.patchBySourceIdentity(sourceIdentity, { svg, dot, renderTheme, diagramNotice: undefined });
+    },
+    acceptDiagramNotice: (sourceIdentity, diagramNotice) => {
+      quickActionController.invalidateRender(sourceIdentity);
+      tabController.patchBySourceIdentity(sourceIdentity, {
+        diagramNotice,
+        dot: undefined,
+        renderTheme: undefined,
+        queryResult: undefined
+      });
     },
     acceptQueryResult: (sourceIdentity, queryResult) => {
       quickActionController.invalidateRender(sourceIdentity);
-      tabController.patchBySourceIdentity(sourceIdentity, { queryResult });
+      tabController.patchBySourceIdentity(sourceIdentity, {
+        queryResult,
+        ...(queryResult === undefined ? {} : { diagramNotice: undefined })
+      });
     },
     now: () => Date.now(),
     queryFinished: messageController.queryFinished,
     cycleSummary: messageController.cycleSummary,
     queryError: messageController.queryError,
+    info: messageController.info,
     error: messageController.error,
     redirectIfAuthRequired: authController.redirectIfAuthRequired,
     scheduleDiagramUpdate: () => analysisController.scheduleDiagramUpdate()

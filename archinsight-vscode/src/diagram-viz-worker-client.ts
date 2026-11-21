@@ -37,7 +37,7 @@ export function executeDiagramQueryInWorker(
   parameters: Readonly<Record<string, QueryParameterValue>>,
   theme: RenderTheme,
   signal?: AbortSignal,
-): Promise<{ readonly result: QueryResult; readonly dot?: string; readonly svg?: string }> {
+): Promise<{ readonly result: QueryResult; readonly dot?: string; readonly svg?: string; readonly empty?: boolean }> {
   return submit({ kind: 'query', result: transferableResult(result), scope, query, parameters, theme }, signal);
 }
 
@@ -62,7 +62,7 @@ export function renderDiagramGraphInWorker(
   graph: RenderGraph,
   theme: RenderTheme,
   signal?: AbortSignal,
-): Promise<{ readonly dot: string; readonly svg: string }> {
+): Promise<{ readonly dot: string; readonly svg: string; readonly empty?: boolean }> {
   return submit({ kind: 'graph', result: transferableResult(result), graph, theme }, signal);
 }
 
@@ -72,7 +72,7 @@ export function renderDiagramDiffInWorker(
   diff: DiagramDiff,
   theme: RenderTheme,
   signal?: AbortSignal,
-): Promise<{ readonly dot: string; readonly svg: string }> {
+): Promise<{ readonly dot: string; readonly svg: string; readonly empty?: boolean }> {
   return submit({
     kind: 'diff',
     before: transferableResult(before),

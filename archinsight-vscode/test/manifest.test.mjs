@@ -11,6 +11,7 @@ const diagramSessionSource = readFileSync(path.join(extensionRoot, 'src', 'diagr
 const diagramServiceSource = readFileSync(path.join(extensionRoot, 'src', 'vscode-diagram-service.ts'), 'utf8');
 const controlsSource = readFileSync(path.join(extensionRoot, 'src', 'webview', 'ControlsApp.svelte'), 'utf8');
 const workbenchSource = readFileSync(path.join(extensionRoot, 'src', 'webview', 'WorkbenchApp.svelte'), 'utf8');
+const workbenchCss = readFileSync(path.join(extensionRoot, 'src', 'webview', 'workbench.css'), 'utf8');
 
 test('contributed commands are unique, activated, and registered', () => {
   const contributed = manifest.contributes.commands.map((item) => item.command);
@@ -98,6 +99,11 @@ test('Insight and AIQ languages use their Archinsight file icons', () => {
 test('custom editor tabs force the Archinsight icon despite file-theme extension conflicts', () => {
   assert(extensionSource.includes('panel.iconPath = vscode.Uri.joinPath('));
   assert(extensionSource.includes('fileName.toLocaleLowerCase().endsWith(".aiq") ? "aiq.svg" : "ai.svg"'));
+});
+
+test('light webviews use the softened diagram quick-action palette', () => {
+  assert.match(workbenchCss, /body\.vscode-light,[\s\S]*--archinsight-quick-action-bg: #757575;/);
+  assert.match(workbenchCss, /body\.vscode-high-contrast-light[\s\S]*--archinsight-quick-action-border: #a3a3a3;/);
 });
 
 test('language configuration uses balanced editor pairs', () => {

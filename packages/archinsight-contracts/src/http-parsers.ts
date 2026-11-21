@@ -106,6 +106,9 @@ export function parseSvgRenderRequest(value: unknown): SvgRenderRequest {
   return {
     renders: array(input.renders, 'renders').map((item, index) => {
       const render = record(item, `renders[${index}]`);
+      if (render.empty !== undefined) {
+        boolean(render.empty, `renders[${index}].empty`);
+      }
       return {
         sourceIdentity: string(render.sourceIdentity, `renders[${index}].sourceIdentity`),
         diagram: string(render.diagram, `renders[${index}].diagram`),
@@ -296,6 +299,7 @@ function parseDotRenders(value: unknown, label: string): DotRenderDto[] {
       sourceIdentity: string(input.sourceIdentity, `${itemLabel}.sourceIdentity`),
       diagram: string(input.diagram, `${itemLabel}.diagram`),
       dot: string(input.dot, `${itemLabel}.dot`),
+      ...(input.empty === undefined ? {} : { empty: boolean(input.empty, `${itemLabel}.empty`) }),
       ...parseIconPlacements(input.icons, `${itemLabel}.icons`)
     };
   });

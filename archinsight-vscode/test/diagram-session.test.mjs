@@ -292,7 +292,10 @@ test('standalone preview HTML keeps its message and content security contract', 
   assert.equal(nonce?.length, 24);
   assert.match(html, new RegExp(`<script nonce="${nonce}">`));
   assert.match(html, /default-src 'none'/);
-  assert.match(html, /error\.textContent = state\.error/);
+  assert.match(html, /state\.diagramNotice/);
+  assert.match(html, /title\.textContent = notice\.title/);
+  assert.match(html, /detail\.textContent = notice\.detail/);
+  assert.doesNotMatch(html, /textContent = state\.error/);
   assert.match(html, /new DOMParser\(\)\.parseFromString/);
   assert.match(html, /script, foreignObject, iframe, object, embed, style/);
   assert.doesNotMatch(html, /preview\.innerHTML/);

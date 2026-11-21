@@ -435,7 +435,7 @@
     background: var(--archinsight-quick-action-bg, #2b2b2b);
     color: var(--archinsight-quick-action-fg, #f2f2f2);
     font: 600 9px/1 system-ui, sans-serif;
-    box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+    box-shadow: var(--archinsight-quick-action-shadow, 0 2px 6px rgb(0 0 0 / 35%));
     cursor: pointer;
     pointer-events: auto;
   }

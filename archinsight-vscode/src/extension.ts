@@ -2645,7 +2645,9 @@ class ArchinsightWorkbenchEditorSession {
     const scope = this.queryScopeState(current);
     const variables = analyzeQuery(query).referencedVariables;
     if ((variables.includes("tab") && scope.tab === undefined)
-        || (variables.includes("context") && scope.context === undefined)) return undefined;
+        || (variables.includes("context") && scope.context === undefined)) {
+      return { ...base, queryScope: { tab: scope.tab, context: scope.context }, missingQueryScope: true };
+    }
     return { ...base, queryScope: { tab: scope.tab, context: scope.context } };
   }
 }

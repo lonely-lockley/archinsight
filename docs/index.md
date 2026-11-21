@@ -6,8 +6,7 @@ Archinsight is a toolkit for describing software architecture as code. Models wr
 
 - [The Insight Language](language.md) introduces names, types, constructors, text values, attributes, enumerations, operators, extensions, and presentations.
 - [Comments and Notes](comments-and-notes.md) explains standalone source comments and notes attached to linked declarations.
-- [Annotations](annotations.md) covers planned and deprecated architecture, their rendering, and the legacy Graphviz override annotation.
-- [Technology icons](technology-icons.md) covers automatic `technology` matching, `@icon(...)`, editor selection, and export.
+- [Annotations](annotations.md) covers planned and deprecated architecture, the legacy Graphviz override annotation, and technology icons.
 - [Built-in Archinsight Types](built-in-types.md) explains the graph foundations, the system, container, and component hierarchy, deployment types, and built-in relationships.
 - [Structuring an Insight Project](project-structure.md) covers source roles, context boundaries, imports, visibility, aliases, and object extensions.
 - [Building and Linking an Insight Project](project-processing.md) follows sources through parsing, linking, diagnostics, introspection, graph selection, DOT generation, and image rendering.
@@ -17,4 +16,4 @@ Archinsight is a toolkit for describing software architecture as code. Models wr
 - [C3: Components](c3-components.md) covers component responsibilities, relationship ownership, rollup to C2 and C1, and the built-in C3 attributes.
 - [C4: Code](c4-code.md) introduces the abstract code-element foundation and shows how project definitions create a code vocabulary and its containment rules.
 - [Deployment](deployment.md) explains environments, deployment schemes, infrastructure placement, projections, profiles, and physical paths for logical elements and wires.
-- [Diagram Quick Actions](diagram-quick-actions.md) describes Drill down, Isolate, scoped deployment views, source navigation, directed Find path, the shared temporary-result stack, environment-aware behavior, deterministic CLI execution, and subdiagram export in web, VS Code, and agent workflows.
+- [Diagram Quick Actions](diagram-quick-actions.md) explains the quick-action menu, temporary results, Drill down, Isolate, deployment views, source navigation, Find path, Diff, and export.

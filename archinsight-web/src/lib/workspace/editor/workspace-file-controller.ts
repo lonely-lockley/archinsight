@@ -4,7 +4,7 @@ import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { WorkspaceTabState } from '$lib/storage';
 import type { ProjectUiState, SourceLocation, TreeNode, WorkspaceTab } from '@archinsight/workbench/types';
 import type { AnalysisController } from '../analysis/analysis-controller';
-import { emptyDiagramSvg } from '../diagram/diagram-controller';
+import { coreSourceNotice } from '@archinsight/workbench/diagram-notice';
 import { errorMessage } from '../messages/message-controller';
 import type { ProjectLoadGuard } from '../projects/project-session-controller';
 import type { RepositoryFileEffect } from '../repository/repository-controller';
@@ -192,7 +192,7 @@ export function createWorkspaceFileController(
     ports.tabController.append({
       title: path.split('/').at(-1) ?? path,
       content,
-      svg: emptyDiagramSvg('Render is waiting for a valid model'),
+      svg: '',
       id: path,
       filePath: path,
       sourceIdentity: path,
@@ -232,7 +232,8 @@ export function createWorkspaceFileController(
     ports.tabController.append({
       title: sourceIdentity,
       content: source,
-      svg: emptyDiagramSvg('Core framework source is read-only'),
+      svg: '',
+      diagramNotice: coreSourceNotice(),
       id: tabId,
       sourceIdentity,
       diagnostics: [],
@@ -328,7 +329,7 @@ export function createWorkspaceFileController(
       if (isQueryFile(tab.sourceIdentity)) {
         const name = queryFileName(tab.sourceIdentity);
         for (const affected of ports.tabs()) {
-          if (selectedQueryName(affected) === name) ports.tabController.patch(affected.id, { dot: undefined, svg: '', queryResult: undefined });
+          if (selectedQueryName(affected) === name) ports.tabController.patch(affected.id, { dot: undefined, queryResult: undefined });
         }
         analysis().scheduleDiagramUpdate(350);
         persistWorkspace();
@@ -364,7 +365,7 @@ export function createWorkspaceFileController(
         sourceIdentity: virtualSourceIdentity(id),
         title: `Untitled ${index}`,
         content: '',
-        svg: emptyDiagramSvg('Unsaved file is not part of the project yet'),
+        svg: '',
         diagnostics: [],
         local: true,
         ...tabToolbarState()
@@ -404,7 +405,7 @@ export function createWorkspaceFileController(
         sourceIdentity,
         title: tab.title,
         content: tab.content ?? '',
-        svg: emptyDiagramSvg('Unsaved file is not part of the project yet'),
+        svg: '',
         diagnostics: [],
         local: true,
         ...tabToolbarState(tab)

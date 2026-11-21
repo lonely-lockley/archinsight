@@ -10,6 +10,7 @@ import {
   queryForDiagramMode
 } from '@archinsight/workbench/presets';
 import type { DiagramMode, EditorViewMode, WorkspaceTab } from '@archinsight/workbench/types';
+import { deploymentEnvironmentNotice } from '@archinsight/workbench/diagram-notice';
 
 const defaultDiagramScale = 1;
 const minDiagramScale = 0.25;
@@ -32,6 +33,7 @@ type ToolbarPatch = Partial<Pick<WorkspaceTab,
   | 'viewMode'
   | 'editorSplitRatio'
   | 'svg'
+  | 'diagramNotice'
   | 'dot'
 >>;
 
@@ -115,7 +117,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
       queryResult: undefined
     });
     if (environment === undefined && ports.activeTab() !== undefined) {
-      ports.patchActiveTab({ svg: emptyDiagramSvg('No deployment environments are relevant to this source') });
+      ports.patchActiveTab({ diagramNotice: deploymentEnvironmentNotice() });
       return;
     }
     ports.scheduleDiagramUpdate();
@@ -206,7 +208,7 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
       persistPatch({ deploymentEnvironment: environment });
       ports.setPickerOpen(environments.length > 1);
       if (environments.length === 0) {
-        ports.patchActiveTab({ svg: emptyDiagramSvg('No deployment environments are relevant to this source') });
+        ports.patchActiveTab({ diagramNotice: deploymentEnvironmentNotice() });
         return false;
       }
       return true;
@@ -288,8 +290,4 @@ export function createDiagramController(ports: DiagramControllerPorts): DiagramC
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-export function emptyDiagramSvg(message: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600"><rect width="900" height="600" fill="#2e2e2e"/><text x="32" y="54" fill="#a8a8a8" font-family="monospace" font-size="16">${message}</text></svg>`;
 }

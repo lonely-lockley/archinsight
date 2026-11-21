@@ -1,4 +1,4 @@
-import type { DiagnosticDto, FileTreeNode } from '@archinsight/contracts';
+import type { DiagnosticDto, DiagramNotice, FileTreeNode } from '@archinsight/contracts';
 import type { BuiltinDiagramView, QueryParameterValue, QueryTableResult, RenderTheme } from '@insight/language';
 
 export type ProjectUiState = {
@@ -24,6 +24,7 @@ export type WorkspaceTab = {
   title: string;
   content: string;
   svg: string;
+  diagramNotice?: DiagramNotice;
   dot?: string;
   renderTheme?: RenderTheme;
   diagnostics: DiagnosticDto[];

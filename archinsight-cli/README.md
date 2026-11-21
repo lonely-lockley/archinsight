@@ -73,10 +73,9 @@ exported as DOT, SVG, or PNG. Table-returning queries are data rather than
 diagrams and remain available through `query` as text, JSON, or CSV.
 
 SVG and PNG rendering automatically include technology icons resolved from the
-model's `technology` attribute or explicit `@icon(...)` annotation. The CLI
-uses the bundled pinned catalog and performs no network access while rendering.
-See [Technology icons](https://github.com/lonely-lockley/archinsight/blob/master/docs/technology-icons.md)
-for matching and override rules.
+model's `technology` attribute or explicit `@icon(...)` annotation. See
+[Annotations](https://github.com/lonely-lockley/archinsight/blob/master/docs/annotations.md#icon)
+for selection and override rules.
 
 ## Visual Diff Between Git Revisions
 
@@ -143,10 +142,9 @@ D1 selects every environment relevant to the source and does not accept
 when exactly one is relevant and otherwise lists the available environments and
 requires `--environment <id>`.
 
-## Deterministic Diagram Quick Actions
+## Diagram Quick Actions
 
-Quick actions expose the same semantic graph operations as the diagram UI
-without requiring an agent to synthesize an AIQ filter:
+The CLI provides the same common actions as the diagram UI:
 
 ```shell
 archinsight quick-action drill-down . --element shop --format json
@@ -160,15 +158,11 @@ The element arguments are canonical linked ids. Resolve them with
 `archinsight structure . --format text|json` or read them from query JSON;
 display titles are not accepted as substitutes.
 
-JSON is the default and uses the versioned schema
-`diagram-quick-action.v1`. Drill down opens the selected boundary's next logical
-C-level and rolls crossing relationships up to one-hop external boundary cubes.
-Isolate returns the selected element and its direct
-incoming/outgoing neighborhood. Deployment returns the selected logical
-element's occurrences and first-level physical environment. Find path returns
-the union of all directed routes in source-to-target order; a valid empty
-result has `pathFound: false` and retains both endpoints. Declaration returns
-the authored source, line, and column.
+JSON is the default and uses schema `diagram-quick-action.v1`. Drill down opens
+the next architecture level. Isolate shows the selected element and its direct
+connections. Deployment shows the element in one environment. Find path shows
+a route from `--from` to `--to`; when no route is found, JSON reports
+`pathFound: false`. Declaration returns the source file, line, and column.
 
 Find path never treats edges as undirected. `--from A --to B` and
 `--from B --to A` are separate requests and may produce different results. To
@@ -183,11 +177,8 @@ archinsight quick-action find-path . \
   --format png --out user-to-google.png
 ```
 
-PNG is rasterized from the same deterministic graph as SVG. The exporter
-limits image dimensions, total pixels, and output size so malformed or extreme
-graphs fail explicitly instead of exhausting the process. For graphical
-formats, Declaration produces a one-element subdiagram while JSON also includes
-the authored source coordinates.
+For graphical formats, Declaration produces a one-element subdiagram while
+JSON also includes the source coordinates.
 
 Use custom AIQ when the analysis needs predicates, aggregation, tables,
 unbounded traversal without a fixed target, or a reusable project-owned view.

@@ -26,8 +26,7 @@ Insight is the language used to define both architecture models and the framewor
 
 - [The Insight Language](docs/language.md)
 - [Comments and Notes](docs/comments-and-notes.md)
-- [Annotations](docs/annotations.md)
-- [Technology icons](docs/technology-icons.md)
+- [Annotations and technology icons](docs/annotations.md)
 - [Built-in Archinsight Types](docs/built-in-types.md)
 - [Structuring an Insight Project](docs/project-structure.md)
 - [Building and Linking an Insight Project](docs/project-processing.md)
@@ -127,8 +126,8 @@ arguments performs a different query.
 The same semantic graph operations back Isolate, Show deployment, Find path,
 Go to declaration, and versioned diagram Diff in the interactive diagram. In a
 Git-backed VS Code workspace, Diff compares two committed project snapshots,
-retains local blame metadata, and remains interactive. See [Diagram Quick Actions](docs/diagram-quick-actions.md)
-for their directed-path, environment, and neighborhood semantics.
+and remains interactive. See [Diagram Quick Actions](docs/diagram-quick-actions.md)
+for the interface behavior of each action.
 
 ## VSCode extension
 

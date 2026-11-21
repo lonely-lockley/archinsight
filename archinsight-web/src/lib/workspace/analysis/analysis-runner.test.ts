@@ -33,8 +33,8 @@ const linkResponse = (overrides: Partial<LinkResponse> = {}): LinkResponse => ({
   ...overrides
 });
 
-function fixture() {
-  const main = tab('main.ai', { filePath: undefined, content: 'changed' });
+function fixture(mainOverrides: Partial<WorkspaceTab> = {}) {
+  const main = tab('main.ai', { filePath: undefined, content: 'changed', ...mainOverrides });
   let time = 100;
   const ports: AnalysisRunnerPorts = {
     state: () => ({
@@ -59,11 +59,13 @@ function fixture() {
     acceptProjectStructure: vi.fn(),
     clearDots: vi.fn(),
     acceptDiagram: vi.fn(),
+    acceptDiagramNotice: vi.fn(),
     acceptQueryResult: vi.fn(),
     now: vi.fn(() => time += 5),
     queryFinished: vi.fn(),
     cycleSummary: vi.fn(),
     queryError: vi.fn(),
+    info: vi.fn(),
     error: vi.fn(),
     redirectIfAuthRequired: vi.fn(() => false),
     scheduleDiagramUpdate: vi.fn()
@@ -124,6 +126,53 @@ describe('analysis runner', () => {
     expect(subject.ports.queryFinished).toHaveBeenCalledWith('main.ai', 5, undefined, []);
   });
 
+  it('publishes an explanatory empty state without invoking Graphviz', async () => {
+    const subject = fixture();
+    vi.mocked(subject.ports.linkProject).mockResolvedValueOnce(linkResponse({
+      renders: [{ sourceIdentity: 'main.ai', diagram: 'query', dot: 'digraph {}', empty: true }]
+    }));
+
+    await subject.runner.runLink(1);
+
+    expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
+    expect(subject.ports.acceptDiagramNotice).toHaveBeenCalledWith('main.ai', {
+      kind: 'empty', title: 'Diagram is empty', detail: 'The current context contains no visible elements.'
+    });
+    expect(subject.ports.info).toHaveBeenCalledWith('Diagram is empty: The current context contains no visible elements.');
+  });
+
+  it('retains an existing diagram and reports a renderer failure to Output', async () => {
+    const subject = fixture();
+    vi.mocked(subject.ports.renderInBrowser).mockRejectedValueOnce(new Error('worker unavailable'));
+    vi.mocked(subject.ports.renderOnServer).mockResolvedValueOnce({
+      diagnostics: [{ source: 'renderer', level: 'ERROR', code: 'TIMEOUT', message: 'renderer timeout' }],
+      svgs: []
+    });
+
+    await subject.runner.runLink(1);
+
+    expect(subject.ports.acceptDiagram).not.toHaveBeenCalled();
+    expect(subject.ports.acceptDiagramNotice).not.toHaveBeenCalled();
+    expect(subject.ports.error).toHaveBeenCalledWith(
+      'Diagram update failed; previous result retained: renderer timeout'
+    );
+  });
+
+  it('publishes an unavailable state when the first renderer result fails', async () => {
+    const subject = fixture({ svg: '' });
+    vi.mocked(subject.ports.renderInBrowser).mockRejectedValueOnce(new Error('worker unavailable'));
+    vi.mocked(subject.ports.renderOnServer).mockResolvedValueOnce({ diagnostics: [], svgs: [] });
+
+    await subject.runner.runLink(1);
+
+    expect(subject.ports.acceptDiagramNotice).toHaveBeenCalledWith('main.ai', {
+      kind: 'unavailable',
+      title: 'Diagram is unavailable',
+      detail: 'The diagram renderer did not produce a result.'
+    });
+    expect(subject.ports.error).toHaveBeenCalledWith('Diagram update failed: Renderer returned no SVG output');
+  });
+
   it('keeps the loading state active until Graphviz rendering completes', async () => {
     const subject = fixture();
     let finishRender!: () => void;
@@ -178,13 +227,28 @@ describe('analysis runner', () => {
     expect(subject.ports.error).not.toHaveBeenCalled();
   });
 
-  it('clears diagrams and reports linker diagnostics without rendering invalid models', async () => {
+  it('reports linker diagnostics without replacing an existing diagram', async () => {
     const subject = fixture();
     vi.mocked(subject.ports.linkProject).mockResolvedValueOnce(linkResponse({
       diagnostics: [{ source: 'main.ai', level: 'ERROR', code: 'E1', message: 'broken' }]
     }));
     await subject.runner.runLink(1);
-    expect(subject.ports.clearDots).toHaveBeenCalledWith(['main.ai']);
+    expect(subject.ports.clearDots).not.toHaveBeenCalled();
+    expect(subject.ports.acceptDiagramNotice).not.toHaveBeenCalled();
+    expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
+  });
+
+  it('explains linker errors when no previous diagram exists', async () => {
+    const subject = fixture({ svg: '' });
+    vi.mocked(subject.ports.linkProject).mockResolvedValueOnce(linkResponse({
+      diagnostics: [{ source: 'main.ai', level: 'ERROR', code: 'E1', message: 'broken' }]
+    }));
+
+    await subject.runner.runLink(1);
+
+    expect(subject.ports.acceptDiagramNotice).toHaveBeenCalledWith('main.ai', {
+      kind: 'unavailable', title: 'Diagram is unavailable', detail: 'The project contains linking errors.'
+    });
     expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
   });
 });
@@ -295,7 +359,9 @@ describe('file-backed query execution', () => {
     await subject.runner.runLink(1);
     expect(vi.mocked(subject.ports.linkProject).mock.calls[0][1]).toEqual([]);
     expect(subject.ports.acceptLinkedAnalysis).toHaveBeenCalled();
-    expect(subject.ports.acceptDiagram).toHaveBeenCalledWith('main.ai', expect.stringContaining('Select query scope'), undefined, undefined);
+    expect(subject.ports.acceptDiagramNotice).toHaveBeenCalledWith('main.ai', {
+      kind: 'waiting', title: 'Query scope is not defined', detail: 'This query requires a source or context.'
+    });
     expect(subject.ports.renderInBrowser).not.toHaveBeenCalled();
   });
 

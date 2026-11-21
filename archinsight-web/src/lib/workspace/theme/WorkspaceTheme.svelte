@@ -37,6 +37,7 @@
     --archinsight-quick-action-bg: #2b2b2b;
     --archinsight-quick-action-fg: #f2f2f2;
     --archinsight-quick-action-border: #666666;
+    --archinsight-quick-action-shadow: 0 2px 6px rgb(0 0 0 / 35%);
     --archinsight-border: #3a3a3a;
     --archinsight-border-subtle: #303030;
     --archinsight-border-strong: #484848;
@@ -88,9 +89,10 @@
     --archinsight-control-hover-bg: #dddddd;
     --archinsight-control-active-bg: #dcefd2;
     --archinsight-control-active-fg: #18320f;
-    --archinsight-quick-action-bg: #2b2b2b;
-    --archinsight-quick-action-fg: #f2f2f2;
-    --archinsight-quick-action-border: #666666;
+    --archinsight-quick-action-bg: #757575;
+    --archinsight-quick-action-fg: #ffffff;
+    --archinsight-quick-action-border: #a3a3a3;
+    --archinsight-quick-action-shadow: 0 2px 6px rgb(0 0 0 / 18%);
     --archinsight-border: #d0d0d0;
     --archinsight-border-subtle: #dedede;
     --archinsight-border-strong: #b8b8b8;

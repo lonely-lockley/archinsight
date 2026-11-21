@@ -10,6 +10,7 @@ import {
 } from '@insight/language';
 import { ContractValidationError, array, boolean, number, record, string } from './validation.js';
 import type { DiagramDiffRevisionCatalogue } from './versioned-repository.js';
+import type { DiagramNotice } from './diagram-state.js';
 
 const COMPLETION_KINDS = new Set<CompletionKind>([
   'KEYWORD', 'TYPE', 'CONSTRUCTOR', 'OPERATOR', 'ATTRIBUTE',
@@ -65,6 +66,7 @@ export type WebviewPreviewState = {
   queryResult?: QueryTableResult;
   parameters?: Readonly<Record<string, QueryParameterValue>>;
   quickActionMetadata?: DiagramQuickActionMetadata;
+  diagramNotice?: DiagramNotice;
 };
 
 export type WebviewFindPathMode =
@@ -337,7 +339,21 @@ function previewState(value: unknown): WebviewPreviewState {
     ...(input.error === undefined ? {} : { error: string(input.error, 'preview.error') }),
     ...(input.queryResult === undefined ? {} : { queryResult: queryTableResult(input.queryResult) }),
     ...(input.parameters === undefined ? {} : { parameters: queryParameters(input.parameters) }),
-    ...(input.quickActionMetadata === undefined ? {} : { quickActionMetadata: quickActionMetadata(input.quickActionMetadata) })
+    ...(input.quickActionMetadata === undefined ? {} : { quickActionMetadata: quickActionMetadata(input.quickActionMetadata) }),
+    ...(input.diagramNotice === undefined ? {} : { diagramNotice: diagramNotice(input.diagramNotice) })
+  };
+}
+
+function diagramNotice(value: unknown): DiagramNotice {
+  const input = record(value, 'preview.diagramNotice');
+  const kind = string(input.kind, 'preview.diagramNotice.kind');
+  if (kind !== 'empty' && kind !== 'waiting' && kind !== 'unavailable') {
+    throw new ContractValidationError('preview.diagramNotice.kind is invalid');
+  }
+  return {
+    kind,
+    title: string(input.title, 'preview.diagramNotice.title'),
+    detail: string(input.detail, 'preview.diagramNotice.detail')
   };
 }
 

@@ -11,8 +11,11 @@
   import { sanitizeSvg } from './svg-sanitizer';
   import type { SourceLocation } from './workspace-types';
   import type { DiagramDiffPickerState } from './versioned-diagram-diff';
+  import type { DiagramNotice } from '@archinsight/contracts';
+  import DiagramNoticePanel from './DiagramNoticePanel.svelte';
 
   export let svg: string | undefined;
+  export let notice: DiagramNotice | undefined = undefined;
   export let scale = 1;
   export let fit = false;
   export let onVisibleScaleChange: (scale: number) => void = () => {};
@@ -332,10 +335,13 @@
 <div
   bind:this={previewPane}
   class:fit
+  class:notice={notice !== undefined}
   class="preview-pane"
   style={`--diagram-width: ${diagramWidth}; --diagram-height: ${diagramHeight};`}
 >
-  {#if sanitizedSvg !== undefined}
+  {#if notice !== undefined}
+    <DiagramNoticePanel {notice} />
+  {:else if sanitizedSvg !== undefined}
     <div bind:this={svgHost} class="svg-host">{@html sanitizedSvg}</div>
   {/if}
   <DiagramQuickActions
@@ -369,6 +375,10 @@
     min-height: 0;
     overflow: auto;
     background: var(--archinsight-preview-bg, #2e2e2e);
+  }
+
+  .preview-pane.notice {
+    background: var(--archinsight-panel-bg, Canvas);
   }
 
   .svg-host {

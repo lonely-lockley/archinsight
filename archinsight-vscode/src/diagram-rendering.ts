@@ -12,6 +12,14 @@ import {
 } from "@insight/language";
 import type { DiagramPreviewState, DiagramQueryState } from "./diagram-session.js";
 import {
+  emptyDiagramNotice,
+  deploymentEnvironmentNotice,
+  emptyProjectionNotice,
+  queryErrorNotice,
+  queryScopeNotice,
+  renderErrorNotice,
+} from "@archinsight/workbench/diagram-notice";
+import {
   executeDiagramQueryInWorker,
   renderDiagramDiffInWorker,
   renderDiagramGraphInWorker,
@@ -36,6 +44,7 @@ export interface DiagramRenderInput {
   readonly fileName: string;
   readonly source: string;
   readonly blockOnLinkerErrors: boolean;
+  readonly missingQueryScope?: boolean;
   readonly queryScope?: {
     readonly tab?: string;
     readonly context?: string;
@@ -65,6 +74,11 @@ export async function buildDiagramPreview(
       fileName: input.fileName,
       source: input.source,
       quickActionMetadata: diagramQuickActionMetadata(input.current.result),
+      diagramNotice: {
+        kind: 'unavailable',
+        title: 'Diagram is unavailable',
+        detail: 'The project contains linking errors.',
+      },
       error: "Fix linker errors before rendering a diagram.",
     };
   }
@@ -84,6 +98,17 @@ async function previewState(
   const context = input.queryScope === undefined ? sourceContext?.id : input.queryScope.context;
   const startedAt = renderingContext.now?.() ?? performance.now();
   try {
+    if (input.missingQueryScope === true) {
+      return {
+        ...state,
+        contextId: context ?? "-",
+        sourceName,
+        fileName,
+        source,
+        quickActionMetadata: diagramQuickActionMetadata(current.result),
+        diagramNotice: queryScopeNotice(),
+      };
+    }
     if (viewUsesEnvironment(view) && environment === undefined) {
       const available = discoverDeploymentEnvironments(current.result, { context, tab });
       throw new Error(available.length === 0
@@ -110,6 +135,22 @@ async function previewState(
       };
     }
     const dot = rendered.dot!;
+    if (rendered.empty === true) {
+      const mode = view === 'no-filter' ? 'default' : view;
+      const queryDriven = input.queryScope !== undefined
+        || query.trim().replace(/\s+/g, ' ') !== builtinViewDefinition(view).query.trim().replace(/\s+/g, ' ');
+      const notice = emptyDiagramNotice(mode, queryDriven, environment);
+      renderingContext.log(`INFO ${notice.title}: ${notice.detail}`);
+      return {
+        ...state,
+        contextId: context ?? "-",
+        sourceName,
+        fileName,
+        source,
+        quickActionMetadata: diagramQuickActionMetadata(current.result),
+        diagramNotice: notice,
+      };
+    }
     const svg = rendered.svg!;
     renderingContext.log(`INFO ${queryFinishedMessage((renderingContext.now?.() ?? performance.now()) - startedAt)}`);
     return {
@@ -132,6 +173,9 @@ async function previewState(
       fileName,
       source,
       quickActionMetadata: diagramQuickActionMetadata(current.result),
+      diagramNotice: message.startsWith('No deployment environments')
+        ? deploymentEnvironmentNotice()
+        : /query|parameter|scope/i.test(message) ? queryErrorNotice() : renderErrorNotice(),
       error: message,
     };
   }
@@ -146,9 +190,20 @@ export async function buildQuickActionPreview(
 ): Promise<PreviewState> {
   const contextId = graph.context || "-";
   try {
-    const { dot, svg } = await renderDiagramGraphInWorker(
+    const { dot, svg, empty } = await renderDiagramGraphInWorker(
       input.current.result, graph, renderingContext.theme, signal
     );
+    if (empty === true) {
+      return {
+        ...state,
+        contextId,
+        sourceName: input.sourceName,
+        fileName: input.fileName,
+        source: input.source,
+        diagramNotice: emptyProjectionNotice(),
+        quickActionMetadata: diagramQuickActionMetadata(input.current.result),
+      };
+    }
     return {
       ...state,
       contextId,
@@ -157,6 +212,7 @@ export async function buildQuickActionPreview(
       source: input.source,
       dot,
       svg,
+      diagramNotice: undefined,
       quickActionMetadata: diagramQuickActionMetadata(input.current.result),
     };
   } catch (error) {
@@ -167,6 +223,7 @@ export async function buildQuickActionPreview(
       fileName: input.fileName,
       source: input.source,
       error: error instanceof Error ? error.message : String(error),
+      diagramNotice: renderErrorNotice(),
       quickActionMetadata: diagramQuickActionMetadata(input.current.result),
     };
   }
@@ -182,9 +239,23 @@ export async function buildDiagramDiffPreview(
   signal?: AbortSignal,
 ): Promise<PreviewState> {
   try {
-    const { dot, svg } = await renderDiagramDiffInWorker(
+    const { dot, svg, empty } = await renderDiagramDiffInWorker(
       before, after, diff, renderingContext.theme, signal
     );
+    if (empty === true) {
+      return {
+        ...state,
+        contextId: diff.graph.context || '-',
+        sourceName: input.sourceName,
+        fileName: input.fileName,
+        source: input.source,
+        diagramNotice: emptyProjectionNotice(),
+        quickActionMetadata: {
+          ...diagramQuickActionMetadata(before),
+          ...diagramQuickActionMetadata(after),
+        },
+      };
+    }
     return {
       ...state,
       contextId: diff.graph.context || '-',
@@ -193,6 +264,7 @@ export async function buildDiagramDiffPreview(
       source: input.source,
       dot,
       svg,
+      diagramNotice: undefined,
       quickActionMetadata: {
         ...diagramQuickActionMetadata(before),
         ...diagramQuickActionMetadata(after),
@@ -206,6 +278,7 @@ export async function buildDiagramDiffPreview(
       fileName: input.fileName,
       source: input.source,
       error: error instanceof Error ? error.message : String(error),
+      diagramNotice: renderErrorNotice(),
       quickActionMetadata: {
         ...diagramQuickActionMetadata(before),
         ...diagramQuickActionMetadata(after),

@@ -1,6 +1,12 @@
 import { isQueryFile } from '@archinsight/workbench/project-queries';
-import { emptyDiagramSvg } from '../diagram/diagram-controller';
 import { ProjectQuerySyntaxError, type ResolvedProjectQuery } from '../diagram/project-query-controller';
+import {
+  emptyDiagramNotice,
+  linkerErrorNotice,
+  queryErrorNotice,
+  queryScopeNotice,
+  renderErrorNotice
+} from '@archinsight/workbench/diagram-notice';
 import {
   IndexedGraph,
   executeQuery,
@@ -22,6 +28,7 @@ import type {
 } from '$lib/api';
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { DiagramMode, WorkspaceTab } from '@archinsight/workbench/types';
+import type { DiagramNotice } from '@archinsight/contracts';
 import { hasErrorDiagnostics } from '$lib/workspace-completion-snapshot';
 import { isProjectSourceTab } from '../editor/tab-persistence';
 import { errorMessage, isQueryErrorMessage } from '../messages/message-controller';
@@ -66,11 +73,13 @@ export type AnalysisRunnerPorts = {
   acceptProjectStructure(structure: ProjectStructure): void;
   clearDots(sourceIdentities: readonly string[]): void;
   acceptDiagram(sourceIdentity: string, svg: string, dot: string | undefined, theme: RenderTheme | undefined): void;
+  acceptDiagramNotice(sourceIdentity: string, notice: DiagramNotice): void;
   acceptQueryResult(sourceIdentity: string, result: QueryTableResult | undefined): void;
   now(): number;
   queryFinished(sourceIdentity: string, durationMs: number, rowCount: number | undefined, diagnostics: readonly LanguageDiagnostic[]): void;
   cycleSummary(task: string, diagnostics: Diagnostic[]): void;
   queryError(message: string, query: string): void;
+  info(message: string): void;
   error(message: string): void;
   redirectIfAuthRequired(error: unknown): boolean;
   scheduleDiagramUpdate(): void;
@@ -89,6 +98,20 @@ export type AnalysisRunner = {
 
 export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner {
   let activeRender: AbortController | undefined;
+  const hasDisplayedResult = (sourceIdentity: string): boolean => {
+    const tab = ports.state().tabs.find((item) => item.sourceIdentity === sourceIdentity);
+    return tab !== undefined && (tab.svg.trim().length > 0 || tab.diagramNotice !== undefined || tab.queryResult !== undefined);
+  };
+  const acceptNoticeIfNoResult = (sourceIdentities: readonly string[], notice: DiagramNotice): void => {
+    sourceIdentities.filter((sourceIdentity) => !hasDisplayedResult(sourceIdentity))
+      .forEach((sourceIdentity) => ports.acceptDiagramNotice(sourceIdentity, notice));
+  };
+  const reportRenderFailure = (sourceIdentities: readonly string[], message: string): void => {
+    const retained = sourceIdentities.some(hasDisplayedResult);
+    ports.error(retained
+      ? `Diagram update failed; previous result retained: ${message}`
+      : `Diagram update failed: ${message}`);
+  };
   const renderWithFallback = async (
     projectId: string,
     surface: WorkspaceSurface,
@@ -118,13 +141,14 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
     if (rendered.diagnostics.length > 0) {
       ports.cycleSummary('Renderer finished', rendered.diagnostics);
       if (rendered.diagnostics.some((diagnostic) => diagnostic.level === 'ERROR')) {
-        ports.clearDots(sourceIdentities);
+        acceptNoticeIfNoResult(sourceIdentities, renderErrorNotice());
+        reportRenderFailure(sourceIdentities, rendered.diagnostics.find((diagnostic) => diagnostic.level === 'ERROR')!.message);
         return false;
       }
     }
     if (rendered.svgs.length === 0) {
-      ports.clearDots(sourceIdentities);
-      ports.error('Renderer returned no SVG output');
+      acceptNoticeIfNoResult(sourceIdentities, renderErrorNotice());
+      reportRenderFailure(sourceIdentities, 'Renderer returned no SVG output');
       return false;
     }
     const dotBySource = dotRendersBySource(renders);
@@ -150,7 +174,7 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           if (!ports.isCurrent(sequence, projectId)) return;
           if (resolved?.waiting !== undefined) {
             ports.acceptQueryResult(sourceIdentity, undefined);
-            ports.acceptDiagram(sourceIdentity, emptyDiagramSvg(resolved.waiting), undefined, undefined);
+            ports.acceptDiagramNotice(sourceIdentity, queryScopeNotice());
             continue;
           }
           const context = analysis.contexts.find((candidate) => candidate.sourceIdentity === (resolved?.source ?? sourceIdentity));
@@ -176,6 +200,12 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           }
           ports.acceptQueryResult(sourceIdentity, undefined);
           const artifact = renderGraphvizArtifact(analysis, result.graph, state.theme);
+          if (artifact.empty) {
+            const notice = noticeFor(tab, resolved);
+            ports.acceptDiagramNotice(sourceIdentity, notice);
+            ports.info(`${notice.title}: ${notice.detail}`);
+            continue;
+          }
           renders.push({
             sourceIdentity,
             diagram: 'query',
@@ -184,7 +214,6 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         }
         if (!ports.isCurrent(sequence, projectId)) return;
         if (renders.length === 0) {
-          ports.clearDots(sourceIdentities);
           return;
         }
         const rendered = await renderWithFallback(projectId, state.surface, renders);
@@ -200,7 +229,6 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         }
       } catch (error) {
         if (!ports.isCurrent(sequence, projectId)) return;
-        ports.clearDots(sourceIdentities);
         sourceIdentities.forEach((sourceIdentity) => ports.acceptQueryResult(sourceIdentity, undefined));
         const message = errorMessage(error);
         if (error instanceof ProjectQuerySyntaxError) {
@@ -208,8 +236,11 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         } else if (isQueryErrorMessage(message)) {
           ports.queryError(message, state.activeTab !== undefined && isQueryFile(state.activeTab.sourceIdentity) ? state.activeTab.content : state.query);
         } else {
-          ports.error(`Render error: ${message}`);
+          reportRenderFailure(sourceIdentities, message);
         }
+        acceptNoticeIfNoResult(sourceIdentities, error instanceof ProjectQuerySyntaxError || isQueryErrorMessage(message)
+          ? queryErrorNotice()
+          : renderErrorNotice());
         return;
       } finally {
         if (ports.isCurrent(sequence, projectId)) ports.setLoading(false);
@@ -272,15 +303,25 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
           return;
         }
         if (linkHasErrors || link.renders.length === 0) {
-          ports.clearDots(sourceIdentities);
           sourceIdentities.forEach((sourceIdentity) => ports.acceptQueryResult(sourceIdentity, undefined));
+          if (linkHasErrors) acceptNoticeIfNoResult(sourceIdentities, linkerErrorNotice());
+          else acceptNoticeIfNoResult(sourceIdentities, renderErrorNotice());
           return;
         }
-        const rendered = await renderWithFallback(state.projectId, state.surface, link.renders);
+        const renderable = link.renders.filter((render) => render.empty !== true);
+        for (const render of link.renders.filter((candidate) => candidate.empty === true)) {
+          const tab = state.tabs.find((candidate) => candidate.sourceIdentity === render.sourceIdentity);
+          if (tab === undefined) continue;
+          const notice = noticeFor(tab, resolved);
+          ports.acceptDiagramNotice(render.sourceIdentity, notice);
+          ports.info(`${notice.title}: ${notice.detail}`);
+        }
+        if (renderable.length === 0) return;
+        const rendered = await renderWithFallback(state.projectId, state.surface, renderable);
         if (!ports.isCurrent(sequence, state.projectId)) return;
-        if (!acceptRenderedDiagrams(link.renders, rendered, sourceIdentities, state.theme)) return;
+        if (!acceptRenderedDiagrams(renderable, rendered, sourceIdentities, state.theme)) return;
         const durationMs = ports.now() - startedAt;
-        link.renders.forEach((render) => ports.queryFinished(render.sourceIdentity, durationMs, undefined, []));
+        renderable.forEach((render) => ports.queryFinished(render.sourceIdentity, durationMs, undefined, []));
         if (deploymentEnvironmentChanged) ports.scheduleDiagramUpdate();
         if (ports.state().theme !== state.theme) ports.scheduleDiagramUpdate();
       } catch (error) {
@@ -288,17 +329,27 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         if (ports.redirectIfAuthRequired(error)) return;
         const message = errorMessage(error);
         if (isQueryErrorMessage(message)) {
-          ports.clearDots(sourceIdentities);
           ports.queryError(message, state.activeTab !== undefined && isQueryFile(state.activeTab.sourceIdentity) ? state.activeTab.content : state.query);
+          acceptNoticeIfNoResult(sourceIdentities, queryErrorNotice());
           return;
         }
-        ports.error(`Server error: ${message}`);
+        acceptNoticeIfNoResult(sourceIdentities, renderErrorNotice());
+        reportRenderFailure(sourceIdentities, message);
       } finally {
         if (ports.isCurrent(sequence, state.projectId)) ports.setLoading(false);
       }
     }
   };
   return runner;
+}
+
+function noticeFor(tab: WorkspaceTab, resolved: ResolvedProjectQuery | undefined): DiagramNotice {
+  return emptyDiagramNotice(
+    tab.diagramMode,
+    isQueryFile(tab.sourceIdentity) || tab.queryView !== undefined || !tab.queryPreset
+      || (resolved !== undefined && resolved.view === undefined),
+    tab.deploymentEnvironment
+  );
 }
 
 export function overlaysForLink(
