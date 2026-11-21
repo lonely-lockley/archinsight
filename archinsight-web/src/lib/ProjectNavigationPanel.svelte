@@ -238,7 +238,7 @@
   .sidebar {
     display: grid;
     position: relative;
-    grid-template-rows: 58px 46px 1fr 48px;
+    grid-template-rows: 50px 38px 1fr 48px;
     height: 100%;
     min-height: 0;
     min-width: 0;
@@ -255,25 +255,27 @@
   .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 16px;
     padding: 0 18px;
-    color: var(--color-primary);
+    color: var(--archinsight-brand, #2ecc71);
     font-family: var(--app-primary-font-family);
-    font-weight: 700;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: 1;
     text-decoration: none;
   }
 
   .brand-logo {
     display: block;
-    width: 28px;
-    height: 29px;
+    width: 35px;
+    height: 36px;
     flex: 0 0 auto;
   }
 
   .panel-tabs {
     display: flex;
     gap: 8px;
-    align-items: end;
+    align-items: start;
     padding: 0 18px;
     border-bottom: 1px solid var(--archinsight-border, #333333);
   }
