@@ -64,7 +64,7 @@ Output formats follow the kind of result:
 
 | Commands | Formats |
 | --- | --- |
-| `link`, `structure`, `environments` | `text`, `json` |
+| `link`, `structure`, `environments`, `icons` | `text`, `json` |
 | `query` | `text`, `json`, `csv` for tables; `text`, `json` for graphs |
 | `render`, `diff`, every `quick-action` | `text`, `json`, `dot`, `svg`, `png` |
 
@@ -76,6 +76,9 @@ SVG and PNG rendering automatically include technology icons resolved from the
 model's `technology` attribute or explicit `@icon(...)` annotation. See
 [Annotations](https://github.com/lonely-lockley/archinsight/blob/master/docs/annotations.md#icon)
 for selection and override rules.
+
+List every valid annotation id with `archinsight icons`. Search ids and labels
+with `archinsight icons <search>`; both forms accept `--format text|json`.
 
 ## Visual Diff Between Git Revisions
 
@@ -117,8 +120,9 @@ itself should stay fixed while the model moves between commits. As with
 
 If an explicitly selected source exists in only one revision, the missing side
 is compared with an empty graph and stderr reports `DIFF_SOURCE_MISSING`. The
-warning keeps a complete source addition or removal visible without presenting
-the absent scope as a silent empty result.
+warning keeps the absent scope from looking like a silent empty result. Check
+for a rename or move with `git log --follow -- <source>` or a context-scoped
+diff before interpreting it as a complete source addition or removal.
 
 ## Diagram Scope
 

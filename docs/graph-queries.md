@@ -47,6 +47,7 @@ Archinsight queries are not fully compatible with Cypher. The current language s
 - directed outgoing patterns written with `->`, directed incoming patterns written with `<-`, and undirected matching patterns written with `-`;
 - node labels and relationship kinds;
 - node and relationship property predicates;
+- `elementId(alias)` in graph predicates when a stable full identity is needed;
 - one `WHERE` expression attached to each match clause;
 - `AND`, `OR`, `NOT`, and parentheses;
 - `=`, `<>`, `<`, `<=`, `>`, `>=`, `CONTAINS`, `IN`, `IS`, and `IS NOT`
@@ -122,7 +123,10 @@ or attempts to set reserved `$context`/`$tab` parameters are errors.
 Plain graph-returning queries use parameters in graph predicates and accept
 strings or lists of strings. The CLI applies the same validation when such a
 query is used by `query`, `render`, or `diff`; for `diff`, one validated
-parameter map is evaluated unchanged against both revisions. The wider scalar
+parameter map is evaluated unchanged against both revisions. Use `=` with a
+string and `IN` with a list; a list passed to a scalar comparison is an error.
+`elementId(alias)` can compare a node or relationship by its stable full ID.
+The wider scalar
 and nested value set above applies to `RETURN TABLE` reports.
 
 Variable paths use relationship trails, so a single query-visible relationship

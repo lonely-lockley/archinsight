@@ -21,6 +21,7 @@ import {
   type RenderGraph,
 } from "@insight/language";
 import { openGitVersionedRepository } from "@archinsight/git";
+import { searchTechnologyIcons, technologyIconCatalog } from "@archinsight/icons";
 import {
   attributeVersionedDiagramDiff,
   buildVersionedDiagramDiff,
@@ -406,6 +407,21 @@ export async function runEnvironments(args: ParsedArgs): Promise<void> {
   await writeOutput(args.output, format === "json"
     ? JSON.stringify(result, null, 2)
     : formatDeploymentEnvironments(result.environments));
+}
+
+export async function runIcons(args: ParsedArgs): Promise<void> {
+  const query = args.iconQuery?.trim() ?? "";
+  const icons = query.length === 0
+    ? technologyIconCatalog()
+    : searchTechnologyIcons(query, 100);
+  const format = outputFormat(args.format, "text");
+  await writeOutput(args.output, format === "json"
+    ? JSON.stringify({
+        schemaVersion: "technology-icon-catalog.v1",
+        query: query.length === 0 ? null : query,
+        icons,
+      }, null, 2)
+    : `${icons.map((icon) => `${icon.id}\t${icon.label}\t${icon.variant}`).join("\n")}${icons.length === 0 ? "" : "\n"}`);
 }
 
 export async function runQuickAction(args: ParsedArgs): Promise<void> {

@@ -128,6 +128,7 @@ function verifySharedFiles(output) {
   assert(cli.includes("## Versioned Diagram Diff"));
   assert(cli.includes("The CLI validates one parameter map and applies"));
   assert(cli.includes("DIFF_SOURCE_MISSING"));
+  assert.match(cli, /check for a rename or move with\s+`git log --follow -- <source>`/);
   assert.match(cli, /summary followed by one line for every added, removed,\s+or changed element, edge, and group/);
   assert(cli.includes("-f png -o diagram.png"));
   assert.match(cli, /Every diagram render accepts `text`, `json`, `dot`, `svg`, or `png`/);
@@ -292,6 +293,7 @@ function verifySharedFiles(output) {
   assert(syntax.includes("`@icon(<catalog-id>)`"));
   assert(syntax.includes("`@icon(none)`"));
   assert(syntax.includes("Relationships do not support `@icon`"));
+  assert(syntax.includes("archinsight icons [search] --format json"));
 
   const queries = readFileSync(path.join(output, "references", "queries.md"), "utf8");
   assert.match(queries, /Labels are case-sensitive[\s\S]*`CodeElement`/);

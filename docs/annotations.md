@@ -166,6 +166,10 @@ undoable edit. VS Code also exposes the command through the Command Palette.
 
 Completion is available while typing inside `@icon(...)`.
 
+From a terminal, run `archinsight icons` to list catalog IDs or
+`archinsight icons <search>` to filter them. Add `--format json` for structured
+output.
+
 ### Diagram output
 
 The selected icon appears to the left of the element name. Automatic and
