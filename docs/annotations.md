@@ -18,10 +18,6 @@ service legacy_catalog
 
 Annotations apply to element declarations and operator-created relationships. They do not annotate individual attribute assignments.
 
-## `@icon`
-
-`@icon(<catalog-id>)` selects one technology icon for an element, while `@icon(none)` disables the automatic icon inferred from its `technology` attribute. Relationships do not support icons. See [Technology icons](technology-icons.md) for matching, editor picker, export, and catalog details.
-
 ## `@planned`
 
 `@planned` marks architecture that is intended but not yet part of the current operating system:
@@ -123,3 +119,56 @@ define presentation PartnerIntegration
 A presentation belongs to the model vocabulary, follows type inheritance, and gives every instance of a concept the same visual meaning. It can also be reviewed and extended in a definitions file instead of distributing raw Graphviz settings across architecture declarations. Presentation properties form a supported set documented with the language; a raw legacy property has no direct replacement when it falls outside that set.
 
 Legacy `@attribute` values are applied after the built-in lifecycle colors. A direct property can therefore override part of the `@planned` or `@deprecated` rendering. This ordering is maintained for compatibility and should not be used as a new styling mechanism.
+
+## `@icon`
+
+Archinsight can show one technology icon on a rendered architecture element.
+Without an annotation, it uses the first recognized value in the element's
+`technology` attribute:
+
+```insight
+service catalog
+    name = Catalog API
+    technology = Quarkus, Java
+```
+
+An unknown technology is valid and simply renders without an icon.
+
+Use `@icon(<catalog-id>)` when the desired icon differs from the technology
+text:
+
+```insight
+@icon(postgresql)
+container catalog_database
+    name = Catalog database
+    technology = Managed relational database
+```
+
+Use `@icon(none)` to hide the automatically selected icon for one element:
+
+```insight
+@icon(none)
+system payments
+    name = Payments
+    technology = Java
+```
+
+Only elements support `@icon`. An unknown icon ID, more than one `@icon`
+annotation on the same element, or an icon annotation on a relationship is an
+error.
+
+### Selecting an icon
+
+In the web editor or VS Code workbench, place the cursor on an element or an
+existing `@icon(...)` line and run **Select Technology Icon** from the editor
+actions. The picker shows matching icons and applies the selection as one
+undoable edit. VS Code also exposes the command through the Command Palette.
+
+Completion is available while typing inside `@icon(...)`.
+
+### Diagram output
+
+The selected icon appears to the left of the element name. Automatic and
+explicit icons are included consistently in web and VS Code diagrams and in
+CLI SVG and PNG output. The icon follows the element colors of the active
+diagram theme; no additional render option is required.

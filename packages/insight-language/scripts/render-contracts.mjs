@@ -7,6 +7,7 @@ import {
   parseRenderIdentity,
   renderIdentity,
   renderGraphviz,
+  renderGraphvizArtifact,
   selectGraph,
 } from "../build/runtime/index.js";
 
@@ -22,6 +23,7 @@ const cases = [
   rendersScalarGroupByAsSyntheticCluster,
   rendersNestedAttributeObjectsAsNestedClusters,
   skipsElementsWithInvisibleGraphvizPresentation,
+  reportsWhetherAProjectionHasVisibleElements,
   rendersSelectedContextAsClusterForWideDefaultQuery,
   rendersStorageWithDatabaseShape,
   rendersInfrastructureDescendantsWithDashedBorders,
@@ -31,6 +33,20 @@ const cases = [
   wrapsLongDisplayTextBlocks,
   rendersLegacyAnnotationsAsGraphvizOverrides,
 ];
+
+function reportsWhetherAProjectionHasVisibleElements() {
+  const result = linkWithCore(source("source.ai", `
+context source
+
+system app
+    name = App
+`));
+  const visible = selectGraph(result, { context: "source" }, "MATCH (n:System) WHERE n.context = $context RETURN n");
+  const empty = selectGraph(result, { context: "source" }, "MATCH (n:CodeElement) WHERE n.context = $context RETURN n");
+
+  assert.equal(renderGraphvizArtifact(result, visible, "light").empty, false);
+  assert.equal(renderGraphvizArtifact(result, empty, "light").empty, true);
+}
 
 let failures = 0;
 for (const testCase of cases) {
@@ -85,6 +101,7 @@ RETURN n, r, m
   assert(dot.includes("Google"));
   assert(dot.includes("HTTP"));
   assert(dot.includes('"source/app" -> "external_systems/google"'));
+  assert.match(dot, /"source\/app" -> "external_systems\/google" \[color="#666666"/);
   assert(dot.includes("rankdir=TB"));
   assert(dot.includes("shape=\"box\""));
   assert.notEqual(darkDot, dot);

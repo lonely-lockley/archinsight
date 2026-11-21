@@ -14,6 +14,7 @@
   --archinsight-quick-action-bg: #2b2b2b;
   --archinsight-quick-action-fg: #f2f2f2;
   --archinsight-quick-action-border: #666666;
+  --archinsight-quick-action-shadow: 0 2px 6px rgb(0 0 0 / 35%);
   --archinsight-border: var(--vscode-panel-border, #3a3a3a);
   --archinsight-border-strong: var(--vscode-panel-border, #3b3b3b);
   --archinsight-foreground: var(--vscode-editor-foreground, #eeeeee);
@@ -42,6 +43,14 @@
   font-family: var(--vscode-font-family, var(--lumo-font-family));
   color: var(--vscode-editor-foreground, #e6e6e6);
   background: var(--vscode-editor-background, #1f1f1f);
+}
+
+body.vscode-light,
+body.vscode-high-contrast-light {
+  --archinsight-quick-action-bg: #757575;
+  --archinsight-quick-action-fg: #ffffff;
+  --archinsight-quick-action-border: #a3a3a3;
+  --archinsight-quick-action-shadow: 0 2px 6px rgb(0 0 0 / 18%);
 }
 
 html,

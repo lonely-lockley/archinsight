@@ -14,6 +14,7 @@ import google from context external_systems
 deploymentProfile archinsight_service
     appliesTo:
         production from eu
+        production from sa
 
     runsOn compute
     uses observability
@@ -21,12 +22,13 @@ deploymentProfile archinsight_service
 deploymentProfile archinsight_stateful_service
     appliesTo:
         production from eu
+        production from sa
 
     runsOn compute
     uses storage
     uses observability
 
-external actor user
+actor user
     name = Archinsight User
     technology = Web browser
     description = Runs the editor UI, Monaco, and browser Graphviz rendering
@@ -44,7 +46,7 @@ external actor user
 
 system archinsight_web
     name = Archinsight Editor
-    technology = SvelteKit, Quarkus, Java, TypeScript, PostgreSQL
+    technology = SvelteKit, Node.js, TypeScript, PostgreSQL
     description = Web editor for Insight architecture models and C4-style diagrams
 
     container frontend
@@ -56,7 +58,7 @@ system archinsight_web
         
     service backend
         name = Backend API
-        technology = Quarkus, RESTEasy Reactive, MyBatis, Flyway, Hikari
+        technology = Node.js, SvelteKit, TypeScript, node-postgres, PostgreSQL
         description = Authenticated API for projects, repository files, language pipeline, and 
             render fallback
         deployment:

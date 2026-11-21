@@ -8,11 +8,13 @@
   import type { EmptyWorkspaceAction, EmptyWorkspaceStrategy } from './empty-workspace-strategy';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from './workspace-types';
   import type { DiagramQuickActionMetadata, QueryParameterValue, QueryTableResult } from '@insight/language';
+  import type { DiagramNotice } from '@archinsight/contracts';
   import type { DeploymentMode, DiagramQuickActionAnchor, DiagramQuickActionId, FindPathMode, IsolateMode } from './diagram-quick-actions';
   import type { DiagramDiffMode, DiagramDiffPickerState } from './versioned-diagram-diff';
 
   export let active = false;
   export let svg: string | undefined;
+  export let diagramNotice: DiagramNotice | undefined = undefined;
   export let queryResult: QueryTableResult | undefined = undefined;
   export let resultLoading = false;
   export let diagramMode: DiagramMode;
@@ -172,6 +174,7 @@
     <EditorPanel
       {active}
       {svg}
+      {diagramNotice}
       {queryResult}
       {viewMode}
       {diagramScale}

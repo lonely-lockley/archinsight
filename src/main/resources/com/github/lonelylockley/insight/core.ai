@@ -48,7 +48,7 @@ define presentation Edge
     body = description
 
     light
-        stroke = "#000000"
+        stroke = "#666666"
         text = "#000000"
 
     dark

@@ -24,6 +24,7 @@ export interface GraphvizIconPlacement {
 export interface GraphvizArtifact {
   readonly dot: string;
   readonly icons: readonly GraphvizIconPlacement[];
+  readonly empty: boolean;
 }
 
 interface DiffHighlight {
@@ -126,7 +127,7 @@ function renderGraphvizWithHighlight(
     writeEdge(lines, result, edge, groupByOwner, theme, highlight);
   }
   lines.push("}");
-  return { dot: lines.join("\n"), icons };
+  return { dot: lines.join("\n"), icons, empty: Object.values(graph.elements).every((element) => hidden.has(element.id)) };
 }
 
 function writeHeader(

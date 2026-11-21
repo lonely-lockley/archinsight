@@ -1,0 +1,92 @@
+# This source instantiates the production deployment and its concrete
+# infrastructure for the `eu` environment.
+# For detailed documentation about deployment boundaries please refer to:
+# https://archinsight.org/doc/deployment/#environment-and-deployment-boundaries
+
+environment eu
+    name = Europe
+
+deployment production
+    csp:
+        archinsightServiceProvider csp
+            name = Digitalocean
+            technology = Digitalocean
+
+    cdn:
+        archinsightServiceProvider cf
+            name = Cloudflare
+            technology = Cloudflare
+
+    compute:
+        compute compute
+            name = Kubernetes
+            technology = Kubernetes
+            runsOn:
+                csp
+
+    storage:
+        storage storage
+            name = Postgres
+            technology = Postgres
+            runsOn:
+                csp
+            projection:
+                source $from originalLink target $this
+
+    publicGateway:
+        archinsightPublicGateway publicGateway
+            name = Public ingress path
+            cdn:
+                cf
+            loadBalancer:
+                infrastructureComponent lb
+                    name = DigitalOcean Load Balancers
+                    technology = Digitalocean
+                    runsOn:
+                        csp
+            ingress:
+                ingress traefik
+                    name = Traefik
+                    technology = Traefik Proxy
+                    description = Kubernetes ingress controller for public frontend and API traffic
+                    runsOn:
+                        compute
+            projection:
+                source $from originalLink target cdn
+                target cdn connectTo target loadBalancer
+                    technology = HTTPS, REST
+                target loadBalancer connectTo target ingress
+                    technology = HTTPS, REST
+                target ingress connectTo target $to
+                    technology = HTTP, REST
+
+    privateGateway:
+        archinsightPrivateGateway privateGateway
+            name = Private Network
+            runsOn:
+                compute
+            projection:
+                source $from originalLink target $to
+
+    egress:
+        egress egress
+            name = Egress
+            runsOn:
+                compute
+            projection:
+                source $from originalLink target $to
+
+    observability:
+        metrics observability
+            name = Grafana Agent
+            technology = Grafana
+            description = Collects metrics from all sources
+            runsOn:
+                compute
+            display:
+                infrastructureComponent grafana
+                    name = Grafana Cloud
+                    technology = Grafana
+            projection:
+                target $this connectTo target display
+                    technology = HTTPS, REST

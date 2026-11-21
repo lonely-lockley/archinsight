@@ -99,7 +99,7 @@ system c
     "--query", "consumers.aiq", "--format", "json", /Missing query parameter: \$target/,
   );
 
-  const dot = success("diff", project, "--from", before, "--to", after, "--view", "c1");
+  const dot = success("diff", project, "--from", before, "--to", after, "--view", "c1", "--theme", "dark");
   assert.doesNotMatch(dot.stdout, /#(?:c8e6c9|ffcdd2|fff59d)/);
   assert.match(dot.stdout, /fillcolor="#5A189A",color="#2e7d32"/);
   assert.match(dot.stdout, /fillcolor="#5A189A",color="#f9a825"/);

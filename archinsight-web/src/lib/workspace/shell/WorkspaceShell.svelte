@@ -118,6 +118,7 @@
     <WorkspaceEditor
       active={view.activeTab !== undefined}
       svg={view.activeTab?.svg}
+      diagramNotice={view.activeTab?.diagramNotice}
       quickActionMetadata={view.quickActionMetadata}
       findPathMode={view.state.findPathMode}
       isolateMode={view.state.isolateMode}

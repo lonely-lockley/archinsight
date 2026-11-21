@@ -10,9 +10,10 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.
 test('inlines a lazy icon asset using Graphviz slot geometry and removes navigation', async () => {
   const result = await inlineGraphvizIcons(svg, [{ slotId: 'slot-one', iconId: 'postgresql', color: '#f4f4f4' }]);
   assert.match(result, /<g id="slot-one" class="technology-icon" pointer-events="none">/);
-  assert.match(result, /<svg[^>]*x="6" y="-38" width="32" height="32"[^>]*color="#f4f4f4"/);
+  assert.match(result, /<svg[^>]*fill="#f4f4f4"[^>]*x="6" y="-38" width="32" height="32"/);
   assert.doesNotMatch(result, /xlink:href|<text/);
-  assert.match(result, /currentColor/);
+  assert.doesNotMatch(result, /currentColor/);
+  assert.match(result, /<(?:path|g)\b[^>]*(?:fill|stroke)="#f4f4f4"/);
 });
 
 test('keeps diagrams without placements byte-identical', async () => {
@@ -48,5 +49,6 @@ test('escapes slot ids and presentation colors in generated SVG attributes', asy
   const special = svg.replaceAll('slot-one', 'slot.one+one').replace('xlink:href', 'href');
   const result = await inlineGraphvizIcons(special, [{ slotId: 'slot.one+one', iconId: 'postgresql', color: '"<&>' }]);
   assert.match(result, /id="slot.one\+one"/);
-  assert.match(result, /color="&quot;&lt;&amp;&gt;"/);
+  assert.match(result, /fill="&quot;&lt;&amp;&gt;"/);
+  assert.doesNotMatch(result, /currentColor/);
 });

@@ -1,29 +1,31 @@
-# This source instantiates the production deployment and its concrete
-# infrastructure for the `eu` environment.
-# For detailed documentation about deployment boundaries please refer to:
-# https://archinsight.org/doc/deployment/#environment-and-deployment-boundaries
+# Production deployment and concrete AWS infrastructure for the `sa`
+# environment. It mirrors the topology of the `eu` environment.
 
-environment eu
-    name = Europe
+environment sa
+    name = South America
 
 deployment production
     csp:
         archinsightServiceProvider csp
-            name = Digitalocean
+            name = AWS
+            technology = AWS
 
     cdn:
         archinsightServiceProvider cf
-            name = Cloudflare
+            name = CloudFront
+            technology = AWS CloudFront
 
     compute:
         compute compute
-            name = Kubernetes
+            name = Elastic Kubernetes Service
+            technology = Kubernetes, AWS EKS
             runsOn:
                 csp
 
     storage:
         storage storage
-            name = Postgres
+            name = Aurora PostgreSQL
+            technology = PostgreSQL, Amazon Aurora
             runsOn:
                 csp
             projection:
@@ -32,13 +34,17 @@ deployment production
     publicGateway:
         archinsightPublicGateway publicGateway
             name = Public ingress path
+
             cdn:
                 cf
+
             loadBalancer:
                 infrastructureComponent lb
-                    name = DigitalOcean Load Balancers
+                    name = Application Load Balancer
+                    technology = AWS ALB
                     runsOn:
                         csp
+
             ingress:
                 ingress traefik
                     name = Traefik
@@ -46,15 +52,23 @@ deployment production
                     description = Kubernetes ingress controller for public frontend and API traffic
                     runsOn:
                         compute
+
             projection:
                 source $from originalLink target cdn
+
                 target cdn connectTo target loadBalancer
+                    technology = HTTPS, REST
+
                 target loadBalancer connectTo target ingress
+                    technology = HTTPS, REST
+
                 target ingress connectTo target $to
+                    technology = HTTP, REST
 
     privateGateway:
         archinsightPrivateGateway privateGateway
             name = Private Network
+            technology = Kubernetes networking
             runsOn:
                 compute
             projection:
@@ -63,6 +77,7 @@ deployment production
     egress:
         egress egress
             name = Egress
+            technology = AWS networking
             runsOn:
                 compute
             projection:
@@ -71,10 +86,16 @@ deployment production
     observability:
         metrics observability
             name = Grafana Agent
+            technology = Grafana
+            description = Collects metrics from all deployed services
             runsOn:
                 compute
+
             display:
                 infrastructureComponent grafana
                     name = Grafana Cloud
+                    technology = Grafana
+
             projection:
                 target $this connectTo target display
+                    technology = HTTPS, REST

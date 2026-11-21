@@ -30,8 +30,9 @@ import {
 import type { WorkspaceSurface } from '$lib/actions/action-model';
 import type { DotRender, SvgRenderResponse } from '$lib/api';
 import type { SourceLocation, WorkspaceTab } from '@archinsight/workbench/types';
+import { emptyProjectionNotice } from '@archinsight/workbench/diagram-notice';
 
-type ResultPatch = Partial<Pick<WorkspaceTab, 'svg' | 'dot' | 'queryResult'>>;
+type ResultPatch = Partial<Pick<WorkspaceTab, 'svg' | 'dot' | 'queryResult' | 'diagramNotice'>>;
 type DiagramSnapshot = {
   readonly tabId: string;
   readonly sourceIdentity: string;
@@ -123,7 +124,7 @@ export function createDiagramQuickActionController(
     return tab === undefined ? undefined : {
       tabId: tab.id,
       sourceIdentity: tab.sourceIdentity,
-      patch: { svg: tab.svg, dot: tab.dot, queryResult: tab.queryResult }
+      patch: { svg: tab.svg, dot: tab.dot, queryResult: tab.queryResult, diagramNotice: tab.diagramNotice }
     };
   };
 
@@ -223,6 +224,14 @@ export function createDiagramQuickActionController(
     ports.setLoading(true);
     try {
       const artifact = renderGraphvizArtifact(analysis, graph, ports.theme());
+      if (artifact.empty) {
+        ports.patchTab(tab.id, {
+          diagramNotice: emptyProjectionNotice(),
+          dot: undefined,
+          queryResult: undefined
+        });
+        return true;
+      }
       const renders: DotRender[] = [{ sourceIdentity: tab.sourceIdentity, diagram: 'query', ...artifact }];
       let rendered: SvgRenderResponse;
       try {
@@ -240,7 +249,7 @@ export function createDiagramQuickActionController(
         ports.error(error?.message ?? `Renderer returned no SVG for ${label}`);
         return false;
       }
-      ports.patchTab(tab.id, { svg, dot: artifact.dot, queryResult: undefined });
+      ports.patchTab(tab.id, { svg, dot: artifact.dot, queryResult: undefined, diagramNotice: undefined });
       return true;
     } catch (error) {
       if (lifecycle.isCurrent(currentGeneration)) {

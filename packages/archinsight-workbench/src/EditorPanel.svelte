@@ -10,9 +10,11 @@
   import type { EmptyWorkspaceAction, EmptyWorkspaceStrategy } from './empty-workspace-strategy';
   import type { EditorViewMode, MessageView, SourceLocation } from './workspace-types';
   import type { DiagramDiffPickerState } from './versioned-diagram-diff';
+  import type { DiagramNotice } from '@archinsight/contracts';
 
   export let active = false;
   export let svg: string | undefined;
+  export let diagramNotice: DiagramNotice | undefined = undefined;
   export let queryResult: QueryTableResult | undefined = undefined;
   export let viewMode: EditorViewMode = 'split';
   export let diagramScale = 1;
@@ -141,6 +143,7 @@
         {onDiagramQuickAction}
         {onSelectPathTarget}
         {svg}
+        notice={diagramNotice}
       />
     {/if}
     {#if !active}

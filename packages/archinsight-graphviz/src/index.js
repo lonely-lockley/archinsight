@@ -56,9 +56,10 @@ function inlineIcon(placement, asset, content) {
   const bounds = polygonBounds(points);
   if (bounds === undefined) throw new Error(`Graphviz icon slot '${placement.slotId}' has no geometry`);
   const padding = Math.min(4, bounds.width / 5, bounds.height / 5);
-  const nested = asset.replace(/<svg\b([^>]*)>/i, (_root, attributes) => {
+  const color = escapeXml(placement.color);
+  const nested = asset.replaceAll('currentColor', color).replace(/<svg\b([^>]*)>/i, (_root, attributes) => {
     const cleaned = attributes.replace(/\s(?:x|y|width|height|color|preserveAspectRatio|pointer-events)="[^"]*"/gi, '');
-    return `<svg${cleaned} x="${number(bounds.x + padding)}" y="${number(bounds.y + padding)}" width="${number(bounds.width - padding * 2)}" height="${number(bounds.height - padding * 2)}" color="${escapeXml(placement.color)}" preserveAspectRatio="xMidYMid meet" pointer-events="none">`;
+    return `<svg${cleaned} x="${number(bounds.x + padding)}" y="${number(bounds.y + padding)}" width="${number(bounds.width - padding * 2)}" height="${number(bounds.height - padding * 2)}" preserveAspectRatio="xMidYMid meet" pointer-events="none">`;
   });
   return `<g id="${escapeXml(placement.slotId)}" class="technology-icon" pointer-events="none">${nested}</g>`;
 }

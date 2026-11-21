@@ -24,11 +24,15 @@ parentPort.on('message', async (message: any) => {
       if (message.kind === 'select-query' || result.kind === 'table') value = { result };
       else {
         const artifact = renderGraphvizArtifact(linked, result.graph, message.theme);
-        value = { result, dot: artifact.dot, svg: await renderSvg(artifact) };
+        value = artifact.empty
+          ? { result, dot: artifact.dot, empty: true }
+          : { result, dot: artifact.dot, svg: await renderSvg(artifact), empty: false };
       }
     } else if (message.kind === 'graph') {
       const artifact = renderGraphvizArtifact(linkedResult(message.result), message.graph, message.theme);
-      value = { dot: artifact.dot, svg: await renderSvg(artifact) };
+      value = artifact.empty
+        ? { dot: artifact.dot, empty: true }
+        : { dot: artifact.dot, svg: await renderSvg(artifact), empty: false };
     } else if (message.kind === 'diff') {
       const artifact = renderDiagramDiffGraphvizArtifact(
         linkedResult(message.before),
@@ -36,9 +40,11 @@ parentPort.on('message', async (message: any) => {
         message.diff,
         message.theme,
       );
-      value = { dot: artifact.dot, svg: await renderSvg(artifact) };
+      value = artifact.empty
+        ? { dot: artifact.dot, empty: true }
+        : { dot: artifact.dot, svg: await renderSvg(artifact), empty: false };
     } else {
-      value = { svg: await renderSvg({ dot: message.dot, icons: message.icons ?? [] }) };
+      value = { svg: await renderSvg({ dot: message.dot, icons: message.icons ?? [], empty: false }) };
     }
     parentPort!.postMessage({ id: message.id, value });
   } catch (cause) {

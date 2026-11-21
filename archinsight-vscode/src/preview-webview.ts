@@ -32,14 +32,27 @@ export function previewHtml(): string {
         margin: 0 auto;
       }
 
-      .error {
-        margin: 16px;
-        padding: 12px;
-        border: 1px solid var(--vscode-inputValidation-errorBorder);
-        border-radius: 4px;
-        background: var(--vscode-inputValidation-errorBackground);
-        color: var(--vscode-inputValidation-errorForeground);
-        white-space: pre-wrap;
+      .notice {
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        max-width: 420px;
+        min-height: calc(100vh - 32px);
+        margin: auto;
+        text-align: center;
+      }
+
+      .notice strong {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.4;
+      }
+
+      .notice p {
+        margin: 7px 0 0;
+        color: var(--vscode-descriptionForeground);
+        font-size: 13px;
+        line-height: 1.5;
       }
     </style>
   </head>
@@ -63,14 +76,27 @@ export function previewHtml(): string {
 
       function render() {
         if (state?.error !== undefined) {
-          preview.replaceChildren();
-          const error = document.createElement("section");
-          error.className = "error";
-          error.textContent = state.error;
-          preview.append(error);
+          if (preview.childElementCount === 0 && state.diagramNotice !== undefined) renderNotice(state.diagramNotice);
+          return;
+        }
+        if (state?.diagramNotice !== undefined) {
+          renderNotice(state.diagramNotice);
           return;
         }
         renderTrustedSvg(state?.svg);
+      }
+
+      function renderNotice(notice) {
+        preview.replaceChildren();
+        const section = document.createElement("section");
+        section.className = "notice";
+        section.setAttribute("role", "status");
+        const title = document.createElement("strong");
+        title.textContent = notice.title;
+        const detail = document.createElement("p");
+        detail.textContent = notice.detail;
+        section.append(title, detail);
+        preview.append(section);
       }
 
       function renderTrustedSvg(rawSvg) {

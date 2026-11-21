@@ -74,6 +74,7 @@ export type DotRenderDto = {
   sourceIdentity: string;
   diagram: string;
   dot: string;
+  empty?: boolean;
   icons?: readonly GraphvizIconPlacementDto[];
 };
 export type SvgRenderDto = { sourceIdentity: string; diagram: string; svg: string };

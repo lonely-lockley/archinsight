@@ -105,6 +105,53 @@ afterEach(() => {
 });
 
 describe('SvgPreviewPanel quick actions', () => {
+  it('renders a terminal diagram explanation instead of a retained SVG', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: {
+        svg,
+        notice: {
+          kind: 'empty',
+          title: 'C4 diagram is empty',
+          detail: 'The current source contains no code-level elements.'
+        }
+      }
+    });
+    await settle();
+
+    expect(target.querySelector('[role="status"]')?.textContent).toContain('C4 diagram is empty');
+    expect(target.textContent).toContain('The current source contains no code-level elements.');
+    expect(target.querySelector('[role="status"] svg')).toBeNull();
+    expect(target.querySelector('.svg-host')).toBeNull();
+    expect(target.querySelector('button')).toBeNull();
+
+    await unmount(component);
+  });
+
+  it('marks a diagram explanation to use the themed panel background', async () => {
+    const target = document.createElement('div');
+    document.body.append(target);
+    const component = mount(SvgPreviewPanel, {
+      target,
+      props: {
+        svg: undefined,
+        notice: {
+          kind: 'empty',
+          title: 'C4 diagram is empty',
+          detail: 'The current source contains no code-level elements.'
+        }
+      }
+    });
+    await settle();
+
+    const preview = target.querySelector<HTMLElement>('.preview-pane')!;
+    expect(preview.classList.contains('notice')).toBe(true);
+
+    await unmount(component);
+  });
+
   it('keeps quick-action controls opaque when the host theme uses transparent controls', async () => {
     const target = document.createElement('div');
     target.style.setProperty('--archinsight-control-bg', 'transparent');

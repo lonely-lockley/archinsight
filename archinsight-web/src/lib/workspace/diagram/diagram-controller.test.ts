@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkspaceTab } from '@archinsight/workbench/types';
 import { queryForDiagramMode } from '@archinsight/workbench/presets';
-import { createDiagramController, type DiagramControllerPorts, emptyDiagramSvg } from './diagram-controller';
+import { createDiagramController, type DiagramControllerPorts } from './diagram-controller';
 import type { LinkProjectResult } from '@insight/language';
 
 const tab = (overrides: Partial<WorkspaceTab> = {}): WorkspaceTab => ({
@@ -67,7 +67,11 @@ describe('diagram controller', () => {
     const subject = fixture(tab({ diagramMode: 'deployment-container' }));
     expect(subject.controller.deploymentEnvironmentsFor()).toEqual([]);
     subject.controller.selectDeploymentEnvironment(undefined);
-    expect(subject.tab()?.svg).toContain('No deployment environments');
+    expect(subject.tab()?.diagramNotice).toEqual({
+      kind: 'empty',
+      title: 'D2 diagram is empty',
+      detail: 'No deployment environments are relevant to the current source.'
+    });
     expect(subject.ports.scheduleDiagramUpdate).not.toHaveBeenCalled();
     subject.controller.closeDeploymentPicker();
     expect(subject.ports.setPickerOpen).toHaveBeenLastCalledWith(false);
@@ -116,9 +120,5 @@ describe('diagram controller', () => {
     subject.controller.reset();
     expect(subject.ports.setRefreshDisabled).toHaveBeenLastCalledWith(false);
     subject.controller.dispose();
-  });
-
-  it('produces an explicit empty diagram placeholder', () => {
-    expect(emptyDiagramSvg('Nothing here')).toContain('Nothing here');
   });
 });

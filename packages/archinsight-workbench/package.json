@@ -21,6 +21,7 @@
     "./diagram-quick-actions": "./src/diagram-quick-actions.ts",
     "./diagram-quick-action-service": "./src/diagram-quick-action-service.ts",
     "./diagram-quick-action-coordinator": "./src/diagram-quick-action-coordinator.ts",
+    "./diagram-notice": "./src/diagram-notice.ts",
     "./versioned-diagram-diff": "./src/versioned-diagram-diff.ts",
     "./versioned-diagram-diff-service": "./src/versioned-diagram-diff-service.ts",
     "./diagram-diff-picker": "./src/DiagramDiffRevisionPicker.svelte",
