@@ -1,4 +1,4 @@
-import type { Queryable } from './types';
+import type { Queryable, TransactionalDatabase } from './types';
 
 type Migration = {
   version: number;
@@ -143,7 +143,17 @@ const migrations: Migration[] = [
   }
 ];
 
-export async function migrateDatabase(database: Queryable): Promise<void> {
+const migrationLockNamespace = 1_095_910_216;
+const migrationLockId = 1;
+
+export async function migrateDatabase(database: TransactionalDatabase): Promise<void> {
+  await database.transaction(async (client) => {
+    await client.query('select pg_advisory_xact_lock($1, $2)', [migrationLockNamespace, migrationLockId]);
+    await applyMigrations(client);
+  });
+}
+
+async function applyMigrations(database: Queryable): Promise<void> {
   await database.query(`
     create table if not exists public.archinsight_schema_history (
       version integer primary key,
