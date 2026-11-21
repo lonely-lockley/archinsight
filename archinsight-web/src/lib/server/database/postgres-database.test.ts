@@ -62,7 +62,18 @@ describe('normalizePostgresResult', () => {
       ARCHINSIGHT_DATABASE_URL: 'postgres://recovery-test/database',
       ARCHINSIGHT_DATABASE_MIGRATIONS_ENABLED: 'true'
     };
-    pg.query.mockRejectedValueOnce(new Error('database unavailable')).mockResolvedValue({ rows: [], rowCount: 0 });
+    const failedClient = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockRejectedValueOnce(new Error('database unavailable'))
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }),
+      release: vi.fn()
+    };
+    const recoveredClient = {
+      query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      release: vi.fn()
+    };
+    pg.connect.mockResolvedValueOnce(failedClient).mockResolvedValueOnce(recoveredClient);
 
     const provider = new PostgresDatabaseProvider(parseDatabaseConfig(env));
 
@@ -77,6 +88,15 @@ describe('normalizePostgresResult', () => {
     expect(pg.end).toHaveBeenCalledTimes(1);
     expect(pg.on).toHaveBeenCalledTimes(2);
     expect(pg.on).toHaveBeenNthCalledWith(1, 'error', expect.any(Function));
+    expect(failedClient.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'begin',
+      'select pg_advisory_xact_lock($1, $2)',
+      'rollback'
+    ]);
+    expect(failedClient.release).toHaveBeenCalledOnce();
+    expect(recoveredClient.query.mock.calls[0]).toEqual(['begin']);
+    expect(recoveredClient.query.mock.calls.at(-1)).toEqual(['commit']);
+    expect(recoveredClient.release).toHaveBeenCalledOnce();
   });
 
   it('shares one lazy pool and closes it exactly once', async () => {

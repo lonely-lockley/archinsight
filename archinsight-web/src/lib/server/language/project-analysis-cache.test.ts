@@ -152,6 +152,35 @@ describe('project analysis cache', () => {
     await expectEquivalentToClean(cache, key, sources, 'incremental');
   });
 
+  it('moves a stale replica directly to the latest revision without intermediate updates', async () => {
+    const key = 'owner:a\0project:p';
+    const staleReplica = new ProjectAnalysisCache();
+    const activeReplica = new ProjectAnalysisCache();
+    const initial = model('API');
+    await staleReplica.analyze(key, initial, {}, env);
+    await activeReplica.analyze(key, initial, {}, env);
+
+    const second = new Map(initial);
+    second.set('main.ai', source('Backend'));
+    await activeReplica.analyze(key, second, {}, env);
+
+    const third = new Map(second);
+    third.set('extra.ai', 'context demo\n\nsystem worker\n    name = Worker\n');
+    await activeReplica.analyze(key, third, {}, env);
+
+    const latest = new Map(third);
+    latest.set('main.ai', source('Gateway'));
+    latest.set('renamed.ai', latest.get('extra.ai')!);
+    latest.delete('extra.ai');
+    await activeReplica.analyze(key, latest, {}, env);
+
+    const staleResult = await staleReplica.analyze(key, latest, {}, env);
+    const cleanResult = await new ProjectAnalysisCache().analyze('clean', latest, {}, env);
+
+    expect(staleResult.mode).toBe('incremental');
+    expect(resultShape(staleResult.result)).toEqual(resultShape(cleanResult.result));
+  });
+
   it('performs a full rebuild when project definitions change', async () => {
     const cache = new ProjectAnalysisCache();
     const key = 'owner:a\0project:p';
