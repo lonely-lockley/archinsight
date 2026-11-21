@@ -11,7 +11,7 @@ import type {
   IsolateRenderGraphLayout,
   SourceLocation,
 } from "./contracts.js";
-import { declaredDeploymentEnvironments, selectGraph } from "./query-engine.js";
+import { declaredDeploymentEnvironments, materializeGroupedView, selectGraph } from "./query-engine.js";
 import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 import { diagramOccurrenceId, parseDiagramOccurrenceId } from "./occurrence-identity.js";
 
@@ -742,21 +742,35 @@ function completeDeploymentGraph(result: LinkProjectResult): RenderGraph {
   }, BUILTIN_VIEW_QUERIES["deployment-container"]));
   const groupsByOwner = new Map<string, Set<string>>();
   for (const group of graphs.flatMap((graph) => graph.groups)) {
-    const members = groupsByOwner.get(group.owner) ?? new Set<string>();
-    for (const member of group.elements) members.add(member);
-    groupsByOwner.set(group.owner, members);
+    const owner = canonicalDiagramElementId(group.owner);
+    const members = groupsByOwner.get(owner) ?? new Set<string>();
+    for (const member of group.elements) members.add(canonicalDiagramElementId(member));
+    groupsByOwner.set(owner, members);
   }
   const edges = new Map<string, RenderGraphEdge>();
   for (const edge of graphs.flatMap((graph) => graph.edges)) {
-    edges.set(`${edge.edge.id}\0${edge.source}\0${edge.target}\0${edge.derived}\0${edge.projected}`, edge);
+    const source = canonicalDiagramElementId(edge.source);
+    const target = canonicalDiagramElementId(edge.target);
+    edges.set(`${edge.edge.id}\0${source}\0${target}\0${edge.derived}\0${edge.projected}`, {
+      ...edge,
+      source,
+      target,
+    });
   }
-  const complete: RenderGraph = {
+  const selectedCanonicalIds = new Set(graphs.flatMap((graph) => Object.keys(graph.elements).map(canonicalDiagramElementId)));
+  const dematerialized: RenderGraph = {
     context: "",
-    elements: Object.assign({}, ...graphs.map((graph) => graph.elements)),
+    elements: Object.fromEntries([...selectedCanonicalIds]
+      .sort()
+      .flatMap((id) => {
+        const element = index.elementsById.get(id);
+        return element === undefined ? [] : [[id, element]];
+      })),
     edges: [...edges.values()],
     groups: [...groupsByOwner].map(([owner, members]) => ({ owner, elements: [...members].sort() })),
-    externalElements: [...new Set(graphs.flatMap((graph) => graph.externalElements))].sort(),
+    externalElements: [...new Set(graphs.flatMap((graph) => graph.externalElements.map(canonicalDiagramElementId)))].sort(),
   };
+  const complete = materializeGroupedView(dematerialized);
   index.completeDeploymentGraph = complete;
   return complete;
 }

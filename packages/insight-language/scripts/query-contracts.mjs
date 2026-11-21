@@ -154,6 +154,21 @@ system worker
     { parameters: { ids: ["app", "worker"] } },
   );
   assert.deepEqual(Object.keys(graph.elements).sort(), ["shared/app", "shared/worker"]);
+  const canonicalIdGraph = selectGraph(
+    result,
+    { context: "shared" },
+    "MATCH (n:Element) WHERE elementId(n) = $id RETURN n",
+    { parameters: { id: "shared/worker" } },
+  );
+  assert.deepEqual(
+    Object.keys(canonicalIdGraph.elements),
+    ["shared/worker"],
+    "graph predicates can compare a stable canonical element id",
+  );
+  assert.throws(
+    () => selectGraph(result, { context: "shared" }, "MATCH (n:Element) WHERE elementId(n) = $id RETURN n"),
+    /Missing query parameter: \$id/,
+  );
   assert.throws(
     () => selectGraph(result, { context: "shared" }, "MATCH (n:Element {id: $id}) RETURN n"),
     /Missing query parameter: \$id/,
@@ -175,6 +190,15 @@ system worker
       { parameters: { id: 42 } },
     ),
     /must be a string or a list of strings/,
+  );
+  assert.throws(
+    () => selectGraph(
+      result,
+      { context: "shared" },
+      "MATCH (n:Element) WHERE n.id = $id RETURN n",
+      { parameters: { id: ["app"] } },
+    ),
+    /Scalar comparison cannot use list parameter '\$id'; use IN \$id/,
   );
 }
 

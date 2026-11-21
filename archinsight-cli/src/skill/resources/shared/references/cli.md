@@ -107,8 +107,9 @@ Text output prints the summary followed by one line for every added, removed,
 or changed element, edge, and group. JSON includes `diagram-diff.v1` and
 `attributed-diagram-diff.v1`; DOT, SVG, and PNG preserve the status styling. If
 the selected source exists in only one revision, the missing side is compared
-with an empty graph and stderr reports `DIFF_SOURCE_MISSING`. Treat that warning
-as an explicit source addition/removal, not as a silent empty selection.
+with an empty graph and stderr reports `DIFF_SOURCE_MISSING`. Before interpreting
+that result as a source addition or removal, check for a rename or move with
+`git log --follow -- <source>` or repeat the diff with a stable context scope.
 
 ## Query and Render Scope
 

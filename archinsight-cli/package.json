@@ -51,6 +51,7 @@
     "archy": "^1.0.0"
   },
   "devDependencies": {
+    "@archinsight/icons": "file:../packages/archinsight-icons",
     "@archinsight/contracts": "file:../packages/archinsight-contracts",
     "@archinsight/git": "file:../packages/archinsight-git",
     "@archinsight/graphviz": "file:../packages/archinsight-graphviz",

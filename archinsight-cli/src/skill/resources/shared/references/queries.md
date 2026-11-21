@@ -81,6 +81,9 @@ may compose `MATCH`, `OPTIONAL MATCH`, `WITH`, and `UNWIND`, ending in
 `RETURN TABLE`. They support `DISTINCT`, `ORDER BY`, `SKIP`, `LIMIT`, numeric,
 boolean, null and list values, and named parameters.
 
+In a graph predicate, use `elementId(alias) = $id` to match the stable full ID.
+Use `IN $ids` for a string-list parameter; `=` expects a scalar string.
+
 For analysis, omit context and source predicates unless the user explicitly
 asks for that scope. A query without `$context` or `$tab` evaluates the whole
 linked project and does not require `--context` or `--source`.

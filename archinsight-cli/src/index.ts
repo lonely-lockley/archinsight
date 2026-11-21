@@ -4,6 +4,7 @@ import { helpText, parseArgs } from "./cli-arguments.js";
 import { CliError } from "./cli-error.js";
 import {
   runEnvironments,
+  runIcons,
   runDiff,
   runLink,
   runQuery,
@@ -43,6 +44,9 @@ async function main(): Promise<void> {
       return;
     case "environments":
       await runEnvironments(args);
+      return;
+    case "icons":
+      await runIcons(args);
       return;
     case "quick-action":
       await runQuickAction(args);

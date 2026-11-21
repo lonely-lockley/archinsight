@@ -218,7 +218,7 @@ function selectGraphInternal(
     throw new Error("selectGraph requires a graph RETURN; use executeQuery for RETURN TABLE");
   }
   const source = query === undefined || query.trim() === "" ? DEFAULT_QUERY : query;
-  validateGraphQueryParameters(source, options.parameters ?? {});
+  validateGraphQueryParameters(source, parsed, options.parameters ?? {});
   const execution = evaluationContext(
     createQueryExecutionContext(result, scope),
     createQueryBudget(normalizedLimits(options.limits), options.signal),
@@ -405,6 +405,7 @@ function validateQueryParameters(
 
 function validateGraphQueryParameters(
   source: string,
+  query: ParsedGraphQuery,
   parameters: Readonly<Record<string, QueryParameterValue>>,
 ): void {
   const required = analyzeQuery(source).requiredParameters;
@@ -422,6 +423,45 @@ function validateGraphQueryParameters(
       throw new Error(`Graph query parameter '$${name}' must be a string or a list of strings`);
     }
   }
+  for (const match of query.matches) {
+    validateGraphComparisonParameters(match.where, parameters);
+  }
+}
+
+function validateGraphComparisonParameters(
+  expression: Expression | undefined,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): void {
+  if (expression === undefined) return;
+  if (expression.kind === "and" || expression.kind === "or") {
+    validateGraphComparisonParameters(expression.left, parameters);
+    validateGraphComparisonParameters(expression.right, parameters);
+    return;
+  }
+  if (expression.kind === "not") {
+    validateGraphComparisonParameters(expression.expression, parameters);
+    return;
+  }
+  if (expression.kind !== "compare") return;
+  const mismatched = graphValueIsScalar(expression.right)
+    ? graphListParameters(expression.left, parameters)
+    : graphValueIsScalar(expression.left) ? graphListParameters(expression.right, parameters) : [];
+  for (const name of mismatched) {
+    throw new Error(`Scalar comparison cannot use list parameter '$${name}'; use IN $${name}`);
+  }
+}
+
+function graphListParameters(
+  expression: ValueExpression,
+  parameters: Readonly<Record<string, QueryParameterValue>>,
+): readonly string[] {
+  return expression.kind === "variable" && Array.isArray(parameters[expression.name]) ? [expression.name] : [];
+}
+
+function graphValueIsScalar(expression: ValueExpression): boolean {
+  if (expression.kind === "literal" || expression.kind === "binding" || expression.kind === "function") return true;
+  return expression.kind === "property"
+    && ["id", "context", "localId", "sourceIdentity", "type"].includes(expression.property);
 }
 
 function analyzeTableParameterNames(source: string): readonly string[] {
@@ -616,7 +656,7 @@ function contextualLinkedEdge(relationship: QueryRelationship): LinkedEdge {
   };
 }
 
-function materializeGroupedView(graph: RenderGraph, materializeDeploymentPlacements = true): RenderGraph {
+export function materializeGroupedView(graph: RenderGraph, materializeDeploymentPlacements = true): RenderGraph {
   const groupsByElement = new Map<string, RenderGraphGroup[]>();
   for (const group of graph.groups) {
     for (const element of group.elements) {
@@ -3237,6 +3277,13 @@ function evaluateValue(row: Row, expression: ValueExpression, context: Evaluatio
   }
   if (expression.kind === "binding") {
     return row.nodes[expression.alias] ?? row.relationships[expression.alias] ?? null;
+  }
+  if (expression.kind === "function") {
+    return evaluateTableFunction(
+      expression.name,
+      expression.arguments.map((argument) => evaluateValue(row, argument, context)),
+      context,
+    );
   }
   const node = row.nodes[expression.alias];
   if (node !== undefined) {

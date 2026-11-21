@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   buildLanguageSnapshotResultFromSources,
+  canonicalDiagramElementId,
   coreLanguageSnapshot,
   declaredDeploymentEnvironments,
   diagramOccurrenceId,
@@ -725,6 +726,12 @@ deploymentProfile eastProfile
         production from east
     runsOn compute
 
+deploymentProfile replicatedProfile
+    appliesTo:
+        production from east
+        production from west
+    runsOn compute
+
 system application
     name = Application
     service source
@@ -735,6 +742,10 @@ system application
             -> bridge
                 deployment:
                     uses clusterLink
+    service replicated
+        name = Replicated
+        deployment:
+            uses replicatedProfile
 `),
     source("split-target.ai", `
 context split
@@ -787,6 +798,27 @@ assert.equal(
   ),
   true,
   "a physical route continues through relationships declared in another source file",
+);
+const splitBridgeDeployment = selectDeploymentGraph(splitSourceCrossEnvironmentResult, "split/bridge", "west");
+assert.deepEqual(
+  Object.keys(splitBridgeDeployment.elements).filter((id) => canonicalDiagramElementId(id) === "split/bridge"),
+  ["split/bridge@@west/node"],
+  "deployment does not retain a plain logical element beside its placed occurrence",
+);
+assert.equal(
+  new Set(splitBridgeDeployment.edges.map((edge) => `${edge.edge.id}\0${edge.source}\0${edge.target}`)).size,
+  splitBridgeDeployment.edges.length,
+  "deployment returns one projected edge per occurrence pair",
+);
+assert.deepEqual(
+  Object.keys(splitSourcePhysicalPath.elements).filter((id) => canonicalDiagramElementId(id) === "split/bridge"),
+  ["split/bridge@@west/node"],
+  "Find path does not retain a plain logical element beside its placed occurrence",
+);
+assert.equal(
+  new Set(splitSourcePhysicalPath.edges.map((edge) => `${edge.edge.id}\0${edge.source}\0${edge.target}`)).size,
+  splitSourcePhysicalPath.edges.length,
+  "Find path returns one projected edge per occurrence pair",
 );
 
 const rolledUpResult = linkProject({

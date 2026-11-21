@@ -408,7 +408,8 @@ Available annotations:
   useful. The default Graphviz renderer highlights it in red.
 - `@icon(<catalog-id>)` selects one technology icon for an element and
   overrides automatic matching from its `technology` value. Use `@icon(none)`
-  to disable the automatic icon. Relationships do not support `@icon`.
+  to disable the automatic icon. Relationships do not support `@icon`. Run
+  `archinsight icons [search] --format json` to list or search valid catalog ids.
 
 Annotations can be stacked and are preserved on projected relationships, so a
 Deployment projection can still show that the original logical relationship was planned

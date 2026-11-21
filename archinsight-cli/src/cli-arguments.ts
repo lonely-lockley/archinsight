@@ -9,7 +9,7 @@ import { CliError } from "./cli-error.js";
 import type { SkillTarget } from "./skill/skill-package.js";
 import { version } from "./version.js";
 
-export type Command = "link" | "render" | "diff" | "query" | "structure" | "environments" | "quick-action" | "skill";
+export type Command = "link" | "render" | "diff" | "query" | "structure" | "environments" | "icons" | "quick-action" | "skill";
 type SkillAction = "init";
 export type QuickAction = "drill-down" | "isolate" | "deployment" | "find-path" | "declaration";
 export type OutputFormat = "text" | "json";
@@ -39,6 +39,7 @@ export interface ParsedArgs {
   readonly to?: string;
   readonly parameters?: readonly string[];
   readonly parametersFile?: string;
+  readonly iconQuery?: string;
   readonly maxExpansions?: number;
   readonly maxRows?: number;
   readonly maxValues?: number;
@@ -102,6 +103,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     to: stringOption(options.to),
     parameters,
     parametersFile: stringOption(options.params),
+    iconQuery: iconQuery(positional),
     maxExpansions: positiveIntegerOption(options.maxExpansions, "--max-expansions"),
     maxRows: positiveIntegerOption(options.maxRows, "--max-rows"),
     maxValues: positiveIntegerOption(options.maxValues, "--max-values"),
@@ -157,7 +159,7 @@ function optionKey(arg: string): string | undefined {
 
 function command(value: string | undefined): Command | undefined {
   if (value === "link" || value === "render" || value === "diff" || value === "query" || value === "structure"
-      || value === "environments" || value === "quick-action" || value === "skill") {
+      || value === "environments" || value === "icons" || value === "quick-action" || value === "skill") {
     return value;
   }
   if (value === undefined) {
@@ -189,7 +191,14 @@ function skillAction(commandValue: string | undefined, value: string | undefined
 }
 
 function inputPath(positional: readonly string[]): string | undefined {
+  if (positional[0] === "icons") return undefined;
   return positional[0] === "skill" || positional[0] === "quick-action" ? positional[2] : positional[1];
+}
+
+function iconQuery(positional: readonly string[]): string | undefined {
+  if (positional[0] !== "icons") return undefined;
+  if (positional.length > 2) throw new CliError("Usage: archinsight icons [search] [--format text|json] [--out file]");
+  return positional[1];
 }
 
 export function skillTarget(value: string | undefined): SkillTarget {
@@ -277,6 +286,7 @@ Usage:
   archinsight query [project-dir] [-s <source>] [-c <context>] [-v ${viewUsage}] [-e <environment>] [-q query.aiq] [--param name=<json>] [--params file.json] [-f text|json|csv] [-o file]
   archinsight structure [project-dir] [--format text|json] [--out file]
   archinsight environments [project-dir] [-s <source>] [--format text|json] [--out file]
+  archinsight icons [search] [--format text|json] [--out file]
   archinsight quick-action drill-down [project-dir] --element <id> [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
   archinsight quick-action isolate [project-dir] --element <id> [-s <source>] [-c <context>] [-v ${viewUsage}] [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
   archinsight quick-action deployment [project-dir] --element <id> [-e <environment>] [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
@@ -286,6 +296,7 @@ Usage:
 
 Options:
   project-dir             Project directory to scan recursively, default: current directory.
+  search                  Optional text used to search technology icon ids and labels.
   -s, --source <file>      Selected model file. Supplies $tab and infers its context.
   -c, --context <id>       Context for context-wide execution without --source; must match it when both are passed.
       --tab <source>       Backward-compatible alias for --source.

@@ -231,6 +231,7 @@ export type ValueExpression = (
   | { readonly kind: "property"; readonly alias: string; readonly property: string }
   | { readonly kind: "binding"; readonly alias: string }
   | { readonly kind: "list"; readonly values: readonly QueryValue[] }
+  | { readonly kind: "function"; readonly name: "elementId"; readonly arguments: readonly ValueExpression[] }
   | QueryValue
 ) & { readonly range?: QuerySourceRange };
 
@@ -759,6 +760,8 @@ class QueryAstBuilder {
     if (list !== null) {
       return withRange(context, { kind: "list", values: list.valueExpression().map((value) => this.legacyQueryValue(value)) });
     }
+    const call = atom.functionCall();
+    if (call !== null) return this.graphFunction(call);
     const variable = atom.VARIABLE();
     if (variable !== null) return withRange(context, { kind: "variable", name: variable.getText().slice(1) });
     const string = atom.STRING();
@@ -774,6 +777,30 @@ class QueryAstBuilder {
     return withRange(context, this.aliases.has(first)
       ? { kind: "binding", alias: first }
       : { kind: "literal", value: first });
+  }
+
+  private graphFunction(context: FunctionCallContext): ValueExpression {
+    const name = identifierText(required(context.identifier()[0], "function name"));
+    const definition = aiqFunction(name);
+    if (definition === undefined) {
+      throw new AiqQueryError("AIQ_UNKNOWN_FUNCTION", `Unknown AIQ function '${name}'`, contextRange(context));
+    }
+    const arguments_ = context.valueExpression();
+    if (definition.name !== "elementId" || context.IN() !== null || context.STAR() !== null
+        || context.DISTINCT() !== null || arguments_.length !== 1) {
+      throw new AiqQueryError(
+        "AIQ_FUNCTION_SIGNATURE",
+        definition.name === "elementId"
+          ? `${name} requires the form ${definition.signature}`
+          : `Function '${name}' is not supported in graph predicates`,
+        contextRange(context),
+      );
+    }
+    return withRange(context, {
+      kind: "function",
+      name: "elementId",
+      arguments: arguments_.map((value) => this.valueExpression(value)),
+    });
   }
 
   private legacyQueryValue(context: ValueExpressionContext): QueryValue {
