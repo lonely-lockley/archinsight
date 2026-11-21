@@ -3,6 +3,7 @@
   --lumo-font-family: "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", -apple-system, BlinkMacSystemFont, sans-serif;
   --color-cta: #FF7043;
   --color-primary: #36d074;
+  --archinsight-brand: #2ecc71;
 
   font-family: var(--lumo-font-family);
   color: #e6e6e6;
