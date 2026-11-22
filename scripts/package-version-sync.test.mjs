@@ -8,14 +8,24 @@ import test from "node:test";
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
 const synchronizer = path.join(repositoryRoot, "scripts", "sync-package-versions.mjs");
 
-test("synchronizes package and local file-dependency snapshots without rewriting registry entries", () => {
+test("synchronizes package metadata and local file-dependency snapshots without rewriting registry entries", () => {
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "archinsight-version-sync-"));
   try {
-    const language = fixturePackage(temporaryRoot, "language", "@insight/language", "1.0.0");
+    const language = fixturePackage(temporaryRoot, "language", "@insight/language", "1.0.0", {}, {
+      license: "Apache-2.0",
+      dependencies: { runtime: "^2.0.0", adapter: "^1.0.0" },
+      devDependencies: { typescript: "^5.0.0", "@types/node": "^24.0.0" },
+      peerDependencies: { typescript: ">=5" },
+    });
     const consumer = fixturePackage(temporaryRoot, "consumer", "@archinsight/consumer", "1.0.0", {
       "../language": {
         name: "@insight/language",
         version: "1.0.0",
+        dev: true,
+        license: "MIT",
+        dependencies: { stale: "1.0.0" },
+        devDependencies: { stale: "1.0.0" },
+        engines: { node: ">=18" },
       },
       "node_modules/@insight/language": {
         resolved: "../language",
@@ -39,14 +49,29 @@ test("synchronizes package and local file-dependency snapshots without rewriting
     assert.equal(json(path.join(language, "package.json")).version, "2.1.0");
     const languageLock = json(path.join(language, "package-lock.json"));
     assert.equal(languageLock.version, "2.1.0");
-    assert.equal(languageLock.packages[""].version, "2.1.0");
+    assert.deepEqual(languageLock.packages[""], {
+      name: "@insight/language",
+      version: "2.1.0",
+      license: "Apache-2.0",
+      dependencies: { adapter: "^1.0.0", runtime: "^2.0.0" },
+      devDependencies: { "@types/node": "^24.0.0", typescript: "^5.0.0" },
+      peerDependencies: { typescript: ">=5" },
+    });
 
     assert.equal(json(path.join(consumer, "package.json")).version, "3.4.0");
     const consumerLockFile = path.join(consumer, "package-lock.json");
     const consumerLock = json(consumerLockFile);
     assert.equal(consumerLock.version, "3.4.0");
     assert.equal(consumerLock.packages[""].version, "3.4.0");
-    assert.equal(consumerLock.packages["../language"].version, "2.1.0");
+    assert.deepEqual(consumerLock.packages["../language"], {
+      name: "@insight/language",
+      version: "2.1.0",
+      dev: true,
+      license: "Apache-2.0",
+      dependencies: { adapter: "^1.0.0", runtime: "^2.0.0" },
+      devDependencies: { "@types/node": "^24.0.0", typescript: "^5.0.0" },
+      peerDependencies: { typescript: ">=5" },
+    });
     assert.equal(consumerLock.packages["node_modules/registry-package"].version, "9.9.9");
 
     const afterFirstRun = readFileSync(consumerLockFile, "utf8");
@@ -127,10 +152,14 @@ test("Gradle dependency installation remains registry-capable without audit wait
   }
 });
 
-function fixturePackage(root, directoryName, name, version, extraSnapshots = {}) {
+function fixturePackage(root, directoryName, name, version, extraSnapshots = {}, packageMetadata = {}) {
   const directory = path.join(root, directoryName);
   mkdirSync(directory);
-  writeFileSync(path.join(directory, "package.json"), `${JSON.stringify({ name, version }, null, 2)}\n`);
+  writeFileSync(path.join(directory, "package.json"), `${JSON.stringify({
+    name,
+    version,
+    ...packageMetadata,
+  }, null, 2)}\n`);
   writeFileSync(path.join(directory, "package-lock.json"), `${JSON.stringify({
     name,
     version,

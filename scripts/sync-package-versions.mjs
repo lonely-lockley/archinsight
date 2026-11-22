@@ -5,6 +5,19 @@ const plan = parsePlan(process.argv[2]);
 const packageSet = await loadPackages(plan);
 let updatedFiles = 0;
 
+const LOCKFILE_PACKAGE_METADATA_FIELDS = new Set([
+  "license",
+  "dependencies",
+  "devDependencies",
+  "peerDependencies",
+  "peerDependenciesMeta",
+  "optionalDependencies",
+  "bin",
+  "engines",
+  "os",
+  "cpu",
+]);
+
 for (const packageDefinition of packageSet.entries) {
   updatedFiles += await updateJson(packageDefinition.packageJsonFile, (packageJson) => {
     assertPackageName(packageJson, packageDefinition, "package.json");
@@ -22,7 +35,7 @@ for (const packageDefinition of packageSet.entries) {
     }
     assertPackageName(rootSnapshot, packageDefinition, "package-lock.json root snapshot");
     packageLock.version = packageDefinition.version;
-    rootSnapshot.version = packageDefinition.version;
+    synchronizePackageSnapshot(rootSnapshot, packageDefinition);
 
     for (const [snapshotPath, snapshot] of Object.entries(packageLock.packages)) {
       if (snapshotPath === "" || typeof snapshot !== "object" || snapshot === null) {
@@ -33,7 +46,7 @@ for (const packageDefinition of packageSet.entries) {
         continue;
       }
       assertPackageName(snapshot, localPackage, `local snapshot '${snapshotPath}'`);
-      snapshot.version = localPackage.version;
+      synchronizePackageSnapshot(snapshot, localPackage);
     }
   });
 }
@@ -78,6 +91,7 @@ async function loadPackages(packagePlan) {
     const definition = {
       ...entry,
       name: packageJson.name,
+      packageJson,
       packageJsonFile,
       packageLockFile,
     };
@@ -85,6 +99,25 @@ async function loadPackages(packagePlan) {
     byDirectory.set(entry.directory, definition);
   }
   return { entries: result, byDirectory };
+}
+
+function synchronizePackageSnapshot(snapshot, packageDefinition) {
+  snapshot.version = packageDefinition.version;
+  for (const field of LOCKFILE_PACKAGE_METADATA_FIELDS) delete snapshot[field];
+  for (const [field, value] of Object.entries(packageDefinition.packageJson)) {
+    if (LOCKFILE_PACKAGE_METADATA_FIELDS.has(field)) {
+      snapshot[field] = canonicalLockfileValue(value);
+    }
+  }
+}
+
+function canonicalLockfileValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalLockfileValue);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [
+    key,
+    canonicalLockfileValue(value[key]),
+  ]));
 }
 
 function assertPackageName(value, packageDefinition, description) {

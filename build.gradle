@@ -34,7 +34,7 @@ allprojects {
 
 tasks.register('syncPackageVersions') {
     group = 'build'
-    description = 'Synchronizes package.json and package-lock.json versions from settings.gradle.'
+    description = 'Synchronizes package versions and local dependency snapshots from repository package metadata.'
     inputs.property('version', artifactVersion)
     inputs.file('scripts/sync-package-versions.mjs')
     inputs.files(npmArtifacts.collect { it.value.dir.toPath().resolve('package.json').toFile() })
