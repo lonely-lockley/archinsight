@@ -29,6 +29,12 @@ await build({
   ...shared,
   entryPoints: ['src/system-theme.ts', 'src/git-adapter-contract-entry.ts'],
 });
+await build({
+  ...shared,
+  entryPoints: {
+    'project-source-parser-worker': '../packages/insight-language/src/node-parallel-parser-worker.ts',
+  },
+});
 
 mkdirSync('build/licenses', { recursive: true });
 copyFileSync('../packages/archinsight-icons/src/generated/DEVICON-LICENSE', 'build/licenses/DEVICON-LICENSE');

@@ -20,6 +20,7 @@ import {
   type QueryResult,
   type RenderGraph,
 } from "@insight/language";
+import { createNodeParallelSourceParser } from "@insight/language/node-parallel-parser";
 import { isIgnoredProjectSourceDirectory, normalizeProjectSourceIdentity } from "@archinsight/contracts";
 import type { DiagramView, ParsedArgs } from "./cli-arguments.js";
 import { CliError } from "./cli-error.js";
@@ -32,17 +33,37 @@ export interface LoadedProject {
   readonly diagnostics: readonly LanguageDiagnostic[];
 }
 
+const parallelSourceParser = createNodeParallelSourceParser({
+  workerUrl: new URL("./project-source-parser-worker.js", import.meta.url),
+});
+
 export async function loadProject(input: string): Promise<LoadedProject> {
   const root = path.resolve(input);
   const sources = await readSources(root);
   if (sources.length === 0) {
     throw new CliError(`No .ai sources found under '${input}'`);
   }
-  return analyzeProjectSources(root, sources);
+  return analyzeProjectSourcesAsync(root, sources);
+}
+
+export async function analyzeProjectSourcesAsync(
+  root: string,
+  sources: readonly ProjectSource[],
+): Promise<LoadedProject> {
+  const analysis = (await ProjectAnalysisSession.createAsync(sources, parallelSourceParser)).analysis();
+  return loadedProject(root, sources, analysis);
 }
 
 export function analyzeProjectSources(root: string, sources: readonly ProjectSource[]): LoadedProject {
   const analysis = ProjectAnalysisSession.create(sources).analysis();
+  return loadedProject(root, sources, analysis);
+}
+
+function loadedProject(
+  root: string,
+  sources: readonly ProjectSource[],
+  analysis: ReturnType<ProjectAnalysisSession["analysis"]>,
+): LoadedProject {
   return {
     root: path.resolve(root),
     sources,

@@ -14,6 +14,7 @@ const worker = path.join(benchmarkRoot, "benchmark-worker.mjs");
 const options = parseArguments(process.argv.slice(2));
 const trials = options.trials ?? 3;
 const counts = sequence(options.min ?? 10, options.max ?? 250, 10);
+const parseMode = options.sequential ? "sequential" : "parallel";
 
 if (!Number.isInteger(trials) || trials < 1) throw new Error("--trials must be a positive integer");
 if (counts.length === 0 || counts.some((count) => count < 10 || count > 250)) {
@@ -48,6 +49,8 @@ if (options.renderOnly) {
     logicalCpuCount: cpus().length,
     totalMemoryBytes: totalmem(),
     trialsPerExperiment: trials,
+    parseMode,
+    maximumParseWorkers: parseMode === "parallel" ? 4 : 1,
     serviceCounts: counts,
     measurement: "Fresh Node.js process per trial; file reads and module loading excluded from elapsed linking time",
   };
@@ -89,7 +92,7 @@ async function ensureRepository() {
 async function runWorker(serviceCount) {
   const output = await runCommand(
     process.execPath,
-    ["--expose-gc", worker, repository, String(serviceCount)],
+    ["--expose-gc", worker, repository, String(serviceCount), parseMode],
     benchmarkRoot,
     true,
   );
@@ -158,6 +161,8 @@ Generated: ${metadata.generatedAt}
 Host: ${metadata.cpu}, ${metadata.logicalCpuCount} logical CPUs, ${(metadata.totalMemoryBytes / 1024 / 1024 / 1024).toFixed(1)} GiB RAM, ${metadata.node}, ${metadata.platform}/${metadata.architecture}.
 
 Each point is the median of ${metadata.trialsPerExperiment} independent cold links in fresh Node.js processes. Source files are loaded before timing. Peak RSS includes the language runtime and loaded source strings; the final column subtracts RSS immediately before linking to expose the linker's approximate incremental footprint.
+
+Parse mode: ${metadata.parseMode ?? "sequential"}${metadata.maximumParseWorkers === undefined ? "" : `, up to ${metadata.maximumParseWorkers} workers`}.
 
 ![Link scaling](scaling.svg)
 
@@ -297,6 +302,7 @@ function parseArguments(arguments_) {
     else if (argument === "--min") parsed.min = Number(requiredValue(arguments_, ++index, argument));
     else if (argument === "--max") parsed.max = Number(requiredValue(arguments_, ++index, argument));
     else if (argument === "--render-only") parsed.renderOnly = true;
+    else if (argument === "--sequential") parsed.sequential = true;
     else throw new Error(`Unknown argument '${argument}'`);
   }
   return parsed;

@@ -16,7 +16,7 @@ import { createGeneratedInsightSyntaxProvider } from "./generated-provider.js";
 import { renderGraphvizArtifact, type GraphvizIconPlacement, type RenderTheme } from "./graphviz-renderer.js";
 import { linkProject } from "./project-linker.js";
 import { ProjectLinkerState, type ProjectLinkerStateUpdate, type ProjectSourceReplacement } from "./project-linker-state.js";
-import { ProjectAnalysisSession } from "./project-analysis-session.js";
+import { ProjectAnalysisSession, type ProjectSourceBatchParser } from "./project-analysis-session.js";
 import { selectGraph } from "./query-engine.js";
 import { coreOperatorImplementationRegistry } from "./operator-implementation-registry.js";
 
@@ -72,6 +72,13 @@ export class InsightLanguageService {
 
   createProjectAnalysisSession(sources: readonly ProjectSource[]): ProjectAnalysisSession {
     return ProjectAnalysisSession.create(sources, [this.defaultSnapshot]);
+  }
+
+  createProjectAnalysisSessionAsync(
+    sources: readonly ProjectSource[],
+    parseSources: ProjectSourceBatchParser,
+  ): Promise<ProjectAnalysisSession> {
+    return ProjectAnalysisSession.createAsync(sources, parseSources, [this.defaultSnapshot]);
   }
 
   complete(request: ServiceCompletionRequest): CompletionResult {

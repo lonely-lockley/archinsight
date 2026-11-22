@@ -40,9 +40,11 @@ node benchmarks/link-scaling/run-benchmark.mjs --trials 3
 ```
 
 Every trial runs in a fresh Node.js process. Sources are read before the timer,
-so elapsed time covers source classification, parsing, snapshot construction,
+so elapsed time covers four-worker parsing, source classification, snapshot construction,
 linking, deployment expansion, projection, graph inspection, and result
 materialization—not filesystem I/O or module startup.
+
+Use `--sequential` for a diagnostic comparison with the single-threaded parser.
 
 Outputs are in [`results`](results): raw trials, CSV summary, SVG chart, and a
 Markdown report. Regenerate the presentation files without rerunning the

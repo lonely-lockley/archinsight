@@ -69,32 +69,46 @@ Once the dominant graph rebuild is removed from the scale, the next costs at
 - final graph inspection: 1.39 s;
 - projection expansion: 0.26 s.
 
-Source classification and workspace construction currently parse the same
-sources in separate passes. That duplication is a secondary optimization
-candidate, but it is not responsible for the present nonlinear behavior.
+At that stage, source classification and workspace construction parsed the
+same sources in separate passes. That duplication was a secondary cost, but it
+was not responsible for the nonlinear behavior.
 
 Full phase events, call counts, all +10 points, and control-point medians are in
 [`before-phase-results/REPORT.md`](before-phase-results/REPORT.md) and
 [`before-phase-results/raw.json`](before-phase-results/raw.json).
 
-## Optimization result
+## Optimization results
 
 The operator implementation API did not use the partial graph supplied during
 relationship materialization. Removing that graph from the API also removed
-6,454 full graph reconstructions from the 250-service link.
+6,454 full graph reconstructions from the 250-service link. That first change
+reduced the 250-service cold-link median from 112.88 s to 9.84 s. Logical
+relationship materialization fell from **98.66 s to 84.7 ms**.
+
+The remaining grammar work then had two problems: every source was parsed once
+for classification and again for linking, and independent files were parsed
+sequentially. Project analysis now parses each source once, primes the linker
+cache with that result, and distributes cold parsing across at most four Node
+worker threads. The generated ANTLR context types are restored after transfer,
+so definition files and regular architecture sources follow the same path.
 
 ![Cold-link scaling after optimization](results/scaling.svg)
 
-The complete cold-link sweep now grows from 0.38 s at 10 services to a 9.84 s
-median at 250 services. Before the change, the corresponding full-scale median
-was 112.88 s.
+The complete cold-link sweep now grows from 0.28 s at 10 services to a **4.83 s**
+median at 250 services. Peak RSS at full scale is 907 MiB. Relative to the
+original implementation, full-scale linking is 23.4× faster; relative to the
+graph-only optimization, removing duplicate parsing and parallelizing the
+remaining parse is another 2.0× improvement.
 
 ![Linker phase timings after optimization](phase-results/phase-timings.svg)
 
-The profiled full-scale median fell from 108.55 s to 9.85 s. Most importantly,
-logical relationship materialization fell from **98.66 s to 84.7 ms**. The
-operator invocation loop no longer builds an indexed graph; the final graph is
-built once during completion in 29.0 ms.
+The final profiled full-scale median is 4.84 s. Its largest phases are deployment
+expansion at 1.50 s, four-worker parsing at 1.41 s, and completion at 1.34 s,
+including 1.29 s of graph inspection. Source classification is now 0.4 ms and
+reuses the transferred parse results; workspace construction consumes 234 ms,
+of which 75 ms converts cached syntax trees into linker documents. Logical
+relationship materialization remains 83.2 ms, and the final indexed graph is
+built once in 24.7 ms.
 
 Current full scaling measurements are stored in [`results`](results), and the
 current phase profile is stored in [`phase-results`](phase-results).

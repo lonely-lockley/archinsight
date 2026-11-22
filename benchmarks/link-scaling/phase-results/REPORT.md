@@ -1,6 +1,8 @@
 # Linker phase timing report
 
-Generated: 2026-11-22T11:07:25.086Z. Fresh Node.js process per trial; source reads and module loading excluded; profiler is synchronous and opt-in.
+Generated: 2026-11-22T11:37:41.071Z. Fresh Node.js process per trial; source reads and module loading excluded; profiler is synchronous and opt-in.
+
+Parse mode: parallel, up to 4 workers.
 
 Every +10 service point has one phase-profiled run. Control points 10, 80, 140, 180, 210, 220, 250 have three runs and report medians.
 
@@ -10,40 +12,40 @@ Every +10 service point has one phase-profiled run. Control points 10, 80, 140, 
 
 ## Finding
 
-At 250 services, logical relationship materialization consumes 84.7 ms (0.9% of 9849.6 ms total). No operator implementation graph is built inside the relationship loop. The indexed graph is built once during completion in 29.0 ms.
+At 250 services, logical relationship materialization consumes 83.2 ms (1.7% of 4843.9 ms total). No operator implementation graph is built inside the relationship loop. The indexed graph is built once during completion in 24.7 ms.
 
-Cold link time grows 25.5× while service count grows 25×. The other top-level phases at full scale are: source classification 3191.1 ms, snapshot build 1.3 ms, workspace 3498.5 ms, deployment 1499.1 ms, projections 257.7 ms, completion 1317.1 ms.
+Cold link time grows 17.4× while service count grows 25×. The other top-level phases at full scale are: parallel parsing 1409.0 ms, source classification 0.4 ms, snapshot build 1.2 ms, workspace 233.5 ms, deployment 1495.7 ms, projections 259.9 ms, completion 1339.5 ms.
 
-Inside logical relationship materialization, the remaining measured work is: endpoint snapshots 25.9 ms, operator implementation 23.8 ms, resolution and bookkeeping 34.9 ms.
+Inside logical relationship materialization, the remaining measured work is: endpoint snapshots 26.4 ms, operator implementation 22.7 ms, resolution and bookkeeping 34.2 ms.
 
 ## Measurements
 
-| Services | Trials | Total ms | Classify ms | Workspace ms | Deployment ms | Logical ms | Rebuild graph ms | Projection ms | Complete ms |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 10 | 3 | 387.0 | 186.3 | 173.0 | 7.4 | 5.2 | 0.0 | 5.1 | 7.9 |
-| 20 | 1 | 660.1 | 304.6 | 302.3 | 17.9 | 8.6 | 0.0 | 9.6 | 15.6 |
-| 30 | 1 | 955.4 | 429.0 | 438.4 | 31.4 | 13.5 | 0.0 | 14.9 | 26.6 |
-| 40 | 1 | 1245.6 | 552.6 | 567.7 | 49.6 | 15.7 | 0.0 | 21.9 | 36.5 |
-| 50 | 1 | 1564.7 | 675.8 | 703.8 | 75.0 | 21.9 | 0.0 | 28.7 | 57.8 |
-| 60 | 1 | 1896.0 | 811.7 | 842.4 | 98.3 | 30.0 | 0.0 | 34.3 | 77.6 |
-| 70 | 1 | 2208.6 | 917.9 | 1002.2 | 130.4 | 26.0 | 0.0 | 42.6 | 87.7 |
-| 80 | 3 | 2572.2 | 1069.3 | 1134.1 | 168.6 | 29.7 | 0.0 | 49.8 | 118.2 |
-| 90 | 1 | 2839.4 | 1162.9 | 1230.8 | 202.4 | 32.2 | 0.0 | 57.5 | 151.9 |
-| 100 | 1 | 3248.4 | 1288.2 | 1401.2 | 251.8 | 48.2 | 0.0 | 66.5 | 190.8 |
-| 110 | 1 | 3594.2 | 1414.7 | 1526.3 | 301.3 | 37.8 | 0.0 | 74.1 | 238.2 |
-| 120 | 1 | 3973.2 | 1538.6 | 1660.0 | 352.2 | 41.8 | 0.0 | 86.4 | 292.4 |
-| 130 | 1 | 4344.8 | 1663.6 | 1783.7 | 412.1 | 44.8 | 0.0 | 94.6 | 344.1 |
-| 140 | 3 | 4728.9 | 1818.0 | 1946.5 | 480.7 | 48.0 | 0.0 | 106.7 | 328.2 |
-| 150 | 1 | 5056.3 | 1914.5 | 2059.0 | 521.7 | 52.8 | 0.0 | 115.6 | 390.8 |
-| 160 | 1 | 5587.5 | 2045.6 | 2260.5 | 634.4 | 58.9 | 0.0 | 132.2 | 453.9 |
-| 170 | 1 | 5937.4 | 2167.6 | 2349.1 | 685.6 | 59.9 | 0.0 | 139.8 | 533.3 |
-| 180 | 3 | 6517.2 | 2368.7 | 2532.5 | 788.9 | 61.1 | 0.0 | 152.6 | 592.6 |
-| 190 | 1 | 6747.5 | 2396.5 | 2582.1 | 855.1 | 65.0 | 0.0 | 168.4 | 678.2 |
-| 200 | 1 | 7260.7 | 2532.8 | 2759.2 | 961.8 | 68.1 | 0.0 | 180.8 | 755.9 |
-| 210 | 3 | 7828.5 | 2710.1 | 2896.2 | 1072.8 | 73.5 | 0.0 | 196.0 | 854.7 |
-| 220 | 3 | 8276.3 | 2841.4 | 3042.3 | 1158.3 | 97.4 | 0.0 | 209.1 | 960.3 |
-| 230 | 1 | 8692.6 | 2902.5 | 3168.2 | 1280.5 | 77.5 | 0.0 | 222.6 | 1039.2 |
-| 240 | 1 | 9283.3 | 3086.0 | 3332.4 | 1374.8 | 79.2 | 0.0 | 243.8 | 1164.9 |
-| 250 | 3 | 9849.6 | 3191.1 | 3498.5 | 1499.1 | 84.7 | 0.0 | 257.7 | 1317.1 |
+| Services | Trials | Total ms | Parse ms | Classify ms | Workspace ms | Deployment ms | Logical ms | Rebuild graph ms | Projection ms | Complete ms |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10 | 3 | 279.1 | 234.9 | 0.0 | 16.8 | 7.3 | 4.9 | 0.0 | 5.3 | 8.3 |
+| 20 | 1 | 335.1 | 244.1 | 0.1 | 36.7 | 17.9 | 8.6 | 0.0 | 10.5 | 15.5 |
+| 30 | 1 | 393.0 | 261.6 | 0.1 | 41.8 | 32.8 | 12.3 | 0.0 | 16.6 | 25.9 |
+| 40 | 1 | 501.3 | 332.0 | 0.1 | 42.6 | 49.1 | 15.1 | 0.0 | 23.0 | 37.4 |
+| 50 | 1 | 607.6 | 363.5 | 0.1 | 65.1 | 75.9 | 18.7 | 0.0 | 27.2 | 55.4 |
+| 60 | 1 | 741.5 | 419.2 | 0.1 | 79.9 | 102.1 | 23.4 | 0.0 | 35.5 | 79.0 |
+| 70 | 1 | 845.2 | 479.8 | 0.1 | 73.5 | 124.0 | 31.1 | 0.0 | 41.7 | 93.1 |
+| 80 | 3 | 983.5 | 527.6 | 0.1 | 90.6 | 167.4 | 28.5 | 0.0 | 50.2 | 119.5 |
+| 90 | 1 | 1150.0 | 589.6 | 0.1 | 95.4 | 214.4 | 32.4 | 0.0 | 59.4 | 156.4 |
+| 100 | 1 | 1283.1 | 623.8 | 0.2 | 105.7 | 256.6 | 35.8 | 0.0 | 67.4 | 191.7 |
+| 110 | 1 | 1451.3 | 668.1 | 0.2 | 109.4 | 312.5 | 38.8 | 0.0 | 76.7 | 237.9 |
+| 120 | 1 | 1601.4 | 720.5 | 0.2 | 112.1 | 343.9 | 41.3 | 0.0 | 88.0 | 293.3 |
+| 130 | 1 | 1793.4 | 785.4 | 0.2 | 116.9 | 403.0 | 44.6 | 0.0 | 93.8 | 347.0 |
+| 140 | 3 | 1936.5 | 833.9 | 0.2 | 130.1 | 473.6 | 47.6 | 0.0 | 107.1 | 346.0 |
+| 150 | 1 | 2146.0 | 911.2 | 0.2 | 129.1 | 535.4 | 51.6 | 0.0 | 117.9 | 398.3 |
+| 160 | 1 | 2364.2 | 947.3 | 0.2 | 149.9 | 625.9 | 54.4 | 0.0 | 129.4 | 454.8 |
+| 170 | 1 | 2588.1 | 997.2 | 0.2 | 156.3 | 710.7 | 56.4 | 0.0 | 139.6 | 525.3 |
+| 180 | 3 | 2798.3 | 1048.1 | 0.3 | 153.8 | 772.3 | 61.4 | 0.0 | 154.2 | 608.7 |
+| 190 | 1 | 3019.7 | 1087.7 | 0.3 | 159.2 | 862.2 | 61.8 | 0.0 | 165.7 | 675.7 |
+| 200 | 1 | 3299.7 | 1163.0 | 0.3 | 170.5 | 953.7 | 65.0 | 0.0 | 181.0 | 763.6 |
+| 210 | 3 | 3602.4 | 1198.9 | 0.3 | 182.1 | 1058.9 | 70.1 | 0.0 | 196.3 | 893.5 |
+| 220 | 3 | 3875.9 | 1265.4 | 0.3 | 192.1 | 1158.8 | 73.0 | 0.0 | 210.8 | 970.6 |
+| 230 | 1 | 4191.1 | 1308.1 | 0.4 | 213.3 | 1281.7 | 76.0 | 0.0 | 224.7 | 1084.4 |
+| 240 | 1 | 4477.7 | 1354.0 | 0.3 | 209.6 | 1385.9 | 78.8 | 0.0 | 240.9 | 1205.6 |
+| 250 | 3 | 4843.9 | 1409.0 | 0.4 | 233.5 | 1495.7 | 83.2 | 0.0 | 259.9 | 1339.5 |
 
 Raw profiler events and call counts are in [raw.json](raw.json); selected phase medians are in [summary.csv](summary.csv).

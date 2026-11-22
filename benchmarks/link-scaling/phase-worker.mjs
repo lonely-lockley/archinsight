@@ -5,8 +5,9 @@ import path from "node:path";
 import process from "node:process";
 import { performance } from "node:perf_hooks";
 import { ProjectAnalysisSession } from "../../packages/insight-language/build/runtime/index.js";
+import { createNodeParallelSourceParser } from "../../packages/insight-language/build/runtime/node-parallel-parser.js";
 
-const [repositoryArgument, countArgument] = process.argv.slice(2);
+const [repositoryArgument, countArgument, modeArgument] = process.argv.slice(2);
 if (repositoryArgument === undefined || countArgument === undefined) {
   throw new Error("Usage: phase-worker.mjs <repository> <service-count>");
 }
@@ -39,7 +40,23 @@ const profiler = {
 
 global.gc?.();
 const started = performance.now();
-const analysis = ProjectAnalysisSession.create(sources, undefined, profiler).analysis();
+const parser = createNodeParallelSourceParser({
+  workerUrl: new URL("../../packages/insight-language/build/runtime/node-parallel-parser-worker.js", import.meta.url),
+});
+const session = modeArgument === "parallel"
+  ? await ProjectAnalysisSession.createAsync(sources, async (input) => {
+    const parseStarted = performance.now();
+    try {
+      return await parser(input);
+    } finally {
+      phases.set("session.parse-sources-parallel", {
+        calls: 1,
+        elapsedMs: performance.now() - parseStarted,
+      });
+    }
+  }, undefined, profiler)
+  : ProjectAnalysisSession.create(sources, undefined, profiler);
+const analysis = session.analysis();
 const elapsedMs = performance.now() - started;
 const errors = analysis.diagnostics.filter(
   (diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR",
@@ -53,6 +70,7 @@ if (errors.length > 0) {
 
 console.log(JSON.stringify({
   serviceCount,
+  parseMode: modeArgument === "parallel" ? "parallel" : "sequential",
   sourceCount: sources.length,
   sourceLines: selectedFiles.reduce((sum, file) => sum + file.lines, 0),
   elapsedMs,

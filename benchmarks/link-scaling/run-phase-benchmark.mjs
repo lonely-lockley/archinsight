@@ -13,6 +13,7 @@ const worker = path.join(benchmarkRoot, "phase-worker.mjs");
 const allCounts = sequence(10, 250, 10);
 const controlCounts = [10, 80, 140, 180, 210, 220, 250];
 const renderOnly = process.argv.includes("--render-only");
+const parseMode = process.argv.includes("--sequential") ? "sequential" : "parallel";
 
 await mkdir(outputDirectory, { recursive: true });
 
@@ -39,6 +40,8 @@ if (renderOnly) {
     node: process.version,
     platform: process.platform,
     architecture: process.arch,
+    parseMode,
+    maximumParseWorkers: parseMode === "parallel" ? 4 : 1,
     oneTrialCounts: allCounts.filter((count) => !controlCounts.includes(count)),
     threeTrialCounts: controlCounts,
     methodology: "Fresh Node.js process per trial; source reads and module loading excluded; profiler is synchronous and opt-in",
@@ -74,7 +77,7 @@ async function ensureRepository() {
 async function runWorker(serviceCount) {
   const output = await runCommand(
     process.execPath,
-    ["--expose-gc", worker, repository, String(serviceCount)],
+    ["--expose-gc", worker, repository, String(serviceCount), parseMode],
     benchmarkRoot,
     true,
   );
@@ -108,6 +111,7 @@ function summarize(experimentRuns, phaseNames) {
 
 function summaryCsv(summaries) {
   const selectedPhases = [
+    "session.parse-sources-parallel",
     "session.classify-sources",
     "session.build-snapshot",
     "link.workspace",
@@ -147,11 +151,13 @@ Cold link time grows ${(full.elapsedMs / ten.elapsedMs).toFixed(1)}× while serv
     : graphRebuildFinding(summaries, full, ten, graphPhase, logicalShare, topLevelPhases);
   const table = summaries.map((row) => {
     const graph = row.phases["link.logical.build-implementation-graph"]?.elapsedMs ?? 0;
-    return `| ${row.serviceCount} | ${row.trials} | ${row.elapsedMs.toFixed(1)} | ${row.phases["session.classify-sources"].elapsedMs.toFixed(1)} | ${row.phases["link.workspace"].elapsedMs.toFixed(1)} | ${row.phases["link.deployment"].elapsedMs.toFixed(1)} | ${row.phases["link.logical-relationships"].elapsedMs.toFixed(1)} | ${graph.toFixed(1)} | ${row.phases["link.projections"].elapsedMs.toFixed(1)} | ${row.phases["link.complete"].elapsedMs.toFixed(1)} |`;
+    return `| ${row.serviceCount} | ${row.trials} | ${row.elapsedMs.toFixed(1)} | ${phase(row, "session.parse-sources-parallel").toFixed(1)} | ${phase(row, "session.classify-sources").toFixed(1)} | ${phase(row, "link.workspace").toFixed(1)} | ${phase(row, "link.deployment").toFixed(1)} | ${phase(row, "link.logical-relationships").toFixed(1)} | ${graph.toFixed(1)} | ${phase(row, "link.projections").toFixed(1)} | ${phase(row, "link.complete").toFixed(1)} |`;
   }).join("\n");
   return `# Linker phase timing report
 
 Generated: ${metadata.generatedAt}. ${metadata.methodology}.
+
+Parse mode: ${metadata.parseMode ?? "sequential"}${metadata.maximumParseWorkers === undefined ? "" : `, up to ${metadata.maximumParseWorkers} workers`}.
 
 Every +10 service point has one phase-profiled run. Control points ${metadata.threeTrialCounts.join(", ")} have three runs and report medians.
 
@@ -167,8 +173,8 @@ Inside logical relationship materialization, the remaining measured work is: ${l
 
 ## Measurements
 
-| Services | Trials | Total ms | Classify ms | Workspace ms | Deployment ms | Logical ms | Rebuild graph ms | Projection ms | Complete ms |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Services | Trials | Total ms | Parse ms | Classify ms | Workspace ms | Deployment ms | Logical ms | Rebuild graph ms | Projection ms | Complete ms |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 ${table}
 
 Raw profiler events and call counts are in [raw.json](raw.json); selected phase medians are in [summary.csv](summary.csv).
@@ -192,6 +198,7 @@ Cold link time grows ${(full.elapsedMs / ten.elapsedMs).toFixed(1)}× while serv
 
 function topLevelBreakdown(row) {
   return [
+    ["parallel parsing", phase(row, "session.parse-sources-parallel")],
     ["source classification", phase(row, "session.classify-sources")],
     ["snapshot build", phase(row, "session.build-snapshot")],
     ["workspace", phase(row, "link.workspace")],
@@ -275,6 +282,7 @@ function secondaryPhaseChart(summaries) {
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
   const series = [
+    ["Parallel parse", (row) => phase(row, "session.parse-sources-parallel"), "#111827"],
     ["Source classification", (row) => phase(row, "session.classify-sources"), "#7c3aed"],
     ["Workspace parse", (row) => phase(row, "link.workspace.parse-documents"), "#2563eb"],
     ["Deployment", (row) => phase(row, "link.deployment"), "#dc2626"],

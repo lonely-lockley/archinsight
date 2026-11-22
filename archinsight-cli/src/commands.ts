@@ -53,7 +53,7 @@ import {
   writeOutput,
 } from "./cli-output.js";
 import {
-  analyzeProjectSources,
+  analyzeProjectSourcesAsync,
   declaredDeploymentEnvironments,
   formatDeploymentEnvironments,
   loadProject,
@@ -154,7 +154,7 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
       beforeRevision,
       afterRevision,
       signal,
-      buildRevision: (sources) => analyzeProjectSources(repository.projectRoot, sources),
+      buildRevision: (sources) => analyzeProjectSourcesAsync(repository.projectRoot, sources),
       validateRevision: (project, side) => {
         diagnostics.push(...project.diagnostics.map((diagnostic) => ({
           ...diagnostic,

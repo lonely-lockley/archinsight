@@ -5,8 +5,9 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { ProjectAnalysisSession } from "../../packages/insight-language/build/runtime/index.js";
+import { createNodeParallelSourceParser } from "../../packages/insight-language/build/runtime/node-parallel-parser.js";
 
-const [repositoryArgument, countArgument] = process.argv.slice(2);
+const [repositoryArgument, countArgument, modeArgument] = process.argv.slice(2);
 if (repositoryArgument === undefined || countArgument === undefined) {
   throw new Error("Usage: benchmark-worker.mjs <repository> <service-count>");
 }
@@ -26,7 +27,12 @@ global.gc?.();
 const rssBeforeBytes = process.memoryUsage().rss;
 const heapUsedBeforeBytes = process.memoryUsage().heapUsed;
 const started = process.hrtime.bigint();
-const analysis = ProjectAnalysisSession.create(sources).analysis();
+const session = modeArgument === "parallel"
+  ? await ProjectAnalysisSession.createAsync(sources, createNodeParallelSourceParser({
+    workerUrl: new URL("../../packages/insight-language/build/runtime/node-parallel-parser-worker.js", import.meta.url),
+  }))
+  : ProjectAnalysisSession.create(sources);
+const analysis = session.analysis();
 const elapsedNanoseconds = process.hrtime.bigint() - started;
 const memoryAfter = process.memoryUsage();
 const peakRssBytes = process.resourceUsage().maxRSS * 1024;
@@ -43,6 +49,7 @@ if (errors.length > 0) {
 
 console.log(JSON.stringify({
   serviceCount,
+  parseMode: modeArgument === "parallel" ? "parallel" : "sequential",
   sourceCount: sources.length,
   sourceLines: selectedFiles.reduce((sum, file) => sum + file.lines, 0),
   sourceBytes: selectedFiles.reduce((sum, file) => sum + file.bytes, 0),

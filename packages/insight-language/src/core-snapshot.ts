@@ -33,6 +33,7 @@ import {
   sourceLocationOf,
   textOf,
   type AntlrParseTreeLike,
+  type ParsedSource,
 } from "./parser-facade.js";
 import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 import { coreSource, coreSources } from "./generated/core-source.js";
@@ -127,6 +128,21 @@ export function buildLanguageSnapshotResultFromSources(
   baseSnapshots: readonly LanguageSnapshot[] = [],
 ): LanguageBuildResult {
   const collected = sources.map((source) => collectLanguageSnapshotSource(source.sourceName, source.source, false));
+  return buildLanguageSnapshotResult(collected, baseSnapshots);
+}
+
+export function buildLanguageSnapshotResultFromParsedSources(
+  sources: readonly ParsedSource[],
+  baseSnapshots: readonly LanguageSnapshot[] = [],
+): LanguageBuildResult {
+  const collected = sources.map((source) => collectParsedLanguageSnapshotSource(source, false));
+  return buildLanguageSnapshotResult(collected, baseSnapshots);
+}
+
+function buildLanguageSnapshotResult(
+  collected: readonly CollectedLanguageSnapshotSource[],
+  baseSnapshots: readonly LanguageSnapshot[],
+): LanguageBuildResult {
   const validSnapshots = collected.flatMap((source) =>
     source.diagnostics.length === 0 ? [source.snapshot] : []
   );
@@ -348,13 +364,20 @@ function collectLanguageSnapshotSource(
   source: string,
   includeBuiltinTypes: boolean,
 ): CollectedLanguageSnapshotSource {
+  return collectParsedLanguageSnapshotSource(parseInsightSource({ sourceName, source }), includeBuiltinTypes);
+}
+
+function collectParsedLanguageSnapshotSource(
+  parsed: ParsedSource,
+  includeBuiltinTypes: boolean,
+): CollectedLanguageSnapshotSource {
+  const { sourceName } = parsed;
   const diagnostics: LanguageDiagnostic[] = [];
   const typeDeclarations: DeclarationReference[] = [];
   const typeExtensions: DeclarationReference[] = [];
   const enumDeclarations: DeclarationReference[] = [];
   const enumExtensions: DeclarationReference[] = [];
   const presentationExtensions: DeclarationReference[] = [];
-  const parsed = parseInsightSource({ sourceName, source });
   diagnostics.push(...parsed.diagnostics);
 
   const types = new Map<string, MutableTypeDefinition>();

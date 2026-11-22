@@ -407,6 +407,10 @@ export class ProjectLinkerSourceCache {
     this.entries.delete(sourceName);
   }
 
+  prime(parsed: ParsedSource): void {
+    this.entries.set(parsed.sourceName, { source: parsed.source, parsed });
+  }
+
   parse(sourceName: string, source: string): ParsedSource {
     const cached = this.entries.get(sourceName);
     if (cached?.source === source) {

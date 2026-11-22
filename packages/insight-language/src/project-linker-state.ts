@@ -10,6 +10,7 @@ import {
   linkProjectWithSourceCache,
   ProjectLinkerSourceCache,
 } from "./project-linker.js";
+import type { ParsedSource } from "./parser-facade.js";
 import type { ProjectLinkerProfiler } from "./project-linker-profiler.js";
 
 export interface ProjectSourceReplacement {
@@ -50,6 +51,14 @@ export class ProjectLinkerState {
 
   result(): LinkProjectResult {
     return this.currentResult;
+  }
+
+  parsedSource(sourceName: string, source: string): ParsedSource {
+    return this.sourceCache.parse(sourceName, source);
+  }
+
+  sourceParseCount(): number {
+    return this.sourceCache.parseCount();
   }
 
   /**

@@ -6,6 +6,7 @@ import { loadTechnologyIconSvg, technologyIconCatalog } from '../../packages/arc
 for (const output of [
   'dist/extension.cjs',
   'dist/project-analysis-worker.cjs',
+  'dist/project-source-parser-worker.cjs',
   'dist/diagram-viz-worker.cjs',
   'dist/diagram-viz-worker.mjs',
   'dist/diagram-chunks',
@@ -23,7 +24,11 @@ const shared = {
 
 await build({
   ...shared,
-  entryPoints: ['src/extension.ts', 'src/project-analysis-worker.ts'],
+  entryPoints: {
+    extension: 'src/extension.ts',
+    'project-analysis-worker': 'src/project-analysis-worker.ts',
+    'project-source-parser-worker': '../packages/insight-language/src/node-parallel-parser-worker.ts',
+  },
   format: 'cjs',
   entryNames: '[name]',
   outExtension: { '.js': '.cjs' },
