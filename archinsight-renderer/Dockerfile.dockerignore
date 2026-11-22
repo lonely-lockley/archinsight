@@ -4,6 +4,8 @@
 !archinsight-renderer/package-lock.json
 !archinsight-renderer/src
 !archinsight-renderer/src/**
+!archinsight-renderer/scripts
+!archinsight-renderer/scripts/**
 !packages
 !packages/archinsight-icons
 !packages/archinsight-icons/package.json

@@ -36,11 +36,16 @@ ENV NODE_ENV=production \
     WORKER_MAX_YOUNG_GENERATION_MB=16 \
     WORKER_STACK_MB=4
 WORKDIR /app
-COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+# Keep dependencies at the common filesystem root. Local file packages execute
+# from /packages, so both /app and /packages must be able to resolve the same
+# dependency tree through normal Node.js parent-directory lookup.
+COPY --from=deps --chown=node:node /app/node_modules /node_modules
 COPY --from=deps --chown=node:node /packages /packages
 COPY --chown=node:node archinsight-renderer/package.json ./
 COPY --chown=node:node archinsight-renderer/src ./src
+COPY --chown=node:node archinsight-renderer/scripts ./scripts
 USER node
+RUN node scripts/verify-runtime-dependencies.mjs
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
