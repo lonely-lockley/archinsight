@@ -27,7 +27,7 @@ await build({
 });
 await build({
   ...shared,
-  entryPoints: ['src/system-theme.ts', 'src/git-adapter-contract-entry.ts'],
+  entryPoints: ['src/system-theme.ts', 'src/git-adapter-contract-entry.ts', 'src/cache-contract-entry.ts'],
 });
 await build({
   ...shared,

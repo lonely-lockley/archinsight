@@ -176,6 +176,20 @@ The source is the diagram entry point and determines its context. An explicit
 `--context` is useful for context-wide C1 or `no-filter` execution without a
 source; it is not required alongside a source-scoped view.
 
+### Reusing CLI project analysis
+
+Commands that analyze the current project keep reusable state in
+`.archinsight/cache`. The first command builds it; later commands reuse
+unchanged work, while source edits update the cached analysis. No cache setup is
+required.
+
+The cache is local, disposable data and should be excluded from Git with
+`.archinsight/cache/`. Removing it causes a cold analysis on the next command
+but does not affect project sources. Use `--no-cache` for one uncached run or
+`--cache-dir <dir>` to choose another location. If cached data is unreadable,
+damaged, or belongs to an incompatible CLI version, the CLI ignores it and
+analyzes the project normally.
+
 ## Generating Graphviz DOT
 
 DOT generation translates the render graph into a Graphviz directed graph. It is a deterministic formatting stage: graph structure comes from linking and selection, while presentation definitions decide labels, colors, shapes, line styles, and layout hints.

@@ -6,7 +6,13 @@ import type {
   ProjectSource,
 } from "./contracts.js";
 import { buildLanguageSnapshotResultFromParsedSources, coreLanguageSnapshot } from "./core-snapshot.js";
-import { parseInsightSource, type ParsedSource, type SourceAnalysisMetadata } from "./parser-facade.js";
+import { IndexedGraph, type IndexedGraphSnapshot } from "./indexed-graph.js";
+import {
+  parseInsightSource,
+  type ParsedSource,
+  type PortableParsedSource,
+  type SourceAnalysisMetadata,
+} from "./parser-facade.js";
 import { ProjectLinkerSourceCache } from "./project-linker.js";
 import { ProjectLinkerState } from "./project-linker-state.js";
 import {
@@ -38,6 +44,41 @@ export interface ProjectAnalysisUpdate extends ProjectAnalysis {
 export type ProjectSourceBatchParser = (
   sources: readonly ProjectSource[],
 ) => Promise<readonly ParsedSource[]>;
+
+export interface PortableLinkProjectResult extends Omit<LinkProjectResult, "graph"> {
+  readonly graph: IndexedGraphSnapshot;
+}
+
+export interface PortableProjectAnalysisState {
+  readonly sources: readonly ProjectSource[];
+  readonly snapshotSourceNames: readonly string[];
+  readonly snapshotBuild: LanguageBuildResult;
+  readonly result: PortableLinkProjectResult;
+}
+
+export interface PortableProjectAnalysisSession extends PortableProjectAnalysisState {
+  readonly parsedSources: readonly PortableParsedSource[];
+}
+
+export function restorePortableProjectAnalysis(portable: PortableProjectAnalysisState): ProjectAnalysis {
+  const sourcesByName = normalizedSources(portable.sources);
+  if (sourcesByName.size !== portable.sources.length) throw new Error("Cached analysis contains duplicate source names");
+  if (portable.snapshotSourceNames.some((sourceName) => !sourcesByName.has(normalizeSourceName(sourceName)))) {
+    throw new Error("Cached analysis references an unknown snapshot source");
+  }
+  const linkedResult: LinkProjectResult = {
+    ...portable.result,
+    graph: IndexedGraph.fromSnapshot(portable.result.graph),
+  };
+  const diagnostics = uniqueDiagnostics([...portable.snapshotBuild.diagnostics, ...linkedResult.diagnostics]);
+  return {
+    sources: [...sourcesByName.values()],
+    snapshotSources: portable.snapshotSourceNames.map(normalizeSourceName),
+    snapshotBuild: portable.snapshotBuild,
+    result: { ...linkedResult, diagnostics },
+    diagnostics,
+  };
+}
 
 interface SourceChange {
   readonly sourceName: string;
@@ -85,6 +126,40 @@ export class ProjectAnalysisSession {
     return ProjectAnalysisSession.createNormalized(sourcesByName, baseSnapshots, profiler, parsedSources);
   }
 
+  static restore(
+    portable: PortableProjectAnalysisSession,
+    baseSnapshots: readonly LanguageSnapshot[] = [coreLanguageSnapshot],
+    profiler?: ProjectLinkerProfiler,
+  ): ProjectAnalysisSession {
+    const sourcesByName = normalizedSources(portable.sources);
+    if (sourcesByName.size !== portable.sources.length || portable.parsedSources.length !== portable.sources.length) {
+      throw new Error("Cached analysis contains duplicate source names");
+    }
+    if (portable.snapshotSourceNames.some((sourceName) => !sourcesByName.has(normalizeSourceName(sourceName)))) {
+      throw new Error("Cached analysis references an unknown snapshot source");
+    }
+    const sourceCache = new ProjectLinkerSourceCache();
+    for (const parsed of portable.parsedSources) {
+      const source = sourcesByName.get(normalizeSourceName(parsed.sourceName));
+      if (source?.source !== parsed.source) throw new Error("Cached parsed source does not match its project source");
+      sourceCache.primePortable(parsed);
+    }
+    const result = restorePortableProjectAnalysis(portable).result;
+    return new ProjectAnalysisSession(
+      baseSnapshots,
+      sourcesByName,
+      portable.snapshotBuild,
+      portable.snapshotSourceNames.map(normalizeSourceName),
+      new ProjectLinkerState(
+        { snapshot: portable.snapshotBuild.snapshot, sources: [...sourcesByName.values()] },
+        result,
+        sourceCache,
+        profiler,
+      ),
+      profiler,
+    );
+  }
+
   private static createNormalized(
     sourcesByName: Map<string, ProjectSource>,
     baseSnapshots: readonly LanguageSnapshot[],
@@ -117,6 +192,20 @@ export class ProjectAnalysisSession {
     });
   }
 
+  portableSnapshot(): PortableProjectAnalysisSession {
+    const result = this.state.result();
+    return {
+      sources: [...this.sourcesByName.values()],
+      parsedSources: this.state.portableParsedSources(),
+      snapshotSourceNames: this.snapshotSourceNames,
+      snapshotBuild: this.snapshotBuild,
+      result: {
+        ...result,
+        graph: result.graph.snapshot(),
+      },
+    };
+  }
+
   fork(): ProjectAnalysisSession {
     return new ProjectAnalysisSession(
       this.baseSnapshots,
@@ -137,7 +226,7 @@ export class ProjectAnalysisSession {
     }
     const parseCountBeforeClassification = this.state.sourceParseCount();
     const metadata = (sourceName: string, source: string | undefined): SourceAnalysisMetadata =>
-      source === undefined ? emptySourceMetadata() : this.state.parsedSource(sourceName, source).metadata;
+      source === undefined ? emptySourceMetadata() : this.state.sourceMetadata(sourceName, source);
     if (!canUpdateIncrementally(changes, metadata)) {
       const parsedSources = [...nextSources.values()].map((source) =>
         this.state.parsedSource(source.sourceName, source.source)

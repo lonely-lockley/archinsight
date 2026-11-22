@@ -110,7 +110,13 @@ The resulting `architecture.svg` contains the systems, containers, services, and
 
 The CLI is the local and automation interface for an Insight project. It links and validates models, prints project structure, executes graph queries, renders diagrams, produces semantic visual diffs between git revisions, runs deterministic diagram quick actions, and generates agent skills.
 
-The [CLI reference](archinsight-cli/README.md) describes the query, render, diff, quick-action, and output options. Every diagram-producing command supports `text`, `json`, `dot`, `svg`, and `png`. Diagram rendering follows the system light/dark preference by default and accepts an explicit `--theme light` or `--theme dark` override.
+The [CLI guide](docs/cli.md) covers installation and day-to-day workflows. The
+[package reference](archinsight-cli/README.md) lists the complete command and
+option surface. Current-project analysis is cached in `.archinsight/cache` by
+default, so repeated CLI calls can reuse unchanged work. Every
+diagram-producing command supports `text`, `json`, `dot`, `svg`, and `png`.
+Diagram rendering follows the system light/dark preference by default and
+accepts an explicit `--theme light` or `--theme dark` override.
 
 Use quick actions for common semantic subdiagrams without writing a temporary
 `.aiq` query:

@@ -42,11 +42,15 @@ import {
   firstChildByRule,
   firstDescendantByRule,
   parseInsightSource,
+  hydrateParsedSource,
+  portableParsedSource,
   sourceRangeOf,
   tokenText,
   tokenType as tokenTypeOf,
   type AntlrParseTreeLike,
   type ParsedSource,
+  type PortableParsedSource,
+  type SourceAnalysisMetadata,
 } from "./parser-facade.js";
 import { CONTEXT, EDGE, NOTHING, TypeSystem } from "./type-system.js";
 import {
@@ -384,11 +388,19 @@ export function linkProject(request: LinkProjectRequest): LinkProjectResult {
 }
 
 export class ProjectLinkerSourceCache {
-  private readonly entries: Map<string, { readonly source: string; readonly parsed: ParsedSource }>;
+  private readonly entries: Map<string, {
+    readonly source: string;
+    parsed?: ParsedSource;
+    readonly portable?: PortableParsedSource;
+  }>;
   private parseMisses: number;
 
   constructor(
-    entries: ReadonlyMap<string, { readonly source: string; readonly parsed: ParsedSource }> = new Map(),
+    entries: ReadonlyMap<string, {
+      readonly source: string;
+      readonly parsed?: ParsedSource;
+      readonly portable?: PortableParsedSource;
+    }> = new Map(),
     parseMisses = 0,
   ) {
     this.entries = new Map(entries);
@@ -403,6 +415,12 @@ export class ProjectLinkerSourceCache {
     return this.parseMisses;
   }
 
+  portableParsedSources(): readonly PortableParsedSource[] {
+    return [...this.entries.values()]
+      .map((entry) => entry.portable ?? portableParsedSource(entry.parsed!))
+      .sort((left, right) => left.sourceName.localeCompare(right.sourceName));
+  }
+
   delete(sourceName: string): void {
     this.entries.delete(sourceName);
   }
@@ -411,10 +429,25 @@ export class ProjectLinkerSourceCache {
     this.entries.set(parsed.sourceName, { source: parsed.source, parsed });
   }
 
+  primePortable(portable: PortableParsedSource): void {
+    this.entries.set(portable.sourceName, { source: portable.source, portable });
+  }
+
+  metadata(sourceName: string, source: string): SourceAnalysisMetadata {
+    const cached = this.entries.get(sourceName);
+    if (cached?.source === source) {
+      return (cached.parsed ?? cached.portable!).metadata;
+    }
+    return this.parse(sourceName, source).metadata;
+  }
+
   parse(sourceName: string, source: string): ParsedSource {
     const cached = this.entries.get(sourceName);
     if (cached?.source === source) {
-      return cached.parsed;
+      if (cached.parsed !== undefined) return cached.parsed;
+      const parsed = hydrateParsedSource(cached.portable!);
+      cached.parsed = parsed;
+      return parsed;
     }
     const parsed = parseInsightSource({ sourceName, source });
     this.entries.set(sourceName, { source, parsed });

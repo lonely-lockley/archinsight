@@ -10,7 +10,7 @@ import {
   linkProjectWithSourceCache,
   ProjectLinkerSourceCache,
 } from "./project-linker.js";
-import type { ParsedSource } from "./parser-facade.js";
+import type { ParsedSource, PortableParsedSource, SourceAnalysisMetadata } from "./parser-facade.js";
 import type { ProjectLinkerProfiler } from "./project-linker-profiler.js";
 
 export interface ProjectSourceReplacement {
@@ -59,6 +59,14 @@ export class ProjectLinkerState {
 
   sourceParseCount(): number {
     return this.sourceCache.parseCount();
+  }
+
+  portableParsedSources(): readonly PortableParsedSource[] {
+    return this.sourceCache.portableParsedSources();
+  }
+
+  sourceMetadata(sourceName: string, source: string): SourceAnalysisMetadata {
+    return this.sourceCache.metadata(sourceName, source);
   }
 
   /**

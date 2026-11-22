@@ -1,7 +1,12 @@
-# CLI Installation, Updates, and Skill Regeneration
+# Archinsight CLI
 
 The generated skill uses the Archinsight CLI as its parser, linker, query
-runtime, and validation authority. Check the available command before editing:
+runtime, renderer, and validation authority. This file is the complete
+agent-facing command reference bundled with the skill.
+
+## Check the Installed Runtime
+
+Check the available command before editing:
 
 ```shell
 archinsight --version
@@ -13,7 +18,99 @@ developer environment or the project's dependency manifest and lockfile. Use an
 existing installation when possible; otherwise ask the user to authorize the
 appropriate installation method.
 
-## Project-Local Installation
+The generated reference matches the CLI version recorded in the skill. When
+the installed version differs, trust `archinsight --help` for its option surface
+and regenerate the skill before making language-sensitive changes.
+
+## Project Input
+
+Project commands accept a project directory, which defaults to the current
+directory. The CLI discovers `.ai` files recursively and ignores hidden and
+generated directories. Pass one `.ai` file instead when that file alone should
+form the project.
+
+```shell
+archinsight link . --format text
+archinsight link path/to/project --format text
+archinsight link models/storefront.ai --format text
+```
+
+Use paths from the repository root when possible. Do not assemble a substitute
+project by concatenating sources or parsing imports yourself.
+
+## Command Reference
+
+| Command | Agent use |
+| --- | --- |
+| `link` | Validate parsing, types, imports, references, operators, and linking before reporting success. |
+| `structure` | Discover contexts, sources, types, canonical element ids, and relationships from the linked project. |
+| `query` | Inspect a built-in view or execute a project `.aiq` graph/table query. |
+| `render` | Produce text, JSON, DOT, SVG, or PNG from a graph-returning view. |
+| `environments` | Discover all deployment environments or those relevant to one source. |
+| `quick-action` | Run Drill down, Isolate, Deployment, Find path, or declaration lookup without inventing an AIQ query. |
+| `diff` | Compare one semantic diagram scope between two Git revisions. |
+| `icons` | List or search valid technology-icon ids. |
+| `skill init` | Generate or deliberately replace an agent skill package. |
+
+```shell
+archinsight link [project-dir] [--format text|json] [--out file]
+archinsight structure [project-dir] [--format text|json] [--out file]
+archinsight query [project-dir] [-s source.ai] [-c context] [-v view | -q query.aiq] [-e environment] [--param name=json] [--params file.json] [-f text|json|csv] [-o file]
+archinsight render [project-dir] [-s source.ai] [-c context] [-v view | -q query.aiq] [-e environment] [-t system|light|dark] [-f text|json|dot|svg|png] [-o file]
+archinsight environments [project-dir] [-s source.ai] [--format text|json] [--out file]
+archinsight quick-action <drill-down|isolate|deployment|find-path|declaration> [project-dir] [options]
+archinsight diff [project-dir] --from revision --to revision [-s source.ai] [-c context] [-v view | -q query.aiq] [-e environment] [-f text|json|dot|svg|png] [-o file]
+archinsight icons [search] [--format text|json]
+archinsight skill init [project-dir] --target <codex|claude|generic> [--out dir] [--force]
+```
+
+Current-project analysis commands also accept `--no-cache` or
+`--cache-dir <dir>`. Query execution can be bounded with `--max-expansions`,
+`--max-rows`, `--max-values`, `--max-output-bytes`, and `--timeout-ms`; every
+limit must be a positive integer.
+
+Use `link` after every Insight edit. Use `structure` rather than text searches
+when a command needs a canonical id. For a visual defect, inspect `query`
+JSON before `render` so graph-selection problems remain separate from layout or
+image problems.
+
+## Output and Failure Contract
+
+Payload output goes to stdout unless `--out <file>` is supplied. Diagnostics,
+progress, and completion records go to stderr, so JSON, CSV, SVG, PNG, and other
+payloads can be consumed without scraping logs. `link --format text` is a
+validation report and writes that report to stderr.
+
+Use `--format` explicitly when the result is consumed by another tool. Graph
+queries support text and JSON; table queries support text, JSON, and CSV;
+diagram-producing commands support text, JSON, DOT, SVG, and PNG. `--out`
+replaces its destination atomically after successful execution.
+
+A non-zero exit means the requested result was not produced successfully. Do
+not infer success from an output file left by an earlier run. Report linker
+diagnostics with their source and location, and address the first underlying
+error before interpreting downstream query or render output.
+
+## Project Analysis Cache
+
+Project analysis commands use `.archinsight/cache` by default. Leave the cache
+enabled for normal agent workflows: repeated `link`, `structure`, `query`,
+`render`, `environments`, and `quick-action` calls can reuse unchanged work.
+The CLI detects source-content changes and refreshes the stored analysis.
+
+Treat the directory as disposable generated data. Do not inspect or edit cache
+files, use them as architecture evidence, or include them in a commit. Ensure
+`.archinsight/cache/` is ignored when maintaining the repository.
+
+Use `--no-cache` only for an intentional cold run or to reproduce a suspected
+cache problem. Use `--cache-dir <dir>` when the task requires an explicit
+alternate location; the two options are mutually exclusive. Do not delete or
+rewrite cache files to repair an ordinary command failure. A damaged,
+incomplete, or incompatible cache is ignored automatically. If cached and
+uncached runs produce different semantic results from the same sources, report
+the discrepancy as a CLI defect.
+
+## Project-Local Installation and Updates
 
 Prefer a project-local dependency when the repository already manages Node.js
 developer tools this way. Respect its package manager and lockfile. For an npm
@@ -27,7 +124,7 @@ npm exec -- archinsight --version
 Use the equivalent command for pnpm or Yarn when that package manager owns the
 repository. Do not introduce a second lockfile merely to install Archinsight.
 
-## Global Installation
+## Global Installation and Updates
 
 A user who wants the `archinsight` command available across projects can
 install or update it globally:

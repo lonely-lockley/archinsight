@@ -70,8 +70,15 @@ import { installSkillPackage } from "./skill/skill-installer.js";
 import { skillPackage } from "./skill/skill-package.js";
 import { resolveRenderTheme } from "./system-theme.js";
 
+function loadCliProject(args: ParsedArgs): Promise<LoadedProject> {
+  return loadProject(projectPath(args), {
+    disabled: args.noCache,
+    ...(args.cacheDirectory === undefined ? {} : { directory: args.cacheDirectory }),
+  });
+}
+
 export async function runLink(args: ParsedArgs): Promise<void> {
-  const project = await loadProject(projectPath(args));
+  const project = await loadCliProject(args);
   const format = outputFormat(args.format, "text");
   if (format === "json") {
     await writeOutput(args.output, JSON.stringify({
@@ -92,7 +99,7 @@ export async function runLink(args: ParsedArgs): Promise<void> {
 }
 
 export async function runRender(args: ParsedArgs): Promise<void> {
-  const project = await loadProject(projectPath(args));
+  const project = await loadCliProject(args);
   process.stderr.write(formatDiagnostics(project.diagnostics));
   process.stderr.write(linkerFinishedLine(project.diagnostics));
   if (hasErrors(project.diagnostics)) {
@@ -281,7 +288,7 @@ function formatDiagramDiff(diff: DiagramDiff, from: string, to: string): string 
 }
 
 export async function runQuery(args: ParsedArgs): Promise<void> {
-  const project = await loadProject(projectPath(args));
+  const project = await loadCliProject(args);
   if (hasErrors(project.diagnostics)) {
     process.stderr.write(formatDiagnostics(project.diagnostics));
     process.exitCode = 1;
@@ -357,7 +364,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 export async function runStructure(args: ParsedArgs): Promise<void> {
-  const project = await loadProject(projectPath(args));
+  const project = await loadCliProject(args);
   if (hasErrors(project.diagnostics)) {
     process.stderr.write(formatDiagnostics(project.diagnostics));
     process.exitCode = 1;
@@ -373,7 +380,7 @@ export async function runStructure(args: ParsedArgs): Promise<void> {
 }
 
 export async function runEnvironments(args: ParsedArgs): Promise<void> {
-  const project = await loadProject(projectPath(args));
+  const project = await loadCliProject(args);
   if (hasErrors(project.diagnostics)) {
     process.stderr.write(formatDiagnostics(project.diagnostics));
     process.exitCode = 1;
@@ -430,7 +437,7 @@ export async function runQuickAction(args: ParsedArgs): Promise<void> {
     throw new CliError("Usage: archinsight quick-action <drill-down|isolate|deployment|find-path|declaration> [project-dir] [options]");
   }
   validateQuickActionOptions(args);
-  const project = await loadProject(projectPath(args));
+  const project = await loadCliProject(args);
   if (hasErrors(project.diagnostics)) {
     process.stderr.write(formatDiagnostics(project.diagnostics));
     process.exitCode = 1;

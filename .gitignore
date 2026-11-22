@@ -27,6 +27,7 @@ packages/insight-language/src/generated/
 
 # IDEs
 .codex/
+.archinsight/cache/
 .idea/
 .vscode/
 out/

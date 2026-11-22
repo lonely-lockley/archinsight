@@ -30,6 +30,23 @@ const asyncSession = await ProjectAnalysisSession.createAsync(initialSources, as
 assert.deepEqual(resultSignature(asyncSession.analysis().result), resultSignature(initial.result),
   "portable parallel-parser results must remain equivalent to the synchronous parser");
 
+const restoredSession = ProjectAnalysisSession.restore(session.portableSnapshot());
+assert.deepEqual(
+  resultSignature(restoredSession.analysis().result),
+  resultSignature(initial.result),
+  "a portable session snapshot must restore the complete linked result and indexed graph",
+);
+const restoredUnchanged = restoredSession.update(initialSources);
+assert.equal(restoredUnchanged.mode, "unchanged");
+assert.equal(restoredUnchanged.reparsedSourceCount, 0);
+const restoredIncremental = restoredSession.update([
+  initialSources[0],
+  source("models/main.ai", model("customSystem", "Restored incremental")),
+]);
+assert.equal(restoredIncremental.mode, "incremental");
+assert.equal(restoredIncremental.reparsedSourceCount, 1);
+assert.equal(elementName(restoredIncremental.result), "Restored incremental");
+
 const unchanged = session.update(initialSources);
 assert.equal(unchanged.mode, "unchanged");
 assert.equal(unchanged.relinkedSourceCount, 0);

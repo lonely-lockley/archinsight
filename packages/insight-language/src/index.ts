@@ -76,8 +76,13 @@ export { elementCompletionDocumentation } from "./completion-documentation.js";
 export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
-export { ProjectAnalysisSession } from "./project-analysis-session.js";
-export type { ProjectSourceBatchParser } from "./project-analysis-session.js";
+export { ProjectAnalysisSession, restorePortableProjectAnalysis } from "./project-analysis-session.js";
+export type {
+  PortableLinkProjectResult,
+  PortableProjectAnalysisState,
+  PortableProjectAnalysisSession,
+  ProjectSourceBatchParser,
+} from "./project-analysis-session.js";
 export type { ProjectLinkerProfiler } from "./project-linker-profiler.js";
 export {
   CORE_EDGE_IMPLEMENTATION,
