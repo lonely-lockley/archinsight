@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./node-parallel-parser": "./src/node-parallel-parser.ts",
     "./query-result-format": "./src/query-result-format.ts"
   },
   "scripts": {
@@ -26,6 +27,7 @@
     "antlr4ng": "^3.0.16"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "antlr-ng": "^1.0.10",
     "c8": "^12.0.0",
     "typescript": "^5.0.0"

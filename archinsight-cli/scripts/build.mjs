@@ -27,7 +27,13 @@ await build({
 });
 await build({
   ...shared,
-  entryPoints: ['src/system-theme.ts', 'src/git-adapter-contract-entry.ts'],
+  entryPoints: ['src/system-theme.ts', 'src/git-adapter-contract-entry.ts', 'src/cache-contract-entry.ts'],
+});
+await build({
+  ...shared,
+  entryPoints: {
+    'project-source-parser-worker': '../packages/insight-language/src/node-parallel-parser-worker.ts',
+  },
 });
 
 mkdirSync('build/licenses', { recursive: true });

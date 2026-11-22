@@ -194,6 +194,42 @@ tasks.register('languageNpmTest', Exec) {
     commandLine npmCommand, 'run', 'check'
 }
 
+def linkScalingBenchmark = tasks.register('linkScalingBenchmark', Exec) {
+    group = 'verification'
+    description = 'Measures cold linker time and memory scaling on the synthetic company repository.'
+    dependsOn 'languageNpmInstall', 'generateLanguageSources'
+    inputs.dir('benchmarks/link-scaling')
+    inputs.dir('packages/insight-language/src')
+    inputs.dir('packages/insight-language/scripts')
+    inputs.file('packages/insight-language/package.json')
+    workingDir = rootProject.projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine 'node', 'benchmarks/link-scaling/run-benchmark.mjs'
+}
+
+def linkScalingProfile = tasks.register('linkScalingProfile', Exec) {
+    group = 'verification'
+    description = 'Profiles linker phases across the synthetic company repository.'
+    dependsOn 'languageNpmInstall', 'generateLanguageSources'
+    inputs.dir('benchmarks/link-scaling')
+    inputs.dir('packages/insight-language/src')
+    inputs.dir('packages/insight-language/scripts')
+    inputs.file('packages/insight-language/package.json')
+    workingDir = rootProject.projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine 'node', 'benchmarks/link-scaling/run-phase-benchmark.mjs'
+}
+
+linkScalingProfile.configure {
+    mustRunAfter linkScalingBenchmark
+}
+
+tasks.register('benchmark') {
+    group = 'verification'
+    description = 'Runs the full linker scaling benchmark and phase profile.'
+    dependsOn linkScalingBenchmark, linkScalingProfile
+}
+
 def coverageSummary = tasks.register('coverageSummary', Exec) {
     group = 'verification'
     description = 'Prints consolidated package coverage after all test suites complete.'

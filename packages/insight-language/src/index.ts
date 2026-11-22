@@ -30,7 +30,9 @@ export {
   firstDescendantByRule,
   firstTokenByName,
   firstTokenTextByName,
+  hydrateParsedSource,
   parseInsightSource,
+  portableParsedSource,
   ruleName,
   sourceLocationOf,
   sourceRangeOf,
@@ -49,6 +51,7 @@ export {
   tokenType,
 } from "./parser-facade.js";
 export {
+  buildLanguageSnapshotResultFromParsedSources,
   buildLanguageSnapshotResultFromSources,
   buildLanguageSnapshotFromSources,
   buildLanguageSnapshotFromCore,
@@ -73,7 +76,14 @@ export { elementCompletionDocumentation } from "./completion-documentation.js";
 export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
-export { ProjectAnalysisSession } from "./project-analysis-session.js";
+export { ProjectAnalysisSession, restorePortableProjectAnalysis } from "./project-analysis-session.js";
+export type {
+  PortableLinkProjectResult,
+  PortableProjectAnalysisState,
+  PortableProjectAnalysisSession,
+  ProjectSourceBatchParser,
+} from "./project-analysis-session.js";
+export type { ProjectLinkerProfiler } from "./project-linker-profiler.js";
 export {
   CORE_EDGE_IMPLEMENTATION,
   CORE_ELEMENT_IMPLEMENTATION,
@@ -210,6 +220,9 @@ export type {
   ParsedSource,
   ParsedSourceRole,
   ParseInsightSourceRequest,
+  PortableAntlrToken,
+  PortableParsedSource,
+  PortableParseTree,
   SourceAnalysisMetadata,
   SourceRange,
   TokenNameResolver,

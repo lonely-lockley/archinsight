@@ -280,10 +280,18 @@ export interface OperatorImplementationRegistry {
   resolve(id: string): OperatorImplementationV1 | undefined;
 }
 
+/**
+ * Input for an operator implementation invocation.
+ *
+ * This contract deliberately does not expose the linked graph. During link
+ * materialization there is no final graph yet, and constructing a partial
+ * graph for every invocation makes linking grow quadratically. Graph access
+ * must only be reintroduced together with an explicit lifecycle and a measured
+ * performance budget.
+ */
 export interface OperatorInvocationInputV1 {
   readonly execution: OperatorExecutionV1;
   readonly invocation: OperatorInvocationV1;
-  readonly graph: IndexedGraph;
   readonly projector: ReadonlyProjectionApiV1;
   readonly from?: LinkedElement;
   readonly to?: LinkedElement;

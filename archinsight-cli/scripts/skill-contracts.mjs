@@ -95,6 +95,8 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("references/importing-models.md"));
   assert(content.includes("references/analysis.md"));
   assert(content.includes("references/cli.md"));
+  assert(content.includes("Leave the default `.archinsight/cache` enabled"));
+  assert(content.includes("do not inspect, edit, or commit it"));
   assert(content.includes("references/quick-actions.md"));
   assert(content.includes("quick-action"));
   assert(content.includes("Generate a diagram or subdiagram"));
@@ -114,7 +116,15 @@ function verifyEntrypoint(target, output) {
 function verifySharedFiles(output) {
   assert.equal(existsSync(path.join(output, "references", "versioning.md")), false);
   const cli = readFileSync(path.join(output, "references", "cli.md"), "utf8");
-  assert(cli.includes("CLI Installation, Updates, and Skill Regeneration"));
+  assert(cli.includes("# Archinsight CLI"));
+  assert.match(cli, /complete\s+agent-facing command reference/);
+  assert(cli.includes("## Project Input"));
+  assert(cli.includes("## Command Reference"));
+  assert(cli.includes("## Output and Failure Contract"));
+  assert(cli.includes("## Project Analysis Cache"));
+  assert(cli.includes("--no-cache"));
+  assert(cli.includes("--cache-dir <dir>"));
+  assert.match(cli, /If cached and\s+uncached runs produce different semantic results/);
   assert(cli.includes("Refusing to initialize"));
   assert(cli.includes("--force"));
   assert(cli.includes("## Query and Render Scope"));

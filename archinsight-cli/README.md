@@ -7,6 +7,10 @@ links the full model, and then runs link, structure, query, render, diff, or
 deterministic diagram quick-action commands.
 It embeds `@insight/language` directly and does not call the web app.
 
+See the [CLI guide](https://github.com/lonely-lockley/archinsight/blob/master/docs/cli.md)
+for installation and task-oriented usage. This package README is the command
+and option reference.
+
 ## Commands
 
 ```shell
@@ -26,6 +30,24 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
 
 `project-dir` defaults to the current directory.
 
+## Project Analysis Cache
+
+The CLI stores reusable project analysis in `.archinsight/cache` by default;
+no setup or opt-in is required. Repeated commands reuse unchanged work, and
+source changes update the cached analysis. The cache is local and disposable:
+deleting it only makes the next command perform a cold analysis.
+
+Add the directory to the project's `.gitignore`:
+
+```gitignore
+.archinsight/cache/
+```
+
+Use `--no-cache` for a single uncached run, or `--cache-dir <dir>` to store the
+cache elsewhere. The options are mutually exclusive. An unreadable, corrupted,
+or incompatible cache is ignored automatically, and cache read or write
+failures do not prevent the requested command from running.
+
 ## Common Options
 
 - `-s, --source <file>` - selected model file. It supplies `$tab` and determines
@@ -34,6 +56,8 @@ archinsight skill init [project-dir] [--target generic|codex|claude] [--out dir]
   source. When both options are present, the context must match the selected
   file.
 - `--tab <source>` - compatibility alias for `--source`.
+- `--no-cache` - run without reading or writing the project analysis cache.
+- `--cache-dir <dir>` - store the project analysis cache in another directory.
 - `-v, --view <name>` - built-in view: `c1`, `c2`, `c3`, `c4`, `deployment-system`, `deployment-container`, `deployment`, `no-filter`.
 - `-e, --environment <id>` - environment selected for `deployment-container`. It may be omitted when the source reaches exactly one environment.
 - `--element <id>` - canonical element id for Drill down, Isolate, Deployment, or Go to

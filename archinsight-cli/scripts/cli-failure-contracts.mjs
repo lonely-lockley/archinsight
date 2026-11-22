@@ -27,12 +27,18 @@ system application
   assert.match(help.stdout, /quick-action find-path/);
   assert.match(help.stdout, /quick-action find-path[^\n]+\[-t system\|light\|dark\]/);
   assert.match(help.stdout, /text\|json\|dot\|svg\|png/);
+  assert.match(help.stdout, /--no-cache/);
+  assert.match(help.stdout, /--cache-dir <dir>/);
   assertSuccess(run("--help"), /theme: system, light, or dark; default: system/i);
   assertFailure(run("unknown"), /Unknown command 'unknown'/);
   assertFailure(run("query", project, "--format"), /Option '--format' expects a value/);
   assertFailure(run("query", project, "--unknown"), /Unknown option '--unknown'/);
   assertFailure(run("query", project, "--format", "yaml"), /Unsupported format 'yaml'/);
   assertFailure(run("query", project, "--view", "unknown"), /Unknown view 'unknown'/);
+  assertFailure(
+    run("link", project, "--no-cache", "--cache-dir", path.join(temporaryRoot, "cache")),
+    /Options '--no-cache' and '--cache-dir' are mutually exclusive/,
+  );
   assertFailure(run("render", project, "--theme", "sepia"), /expected system, light, or dark/);
   for (const command of ["query", "render"]) {
     assertFailure(

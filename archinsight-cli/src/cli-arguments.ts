@@ -45,9 +45,11 @@ export interface ParsedArgs {
   readonly maxValues?: number;
   readonly maxOutputBytes?: number;
   readonly timeoutMs?: number;
+  readonly cacheDirectory?: string;
   readonly help: boolean;
   readonly version: boolean;
   readonly force: boolean;
+  readonly noCache: boolean;
 }
 
 export function parseArgs(argv: readonly string[]): ParsedArgs {
@@ -66,6 +68,10 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
     if (arg === "--force") {
       options.force = true;
+      continue;
+    }
+    if (arg === "--no-cache") {
+      options.noCache = true;
       continue;
     }
     const key = optionKey(arg);
@@ -109,9 +115,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     maxValues: positiveIntegerOption(options.maxValues, "--max-values"),
     maxOutputBytes: positiveIntegerOption(options.maxOutputBytes, "--max-output-bytes"),
     timeoutMs: positiveIntegerOption(options.timeoutMs, "--timeout-ms"),
+    cacheDirectory: stringOption(options.cacheDirectory),
     help: options.help === true,
     version: options.version === true,
     force: options.force === true,
+    noCache: options.noCache === true,
   };
   validateOptionCombinations(parsed);
   return parsed;
@@ -121,6 +129,9 @@ function validateOptionCombinations(args: ParsedArgs): void {
   if ((args.command === "query" || args.command === "render" || args.command === "diff")
       && args.view !== undefined && args.queryFile !== undefined) {
     throw new CliError(`Options '--view' and '--query' are mutually exclusive for command '${args.command}'`);
+  }
+  if (args.noCache && args.cacheDirectory !== undefined) {
+    throw new CliError("Options '--no-cache' and '--cache-dir' are mutually exclusive");
   }
 }
 
@@ -154,6 +165,7 @@ function optionKey(arg: string): string | undefined {
     "--max-values": "maxValues",
     "--max-output-bytes": "maxOutputBytes",
     "--timeout-ms": "timeoutMs",
+    "--cache-dir": "cacheDirectory",
   } as Record<string, string | undefined>)[arg];
 }
 
@@ -318,6 +330,8 @@ Options:
       --to <value>         Target element for find-path, or later git revision for diff.
       --target <target>    Skill target: generic, codex, or claude.
       --force              Replace the complete generated skill directory.
+      --no-cache           Run without reading or writing the project analysis cache.
+      --cache-dir <dir>    Store project analysis cache in a different directory.
   -V, --version            Print version.
   -h, --help               Show help.
 

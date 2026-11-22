@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { InsightLanguageService, ProjectAnalysisSession } from "../build/runtime/index.js";
+import {
+  hydrateParsedSource,
+  InsightLanguageService,
+  parseInsightSource,
+  portableParsedSource,
+  ProjectAnalysisSession,
+} from "../build/runtime/index.js";
 import { ProjectLinkerSourceCache } from "../build/runtime/project-linker.js";
 import { ProjectLinkerState } from "../build/runtime/project-linker-state.js";
 
@@ -16,6 +22,30 @@ assert.deepEqual(initial.snapshotSources, ["definitions.ai"]);
 assert(initial.snapshotBuild.snapshot.constructors.some((item) => item.spelling === "customSystem"));
 assert.equal(elementName(initial.result), "Initial");
 assertNoErrors(initial.diagnostics);
+
+const asyncSession = await ProjectAnalysisSession.createAsync(initialSources, async (sources) => {
+  assert.deepEqual(sources.map((item) => item.sourceName), ["definitions.ai", "models/main.ai"]);
+  return sources.map((item) => hydrateParsedSource(portableParsedSource(parseInsightSource(item))));
+});
+assert.deepEqual(resultSignature(asyncSession.analysis().result), resultSignature(initial.result),
+  "portable parallel-parser results must remain equivalent to the synchronous parser");
+
+const restoredSession = ProjectAnalysisSession.restore(session.portableSnapshot());
+assert.deepEqual(
+  resultSignature(restoredSession.analysis().result),
+  resultSignature(initial.result),
+  "a portable session snapshot must restore the complete linked result and indexed graph",
+);
+const restoredUnchanged = restoredSession.update(initialSources);
+assert.equal(restoredUnchanged.mode, "unchanged");
+assert.equal(restoredUnchanged.reparsedSourceCount, 0);
+const restoredIncremental = restoredSession.update([
+  initialSources[0],
+  source("models/main.ai", model("customSystem", "Restored incremental")),
+]);
+assert.equal(restoredIncremental.mode, "incremental");
+assert.equal(restoredIncremental.reparsedSourceCount, 1);
+assert.equal(elementName(restoredIncremental.result), "Restored incremental");
 
 const unchanged = session.update(initialSources);
 assert.equal(unchanged.mode, "unchanged");

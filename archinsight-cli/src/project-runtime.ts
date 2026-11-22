@@ -9,6 +9,7 @@ import {
   discoverDeploymentEnvironments,
   executeQuery,
   ProjectAnalysisSession,
+  restorePortableProjectAnalysis,
   selectGraph,
   TYPE_CAPABILITIES,
   type LanguageDiagnostic,
@@ -20,9 +21,16 @@ import {
   type QueryResult,
   type RenderGraph,
 } from "@insight/language";
+import { createNodeParallelSourceParser } from "@insight/language/node-parallel-parser";
 import { isIgnoredProjectSourceDirectory, normalizeProjectSourceIdentity } from "@archinsight/contracts";
 import type { DiagramView, ParsedArgs } from "./cli-arguments.js";
 import { CliError } from "./cli-error.js";
+import {
+  configuredAnalysisCacheDirectory,
+  restoreProjectAnalysisCache,
+  storeProjectAnalysisCache,
+} from "./project-analysis-cache.js";
+import { version } from "./version.js";
 
 export interface LoadedProject {
   readonly root: string;
@@ -32,17 +40,83 @@ export interface LoadedProject {
   readonly diagnostics: readonly LanguageDiagnostic[];
 }
 
-export async function loadProject(input: string): Promise<LoadedProject> {
+export interface ProjectCacheOptions {
+  readonly disabled?: boolean;
+  readonly directory?: string;
+}
+
+const parallelSourceParser = createNodeParallelSourceParser({
+  workerUrl: new URL("./project-source-parser-worker.js", import.meta.url),
+});
+
+export async function loadProject(input: string, cacheOptions: ProjectCacheOptions = {}): Promise<LoadedProject> {
+  const readStarted = performance.now();
   const root = path.resolve(input);
-  const sources = await readSources(root);
+  const loadedSources = await readSources(root);
+  const sources = loadedSources.sources;
+  traceCacheTiming("read-sources", performance.now() - readStarted);
   if (sources.length === 0) {
     throw new CliError(`No .ai sources found under '${input}'`);
   }
-  return analyzeProjectSources(root, sources);
+  const cacheDirectory = configuredAnalysisCacheDirectory(root, loadedSources.projectDirectory, cacheOptions);
+  if (cacheDirectory !== undefined) {
+    try {
+      const cached = await restoreProjectAnalysisCache(cacheDirectory, root, version, sources);
+      if (cached !== undefined) {
+        for (const [phase, elapsed] of Object.entries(cached.timings)) traceCacheTiming(phase, elapsed);
+        if (cached.exactSources) {
+          const hydrateStarted = performance.now();
+          const analysis = restorePortableProjectAnalysis(cached.analysis);
+          traceCacheTiming("state-hydrate", performance.now() - hydrateStarted);
+          traceCache("HIT");
+          return loadedProject(root, sources, analysis);
+        }
+        const ast = cached.loadSession();
+        for (const [phase, elapsed] of Object.entries(ast.timings)) traceCacheTiming(phase, elapsed);
+        const hydrateStarted = performance.now();
+        const session = ProjectAnalysisSession.restore(ast.analysis);
+        traceCacheTiming("session-hydrate", performance.now() - hydrateStarted);
+        const updateStarted = performance.now();
+        const update = session.update(sources);
+        traceCacheTiming("session-update", performance.now() - updateStarted);
+        if (update.mode === "unchanged") throw new Error("Cached source hashes disagree with cached source contents");
+        traceCache(update.mode.toUpperCase());
+        if (update.mode !== "unchanged") {
+          await saveCache(cacheDirectory, root, sources, session);
+        }
+        return loadedProject(root, sources, update);
+      }
+    } catch {
+      traceCache("INVALID");
+    }
+  }
+  traceCache("MISS");
+  const session = await ProjectAnalysisSession.createAsync(sources, parallelSourceParser);
+  const analysis = session.analysis();
+  if (cacheDirectory !== undefined) {
+    await saveCache(cacheDirectory, root, sources, session);
+  }
+  return loadedProject(root, sources, analysis);
+}
+
+export async function analyzeProjectSourcesAsync(
+  root: string,
+  sources: readonly ProjectSource[],
+): Promise<LoadedProject> {
+  const analysis = (await ProjectAnalysisSession.createAsync(sources, parallelSourceParser)).analysis();
+  return loadedProject(root, sources, analysis);
 }
 
 export function analyzeProjectSources(root: string, sources: readonly ProjectSource[]): LoadedProject {
   const analysis = ProjectAnalysisSession.create(sources).analysis();
+  return loadedProject(root, sources, analysis);
+}
+
+function loadedProject(
+  root: string,
+  sources: readonly ProjectSource[],
+  analysis: ReturnType<ProjectAnalysisSession["analysis"]>,
+): LoadedProject {
   return {
     root: path.resolve(root),
     sources,
@@ -50,6 +124,31 @@ export function analyzeProjectSources(root: string, sources: readonly ProjectSou
     result: analysis.result,
     diagnostics: analysis.diagnostics,
   };
+}
+
+async function saveCache(
+  directory: string,
+  root: string,
+  sources: readonly ProjectSource[],
+  session: ProjectAnalysisSession,
+): Promise<void> {
+  try {
+    await storeProjectAnalysisCache(directory, root, version, sources, session.portableSnapshot());
+  } catch {
+    traceCache("WRITE_FAILED");
+  }
+}
+
+function traceCache(status: string): void {
+  if (process.env.ARCHINSIGHT_CACHE_TRACE === "1") {
+    process.stderr.write(`CACHE\t${status}\n`);
+  }
+}
+
+function traceCacheTiming(phase: string, elapsedMs: number): void {
+  if (process.env.ARCHINSIGHT_CACHE_TRACE === "1") {
+    process.stderr.write(`CACHE_TIMING\t${phase}\t${elapsedMs.toFixed(3)}\n`);
+  }
 }
 
 export async function selectedGraph(
@@ -278,22 +377,31 @@ function normalizeSourceName(root: string, source: string): string {
   return normalizeProjectSourceIdentity(value);
 }
 
-async function readSources(root: string): Promise<ProjectSource[]> {
+async function readSources(root: string): Promise<{
+  readonly sources: readonly ProjectSource[];
+  readonly projectDirectory: string;
+}> {
   const info = await stat(root);
   if (info.isFile()) {
-    return [{
-      sourceName: path.basename(root),
-      source: await readFile(root, "utf8"),
-    }];
+    return {
+      sources: [{
+        sourceName: path.basename(root),
+        source: await readFile(root, "utf8"),
+      }],
+      projectDirectory: path.dirname(root),
+    };
   }
   if (!info.isDirectory()) {
     throw new CliError(`Path is not a file or directory: ${root}`);
   }
   const files = await sourceFiles(root);
-  return Promise.all(files.map(async (file) => ({
-    sourceName: path.relative(root, file).split(path.sep).join("/"),
-    source: await readFile(file, "utf8"),
-  })));
+  return {
+    sources: await Promise.all(files.map(async (file) => ({
+      sourceName: path.relative(root, file).split(path.sep).join("/"),
+      source: await readFile(file, "utf8"),
+    }))),
+    projectDirectory: root,
+  };
 }
 
 async function sourceFiles(directory: string): Promise<string[]> {

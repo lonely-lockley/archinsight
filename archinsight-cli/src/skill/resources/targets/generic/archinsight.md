@@ -23,6 +23,11 @@ archinsight link . --format text
 
 If `archinsight` is not available, read `references/cli.md`. Do not install
 or update packages without the user's authorization.
+`references/cli.md` is the complete agent-facing command reference.
+
+Leave the default `.archinsight/cache` enabled for repeated CLI analysis. Treat
+it as disposable generated data: do not inspect, edit, or commit it. Read
+`references/cli.md` before disabling the cache or changing its location.
 
 ## Task modes
 
@@ -97,7 +102,8 @@ architecture.
 ## Reference routing
 
 - Read `references/cli.md` when the CLI is missing, its version differs from
-  the generated skill, or the skill package must be regenerated.
+  the generated skill, the skill package must be regenerated, or cache behavior
+  must be diagnosed or changed.
 - Read `references/modeling.md` before creating or extending a
   model.
 - Read `references/importing-models.md` when translating an existing

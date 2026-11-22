@@ -1,13 +1,17 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   coreLanguageSnapshot,
   InsightLanguageService,
+  parseInsightSource,
   type LanguageBuildResult,
   type LinkProjectResult,
   type ProjectAnalysis as LanguageProjectAnalysis,
   type ProjectAnalysisSession,
   type ProjectSource
 } from '@insight/language';
+import { createNodeParallelSourceParser } from '@insight/language/node-parallel-parser';
 import type { EnvSource } from '$lib/server/auth/auth-config';
 import { getAnalysisCacheConfig, type AnalysisCacheConfig } from '$lib/server/config/analysis-cache-config';
 import {
@@ -47,6 +51,10 @@ type SourceChange = {
 
 const service = new InsightLanguageService({ snapshot: coreLanguageSnapshot });
 const coreVersion = digest(JSON.stringify(coreLanguageSnapshot));
+const parserWorkerPath = resolve(process.cwd(), 'build/project-source-parser-worker.mjs');
+const sourceParser = existsSync(parserWorkerPath)
+  ? createNodeParallelSourceParser({ workerUrl: parserWorkerPath })
+  : async (sources: readonly ProjectSource[]) => sources.map((source) => parseInsightSource(source));
 
 export class ProjectAnalysisCache {
   private readonly entries = new Map<string, AnalysisEntry>();
@@ -91,12 +99,12 @@ export class ProjectAnalysisCache {
     }
   }
 
-  private analyzeFresh(
+  private async analyzeFresh(
     key: string,
     storedSources: ReadonlyMap<string, string>,
     overlays: Readonly<Record<string, string>>,
     env?: EnvSource
-  ): ProjectAnalysis {
+  ): Promise<ProjectAnalysis> {
     const started = performance.now();
     const now = Date.now();
     this.prune(this.config, now);
@@ -111,7 +119,7 @@ export class ProjectAnalysisCache {
     const revision = sourceRevision(sources);
     const mode = overlayChanges.length === 0 ? 'full' : 'overlay-full';
     incrementAnalysisMetric('cacheMisses');
-    const entry = this.fullEntry(key, sources, revision, now, env, mode);
+    const entry = await this.fullEntry(key, sources, revision, now, env, mode);
     if (overlayChanges.length === 0 && entry.sourceBytes <= this.config.maxEntrySourceBytes) {
       this.entries.set(key, entry);
       touch(this.entries, key, entry);
@@ -125,11 +133,11 @@ export class ProjectAnalysisCache {
     return analysis(entry, entry.session.analysis(), mode, mode === 'full' ? 0 : sources.size);
   }
 
-  private analyzeStored(
+  private async analyzeStored(
     key: string,
     requestedSources: ReadonlyMap<string, string>,
     env?: EnvSource
-  ): StoredAnalysis {
+  ): Promise<StoredAnalysis> {
     const started = performance.now();
     const now = Date.now();
     this.prune(this.config, now);
@@ -160,7 +168,7 @@ export class ProjectAnalysisCache {
       stored = this.incrementalEntry(previous, sources, revision, changes, now, env);
     } else {
       stored = {
-        entry: this.fullEntry(key, sources, revision, now, env),
+        entry: await this.fullEntry(key, sources, revision, now, env),
         mode: 'full',
         relinkedSources: 0
       };
@@ -183,16 +191,16 @@ export class ProjectAnalysisCache {
     return stored;
   }
 
-  private fullEntry(
+  private async fullEntry(
     key: string,
     sources: Map<string, string>,
     revision: string,
     now: number,
     env?: EnvSource,
     mode: 'full' | 'overlay-full' = 'full'
-  ): AnalysisEntry {
+  ): Promise<AnalysisEntry> {
     const analysisStarted = performance.now();
-    const session = service.createProjectAnalysisSession(projectSources(sources));
+    const session = await service.createProjectAnalysisSessionAsync(projectSources(sources), sourceParser);
     const project = session.analysis();
     incrementAnalysisMetric('fullSnapshotBuilds');
     observeAnalysis(env, 'language.snapshot', {

@@ -3,13 +3,17 @@ import {
   CharStream,
   CommonTokenStream,
   Parser,
+  ParserRuleContext,
   RecognitionException,
   Recognizer,
+  TerminalNode,
   Token,
   type ATNSimulator,
+  type ParseTree,
 } from "antlr4ng";
 import type { LanguageDiagnostic, SourceLocation } from "./contracts.js";
 import { InsightLexer } from "./generated/InsightLexer.js";
+import * as GeneratedInsightParser from "./generated/InsightParser.js";
 import { InsightParser } from "./generated/InsightParser.js";
 
 export interface AntlrTokenLike {
@@ -90,6 +94,37 @@ export interface ParsedSource {
   readonly ruleNames: readonly string[];
   readonly tokenName: TokenNameResolver;
   readonly syntax: ParsedSyntaxModel;
+  readonly syntaxErrors: readonly AntlrSyntaxErrorLike[];
+  readonly diagnostics: readonly LanguageDiagnostic[];
+  readonly metadata: SourceAnalysisMetadata;
+  readonly parseFailure?: AntlrParseFailureLike;
+}
+
+export interface PortableAntlrToken {
+  readonly type: number;
+  readonly text: string;
+  readonly startIndex: number;
+  readonly stopIndex: number;
+  readonly tokenIndex: number;
+  readonly line: number;
+  readonly charPositionInLine: number;
+}
+
+type PortableTokenReference = number | PortableAntlrToken;
+
+export interface PortableParseTree {
+  readonly ruleIndex?: number;
+  readonly start?: PortableTokenReference;
+  readonly stop?: PortableTokenReference;
+  readonly symbol?: PortableTokenReference;
+  readonly children?: readonly PortableParseTree[];
+}
+
+export interface PortableParsedSource {
+  readonly sourceName: string;
+  readonly source: string;
+  readonly tree?: PortableParseTree;
+  readonly tokens: readonly PortableAntlrToken[];
   readonly syntaxErrors: readonly AntlrSyntaxErrorLike[];
   readonly diagnostics: readonly LanguageDiagnostic[];
   readonly metadata: SourceAnalysisMetadata;
@@ -206,6 +241,123 @@ export function parseInsightSource(request: ParseInsightSourceRequest): ParsedSo
     }
     return failedParsedSource(request, tokens, syntaxErrors, diagnostics, message);
   }
+}
+
+export function portableParsedSource(parsed: ParsedSource): PortableParsedSource {
+  const tokens = parsed.tokens.map(portableToken);
+  return {
+    sourceName: parsed.sourceName,
+    source: parsed.source,
+    ...(parsed.tree === undefined ? {} : { tree: portableTree(parsed.tree) }),
+    tokens,
+    syntaxErrors: parsed.syntaxErrors,
+    diagnostics: parsed.diagnostics,
+    metadata: parsed.metadata,
+    ...(parsed.parseFailure === undefined ? {} : { parseFailure: parsed.parseFailure }),
+  };
+}
+
+export function hydrateParsedSource(portable: PortableParsedSource): ParsedSource {
+  const tokens = portable.tokens.map((token) => Object.freeze({ ...token }));
+  const tree = portable.tree === undefined ? undefined : hydrateTree(portable.tree, tokens);
+  return Object.freeze({
+    sourceName: portable.sourceName,
+    source: portable.source,
+    ...(tree === undefined ? {} : { tree }),
+    tokens: Object.freeze(tokens),
+    ruleNames: InsightParser.ruleNames,
+    tokenName: generatedTokenName,
+    syntax: new ParsedSyntaxModel(tree, InsightParser.ruleNames, generatedTokenName),
+    syntaxErrors: Object.freeze([...portable.syntaxErrors]),
+    diagnostics: Object.freeze([...portable.diagnostics]),
+    metadata: Object.freeze({ ...portable.metadata }),
+    ...(portable.parseFailure === undefined ? {} : { parseFailure: Object.freeze({ ...portable.parseFailure }) }),
+  });
+}
+
+function portableTree(tree: AntlrParseTreeLike): PortableParseTree {
+  const ruleIndex = tree.getRuleIndex?.() ?? tree.ruleIndex;
+  const start = startToken(tree);
+  const stop = stopToken(tree);
+  const symbol = terminalSymbol(tree);
+  const children = childrenOf(tree).map(portableTree);
+  return {
+    ...(ruleIndex === undefined ? {} : { ruleIndex }),
+    ...(start === undefined ? {} : { start: portableTokenReference(start) }),
+    ...(stop === undefined ? {} : { stop: portableTokenReference(stop) }),
+    ...(symbol === undefined ? {} : { symbol: portableTokenReference(symbol) }),
+    ...(children.length === 0 ? {} : { children }),
+  };
+}
+
+function portableTokenReference(token: AntlrTokenLike): PortableTokenReference {
+  const index = tokenIndex(token);
+  return index === undefined || index < 0 ? portableToken(token) : index;
+}
+
+function portableToken(token: AntlrTokenLike): PortableAntlrToken {
+  return {
+    type: tokenType(token),
+    text: tokenText(token),
+    startIndex: tokenStart(token),
+    stopIndex: tokenStop(token),
+    tokenIndex: tokenIndex(token) ?? -1,
+    line: tokenLine(token),
+    charPositionInLine: tokenColumn(token),
+  };
+}
+
+function hydrateTree(portable: PortableParseTree, tokens: readonly AntlrTokenLike[]): AntlrParseTreeLike {
+  return hydrateParseTree(portable, tokens, null);
+}
+
+type RuleContextConstructor = new (
+  parent: ParserRuleContext | null,
+  invokingState: number,
+) => ParserRuleContext;
+
+const generatedRuleContexts: readonly RuleContextConstructor[] = InsightParser.ruleNames.map((name) => {
+  const exportName = `${name.charAt(0).toUpperCase()}${name.slice(1)}Context`;
+  const constructor = (GeneratedInsightParser as Record<string, unknown>)[exportName];
+  if (typeof constructor !== "function") {
+    throw new Error(`Generated parser does not export ${exportName}`);
+  }
+  return constructor as RuleContextConstructor;
+});
+
+function hydrateParseTree(
+  portable: PortableParseTree,
+  tokens: readonly AntlrTokenLike[],
+  parent: ParserRuleContext | null,
+): AntlrParseTreeLike {
+  const symbol = hydratedToken(portable.symbol, tokens);
+  if (symbol !== undefined) {
+    const terminal = new TerminalNode(symbol as Token);
+    terminal.parent = parent;
+    return terminal;
+  }
+
+  const Context = portable.ruleIndex === undefined
+    ? ParserRuleContext
+    : generatedRuleContexts[portable.ruleIndex];
+  if (Context === undefined) {
+    throw new Error(`Unknown generated parser rule index ${portable.ruleIndex}`);
+  }
+  const context = new Context(parent, -1);
+  context.start = (hydratedToken(portable.start, tokens) as Token | undefined) ?? null;
+  context.stop = (hydratedToken(portable.stop, tokens) as Token | undefined) ?? null;
+  const children = context.children as ParseTree[];
+  for (const child of portable.children ?? []) {
+    children.push(hydrateParseTree(child, tokens, context) as ParseTree);
+  }
+  return context;
+}
+
+function hydratedToken(
+  reference: PortableTokenReference | undefined,
+  tokens: readonly AntlrTokenLike[],
+): AntlrTokenLike | undefined {
+  return typeof reference === "number" ? tokens[reference] : reference;
 }
 
 function failedParsedSource(
