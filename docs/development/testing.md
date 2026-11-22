@@ -26,6 +26,25 @@ the root `check`, builds the distribution artifacts, and runs release checks.
 Test tasks must remain part of every `dist` invocation; distribution artifacts
 must never be produced from type/build checks alone.
 
+Use the following additional verification for performance-sensitive linker
+changes:
+
+```shell
+./gradlew benchmark
+```
+
+The benchmark is required when changing linking, deployment expansion,
+projection, or incremental analysis. It runs the reproducible linker scaling
+workload in fresh Node.js processes and records both cold-link time and phase
+timings. Compare before and after results on the same host. Do not enforce an
+absolute wall-clock threshold in CI because host contention and hardware make
+such thresholds unstable.
+
+The default `check` retains deterministic performance contracts for known hot
+paths. Those contracts must assert structural invariants such as the absence of
+per-relationship graph reconstruction; the full benchmark supplements them by
+detecting scaling changes that cannot be expressed as a stable unit assertion.
+
 After the package checks finish, Gradle prints one consolidated coverage table
 with the current percentage and percentage-point delta from the committed
 baseline. It reuses reports from the same build and does not rerun tests.
@@ -39,6 +58,9 @@ Each package also has one authoritative local command:
 | Web | `npm --prefix archinsight-web run check` | Svelte/TypeScript checks, every Vitest test, coverage gate |
 | VSCode | `npm --prefix archinsight-vscode run check` | typecheck, extension/webview build, manifest contracts |
 | Renderer | `npm --prefix archinsight-renderer run check` | all service tests, coverage gate |
+
+The root `benchmark` task is intentionally separate from `check`: it is a
+required change-specific verification, not a hermetic correctness suite.
 
 Focused commands such as `test:server`, `test:security`, `test:ui`, `test:cli`,
 and `test:skill` are development conveniences. They never replace the package
@@ -216,3 +238,5 @@ questions:
 - Is the new file automatically part of the package and root checks?
 - Do all four coverage ratios stay at or above the recorded baseline?
 - Is a broad smoke test backed by a focused diagnostic reproduction?
+- For linker, deployment, projection, or incremental-analysis changes, were
+  before and after `./gradlew benchmark` results compared on the same host?

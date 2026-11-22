@@ -10,6 +10,7 @@ import {
   linkProjectWithSourceCache,
   ProjectLinkerSourceCache,
 } from "./project-linker.js";
+import type { ProjectLinkerProfiler } from "./project-linker-profiler.js";
 
 export interface ProjectSourceReplacement {
   readonly sourceName: string;
@@ -30,18 +31,21 @@ export class ProjectLinkerState {
   private readonly operatorImplementations: LinkProjectRequest["operatorImplementations"];
   private readonly sourcesByName: Map<string, ProjectSource>;
   private readonly sourceCache: ProjectLinkerSourceCache;
+  private readonly profiler: ProjectLinkerProfiler | undefined;
   private currentResult: LinkProjectResult;
 
   constructor(
     request: LinkProjectRequest,
     existingResult?: LinkProjectResult,
     sourceCache = new ProjectLinkerSourceCache(),
+    profiler?: ProjectLinkerProfiler,
   ) {
     this.snapshot = request.snapshot;
     this.operatorImplementations = request.operatorImplementations;
     this.sourcesByName = new Map(request.sources.map((source) => [source.sourceName, source]));
     this.sourceCache = sourceCache;
-    this.currentResult = existingResult ?? linkProjectWithSourceCache(this.request(), this.sourceCache);
+    this.profiler = profiler;
+    this.currentResult = existingResult ?? linkProjectWithSourceCache(this.request(), this.sourceCache, this.profiler);
   }
 
   result(): LinkProjectResult {
@@ -57,7 +61,7 @@ export class ProjectLinkerState {
     return new ProjectLinkerState(this.request(), {
       ...this.currentResult,
       graph: this.currentResult.graph.clone(),
-    }, this.sourceCache.fork());
+    }, this.sourceCache.fork(), this.profiler);
   }
 
   replaceSource(replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
@@ -116,7 +120,7 @@ export class ProjectLinkerState {
         return projectSource === undefined ? [] : [projectSource];
       }),
       ...(this.operatorImplementations === undefined ? {} : { operatorImplementations: this.operatorImplementations }),
-    }, this.sourceCache);
+    }, this.sourceCache, this.profiler);
     mergeGraph(candidateGraph, partialResult.graph);
     const candidateResult = mergeResults(previous, partialResult, supportSources, candidateGraph);
     const relinkedSources = changedResultSources(previous, candidateResult, supportSources);

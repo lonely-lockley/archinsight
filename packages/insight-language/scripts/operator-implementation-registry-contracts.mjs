@@ -12,6 +12,8 @@ const registry = coreOperatorImplementationRegistry.with(customImplementationId,
   invoke(input) {
     assert.equal(input.execution.implementation, customImplementationId);
     assert.equal(input.execution.mode, "link");
+    assert.equal("graph" in input, false,
+      "operator invocations must not expose a repeatedly reconstructed partial graph");
     assert(input.invocation.edge, "link-mode edge implementations receive a normalized candidate");
     assert(input.from);
     assert(input.to);

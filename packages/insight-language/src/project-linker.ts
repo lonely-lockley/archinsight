@@ -55,6 +55,10 @@ import {
   TYPE_CAPABILITIES,
 } from "./semantic-capabilities.js";
 import { resolveExplicitIcon } from "@archinsight/icons";
+import {
+  measureLinkPhase,
+  type ProjectLinkerProfiler,
+} from "./project-linker-profiler.js";
 
 const ELEMENT_TYPE = "Element";
 const APPLIES_TO_ATTRIBUTE = "appliesTo";
@@ -327,7 +331,6 @@ interface EdgeMaterializationInput {
   readonly edgeScalarAttributes: Readonly<Record<string, string>>;
   readonly edgeAttributes: Readonly<Record<string, readonly ResolvedReferenceValue[]>>;
   readonly typeSystem: TypeSystem;
-  readonly graph: IndexedGraph;
   readonly from: LinkedElement;
   readonly to: LinkedElement;
 }
@@ -355,6 +358,7 @@ interface LinkOperatorImplementation {
 }
 
 interface LinkingWorkspace {
+  readonly profiler?: ProjectLinkerProfiler;
   readonly documents: readonly ParsedDocument[];
   readonly elements: ParsedElement[];
   readonly imports: readonly ResolvedImport[];
@@ -418,36 +422,54 @@ export class ProjectLinkerSourceCache {
 export function linkProjectWithSourceCache(
   request: LinkProjectRequest,
   sourceCache: ProjectLinkerSourceCache,
+  profiler?: ProjectLinkerProfiler,
 ): LinkProjectResult {
-  const pipeline = createLinkingWorkspace(request, sourceCache);
-  resolveDeploymentStage(pipeline);
-  materializeLogicalRelationshipsStage(pipeline);
-  expandProjectionStage(pipeline);
-  return completeLinkingPipeline(request, pipeline);
+  const pipeline = measureLinkPhase(profiler, "link.workspace", () =>
+    createLinkingWorkspace(request, sourceCache, profiler)
+  );
+  measureLinkPhase(profiler, "link.deployment", () => resolveDeploymentStage(pipeline));
+  measureLinkPhase(profiler, "link.logical-relationships", () => materializeLogicalRelationshipsStage(pipeline));
+  measureLinkPhase(profiler, "link.projections", () => expandProjectionStage(pipeline));
+  return measureLinkPhase(profiler, "link.complete", () => completeLinkingPipeline(request, pipeline));
 }
 
 function createLinkingWorkspace(
   request: LinkProjectRequest,
   sourceCache: ProjectLinkerSourceCache,
+  profiler?: ProjectLinkerProfiler,
 ): LinkingWorkspace {
-  const typeSystem = new TypeSystem(request.snapshot);
+  const typeSystem = measureLinkPhase(profiler, "link.workspace.type-system", () => new TypeSystem(request.snapshot));
   const operatorImplementations = request.operatorImplementations ?? coreOperatorImplementationRegistry;
-  const documents = request.sources.map((source) =>
-    parseDocument(sourceCache.parse(source.sourceName, source.source), typeSystem, operatorImplementations)
+  const documents = measureLinkPhase(profiler, "link.workspace.parse-documents", () =>
+    request.sources.map((source) =>
+      parseDocument(sourceCache.parse(source.sourceName, source.source), typeSystem, operatorImplementations)
+    )
   );
   const diagnostics: LanguageDiagnostic[] = [];
   const elementsByContextAndLocalId = new Map<string, ParsedElement[]>();
   const sourceElementsBySourceAndLocalId = new Map<string, ParsedElement>();
-  for (const element of documents.flatMap((document) => document.elements)) {
-    indexElement(element, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
-  }
-  collectPendingOperatorInvocations(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
-  applyExtensions(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId, diagnostics);
-  collectPendingOperatorInvocations(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
+  measureLinkPhase(profiler, "link.workspace.index-elements", () => {
+    for (const element of documents.flatMap((document) => document.elements)) {
+      indexElement(element, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId);
+    }
+  });
+  measureLinkPhase(profiler, "link.workspace.pending-operators-before-extensions", () =>
+    collectPendingOperatorInvocations(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId)
+  );
+  measureLinkPhase(profiler, "link.workspace.apply-extensions", () =>
+    applyExtensions(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId, diagnostics)
+  );
+  measureLinkPhase(profiler, "link.workspace.pending-operators-after-extensions", () =>
+    collectPendingOperatorInvocations(documents, typeSystem, elementsByContextAndLocalId, sourceElementsBySourceAndLocalId)
+  );
   diagnostics.unshift(...documents.flatMap((document) => document.diagnostics));
   const elements = documents.flatMap((document) => document.elements);
-  reportDuplicateElements(elementsByContextAndLocalId, diagnostics);
-  const imports = resolveImports(documents, elementsByContextAndLocalId, diagnostics);
+  measureLinkPhase(profiler, "link.workspace.duplicate-elements", () =>
+    reportDuplicateElements(elementsByContextAndLocalId, diagnostics)
+  );
+  const imports = measureLinkPhase(profiler, "link.workspace.resolve-imports", () =>
+    resolveImports(documents, elementsByContextAndLocalId, diagnostics)
+  );
   const importsBySourceAndAlias = new Map<string, ResolvedImport>();
   for (const item of imports) {
     importsBySourceAndAlias.set(`${item.sourceName}\0${item.alias}`, item);
@@ -460,12 +482,14 @@ function createLinkingWorkspace(
   const linkedElementsById = new Map(elements.map((element) => [element.id, element]));
   const resolvedElementAttributes = new Map<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>();
   const computedElementSemanticAttributeNames = new Map<string, Readonly<Record<string, string>>>();
-  for (const element of elements) {
-    resolvedElementAttributes.set(
-      element.id,
-      resolveAttributes(element, element.type, element.attributes, element.referenceAttributePositions, element.scalarAttributes, element.scalarAttributePositions, element.context, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, typeSystem, diagnostics),
-    );
-  }
+  measureLinkPhase(profiler, "link.workspace.resolve-element-attributes", () => {
+    for (const element of elements) {
+      resolvedElementAttributes.set(
+        element.id,
+        resolveAttributes(element, element.type, element.attributes, element.referenceAttributePositions, element.scalarAttributes, element.scalarAttributePositions, element.context, sourceElementsBySourceAndLocalId, elementsByContextAndLocalId, importsBySourceAndAlias, typeSystem, diagnostics),
+      );
+    }
+  });
   const deploymentContext: DeploymentExpansionContext = {
     sourceElementsBySourceAndLocalId,
     elementsByContextAndLocalId,
@@ -487,6 +511,7 @@ function createLinkingWorkspace(
     },
   };
   return {
+    ...(profiler === undefined ? {} : { profiler }),
     documents,
     elements,
     imports,
@@ -583,6 +608,7 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
     resolvedElementAttributes,
     computedElementSemanticAttributeNames,
     operatorImplementations,
+    profiler,
   } = workspace;
   for (const document of documents) {
     for (const edge of document.edges) {
@@ -614,18 +640,22 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
       if (source === undefined) {
         continue;
       }
-      const materialized = implementationFor(operator, typeSystem, operatorImplementations).materializeEdge({
-        edge,
-        operator,
-        target,
-        edgeType,
-        edgeScalarAttributes,
-        edgeAttributes: effectiveEdgeAttributes,
-        typeSystem,
-        graph: buildIndexedGraph(documents, workspace.elements, workspace.imports, linkedEdges, typeSystem),
+      const endpoints = measureLinkPhase(profiler, "link.logical.snapshot-endpoints", () => ({
         from: linkedElementSnapshot(source, typeSystem, resolvedElementAttributes, deployedElementIds, computedElementSemanticAttributeNames),
         to: linkedElementSnapshot(target, typeSystem, resolvedElementAttributes, deployedElementIds, computedElementSemanticAttributeNames),
-      });
+      }));
+      const materialized = measureLinkPhase(profiler, "link.logical.materialize-edge", () =>
+        implementationFor(operator, typeSystem, operatorImplementations).materializeEdge({
+          edge,
+          operator,
+          target,
+          edgeType,
+          edgeScalarAttributes,
+          edgeAttributes: effectiveEdgeAttributes,
+          typeSystem,
+          ...endpoints,
+        })
+      );
       diagnostics.push(...(materialized.diagnostics ?? []));
       if (materialized.edge === undefined) {
         continue;
@@ -708,52 +738,68 @@ function completeLinkingPipeline(
     elementsByContextAndLocalId,
     sourceElementsBySourceAndLocalId,
     importsBySourceAndAlias,
+    profiler,
   } = workspace;
-  const duplicateEdges = duplicateLinkedEdges(linkedEdges);
-  const presentations = buildPresentationIndex(request.snapshot.presentations ?? [], typeSystem, diagnostics);
-  const graph = buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem);
+  const duplicateEdges = measureLinkPhase(profiler, "link.complete.duplicate-edges", () =>
+    duplicateLinkedEdges(linkedEdges)
+  );
+  const presentations = measureLinkPhase(profiler, "link.complete.presentations", () =>
+    buildPresentationIndex(request.snapshot.presentations ?? [], typeSystem, diagnostics)
+  );
+  const graph = measureLinkPhase(profiler, "link.complete.build-indexed-graph", () =>
+    buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem)
+  );
   const graphElements = elements.filter(isGraphElement);
-  inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, typeSystem, deployedElementIds, wireDeploymentCoverage, diagnostics);
-  validateIconAnnotations(elements, linkedEdges, diagnostics);
-  const tabRoots = tabRootsBySource(documents, elementsByContextAndLocalId);
-  for (const document of documents) {
-    resolveAttributes(
-      { sourceName: document.sourceName, ...document.context },
-      document.context.type,
-      {},
-      {},
-      document.context.scalarAttributes,
-      document.context.scalarAttributePositions,
-      document.context.id,
-      sourceElementsBySourceAndLocalId,
-      elementsByContextAndLocalId,
-      importsBySourceAndAlias,
-      typeSystem,
-      diagnostics,
-    );
-  }
-  const contexts: LinkedContext[] = documents.map((document) => {
-    const root = document.documentRoot ?? document.context;
-    return {
-      id: document.context.id,
-      type: root.type,
-      sourceIdentity: document.sourceName,
-      ...(document.context.synthetic ? { synthetic: true } : {}),
-      declaration: sourceLocation(document.sourceName, root),
-      ...(typeSystem.capabilities(root.type).length === 0
-        ? {}
-        : { capabilities: typeSystem.capabilities(root.type) }),
-      attributes: flattenAttributes(root.scalarAttributes, {}),
-    };
+  measureLinkPhase(profiler, "link.complete.inspect-graph", () =>
+    inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, typeSystem, deployedElementIds, wireDeploymentCoverage, diagnostics)
+  );
+  measureLinkPhase(profiler, "link.complete.validate-icons", () =>
+    validateIconAnnotations(elements, linkedEdges, diagnostics)
+  );
+  const tabRoots = measureLinkPhase(profiler, "link.complete.tab-roots", () =>
+    tabRootsBySource(documents, elementsByContextAndLocalId)
+  );
+  measureLinkPhase(profiler, "link.complete.resolve-context-attributes", () => {
+    for (const document of documents) {
+      resolveAttributes(
+        { sourceName: document.sourceName, ...document.context },
+        document.context.type,
+        {},
+        {},
+        document.context.scalarAttributes,
+        document.context.scalarAttributePositions,
+        document.context.id,
+        sourceElementsBySourceAndLocalId,
+        elementsByContextAndLocalId,
+        importsBySourceAndAlias,
+        typeSystem,
+        diagnostics,
+      );
+    }
   });
-  return {
-    diagnostics,
-    graph,
-    contexts,
-    elements: graphElements.map((element) =>
+  const contexts: LinkedContext[] = measureLinkPhase(profiler, "link.complete.context-snapshots", () =>
+    documents.map((document) => {
+      const root = document.documentRoot ?? document.context;
+      return {
+        id: document.context.id,
+        type: root.type,
+        sourceIdentity: document.sourceName,
+        ...(document.context.synthetic ? { synthetic: true } : {}),
+        declaration: sourceLocation(document.sourceName, root),
+        ...(typeSystem.capabilities(root.type).length === 0
+          ? {}
+          : { capabilities: typeSystem.capabilities(root.type) }),
+        attributes: flattenAttributes(root.scalarAttributes, {}),
+      };
+    })
+  );
+  const linkedElements = measureLinkPhase(profiler, "link.complete.element-snapshots", () =>
+    graphElements.map((element) =>
       linkedElementSnapshot(element, typeSystem, resolvedElementAttributes, deployedElementIds, computedElementSemanticAttributeNames)
-    ),
-    imports: imports.map((item) => ({
+    )
+  );
+  const linkedImports = measureLinkPhase(profiler, "link.complete.import-snapshots", () =>
+    imports.map((item) => ({
       sourceIdentity: item.sourceName,
       alias: item.alias,
       importedId: item.importedId,
@@ -765,7 +811,14 @@ function completeLinkingPipeline(
         ...(item.importedEndLine === undefined ? {} : { endLine: item.importedEndLine }),
         ...(item.importedEndColumn === undefined ? {} : { endColumn: item.importedEndColumn }),
       }),
-    })),
+    }))
+  );
+  return {
+    diagnostics,
+    graph,
+    contexts,
+    elements: linkedElements,
+    imports: linkedImports,
     edges: linkedEdges,
     tabRoots,
     duplicateEdges,
@@ -3948,7 +4001,6 @@ class RegisteredOperatorImplementation implements LinkOperatorImplementation {
         attributes: candidate.attributes,
         ...(candidate.annotations === undefined ? {} : { annotations: candidate.annotations }),
       },
-      graph: input.graph,
       projector: EMPTY_PROJECTION_API,
       from: input.from,
       to: input.to,
@@ -3980,7 +4032,6 @@ class RegisteredOperatorImplementation implements LinkOperatorImplementation {
         declaration: sourceLocation(input.sourceName, input.sourcePosition),
         attributes: {},
       },
-      graph: new IndexedGraph(),
       projector: EMPTY_PROJECTION_API,
       scope: { sourceIdentity: input.sourceName },
     });

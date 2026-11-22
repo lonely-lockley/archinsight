@@ -1,0 +1,100 @@
+# Archinsight linker scaling investigation
+
+## Workload
+
+The deterministic benchmark repository models 250 business services in 39
+bounded contexts of 3–10 services and 15 deployment environments. Every
+service has three containers, 24 C3 components, two deployment profiles, and
+both intra-context and cross-context relationships.
+
+At full scale it contains 1,016 Insight sources, 71,578 source lines, 7,590
+linked elements, and 10,204 final linked edges. All measured sizes link with
+zero diagnostics.
+
+## Cold-link scaling
+
+![Cold-link scaling before optimization](before-results/scaling.svg)
+
+The baseline uses three fresh Node.js processes at every +10 service point.
+Source reads and module startup are excluded. Median cold-link time grows from
+506 ms at 10 services to 112.9 s at 250 services.
+
+| Services | Sources | Elements | Edges | Median cold link |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 | 56 | 390 | 398 | 0.51 s |
+| 50 | 216 | 1,590 | 2,030 | 4.49 s |
+| 100 | 416 | 3,090 | 4,073 | 17.78 s |
+| 150 | 616 | 4,590 | 6,117 | 41.19 s |
+| 200 | 816 | 6,090 | 8,161 | 74.53 s |
+| 250 | 1,016 | 7,590 | 10,204 | 112.88 s |
+
+The complete 25-point table and three raw trials per point are in
+[`before-results/REPORT.md`](before-results/REPORT.md) and
+[`before-results/raw.json`](before-results/raw.json).
+
+## Phase profile
+
+![Linker phase timings before optimization](before-phase-results/phase-timings.svg)
+
+At 250 services, logical relationship materialization takes 98.66 s of the
+108.55 s profiled median. Within that phase, 98.43 s is spent rebuilding the
+operator implementation graph 6,454 times—once per authored relationship.
+That one operation accounts for 90.7% of the complete cold link and 99.8% of
+the logical relationship phase.
+
+The hot loop calls
+`buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem)`
+before every operator implementation. Each call scans the full model and an
+increasing accumulated edge list. Its time grows 757× while service count grows
+25×; the log-log exponent across all 25 points is 2.13. The measurements and
+the loop structure therefore identify repeated full graph reconstruction as
+the cause of the near-quadratic scaling.
+
+The 210→220 service step is also explained by the same operation:
+
+- median total time: 73.67 → 89.62 s (+15.95 s);
+- implementation graph rebuilds: 65.83 → 81.19 s (+15.36 s);
+- 96.3% of the step increase occurs inside the repeated graph rebuild.
+
+## Secondary costs
+
+![Secondary phase timings before optimization](before-phase-results/secondary-phase-timings.svg)
+
+Once the dominant graph rebuild is removed from the scale, the next costs at
+250 services are visible:
+
+- source classification: 3.17 s;
+- workspace parsing: 3.21 s;
+- deployment expansion: 1.49 s;
+- final graph inspection: 1.39 s;
+- projection expansion: 0.26 s.
+
+Source classification and workspace construction currently parse the same
+sources in separate passes. That duplication is a secondary optimization
+candidate, but it is not responsible for the present nonlinear behavior.
+
+Full phase events, call counts, all +10 points, and control-point medians are in
+[`before-phase-results/REPORT.md`](before-phase-results/REPORT.md) and
+[`before-phase-results/raw.json`](before-phase-results/raw.json).
+
+## Optimization result
+
+The operator implementation API did not use the partial graph supplied during
+relationship materialization. Removing that graph from the API also removed
+6,454 full graph reconstructions from the 250-service link.
+
+![Cold-link scaling after optimization](results/scaling.svg)
+
+The complete cold-link sweep now grows from 0.38 s at 10 services to a 9.84 s
+median at 250 services. Before the change, the corresponding full-scale median
+was 112.88 s.
+
+![Linker phase timings after optimization](phase-results/phase-timings.svg)
+
+The profiled full-scale median fell from 108.55 s to 9.85 s. Most importantly,
+logical relationship materialization fell from **98.66 s to 84.7 ms**. The
+operator invocation loop no longer builds an indexed graph; the final graph is
+built once during completion in 29.0 ms.
+
+Current full scaling measurements are stored in [`results`](results), and the
+current phase profile is stored in [`phase-results`](phase-results).

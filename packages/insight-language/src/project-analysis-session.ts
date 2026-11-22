@@ -8,6 +8,10 @@ import type {
 import { buildLanguageSnapshotResultFromSources, coreLanguageSnapshot } from "./core-snapshot.js";
 import { parseInsightSource, type SourceAnalysisMetadata } from "./parser-facade.js";
 import { ProjectLinkerState } from "./project-linker-state.js";
+import {
+  measureLinkPhase,
+  type ProjectLinkerProfiler,
+} from "./project-linker-profiler.js";
 
 export type ProjectAnalysisUpdateMode = "unchanged" | "incremental" | "full";
 
@@ -48,6 +52,7 @@ export class ProjectAnalysisSession {
     snapshotBuild: LanguageBuildResult,
     snapshotSourceNames: readonly string[],
     state: ProjectLinkerState,
+    private readonly profiler?: ProjectLinkerProfiler,
   ) {
     this.sourcesByName = sourcesByName;
     this.snapshotBuild = snapshotBuild;
@@ -58,29 +63,33 @@ export class ProjectAnalysisSession {
   static create(
     sources: readonly ProjectSource[],
     baseSnapshots: readonly LanguageSnapshot[] = [coreLanguageSnapshot],
+    profiler?: ProjectLinkerProfiler,
   ): ProjectAnalysisSession {
-    const sourcesByName = normalizedSources(sources);
-    const build = buildProject(sourcesByName, baseSnapshots);
+    const sourcesByName = measureLinkPhase(profiler, "session.normalize-sources", () => normalizedSources(sources));
+    const build = buildProject(sourcesByName, baseSnapshots, profiler);
     return new ProjectAnalysisSession(
       baseSnapshots,
       sourcesByName,
       build.snapshotBuild,
       build.snapshotSourceNames,
       build.state,
+      profiler,
     );
   }
 
   analysis(): ProjectAnalysis {
-    const linkedResult = this.state.result();
-    const diagnostics = uniqueDiagnostics([...this.snapshotBuild.diagnostics, ...linkedResult.diagnostics]);
-    const result = { ...linkedResult, diagnostics };
-    return {
-      sources: [...this.sourcesByName.values()],
-      snapshotSources: this.snapshotSourceNames,
-      snapshotBuild: this.snapshotBuild,
-      result,
-      diagnostics,
-    };
+    return measureLinkPhase(this.profiler, "session.materialize-analysis", () => {
+      const linkedResult = this.state.result();
+      const diagnostics = uniqueDiagnostics([...this.snapshotBuild.diagnostics, ...linkedResult.diagnostics]);
+      const result = { ...linkedResult, diagnostics };
+      return {
+        sources: [...this.sourcesByName.values()],
+        snapshotSources: this.snapshotSourceNames,
+        snapshotBuild: this.snapshotBuild,
+        result,
+        diagnostics,
+      };
+    });
   }
 
   fork(): ProjectAnalysisSession {
@@ -90,6 +99,7 @@ export class ProjectAnalysisSession {
       this.snapshotBuild,
       this.snapshotSourceNames,
       this.state.fork(),
+      this.profiler,
     );
   }
 
@@ -130,7 +140,7 @@ export class ProjectAnalysisSession {
   }
 
   private rebuild(sourcesByName: Map<string, ProjectSource>): void {
-    const build = buildProject(sourcesByName, this.baseSnapshots);
+    const build = buildProject(sourcesByName, this.baseSnapshots, this.profiler);
     this.sourcesByName = sourcesByName;
     this.snapshotBuild = build.snapshotBuild;
     this.snapshotSourceNames = build.snapshotSourceNames;
@@ -163,18 +173,23 @@ export class ProjectAnalysisSession {
 function buildProject(
   sourcesByName: ReadonlyMap<string, ProjectSource>,
   baseSnapshots: readonly LanguageSnapshot[],
+  profiler?: ProjectLinkerProfiler,
 ): {
   readonly snapshotBuild: LanguageBuildResult;
   readonly snapshotSourceNames: readonly string[];
   readonly state: ProjectLinkerState;
 } {
   const sources = [...sourcesByName.values()];
-  const snapshotSources = sources.filter((source) => sourceMetadata(source.sourceName, source.source).contributesToSnapshot);
-  const snapshotBuild = buildLanguageSnapshotResultFromSources(snapshotSources, baseSnapshots);
+  const snapshotSources = measureLinkPhase(profiler, "session.classify-sources", () =>
+    sources.filter((source) => sourceMetadata(source.sourceName, source.source).contributesToSnapshot)
+  );
+  const snapshotBuild = measureLinkPhase(profiler, "session.build-snapshot", () =>
+    buildLanguageSnapshotResultFromSources(snapshotSources, baseSnapshots)
+  );
   return {
     snapshotBuild,
     snapshotSourceNames: snapshotSources.map((source) => source.sourceName),
-    state: new ProjectLinkerState({ snapshot: snapshotBuild.snapshot, sources }),
+    state: new ProjectLinkerState({ snapshot: snapshotBuild.snapshot, sources }, undefined, undefined, profiler),
   };
 }
 

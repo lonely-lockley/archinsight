@@ -74,6 +74,7 @@ export { InsightLanguageService } from "./language-service.js";
 export { linkProject } from "./project-linker.js";
 export { ProjectLinkerState } from "./project-linker-state.js";
 export { ProjectAnalysisSession } from "./project-analysis-session.js";
+export type { ProjectLinkerProfiler } from "./project-linker-profiler.js";
 export {
   CORE_EDGE_IMPLEMENTATION,
   CORE_ELEMENT_IMPLEMENTATION,
