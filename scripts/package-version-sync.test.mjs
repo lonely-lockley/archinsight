@@ -84,6 +84,47 @@ test("synchronizes package metadata and local file-dependency snapshots without 
   }
 });
 
+test("preserves established package-lock field order", () => {
+  const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "archinsight-version-order-"));
+  try {
+    const packageDirectory = fixturePackage(
+      temporaryRoot,
+      "package",
+      "example",
+      "1.0.0",
+      {},
+      {
+        license: "Apache-2.0",
+        bin: { example: "build/index.js" },
+        dependencies: { runtime: "^2.0.0" },
+      },
+      {
+        license: "Apache-2.0",
+        dependencies: { runtime: "^1.0.0" },
+        bin: { example: "old.js" },
+      },
+    );
+    const lockFile = path.join(packageDirectory, "package-lock.json");
+
+    const result = run(JSON.stringify([
+      { directory: packageDirectory, version: "2.0.0" },
+    ]), temporaryRoot);
+    assert.equal(result.status, 0, result.stderr);
+
+    const lock = readFileSync(lockFile, "utf8");
+    assert.ok(lock.indexOf('"dependencies"') < lock.indexOf('"bin"'));
+    assert.deepEqual(json(lockFile).packages[""], {
+      name: "example",
+      version: "2.0.0",
+      license: "Apache-2.0",
+      dependencies: { runtime: "^2.0.0" },
+      bin: { example: "build/index.js" },
+    });
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
 test("rejects duplicate package directories before writing", () => {
   const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), "archinsight-version-plan-"));
   try {
@@ -152,7 +193,15 @@ test("Gradle dependency installation remains registry-capable without audit wait
   }
 });
 
-function fixturePackage(root, directoryName, name, version, extraSnapshots = {}, packageMetadata = {}) {
+function fixturePackage(
+  root,
+  directoryName,
+  name,
+  version,
+  extraSnapshots = {},
+  packageMetadata = {},
+  rootSnapshotMetadata = {},
+) {
   const directory = path.join(root, directoryName);
   mkdirSync(directory);
   writeFileSync(path.join(directory, "package.json"), `${JSON.stringify({
@@ -166,7 +215,7 @@ function fixturePackage(root, directoryName, name, version, extraSnapshots = {},
     lockfileVersion: 3,
     requires: true,
     packages: {
-      "": { name, version },
+      "": { name, version, ...rootSnapshotMetadata },
       ...extraSnapshots,
     },
   }, null, 2)}\n`);

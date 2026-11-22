@@ -103,9 +103,26 @@ async function loadPackages(packagePlan) {
 
 function synchronizePackageSnapshot(snapshot, packageDefinition) {
   snapshot.version = packageDefinition.version;
-  for (const field of LOCKFILE_PACKAGE_METADATA_FIELDS) delete snapshot[field];
-  for (const [field, value] of Object.entries(packageDefinition.packageJson)) {
-    if (LOCKFILE_PACKAGE_METADATA_FIELDS.has(field)) {
+  const packageMetadata = packageDefinition.packageJson;
+
+  // Update existing fields in place. npm preserves their established order in
+  // package-lock.json, which is not necessarily the order used by package.json.
+  // Deleting and reinserting every field would therefore create formatting-only
+  // drift after npm install even when the metadata itself had not changed.
+  for (const field of LOCKFILE_PACKAGE_METADATA_FIELDS) {
+    if (Object.hasOwn(packageMetadata, field)) {
+      if (Object.hasOwn(snapshot, field)) {
+        snapshot[field] = canonicalLockfileValue(packageMetadata[field]);
+      }
+    } else {
+      delete snapshot[field];
+    }
+  }
+
+  // Append metadata that is genuinely new to this snapshot. Subsequent runs
+  // then update it in place, so synchronization remains byte-for-byte stable.
+  for (const [field, value] of Object.entries(packageMetadata)) {
+    if (LOCKFILE_PACKAGE_METADATA_FIELDS.has(field) && !Object.hasOwn(snapshot, field)) {
       snapshot[field] = canonicalLockfileValue(value);
     }
   }
