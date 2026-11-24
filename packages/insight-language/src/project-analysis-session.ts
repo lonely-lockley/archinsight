@@ -231,8 +231,17 @@ export class ProjectAnalysisSession {
       const parsedSources = [...nextSources.values()].map((source) =>
         this.state.parsedSource(source.sourceName, source.source)
       );
+      const reparsedSourceCount = this.state.sourceParseCount() - parseCountBeforeClassification;
       this.rebuild(nextSources, parsedSources);
-      return this.updateResult("full", changedSources, new Set(nextSources.keys()), new Set(nextSources.keys()), nextSources.size, nextSources.size, false);
+      return this.updateResult(
+        "full",
+        changedSources,
+        new Set(nextSources.keys()),
+        new Set(nextSources.keys()),
+        nextSources.size,
+        reparsedSourceCount,
+        false,
+      );
     }
 
     try {
@@ -363,6 +372,9 @@ function canUpdateIncrementally(
     if (!previous.reliable || !next.reliable || previous.contributesToSnapshot || next.contributesToSnapshot) {
       return false;
     }
+    if (declaredElementTypeChanged(previous.declaredElementTypes, next.declaredElementTypes)) {
+      return false;
+    }
     if (change.previous === undefined) {
       return next.supportDependencySignature === "";
     }
@@ -373,6 +385,15 @@ function canUpdateIncrementally(
   });
 }
 
+function declaredElementTypeChanged(
+  previous: Readonly<Record<string, string>>,
+  next: Readonly<Record<string, string>>,
+): boolean {
+  return Object.entries(previous).some(([identity, type]) =>
+    next[identity] !== undefined && next[identity] !== type
+  );
+}
+
 function emptySourceMetadata(): SourceAnalysisMetadata {
   return {
     role: "empty",
@@ -380,6 +401,7 @@ function emptySourceMetadata(): SourceAnalysisMetadata {
     dependencySignature: "",
     supportDependencySignature: "",
     derivedGraphSignature: "",
+    declaredElementTypes: {},
     reliable: true,
   };
 }

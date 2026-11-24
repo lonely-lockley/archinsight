@@ -75,6 +75,7 @@ export interface SourceAnalysisMetadata {
   readonly dependencySignature: string;
   readonly supportDependencySignature: string;
   readonly derivedGraphSignature: string;
+  readonly declaredElementTypes: Readonly<Record<string, string>>;
   readonly reliable: boolean;
 }
 
@@ -271,7 +272,10 @@ export function hydrateParsedSource(portable: PortableParsedSource): ParsedSourc
     syntax: new ParsedSyntaxModel(tree, InsightParser.ruleNames, generatedTokenName),
     syntaxErrors: Object.freeze([...portable.syntaxErrors]),
     diagnostics: Object.freeze([...portable.diagnostics]),
-    metadata: Object.freeze({ ...portable.metadata }),
+    metadata: Object.freeze({
+      ...portable.metadata,
+      declaredElementTypes: Object.freeze({ ...portable.metadata.declaredElementTypes }),
+    }),
     ...(portable.parseFailure === undefined ? {} : { parseFailure: Object.freeze({ ...portable.parseFailure }) }),
   });
 }
@@ -636,8 +640,32 @@ function sourceAnalysisMetadata(
     dependencySignature: dependencyParts.join("\n"),
     supportDependencySignature: supportParts.join("\n"),
     derivedGraphSignature: tree === undefined ? "" : derivedGraphSignatureOf(tree),
+    declaredElementTypes: tree === undefined ? Object.freeze({}) : declaredElementTypesOf(tree),
     reliable,
   });
+}
+
+function declaredElementTypesOf(tree: AntlrParseTreeLike): Readonly<Record<string, string>> {
+  const result: Record<string, string> = {};
+  const anonymousCounts = new Map<string, number>();
+  const visit = (node: AntlrParseTreeLike, parentIdentity: string): void => {
+    let descendantParent = parentIdentity;
+    if (ruleName(node, InsightParser.ruleNames) === "objectDeclaration") {
+      const constructor = childText(node, "elementConstructor", InsightParser.ruleNames);
+      const identifier = childText(node, "identifierDeclaration", InsightParser.ruleNames);
+      if (constructor !== "" && identifier !== "") {
+        const segment = identifier === "_"
+          ? `@${anonymousCounts.get(parentIdentity) ?? 0}`
+          : identifier;
+        if (identifier === "_") anonymousCounts.set(parentIdentity, (anonymousCounts.get(parentIdentity) ?? 0) + 1);
+        descendantParent = parentIdentity === "" ? segment : `${parentIdentity}/${segment}`;
+        result[descendantParent] = constructor;
+      }
+    }
+    for (const child of childrenOf(node)) visit(child, descendantParent);
+  };
+  visit(tree, "");
+  return Object.freeze(result);
 }
 
 function derivedGraphSignatureOf(tree: AntlrParseTreeLike): string {

@@ -751,11 +751,16 @@ function completeDeploymentGraph(result: LinkProjectResult): RenderGraph {
   for (const edge of graphs.flatMap((graph) => graph.edges)) {
     const source = canonicalDiagramElementId(edge.source);
     const target = canonicalDiagramElementId(edge.target);
-    edges.set(`${edge.edge.id}\0${source}\0${target}\0${edge.derived}\0${edge.projected}`, {
+    const normalized = {
       ...edge,
       source,
       target,
-    });
+    };
+    const existing = edges.get(edge.edge.id);
+    if (existing === undefined
+      || isMoreSpecificDeploymentEdge(normalized, existing, index.elementsById)) {
+      edges.set(edge.edge.id, normalized);
+    }
   }
   const selectedCanonicalIds = new Set(graphs.flatMap((graph) => Object.keys(graph.elements).map(canonicalDiagramElementId)));
   const dematerialized: RenderGraph = {
@@ -773,6 +778,38 @@ function completeDeploymentGraph(result: LinkProjectResult): RenderGraph {
   const complete = materializeGroupedView(dematerialized);
   index.completeDeploymentGraph = complete;
   return complete;
+}
+
+function isMoreSpecificDeploymentEdge(
+  candidate: RenderGraphEdge,
+  existing: RenderGraphEdge,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): boolean {
+  const candidateExactEndpoints = exactDeploymentEndpoints(candidate);
+  const existingExactEndpoints = exactDeploymentEndpoints(existing);
+  if (candidateExactEndpoints !== existingExactEndpoints) {
+    return candidateExactEndpoints > existingExactEndpoints;
+  }
+  const candidateDepth = elementDepth(candidate.source, elementsById) + elementDepth(candidate.target, elementsById);
+  const existingDepth = elementDepth(existing.source, elementsById) + elementDepth(existing.target, elementsById);
+  return candidateDepth > existingDepth;
+}
+
+function exactDeploymentEndpoints(edge: RenderGraphEdge): number {
+  return Number(edge.source === canonicalDiagramElementId(edge.edge.source))
+    + Number(edge.target === canonicalDiagramElementId(edge.edge.target));
+}
+
+function elementDepth(id: string, elementsById: ReadonlyMap<string, LinkedElement>): number {
+  let depth = 0;
+  let current = elementsById.get(canonicalDiagramElementId(id));
+  const visited = new Set<string>();
+  while (current?.parent !== undefined && !visited.has(current.id)) {
+    visited.add(current.id);
+    depth++;
+    current = elementsById.get(current.parent);
+  }
+  return depth;
 }
 
 function childrenIndex(elements: readonly LinkedElement[]): Map<string, readonly LinkedElement[]> {

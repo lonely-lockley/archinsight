@@ -91,7 +91,7 @@ export async function loadProject(input: string, cacheOptions: ProjectCacheOptio
     }
   }
   traceCache("MISS");
-  const session = await ProjectAnalysisSession.createAsync(sources, parallelSourceParser);
+  const session = await createProjectAnalysisSession(sources);
   const analysis = session.analysis();
   if (cacheDirectory !== undefined) {
     await saveCache(cacheDirectory, root, sources, session);
@@ -103,13 +103,25 @@ export async function analyzeProjectSourcesAsync(
   root: string,
   sources: readonly ProjectSource[],
 ): Promise<LoadedProject> {
-  const analysis = (await ProjectAnalysisSession.createAsync(sources, parallelSourceParser)).analysis();
+  const analysis = (await createProjectAnalysisSession(sources)).analysis();
   return loadedProject(root, sources, analysis);
 }
 
 export function analyzeProjectSources(root: string, sources: readonly ProjectSource[]): LoadedProject {
   const analysis = ProjectAnalysisSession.create(sources).analysis();
   return loadedProject(root, sources, analysis);
+}
+
+async function createProjectAnalysisSession(
+  sources: readonly ProjectSource[],
+): Promise<ProjectAnalysisSession> {
+  try {
+    return await ProjectAnalysisSession.createAsync(sources, parallelSourceParser);
+  } catch {
+    // Worker threads are a parsing optimization. A missing or unusable worker
+    // must degrade to the in-process parser instead of disabling every command.
+    return ProjectAnalysisSession.create(sources);
+  }
 }
 
 function loadedProject(
