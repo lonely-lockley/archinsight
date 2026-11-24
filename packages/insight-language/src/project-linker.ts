@@ -3305,6 +3305,19 @@ function addProjectedEdges(
         typeSystem,
       );
       const rules = value.element.projectionRules;
+      reportOmittedDeploymentOccurrence(
+        fromId,
+        toId,
+        value,
+        effectiveProjectionScope,
+        rules,
+        elementsById,
+        resolvedElementAttributes,
+        typeSystem,
+        diagnostics,
+        projectionOrigin,
+        sourceIdentity,
+      );
       if (fromId === toId && rules.some(projectionRuleUsesTo)) {
         const position = value.line === undefined || value.column === undefined
           ? value.element
@@ -3346,6 +3359,53 @@ function addProjectedEdges(
       );
     }
   }
+}
+
+function reportOmittedDeploymentOccurrence(
+  fromId: string,
+  toId: string,
+  projectionValue: ResolvedReferenceValue,
+  projectionScope: ProjectionScope | undefined,
+  rules: readonly ProjectionRuleDefinition[],
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
+  diagnostics: LanguageDiagnostic[],
+  projectionOrigin: ProjectionOrigin,
+  sourceIdentity: string,
+): void {
+  if (projectionValue.deploymentId === undefined || projectionValue.element === undefined || rules.length === 0) return;
+  const sourceHasPlacements = endpointPlacementValues(fromId, elementsById, resolvedElementAttributes, typeSystem).length > 0;
+  const targetHasPlacements = endpointPlacementValues(toId, elementsById, resolvedElementAttributes, typeSystem).length > 0;
+  const sourceMissing = sourceHasPlacements
+    && projectionScope?.sourcePlacement === undefined
+    && rules.some(projectionRuleUsesFrom);
+  const targetMissing = targetHasPlacements
+    && projectionScope?.targetPlacement === undefined
+    && rules.some(projectionRuleUsesTo);
+  if (!sourceMissing && !targetMissing) return;
+
+  const environment = projectionValue.element.context;
+  const missing = [
+    ...(sourceMissing ? [`source '${fromId}'`] : []),
+    ...(targetMissing ? [`target '${toId}'`] : []),
+  ];
+  const message = `Deployment occurrence for relationship '${fromId} -> ${toId}' is omitted in environment '${environment}' because ${missing.join(" and ")} has no placement there`;
+  if (diagnostics.some((diagnostic) => diagnostic.code === "WIRE_DEPLOYMENT_OCCURRENCE_OMITTED"
+      && diagnostic.message === message)) return;
+
+  const declaration = projectionOrigin.declaration;
+  const fallback = elementsById.get(fromId);
+  diagnostics.push({
+    level: "NOTE",
+    code: "WIRE_DEPLOYMENT_OCCURRENCE_OMITTED",
+    message,
+    sourceName: declaration?.sourceName ?? fallback?.sourceName ?? sourceIdentity,
+    line: declaration?.line ?? fallback?.line ?? 1,
+    column: declaration?.column ?? fallback?.column ?? 0,
+    ...(declaration?.endLine === undefined ? {} : { endLine: declaration.endLine }),
+    ...(declaration?.endColumn === undefined ? {} : { endColumn: declaration.endColumn }),
+  });
 }
 
 function addProjectedEdgesForValues(
@@ -3655,8 +3715,16 @@ function projectionRuleUsesTo(rule: ProjectionRuleDefinition): boolean {
   return projectionTermUsesTo(rule.source) || projectionTermUsesTo(rule.target);
 }
 
+function projectionRuleUsesFrom(rule: ProjectionRuleDefinition): boolean {
+  return projectionTermUsesFrom(rule.source) || projectionTermUsesFrom(rule.target);
+}
+
 function projectionTermUsesTo(term: ProjectionTermDefinition): boolean {
   return term.kind === "to";
+}
+
+function projectionTermUsesFrom(term: ProjectionTermDefinition): boolean {
+  return term.kind === "from";
 }
 
 function projectionTermUsesOwner(term: ProjectionTermDefinition): boolean {

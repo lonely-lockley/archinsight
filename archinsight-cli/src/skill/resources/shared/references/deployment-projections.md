@@ -41,6 +41,25 @@ the effective endpoint profiles. Nested deployment overrides are copy-on-write:
 they clone the selected infrastructure for that logical owner without changing
 the shared inventory or routing unrelated projected hops through the clone.
 
+If both logical endpoints have placements but their environment sets differ,
+only occurrences with resolvable endpoint placements are materialized. The
+engine does not replace a missing occurrence with the unplaced logical id. It
+reports `WIRE_DEPLOYMENT_OCCURRENCE_OMITTED` as a note for the wire and
+environment; inspect Output before treating a missing physical edge as a query
+or renderer defect.
+
+The language cannot currently express placement affinity or fallback rules such
+as "each regional caller uses the target for its region group" or "use central
+when no local target exists". Do not invent a physical occurrence for such a
+route. Keep the logical wire and state the cross-region or fallback behavior in
+its `description`, so the rule remains visible on the diagram arrow. For example:
+
+```insight
+links:
+    -> catalog
+        description = Uses the central catalog when no regional instance exists
+```
+
 Inspect query JSON before rendering. Outer `source` and `target` are drawn;
 nested `edge.source` and `edge.target` are the physical linked edge;
 `edge.originSource` and `edge.originTarget` identify the selected logical
