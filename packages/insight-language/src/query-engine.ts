@@ -150,6 +150,7 @@ interface EvaluationContext extends QueryExecutionContext {
   readonly relationshipsByEndpoint: ReadonlyMap<string, readonly QueryRelationship[]>;
   readonly budget: QueryBudget;
   readonly parameters: Readonly<Record<string, QueryParameterValue>>;
+  readonly discoveryEnvironment?: string;
 }
 
 interface QueryBudget {
@@ -712,11 +713,11 @@ export function materializeGroupedView(graph: RenderGraph, materializeDeployment
     ...group,
     elements: group.elements.map((element) => cloneIdsByElementAndGroup.get(groupedCloneKey(element, group.owner)) ?? element),
   }));
-  const edges = graph.edges.map((edge) => ({
-    ...edge,
-    source: cloneEndpoint(edge.source, edge.edge.sourcePlacement, cloneIdsByElementAndGroup),
-    target: cloneEndpoint(edge.target, edge.edge.targetPlacement, cloneIdsByElementAndGroup),
-  }));
+  const edges = graph.edges.flatMap((edge) => {
+    const source = cloneEndpoint(edge.source, edge.edge.sourcePlacement, cloneIdsByElementAndGroup, clonedElementIds);
+    const target = cloneEndpoint(edge.target, edge.edge.targetPlacement, cloneIdsByElementAndGroup, clonedElementIds);
+    return source === undefined || target === undefined ? [] : [{ ...edge, source, target }];
+  });
   const referenced = new Set<string>([
     ...groups.flatMap((group) => group.elements),
     ...edges.flatMap((edge) => [edge.source, edge.target]),
@@ -746,10 +747,12 @@ function cloneEndpoint(
   elementId: string,
   projectionScope: string | undefined,
   cloneIdsByElementAndGroup: ReadonlyMap<string, string>,
-): string {
+  clonedElementIds: ReadonlySet<string>,
+): string | undefined {
+  if (!clonedElementIds.has(elementId)) return elementId;
   return projectionScope === undefined
-    ? elementId
-    : cloneIdsByElementAndGroup.get(groupedCloneKey(elementId, projectionScope)) ?? elementId;
+    ? undefined
+    : cloneIdsByElementAndGroup.get(groupedCloneKey(elementId, projectionScope));
 }
 
 function groupedCloneKey(elementId: string, groupOwner: string): string {
@@ -1382,8 +1385,9 @@ function evaluationContext(
   budget = createQueryBudget(DEFAULT_QUERY_EXECUTION_LIMITS),
   parameters: Readonly<Record<string, QueryParameterValue>> = {},
 ): EvaluationContext {
+  const discoveryEnvironment = deploymentDiscoveryEnvironment(base);
   const nodes = queryNodes(base);
-  const relationships = queryRelationships(base, budget);
+  const relationships = queryRelationships(base, budget, discoveryEnvironment);
   return {
     ...base,
     nodes,
@@ -1395,7 +1399,16 @@ function evaluationContext(
     relationshipsByEndpoint: indexRelationshipEndpoints(relationships),
     budget,
     parameters,
+    ...(discoveryEnvironment === undefined ? {} : { discoveryEnvironment }),
   };
+}
+
+function deploymentDiscoveryEnvironment(context: QueryExecutionContext): string | undefined {
+  const pipeline = queryViewPipeline(context.scope.view, context.scope.pipeline);
+  if (!pipeline.stages.includes("deployment-environment")) return undefined;
+  if (context.scope.environment !== undefined) return context.scope.environment;
+  const environments = discoverDeploymentEnvironments(context.result, context.scope);
+  return environments.length === 1 ? environments[0]!.id : undefined;
 }
 
 function indexNodesByLabel(nodes: readonly QueryNode[]): ReadonlyMap<string, readonly QueryNode[]> {
@@ -1411,7 +1424,16 @@ function indexNodesByLabel(nodes: readonly QueryNode[]): ReadonlyMap<string, rea
 }
 
 function candidateNodes(context: EvaluationContext, pattern: NodePattern): readonly QueryNode[] {
-  return pattern.label === undefined ? context.nodes : context.nodesByLabel.get(pattern.label) ?? [];
+  const candidates = pattern.label === undefined ? context.nodes : context.nodesByLabel.get(pattern.label) ?? [];
+  return context.discoveryEnvironment === undefined
+    ? candidates
+    : candidates.filter((node) => nodeInDiscoveryEnvironment(node, context.discoveryEnvironment!));
+}
+
+function nodeInDiscoveryEnvironment(node: QueryNode, environment: string): boolean {
+  return node.kind !== "element"
+    || !elementHasCapability(node.element, TYPE_CAPABILITIES.infrastructure)
+    || node.element.context === environment;
 }
 
 function indexRelationshipEndpoints(
@@ -2461,15 +2483,76 @@ function optionalMatchRows(
   clause: MatchClause,
 ): readonly Row[] {
   const next: Row[] = [];
+  const referencedAliases = matchReferencedAliases(clause);
+  const matchesByCorrelation = new Map<string, readonly Row[]>();
   for (const row of rows) {
-    const matched = matchRows(context, [row], clause);
+    const key = correlationKey(row, referencedAliases);
+    let matched = matchesByCorrelation.get(key);
+    if (matched === undefined) {
+      matched = matchRows(context, [correlationRow(row, referencedAliases)], clause);
+      matchesByCorrelation.set(key, matched);
+    }
     if (matched.length === 0) {
       appendRow(context, next, row);
     } else {
-      appendRows(context, next, matched);
+      appendRows(context, next, matched.map((template) => mergeRows(row, template)));
     }
   }
   return next;
+}
+
+function matchReferencedAliases(clause: MatchClause): readonly string[] {
+  return [...new Set([
+    clause.pattern.left.alias,
+    clause.pattern.relationship?.alias,
+    clause.pattern.right?.alias,
+    clause.pattern.path?.alias,
+    ...expressionAliases(clause.where),
+  ].filter((alias): alias is string => alias !== undefined))].sort();
+}
+
+function expressionAliases(expression: Expression | undefined): readonly string[] {
+  if (expression === undefined) return [];
+  if (expression.kind === "and" || expression.kind === "or") {
+    return [...expressionAliases(expression.left), ...expressionAliases(expression.right)];
+  }
+  if (expression.kind === "not") return expressionAliases(expression.expression);
+  return [...valueExpressionAliases(expression.left), ...(expression.kind === "is" ? [] : valueExpressionAliases(expression.right))];
+}
+
+function valueExpressionAliases(expression: ValueExpression): readonly string[] {
+  if (expression.kind === "property" || expression.kind === "binding") return [expression.alias];
+  if (expression.kind === "function") return expression.arguments.flatMap(valueExpressionAliases);
+  return [];
+}
+
+function correlationRow(row: Row, aliases: readonly string[]): Row {
+  const selected = new Set(aliases);
+  return {
+    nodes: Object.fromEntries(Object.entries(row.nodes).filter(([alias]) => selected.has(alias))),
+    relationships: Object.fromEntries(Object.entries(row.relationships).filter(([alias]) => selected.has(alias))),
+    values: Object.fromEntries(Object.entries(row.values).filter(([alias]) => selected.has(alias))),
+  };
+}
+
+function correlationKey(row: Row, aliases: readonly string[]): string {
+  return JSON.stringify(aliases.map((alias) => hasRuntimeBinding(row, alias)
+    ? [alias, runtimeBindingKey(runtimeBinding(row, alias))]
+    : [alias]));
+}
+
+function runtimeBindingKey(value: RuntimeValue): string {
+  if (isQueryNode(value)) return `node:${value.kind}:${value.id}`;
+  if (isQueryRelationship(value)) return `relationship:${queryRelationshipIdentity(value)}`;
+  return `value:${runtimeKey(value)}`;
+}
+
+function mergeRows(row: Row, template: Row): Row {
+  return {
+    nodes: { ...row.nodes, ...template.nodes },
+    relationships: { ...row.relationships, ...template.relationships },
+    values: { ...row.values, ...template.values },
+  };
 }
 
 function matchRows(
@@ -2477,19 +2560,22 @@ function matchRows(
   inputRows: readonly Row[],
   clause: MatchClause,
 ): readonly Row[] {
+  const eligibleRows = inputRows.filter((row) => boundConjunctsMatch(row, clause.where, context));
   if (clause.pattern.path !== undefined) {
-    return pathMatchRows(context, inputRows, clause.pattern, clause.where);
+    return pathMatchRows(context, eligibleRows, clause.pattern, clause.where);
   }
   if (clause.rollup) {
-    return rollupMatchRows(context, inputRows, clause.pattern, clause.where);
+    return rollupMatchRows(context, eligibleRows, clause.pattern, clause.where);
   }
   const pattern = clause.pattern;
   const rows: Row[] = [];
   if (pattern.relationship === undefined || pattern.right === undefined) {
-    for (const row of inputRows) {
+    for (const row of eligibleRows) {
       const bound = row.nodes[pattern.left.alias];
       if (bound === undefined && hasRuntimeBinding(row, pattern.left.alias)) continue;
-      const candidates = bound === undefined ? candidateNodes(context, pattern.left) : [bound];
+      const candidates = bound === undefined
+        ? anchoredNodeCandidates(context, row, pattern.left, clause.where) ?? candidateNodes(context, pattern.left)
+        : [bound];
       for (const node of candidates) {
         chargeExpansion(context);
         if (matchesNode(node, pattern.left, context)) {
@@ -2506,7 +2592,7 @@ function matchRows(
 
   const right = pattern.right;
   const relationship = pattern.relationship;
-  for (const row of inputRows) {
+  for (const row of eligibleRows) {
     const boundLeft = row.nodes[pattern.left.alias];
     const boundRight = row.nodes[right.alias];
     const boundRelationship = relationship.alias === undefined ? undefined : row.relationships[relationship.alias];
@@ -2554,6 +2640,80 @@ function matchRows(
     }
   }
   return rows.filter((row) => evaluateExpression(row, clause.where, context));
+}
+
+function boundConjunctsMatch(
+  row: Row,
+  expression: Expression | undefined,
+  context: EvaluationContext,
+): boolean {
+  if (expression === undefined) return true;
+  const conjuncts = expression.kind === "and"
+    ? [...flattenConjuncts(expression.left), ...flattenConjuncts(expression.right)]
+    : [expression];
+  return conjuncts.every((conjunct) => {
+    const aliases = expressionAliases(conjunct);
+    return aliases.length === 0 || !aliases.every((alias) => hasRuntimeBinding(row, alias))
+      || evaluateExpression(row, conjunct, context);
+  });
+}
+
+function flattenConjuncts(expression: Expression): readonly Expression[] {
+  return expression.kind === "and"
+    ? [...flattenConjuncts(expression.left), ...flattenConjuncts(expression.right)]
+    : [expression];
+}
+
+function anchoredNodeCandidates(
+  context: EvaluationContext,
+  row: Row,
+  pattern: NodePattern,
+  expression: Expression | undefined,
+): readonly QueryNode[] | undefined {
+  const anchored = membershipAnchorCandidates(context, row, pattern.alias, expression);
+  return context.discoveryEnvironment === undefined
+    ? anchored
+    : anchored?.filter((node) => nodeInDiscoveryEnvironment(node, context.discoveryEnvironment!));
+}
+
+function membershipAnchorCandidates(
+  context: EvaluationContext,
+  row: Row,
+  alias: string,
+  expression: Expression | undefined,
+): readonly QueryNode[] | undefined {
+  if (expression === undefined || expression.kind === "not" || expression.kind === "is" || expression.kind === "compare") {
+    return undefined;
+  }
+  if (expression.kind === "in") {
+    if (expression.left.kind !== "binding" || expression.left.alias !== alias) return undefined;
+    return nodesFromRuntimeValue(evaluateValue(row, expression.right, context), context);
+  }
+  const left = membershipAnchorCandidates(context, row, alias, expression.left);
+  const right = membershipAnchorCandidates(context, row, alias, expression.right);
+  if (expression.kind === "or") {
+    return left === undefined || right === undefined ? undefined : uniqueNodes([...left, ...right]);
+  }
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+  const rightIds = new Set(right.map((node) => node.id));
+  return left.filter((node) => rightIds.has(node.id));
+}
+
+function nodesFromRuntimeValue(value: RuntimeValue, context: EvaluationContext): readonly QueryNode[] {
+  const values = Array.isArray(value) ? value : [value];
+  return uniqueNodes(values.flatMap((item) => {
+    if (isQueryNode(item)) return [context.nodeById.get(item.id) ?? item];
+    if (typeof item === "string") {
+      const node = context.nodeById.get(item);
+      return node === undefined ? [] : [node];
+    }
+    return [];
+  }));
+}
+
+function uniqueNodes(nodes: readonly QueryNode[]): readonly QueryNode[] {
+  return [...new Map(nodes.map((node) => [node.id, node])).values()];
 }
 
 function candidateRelationships(
@@ -2996,11 +3156,20 @@ function elementNode(element: LinkedElement): QueryNode {
   return { kind: "element", id: element.id, element };
 }
 
-function queryRelationships(context: QueryExecutionContext, budget: QueryBudget): readonly QueryRelationship[] {
+function queryRelationships(
+  context: QueryExecutionContext,
+  budget: QueryBudget,
+  discoveryEnvironment: string | undefined,
+): readonly QueryRelationship[] {
   const edgeByRelationId = linkedEdgesByGraphRelationId(context.result);
   const relationships: QueryRelationship[] = context.result.graph.relations().flatMap((relation) => {
     chargeRawExpansion(budget);
-    return queryRelationshipVariants(relation, edgeByRelationId.get(relation.id), context.contextBySourceIdentity);
+    const edge = edgeByRelationId.get(relation.id);
+    if (discoveryEnvironment !== undefined
+        && !relationshipInDiscoveryEnvironment(relation, edge, discoveryEnvironment, context.elementsById)) {
+      return [];
+    }
+    return queryRelationshipVariants(relation, edge, context.contextBySourceIdentity);
   });
   const parentByChild = context.parentByChild;
   for (const relationship of [...relationships]) {
@@ -3032,6 +3201,30 @@ function queryRelationships(context: QueryExecutionContext, budget: QueryBudget)
     }
   }
   return relationships;
+}
+
+function relationshipInDiscoveryEnvironment(
+  relation: GraphRelation,
+  edge: LinkedEdge | undefined,
+  environment: string,
+  elementsById: ReadonlyMap<string, LinkedElement>,
+): boolean {
+  if (edge === undefined || relation.kind !== "REFERENCES") return true;
+  const source = elementsById.get(relation.source);
+  const target = elementsById.get(relation.target);
+  const physical = edge.projected === true
+    || elementHasCapability(source, TYPE_CAPABILITIES.infrastructure)
+    || elementHasCapability(target, TYPE_CAPABILITIES.infrastructure);
+  if (!physical) return true;
+  const scopes = [
+    edge.projectionRoot,
+    edge.projectionScope,
+    edge.sourcePlacement,
+    edge.targetPlacement,
+    relation.source,
+    relation.target,
+  ].filter((id): id is string => id !== undefined);
+  return scopes.some((id) => elementsById.get(id)?.context === environment);
 }
 
 function chargeRawExpansion(budget: QueryBudget): void {

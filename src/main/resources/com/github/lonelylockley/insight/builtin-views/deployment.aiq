@@ -2,15 +2,15 @@ MATCH (node:Element)
 WHERE node.sourceIdentity = $tab
   AND (node IS InfrastructureComponent
     OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))
-OPTIONAL MATCH (deploymentTarget:InfrastructureComponent)
-WHERE deploymentTarget IN node.uses OR deploymentTarget IN node.runsOn
+OPTIONAL MATCH (node)-[directDeploymentLink:REFERENCES]-(directDeploymentTarget:Element)
+WHERE node IS InfrastructureComponent
+  AND (directDeploymentTarget IS InfrastructureComponent OR directDeploymentTarget IS External)
 OPTIONAL MATCH ROLLUP (node)-[projectedLink:REFERENCES {projected}]-(projectedPeer:Element)
 WHERE (projectedPeer IS InfrastructureComponent
    OR (projectedPeer IS ContainerElement AND projectedPeer.deployed = true)
    OR projectedPeer IS External)
   AND projectedPeer.id <> node.id
-OPTIONAL MATCH (node)-[directDeploymentLink:REFERENCES]-(directDeploymentTarget:Element)
-WHERE node IS InfrastructureComponent
-  AND (directDeploymentTarget IS InfrastructureComponent OR directDeploymentTarget IS External)
+OPTIONAL MATCH (deploymentTarget:InfrastructureComponent)
+WHERE deploymentTarget IN node.uses OR deploymentTarget IN node.runsOn
 GROUP BY node.runsOn
 RETURN node, deploymentTarget, projectedLink, projectedPeer, directDeploymentLink, directDeploymentTarget

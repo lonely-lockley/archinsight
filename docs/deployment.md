@@ -336,6 +336,8 @@ Element placement and wire placement work together. The element profiles identif
 
 Wire coverage is checked only after the project contains at least one deployment-relevant wire with a `deployment` block. From that point, a logical wire between different deployment endpoints produces `WIRE_MISSING_DEPLOYMENT` when it has no deployment, while a configured wire that produces no physical projection produces `WIRE_DEPLOYMENT_NOT_PROJECTED`. A component relationship whose endpoints belong to the same container does not require a physical projection because it collapses to a self-relationship in the Deployment views. Both diagnostics are warnings: the linked logical graph remains valid, while the incomplete wire stays out of the built-in Deployment views.
 
+When both endpoints are deployed but their placement sets differ, a projected occurrence is created only where the selected infrastructure can resolve the required endpoint placements. An unmatched occurrence is omitted instead of falling back to an unplaced logical endpoint. `WIRE_DEPLOYMENT_OCCURRENCE_OMITTED` is written as a note in Output for each affected environment and identifies the endpoint that has no placement there.
+
 ## Deployment entities
 
 | Entity | Constructor | Purpose |

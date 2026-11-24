@@ -475,8 +475,8 @@ source owns no deployed elements, environment discovery falls back to
 infrastructure used by its authored wires. D1 folds logical nodes to systems.
 D1 then contracts internal infrastructure paths and groups the remaining systems
 and external integrations by environment. D2 applies the structured environment
-scope after discovery and retains its physical detail. The legacy Deployment
-query retains all relevant environments.
+scope during physical discovery and retains its physical detail. The legacy
+Deployment query retains all relevant environments.
 
 When a built-in view is close but hides the wrong thing, read
 `references/query-recipes.md`, copy the nearest built-in `.aiq`, and change
@@ -494,3 +494,18 @@ the filter or grouping deliberately.
   another path.
 - Copy `examples/builtin-views/<name>.aiq` before overriding a standard view;
   do not recreate a built-in query from memory.
+
+## Query Cost
+
+- In graph queries, correlate each `OPTIONAL MATCH` with the smallest useful set
+  of already-bound aliases. The engine evaluates an equivalent optional pattern
+  once per distinct correlation and joins its bindings back into accumulated rows.
+- In graph queries, put predicates that depend only on an existing anchor in the
+  optional clause's `WHERE`. They are checked before relationship or path expansion.
+- Use `candidate IN anchor.<reference>` for graph-query placement lookup. The
+  engine binds reference-backed candidates directly instead of scanning the label.
+- Pass the D2 environment in query scope. Physical relationships outside that
+  environment are excluded before derived and rollup candidates are built.
+- Use `--max-expansions`, `--max-rows`, `--max-values`, and `--timeout-ms` to
+  diagnose genuinely broad queries; increasing a budget is not a substitute for
+  narrowing the source, environment, label, or relationship selector.
