@@ -47,6 +47,29 @@ assert.equal(restoredIncremental.mode, "incremental");
 assert.equal(restoredIncremental.reparsedSourceCount, 1);
 assert.equal(elementName(restoredIncremental.result), "Restored incremental");
 
+const typeChangeSources = [
+  source("types.ai", typeChangeDefinitions()),
+  source("model.ai", model("firstSystem", "Before type change")),
+];
+const cachedTypeChangeSession = ProjectAnalysisSession.restore(
+  ProjectAnalysisSession.create(typeChangeSources).portableSnapshot(),
+);
+const changedTypeSources = [
+  typeChangeSources[0],
+  source("model.ai", model("secondSystem", "After type change")),
+];
+const cachedTypeChange = cachedTypeChangeSession.update(changedTypeSources);
+assert.equal(cachedTypeChange.mode, "full",
+  "changing an existing element constructor must rebuild the complete semantic project");
+assert.equal(cachedTypeChange.reparsedSourceCount, 1,
+  "a full semantic rebuild after a type change must reuse cached ASTs for unchanged sources");
+assert.deepEqual(cachedTypeChange.relinkedSources, new Set(["model.ai", "types.ai"]));
+assert.deepEqual(
+  resultSignature(cachedTypeChange.result),
+  resultSignature(ProjectAnalysisSession.create(changedTypeSources).analysis().result),
+  "a cached type-change rebuild must equal a clean project analysis",
+);
+
 const unchanged = session.update(initialSources);
 assert.equal(unchanged.mode, "unchanged");
 assert.equal(unchanged.relinkedSourceCount, 0);
@@ -273,6 +296,15 @@ function definition(constructor) {
   return `define type CustomSystem of System
     constructor ${constructor}
         kind = internal
+`;
+}
+
+function typeChangeDefinitions() {
+  return `define type FirstSystem of System
+    constructor firstSystem
+
+define type SecondSystem of System
+    constructor secondSystem
 `;
 }
 

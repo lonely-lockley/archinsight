@@ -55,6 +55,7 @@ system api
   assert.equal(parsed.sourceName, "model.ai");
   assert.equal(parsed.metadata.role, "architecture");
   assert.equal(parsed.metadata.contributesToSnapshot, false);
+  assert.deepEqual(parsed.metadata.declaredElementTypes, { api: "system" });
   assert.equal(parsed.metadata.reliable, true);
   assert.deepEqual(parsed.diagnostics, []);
   assert.deepEqual(parsed.syntaxErrors, []);

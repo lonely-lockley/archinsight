@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -48,11 +49,20 @@ system application
 
   const linked = spawnSync(
     process.execPath,
-    [path.join(packageDirectory, "build", "index.js"), "link", projectDirectory, "--format", "json"],
+    [path.join(packageDirectory, "build", "index.js"), "link", projectDirectory, "--format", "json", "--no-cache"],
     { cwd: packageDirectory, encoding: "utf8" },
   );
   assert.equal(linked.status, 0, linked.stderr);
   assert.equal(JSON.parse(linked.stdout).summary.ERROR, 0);
+
+  unlinkSync(path.join(packageDirectory, "build", "project-source-parser-worker.js"));
+  const fallback = spawnSync(
+    process.execPath,
+    [path.join(packageDirectory, "build", "index.js"), "link", projectDirectory, "--format", "json", "--no-cache"],
+    { cwd: packageDirectory, encoding: "utf8" },
+  );
+  assert.equal(fallback.status, 0, fallback.stderr);
+  assert.deepEqual(JSON.parse(fallback.stdout), JSON.parse(linked.stdout));
   console.log("Packed CLI cold-link contract passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });

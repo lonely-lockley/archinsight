@@ -297,6 +297,27 @@ const deployment = selectDeploymentGraph(result, "shop/api", "eu");
 assert.deepEqual(deploymentFocusElementIds(result, "shop/api", deployment), ["shop/api"]);
 assert(Object.keys(deployment.elements).some((id) => id.startsWith("shop/api")), "deployment contains the selected logical occurrence");
 assert(deployment.edges.length > 0, "deployment retains the selected element's physical path");
+const nestedGatewayDeployment = selectDeploymentGraph(result, "shop/reviewTarget", "eu");
+const nestedGatewayEdgeIds = nestedGatewayDeployment.edges.map((edge) => edge.edge.id);
+assert.equal(
+  new Set(nestedGatewayEdgeIds).size,
+  nestedGatewayEdgeIds.length,
+  "deployment emits one visible hop for an edge routed through a nested gateway slot",
+);
+assert.equal(
+  nestedGatewayDeployment.edges.some((edge) =>
+    edge.source === "eu/proxy" && edge.target === "shop/reviewTarget"
+  ),
+  true,
+  "deployment keeps the concrete nested gateway slot as the projected hop endpoint",
+);
+assert.equal(
+  nestedGatewayDeployment.edges.some((edge) =>
+    edge.source === "eu/gateway" && edge.target === "shop/reviewTarget"
+  ),
+  false,
+  "deployment does not duplicate a nested gateway hop from its owner boundary",
+);
 const deploymentFocus = new Set(Object.keys(deployment.elements).filter((id) => id === "shop/api" || id.startsWith("shop/api@@")));
 assert(
   deployment.edges.every((edge) => deploymentFocus.has(edge.source) || deploymentFocus.has(edge.target)),
