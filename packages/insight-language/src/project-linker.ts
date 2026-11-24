@@ -324,7 +324,7 @@ interface DeploymentApplicationState {
   deployments: ParsedElement[];
   readonly profileByDeploymentId: Map<string, ParsedElement>;
   readonly runsOn: DeploymentUse[];
-  readonly usesByFamily: Map<string, DeploymentUse>;
+  readonly usesByKey: Map<string, DeploymentUse>;
 }
 
 interface EdgeMaterializationInput {
@@ -2781,7 +2781,7 @@ function resolveDeploymentApplication(
     deployments: [...initialDeployments],
     profileByDeploymentId: new Map<string, ParsedElement>(),
     runsOn: [] as DeploymentUse[],
-    usesByFamily: new Map<string, DeploymentUse>(),
+    usesByKey: new Map<string, DeploymentUse>(),
   };
   for (const action of actions) {
     applyDeploymentAction(owner, action, false, wire, state, context);
@@ -2789,7 +2789,7 @@ function resolveDeploymentApplication(
   return {
     deployments: state.deployments,
     runsOn: state.runsOn,
-    uses: [...state.usesByFamily.values()],
+    uses: [...state.usesByKey.values()],
   };
 }
 
@@ -2876,7 +2876,7 @@ function applyDeploymentAction(
       state.runsOn.push(use);
       continue;
     }
-    state.usesByFamily.set(deploymentUseFamilyKey(item.element, item.deploymentId, context.typeSystem), use);
+    state.usesByKey.set(deploymentUseKey(item.element, item.deploymentId, target, context.typeSystem), use);
   }
 }
 
@@ -3176,6 +3176,19 @@ function deploymentUseFamilyKey(
   typeSystem: TypeSystem,
 ): string {
   return `${deploymentId ?? element.context}\0${deploymentUseFamily(element.type, typeSystem)}`;
+}
+
+function deploymentUseKey(
+  element: ParsedElement,
+  deploymentId: string | undefined,
+  concreteTarget: ParsedElement | undefined,
+  typeSystem: TypeSystem,
+): string {
+  // Slot actions replace the selected infrastructure family for a deployment,
+  // while concrete references are additive and identify one exact instance.
+  return concreteTarget === undefined
+    ? `family\0${deploymentUseFamilyKey(element, deploymentId, typeSystem)}`
+    : `element\0${concreteTarget.id}`;
 }
 
 function deploymentUseFamily(type: string, typeSystem: TypeSystem): string {

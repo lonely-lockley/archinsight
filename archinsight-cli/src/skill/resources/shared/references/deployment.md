@@ -222,6 +222,8 @@ Systems and containers can also write `runsOn <infrastructure>` or
 instances. The linker exposes the resulting `runsOn` and `uses` references to
 queries; those computed values are not separate source attributes on logical
 elements. Infrastructure retains its distinct `runsOn:` reference attribute.
+Different concrete instances remain separate uses even when they have the same
+infrastructure type.
 
 Several profiles may be applied to one element only when their concrete
 deployment sets are disjoint. Applying two profiles that both contain
