@@ -156,6 +156,7 @@ function verifySharedFiles(output) {
   const customViews = readFileSync(path.join(output, "references", "custom-views.md"), "utf8");
   assert(customViews.includes("graph-returning queries"));
   assert(customViews.includes("`RETURN TABLE` reports"));
+  assert(customViews.includes("The web and VS Code workspaces replace the query text"));
   assert(customViews.includes("`reports/<descriptive-name>.aiq`"));
   assert(customViews.includes("`views/<descriptive-name>.aiq`"));
   assert(customViews.includes("directories do not namespace query names"));

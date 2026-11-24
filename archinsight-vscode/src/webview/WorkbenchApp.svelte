@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import type * as Monaco from 'monaco-editor/editor/editor.api';
   import {
+    BUILTIN_VIEW_QUERIES,
     completeAiq,
     coreLanguageSnapshot,
     diagramElementMetadata,
@@ -43,8 +44,7 @@
     defaultDiagramMode,
     defaultQuery,
     diagramModeDefinition,
-    diagramModeForQuery,
-    queryForDiagramMode
+    diagramModeForQuery
   } from '@archinsight/workbench/presets';
   import type { DiagramMode, EditorViewMode, MessageView, SourceLocation } from '@archinsight/workbench/types';
   import { registerQueryCompletionProvider, registerQueryLanguage } from '@archinsight/workbench/query-monaco';
@@ -125,6 +125,7 @@
   let dot: string | undefined;
   let diagramMode: DiagramMode = defaultDiagramMode;
   let query = defaultQuery;
+  let viewQueries: Readonly<Record<DiagramView, string>> = BUILTIN_VIEW_QUERIES;
   let deploymentEnvironment: string | undefined;
   let queryVisible = false;
   let queryPanelHeight = 118;
@@ -325,6 +326,7 @@
       diagnostics = message.diagnostics ?? [];
       diagramMode = diagramModeFromView(message.view);
       query = message.query;
+      viewQueries = message.queries ?? BUILTIN_VIEW_QUERIES;
       queryParameters = message.parameters ?? {};
       deploymentEnvironment = message.environment;
       currentSymbols = message.symbols;
@@ -659,7 +661,7 @@
       return;
     }
     diagramMode = mode;
-    query = queryForDiagramMode(mode);
+    query = viewQueries[viewFromDiagramMode(mode)];
     queryParameters = {};
     postRender();
   }

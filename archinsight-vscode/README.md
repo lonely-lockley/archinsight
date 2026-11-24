@@ -124,7 +124,11 @@ validate or inspect the linked architecture graph.
 
 ## Editing
 
-The custom editor keeps the source model and diagram preview in one tab. Diagnostics are shown both as VSCode Problems and inline editor markers. Completion works in ordinary VSCode editors and inside the custom editor.
+The custom editor keeps the source model and diagram preview in one tab.
+Diagnostics are shown both as VSCode Problems and inline editor markers.
+Completion works in ordinary VSCode editors and inside the custom editor.
+Reserved project `.aiq` files override the corresponding built-in diagram query
+and are reloaded when their saved or unsaved content changes.
 
 On macOS, VSCode's default `Trigger Suggest` shortcuts are `Ctrl+Space` and `Cmd+I`. If `Ctrl+Space` is captured by macOS input-source switching, `Cmd+I` still opens suggestions.
 

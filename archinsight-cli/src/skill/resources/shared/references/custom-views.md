@@ -2,9 +2,10 @@
 
 An agent may create project-owned `.aiq` files when a reusable architectural
 question or diagram view is part of the task. Put graph-returning queries and
-reserved web-view overrides under `views/`. Put reusable `RETURN TABLE` reports
-under `reports/`. Both use the same AIQ runtime; this is a purpose-based project
-convention. Unless the user specifies another path, use:
+reserved diagram-view overrides under `views/`. Put reusable
+`RETURN TABLE` reports under `reports/`. Both use the same AIQ runtime; this is
+a purpose-based project convention. Unless the user specifies another path,
+use:
 
 ```text
 views/
@@ -17,10 +18,10 @@ reports/
 Create the needed directory when it does not exist. Use a short descriptive
 lowercase filename. Before writing, search the whole project for `.aiq` files
 that participate in project discovery and compare their basenames, because
-directories do not namespace query names. The web workspace skips hidden
-directories, `node_modules`, `build`, and `dist`; generated examples under
-`.claude/skills/` and `.codex/skills/` therefore do not conflict with project
-queries.
+directories do not namespace query names. The web and VS Code workspaces skip
+hidden directories, `node_modules`, `build`, and `dist`; generated examples
+under `.claude/skills/` and `.codex/skills/` therefore do not conflict with
+project queries.
 
 ## Choose a Custom Name or an Override
 
@@ -31,7 +32,7 @@ view** selector and runs without a built-in view pipeline.
 Use a reserved filename only when the task intentionally changes a standard
 view for the whole project:
 
-| Filename | Web view |
+| Filename | Web and VS Code view |
 | --- | --- |
 | `no-filter.aiq` | All / No filter |
 | `c1.aiq` | C1 |
@@ -45,8 +46,8 @@ view for the whole project:
 For an override, copy the exact current source from
 `examples/builtin-views/<name>.aiq` to `views/<name>.aiq`, then make the
 smallest requested change. Do not reconstruct a built-in query from memory.
-The web workspace replaces the query text while retaining that view's boundary,
-deployment, environment, and other post-selection stages.
+The web and VS Code workspaces replace the query text while retaining that
+view's boundary, deployment, environment, and other post-selection stages.
 
 Do not use a reserved name merely because the new query resembles C2 or D1.
 Use it only when pressing that standard view button should run the new query.
@@ -61,7 +62,8 @@ have inline selectors there. The selected values belong to editor state and are
 not written into the query. Every occurrence of the same variable shares one
 selection.
 
-Changing a query invalidates every open tab that uses it. A model tab keeps its
+Changing a query invalidates every open web or VS Code tab that still uses the
+view preset. A manually edited query remains unchanged. A model tab keeps its
 own source and context; the query panel shown on a model file receives that
 scope automatically and does not show inline selectors.
 
@@ -86,8 +88,9 @@ archinsight query . -c ecommerce -q views/external-integrations.aiq --format jso
 `--query` and `--view` are mutually exclusive; pass only one. `-v c2` runs the
 built-in C2 query bundled in the CLI and does not discover `views/c2.aiq`.
 Conversely, `-q views/c2.aiq` runs the file as a standalone query without C2's
-post-selection pipeline. The web override retains that pipeline, so boundary
-folding or other pipeline-sensitive output can differ between these two calls.
+post-selection pipeline. The web and VS Code override behavior retains that
+pipeline, so boundary folding or other pipeline-sensitive output can differ
+between these two calls.
 
 ## Agent Workflow
 

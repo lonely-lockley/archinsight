@@ -137,6 +137,18 @@ test('built-in views come from the canonical language catalogue', () => {
   assert.equal(extensionSource.includes('./generated/builtin-view-queries'), false);
 });
 
+test('project AIQ overrides are watched and replace VS Code view presets', () => {
+  assert(extensionSource.includes('createFileSystemWatcher("**/*.aiq")'));
+  assert(extensionSource.includes('queryWatcher.onDidCreate(refreshChangedQuery)'));
+  assert(extensionSource.includes('queryWatcher.onDidChange(refreshChangedQuery)'));
+  assert(extensionSource.includes('queryWatcher.onDidDelete(refreshChangedQuery)'));
+  assert(extensionSource.includes('readWorkspaceQuerySources'));
+  assert(extensionSource.includes('this.project.queryFor(view)'));
+  assert(extensionSource.includes('queries: this.project.webviewQueries()'));
+  assert(workbenchSource.includes('viewQueries = message.queries ?? BUILTIN_VIEW_QUERIES'));
+  assert(workbenchSource.includes('query = viewQueries[viewFromDiagramMode(mode)]'));
+});
+
 test('webview trust boundaries use the shared runtime message contracts', () => {
   assert(extensionSource.includes('parseControlsWebviewToHostMessage'));
   assert(extensionSource.includes('parseWorkbenchWebviewToHostMessage'));

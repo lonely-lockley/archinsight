@@ -13,6 +13,7 @@ import {
   semanticTokenModifierBits,
 } from "@archinsight/editor-support";
 import {
+  BUILTIN_VIEW_QUERIES,
   buildProjectStructure,
   buildTypeHierarchy,
   analyzeQuery,
@@ -106,10 +107,11 @@ import {
   type PreviewState,
 } from "./diagram-rendering.js";
 import { openGitVersionedRepository, type GitVersionedRepository } from "@archinsight/git";
-import { createDiagramSession, saveBytes, viewQueries } from "./vscode-diagram-service.js";
+import { createDiagramSession, saveBytes } from "./vscode-diagram-service.js";
 import { previewHtml } from "./preview-webview.js";
 import { renderThemeForColorThemeKind } from "./theme.js";
 import { LatestWinsCoordinator } from "./latest-wins.js";
+import { ProjectViewQueryCatalog } from "./project-view-queries.js";
 import { disposeDiagramVizWorker, selectDiagramQueryInWorker } from "./diagram-viz-worker-client.js";
 import {
   analyzeProjectInWorker,
@@ -117,9 +119,11 @@ import {
   disposeProjectAnalysisWorker,
 } from "./project-analysis-worker-client.js";
 import {
+  isAiqDocument,
   isIgnoredSource,
   isInside,
   isInsightDocument,
+  readWorkspaceQuerySources,
   readWorkspaceSources,
   sourceNameForUri,
   sourceUris,
@@ -178,6 +182,11 @@ interface StructureNode {
 
 type InsightTokenVocabulary = Record<string, never>;
 
+const projectViewQueryDependencies = {
+  builtinQueries: BUILTIN_VIEW_QUERIES,
+  resultKind: (query: string) => analyzeQuery(query).resultKind,
+};
+
 interface VirtualWorkbenchDocument {
   readonly uri: vscode.Uri;
   readonly sourceName: string;
@@ -227,6 +236,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const controls = new ArchinsightControlsProvider(project, context.extensionUri);
   const workbenchEditor = new ArchinsightWorkbenchEditorProvider(project, context.extensionUri, controls);
   const sourceWatcher = vscode.workspace.createFileSystemWatcher("**/*.ai");
+  const queryWatcher = vscode.workspace.createFileSystemWatcher("**/*.aiq");
   const refreshChangedSource = (uri: vscode.Uri): void => {
     const root = workspaceRoot();
     if (root === undefined || !isInside(root, uri)) {
@@ -242,6 +252,10 @@ export function activate(context: vscode.ExtensionContext): void {
     const analysis = analyzeQuery(document.getText(), { sourceName: document.fileName });
     aiqDiagnostics.set(document.uri, analysis.diagnostics.map(vscodeDiagnostic));
   };
+  const refreshChangedQuery = (uri: vscode.Uri): void => {
+    const root = workspaceRoot();
+    if (root !== undefined && isInside(root, uri)) project.scheduleQueryRefresh();
+  };
 
   context.subscriptions.push(
     output,
@@ -249,9 +263,13 @@ export function activate(context: vscode.ExtensionContext): void {
     diagnostics,
     aiqDiagnostics,
     sourceWatcher,
+    queryWatcher,
     sourceWatcher.onDidCreate(refreshChangedSource),
     sourceWatcher.onDidChange(refreshChangedSource),
     sourceWatcher.onDidDelete(refreshChangedSource),
+    queryWatcher.onDidCreate(refreshChangedQuery),
+    queryWatcher.onDidChange(refreshChangedQuery),
+    queryWatcher.onDidDelete(refreshChangedQuery),
     vscode.window.registerCustomEditorProvider(archinsightEditorViewType, workbenchEditor, {
       webviewOptions: { retainContextWhenHidden: true },
       supportsMultipleEditorsPerDocument: false,
@@ -269,7 +287,10 @@ export function activate(context: vscode.ExtensionContext): void {
       showLinkSummary(project.current);
     }),
     vscode.commands.registerCommand("archinsight.previewDiagram", async () => {
-      await project.refresh("preview");
+      await Promise.all([
+        project.refresh("preview"),
+        project.refreshQueries("preview"),
+      ]);
       await previewDiagram(project);
     }),
     vscode.commands.registerCommand("archinsight.preview.noFilter", async () => previewView(project, "no-filter")),
@@ -374,22 +395,28 @@ export function activate(context: vscode.ExtensionContext): void {
       if (isInsightDocument(document)) {
         void project.refresh("save");
       }
+      if (isAiqDocument(document)) project.scheduleQueryRefresh();
       updateAiqDiagnostics(document);
     }),
     vscode.workspace.onDidChangeTextDocument((event) => {
       if (isInsightDocument(event.document)) {
         project.scheduleRefresh();
       }
+      if (isAiqDocument(event.document)) project.scheduleQueryRefresh();
       updateAiqDiagnostics(event.document);
     }),
     vscode.workspace.onDidOpenTextDocument((document) => {
       if (isInsightDocument(document)) {
         project.scheduleRefresh();
       }
+      if (isAiqDocument(document)) project.scheduleQueryRefresh();
       updateAiqDiagnostics(document);
     }),
     vscode.workspace.onDidCloseTextDocument((document) => {
-      if (isAiqDocument(document)) aiqDiagnostics.delete(document.uri);
+      if (isAiqDocument(document)) {
+        aiqDiagnostics.delete(document.uri);
+        project.scheduleQueryRefresh();
+      }
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (editor !== undefined && isInsightDocument(editor.document)) {
@@ -411,7 +438,12 @@ export function activate(context: vscode.ExtensionContext): void {
       void activePreview.refreshFromProject(project.current);
     }
   }));
+  context.subscriptions.push(project.onDidChangeQueries(() => {
+    void workbenchEditor.refreshProjectQueries();
+    void Promise.all([...previewSessions].map((preview) => preview.refreshProjectQueries()));
+  }));
   void project.refresh("activation");
+  void project.refreshQueries("activation");
 }
 
 type TechnologyIconQuickPickItem = vscode.QuickPickItem & { readonly iconId: string };
@@ -693,9 +725,14 @@ function isArchinsightEditorTab(tab: vscode.Tab): boolean {
 
 class ProjectModel implements vscode.Disposable {
   private readonly listeners = new Set<(revision: number) => void>();
+  private readonly queryListeners = new Set<(revision: number) => void>();
   private readonly refreshes = new LatestWinsCoordinator();
+  private readonly queryRefreshes = new LatestWinsCoordinator();
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private queryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   private committedRevision = 0;
+  private committedQueryRevision = 0;
+  private queryCatalog = new ProjectViewQueryCatalog([], projectViewQueryDependencies);
   current: LinkedProject | undefined;
 
   constructor(private readonly diagnostics: vscode.DiagnosticCollection) {
@@ -706,6 +743,19 @@ class ProjectModel implements vscode.Disposable {
     return new vscode.Disposable(() => this.listeners.delete(listener));
   }
 
+  onDidChangeQueries(listener: (revision: number) => void): vscode.Disposable {
+    this.queryListeners.add(listener);
+    return new vscode.Disposable(() => this.queryListeners.delete(listener));
+  }
+
+  queryFor(view: DiagramView): string {
+    return this.queryCatalog.resolve(view).query;
+  }
+
+  webviewQueries(): Record<DiagramView, string> {
+    return this.queryCatalog.webviewQueries();
+  }
+
   scheduleRefresh(): void {
     if (this.refreshTimer !== undefined) {
       clearTimeout(this.refreshTimer);
@@ -713,6 +763,33 @@ class ProjectModel implements vscode.Disposable {
     this.refreshTimer = setTimeout(() => {
       void this.refresh("change");
     }, 250);
+  }
+
+  scheduleQueryRefresh(): void {
+    if (this.queryRefreshTimer !== undefined) clearTimeout(this.queryRefreshTimer);
+    this.queryRefreshTimer = setTimeout(() => {
+      void this.refreshQueries("change");
+    }, 250);
+  }
+
+  async refreshQueries(reason: string): Promise<void> {
+    const operation = this.queryRefreshes.begin();
+    const root = workspaceRoot();
+    try {
+      const sources = root === undefined ? [] : await readWorkspaceQuerySources(root);
+      if (!operation.isCurrent()) return;
+      if (this.queryCatalog.matches(sources)) {
+        output.appendLine(`Query catalogue unchanged (${reason}): ${sources.length} project queries`);
+        return;
+      }
+      this.queryCatalog = new ProjectViewQueryCatalog(sources, projectViewQueryDependencies);
+      output.appendLine(`Query catalogue refreshed (${reason}): ${sources.length} project queries`);
+      this.fireQueries();
+    } catch (error) {
+      if (!operation.isCurrent() || operation.signal.aborted) return;
+      output.appendLine(`Query catalogue refresh failed (${reason}): ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   async refresh(reason: string): Promise<void> {
@@ -753,9 +830,13 @@ class ProjectModel implements vscode.Disposable {
 
   dispose(): void {
     if (this.refreshTimer !== undefined) clearTimeout(this.refreshTimer);
+    if (this.queryRefreshTimer !== undefined) clearTimeout(this.queryRefreshTimer);
     this.refreshTimer = undefined;
+    this.queryRefreshTimer = undefined;
     this.refreshes.dispose();
+    this.queryRefreshes.dispose();
     this.listeners.clear();
+    this.queryListeners.clear();
   }
 
   private updateDiagnostics(project: LinkedProject): void {
@@ -789,6 +870,11 @@ class ProjectModel implements vscode.Disposable {
     for (const listener of this.listeners) {
       listener(revision);
     }
+  }
+
+  private fireQueries(): void {
+    const revision = ++this.committedQueryRevision;
+    for (const listener of this.queryListeners) listener(revision);
   }
 }
 
@@ -1316,6 +1402,10 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
     await Promise.all([...this.sessions].map((session) => session.refreshFromProject(current)));
   }
 
+  async refreshProjectQueries(): Promise<void> {
+    await Promise.all([...this.sessions].map((session) => session.refreshProjectQueries()));
+  }
+
   private async setFindPathMode(mode: FindPathMode): Promise<void> {
     if (mode.status === "idle") {
       this.findPathProjectRoot = undefined;
@@ -1521,6 +1611,7 @@ class ArchinsightWorkbenchEditorProvider implements vscode.CustomTextEditorProvi
 
 class ArchinsightWorkbenchEditorSession {
   private readonly diagram: DiagramSession<DiagramRenderInput, DiagramView, PreviewState>;
+  private queryPreset: boolean;
   private disposed = false;
   private applyingEdit = false;
   private lastSource: string | undefined;
@@ -1564,7 +1655,10 @@ class ArchinsightWorkbenchEditorSession {
     private readonly virtualDocument?: VirtualWorkbenchDocument,
     initialState?: DiagramQueryState,
   ) {
-    this.diagram = createDiagramSession(initialState ?? { view: "c1", query: viewQueries.c1 }, {
+    const state = initialState ?? { view: "c1", query: this.project.webviewQueries().c1 };
+    this.queryPreset = !(document !== undefined && isAiqDocument(document))
+      && (initialState === undefined || state.query === this.project.webviewQueries()[state.view]);
+    this.diagram = createDiagramSession(state, {
       publishPreview: async (state) => {
         this.panel.title = this.panelTitle(state.fileName);
         await this.postPreview(state);
@@ -1621,7 +1715,10 @@ class ArchinsightWorkbenchEditorSession {
       if (message === undefined) return;
       void this.handleMessage(message);
     });
-    await this.project.refresh("custom-editor");
+    await Promise.all([
+      this.project.refresh("custom-editor"),
+      this.project.refreshQueries("custom-editor"),
+    ]);
   }
 
   dispose(): void {
@@ -1657,6 +1754,20 @@ class ArchinsightWorkbenchEditorSession {
     await this.diagram.refresh(input);
   }
 
+  async refreshProjectQueries(): Promise<void> {
+    if (this.disposed) return;
+    if (this.queryPreset && !this.isQueryDocument()) {
+      await this.render(
+        this.diagram.queryState().view,
+        undefined,
+        false,
+        this.currentEnvironment(),
+        this.diagram.queryState().parameters,
+      );
+    }
+    await this.postSource();
+  }
+
   async refreshTheme(): Promise<void> {
     if (this.disposed) return;
     this.cancelQuickActionRendering();
@@ -1676,16 +1787,31 @@ class ArchinsightWorkbenchEditorSession {
 
   async render(
     view: DiagramView,
-    query = viewQueries[view],
+    query: string | undefined = undefined,
     forceEnvironmentPicker = false,
     requestedEnvironment: string | undefined = this.currentEnvironment(),
     parameters?: Readonly<Record<string, QueryParameterValue>>,
   ): Promise<void> {
     this.cancelQuickActionRendering();
     this.quickActionCoordinator.clearResult();
+    const projectQuery = this.project.webviewQueries()[view];
+    const queryPreset = !this.isQueryDocument() && (query === undefined || query === projectQuery);
+    let effectiveQuery = query;
+    if (queryPreset) {
+      try {
+        effectiveQuery = this.project.queryFor(view);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        output.appendLine(`Project query '${view}' is unavailable: ${message}`);
+        void vscode.window.showErrorMessage(message);
+        return;
+      }
+    }
+    if (effectiveQuery === undefined) return;
+    this.queryPreset = queryPreset;
     const current = this.project.current;
-    const status = await this.diagram.render(current === undefined ? undefined : this.renderInput(current, query), {
-      view, query, forceEnvironmentPicker, requestedEnvironment, ...(parameters === undefined ? {} : { parameters })
+    const status = await this.diagram.render(current === undefined ? undefined : this.renderInput(current, effectiveQuery), {
+      view, query: effectiveQuery, forceEnvironmentPicker, requestedEnvironment, ...(parameters === undefined ? {} : { parameters })
     });
     if (status === "rendered" && this.readDiagramDiffSession() !== undefined) {
       await this.renderCurrentDiagramDiff();
@@ -1727,7 +1853,7 @@ class ArchinsightWorkbenchEditorSession {
       return;
     }
     if (message.command === "selectDeploymentEnvironment") {
-      await this.render("deployment-container", viewQueries["deployment-container"], true);
+      await this.render("deployment-container", undefined, true);
       return;
     }
     if (message.command === "refresh") {
@@ -2389,7 +2515,7 @@ class ArchinsightWorkbenchEditorSession {
       query: queryState.query,
       environment: queryState.environment,
       parameters: queryState.parameters,
-      queries: viewQueries,
+      queries: this.project.webviewQueries(),
       diagnostics: this.editorDiagnostics(this.project.current),
       symbols: this.project.current?.snapshot ?? coreLanguageSnapshot,
       readOnly: this.isReadOnly(),
@@ -2655,7 +2781,7 @@ class ArchinsightWorkbenchEditorSession {
 async function previewView(
   project: ProjectModel,
   view: DiagramView,
-  query = viewQueries[view],
+  query: string | undefined = undefined,
   forceEnvironmentPicker = false,
 ): Promise<void> {
   if (activeWorkbenchEditor !== undefined) {
@@ -2666,7 +2792,10 @@ async function previewView(
     await activePreview.render(view, query, forceEnvironmentPicker);
     return;
   }
-  await project.refresh(`preview:${view}`);
+  await Promise.all([
+    project.refresh(`preview:${view}`),
+    query === undefined ? project.refreshQueries(`preview:${view}`) : Promise.resolve(),
+  ]);
   const preview = currentPreview();
   if (preview !== undefined) {
     await preview.render(view, query);
@@ -2682,7 +2811,7 @@ function currentPreview(): PreviewSession | undefined {
 async function previewDiagram(
   project: ProjectModel,
   initialView: DiagramView = "c1",
-  initialQuery = viewQueries[initialView],
+  initialQuery: string | undefined = undefined,
   document = activeInsightDocument(),
   silent = false,
 ): Promise<void> {
@@ -2700,20 +2829,22 @@ async function previewDiagram(
     return;
   }
   const sourceName = sourceNameForUri(current.root, document.uri);
-  const preview = new PreviewSession(current, document, sourceName);
+  const preview = new PreviewSession(project, current, document, sourceName);
   await preview.show(initialView, initialQuery);
 }
 
 class PreviewSession {
   private panel: vscode.WebviewPanel | undefined;
   private readonly diagram: DiagramSession<DiagramRenderInput, DiagramView, PreviewState>;
+  private queryPreset = true;
 
   constructor(
+    private readonly project: ProjectModel,
     private current: LinkedProject,
     private active: vscode.TextDocument,
     private sourceName: string,
   ) {
-    this.diagram = createDiagramSession({ view: "c1", query: viewQueries.c1 }, {
+    this.diagram = createDiagramSession({ view: "c1", query: this.project.webviewQueries().c1 }, {
       publishPreview: async (state) => {
         if (this.panel !== undefined) {
           this.panel.title = `Archinsight: ${state.contextId}`;
@@ -2729,8 +2860,10 @@ class PreviewSession {
     }, (message) => output.appendLine(message));
   }
 
-  async show(initialView: DiagramView, initialQuery: string): Promise<void> {
-    const status = await this.diagram.render(this.renderInput(), { view: initialView, query: initialQuery });
+  async show(initialView: DiagramView, initialQuery: string | undefined): Promise<void> {
+    const query = this.resolveQuery(initialView, initialQuery);
+    if (query === undefined) return;
+    const status = await this.diagram.render(this.renderInput(), { view: initialView, query });
     const state = this.diagram.previewState();
     if (status !== "rendered" || state === undefined) {
       return;
@@ -2769,11 +2902,19 @@ class PreviewSession {
     this.panel.webview.html = previewHtml();
   }
 
-  async render(view: DiagramView, query = viewQueries[view], forceEnvironmentPicker = false): Promise<void> {
+  async render(view: DiagramView, query: string | undefined = undefined, forceEnvironmentPicker = false): Promise<void> {
     if (this.panel === undefined) {
       return;
     }
-    await this.diagram.render(this.renderInput(), { view, query, forceEnvironmentPicker });
+    const effectiveQuery = this.resolveQuery(view, query);
+    if (effectiveQuery === undefined) return;
+    await this.diagram.render(this.renderInput(), { view, query: effectiveQuery, forceEnvironmentPicker });
+  }
+
+  async refreshProjectQueries(): Promise<void> {
+    if (!this.queryPreset || this.panel === undefined) return;
+    const state = this.diagram.queryState();
+    await this.render(state.view, undefined, false);
   }
 
   async refreshFromProject(current: LinkedProject | undefined): Promise<void> {
@@ -2816,6 +2957,25 @@ class PreviewSession {
     });
     if (query !== undefined) {
       await this.render(state.view, query);
+    }
+  }
+
+  private resolveQuery(view: DiagramView, query: string | undefined): string | undefined {
+    const projectQuery = this.project.webviewQueries()[view];
+    const queryPreset = query === undefined || query === projectQuery;
+    if (!queryPreset) {
+      this.queryPreset = false;
+      return query;
+    }
+    try {
+      const resolved = this.project.queryFor(view);
+      this.queryPreset = true;
+      return resolved;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      output.appendLine(`Project query '${view}' is unavailable: ${message}`);
+      void vscode.window.showErrorMessage(message);
+      return undefined;
     }
   }
 
@@ -2925,10 +3085,6 @@ function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isAiqDocument(document: vscode.TextDocument): boolean {
-  return document.languageId === "archinsight-query" || document.uri.fsPath.endsWith(".aiq");
 }
 
 function vscodeDiagnostic(diagnostic: LanguageDiagnostic): vscode.Diagnostic {
