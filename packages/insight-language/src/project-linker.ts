@@ -1452,7 +1452,8 @@ function collectNamedList(
     return;
   }
   if (owner !== undefined) {
-    if (owner.attributes[listName] !== undefined) {
+    const attribute = typeSystem.attribute(ownerType, listName);
+    if (owner.attributes[listName] !== undefined && attribute?.list !== true) {
       document.diagnostics.push({
         code: "ATTRIBUTE_SHADOWS_PREVIOUS",
         message: `Attribute '${listName}' is already assigned`,

@@ -334,6 +334,12 @@ Use `extend type` / `extend presentation` when patching existing vocabulary.
 Repeating `define presentation X` for an existing presentation is a diagnostic
 in current Archinsight.
 
+List-valued attributes merge across the original declaration and object
+extensions, so an extension can add another `links:` block. Single-valued
+attributes cannot be assigned twice. Use the object's constructor spelling in
+the extension header: extend an `external actor` with `extend actor <id>`, not
+`extend external actor <id>`.
+
 ## Comments and Notes
 
 Use `#` for ordinary comments when you want to leave guidance for humans or
