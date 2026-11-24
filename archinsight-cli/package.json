@@ -18,6 +18,8 @@
   "files": [
     "build/index.js",
     "build/index.js.map",
+    "build/project-source-parser-worker.js",
+    "build/project-source-parser-worker.js.map",
     "build/system-theme.js",
     "build/system-theme.js.map",
     "build/chunks/*.js",
