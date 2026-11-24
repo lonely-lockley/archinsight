@@ -11,10 +11,11 @@ try {
   write("definitions.ai", `
 define type AppEnvironment of Environment
     Compute compute
+    Storage database
     NetworkConnection network
 `);
-  writeEnvironment("eu_central", "central_compute", "central_network");
-  writeEnvironment("eu_west", "west_compute", "west_network");
+  writeEnvironment("eu_central", "central_compute", "central_database", "central_network");
+  writeEnvironment("eu_west", "west_compute", "west_database", "west_network");
   write("model.ai", `
 context shop
 
@@ -23,6 +24,7 @@ deploymentProfile regional
         production from eu_central
         production from eu_west
     runsOn compute
+    uses database
 
 system storefront
     name = Storefront
@@ -31,6 +33,12 @@ system storefront
         name = API
         deployment:
             uses regional
+            uses database
+                name = Dedicated database
+`);
+  write("all.aiq", `
+MATCH (node:Element)
+RETURN node
 `);
 
   const ambiguous = run("query", root, "-s", "model.ai", "-v", "deployment-container", "--format", "json");
@@ -48,6 +56,14 @@ system storefront
   assert.equal(graph.context, "shop");
   assert(Object.keys(graph.elements).some((id) => id.includes("eu_west")));
   assert.equal(Object.keys(graph.elements).some((id) => id.includes("eu_central")), false);
+
+  const raw = run("query", root, "-s", "model.ai", "-q", "all.aiq", "--format", "json");
+  assert.equal(raw.status, 0, raw.stderr);
+  const rawGraph = JSON.parse(raw.stdout);
+  assert(
+    Object.values(rawGraph.elements).some((element) => element.cloneOf === "eu_west/west_database"),
+    "query JSON must expose the original inventory element for a deployment clone",
+  );
 
   const d1 = run("query", root, "-s", "model.ai", "-v", "deployment-system", "--format", "json");
   assert.equal(d1.status, 0, d1.stderr);
@@ -67,7 +83,7 @@ system storefront
   rmSync(root, { recursive: true, force: true });
 }
 
-function writeEnvironment(context, compute, network) {
+function writeEnvironment(context, compute, database, network) {
   write(`${context}.ai`, `
 environment ${context}
     name = ${context}
@@ -76,6 +92,9 @@ deployment production
     compute:
         compute ${compute}
             name = ${compute}
+    database:
+        storage ${database}
+            name = Shared database
     network:
         networkConnection ${network}
             name = ${network}

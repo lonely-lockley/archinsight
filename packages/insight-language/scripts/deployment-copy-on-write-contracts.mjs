@@ -108,6 +108,11 @@ const gateway = requiredClone(clonesByName, "Dedicated ingress");
 const cdn = requiredClone(clonesByName, "CloudFront");
 const loadBalancer = requiredClone(clonesByName, "ALB");
 assert([gateway, cdn, loadBalancer].every((element) => element.synthetic === true));
+assert.deepEqual(
+  [gateway, cdn, loadBalancer].map((element) => element.cloneOf),
+  ["eu/public_edge", "eu/cloudfront", "eu/alb"],
+  "every deployment clone must expose its original infrastructure element",
+);
 
 assert.deepEqual(
   result.edges
@@ -137,6 +142,8 @@ assert(!graph.edges.some((edge) => edge.source === gateway.id || edge.target ===
 assert(graph.edges.every((edge) => edge.source === edge.edge.source && edge.target === edge.edge.target));
 assert(!graph.edges.some((edge) => edge.source === "eu/cloudfront" || edge.target === "eu/cloudfront"));
 assert(!graph.edges.some((edge) => edge.source === "eu/alb" || edge.target === "eu/alb"));
+assert.equal(graph.elements[cdn.id]?.cloneOf, "eu/cloudfront");
+assert.equal(graph.elements[loadBalancer.id]?.cloneOf, "eu/alb");
 
 console.log("deployment copy-on-write contract fixtures passed");
 

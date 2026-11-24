@@ -207,6 +207,7 @@ export interface LinkedElement {
   readonly declaration?: SourceLocation;
   readonly anonymous?: boolean;
   readonly synthetic?: boolean;
+  readonly cloneOf?: string;
   readonly parent?: string;
   readonly baseTypes: readonly string[];
   readonly capabilities?: readonly string[];

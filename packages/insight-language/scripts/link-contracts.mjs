@@ -47,6 +47,7 @@ const cases = [
   allowsTypedReferenceValuesFromExplicitContexts,
   validatesTypedReferenceSlotCardinalityAndType,
   mergesObjectExtensionsAcrossFiles,
+  mergesListAttributesAcrossObjectExtensions,
   reportsInvalidObjectExtensions,
   reportsDuplicateArchitectureAttributes,
   acceptsNamedObjectSlotsDeclaredByTypeExtension,
@@ -1314,6 +1315,46 @@ extend system app
   assertNoErrors(result);
   assert.equal(result.elements.find((element) => element.id === "shared/app")?.attributes.technology?.[0], "Java");
   assert.equal(result.elements.find((element) => element.id === "shared/api")?.parent, "shared/app");
+}
+
+function mergesListAttributesAcrossObjectExtensions() {
+  const result = linkProject({
+    snapshot: coreLanguageSnapshot,
+    sources: [
+      source("client.ai", `
+context shared
+
+external actor mobile_client
+    name = Mobile client
+    links:
+        -> auth_service
+
+system auth_service
+    name = Authentication service
+`),
+      source("profile.ai", `
+context shared
+
+import profile_service from context shared
+
+extend actor mobile_client
+    links:
+        -> profile_service
+
+system profile_service
+    name = Profile service
+`),
+    ],
+  });
+
+  assertNoErrors(result);
+  assert.deepEqual(
+    result.edges
+      .filter((edge) => edge.source === "shared/mobile_client")
+      .map((edge) => edge.target)
+      .sort(),
+    ["shared/auth_service", "shared/profile_service"],
+  );
 }
 
 function reportsInvalidObjectExtensions() {

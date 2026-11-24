@@ -364,6 +364,10 @@ through CLI `--query` does not apply the built-in post-selection pipeline.
 
 Each edge contains its selected category and two endpoint pairs:
 
+Synthetic copy-on-write infrastructure elements expose `cloneOf` with the
+qualified id of the original inventory element. Read this field instead of
+parsing or decoding a synthetic element id.
+
 - outer `source` and `target` are the endpoints that the selected graph will
   draw after rollup and grouping;
 - outer `derived` and `projected` preserve the category matched by the query;

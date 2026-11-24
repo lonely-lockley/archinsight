@@ -309,6 +309,10 @@ The named `deployment` action list is declared on `System` and `ContainerElement
 
 Inside this list, `uses <profile>` selects a deployment profile, while `runsOn <infrastructure>` and `uses <infrastructure>` can address concrete visible infrastructure directly. Profile bodies accept the infrastructure actions directly in their anonymous list; a profile has no named `deployment:` block and cannot apply another profile through `uses`. Infrastructure keeps its separate `runsOn:` reference attribute.
 
+Several `uses` actions may address different concrete infrastructure instances,
+including instances of the same type. Every referenced instance remains part of
+the element's resolved infrastructure usage.
+
 For older models, move component or code deployment blocks to the containing container and move actions out of a profile's named block into its body. Project-defined deployment vocabularies can explicitly declare their own action lists and compatible custom operators; extending `Element` alone does not grant the core deployment actions.
 
 The linker begins checking deployment coverage for a modeling level after at least one comparable element at that level has a `deployment` block. It then warns when another element at that level has no deployment, or when a deployment block resolves to no `runsOn` or `uses` infrastructure. This keeps projects that have not started deployment modeling quiet while exposing gaps once a physical model is being maintained. External actors and systems can enter the view through projected wires and do not need artificial placement merely to appear as an endpoint.

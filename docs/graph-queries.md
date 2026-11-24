@@ -895,6 +895,10 @@ complete container-level graph across all relevant environments.
 
 The response contains `context`, an `elements` map keyed by query-visible qualified id, an `edges` array, render `groups`, and `externalElements`. In built-in C1-C4 views, `externalElements` includes both explicitly external declarations and endpoints outside the boundaries opened by that view. A closed endpoint is folded to the system at C2, the container or service at C3, and the component at C4. Each selected edge keeps its query category and two endpoint pairs:
 
+A synthetic copy-on-write infrastructure element includes `cloneOf` with the
+qualified id of its original inventory element. Consumers should use this field
+instead of decoding the synthetic element id.
+
 - outer `source` and `target` are the endpoints that the selected graph will draw after query rollup and grouping;
 - outer `derived` and `projected` identify the relationship category matched by the query;
 - nested `edge.source` and `edge.target` are the endpoints of the underlying linked or projected edge;

@@ -202,6 +202,12 @@ extend service checkout_api
 
 The extension contributes attributes, children, and relationships to the existing `commerce/checkout_api` instance. It does not create another service. The constructor in the `extend` line must be compatible with the target's resolved type, and everything added by the body is validated against that type's schema.
 
+List-valued attributes, including `links`, merge with values already declared on
+the object or contributed by other extension files. Single-valued attributes
+cannot be assigned again. Extend an object with its constructor spelling: an
+`external actor` is therefore extended with `extend actor <id>`; `external` is
+not part of the constructor.
+
 The extension target is resolved within the shared context namespace, so `extend service checkout_api` can locate an object declared in another source of `commerce` without a named import. Ordinary references inside the extension body follow the regular visibility rule and require imports when their targets live in other files.
 
 Object extension is well suited to extracting coherent detail from a large model: component groups, integrations, deployment information, or a set of relationships owned by one service. The main declaration remains the entry point and establishes the object's identity; extension files add focused slices without duplicating it.
