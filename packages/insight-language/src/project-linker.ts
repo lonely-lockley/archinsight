@@ -118,6 +118,7 @@ export interface ParsedElement {
   readonly sourceName: string;
   readonly anonymous: boolean;
   readonly synthetic?: boolean;
+  readonly cloneOf?: string;
   graphElement?: boolean;
   projectionRoot?: boolean;
   readonly projectionRules: ProjectionRuleDefinition[];
@@ -957,6 +958,7 @@ function linkedElementSnapshot(
     declaration: sourceLocation(element.sourceName, element),
     ...(element.anonymous ? { anonymous: true } : {}),
     ...(element.synthetic ? { synthetic: true } : {}),
+    ...(element.cloneOf === undefined ? {} : { cloneOf: element.cloneOf }),
     ...(element.parent === undefined ? {} : { parent: element.parent }),
     baseTypes: typeSystem.baseTypes(element.type),
     ...(capabilities.length === 0 ? {} : { capabilities }),
@@ -3090,6 +3092,7 @@ function cloneInfrastructureElement(
     sourceName: owner.sourceName,
     anonymous: true,
     synthetic: true,
+    cloneOf: source.cloneOf ?? source.id,
     ...(parentId === undefined ? { parent: owner.id } : { parent: parentId }),
     scalarAttributes: {
       ...source.scalarAttributes,
