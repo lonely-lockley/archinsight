@@ -379,6 +379,7 @@ function emptySourceMetadata(): SourceAnalysisMetadata {
     contributesToSnapshot: false,
     dependencySignature: "",
     supportDependencySignature: "",
+    derivedGraphSignature: "",
     reliable: true,
   };
 }

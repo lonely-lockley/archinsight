@@ -34,9 +34,30 @@ const session = modeArgument === "parallel"
   : ProjectAnalysisSession.create(sources);
 const analysis = session.analysis();
 const elapsedNanoseconds = process.hrtime.bigint() - started;
+const incrementalTarget = selectedFiles.find(
+  (file) => file.serviceIndex === serviceCount && file.path.endsWith("/components/worker.ai"),
+);
+if (incrementalTarget === undefined) {
+  throw new Error(`No incremental benchmark target found for ${serviceCount} services`);
+}
+const incrementalSources = sources.map((source) => source.sourceName === incrementalTarget.path
+  ? {
+      ...source,
+      source: source.source.replace(
+        /name = Worker component 01 for \d+/,
+        (name) => `${name} edited`,
+      ),
+    }
+  : source);
+const incrementalStarted = process.hrtime.bigint();
+const incrementalAnalysis = session.update(incrementalSources);
+const incrementalNanoseconds = process.hrtime.bigint() - incrementalStarted;
 const memoryAfter = process.memoryUsage();
 const peakRssBytes = process.resourceUsage().maxRSS * 1024;
 const errors = analysis.diagnostics.filter(
+  (diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR",
+);
+const incrementalErrors = incrementalAnalysis.diagnostics.filter(
   (diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR",
 );
 
@@ -46,6 +67,15 @@ if (errors.length > 0) {
   }
   throw new Error(`Linking ${serviceCount} services produced ${errors.length} error diagnostics`);
 }
+if (incrementalAnalysis.mode !== "incremental" || incrementalErrors.length > 0) {
+  throw new Error(
+    `Incremental linking ${serviceCount} services returned mode ${incrementalAnalysis.mode} and ${incrementalErrors.length} error diagnostics`,
+  );
+}
+if (incrementalAnalysis.result.elements.length !== analysis.result.elements.length
+  || incrementalAnalysis.result.edges.length !== analysis.result.edges.length) {
+  throw new Error(`Incremental linking ${serviceCount} services changed project cardinality`);
+}
 
 console.log(JSON.stringify({
   serviceCount,
@@ -54,6 +84,11 @@ console.log(JSON.stringify({
   sourceLines: selectedFiles.reduce((sum, file) => sum + file.lines, 0),
   sourceBytes: selectedFiles.reduce((sum, file) => sum + file.bytes, 0),
   elapsedMs: Number(elapsedNanoseconds) / 1_000_000,
+  incrementalMs: Number(incrementalNanoseconds) / 1_000_000,
+  incrementalChangedSources: incrementalAnalysis.changedSources.size,
+  incrementalReparsedSources: incrementalAnalysis.reparsedSourceCount,
+  incrementalRelinkedSources: incrementalAnalysis.relinkedSourceCount,
+  incrementalSupportSources: incrementalAnalysis.supportSources.size,
   rssBeforeBytes,
   rssAfterBytes: memoryAfter.rss,
   peakRssBytes,
@@ -61,6 +96,8 @@ console.log(JSON.stringify({
   heapUsedAfterBytes: memoryAfter.heapUsed,
   elements: analysis.result.elements.length,
   edges: analysis.result.edges.length,
+  incrementalElements: incrementalAnalysis.result.elements.length,
+  incrementalEdges: incrementalAnalysis.result.edges.length,
   contexts: manifest.contexts.filter((context) => context.services.some(
     (service) => Number(service.slice("service_".length)) <= serviceCount,
   )).length,

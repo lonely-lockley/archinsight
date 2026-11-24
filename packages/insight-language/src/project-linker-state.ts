@@ -33,6 +33,7 @@ export class ProjectLinkerState {
   private readonly sourcesByName: Map<string, ProjectSource>;
   private readonly sourceCache: ProjectLinkerSourceCache;
   private readonly profiler: ProjectLinkerProfiler | undefined;
+  private readonly derivedGraphSurfaceBySource: Map<string, string>;
   private currentResult: LinkProjectResult;
 
   constructor(
@@ -40,6 +41,7 @@ export class ProjectLinkerState {
     existingResult?: LinkProjectResult,
     sourceCache = new ProjectLinkerSourceCache(),
     profiler?: ProjectLinkerProfiler,
+    derivedGraphSurfaceBySource?: ReadonlyMap<string, string>,
   ) {
     this.snapshot = request.snapshot;
     this.operatorImplementations = request.operatorImplementations;
@@ -47,6 +49,10 @@ export class ProjectLinkerState {
     this.sourceCache = sourceCache;
     this.profiler = profiler;
     this.currentResult = existingResult ?? linkProjectWithSourceCache(this.request(), this.sourceCache, this.profiler);
+    this.derivedGraphSurfaceBySource = new Map(derivedGraphSurfaceBySource ?? request.sources.map((source) => [
+      source.sourceName,
+      this.sourceCache.metadata(source.sourceName, source.source).derivedGraphSignature,
+    ]));
   }
 
   result(): LinkProjectResult {
@@ -78,7 +84,7 @@ export class ProjectLinkerState {
     return new ProjectLinkerState(this.request(), {
       ...this.currentResult,
       graph: this.currentResult.graph.clone(),
-    }, this.sourceCache.fork(), this.profiler);
+    }, this.sourceCache.fork(), this.profiler, this.derivedGraphSurfaceBySource);
   }
 
   replaceSource(replacement: ProjectSourceReplacement): ProjectLinkerStateUpdate {
@@ -86,6 +92,7 @@ export class ProjectLinkerState {
   }
 
   replaceSources(replacements: readonly ProjectSourceReplacement[]): ProjectLinkerStateUpdate {
+    const parseCountBefore = this.sourceCache.parseCount();
     const previous = this.currentResult;
     const candidateGraph = previous.graph.clone();
     const uniqueReplacements = [...new Map(replacements.map((item) => [item.sourceName, item])).values()]
@@ -94,7 +101,13 @@ export class ProjectLinkerState {
     const replacementNames = new Set(uniqueReplacements.map((item) => item.sourceName));
     const preservedReferences = new Map<string, ReadonlySet<string>>();
     const impacts: GraphUpdateImpact[] = [];
+    let derivedGraphSurfaceChanged = false;
     for (const replacement of uniqueReplacements) {
+      const previousDerivedGraphSurface = this.derivedGraphSurfaceBySource.get(replacement.sourceName);
+      const nextDerivedGraphSurface = replacement.source === undefined
+        ? undefined
+        : this.sourceCache.parse(replacement.sourceName, replacement.source).metadata.derivedGraphSignature;
+      derivedGraphSurfaceChanged ||= previousDerivedGraphSurface !== nextDerivedGraphSurface;
       preservedReferences.set(
         replacement.sourceName,
         previous.graph.sourceContribution(replacement.sourceName)?.referencedNodes ?? new Set<string>(),
@@ -102,12 +115,14 @@ export class ProjectLinkerState {
       impacts.push(candidateGraph.removeSourceContribution(replacement.sourceName));
       if (replacement.source === undefined) {
         this.sourcesByName.delete(replacement.sourceName);
+        this.derivedGraphSurfaceBySource.delete(replacement.sourceName);
         this.sourceCache.delete(replacement.sourceName);
       } else {
         this.sourcesByName.set(replacement.sourceName, {
           sourceName: replacement.sourceName,
           source: replacement.source,
         });
+        this.derivedGraphSurfaceBySource.set(replacement.sourceName, nextDerivedGraphSurface!);
       }
     }
     // A new source can satisfy references that were unresolved in the previous
@@ -117,30 +132,59 @@ export class ProjectLinkerState {
     const addingSource = uniqueReplacements.some((item) =>
       item.source !== undefined && !existingSources.has(item.sourceName)
     );
-    const affectedSources = addingSource
+    const linkSupportSources = (sources: ReadonlySet<string>): LinkProjectResult => linkProjectWithSourceCache({
+      snapshot: this.snapshot,
+      // Preserve the canonical project order. Deployment inheritance is
+      // evaluated in source order, so feeding the BFS discovery order here can
+      // make an incremental result differ from a clean link.
+      sources: [...this.sourcesByName.values()].filter((source) => sources.has(source.sourceName)),
+      ...(this.operatorImplementations === undefined ? {} : { operatorImplementations: this.operatorImplementations }),
+    }, this.sourceCache, this.profiler);
+    let affectedSources: ReadonlySet<string> = addingSource
       ? new Set([...this.sourcesByName.keys(), ...replacementNames])
-      : new Set([
-          ...replacementNames,
-          ...impacts.flatMap((impact) => [...impact.dependentSources]),
-        ]);
-    const supportSources = this.relinkSupportSources(previous, affectedSources, preservedReferences);
-    for (const source of supportSources) {
+      : derivedGraphSurfaceChanged
+        ? new Set([
+            ...replacementNames,
+            ...impacts.flatMap((impact) => [...impact.dependentSources]),
+          ])
+        : replacementNames;
+    let supportSources = this.relinkSupportSources(
+      previous,
+      affectedSources,
+      preservedReferences,
+      addingSource || derivedGraphSurfaceChanged,
+    );
+    let partialResult = linkSupportSources(supportSources);
+    const dependencySurfaceChanged = addingSource || derivedGraphSurfaceChanged || [...replacementNames].some((source) =>
+      !sameDependencySurface(previous.graph, partialResult.graph, source)
+    );
+    if (!addingSource && dependencySurfaceChanged) {
+      affectedSources = new Set([
+        ...replacementNames,
+        ...impacts.flatMap((impact) => [...impact.dependentSources]),
+      ]);
+      const expandedSupportSources = this.relinkSupportSources(
+        previous,
+        affectedSources,
+        preservedReferences,
+        true,
+      );
+      if (!sameSet(supportSources, expandedSupportSources)) {
+        supportSources = expandedSupportSources;
+        partialResult = linkSupportSources(supportSources);
+      }
+    }
+    // Graph-topology changes can alter global diagnostics owned by otherwise
+    // unchanged support sources. Attribute-only edits keep the smaller set.
+    const candidateSources = dependencySurfaceChanged ? supportSources : affectedSources;
+    for (const source of candidateSources) {
       if (!replacementNames.has(source)) {
         candidateGraph.removeSourceContribution(source);
       }
     }
-    const parseCountBefore = this.sourceCache.parseCount();
-    const partialResult = linkProjectWithSourceCache({
-      snapshot: this.snapshot,
-      sources: [...supportSources].flatMap((source) => {
-        const projectSource = this.sourcesByName.get(source);
-        return projectSource === undefined ? [] : [projectSource];
-      }),
-      ...(this.operatorImplementations === undefined ? {} : { operatorImplementations: this.operatorImplementations }),
-    }, this.sourceCache, this.profiler);
     mergeGraph(candidateGraph, partialResult.graph);
-    const candidateResult = mergeResults(previous, partialResult, supportSources, candidateGraph);
-    const relinkedSources = changedResultSources(previous, candidateResult, supportSources);
+    const candidateResult = mergeResults(previous, partialResult, candidateSources, candidateGraph);
+    const relinkedSources = changedResultSources(previous, candidateResult, candidateSources);
     const graph = previous.graph.clone();
     for (const source of relinkedSources) {
       graph.removeSourceContribution(source);
@@ -173,10 +217,16 @@ export class ProjectLinkerState {
     previous: LinkProjectResult,
     affectedSources: ReadonlySet<string>,
     preservedReferencesBySource: ReadonlyMap<string, ReadonlySet<string>>,
+    expandSupportClosure: boolean,
   ): ReadonlySet<string> {
     const result = new Set<string>();
     const visited = new Set<string>();
-    const pending = [...affectedSources];
+    const pending = [
+      ...affectedSources,
+      ...[...this.sourcesByName.values()].flatMap((source) =>
+        this.sourceCache.metadata(source.sourceName, source.source).contributesToSnapshot ? [source.sourceName] : []
+      ),
+    ];
     const contextBySource = new Map(previous.contexts.map((context) => [context.sourceIdentity, context.id]));
     const sourcesByContext = new Map<string, Set<string>>();
     const importsBySource = new Map<string, typeof previous.imports>();
@@ -199,6 +249,13 @@ export class ProjectLinkerState {
       // Removed sources still have to participate in result replacement so
       // their contexts, elements, diagnostics, and tab roots are discarded.
       result.add(source);
+      // An isolated source edit needs only direct declarations and reference
+      // targets. If removing its old graph contribution affected another
+      // source, retain the complete support closure: deployment and projection
+      // output can depend on context beyond the graph's direct references.
+      if (!expandSupportClosure && !affectedSources.has(source)) {
+        continue;
+      }
       const context = contextBySource.get(source);
       if (context !== undefined) {
         for (const siblingSource of sourcesByContext.get(context) ?? []) {
@@ -280,6 +337,32 @@ function graphNodeSource(node: ReturnType<IndexedGraph["node"]>): string | undef
     return node.ownerSource;
   }
   return undefined;
+}
+
+function sameDependencySurface(previous: IndexedGraph, next: IndexedGraph, source: string): boolean {
+  const signature = (graph: IndexedGraph): string | undefined => {
+    const contribution = graph.sourceContribution(source);
+    if (contribution === undefined) {
+      return undefined;
+    }
+    const byJson = (left: unknown, right: unknown): number => JSON.stringify(left).localeCompare(JSON.stringify(right));
+    return JSON.stringify({
+      nodes: [...contribution.ownedNodes].flatMap((id) => {
+        const node = graph.node(id);
+        return node === undefined ? [] : [node];
+      }).sort(byJson),
+      relations: [...contribution.ownedRelations].flatMap((id) => {
+        const relation = graph.relation(id);
+        return relation === undefined ? [] : [relation];
+      }).sort(byJson),
+      references: [...contribution.referencedNodes].sort(),
+    });
+  };
+  return signature(previous) === signature(next);
+}
+
+function sameSet<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
+  return left.size === right.size && [...left].every((value) => right.has(value));
 }
 
 function mergeResults(

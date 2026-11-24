@@ -2,8 +2,8 @@
 
 This benchmark models a company with 250 independently deployable business
 services, 15 deployment environments, and bounded contexts containing 3–10
-services. It measures cold project analysis from 10 through 250 services in
-increments of 10.
+services. It measures cold project analysis and a subsequent one-file
+incremental update from 10 through 250 services in increments of 10.
 
 ## Synthetic repository
 
@@ -31,7 +31,7 @@ node benchmarks/link-scaling/generate-repository.mjs
 The generator replaces only a directory containing its own matching manifest;
 it refuses to overwrite an unrelated directory.
 
-## Cold-link experiment
+## Cold and incremental link experiment
 
 Run three independent cold links at every +10 service point:
 
@@ -39,10 +39,14 @@ Run three independent cold links at every +10 service point:
 node benchmarks/link-scaling/run-benchmark.mjs --trials 3
 ```
 
-Every trial runs in a fresh Node.js process. Sources are read before the timer,
-so elapsed time covers four-worker parsing, source classification, snapshot construction,
-linking, deployment expansion, projection, graph inspection, and result
-materialization—not filesystem I/O or module startup.
+Every trial runs in a fresh Node.js process. Sources are read before the timer.
+The cold measurement covers four-worker parsing, source classification,
+snapshot construction, linking, deployment expansion, projection, graph
+inspection, and result materialization—not filesystem I/O or module startup.
+The same session then edits one component file in the highest-numbered service
+and measures its incremental update. The output records changed, reparsed,
+relinked, and direct support source counts so a local edit cannot silently turn
+back into a project-wide relink.
 
 Use `--sequential` for a diagnostic comparison with the single-threaded parser.
 
@@ -76,6 +80,22 @@ node benchmarks/link-scaling/run-phase-benchmark.mjs --render-only
 The measured timings are machine- and runtime-specific. The repository,
 topology, raw trials, phase call counts, and scripts are retained so future
 changes can be compared using the same workload.
+
+## Incremental graph-change scenarios
+
+The targeted incremental benchmark uses the full 250-service repository to
+compare three one-file changes: relationship topology, an environment metadata
+attribute, and an environment projection rule. It records the graph delta,
+projected-edge count, invalidation scope, and per-phase timings:
+
+```shell
+node benchmarks/link-scaling/run-incremental-scenarios.mjs
+```
+
+Outputs are in [`incremental-results`](incremental-results): raw trials, CSV
+summary, a logarithmic timing chart, and a Markdown report. Projection changes
+are also checked by a deterministic incremental-versus-clean contract in the
+language test suite.
 
 ## Repository verification
 
