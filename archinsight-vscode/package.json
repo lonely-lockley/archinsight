@@ -363,7 +363,7 @@
     "build": "npm run build:webview && npm run build:extension",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "pretest": "npm run build:extension",
-    "test": "node --experimental-test-coverage --test-coverage-include=src/diagram-session.ts --test-coverage-include=src/diagram-svg.ts --test-coverage-include=src/latest-wins.ts --test-coverage-include=src/preview-webview.ts --test-coverage-include=src/theme.ts --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/*.test.mjs",
+    "test": "node --experimental-test-coverage --test-coverage-include=src/diagram-session.ts --test-coverage-include=src/diagram-svg.ts --test-coverage-include=src/latest-wins.ts --test-coverage-include=src/preview-webview.ts --test-coverage-include=src/project-view-queries.ts --test-coverage-include=src/theme.ts --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/*.test.mjs",
     "check": "npm run typecheck && npm run build && npm test",
     "package": "npm run check && vsce package --out dist/archinsight-vscode-${npm_package_version}.vsix",
     "publish:marketplace": "npm run check && vsce publish"

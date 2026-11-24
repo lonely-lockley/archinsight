@@ -396,16 +396,22 @@ reports/
 ```
 
 These directories are a purpose-based project convention, not part of query identity. The web
-workspace discovers query files recursively and identifies each query only by
+and native VS Code workspaces discover query files recursively and identify each query only by
 its filename without `.aiq`. `views/dependencies.aiq` therefore creates the
 custom view `dependencies`. Names and the `.aiq` extension are case-sensitive.
 Files may live elsewhere when the project has a different convention.
 
-Names that do not belong to a built-in view appear in the **Custom view**
-selector. Select the view to run it for a model tab, or open the `.aiq` file to
-edit the query and choose its preview scope. A descriptive lowercase name such
-as `dependencies.aiq` or `async-flows.aiq` is preferable to a generic name such
-as `query.aiq`.
+VS Code loads project queries when the extension or custom editor opens and
+watches `.aiq` files for creation, changes, and deletion. Unsaved content in an
+open `.aiq` editor takes precedence over the saved file. A changed reserved
+query rerenders open tabs that still use that view preset; a manually edited
+query remains unchanged.
+
+In the web editor, names that do not belong to a built-in view appear in the
+**Custom view** selector. Select the view to run it for a model tab, or open the
+`.aiq` file to edit the query and choose its preview scope. A descriptive
+lowercase name such as `dependencies.aiq` or `async-flows.aiq` is preferable to
+a generic name such as `query.aiq`.
 
 In the web editor, create a tab, switch its document type to **Query**, and save
 it as `views/<name>.aiq`. The file appears in the project tree and custom-view

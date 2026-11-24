@@ -1,20 +1,15 @@
 import { resolveBuiltinView, type BuiltinDiagramView } from '@insight/language';
 import { isIgnoredProjectSourceDirectory, normalizeProjectSourceIdentity } from '@archinsight/contracts';
-import type { TreeNode, WorkspaceTab } from './workspace-types';
+import type { TreeNode, WorkspaceTab } from './workspace-types.js';
+import { groupProjectQueryPaths, isQueryFile, queryFileName } from './project-query-paths.js';
+
+export { isQueryFile, queryFileName } from './project-query-paths.js';
 
 export type ProjectQuery = {
   readonly name: string;
   readonly paths: readonly string[];
   readonly view?: BuiltinDiagramView;
 };
-
-export function isQueryFile(path: string): boolean {
-  return path.endsWith('.aiq');
-}
-
-export function queryFileName(path: string): string {
-  return (path.split('/').at(-1) ?? path).slice(0, -4);
-}
 
 export function projectFilePaths(tree: TreeNode | undefined): string[] {
   if (tree === undefined) return [];
@@ -30,14 +25,9 @@ function hasIgnoredProjectDirectory(path: string, type: TreeNode['type']): boole
 
 /** Basenames are project-wide identities, independent of directory and traversal order. */
 export function discoverProjectQueries(tree: TreeNode | undefined): ProjectQuery[] {
-  const byName = new Map<string, string[]>();
-  for (const path of projectFilePaths(tree).filter(isQueryFile)) {
-    const name = queryFileName(path);
-    byName.set(name, [...(byName.get(name) ?? []), path]);
-  }
-  return [...byName].sort(([a], [b]) => a.localeCompare(b)).map(([name, paths]) => ({
+  return [...groupProjectQueryPaths(projectFilePaths(tree))].map(([name, paths]) => ({
     name,
-    paths: [...new Set(paths)].sort(),
+    paths,
     // Reserve stable IDs, not display labels or compatibility aliases.
     view: resolveBuiltinView(name, true)?.id === name ? resolveBuiltinView(name, true)!.id : undefined
   }));
