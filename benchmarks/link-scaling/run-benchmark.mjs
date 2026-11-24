@@ -36,7 +36,7 @@ if (options.renderOnly) {
     for (let trial = 1; trial <= trials; trial += 1) {
       const measurement = await runWorker(serviceCount);
       runs.push({ trial, ...measurement });
-      process.stderr.write(`  ${measurement.elapsedMs.toFixed(1)} ms / ${mib(measurement.peakRssBytes).toFixed(1)} MiB`);
+      process.stderr.write(`  cold ${measurement.elapsedMs.toFixed(1)} ms / incremental ${measurement.incrementalMs.toFixed(1)} ms / ${mib(measurement.peakRssBytes).toFixed(1)} MiB`);
     }
     process.stderr.write("\n");
   }
@@ -52,7 +52,7 @@ if (options.renderOnly) {
     parseMode,
     maximumParseWorkers: parseMode === "parallel" ? 4 : 1,
     serviceCounts: counts,
-    measurement: "Fresh Node.js process per trial; file reads and module loading excluded from elapsed linking time",
+    measurement: "Fresh Node.js process per trial; file reads and module loading excluded; one-file incremental update measured after each cold link",
   };
   await writeFile(
     path.join(resultsDirectory, "raw.json"),
@@ -120,6 +120,7 @@ function runCommand(command, arguments_, cwd, capture = false) {
 function summarize(experimentRuns) {
   const first = experimentRuns[0];
   const elapsed = experimentRuns.map((run) => run.elapsedMs).sort(numberAscending);
+  const incremental = experimentRuns.map((run) => run.incrementalMs).sort(numberAscending);
   const peakRss = experimentRuns.map((run) => run.peakRssBytes).sort(numberAscending);
   const rssDelta = experimentRuns.map((run) => run.peakRssBytes - run.rssBeforeBytes).sort(numberAscending);
   return {
@@ -134,6 +135,13 @@ function summarize(experimentRuns) {
     medianMs: median(elapsed),
     minMs: elapsed[0],
     maxMs: elapsed.at(-1),
+    medianIncrementalMs: median(incremental),
+    minIncrementalMs: incremental[0],
+    maxIncrementalMs: incremental.at(-1),
+    incrementalChangedSources: first.incrementalChangedSources,
+    incrementalReparsedSources: first.incrementalReparsedSources,
+    incrementalRelinkedSources: first.incrementalRelinkedSources,
+    incrementalSupportSources: first.incrementalSupportSources,
     medianPeakRssMiB: mib(median(peakRss)),
     minPeakRssMiB: mib(peakRss[0]),
     maxPeakRssMiB: mib(peakRss.at(-1)),
@@ -152,7 +160,7 @@ function reportMarkdown(summaries, metadata) {
   const timeSlope = linearSlope(summaries.map((row) => [row.serviceCount, row.medianMs]));
   const memorySlope = linearSlope(summaries.map((row) => [row.serviceCount, row.medianPeakRssMiB]));
   const table = summaries.map((row) =>
-    `| ${row.serviceCount} | ${row.sourceCount} | ${row.elements} | ${row.edges} | ${row.medianMs.toFixed(1)} | ${row.medianPeakRssMiB.toFixed(1)} | ${row.medianLinkRssDeltaMiB.toFixed(1)} |`
+    `| ${row.serviceCount} | ${row.sourceCount} | ${row.elements} | ${row.edges} | ${row.medianMs.toFixed(1)} | ${row.medianIncrementalMs.toFixed(1)} | ${row.incrementalSupportSources} | ${row.medianPeakRssMiB.toFixed(1)} | ${row.medianLinkRssDeltaMiB.toFixed(1)} |`
   ).join("\n");
   return `# Cold link scaling results
 
@@ -160,7 +168,7 @@ Generated: ${metadata.generatedAt}
 
 Host: ${metadata.cpu}, ${metadata.logicalCpuCount} logical CPUs, ${(metadata.totalMemoryBytes / 1024 / 1024 / 1024).toFixed(1)} GiB RAM, ${metadata.node}, ${metadata.platform}/${metadata.architecture}.
 
-Each point is the median of ${metadata.trialsPerExperiment} independent cold links in fresh Node.js processes. Source files are loaded before timing. Peak RSS includes the language runtime and loaded source strings; the final column subtracts RSS immediately before linking to expose the linker's approximate incremental footprint.
+Each point is the median of ${metadata.trialsPerExperiment} independent cold links in fresh Node.js processes followed by one edit to a single component file. Source files are loaded before timing. Peak RSS includes the language runtime and loaded source strings; the final column subtracts RSS immediately before linking to expose the linker's approximate memory footprint.
 
 Parse mode: ${metadata.parseMode ?? "sequential"}${metadata.maximumParseWorkers === undefined ? "" : `, up to ${metadata.maximumParseWorkers} workers`}.
 
@@ -170,13 +178,14 @@ Parse mode: ${metadata.parseMode ?? "sequential"}${metadata.maximumParseWorkers 
 
 - Full scale (${last.serviceCount} services): ${last.sourceCount} files, ${last.sourceLines.toLocaleString("en-US")} lines, ${last.elements.toLocaleString("en-US")} linked elements, ${last.edges.toLocaleString("en-US")} linked edges.
 - Median cold link time grows from ${first.medianMs.toFixed(1)} ms to ${last.medianMs.toFixed(1)} ms.
+- Median one-file incremental link time grows from ${first.medianIncrementalMs.toFixed(1)} ms to ${last.medianIncrementalMs.toFixed(1)} ms; at full scale it reparses ${last.incrementalReparsedSources} and relinks ${last.incrementalRelinkedSources} source with ${last.incrementalSupportSources} direct support sources.
 - Median peak RSS grows from ${first.medianPeakRssMiB.toFixed(1)} MiB to ${last.medianPeakRssMiB.toFixed(1)} MiB.
 - Ordinary least-squares slope across all points: ${timeSlope.toFixed(2)} ms/service and ${memorySlope.toFixed(2)} MiB/service. Use the plotted curve, not only the slope, to spot nonlinear growth.
 
 ## Measurements
 
-| Services | Sources | Elements | Edges | Median link, ms | Peak RSS, MiB | Link RSS delta, MiB |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Services | Sources | Elements | Edges | Median cold link, ms | Median incremental link, ms | Incremental support sources | Peak RSS, MiB | Link RSS delta, MiB |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 ${table}
 
 Raw trials are in [raw.json](raw.json); machine-readable medians and ranges are in [summary.csv](summary.csv).
@@ -199,6 +208,7 @@ function scalingSvg(summaries, metadata) {
   const topTime = margin.top;
   const topMemory = margin.top + panelHeight + gap;
   const timePath = polyline(summaries, (row) => x(row.serviceCount), (row) => y(row.medianMs, topTime, timeMax));
+  const incrementalPath = polyline(summaries, (row) => x(row.serviceCount), (row) => y(row.medianIncrementalMs, topTime, timeMax));
   const rssPath = polyline(summaries, (row) => x(row.serviceCount), (row) => y(row.medianPeakRssMiB, topMemory, rssMax));
   const grid = (top, maximum) => Array.from({ length: 6 }, (_, index) => {
     const value = maximum * index / 5;
@@ -228,11 +238,13 @@ function scalingSvg(summaries, metadata) {
   <rect width="100%" height="100%" fill="#f8f9fc"/>
   <text x="${margin.left}" y="34" class="title">Cold linker scaling: synthetic 15-environment company</text>
   <text x="${margin.left}" y="56" class="subtitle">Median of ${metadata.trialsPerExperiment} fresh-process trials at each +10 service step · ${escapeXml(metadata.cpu)}</text>
-  <text x="${margin.left}" y="${topTime - 18}" class="panel">Link time (ms)</text>
+  <text x="${margin.left}" y="${topTime - 18}" class="panel">Link time (ms): cold <tspan fill="#2563eb">&#9632;</tspan> incremental <tspan fill="#d97706">&#9632;</tspan></text>
   ${grid(topTime, timeMax)}
   <line x1="${margin.left}" y1="${topTime + panelHeight}" x2="${width - margin.right}" y2="${topTime + panelHeight}" class="axis"/>
   <path d="${timePath}" fill="none" stroke="#2563eb" stroke-width="2.5"/>
   ${dots((row) => row.medianMs, topTime, timeMax, "#2563eb")}
+  <path d="${incrementalPath}" fill="none" stroke="#d97706" stroke-width="2.5"/>
+  ${dots((row) => row.medianIncrementalMs, topTime, timeMax, "#d97706")}
   <text x="${margin.left}" y="${topMemory - 18}" class="panel">Peak RSS (MiB)</text>
   ${grid(topMemory, rssMax)}
   <line x1="${margin.left}" y1="${topMemory + panelHeight}" x2="${width - margin.right}" y2="${topMemory + panelHeight}" class="axis"/>

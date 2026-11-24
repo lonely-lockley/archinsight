@@ -138,6 +138,23 @@ extend system payments
   assert.match(environment.metadata.dependencySignature, /^environment:prod/m);
   assert.match(environment.metadata.supportDependencySignature, /import:shared:platform:/);
   assert.match(environment.metadata.supportDependencySignature, /extension:system:payments/);
+
+  const projection = (target) => parseInsightSource({
+    sourceName: "projection.ai",
+    source: `environment prod
+
+deployment production
+    storage:
+        storage storage
+            projection:
+                source $from originalLink target ${target}
+`,
+  });
+  assert.match(projection("$this").metadata.derivedGraphSignature, /projection:/);
+  assert.notEqual(
+    projection("$this").metadata.derivedGraphSignature,
+    projection("$to").metadata.derivedGraphSignature,
+  );
 }
 
 function keepsFormattingOutOfDependencyIdentity() {

@@ -220,14 +220,31 @@ def linkScalingProfile = tasks.register('linkScalingProfile', Exec) {
     commandLine 'node', 'benchmarks/link-scaling/run-phase-benchmark.mjs'
 }
 
+def incrementalLinkScenarios = tasks.register('incrementalLinkScenarios', Exec) {
+    group = 'verification'
+    description = 'Measures full-project incremental relationship, environment, and projection changes.'
+    dependsOn 'languageNpmInstall', 'generateLanguageSources'
+    inputs.dir('benchmarks/link-scaling')
+    inputs.dir('packages/insight-language/src')
+    inputs.dir('packages/insight-language/scripts')
+    inputs.file('packages/insight-language/package.json')
+    workingDir = rootProject.projectDir
+    environment 'ARCHINSIGHT_LANGUAGE_SOURCES_READY', 'true'
+    commandLine 'node', 'benchmarks/link-scaling/run-incremental-scenarios.mjs'
+}
+
 linkScalingProfile.configure {
     mustRunAfter linkScalingBenchmark
 }
 
+incrementalLinkScenarios.configure {
+    mustRunAfter linkScalingProfile
+}
+
 tasks.register('benchmark') {
     group = 'verification'
-    description = 'Runs the full linker scaling benchmark and phase profile.'
-    dependsOn linkScalingBenchmark, linkScalingProfile
+    description = 'Runs linker scaling, phase profiles, and incremental graph-change scenarios.'
+    dependsOn linkScalingBenchmark, linkScalingProfile, incrementalLinkScenarios
 }
 
 def coverageSummary = tasks.register('coverageSummary', Exec) {

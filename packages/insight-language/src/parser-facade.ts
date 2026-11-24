@@ -74,6 +74,7 @@ export interface SourceAnalysisMetadata {
   readonly contributesToSnapshot: boolean;
   readonly dependencySignature: string;
   readonly supportDependencySignature: string;
+  readonly derivedGraphSignature: string;
   readonly reliable: boolean;
 }
 
@@ -634,8 +635,23 @@ function sourceAnalysisMetadata(
     contributesToSnapshot: hasDefinitions,
     dependencySignature: dependencyParts.join("\n"),
     supportDependencySignature: supportParts.join("\n"),
+    derivedGraphSignature: tree === undefined ? "" : derivedGraphSignatureOf(tree),
     reliable,
   });
+}
+
+function derivedGraphSignatureOf(tree: AntlrParseTreeLike): string {
+  const rules = InsightParser.ruleNames;
+  const parts: Array<{ readonly offset: number; readonly value: string }> = [];
+  for (const relation of descendantsByRule(tree, "relationInvocation", rules)) {
+    parts.push({ offset: sourceRangeOf(relation).startOffset, value: `relation:${textOf(relation)}` });
+  }
+  for (const list of descendantsByRule(tree, "namedList", rules)) {
+    if (childText(list, "listName", rules) === "projection") {
+      parts.push({ offset: sourceRangeOf(list).startOffset, value: `projection:${textOf(list)}` });
+    }
+  }
+  return parts.sort((left, right) => left.offset - right.offset).map((part) => part.value).join("\n");
 }
 
 function dependencyPartsOf(tree: AntlrParseTreeLike): string[] {
