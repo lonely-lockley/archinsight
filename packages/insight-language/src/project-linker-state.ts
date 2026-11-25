@@ -110,7 +110,7 @@ export class ProjectLinkerState {
       derivedGraphSurfaceChanged ||= previousDerivedGraphSurface !== nextDerivedGraphSurface;
       preservedReferences.set(
         replacement.sourceName,
-        previous.graph.sourceContribution(replacement.sourceName)?.referencedNodes ?? new Set<string>(),
+        resultReferencedNodes(previous, replacement.sourceName),
       );
       impacts.push(candidateGraph.removeSourceContribution(replacement.sourceName));
       if (replacement.source === undefined) {
@@ -132,6 +132,13 @@ export class ProjectLinkerState {
     const addingSource = uniqueReplacements.some((item) =>
       item.source !== undefined && !existingSources.has(item.sourceName)
     );
+    const removedNodes = new Set(impacts.flatMap((impact) => [...impact.removedNodes]));
+    const dependentSources = new Set(impacts.flatMap((impact) => [...impact.dependentSources]));
+    if (derivedGraphSurfaceChanged) {
+      for (const source of resultDependentSources(previous, removedNodes)) {
+        dependentSources.add(source);
+      }
+    }
     const linkSupportSources = (sources: ReadonlySet<string>): LinkProjectResult => linkProjectWithSourceCache({
       snapshot: this.snapshot,
       // Preserve the canonical project order. Deployment inheritance is
@@ -140,13 +147,14 @@ export class ProjectLinkerState {
       sources: [...this.sourcesByName.values()].filter((source) => sources.has(source.sourceName)),
       ...(this.operatorImplementations === undefined ? {} : { operatorImplementations: this.operatorImplementations }),
     }, this.sourceCache, this.profiler);
+    // Foreign relationships incident on replaced nodes are restored below when
+    // the dependency surface is stable. Their owners participate in relinking
+    // only when topology changed; an attribute-only edit must retain the
+    // one-source incremental path even when many consumers use the provider.
     let affectedSources: ReadonlySet<string> = addingSource
       ? new Set([...this.sourcesByName.keys(), ...replacementNames])
       : derivedGraphSurfaceChanged
-        ? new Set([
-            ...replacementNames,
-            ...impacts.flatMap((impact) => [...impact.dependentSources]),
-          ])
+        ? new Set([...replacementNames, ...dependentSources])
         : replacementNames;
     let supportSources = this.relinkSupportSources(
       previous,
@@ -159,9 +167,14 @@ export class ProjectLinkerState {
       !sameDependencySurface(previous.graph, partialResult.graph, source)
     );
     if (!addingSource && dependencySurfaceChanged) {
+      if (!derivedGraphSurfaceChanged) {
+        for (const source of resultDependentSources(previous, removedNodes)) {
+          dependentSources.add(source);
+        }
+      }
       affectedSources = new Set([
         ...replacementNames,
-        ...impacts.flatMap((impact) => [...impact.dependentSources]),
+        ...dependentSources,
       ]);
       const expandedSupportSources = this.relinkSupportSources(
         previous,
@@ -190,6 +203,7 @@ export class ProjectLinkerState {
       graph.removeSourceContribution(source);
     }
     mergeGraph(graph, partialResult.graph);
+    restoreForeignRelations(graph, previous.graph, relinkedSources);
     this.currentResult = mergeResults(previous, partialResult, relinkedSources, graph);
     return {
       impact: mergeImpacts(impacts),
@@ -272,8 +286,7 @@ export class ProjectLinkerState {
         }
       }
       const referencedNodes = preservedReferencesBySource.get(source)
-        ?? previous.graph.sourceContribution(source)?.referencedNodes
-        ?? [];
+        ?? resultReferencedNodes(previous, source);
       for (const referencedNode of referencedNodes) {
         const providerSource = graphNodeSource(previous.graph.node(referencedNode));
         if (providerSource !== undefined && this.sourcesByName.has(providerSource)) {
@@ -284,6 +297,67 @@ export class ProjectLinkerState {
 
     return result;
   }
+}
+
+function resultReferencedNodes(result: LinkProjectResult, source: string): ReadonlySet<string> {
+  const referenced = new Set(result.graph.sourceContribution(source)?.referencedNodes ?? []);
+  for (const element of result.elements) {
+    if (element.sourceIdentity === source) {
+      addReferenceAttributeValues(referenced, element.referenceAttributes, element.attributes, result.graph);
+    }
+  }
+  for (const edge of result.edges) {
+    if (edge.sourceIdentity === source) {
+      addReferenceAttributeValues(referenced, edge.referenceAttributes, edge.attributes, result.graph);
+    }
+  }
+  return referenced;
+}
+
+function resultDependentSources(
+  result: LinkProjectResult,
+  targets: ReadonlySet<string>,
+): ReadonlySet<string> {
+  if (targets.size === 0) {
+    return new Set();
+  }
+  const dependent = new Set<string>();
+  for (const element of result.elements) {
+    if (referencesAny(element.referenceAttributes, element.attributes, targets)) {
+      dependent.add(element.sourceIdentity);
+    }
+  }
+  for (const edge of result.edges) {
+    if (referencesAny(edge.referenceAttributes, edge.attributes, targets)) {
+      dependent.add(edge.sourceIdentity);
+    }
+  }
+  return dependent;
+}
+
+function addReferenceAttributeValues(
+  target: Set<string>,
+  referenceAttributes: readonly string[] | undefined,
+  attributes: Readonly<Record<string, readonly string[]>>,
+  graph: IndexedGraph,
+): void {
+  for (const attribute of referenceAttributes ?? []) {
+    for (const value of attributes[attribute] ?? []) {
+      if (graph.node(value) !== undefined) {
+        target.add(value);
+      }
+    }
+  }
+}
+
+function referencesAny(
+  referenceAttributes: readonly string[] | undefined,
+  attributes: Readonly<Record<string, readonly string[]>>,
+  targets: ReadonlySet<string>,
+): boolean {
+  return (referenceAttributes ?? []).some((attribute) =>
+    (attributes[attribute] ?? []).some((value) => targets.has(value))
+  );
 }
 
 function changedResultSources(
@@ -419,6 +493,18 @@ function mergeGraph(target: IndexedGraph, source: IndexedGraph): void {
   }
   for (const relation of source.relations()) {
     addRelationIfPossible(target, relation);
+  }
+}
+
+function restoreForeignRelations(
+  target: IndexedGraph,
+  previous: IndexedGraph,
+  relinkedSources: ReadonlySet<string>,
+): void {
+  for (const relation of previous.relations()) {
+    if (!relinkedSources.has(relation.ownerSource)) {
+      addRelationIfPossible(target, relation);
+    }
   }
 }
 

@@ -159,8 +159,8 @@ export class IndexedGraph {
     if (relation.type !== undefined) {
       addToIndex(this.relationsByTypeIndex, relation.type, relation.id);
     }
-    if (isDependency(relation.kind)) {
-      this.registerDependency(relation.ownerSource, relation.target);
+    for (const dependency of this.dependencyNodes(relation)) {
+      this.registerDependency(relation.ownerSource, dependency);
     }
 
     return true;
@@ -375,8 +375,8 @@ export class IndexedGraph {
       removeFromIndex(this.relationsByTypeIndex, relation.type, relationId);
     }
     this.contributionsBySource.get(relation.ownerSource)?.ownedRelations.delete(relationId);
-    if (isDependency(relation.kind)) {
-      this.unregisterDependency(relation.ownerSource, relation.target);
+    for (const dependency of this.dependencyNodes(relation)) {
+      this.unregisterDependency(relation.ownerSource, dependency);
     }
     removedRelations.add(relationId);
   }
@@ -402,6 +402,24 @@ export class IndexedGraph {
     } else {
       contribution.referenceCounts.set(target, count - 1);
     }
+  }
+
+  private dependencyNodes(relation: GraphRelation): readonly GraphNodeId[] {
+    if (!isDependency(relation.kind)) {
+      return [];
+    }
+    const result = new Set<GraphNodeId>([relation.target]);
+    // A projected relationship can be owned by a logical source while its
+    // physical source endpoint is declared by an infrastructure source. That
+    // endpoint is semantic input just as much as the target is: without it an
+    // incremental relink cannot rediscover connectTo/source projections.
+    if (
+      relation.kind === "REFERENCES"
+      && nodeOwnerSource(this.requireNode(relation.source)) !== relation.ownerSource
+    ) {
+      result.add(relation.source);
+    }
+    return [...result];
   }
 
   private contribution(source: SourceNodeId): MutableSourceContribution {
