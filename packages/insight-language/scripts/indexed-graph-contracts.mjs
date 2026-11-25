@@ -12,6 +12,7 @@ const cases = [
   removesSourceContributionWithoutScanningOrDeletingForeignNodes,
   cleansContextAndBaseTypeIndexesWhenOwnedNodeIsRemoved,
   keepsDependencyReferenceCountsUntilLastRelationIsRemoved,
+  tracksExternalReferenceSourcesAsDependencies,
   indexesDependencyKindsBeyondReferences,
   rejectsConflictingNodeAndRelationIds,
 ];
@@ -153,14 +154,37 @@ function keepsDependencyReferenceCountsUntilLastRelationIsRemoved() {
   assert.equal(graph.dependentSources(targetElement.id).size, 0);
 }
 
+function tracksExternalReferenceSourcesAsDependencies() {
+  const graph = new IndexedGraph();
+  const owner = "model.ai";
+  const infrastructureSource = "infra.ai";
+  const monitoring = element(FINTECH, "monitoring", "monitoring", "Monitoring", [ELEMENT], infrastructureSource);
+  const api = element(FINTECH, "api", "service", "Service", [ELEMENT], owner);
+  graph.addNode(sourceNode(owner));
+  graph.addNode(sourceNode(infrastructureSource));
+  graph.addNode(monitoring);
+  graph.addNode(api);
+  graph.addRelation(relation(
+    "00000000-0000-0000-0000-000000000010",
+    "REFERENCES",
+    monitoring.id,
+    api.id,
+    owner,
+    "ConnectTo",
+  ));
+
+  assertSet(graph.sourceContribution(owner).referencedNodes, [monitoring.id, api.id]);
+  assertSet(graph.dependentSources(monitoring.id), [owner]);
+}
+
 function indexesDependencyKindsBeyondReferences() {
   const graph = new IndexedGraph();
   const source = "imports.ai";
   const targetSource = "target.ai";
   graph.addNode(sourceNode(source));
   graph.addNode(sourceNode(targetSource));
-  graph.addRelation(relation("00000000-0000-0000-0000-000000000010", "IMPORTS", source, targetSource, source));
-  graph.addRelation(relation("00000000-0000-0000-0000-000000000011", "INHERITS", targetSource, source, targetSource));
+  graph.addRelation(relation("00000000-0000-0000-0000-000000000011", "IMPORTS", source, targetSource, source));
+  graph.addRelation(relation("00000000-0000-0000-0000-000000000012", "INHERITS", targetSource, source, targetSource));
 
   assertSet(graph.dependentSources(targetSource), [source]);
   assertSet(graph.dependentSources(source), [targetSource]);
@@ -179,8 +203,8 @@ function rejectsConflictingNodeAndRelationIds() {
 
   const target = element(FINTECH, "target", "system", SYSTEM, [ELEMENT], source);
   graph.addNode(target);
-  const firstRelation = relation("00000000-0000-0000-0000-000000000012", "REFERENCES", first.id, target.id, source);
-  const secondRelation = relation("00000000-0000-0000-0000-000000000012", "CONTAINS", first.id, target.id, source);
+  const firstRelation = relation("00000000-0000-0000-0000-000000000013", "REFERENCES", first.id, target.id, source);
+  const secondRelation = relation("00000000-0000-0000-0000-000000000013", "CONTAINS", first.id, target.id, source);
   graph.addRelation(firstRelation);
   assert.equal(graph.addRelation(firstRelation), false);
   assert.throws(() => graph.addRelation(secondRelation), /Conflicting graph relation id/);

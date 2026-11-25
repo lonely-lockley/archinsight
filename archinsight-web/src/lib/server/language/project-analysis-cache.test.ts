@@ -152,6 +152,26 @@ describe('project analysis cache', () => {
     await expectEquivalentToClean(cache, key, sources, 'incremental');
   });
 
+  it('keeps deployment projections after cached infrastructure and logical edits and undo', async () => {
+    const cache = new ProjectAnalysisCache();
+    const key = 'owner:a\0project:deployment';
+    const initial = deploymentProjectionModel();
+    await cache.analyze(key, initial, {}, env);
+
+    const infrastructureEdit = new Map(initial);
+    infrastructureEdit.set(
+      'infra/r1.ai',
+      infrastructureEdit.get('infra/r1.ai')!.replace('name = Prometheus', 'name = Prometheus X')
+    );
+    await expectProjectionEquivalentToClean(cache, key, infrastructureEdit);
+    await expectProjectionEquivalentToClean(cache, key, initial);
+
+    const logicalEdit = new Map(initial);
+    logicalEdit.set('shop.ai', logicalEdit.get('shop.ai')!.replace('name = API', 'name = API X'));
+    await expectProjectionEquivalentToClean(cache, key, logicalEdit);
+    await expectProjectionEquivalentToClean(cache, key, initial);
+  });
+
   it('moves a stale replica directly to the latest revision without intermediate updates', async () => {
     const key = 'owner:a\0project:p';
     const staleReplica = new ProjectAnalysisCache();
@@ -254,6 +274,22 @@ async function expectEquivalentToClean(
   expect(resultShape(incremental.result)).toEqual(resultShape(clean.result));
 }
 
+async function expectProjectionEquivalentToClean(
+  cache: ProjectAnalysisCache,
+  key: string,
+  sources: ReadonlyMap<string, string>
+) {
+  const incremental = await cache.analyze(key, sources, {}, env);
+  const clean = await new ProjectAnalysisCache().analyze('clean', sources, {}, env);
+  expect(incremental.mode).toBe('incremental');
+  expect(resultShape(incremental.result)).toEqual(resultShape(clean.result));
+  expect(incremental.result.edges.some((edge) =>
+    edge.projected === true
+    && edge.source === 'r1/prom_r1'
+    && edge.target === 'shop/api'
+  )).toBe(true);
+}
+
 function model(name: string): Map<string, string> {
   return new Map([['main.ai', source(name)]]);
 }
@@ -276,6 +312,48 @@ function deploymentDefinitions(slot: string): string {
   return `define type ApplicationEnvironment of Environment
     NetworkConnection ${slot}
 `;
+}
+
+function deploymentProjectionModel(): Map<string, string> {
+  return new Map([
+    ['framework.ai', `extend type Environment
+    Compute compute
+    Monitoring observability
+
+define type Monitoring of InfrastructureComponent
+    constructor monitoring
+`],
+    ['infra/r1.ai', `environment r1
+    name = Region 1
+
+deployment production
+    compute:
+        compute k8s_r1
+            name = K8s r1
+    observability:
+        monitoring prom_r1
+            name = Prometheus
+            runsOn:
+                k8s_r1
+            projection:
+                target $this connectTo source $from
+`],
+    ['shop.ai', `context shop
+
+deploymentProfile everywhere
+    appliesTo:
+        production from r1
+    runsOn compute
+    uses observability
+
+system shop_sys
+    name = Shop
+    service api
+        name = API
+        deployment:
+            uses everywhere
+`]
+  ]);
 }
 
 function deploymentSlotCompletions(snapshot: LanguageSnapshot): string[] {

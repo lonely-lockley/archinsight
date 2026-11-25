@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generatedAt": "2026-11-24T20:17:43.906Z",
+    "generatedAt": "2026-11-25T06:13:53.795Z",
     "trials": 3,
     "sourceCount": 1016,
     "baselineElements": 7590,
@@ -12,7 +12,7 @@
       "trial": 1,
       "name": "relationship-topology",
       "sourceName": "contexts/context_039/service-250/model.ai",
-      "elapsedMs": 4024.002166,
+      "elapsedMs": 4181.956292,
       "changedSources": 1,
       "reparsedSources": 1,
       "relinkedSources": 1,
@@ -45,111 +45,111 @@
       "phases": {
         "link.complete": {
           "calls": 2,
-          "elapsedMs": 1332.0859170000003
+          "elapsedMs": 1403.4155419999988
         },
         "link.complete.build-indexed-graph": {
           "calls": 2,
-          "elapsedMs": 25.994040999999925
+          "elapsedMs": 24.913040999999794
         },
         "link.complete.context-snapshots": {
           "calls": 2,
-          "elapsedMs": 0.5676260000000184
+          "elapsedMs": 1.0467499999995198
         },
         "link.complete.duplicate-edges": {
           "calls": 2,
-          "elapsedMs": 3.136375999998563
+          "elapsedMs": 3.0684570000012172
         },
         "link.complete.element-snapshots": {
           "calls": 2,
-          "elapsedMs": 16.147166000000652
+          "elapsedMs": 57.704501000000164
         },
         "link.complete.import-snapshots": {
           "calls": 2,
-          "elapsedMs": 0.08391599999958999
+          "elapsedMs": 0.08908299999893643
         },
         "link.complete.inspect-graph": {
           "calls": 2,
-          "elapsedMs": 1283.8437089999989
+          "elapsedMs": 1312.6537079999998
         },
         "link.complete.presentations": {
           "calls": 2,
-          "elapsedMs": 0.17641600000024482
+          "elapsedMs": 0.17212499999914144
         },
         "link.complete.resolve-context-attributes": {
           "calls": 2,
-          "elapsedMs": 0.19991600000139442
+          "elapsedMs": 0.4700009999996837
         },
         "link.complete.tab-roots": {
           "calls": 2,
-          "elapsedMs": 0.9290839999994205
+          "elapsedMs": 1.5183750000014697
         },
         "link.complete.validate-icons": {
           "calls": 2,
-          "elapsedMs": 0.8370420000010199
+          "elapsedMs": 1.5991660000017873
         },
         "link.deployment": {
           "calls": 2,
-          "elapsedMs": 1484.733416
+          "elapsedMs": 1489.0305830000007
         },
         "link.logical-relationships": {
           "calls": 2,
-          "elapsedMs": 86.29512599999907
+          "elapsedMs": 80.79929099999936
         },
         "link.logical.materialize-edge": {
           "calls": 6751,
-          "elapsedMs": 23.930092999960834
+          "elapsedMs": 23.381839999998192
         },
         "link.logical.snapshot-endpoints": {
           "calls": 6751,
-          "elapsedMs": 28.503291000009995
+          "elapsedMs": 26.15334900007838
         },
         "link.projections": {
           "calls": 2,
-          "elapsedMs": 258.1961250000022
+          "elapsedMs": 256.7940429999999
         },
         "link.workspace": {
           "calls": 2,
-          "elapsedMs": 253.66354200000023
+          "elapsedMs": 244.9121670000004
         },
         "link.workspace.apply-extensions": {
           "calls": 2,
-          "elapsedMs": 104.54291700000067
+          "elapsedMs": 103.96766600000046
         },
         "link.workspace.duplicate-elements": {
           "calls": 2,
-          "elapsedMs": 0.07275000000026921
+          "elapsedMs": 0.10270800000034797
         },
         "link.workspace.index-elements": {
           "calls": 2,
-          "elapsedMs": 0.6925000000001091
+          "elapsedMs": 0.8012920000010126
         },
         "link.workspace.parse-documents": {
           "calls": 2,
-          "elapsedMs": 48.660791999999674
+          "elapsedMs": 45.18437399999948
         },
         "link.workspace.pending-operators-after-extensions": {
           "calls": 2,
-          "elapsedMs": 50.38366599999972
+          "elapsedMs": 47.367292000000816
         },
         "link.workspace.pending-operators-before-extensions": {
           "calls": 2,
-          "elapsedMs": 24.26866699999937
+          "elapsedMs": 23.44104199999947
         },
         "link.workspace.resolve-element-attributes": {
           "calls": 2,
-          "elapsedMs": 22.48383300000023
+          "elapsedMs": 21.658292000000074
         },
         "link.workspace.resolve-imports": {
           "calls": 2,
-          "elapsedMs": 0.22937400000046182
+          "elapsedMs": 0.22325099999943632
         },
         "link.workspace.type-system": {
           "calls": 2,
-          "elapsedMs": 0.030707999999322055
+          "elapsedMs": 0.03941700000086712
         },
         "session.materialize-analysis": {
           "calls": 1,
-          "elapsedMs": 0.0059999999994033715
+          "elapsedMs": 0.0053340000013122335
         }
       }
     },
@@ -157,7 +157,7 @@
       "trial": 1,
       "name": "environment-attribute",
       "sourceName": "environments/env-15.ai",
-      "elapsedMs": 46.296416999999565,
+      "elapsedMs": 52.34524999999849,
       "changedSources": 1,
       "reparsedSources": 1,
       "relinkedSources": 1,
@@ -173,7 +173,7 @@
         },
         "relations": {
           "added": 0,
-          "removed": 250,
+          "removed": 0,
           "changed": 0
         },
         "elements": {
@@ -190,95 +190,95 @@
       "phases": {
         "link.complete": {
           "calls": 1,
-          "elapsedMs": 0.2266670000008162
+          "elapsedMs": 0.21283299999959127
         },
         "link.complete.build-indexed-graph": {
           "calls": 1,
-          "elapsedMs": 0.05125000000043656
+          "elapsedMs": 0.04195799999979499
         },
         "link.complete.context-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.0063330000011774246
+          "elapsedMs": 0.007583000000522588
         },
         "link.complete.duplicate-edges": {
           "calls": 1,
-          "elapsedMs": 0.0008330000000569271
+          "elapsedMs": 0.0007500000010622898
         },
         "link.complete.element-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.024583000000347965
+          "elapsedMs": 0.027374999999665306
         },
         "link.complete.import-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.00020799999947485048
+          "elapsedMs": 0.010958000000755419
         },
         "link.complete.inspect-graph": {
           "calls": 1,
-          "elapsedMs": 0.034582999998747255
+          "elapsedMs": 0.02916700000059791
         },
         "link.complete.presentations": {
           "calls": 1,
-          "elapsedMs": 0.07087499999943248
+          "elapsedMs": 0.07133400000020629
         },
         "link.complete.resolve-context-attributes": {
           "calls": 1,
-          "elapsedMs": 0.01862500000061118
+          "elapsedMs": 0.006084000000555534
         },
         "link.complete.tab-roots": {
           "calls": 1,
-          "elapsedMs": 0.009165999999822816
+          "elapsedMs": 0.007750000000669388
         },
         "link.complete.validate-icons": {
           "calls": 1,
-          "elapsedMs": 0.005417000000306871
+          "elapsedMs": 0.004958999999871594
         },
         "link.deployment": {
           "calls": 1,
-          "elapsedMs": 0.008750000000873115
+          "elapsedMs": 0.005124999999679858
         },
         "link.logical-relationships": {
           "calls": 1,
-          "elapsedMs": 0.0036249999993742676
+          "elapsedMs": 0.0012079999996785773
         },
         "link.projections": {
           "calls": 1,
-          "elapsedMs": 0.011749999999665306
+          "elapsedMs": 0.010249999999359716
         },
         "link.workspace": {
           "calls": 1,
-          "elapsedMs": 0.2553750000006403
+          "elapsedMs": 0.2883330000004207
         },
         "link.workspace.apply-extensions": {
           "calls": 1,
-          "elapsedMs": 0.002125000000887667
+          "elapsedMs": 0.0012500000011641532
         },
         "link.workspace.duplicate-elements": {
           "calls": 1,
-          "elapsedMs": 0.0012909999986732146
+          "elapsedMs": 0.0005419999997684499
         },
         "link.workspace.index-elements": {
           "calls": 1,
-          "elapsedMs": 0.011542000000190455
+          "elapsedMs": 0.007790999999997439
         },
         "link.workspace.parse-documents": {
           "calls": 1,
-          "elapsedMs": 0.1912080000001879
+          "elapsedMs": 0.22937500000080036
         },
         "link.workspace.pending-operators-after-extensions": {
           "calls": 1,
-          "elapsedMs": 0.0006249999987630872
+          "elapsedMs": 0.00020799999947485048
         },
         "link.workspace.pending-operators-before-extensions": {
           "calls": 1,
-          "elapsedMs": 0.0007920000007288763
+          "elapsedMs": 0.0010409999995317776
         },
         "link.workspace.resolve-element-attributes": {
           "calls": 1,
-          "elapsedMs": 0.024166999999579275
+          "elapsedMs": 0.024665999999342603
         },
         "link.workspace.resolve-imports": {
           "calls": 1,
-          "elapsedMs": 0.0010000000002037268
+          "elapsedMs": 0.0007920000007288763
         },
         "link.workspace.type-system": {
           "calls": 1,
@@ -286,7 +286,7 @@
         },
         "session.materialize-analysis": {
           "calls": 1,
-          "elapsedMs": 0.006500000001324224
+          "elapsedMs": 0.005290999999488122
         }
       }
     },
@@ -294,7 +294,7 @@
       "trial": 1,
       "name": "environment-projection",
       "sourceName": "environments/env-15.ai",
-      "elapsedMs": 4314.139917,
+      "elapsedMs": 4701.386708,
       "changedSources": 1,
       "reparsedSources": 1,
       "relinkedSources": 251,
@@ -327,111 +327,111 @@
       "phases": {
         "link.complete": {
           "calls": 1,
-          "elapsedMs": 1366.633417000001
+          "elapsedMs": 1358.6412920000002
         },
         "link.complete.build-indexed-graph": {
           "calls": 1,
-          "elapsedMs": 24.972125000000233
+          "elapsedMs": 25.594082999999955
         },
         "link.complete.context-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.510999999998603
+          "elapsedMs": 2.7486659999995027
         },
         "link.complete.duplicate-edges": {
           "calls": 1,
-          "elapsedMs": 3.4586250000011205
+          "elapsedMs": 3.0555829999993875
         },
         "link.complete.element-snapshots": {
           "calls": 1,
-          "elapsedMs": 14.836291999999958
+          "elapsedMs": 14.987417000000278
         },
         "link.complete.import-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.07749999999941792
+          "elapsedMs": 0.07229200000074343
         },
         "link.complete.inspect-graph": {
           "calls": 1,
-          "elapsedMs": 1320.8138749999998
+          "elapsedMs": 1310.3131250000006
         },
         "link.complete.presentations": {
           "calls": 1,
-          "elapsedMs": 0.10758400000122492
+          "elapsedMs": 0.0935829999998532
         },
         "link.complete.resolve-context-attributes": {
           "calls": 1,
-          "elapsedMs": 0.2374999999992724
+          "elapsedMs": 0.18637499999931606
         },
         "link.complete.tab-roots": {
           "calls": 1,
-          "elapsedMs": 0.6806660000002012
+          "elapsedMs": 0.6954999999998108
         },
         "link.complete.validate-icons": {
           "calls": 1,
-          "elapsedMs": 0.785582999998951
+          "elapsedMs": 0.75
         },
         "link.deployment": {
           "calls": 1,
-          "elapsedMs": 1481.8357080000005
+          "elapsedMs": 1502.5783339999998
         },
         "link.logical-relationships": {
           "calls": 1,
-          "elapsedMs": 78.2252499999995
+          "elapsedMs": 75.8518329999988
         },
         "link.logical.materialize-edge": {
           "calls": 6454,
-          "elapsedMs": 22.555437000068196
+          "elapsedMs": 21.13763500002824
         },
         "link.logical.snapshot-endpoints": {
           "calls": 6454,
-          "elapsedMs": 23.942610000005516
+          "elapsedMs": 24.181914000011602
         },
         "link.projections": {
           "calls": 1,
-          "elapsedMs": 233.19774999999936
+          "elapsedMs": 259.9143330000006
         },
         "link.workspace": {
           "calls": 1,
-          "elapsedMs": 259.5582910000012
+          "elapsedMs": 235.56404199999997
         },
         "link.workspace.apply-extensions": {
           "calls": 1,
-          "elapsedMs": 118.69787499999984
+          "elapsedMs": 99.56283299999996
         },
         "link.workspace.duplicate-elements": {
           "calls": 1,
-          "elapsedMs": 0.17116700000042329
+          "elapsedMs": 0.08100000000013097
         },
         "link.workspace.index-elements": {
           "calls": 1,
-          "elapsedMs": 0.6948750000010477
+          "elapsedMs": 0.7047079999993002
         },
         "link.workspace.parse-documents": {
           "calls": 1,
-          "elapsedMs": 45.44737499999974
+          "elapsedMs": 44.02820799999972
         },
         "link.workspace.pending-operators-after-extensions": {
           "calls": 1,
-          "elapsedMs": 47.724458999999115
+          "elapsedMs": 45.96862499999952
         },
         "link.workspace.pending-operators-before-extensions": {
           "calls": 1,
-          "elapsedMs": 22.09412499999962
+          "elapsedMs": 22.026958000000377
         },
         "link.workspace.resolve-element-attributes": {
           "calls": 1,
-          "elapsedMs": 21.876500000000306
+          "elapsedMs": 20.753582999999708
         },
         "link.workspace.resolve-imports": {
           "calls": 1,
-          "elapsedMs": 0.21450000000004366
+          "elapsedMs": 0.18904199999997218
         },
         "link.workspace.type-system": {
           "calls": 1,
-          "elapsedMs": 0.021709000000555534
+          "elapsedMs": 0.025125000000116415
         },
         "session.materialize-analysis": {
           "calls": 1,
-          "elapsedMs": 0.0069590000002790475
+          "elapsedMs": 0.006917000000612461
         }
       }
     },
@@ -439,7 +439,7 @@
       "trial": 2,
       "name": "relationship-topology",
       "sourceName": "contexts/context_039/service-250/model.ai",
-      "elapsedMs": 4069.9180830000005,
+      "elapsedMs": 4140.157,
       "changedSources": 1,
       "reparsedSources": 1,
       "relinkedSources": 1,
@@ -472,111 +472,111 @@
       "phases": {
         "link.complete": {
           "calls": 2,
-          "elapsedMs": 1343.181666999999
+          "elapsedMs": 1323.2548330000009
         },
         "link.complete.build-indexed-graph": {
           "calls": 2,
-          "elapsedMs": 24.651499999999942
+          "elapsedMs": 24.37987500000054
         },
         "link.complete.context-snapshots": {
           "calls": 2,
-          "elapsedMs": 0.5704169999989972
+          "elapsedMs": 0.6514580000020942
         },
         "link.complete.duplicate-edges": {
           "calls": 2,
-          "elapsedMs": 3.39641599999959
+          "elapsedMs": 3.431083999999828
         },
         "link.complete.element-snapshots": {
           "calls": 2,
-          "elapsedMs": 16.589499999998225
+          "elapsedMs": 15.570957999998427
         },
         "link.complete.import-snapshots": {
           "calls": 2,
-          "elapsedMs": 0.08150000000023283
+          "elapsedMs": 0.11583199999950011
         },
         "link.complete.inspect-graph": {
           "calls": 2,
-          "elapsedMs": 1295.37075
+          "elapsedMs": 1276.6961250000004
         },
         "link.complete.presentations": {
           "calls": 2,
-          "elapsedMs": 0.17674999999871943
+          "elapsedMs": 0.18024900000091293
         },
         "link.complete.resolve-context-attributes": {
           "calls": 2,
-          "elapsedMs": 0.2541239999991376
+          "elapsedMs": 0.23458299999947485
         },
         "link.complete.tab-roots": {
           "calls": 2,
-          "elapsedMs": 1.013915999999881
+          "elapsedMs": 0.9537500000005821
         },
         "link.complete.validate-icons": {
           "calls": 2,
-          "elapsedMs": 0.9099169999990409
+          "elapsedMs": 0.8759169999993901
         },
         "link.deployment": {
           "calls": 2,
-          "elapsedMs": 1488.1059999999998
+          "elapsedMs": 1470.7631259999998
         },
         "link.logical-relationships": {
           "calls": 2,
-          "elapsedMs": 85.64729200000147
+          "elapsedMs": 83.82954199999949
         },
         "link.logical.materialize-edge": {
           "calls": 6751,
-          "elapsedMs": 23.70981499995287
+          "elapsedMs": 23.501105000026655
         },
         "link.logical.snapshot-endpoints": {
           "calls": 6751,
-          "elapsedMs": 27.375631999937468
+          "elapsedMs": 27.881762000009985
         },
         "link.projections": {
           "calls": 2,
-          "elapsedMs": 258.63850000000093
+          "elapsedMs": 259.69270900000083
         },
         "link.workspace": {
           "calls": 2,
-          "elapsedMs": 285.9313739999998
+          "elapsedMs": 274.00074999999924
         },
         "link.workspace.apply-extensions": {
           "calls": 2,
-          "elapsedMs": 138.3214170000001
+          "elapsedMs": 129.7795419999993
         },
         "link.workspace.duplicate-elements": {
           "calls": 2,
-          "elapsedMs": 0.11704199999894627
+          "elapsedMs": 0.15229099999942264
         },
         "link.workspace.index-elements": {
           "calls": 2,
-          "elapsedMs": 0.8410839999996824
+          "elapsedMs": 0.798584000000119
         },
         "link.workspace.parse-documents": {
           "calls": 2,
-          "elapsedMs": 45.53270900000007
+          "elapsedMs": 46.78291699999954
         },
         "link.workspace.pending-operators-after-extensions": {
           "calls": 2,
-          "elapsedMs": 51.23229199999878
+          "elapsedMs": 48.11149999999998
         },
         "link.workspace.pending-operators-before-extensions": {
           "calls": 2,
-          "elapsedMs": 24.030832999999802
+          "elapsedMs": 24.311125000000175
         },
         "link.workspace.resolve-element-attributes": {
           "calls": 2,
-          "elapsedMs": 23.09400000000005
+          "elapsedMs": 21.507000000000517
         },
         "link.workspace.resolve-imports": {
           "calls": 2,
-          "elapsedMs": 0.27212499999950523
+          "elapsedMs": 0.2206240000004982
         },
         "link.workspace.type-system": {
           "calls": 2,
-          "elapsedMs": 0.03483400000004622
+          "elapsedMs": 0.04004199999963021
         },
         "session.materialize-analysis": {
           "calls": 1,
-          "elapsedMs": 0.005458999999973457
+          "elapsedMs": 0.0056660000009287614
         }
       }
     },
@@ -584,7 +584,7 @@
       "trial": 2,
       "name": "environment-attribute",
       "sourceName": "environments/env-15.ai",
-      "elapsedMs": 48.77295799999956,
+      "elapsedMs": 50.109833000000435,
       "changedSources": 1,
       "reparsedSources": 1,
       "relinkedSources": 1,
@@ -600,7 +600,7 @@
         },
         "relations": {
           "added": 0,
-          "removed": 250,
+          "removed": 0,
           "changed": 0
         },
         "elements": {
@@ -617,450 +617,23 @@
       "phases": {
         "link.complete": {
           "calls": 1,
-          "elapsedMs": 0.21254200000112178
+          "elapsedMs": 0.2107080000005226
         },
         "link.complete.build-indexed-graph": {
           "calls": 1,
-          "elapsedMs": 0.045625000000654836
+          "elapsedMs": 0.042457999999896856
         },
         "link.complete.context-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.005957999999736785
+          "elapsedMs": 0.005583000000115135
         },
         "link.complete.duplicate-edges": {
           "calls": 1,
-          "elapsedMs": 0.0033749999984138412
+          "elapsedMs": 0.0033750000002328306
         },
         "link.complete.element-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.032708000000639004
-        },
-        "link.complete.import-snapshots": {
-          "calls": 1,
-          "elapsedMs": 0.0003329999999550637
-        },
-        "link.complete.inspect-graph": {
-          "calls": 1,
-          "elapsedMs": 0.032959000000118976
-        },
-        "link.complete.presentations": {
-          "calls": 1,
-          "elapsedMs": 0.07079200000043784
-        },
-        "link.complete.resolve-context-attributes": {
-          "calls": 1,
-          "elapsedMs": 0.004915999999866472
-        },
-        "link.complete.tab-roots": {
-          "calls": 1,
-          "elapsedMs": 0.007832999999664025
-        },
-        "link.complete.validate-icons": {
-          "calls": 1,
-          "elapsedMs": 0.0038330000006681075
-        },
-        "link.deployment": {
-          "calls": 1,
-          "elapsedMs": 0.005207999998674495
-        },
-        "link.logical-relationships": {
-          "calls": 1,
-          "elapsedMs": 0.002125000000887667
-        },
-        "link.projections": {
-          "calls": 1,
-          "elapsedMs": 0.014208000000508036
-        },
-        "link.workspace": {
-          "calls": 1,
-          "elapsedMs": 0.2544580000012502
-        },
-        "link.workspace.apply-extensions": {
-          "calls": 1,
-          "elapsedMs": 0.0020000000004074536
-        },
-        "link.workspace.duplicate-elements": {
-          "calls": 1,
-          "elapsedMs": 0.0007909999985713512
-        },
-        "link.workspace.index-elements": {
-          "calls": 1,
-          "elapsedMs": 0.009790999998585903
-        },
-        "link.workspace.parse-documents": {
-          "calls": 1,
-          "elapsedMs": 0.18975000000136788
-        },
-        "link.workspace.pending-operators-after-extensions": {
-          "calls": 1,
-          "elapsedMs": 0.00020899999981338624
-        },
-        "link.workspace.pending-operators-before-extensions": {
-          "calls": 1,
-          "elapsedMs": 0.0009580000005371403
-        },
-        "link.workspace.resolve-element-attributes": {
-          "calls": 1,
-          "elapsedMs": 0.024375000000873115
-        },
-        "link.workspace.resolve-imports": {
-          "calls": 1,
-          "elapsedMs": 0.0011660000000119908
-        },
-        "link.workspace.type-system": {
-          "calls": 1,
-          "elapsedMs": 0.018708999999944353
-        },
-        "session.materialize-analysis": {
-          "calls": 1,
-          "elapsedMs": 0.004999999999199645
-        }
-      }
-    },
-    {
-      "trial": 2,
-      "name": "environment-projection",
-      "sourceName": "environments/env-15.ai",
-      "elapsedMs": 4271.2490419999995,
-      "changedSources": 1,
-      "reparsedSources": 1,
-      "relinkedSources": 251,
-      "supportSources": 1016,
-      "elements": 7590,
-      "edges": 9954,
-      "projectedEdges": 3500,
-      "graphDelta": {
-        "nodes": {
-          "added": 0,
-          "removed": 0,
-          "changed": 0
-        },
-        "relations": {
-          "added": 0,
-          "removed": 250,
-          "changed": 0
-        },
-        "elements": {
-          "added": 0,
-          "removed": 0,
-          "changed": 4
-        },
-        "edges": {
-          "added": 0,
-          "removed": 250,
-          "changed": 0
-        }
-      },
-      "phases": {
-        "link.complete": {
-          "calls": 1,
-          "elapsedMs": 1341.330417000001
-        },
-        "link.complete.build-indexed-graph": {
-          "calls": 1,
-          "elapsedMs": 21.97362499999872
-        },
-        "link.complete.context-snapshots": {
-          "calls": 1,
-          "elapsedMs": 0.49174999999922875
-        },
-        "link.complete.duplicate-edges": {
-          "calls": 1,
-          "elapsedMs": 3.220708000000741
-        },
-        "link.complete.element-snapshots": {
-          "calls": 1,
-          "elapsedMs": 15.487333000000945
-        },
-        "link.complete.import-snapshots": {
-          "calls": 1,
-          "elapsedMs": 0.07274999999935972
-        },
-        "link.complete.inspect-graph": {
-          "calls": 1,
-          "elapsedMs": 1295.1717500000013
-        },
-        "link.complete.presentations": {
-          "calls": 1,
-          "elapsedMs": 0.08816699999988487
-        },
-        "link.complete.resolve-context-attributes": {
-          "calls": 1,
-          "elapsedMs": 0.18795800000043528
-        },
-        "link.complete.tab-roots": {
-          "calls": 1,
-          "elapsedMs": 0.6894159999992553
-        },
-        "link.complete.validate-icons": {
-          "calls": 1,
-          "elapsedMs": 3.8184590000000753
-        },
-        "link.deployment": {
-          "calls": 1,
-          "elapsedMs": 1488.4168329999993
-        },
-        "link.logical-relationships": {
-          "calls": 1,
-          "elapsedMs": 76.33774999999878
-        },
-        "link.logical.materialize-edge": {
-          "calls": 6454,
-          "elapsedMs": 20.997541000091587
-        },
-        "link.logical.snapshot-endpoints": {
-          "calls": 6454,
-          "elapsedMs": 24.246064999992086
-        },
-        "link.projections": {
-          "calls": 1,
-          "elapsedMs": 234.12570899999992
-        },
-        "link.workspace": {
-          "calls": 1,
-          "elapsedMs": 236.39033299999937
-        },
-        "link.workspace.apply-extensions": {
-          "calls": 1,
-          "elapsedMs": 98.05737500000032
-        },
-        "link.workspace.duplicate-elements": {
-          "calls": 1,
-          "elapsedMs": 0.10545799999999872
-        },
-        "link.workspace.index-elements": {
-          "calls": 1,
-          "elapsedMs": 0.7167909999989206
-        },
-        "link.workspace.parse-documents": {
-          "calls": 1,
-          "elapsedMs": 44.35383399999955
-        },
-        "link.workspace.pending-operators-after-extensions": {
-          "calls": 1,
-          "elapsedMs": 47.87225000000035
-        },
-        "link.workspace.pending-operators-before-extensions": {
-          "calls": 1,
-          "elapsedMs": 21.986792000001515
-        },
-        "link.workspace.resolve-element-attributes": {
-          "calls": 1,
-          "elapsedMs": 20.875708000001396
-        },
-        "link.workspace.resolve-imports": {
-          "calls": 1,
-          "elapsedMs": 0.1834579999995185
-        },
-        "link.workspace.type-system": {
-          "calls": 1,
-          "elapsedMs": 0.01937499999985448
-        },
-        "session.materialize-analysis": {
-          "calls": 1,
-          "elapsedMs": 0.006624999999985448
-        }
-      }
-    },
-    {
-      "trial": 3,
-      "name": "relationship-topology",
-      "sourceName": "contexts/context_039/service-250/model.ai",
-      "elapsedMs": 4051.2056669999993,
-      "changedSources": 1,
-      "reparsedSources": 1,
-      "relinkedSources": 1,
-      "supportSources": 1016,
-      "elements": 7590,
-      "edges": 10204,
-      "projectedEdges": 3750,
-      "graphDelta": {
-        "nodes": {
-          "added": 0,
-          "removed": 0,
-          "changed": 0
-        },
-        "relations": {
-          "added": 1,
-          "removed": 1,
-          "changed": 0
-        },
-        "elements": {
-          "added": 0,
-          "removed": 0,
-          "changed": 0
-        },
-        "edges": {
-          "added": 1,
-          "removed": 1,
-          "changed": 0
-        }
-      },
-      "phases": {
-        "link.complete": {
-          "calls": 2,
-          "elapsedMs": 1336.6229590000003
-        },
-        "link.complete.build-indexed-graph": {
-          "calls": 2,
-          "elapsedMs": 25.069166999999652
-        },
-        "link.complete.context-snapshots": {
-          "calls": 2,
-          "elapsedMs": 0.6005000000004657
-        },
-        "link.complete.duplicate-edges": {
-          "calls": 2,
-          "elapsedMs": 3.625625000000582
-        },
-        "link.complete.element-snapshots": {
-          "calls": 2,
-          "elapsedMs": 16.320667000001777
-        },
-        "link.complete.import-snapshots": {
-          "calls": 2,
-          "elapsedMs": 0.08533300000090094
-        },
-        "link.complete.inspect-graph": {
-          "calls": 2,
-          "elapsedMs": 1288.4894999999997
-        },
-        "link.complete.presentations": {
-          "calls": 2,
-          "elapsedMs": 0.17520800000056624
-        },
-        "link.complete.resolve-context-attributes": {
-          "calls": 2,
-          "elapsedMs": 0.23416700000052515
-        },
-        "link.complete.tab-roots": {
-          "calls": 2,
-          "elapsedMs": 0.9879579999997077
-        },
-        "link.complete.validate-icons": {
-          "calls": 2,
-          "elapsedMs": 0.8758340000003955
-        },
-        "link.deployment": {
-          "calls": 2,
-          "elapsedMs": 1482.4557080000013
-        },
-        "link.logical-relationships": {
-          "calls": 2,
-          "elapsedMs": 81.33170799999971
-        },
-        "link.logical.materialize-edge": {
-          "calls": 6751,
-          "elapsedMs": 23.74591799994778
-        },
-        "link.logical.snapshot-endpoints": {
-          "calls": 6751,
-          "elapsedMs": 26.371478999983083
-        },
-        "link.projections": {
-          "calls": 2,
-          "elapsedMs": 258.9670839999999
-        },
-        "link.workspace": {
-          "calls": 2,
-          "elapsedMs": 278.0669170000001
-        },
-        "link.workspace.apply-extensions": {
-          "calls": 2,
-          "elapsedMs": 100.32066599999962
-        },
-        "link.workspace.duplicate-elements": {
-          "calls": 2,
-          "elapsedMs": 0.1619590000000244
-        },
-        "link.workspace.index-elements": {
-          "calls": 2,
-          "elapsedMs": 0.7624589999995806
-        },
-        "link.workspace.parse-documents": {
-          "calls": 2,
-          "elapsedMs": 78.65454099999988
-        },
-        "link.workspace.pending-operators-after-extensions": {
-          "calls": 2,
-          "elapsedMs": 48.65325000000121
-        },
-        "link.workspace.pending-operators-before-extensions": {
-          "calls": 2,
-          "elapsedMs": 24.054583999999522
-        },
-        "link.workspace.resolve-element-attributes": {
-          "calls": 2,
-          "elapsedMs": 22.37579200000073
-        },
-        "link.workspace.resolve-imports": {
-          "calls": 2,
-          "elapsedMs": 0.24070899999878748
-        },
-        "link.workspace.type-system": {
-          "calls": 2,
-          "elapsedMs": 0.03045899999960966
-        },
-        "session.materialize-analysis": {
-          "calls": 1,
-          "elapsedMs": 0.009416000000783242
-        }
-      }
-    },
-    {
-      "trial": 3,
-      "name": "environment-attribute",
-      "sourceName": "environments/env-15.ai",
-      "elapsedMs": 43.76025000000118,
-      "changedSources": 1,
-      "reparsedSources": 1,
-      "relinkedSources": 1,
-      "supportSources": 2,
-      "elements": 7590,
-      "edges": 10204,
-      "projectedEdges": 3750,
-      "graphDelta": {
-        "nodes": {
-          "added": 0,
-          "removed": 0,
-          "changed": 0
-        },
-        "relations": {
-          "added": 0,
-          "removed": 250,
-          "changed": 0
-        },
-        "elements": {
-          "added": 0,
-          "removed": 0,
-          "changed": 1
-        },
-        "edges": {
-          "added": 0,
-          "removed": 0,
-          "changed": 0
-        }
-      },
-      "phases": {
-        "link.complete": {
-          "calls": 1,
-          "elapsedMs": 0.23154199999953562
-        },
-        "link.complete.build-indexed-graph": {
-          "calls": 1,
-          "elapsedMs": 0.05474999999933061
-        },
-        "link.complete.context-snapshots": {
-          "calls": 1,
-          "elapsedMs": 0.011166999998749816
-        },
-        "link.complete.duplicate-edges": {
-          "calls": 1,
-          "elapsedMs": 0.0034999999988940544
-        },
-        "link.complete.element-snapshots": {
-          "calls": 1,
-          "elapsedMs": 0.02633400000013353
+          "elapsedMs": 0.030375000000276486
         },
         "link.complete.import-snapshots": {
           "calls": 1,
@@ -1068,87 +641,87 @@
         },
         "link.complete.inspect-graph": {
           "calls": 1,
-          "elapsedMs": 0.03237499999886495
+          "elapsedMs": 0.032124999999723514
         },
         "link.complete.presentations": {
           "calls": 1,
-          "elapsedMs": 0.07179200000064156
+          "elapsedMs": 0.07333299999845622
         },
         "link.complete.resolve-context-attributes": {
           "calls": 1,
-          "elapsedMs": 0.005624999999781721
+          "elapsedMs": 0.0069590000002790475
         },
         "link.complete.tab-roots": {
           "calls": 1,
-          "elapsedMs": 0.01154099999985192
+          "elapsedMs": 0.008084000000962988
         },
         "link.complete.validate-icons": {
           "calls": 1,
-          "elapsedMs": 0.009540999999444466
+          "elapsedMs": 0.0034589999995660037
         },
         "link.deployment": {
           "calls": 1,
-          "elapsedMs": 0.004875000000538421
+          "elapsedMs": 0.004750000000058208
         },
         "link.logical-relationships": {
           "calls": 1,
-          "elapsedMs": 0.0026669999988371274
+          "elapsedMs": 0.002207999999882304
         },
         "link.projections": {
           "calls": 1,
-          "elapsedMs": 0.013042000000496046
+          "elapsedMs": 0.009874999999738066
         },
         "link.workspace": {
           "calls": 1,
-          "elapsedMs": 0.23574999999982538
+          "elapsedMs": 0.2541659999988042
         },
         "link.workspace.apply-extensions": {
           "calls": 1,
-          "elapsedMs": 0.00258399999984249
+          "elapsedMs": 0.0022920000010344665
         },
         "link.workspace.duplicate-elements": {
           "calls": 1,
-          "elapsedMs": 0.0052080000004934845
+          "elapsedMs": 0.005124999999679858
         },
         "link.workspace.index-elements": {
           "calls": 1,
-          "elapsedMs": 0.008792000000539701
+          "elapsedMs": 0.007666999999855761
         },
         "link.workspace.parse-documents": {
           "calls": 1,
-          "elapsedMs": 0.17062500000065484
+          "elapsedMs": 0.1906249999992724
         },
         "link.workspace.pending-operators-after-extensions": {
           "calls": 1,
-          "elapsedMs": 0.00020899999981338624
+          "elapsedMs": 0.000249999999141437
         },
         "link.workspace.pending-operators-before-extensions": {
           "calls": 1,
-          "elapsedMs": 0.0011670000003505265
+          "elapsedMs": 0.00112500000068394
         },
         "link.workspace.resolve-element-attributes": {
           "calls": 1,
-          "elapsedMs": 0.02433300000120653
+          "elapsedMs": 0.023166999999375548
         },
         "link.workspace.resolve-imports": {
           "calls": 1,
-          "elapsedMs": 0.0009170000012090895
+          "elapsedMs": 0.0010419999998703133
         },
         "link.workspace.type-system": {
           "calls": 1,
-          "elapsedMs": 0.01508300000023155
+          "elapsedMs": 0.015833999999813386
         },
         "session.materialize-analysis": {
           "calls": 1,
-          "elapsedMs": 0.005165999999007909
+          "elapsedMs": 0.005667000001267297
         }
       }
     },
     {
-      "trial": 3,
+      "trial": 2,
       "name": "environment-projection",
       "sourceName": "environments/env-15.ai",
-      "elapsedMs": 4225.931833000001,
+      "elapsedMs": 4615.271583000002,
       "changedSources": 1,
       "reparsedSources": 1,
       "relinkedSources": 251,
@@ -1181,111 +754,538 @@
       "phases": {
         "link.complete": {
           "calls": 1,
-          "elapsedMs": 1315.5944579999996
+          "elapsedMs": 1324.0285000000003
         },
         "link.complete.build-indexed-graph": {
           "calls": 1,
-          "elapsedMs": 21.983249999999316
+          "elapsedMs": 23.872083000000202
         },
         "link.complete.context-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.523125000001528
+          "elapsedMs": 3.336875000000873
         },
         "link.complete.duplicate-edges": {
           "calls": 1,
-          "elapsedMs": 2.792250000000422
+          "elapsedMs": 2.919208000001163
         },
         "link.complete.element-snapshots": {
           "calls": 1,
-          "elapsedMs": 14.336458000001585
+          "elapsedMs": 14.29383400000006
         },
         "link.complete.import-snapshots": {
           "calls": 1,
-          "elapsedMs": 0.09429199999976845
+          "elapsedMs": 0.08779200000026322
         },
         "link.complete.inspect-graph": {
           "calls": 1,
-          "elapsedMs": 1274.0595420000009
+          "elapsedMs": 1277.6695839999993
         },
         "link.complete.presentations": {
           "calls": 1,
-          "elapsedMs": 0.0885839999991731
+          "elapsedMs": 0.09100000000034925
         },
         "link.complete.resolve-context-attributes": {
           "calls": 1,
-          "elapsedMs": 0.18516699999963748
+          "elapsedMs": 0.18262499999946158
         },
         "link.complete.tab-roots": {
           "calls": 1,
-          "elapsedMs": 0.678541999999652
+          "elapsedMs": 0.6974169999994047
         },
         "link.complete.validate-icons": {
           "calls": 1,
-          "elapsedMs": 0.7367080000003625
+          "elapsedMs": 0.7524999999986903
         },
         "link.deployment": {
           "calls": 1,
-          "elapsedMs": 1493.7874580000007
+          "elapsedMs": 1483.0750000000007
         },
         "link.logical-relationships": {
           "calls": 1,
-          "elapsedMs": 72.5565000000006
+          "elapsedMs": 73.94166699999914
         },
         "link.logical.materialize-edge": {
           "calls": 6454,
-          "elapsedMs": 21.591896999951132
+          "elapsedMs": 21.013423000063995
         },
         "link.logical.snapshot-endpoints": {
           "calls": 6454,
-          "elapsedMs": 23.081598000004306
+          "elapsedMs": 22.546100000019578
         },
         "link.projections": {
           "calls": 1,
-          "elapsedMs": 232.19987500000025
+          "elapsedMs": 234.39000000000124
         },
         "link.workspace": {
           "calls": 1,
-          "elapsedMs": 228.1139579999999
+          "elapsedMs": 227.674500000001
         },
         "link.workspace.apply-extensions": {
           "calls": 1,
-          "elapsedMs": 94.04729200000111
+          "elapsedMs": 94.82329099999879
         },
         "link.workspace.duplicate-elements": {
           "calls": 1,
-          "elapsedMs": 0.09812500000043656
+          "elapsedMs": 0.12095899999985704
         },
         "link.workspace.index-elements": {
           "calls": 1,
-          "elapsedMs": 0.6829170000000886
+          "elapsedMs": 0.6839579999996204
         },
         "link.workspace.parse-documents": {
           "calls": 1,
-          "elapsedMs": 43.927042000001165
+          "elapsedMs": 42.43641699999898
         },
         "link.workspace.pending-operators-after-extensions": {
           "calls": 1,
-          "elapsedMs": 45.11675000000105
+          "elapsedMs": 45.68933300000026
         },
         "link.workspace.pending-operators-before-extensions": {
           "calls": 1,
-          "elapsedMs": 21.98649999999907
+          "elapsedMs": 21.79424999999901
         },
         "link.workspace.resolve-element-attributes": {
           "calls": 1,
-          "elapsedMs": 19.847082999998747
+          "elapsedMs": 19.723958000000493
         },
         "link.workspace.resolve-imports": {
           "calls": 1,
-          "elapsedMs": 0.18179199999940465
+          "elapsedMs": 0.197042000001602
         },
         "link.workspace.type-system": {
           "calls": 1,
-          "elapsedMs": 0.017917000001034467
+          "elapsedMs": 0.02120899999863468
         },
         "session.materialize-analysis": {
           "calls": 1,
-          "elapsedMs": 0.006624999999985448
+          "elapsedMs": 0.0057500000002619345
+        }
+      }
+    },
+    {
+      "trial": 3,
+      "name": "relationship-topology",
+      "sourceName": "contexts/context_039/service-250/model.ai",
+      "elapsedMs": 4262.943333,
+      "changedSources": 1,
+      "reparsedSources": 1,
+      "relinkedSources": 1,
+      "supportSources": 1016,
+      "elements": 7590,
+      "edges": 10204,
+      "projectedEdges": 3750,
+      "graphDelta": {
+        "nodes": {
+          "added": 0,
+          "removed": 0,
+          "changed": 0
+        },
+        "relations": {
+          "added": 1,
+          "removed": 1,
+          "changed": 0
+        },
+        "elements": {
+          "added": 0,
+          "removed": 0,
+          "changed": 0
+        },
+        "edges": {
+          "added": 1,
+          "removed": 1,
+          "changed": 0
+        }
+      },
+      "phases": {
+        "link.complete": {
+          "calls": 2,
+          "elapsedMs": 1374.0388749999984
+        },
+        "link.complete.build-indexed-graph": {
+          "calls": 2,
+          "elapsedMs": 24.665667000001122
+        },
+        "link.complete.context-snapshots": {
+          "calls": 2,
+          "elapsedMs": 0.5459170000012818
+        },
+        "link.complete.duplicate-edges": {
+          "calls": 2,
+          "elapsedMs": 3.4653740000012476
+        },
+        "link.complete.element-snapshots": {
+          "calls": 2,
+          "elapsedMs": 16.087250000000495
+        },
+        "link.complete.import-snapshots": {
+          "calls": 2,
+          "elapsedMs": 0.08220900000014808
+        },
+        "link.complete.inspect-graph": {
+          "calls": 2,
+          "elapsedMs": 1326.7860830000009
+        },
+        "link.complete.presentations": {
+          "calls": 2,
+          "elapsedMs": 0.19295799999963492
+        },
+        "link.complete.resolve-context-attributes": {
+          "calls": 2,
+          "elapsedMs": 0.22708200000124634
+        },
+        "link.complete.tab-roots": {
+          "calls": 2,
+          "elapsedMs": 0.955125999998927
+        },
+        "link.complete.validate-icons": {
+          "calls": 2,
+          "elapsedMs": 0.8777079999999842
+        },
+        "link.deployment": {
+          "calls": 2,
+          "elapsedMs": 1520.9920409999986
+        },
+        "link.logical-relationships": {
+          "calls": 2,
+          "elapsedMs": 85.18891600000097
+        },
+        "link.logical.materialize-edge": {
+          "calls": 6751,
+          "elapsedMs": 23.642941000003702
+        },
+        "link.logical.snapshot-endpoints": {
+          "calls": 6751,
+          "elapsedMs": 28.56694899995091
+        },
+        "link.projections": {
+          "calls": 2,
+          "elapsedMs": 264.58091799999966
+        },
+        "link.workspace": {
+          "calls": 2,
+          "elapsedMs": 282.4069580000005
+        },
+        "link.workspace.apply-extensions": {
+          "calls": 2,
+          "elapsedMs": 134.1592499999988
+        },
+        "link.workspace.duplicate-elements": {
+          "calls": 2,
+          "elapsedMs": 0.1599159999996118
+        },
+        "link.workspace.index-elements": {
+          "calls": 2,
+          "elapsedMs": 0.8074170000008962
+        },
+        "link.workspace.parse-documents": {
+          "calls": 2,
+          "elapsedMs": 47.72216700000081
+        },
+        "link.workspace.pending-operators-after-extensions": {
+          "calls": 2,
+          "elapsedMs": 49.63524899999993
+        },
+        "link.workspace.pending-operators-before-extensions": {
+          "calls": 2,
+          "elapsedMs": 24.165250000000015
+        },
+        "link.workspace.resolve-element-attributes": {
+          "calls": 2,
+          "elapsedMs": 23.136583999999857
+        },
+        "link.workspace.resolve-imports": {
+          "calls": 2,
+          "elapsedMs": 0.22508300000026793
+        },
+        "link.workspace.type-system": {
+          "calls": 2,
+          "elapsedMs": 0.04083299999911105
+        },
+        "session.materialize-analysis": {
+          "calls": 1,
+          "elapsedMs": 0.005124999999679858
+        }
+      }
+    },
+    {
+      "trial": 3,
+      "name": "environment-attribute",
+      "sourceName": "environments/env-15.ai",
+      "elapsedMs": 48.30737500000032,
+      "changedSources": 1,
+      "reparsedSources": 1,
+      "relinkedSources": 1,
+      "supportSources": 2,
+      "elements": 7590,
+      "edges": 10204,
+      "projectedEdges": 3750,
+      "graphDelta": {
+        "nodes": {
+          "added": 0,
+          "removed": 0,
+          "changed": 0
+        },
+        "relations": {
+          "added": 0,
+          "removed": 0,
+          "changed": 0
+        },
+        "elements": {
+          "added": 0,
+          "removed": 0,
+          "changed": 1
+        },
+        "edges": {
+          "added": 0,
+          "removed": 0,
+          "changed": 0
+        }
+      },
+      "phases": {
+        "link.complete": {
+          "calls": 1,
+          "elapsedMs": 0.2139999999999418
+        },
+        "link.complete.build-indexed-graph": {
+          "calls": 1,
+          "elapsedMs": 0.042291000001569046
+        },
+        "link.complete.context-snapshots": {
+          "calls": 1,
+          "elapsedMs": 0.006375000000844011
+        },
+        "link.complete.duplicate-edges": {
+          "calls": 1,
+          "elapsedMs": 0.0033750000002328306
+        },
+        "link.complete.element-snapshots": {
+          "calls": 1,
+          "elapsedMs": 0.02637499999946158
+        },
+        "link.complete.import-snapshots": {
+          "calls": 1,
+          "elapsedMs": 0.00016700000014679972
+        },
+        "link.complete.inspect-graph": {
+          "calls": 1,
+          "elapsedMs": 0.03262499999982538
+        },
+        "link.complete.presentations": {
+          "calls": 1,
+          "elapsedMs": 0.07533300000068266
+        },
+        "link.complete.resolve-context-attributes": {
+          "calls": 1,
+          "elapsedMs": 0.0043750000004365575
+        },
+        "link.complete.tab-roots": {
+          "calls": 1,
+          "elapsedMs": 0.009332999999969616
+        },
+        "link.complete.validate-icons": {
+          "calls": 1,
+          "elapsedMs": 0.0036249999993742676
+        },
+        "link.deployment": {
+          "calls": 1,
+          "elapsedMs": 0.004792000001543784
+        },
+        "link.logical-relationships": {
+          "calls": 1,
+          "elapsedMs": 0.001583000001119217
+        },
+        "link.projections": {
+          "calls": 1,
+          "elapsedMs": 0.009874999999738066
+        },
+        "link.workspace": {
+          "calls": 1,
+          "elapsedMs": 0.25975000000107684
+        },
+        "link.workspace.apply-extensions": {
+          "calls": 1,
+          "elapsedMs": 0.0021249999990686774
+        },
+        "link.workspace.duplicate-elements": {
+          "calls": 1,
+          "elapsedMs": 0.005624999999781721
+        },
+        "link.workspace.index-elements": {
+          "calls": 1,
+          "elapsedMs": 0.007541999999375548
+        },
+        "link.workspace.parse-documents": {
+          "calls": 1,
+          "elapsedMs": 0.19620799999938754
+        },
+        "link.workspace.pending-operators-after-extensions": {
+          "calls": 1,
+          "elapsedMs": 0.00020799999947485048
+        },
+        "link.workspace.pending-operators-before-extensions": {
+          "calls": 1,
+          "elapsedMs": 0.0010839999995368998
+        },
+        "link.workspace.resolve-element-attributes": {
+          "calls": 1,
+          "elapsedMs": 0.02329199999985576
+        },
+        "link.workspace.resolve-imports": {
+          "calls": 1,
+          "elapsedMs": 0.0009170000012090895
+        },
+        "link.workspace.type-system": {
+          "calls": 1,
+          "elapsedMs": 0.015666999999666587
+        },
+        "session.materialize-analysis": {
+          "calls": 1,
+          "elapsedMs": 0.0055000000011204975
+        }
+      }
+    },
+    {
+      "trial": 3,
+      "name": "environment-projection",
+      "sourceName": "environments/env-15.ai",
+      "elapsedMs": 4726.565666999999,
+      "changedSources": 1,
+      "reparsedSources": 1,
+      "relinkedSources": 251,
+      "supportSources": 1016,
+      "elements": 7590,
+      "edges": 9954,
+      "projectedEdges": 3500,
+      "graphDelta": {
+        "nodes": {
+          "added": 0,
+          "removed": 0,
+          "changed": 0
+        },
+        "relations": {
+          "added": 0,
+          "removed": 250,
+          "changed": 0
+        },
+        "elements": {
+          "added": 0,
+          "removed": 0,
+          "changed": 4
+        },
+        "edges": {
+          "added": 0,
+          "removed": 250,
+          "changed": 0
+        }
+      },
+      "phases": {
+        "link.complete": {
+          "calls": 1,
+          "elapsedMs": 1384.3495829999993
+        },
+        "link.complete.build-indexed-graph": {
+          "calls": 1,
+          "elapsedMs": 24.969625000001543
+        },
+        "link.complete.context-snapshots": {
+          "calls": 1,
+          "elapsedMs": 0.5100000000002183
+        },
+        "link.complete.duplicate-edges": {
+          "calls": 1,
+          "elapsedMs": 3.1506250000002183
+        },
+        "link.complete.element-snapshots": {
+          "calls": 1,
+          "elapsedMs": 14.622332999999344
+        },
+        "link.complete.import-snapshots": {
+          "calls": 1,
+          "elapsedMs": 0.0749999999989086
+        },
+        "link.complete.inspect-graph": {
+          "calls": 1,
+          "elapsedMs": 1339.1923750000005
+        },
+        "link.complete.presentations": {
+          "calls": 1,
+          "elapsedMs": 0.08866699999998673
+        },
+        "link.complete.resolve-context-attributes": {
+          "calls": 1,
+          "elapsedMs": 0.17820800000117742
+        },
+        "link.complete.tab-roots": {
+          "calls": 1,
+          "elapsedMs": 0.6727909999990516
+        },
+        "link.complete.validate-icons": {
+          "calls": 1,
+          "elapsedMs": 0.7538330000006681
+        },
+        "link.deployment": {
+          "calls": 1,
+          "elapsedMs": 1510.3939579999987
+        },
+        "link.logical-relationships": {
+          "calls": 1,
+          "elapsedMs": 74.96608299999934
+        },
+        "link.logical.materialize-edge": {
+          "calls": 6454,
+          "elapsedMs": 20.76105100008317
+        },
+        "link.logical.snapshot-endpoints": {
+          "calls": 6454,
+          "elapsedMs": 23.68205199996737
+        },
+        "link.projections": {
+          "calls": 1,
+          "elapsedMs": 243.59400000000096
+        },
+        "link.workspace": {
+          "calls": 1,
+          "elapsedMs": 235.08120899999994
+        },
+        "link.workspace.apply-extensions": {
+          "calls": 1,
+          "elapsedMs": 97.7000420000004
+        },
+        "link.workspace.duplicate-elements": {
+          "calls": 1,
+          "elapsedMs": 0.10933400000067195
+        },
+        "link.workspace.index-elements": {
+          "calls": 1,
+          "elapsedMs": 0.601542000000336
+        },
+        "link.workspace.parse-documents": {
+          "calls": 1,
+          "elapsedMs": 42.54212499999994
+        },
+        "link.workspace.pending-operators-after-extensions": {
+          "calls": 1,
+          "elapsedMs": 48.302583000000595
+        },
+        "link.workspace.pending-operators-before-extensions": {
+          "calls": 1,
+          "elapsedMs": 22.168750000000728
+        },
+        "link.workspace.resolve-element-attributes": {
+          "calls": 1,
+          "elapsedMs": 21.16137499999968
+        },
+        "link.workspace.resolve-imports": {
+          "calls": 1,
+          "elapsedMs": 0.1942910000016127
+        },
+        "link.workspace.type-system": {
+          "calls": 1,
+          "elapsedMs": 0.019292000000859844
+        },
+        "session.materialize-analysis": {
+          "calls": 1,
+          "elapsedMs": 0.006957999999940512
         }
       }
     }
