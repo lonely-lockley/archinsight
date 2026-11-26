@@ -118,6 +118,10 @@ architecture.
 
 Read [the 3.1.x to 3.2.0 migration guide](references/migration-3.2.md) before converting an existing deployment model. It covers wire-level `uses`, component `projection:` blocks, `source` and `target` placement, and verification against the old diagrams.
 
+## Reporting bugs
+
+Use the [bug reporting guide](references/bug-reports.md) to prepare an anonymized repro and document what failed, passed, or remains untested. Publishing a GitHub issue requires the user's explicit approval of the draft.
+
 ## Reference routing
 
 - Read `references/cli.md` when the CLI is missing, its version differs from
