@@ -14,7 +14,7 @@ dependencyResolutionManagement {
 
 rootProject.name = 'insight'
 
-gradle.ext.archinsightVersion = '3.2.0'
+gradle.ext.archinsightVersion = '3.2.1'
 
 include 'archinsight-web'
 include 'archinsight-renderer'
