@@ -1,4 +1,4 @@
-import { BUILTIN_VIEW_DEFINITIONS, BUILTIN_VIEW_QUERIES, builtinViewDefinition } from "./builtin-views.js";
+import { BUILTIN_VIEW_DEFINITIONS, BUILTIN_VIEW_QUERIES, builtinViewHasStage, builtinViewDefinition } from "./builtin-views.js";
 import type {
   DeploymentEnvironment,
   LinkedEdge,
@@ -13,7 +13,7 @@ import type {
 } from "./contracts.js";
 import { declaredDeploymentEnvironments, materializeGroupedView, selectGraph } from "./query-engine.js";
 import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
-import { diagramOccurrenceId, parseDiagramOccurrenceId } from "./occurrence-identity.js";
+import { diagramOccurrenceId, isolateOccurrenceId, parseDiagramOccurrenceId } from "./occurrence-identity.js";
 
 interface DiagramQuickActionIndex {
   readonly elementsById: ReadonlyMap<string, LinkedElement>;
@@ -141,10 +141,7 @@ export function selectIsolatedElementGraph(
       context: scope.context ?? root.context,
       tab: scope.tab ?? root.sourceIdentity,
     }, BUILTIN_VIEW_QUERIES[scope.view]);
-    const occurrenceId = resolveGraphElementOccurrence(graph, requestedElementId, elementId);
-    return occurrenceId === undefined
-      ? emptyGraph(root.context)
-      : isolateElementInGraph(graph, occurrenceId, root.context);
+    return selectIsolatedRenderGraph(graph, requestedElementId);
   }
 
   const selected = new Set([elementId]);
@@ -160,7 +157,7 @@ export function selectIsolatedElementGraph(
     edges: deduplicateEdges(edges),
     groups: [],
     externalElements: [],
-  }, elementId);
+  }, [elementId]);
 }
 
 /** Applies Isolate to an already projected diagram without rebuilding its view. */
@@ -168,11 +165,16 @@ export function selectIsolatedRenderGraph(
   graph: RenderGraph,
   requestedElementId: string,
 ): RenderGraph {
-  const elementId = canonicalDiagramElementId(requestedElementId);
-  const occurrenceId = resolveGraphElementOccurrence(graph, requestedElementId, elementId);
-  return occurrenceId === undefined
-    ? emptyGraph(graph.context)
-    : isolateElementInGraph(graph, occurrenceId, graph.context);
+  const {canonicalId, qualifier} = parseDiagramOccurrenceId(requestedElementId);
+  // A canonical selection includes every placement. A click on an occurrence selects only that placement.
+  const roots = requestedElementId === canonicalId ? graphElementOccurrences(graph, canonicalId)
+    : [requestedElementId];
+  if (roots.length === 1 && !graph.elements[roots[0]!]) {
+    const underlying = qualifier === undefined ? canonicalId : diagramOccurrenceId(canonicalId, qualifier);
+    if (!graph.elements[underlying]) return emptyGraph(graph.context);
+    return isolateElementInGraph(graph, [underlying]);
+  }
+  return roots.length ? isolateElementInGraph(graph, roots) : emptyGraph(graph.context);
 }
 
 /** Opens exactly the next logical architecture level below one boundary. */
@@ -326,7 +328,7 @@ export function selectPathGraph(
       && !deploymentOccurrenceEnvironmentsForElement(result, sourceId).length) {
     const visible = selectGraph(result, { ...scope, tab: scope.tab ?? source.sourceIdentity,
       context: scope.context ?? source.context, environment: sourceEnvironment }, BUILTIN_VIEW_QUERIES[scope.view]);
-    if (!visible.elements[sourceId]) return emptyGraph(source.context);
+    if (!visible.elements[sourceId]) return endpoints;
     return directedPathCorridor(visible, sourceId, targetId,
       targetEnvironment === undefined ? undefined : { targetEnvironment }, index.elementsById) ?? endpoints;
   }
@@ -347,6 +349,7 @@ export function selectPathGraph(
     }, scopedViewQuery);
     const corridor = directedPathCorridor(viewGraph, sourceId, targetId);
     if (corridor !== undefined) return corridor;
+    if (builtinViewHasStage(scope.view, "deployment-materialization")) return endpoints;
   }
   let completeGraph = index.completeGraphs.get(source.context);
   if (completeGraph === undefined) {
@@ -554,19 +557,10 @@ function graphOccurrenceEnvironments(
   return environments;
 }
 
-function resolveGraphElementOccurrence(
-  graph: RenderGraph,
-  requestedElementId: string,
-  canonicalId: string,
-): string | undefined {
-  if (graph.elements[requestedElementId] !== undefined) return requestedElementId;
-  return graphElementOccurrences(graph, canonicalId)[0];
-}
-
-function isolateElementInGraph(graph: RenderGraph, elementId: string, context: string): RenderGraph {
-  if (graph.elements[elementId] === undefined) return emptyGraph(context);
-  const edges = graph.edges.filter((edge) => edge.source === elementId || edge.target === elementId);
-  const selected = new Set([elementId]);
+function isolateElementInGraph(graph: RenderGraph, roots: readonly string[]): RenderGraph {
+  const focus = new Set(roots);
+  const edges = graph.edges.filter((edge) => focus.has(edge.source) || focus.has(edge.target));
+  const selected = new Set(roots);
   for (const edge of edges) {
     selected.add(edge.source);
     selected.add(edge.target);
@@ -583,15 +577,16 @@ function isolateElementInGraph(graph: RenderGraph, elementId: string, context: s
     edges,
     groups: [],
     externalElements: graph.externalElements.filter((id) => selected.has(id)),
-  }, elementId);
+  }, roots);
 }
 
-function isolatePresentationGraph(graph: RenderGraph, elementId: string): RenderGraph {
+function isolatePresentationGraph(graph: RenderGraph, roots: readonly string[]): RenderGraph {
+  const focus = new Set(roots);
   const incoming = new Set<string>();
   const outgoing = new Set<string>();
   for (const edge of graph.edges) {
-    if (edge.target === elementId && edge.source !== elementId) incoming.add(edge.source);
-    if (edge.source === elementId && edge.target !== elementId) outgoing.add(edge.target);
+    if (focus.has(edge.target) && !focus.has(edge.source)) incoming.add(edge.source);
+    if (focus.has(edge.source) && !focus.has(edge.target)) outgoing.add(edge.target);
   }
   const bidirectional = new Set([...incoming].filter((id) => outgoing.has(id)));
   const incomingOccurrences = new Map<string, string>();
@@ -610,8 +605,8 @@ function isolatePresentationGraph(graph: RenderGraph, elementId: string): Render
   }
   const edges = graph.edges.map((edge) => ({
     ...edge,
-    source: edge.target === elementId ? incomingOccurrences.get(edge.source) ?? edge.source : edge.source,
-    target: edge.source === elementId ? outgoingOccurrences.get(edge.target) ?? edge.target : edge.target,
+    source: focus.has(edge.target) ? incomingOccurrences.get(edge.source) ?? edge.source : edge.source,
+    target: focus.has(edge.source) ? outgoingOccurrences.get(edge.target) ?? edge.target : edge.target,
   }));
   const externalElements = graph.externalElements.flatMap((id) => {
     const incomingId = incomingOccurrences.get(id);
@@ -620,7 +615,8 @@ function isolatePresentationGraph(graph: RenderGraph, elementId: string): Render
   });
   const layout: IsolateRenderGraphLayout = {
     kind: "isolate",
-    focus: elementId,
+    focus: roots[0]!,
+    ...(roots.length > 1 && {focusOccurrences: roots}),
     incoming: [...incoming].map((id) => incomingOccurrences.get(id) ?? id).sort(),
     outgoing: [...outgoing].map((id) => outgoingOccurrences.get(id) ?? id).sort(),
   };
@@ -632,10 +628,6 @@ function isolatePresentationGraph(graph: RenderGraph, elementId: string): Render
     externalElements,
     layout,
   };
-}
-
-function isolateOccurrenceId(elementId: string, role: "incoming" | "outgoing"): string {
-  return diagramOccurrenceId(elementId, `isolate-${role}`);
 }
 
 function reachableNodesFrom(

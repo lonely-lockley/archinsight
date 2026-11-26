@@ -188,7 +188,7 @@ function writeIsolateLayout(
   hidden: ReadonlySet<string>,
 ): void {
   writeRankGroup(lines, layout.incoming.filter((id) => !hidden.has(id)));
-  writeRankGroup(lines, [layout.focus].filter((id) => !hidden.has(id)));
+  writeRankGroup(lines, (layout.focusOccurrences ?? [layout.focus]).filter((id) => !hidden.has(id)));
   writeRankGroup(lines, layout.outgoing.filter((id) => !hidden.has(id)));
 }
 

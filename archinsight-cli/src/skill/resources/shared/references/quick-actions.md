@@ -41,9 +41,11 @@ Return one directed hop around an element:
 archinsight quick-action isolate . --element <canonical-id> --format json
 ```
 
-Add `--view c1|c2|c3|c4|no-filter` and the corresponding `--source` or
-`--context` when the result must use a specific built-in scale. Without a
-view, Isolate uses the direct linked logical graph.
+Use a built-in view and its source or context to isolate the element at that
+scale. In D1 and legacy Deployment, a canonical ID includes every visible
+placement and its direct neighbours. Pass an occurrence ID from query JSON to
+focus on one placement. In D2, use `-e` to select the environment. Without a
+view, Isolate uses direct logical relationships.
 
 ## Deployment
 
@@ -68,12 +70,12 @@ Return the union of all directed routes from source to target:
 archinsight quick-action find-path . --from <source-id> --to <target-id> --format json
 ```
 
-Without `--view`, Find Path uses authored logical relationships only. Add a
-built-in `--view` plus its scope options to preserve a particular C/D scale.
-Use `--environment <id>` to select the source element's physical occurrence
-when it is deployed to more than one environment. Physical traversal uses the
-all-environment deployment graph, so a route can cross environment boundaries.
-For an unplaced actor shown in D2, pass `-v deployment-container -s <source> -e <environment>` to traverse its visible physical path.
+With both `--view` and `--environment` omitted, Find Path traverses authored
+logical relationships. With `-e <environment>` alone, it starts at the source
+placement in that environment and follows physical hops across environments.
+In D1 and legacy Deployment, the search uses the physical paths in that view.
+For an unplaced actor in D2, use `-v deployment-container -s <source> -e <environment>`.
+If the actor is absent from that source slice, the result has `pathFound: false`.
 In the diagram UI, the source and target occurrences retain the environments
 in which the user selected them.
 

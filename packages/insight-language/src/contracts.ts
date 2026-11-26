@@ -434,6 +434,7 @@ export interface RenderGraphGroup {
 export interface IsolateRenderGraphLayout {
   readonly kind: "isolate";
   readonly focus: string;
+  readonly focusOccurrences?: readonly string[];
   readonly incoming: readonly string[];
   readonly outgoing: readonly string[];
 }

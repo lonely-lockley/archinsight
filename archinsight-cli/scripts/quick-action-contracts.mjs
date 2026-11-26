@@ -218,6 +218,80 @@ external system google
   failure("find-path", /must be different/, "--from", "sample/user", "--to", "sample/user");
   failure("declaration", /not part of the linked project/, "--element", "sample/missing");
 
+  write("model.ai", `context shop
+deploymentProfile regional
+    appliesTo:
+        production from eu
+        production from us
+    runsOn compute
+
+external system partner
+    name = Partner
+
+external actor visitor
+    name = Visitor
+    links:
+        -> api
+            deployment:
+                route clusterLocal in us
+
+system orders
+    name = Orders
+    service api
+        name = API
+        deployment:
+            uses regional
+        links:
+            -> billing
+                deployment:
+                    route clusterLocal
+
+system payments
+    name = Payments
+    service billing
+        name = Billing
+        deployment:
+            uses regional
+        links:
+            -> api
+                deployment:
+                    route clusterLocal
+            -> partner
+                description = Logical only
+`);
+
+  const find = (from, to, ...scope) => json("find-path", "--from", "shop/" + from, "--to", "shop/" + to, ...scope);
+  assert(find("api", "partner").pathFound);
+  for (const [view, root, peer] of [["deployment", "api", "billing"], ["deployment-system", "orders", "payments"]]) {
+    const scope = ["-v", view, "-s", "model.ai"];
+    const missing = find("api", "partner", ...scope);
+    assert.equal(missing.pathFound, false, view);
+    assert.deepEqual(missing.graph.edges, []);
+    assert(find(root, peer, ...scope).pathFound, view);
+    const graph = json("isolate", "--element", "shop/" + root, ...scope).graph;
+    assert.deepEqual(graph.layout.focusOccurrences, ["eu", "us"].map((r) => `shop/${root}@@${r}/compute`));
+    const selected = json("isolate", "--element", `shop/${root}@@us/compute`, ...scope).graph;
+    assert.equal(selected.layout.focus, `shop/${root}@@us/compute`);
+    assert(!Object.keys(selected.elements).includes(`shop/${root}@@eu/compute`));
+    for (const region of ["eu", "us"]) {
+      const placed = `shop/${root}@@${region}/compute`;
+      const incoming = graph.edges.find((e) => e.target === placed && e.edge.originSource === "shop/billing");
+      const outgoing = graph.edges.find((e) => e.source === placed && e.edge.originSource === "shop/api");
+      assert(incoming && outgoing, view + "/" + region);
+      assert.notEqual(incoming.source, outgoing.target);
+      assert(graph.elements[incoming.source] && graph.elements[outgoing.target]);
+      assert.equal(incoming.edge.sourcePlacement, region + "/compute");
+      assert.equal(outgoing.edge.targetPlacement, region + "/compute");
+    }
+  }
+  const d2 = ["-s", "model.ai", "-v", "deployment-container", "-e", "eu"];
+  const physicalIsolate = json("isolate", "--element", "shop/api", ...d2).graph;
+  assert.equal(physicalIsolate.edges.length, 2);
+  assert.equal(new Set(Object.keys(physicalIsolate.elements)).size, 3);
+  assert.match(success("isolate", "--element", "shop/api", ...d2, "-f", "svg").stdout, /<svg\b/);
+  assert.equal(find("visitor", "api", ...d2).pathFound, false);
+  assert(find("visitor", "api", "-s", "model.ai", "-v", "deployment-container", "-e", "us").pathFound);
+
   console.log("quick action CLI contracts passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });

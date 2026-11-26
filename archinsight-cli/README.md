@@ -192,6 +192,11 @@ connections. Deployment shows the element in one environment. Find path shows
 a route from `--from` to `--to`; when no route is found, JSON reports
 `pathFound: false`. Declaration returns the source file, line, and column.
 
+With both `--view` and `--environment` omitted, Find path follows authored logical relationships.
+With `--environment` alone, it starts from a physical placement. D1 and legacy Deployment return
+`pathFound: false` when their diagram has no directed physical path.
+Isolate in either view includes every visible placement of the selected element.
+
 Find path never treats edges as undirected. `--from A --to B` and
 `--from B --to A` are separate requests and may produce different results. To
 reverse the search, swap the two arguments explicitly.

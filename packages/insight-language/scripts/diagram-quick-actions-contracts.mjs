@@ -5,6 +5,7 @@ import {
   coreLanguageSnapshot,
   declaredDeploymentEnvironments,
   diagramOccurrenceId,
+  diagramElementOccurrenceEnvironment,
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
   diagramQuickActionMetadata,
@@ -539,6 +540,14 @@ system application
   ],
 });
 assertNoErrors(multiEnvironmentResult.diagnostics);
+const usPlacement = multiEnvironmentResult.elements.find((e) => e.context === "us" && e.type === "Compute").id;
+const displayed = `multi/source@@${usPlacement}@@isolate-incoming`;
+assert.deepEqual(parseDiagramOccurrenceId(displayed), {
+  canonicalId: "multi/source", qualifier: usPlacement, isolateRole: "incoming",
+});
+assert.equal(diagramElementOccurrenceEnvironment(multiEnvironmentResult, displayed, "eu"), "us");
+assert.equal(replaceDiagramOccurrenceCanonical(displayed, "multi/target"), `multi/target@@${usPlacement}@@isolate-incoming`);
+
 const logicalMultiEnvironmentPath = selectPathGraph(
   multiEnvironmentResult,
   "multi/source",
