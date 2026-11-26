@@ -19,7 +19,7 @@ define type InfrastructureComponent of DeploymentElement
     Text description
     InfrastructureComponent runsOn
         capability = "placement-owner"
-    Projection projection
+    Projection route
     List of InfrastructureComponent _
 
 define presentation InfrastructureComponent

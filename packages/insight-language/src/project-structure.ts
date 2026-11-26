@@ -22,6 +22,7 @@ export interface ProjectStructureDeclaration extends ProjectStructureLocation {
   readonly constructor: string;
   readonly type?: string;
   readonly synthetic?: boolean;
+  readonly deploymentEnvironments?: readonly string[];
   readonly documentation?: CompletionDocumentation;
   readonly children: readonly ProjectStructureDeclaration[];
 }
@@ -133,6 +134,13 @@ export function filterTypeHierarchy(
   return hierarchyFromNodes(visible);
 }
 
+export function completionDeploymentEnvironments(element: LinkedElement) {
+  const deployments = element.attributes.appliesTo;
+  return deployments?.length ? {
+    deploymentEnvironments: [...new Set(deployments.map((id) => id.split("/", 1)[0]!))],
+  } : {};
+}
+
 function elementDeclarations(
   elements: readonly LinkedElement[],
   childrenByParent: ReadonlyMap<string, readonly LinkedElement[]>,
@@ -145,6 +153,7 @@ function elementDeclarations(
       kind: "element",
       constructor: element.constructor,
       type: element.type,
+      ...completionDeploymentEnvironments(element),
       ...structureLocation(element.declaration, element.sourceIdentity),
       ...(element.synthetic === true ? { synthetic: true } : {}),
       ...(documentation === undefined ? {} : { documentation }),
@@ -166,7 +175,7 @@ function importDeclaration(
     id: item.alias,
     kind: "import",
     constructor: "import",
-    ...(imported?.type === undefined ? {} : { type: imported.type }),
+    ...(imported === undefined ? {} : { type: imported.type, ...completionDeploymentEnvironments(imported) }),
     ...structureLocation(item.declaration, item.sourceIdentity),
     ...(documentation === undefined ? {} : { documentation }),
     children: [],

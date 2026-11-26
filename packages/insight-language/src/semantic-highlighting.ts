@@ -76,6 +76,7 @@ const keywordTokens = new Set([
   "REQUIRED",
   "IMPORT",
   "FROM",
+  "IN",
   "AS",
   "CONTEXT",
   "ENVIRONMENT",

@@ -1,6 +1,6 @@
 # Linker phase timing report
 
-Generated: 2026-11-26T06:58:08.788Z. Fresh Node.js process per trial; source reads and module loading excluded; profiler is synchronous and opt-in.
+Generated: 2026-11-26T07:57:27.296Z. Fresh Node.js process per trial; source reads and module loading excluded; profiler is synchronous and opt-in.
 
 Parse mode: parallel, up to 4 workers.
 
@@ -12,40 +12,40 @@ Every +10 service point has one phase-profiled run. Control points 10, 80, 140, 
 
 ## Finding
 
-At 250 services, logical relationship materialization consumes 83.4 ms (2.8% of 2946.0 ms total). No operator implementation graph is built inside the relationship loop. The indexed graph is built once during completion in 37.1 ms.
+At 250 services, logical relationship materialization consumes 82.9 ms (2.8% of 2971.2 ms total). No operator implementation graph is built inside the relationship loop. The indexed graph is built once during completion in 36.7 ms.
 
-Cold link time grows 9.0× while service count grows 25×. The other top-level phases at full scale are: parallel parsing 1917.7 ms, source classification 0.4 ms, snapshot build 1.2 ms, workspace 239.0 ms, deployment 53.5 ms, projections 559.0 ms, completion 88.5 ms.
+Cold link time grows 9.2× while service count grows 25×. The other top-level phases at full scale are: parallel parsing 1934.2 ms, source classification 0.5 ms, snapshot build 1.6 ms, workspace 231.4 ms, deployment 53.0 ms, projections 559.0 ms, completion 86.8 ms.
 
-Inside logical relationship materialization, the remaining measured work is: endpoint snapshots 25.8 ms, operator implementation 22.2 ms, resolution and bookkeeping 35.4 ms.
+Inside logical relationship materialization, the remaining measured work is: endpoint snapshots 24.9 ms, operator implementation 22.7 ms, resolution and bookkeeping 35.4 ms.
 
 ## Measurements
 
 | Services | Trials | Total ms | Parse ms | Classify ms | Workspace ms | Deployment ms | Logical ms | Rebuild graph ms | Projection ms | Complete ms |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 10 | 3 | 327.3 | 280.9 | 0.0 | 18.3 | 3.4 | 5.1 | 0.0 | 10.0 | 7.6 |
-| 20 | 1 | 382.9 | 302.1 | 0.1 | 36.1 | 5.6 | 8.4 | 0.0 | 19.5 | 9.3 |
-| 30 | 1 | 435.3 | 327.7 | 0.1 | 39.0 | 8.6 | 12.8 | 0.0 | 32.0 | 13.0 |
-| 40 | 1 | 547.4 | 399.2 | 0.1 | 60.4 | 10.3 | 15.9 | 0.0 | 43.7 | 15.8 |
-| 50 | 1 | 634.0 | 464.3 | 0.1 | 53.9 | 14.1 | 22.5 | 0.0 | 57.8 | 19.2 |
-| 60 | 1 | 742.0 | 543.3 | 0.1 | 67.0 | 15.0 | 21.8 | 0.0 | 70.9 | 21.7 |
-| 70 | 1 | 871.7 | 624.1 | 0.1 | 92.7 | 17.9 | 25.1 | 0.0 | 85.0 | 24.4 |
-| 80 | 3 | 962.5 | 683.5 | 0.1 | 98.8 | 19.7 | 28.2 | 0.0 | 102.4 | 27.2 |
-| 90 | 1 | 1067.2 | 763.8 | 0.2 | 97.5 | 21.0 | 31.3 | 0.0 | 120.1 | 30.7 |
-| 100 | 1 | 1183.0 | 832.4 | 0.2 | 112.4 | 23.8 | 35.5 | 0.0 | 140.3 | 35.8 |
-| 110 | 1 | 1281.2 | 899.8 | 0.2 | 116.5 | 25.2 | 38.4 | 0.0 | 161.2 | 37.4 |
-| 120 | 1 | 1375.3 | 953.3 | 0.2 | 119.4 | 27.5 | 48.5 | 0.0 | 181.8 | 42.2 |
-| 130 | 1 | 1521.3 | 1059.6 | 0.2 | 132.2 | 31.4 | 45.8 | 0.0 | 203.4 | 45.9 |
-| 140 | 3 | 1609.3 | 1126.8 | 0.2 | 125.2 | 32.1 | 47.3 | 0.0 | 224.0 | 47.9 |
-| 150 | 1 | 1730.2 | 1196.6 | 0.2 | 142.2 | 34.1 | 51.7 | 0.0 | 251.6 | 50.9 |
-| 160 | 1 | 1866.8 | 1295.4 | 0.3 | 145.9 | 37.3 | 55.6 | 0.0 | 275.1 | 54.3 |
-| 170 | 1 | 1998.7 | 1362.6 | 0.2 | 169.2 | 39.3 | 58.1 | 0.0 | 304.3 | 62.0 |
-| 180 | 3 | 2087.3 | 1431.9 | 0.3 | 163.4 | 39.9 | 59.7 | 0.0 | 329.2 | 61.7 |
-| 190 | 1 | 2158.2 | 1458.5 | 0.3 | 168.5 | 41.3 | 63.5 | 0.0 | 356.7 | 66.4 |
-| 200 | 1 | 2327.0 | 1549.7 | 0.3 | 195.5 | 43.9 | 68.3 | 0.0 | 394.3 | 71.7 |
-| 210 | 3 | 2451.1 | 1624.2 | 0.4 | 195.4 | 45.9 | 72.3 | 0.0 | 422.7 | 73.6 |
-| 220 | 3 | 2572.4 | 1705.4 | 0.3 | 210.5 | 47.9 | 74.0 | 0.0 | 450.6 | 79.2 |
-| 230 | 1 | 2703.4 | 1767.4 | 0.4 | 227.6 | 51.1 | 78.0 | 0.0 | 489.4 | 86.0 |
-| 240 | 1 | 2879.9 | 1933.5 | 0.4 | 207.0 | 50.4 | 78.9 | 0.0 | 521.3 | 84.8 |
-| 250 | 3 | 2946.0 | 1917.7 | 0.4 | 239.0 | 53.5 | 83.4 | 0.0 | 559.0 | 88.5 |
+| 10 | 3 | 322.6 | 277.6 | 0.0 | 18.6 | 3.3 | 5.0 | 0.0 | 10.1 | 6.1 |
+| 20 | 1 | 379.9 | 297.1 | 0.1 | 35.7 | 5.8 | 8.7 | 0.0 | 20.2 | 9.3 |
+| 30 | 1 | 434.1 | 327.6 | 0.1 | 39.2 | 8.4 | 11.8 | 0.0 | 32.3 | 12.5 |
+| 40 | 1 | 535.8 | 396.7 | 0.1 | 49.8 | 11.2 | 15.8 | 0.0 | 44.9 | 15.3 |
+| 50 | 1 | 635.3 | 465.6 | 0.1 | 53.6 | 14.4 | 22.7 | 0.0 | 57.6 | 19.0 |
+| 60 | 1 | 750.8 | 547.3 | 0.1 | 71.3 | 14.5 | 21.7 | 0.0 | 72.0 | 21.6 |
+| 70 | 1 | 869.5 | 624.9 | 0.1 | 89.6 | 16.9 | 25.4 | 0.0 | 85.7 | 24.6 |
+| 80 | 3 | 970.9 | 691.3 | 0.1 | 90.5 | 19.3 | 28.4 | 0.0 | 103.5 | 28.1 |
+| 90 | 1 | 1080.4 | 760.3 | 0.1 | 108.6 | 21.5 | 31.3 | 0.0 | 120.2 | 31.3 |
+| 100 | 1 | 1181.4 | 828.7 | 0.1 | 117.5 | 23.1 | 35.5 | 0.0 | 138.4 | 35.7 |
+| 110 | 1 | 1284.7 | 905.5 | 0.2 | 113.3 | 25.6 | 37.5 | 0.0 | 160.4 | 39.5 |
+| 120 | 1 | 1403.7 | 984.0 | 0.2 | 115.8 | 27.5 | 48.7 | 0.0 | 184.0 | 41.0 |
+| 130 | 1 | 1495.6 | 1042.3 | 0.2 | 125.8 | 30.8 | 45.6 | 0.0 | 203.2 | 44.5 |
+| 140 | 3 | 1651.7 | 1159.9 | 0.2 | 127.4 | 32.8 | 48.8 | 0.0 | 226.9 | 48.4 |
+| 150 | 1 | 1759.3 | 1229.4 | 0.2 | 142.8 | 33.9 | 51.7 | 0.0 | 247.7 | 50.8 |
+| 160 | 1 | 1864.6 | 1295.0 | 0.2 | 146.8 | 35.7 | 53.9 | 0.0 | 275.4 | 54.6 |
+| 170 | 1 | 1951.8 | 1334.2 | 0.3 | 160.3 | 37.9 | 56.8 | 0.0 | 300.8 | 58.6 |
+| 180 | 3 | 2089.8 | 1429.5 | 0.3 | 166.0 | 39.6 | 60.7 | 0.0 | 331.2 | 61.1 |
+| 190 | 1 | 2171.3 | 1462.8 | 0.3 | 175.9 | 41.9 | 63.4 | 0.0 | 357.9 | 66.1 |
+| 200 | 1 | 2335.5 | 1584.7 | 0.3 | 179.1 | 43.3 | 66.2 | 0.0 | 388.3 | 70.4 |
+| 210 | 3 | 2462.1 | 1633.4 | 0.3 | 188.2 | 46.4 | 71.3 | 0.0 | 423.5 | 75.5 |
+| 220 | 3 | 2607.7 | 1738.1 | 0.3 | 199.6 | 47.4 | 74.2 | 0.0 | 467.6 | 80.7 |
+| 230 | 1 | 2736.1 | 1798.4 | 0.4 | 229.4 | 51.6 | 78.4 | 0.0 | 491.9 | 82.5 |
+| 240 | 1 | 2845.0 | 1881.0 | 0.4 | 223.0 | 51.1 | 78.8 | 0.0 | 519.3 | 87.1 |
+| 250 | 3 | 2971.2 | 1934.2 | 0.5 | 231.4 | 53.0 | 82.9 | 0.0 | 559.0 | 86.8 |
 
 Raw profiler events and call counts are in [raw.json](raw.json); selected phase medians are in [summary.csv](summary.csv).

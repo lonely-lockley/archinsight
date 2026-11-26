@@ -30,7 +30,7 @@ deployment production
             technology = Postgres
             runsOn:
                 csp
-            projection:
+            route:
                 $from originalLink $this
 
     publicGateway:
@@ -75,7 +75,7 @@ deployment production
                 infrastructureComponent grafana
                     name = Grafana Cloud
                     technology = Grafana
-            projection:
+            route:
                 $this connectTo display
                     technology = HTTPS, REST
 

@@ -3614,7 +3614,7 @@ deployment production
     database:
         name = Application database
         description = default connection
-        projection:
+        route:
             $from originalLink $this
 
     broker:

@@ -6,6 +6,7 @@ import type {
   CompletionScope,
   InsightSyntaxProvider,
   SyntaxContext,
+  ElementFrame,
   VisibleIdentifier,
 } from "./contracts.js";
 import { lineContextAt, type LineContext } from "./line-context.js";
@@ -91,7 +92,8 @@ export class CompletionEngine {
     const visibleTypes = new Set([...typeSystem.declaredTypes(), ...parsed.context.visibleTypes]);
 
     const anonymousImportContexts = anonymousImportContextItems(line, typeSystem, parsed.context);
-    const items = anonymousImportContexts !== undefined
+    const routeItems = wireRouteQualifierItems(line, typeSystem, parsed.context);
+    const items = routeItems !== undefined ? routeItems : anonymousImportContexts !== undefined
       ? anonymousImportContexts
       : expectsContextReference(parsed.syntax)
       ? contextReferenceItems(parsed.context)
@@ -216,7 +218,7 @@ function projectionDefinitionItems(
   if (relationList === undefined) {
     return undefined;
   }
-  if (isProjectionRuleBodyAttributePosition(line, syntax, context)) {
+  if (isProjectionRuleBodyAttributePosition(line, syntax, relationList.indent)) {
     return projectionRelationAttributeItems(typeSystem, relationList?.expectedType);
   }
   const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
@@ -231,40 +233,36 @@ function currentRelationEdgeList(
   typeSystem: TypeSystem,
   context: CompletionScope,
   indent: number,
-): { readonly expectedType: string; readonly ownerType: string } | undefined {
-  const list = currentList(context, indent) ?? context.lists
-    .filter((candidate) => candidate.indent < indent
-      && ["projection", "outbound", "transit", "inbound", "_"].includes(candidate.attribute))
-    .sort((left, right) => right.indent - left.indent)[0];
-  if (list === undefined || (!["projection", "outbound", "transit", "inbound"].includes(list.attribute)
-      && !(list.attribute === "_" && typeSystem.typeHasCapability(list.ownerType, TYPE_CAPABILITIES.projection)))) {
+): { readonly expectedType: string; readonly ownerType: string; readonly indent: number } | undefined {
+  const expectedTypeOf = (list: CompletionScope["lists"][number]) => {
+    const attribute = typeSystem.attribute(list.ownerType, list.attribute);
+    if (attribute === undefined) return undefined;
+    if (!attribute.list && typeSystem.typeHasCapability(attribute.type, TYPE_CAPABILITIES.projection)) {
+      return typeSystem.anonymousListAttribute(attribute.type)?.listElementType;
+    }
+    if (["outbound", "transit", "inbound", "projection"].includes(list.attribute)
+      || (list.attribute === "_" && typeSystem.typeHasCapability(list.ownerType, TYPE_CAPABILITIES.projection))) {
+      return attribute.listElementType;
+    }
     return undefined;
-  }
-  const attribute = typeSystem.attribute(list.ownerType, list.attribute);
-  const projectionType = attribute !== undefined && attribute.list !== true
-      && typeSystem.typeHasCapability(attribute.type, TYPE_CAPABILITIES.projection)
-    ? attribute.type
-    : undefined;
-  const expectedType = projectionType === undefined
-    ? attribute?.listElementType
-    : typeSystem.anonymousListAttribute(projectionType)?.listElementType;
+  };
+  const list = currentList(context, indent) ?? context.lists
+    .filter((candidate) => candidate.indent < indent && expectedTypeOf(candidate) !== undefined)
+    .sort((left, right) => right.indent - left.indent)[0];
+  if (list === undefined) return undefined;
+  const expectedType = expectedTypeOf(list);
   return expectedType !== undefined && typeSystem.relationOperatorConstructors(expectedType).length > 0
-    ? { expectedType, ownerType: list.ownerType }
+    ? { expectedType, ownerType: list.ownerType, indent: list.indent }
     : undefined;
 }
 
 function isProjectionRuleBodyAttributePosition(
   line: LineContext,
   syntax: SyntaxContext,
-  context: CompletionScope,
+  listIndent: number,
 ): boolean {
-  if (!line.hasOnlyIndentBeforeCursor || line.indentLevel < 3) return false;
-  if (rule(syntax, "relationInvocation")) return true;
-  const list = context.lists
-    .filter((candidate) => candidate.indent < line.indentLevel
-      && ["projection", "outbound", "transit", "inbound", "_"].includes(candidate.attribute))
-    .sort((left, right) => right.indent - left.indent)[0];
-  return list !== undefined && line.indentLevel >= list.indent + 2 && rule(syntax, "objectDeclaration");
+  return line.hasOnlyIndentBeforeCursor && line.indentLevel >= 3
+    && (rule(syntax, "relationInvocation") || (line.indentLevel >= listIndent + 2 && rule(syntax, "objectDeclaration")));
 }
 
 function projectionItemsForWords(
@@ -435,6 +433,25 @@ function expectsPresentationSectionProperty(line: LineContext, syntax: SyntaxCon
     && (rule(syntax, "presentationSection")
       || rule(syntax, "presentationAssignment")
       || rule(syntax, "presentationPropertyIdentifier"));
+}
+
+function wireRouteQualifierItems(line: LineContext, typeSystem: TypeSystem, context: CompletionScope): CompletionItem[] | undefined {
+  const match = /^([^\s]+)\s+\S+\s+(?:(in)\s*)?$/.exec(line.contentBeforeCursor.trimStart());
+  if (match === null) return undefined;
+  const list = currentOperatorList(typeSystem, context, line.indentLevel);
+  if (!list || !typeSystem.operatorConstructorsFrom(list.ownerType, list.expectedType).some((op) =>
+    op.spelling === match[1] && typeSystem.operatorHasCapability(op, OPERATOR_CAPABILITIES.deploymentRoute))) return undefined;
+  if (!match[2]) return [keyword("in ")];
+  const environments = (frame: ElementFrame | undefined) => {
+    if (!frame?.identifier) return [];
+    const visible = context.visibleIdentifiers.get(frame.identifier);
+    if (!frame.referenceContext && visible?.imported) return visible.deploymentEnvironments ?? [];
+    return context.contextualIdentifiers.find((item) => item.label === frame.identifier
+      && item.contextId === (frame.referenceContext ?? context.contextId))?.deploymentEnvironments ?? [];
+  };
+  const source = environments(context.frames.find((frame) => frame.indent < line.indentLevel));
+  const target = context.operatorFrames.find((frame) => frame.indent < line.indentLevel);
+  return (source.length ? source : environments(target)).map((id) => rootReferenceItem(id, context));
 }
 
 function architectureItems(

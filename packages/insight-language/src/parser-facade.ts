@@ -675,7 +675,8 @@ function derivedGraphSignatureOf(tree: AntlrParseTreeLike): string {
     parts.push({ offset: sourceRangeOf(relation).startOffset, value: `relation:${textOf(relation)}` });
   }
   for (const list of descendantsByRule(tree, "namedList", rules)) {
-    if (childText(list, "listName", rules) === "projection") {
+    const name = childText(list, "listName", rules);
+    if (name === "route" || name === "projection" || name === "deployment") {
       parts.push({ offset: sourceRangeOf(list).startOffset, value: `projection:${textOf(list)}` });
     }
   }

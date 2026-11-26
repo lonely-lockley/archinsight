@@ -129,14 +129,14 @@ deployment production
             name = Vault
             runsOn:
                 k8s_r1
-            projection:
+            route:
                 $from originalLink $this
     observability:
         monitoring prom_r1
             name = Prometheus
             runsOn:
                 k8s_r1
-            projection:
+            route:
                 $this connectTo $from
 `),
     source("shop.ai", `
@@ -189,7 +189,7 @@ deployment production
             display:
                 infrastructureComponent grafana
                     name = Grafana
-${withProjection ? `            projection:
+${withProjection ? `            route:
                 $this connectTo display
 ` : ""}`;
 }

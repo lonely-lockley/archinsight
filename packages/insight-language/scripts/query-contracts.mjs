@@ -482,7 +482,7 @@ deployment production
 
     storage:
         name = Postgres
-        projection:
+        route:
             $from originalLink $this
 `),
       source("app.ai", `
@@ -612,7 +612,7 @@ deployment production
     network:
         networkConnection service_network
             name = Service network
-            projection:
+            route:
                 $from originalLink $to
 
     publicGateway:

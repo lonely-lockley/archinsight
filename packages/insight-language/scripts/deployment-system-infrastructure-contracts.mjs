@@ -50,7 +50,7 @@ deployment production
             name = Database
             runsOn:
                 cloud
-            projection:
+            route:
                 $from originalLink $this
 
     observability:
@@ -64,7 +64,7 @@ deployment production
             telemetry:
                 infrastructureComponent otel
                     name = OpenTelemetry
-            projection:
+            route:
                 $this connectTo display
                 $this connectTo telemetry
 `),

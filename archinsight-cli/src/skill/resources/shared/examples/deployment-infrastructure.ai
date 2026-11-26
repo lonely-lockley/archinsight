@@ -17,7 +17,7 @@ deployment production
             name = PostgreSQL
             runsOn:
                 aws
-            projection:
+            route:
                 $from originalLink $this
 
     publicGateway:
@@ -54,7 +54,7 @@ deployment production
             display:
                 infrastructureComponent grafana
                     name = Grafana Cloud
-            projection:
+            route:
                 $this connectTo $from
                 $this connectTo display
 

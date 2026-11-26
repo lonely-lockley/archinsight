@@ -35,9 +35,22 @@ assert.equal(
   "environment-owned routes must be offered to relationship deployment completion",
 );
 
+assert.deepEqual([...labels(complete(environmentSlot, "route clusterLocal __CURSOR__"))], ["in"]);
+assert.deepEqual([...labels(complete(environmentSlot, "route clusterLocal in __CURSOR__"))].sort(), ["eu", "latam"]);
+assert.deepEqual([...labels(complete(environmentSlot, "route clusterLocal in la__CURSOR__"))], ["latam"]);
+assert.deepEqual([...labels(complete(environmentSlot, "route clusterLocal in __CURSOR__", []))], ["target_env"]);
+
+const customRoute = snapshot(`
+define operator ForwardPath of DeploymentAction
+    constructor forwardVia Route
+        on Wire
+    capability = "deployment-route-use"
+`);
+assert.deepEqual([...labels(complete(customRoute, "forwardVia partner in __CURSOR__"))].sort(), ["eu", "latam"]);
+
 console.log("deployment network slot completion contracts passed");
 
-function complete(languageSnapshot) {
+function complete(languageSnapshot, selection = "route __CURSOR__", ownerEnvs = ["eu", "latam"]) {
   const sourceWithCursor = `
 context consumer
 
@@ -48,7 +61,7 @@ system client
     links:
         ~> backend
             deployment:
-                route __CURSOR__
+                ${selection}
 `.trimStart();
   const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
   return completion.complete({
@@ -57,8 +70,9 @@ system client
     cursorOffset,
     snapshot: languageSnapshot,
     contextIds: ["application", "consumer"],
+    contextualIdentifiers: [{ contextId: "consumer", label: "client", type: "System", deploymentEnvironments: ownerEnvs }],
     indexedIdentifiers: new Map([
-      ["backend", { label: "backend", type: "Service", imported: true }],
+      ["backend", { label: "backend", type: "Service", imported: true, deploymentEnvironments: ["target_env"] }],
       ["clusterLocal", { label: "clusterLocal", type: "Route", contextId: "application" }],
     ]),
   });

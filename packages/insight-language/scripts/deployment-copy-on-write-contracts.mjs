@@ -41,7 +41,7 @@ deployment production
     network:
         networkConnection service_network
             name = Service network
-            projection:
+            route:
                 $from originalLink $to
 
     publicGateway:

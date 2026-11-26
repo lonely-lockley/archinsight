@@ -10,7 +10,7 @@ Route terms:
 - `$to` — logical destination of the relationship;
 - a plain id — infrastructure resolved in the current deployment cursor.
 
-Infrastructure projection terms:
+Terms in a component’s own `route:` block:
 
 - `$from` — deployed logical element using the infrastructure;
 - `$this` — selected infrastructure component;
@@ -18,7 +18,9 @@ Infrastructure projection terms:
 
 `$to` is not available in infrastructure projections.
 
-Every rule is a directed physical edge from its left term to its right term. `originalLink` keeps the logical operator, attributes, annotations, and provenance. `connectTo` creates a physical edge with only attributes written on that rule. Project-defined physical operators work in the same positions.
+Every rule is a directed physical edge from its left term to its right term. In `outbound:`, `transit:`, and `inbound:`, indent `technology` and `description` under the individual arrow to label that hop. Either field can be used on its own.
+
+`connectTo` takes its labels from the rule. `originalLink` inherits the logical wire's labels, operator, annotations, and provenance. Setting a label under `originalLink` overrides that field on this projected edge and preserves the other inherited fields. Project-defined physical operators work in the same positions.
 
 `source` and `target` prefix operators no longer exist. Placement is expressed by route sections and postfix `in` qualifiers.
 
@@ -94,6 +96,8 @@ route macroRegion
 
     transit:
         $from connectTo tgw in eu_central_1
+            technology = AWS Transit Gateway
+            description = Carries traffic to the central gateway
         tgw connectTo $to
 
     inbound:
@@ -103,6 +107,14 @@ route macroRegion
 ```
 
 This describes a concrete policy; the route name itself has no semantic behavior.
+
+For a route that reaches a service through an interface VPC endpoint, label the hop from that endpoint to the endpoint service:
+
+```insight
+interfaceEndpoint connectTo endpointService
+    technology = AWS PrivateLink
+    description = Accesses the partner API privately
+```
 
 ## Broadcast
 
@@ -161,7 +173,7 @@ Both edges refer to the same logical relationship. This is intentional, not a du
 ```insight
 storage postgres
     name = PostgreSQL
-    projection:
+    route:
         $from originalLink $this
 ```
 
@@ -179,7 +191,7 @@ deploymentProfile stateful
 
 ```insight
 storage archive
-    projection:
+    route:
         outbound:
             $from connectTo privateGateway
             privateGateway connectTo $this
@@ -196,7 +208,7 @@ Use the full form when an element consumes infrastructure in another deployment.
 
 ```insight
 monitoring telemetry
-    projection:
+    route:
         $from originalLink $this
         $this connectTo prometheus
         $this connectTo collector
@@ -208,7 +220,7 @@ Every rule is independent. Reusing `$this` creates fan-out.
 
 1. Run `archinsight link . --format text` and resolve every route diagnostic.
 2. Verify the source and target deployment profiles.
-3. Verify that the route exists in every applicable source environment.
+3. Check the wire's `route <name> in <environment>` selections and optional default. An unselected environment has no path. A selected but missing implementation produces `ROUTE_NOT_DECLARED`, including when a default exists. Duplicate selections for an environment or two defaults are ambiguous. An environment outside the effective profile produces `ROUTE_ENVIRONMENT_NOT_APPLICABLE`. Qualifiers select the logical owner's environments (the target's for an unplaced actor) before projecting any physical arrows.
 4. Follow each `in` cursor change in order.
 5. Confirm that every infrastructure id exists in the active deployment.
 6. Confirm that the final `$to` or `$this` has exactly one matching destination deployment.

@@ -458,7 +458,7 @@ service storefront
 Operator attributes describe the relationship created by an invocation. Required attributes are validated in the same way as attributes on ordinary elements. Operator inheritance can refine a general relationship family into synchronous, asynchronous, physical, or domain-specific connections while keeping shared attributes and presentation rules.
 
 Core lists distinguish three families derived from `Edge`: `links` accepts
-`Wire`, `projection` accepts `PhysicalWire`, and `deployment` accepts
+`Wire`, a component’s `route:` contains `PhysicalWire` steps, and `deployment` accepts
 `DeploymentAction`. The anonymous list in `DeploymentProfile` also accepts
 `DeploymentAction`. Constructor owner and target constraints further restrict
 which operators are valid in each position. These same type rules determine

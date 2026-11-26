@@ -9,8 +9,8 @@ Keep these responsibilities separate:
 1. An environment file owns one `environment`, its concrete `deployment` inventories, and its `route` implementations.
 2. A logical context owns `deploymentProfile` declarations.
 3. Systems, containers, and services select profiles with `deployment: uses <profile>`.
-4. A logical relationship selects exactly one route name with `deployment: route <route>`.
-5. Infrastructure selected by a profile or logical element may define a `projection` using `$from` and `$this`.
+4. A logical relationship selects a route per applicable environment with `route <name> in <environment>` and an optional unqualified default.
+5. Infrastructure selected by a profile or logical element may define its own `route:` using `$from` and `$this`.
 
 Do not use an infrastructure slot directly in a wire deployment. `uses network`, `uses gateway`, and `uses broker` on a wire belong to the removed deployment model. Migrate them to a named route.
 
@@ -87,9 +87,11 @@ route clusterLocal
 
 Route names are project vocabulary. There is no built-in meaning for local, regional, macro-regional, or global routing. The same name can have a different implementation in each environment.
 
+For a wire used only from LATAM write `route clusterLocal in latam`. For different paths by environment, put one selection per line under the wire's `deployment:` list. An explicit selection overrides a single unqualified default. With no default, other environments produce no path. Check qualifiers against the wire owner's effective deployments, or the target's when the owner has none (e.g. an actor). A reversed physical segment preserves this selection scope.
+
 A route has `outbound`, optional `transit`, and `inbound` sections. At least one of `outbound` or `inbound` is required. Sections connect in written order.
 
-Use `originalLink` wherever the physical edge must retain the logical operator and its attributes. Use `connectTo` for a new physical edge. Multiple `originalLink` rules are intentional and preserve the same logical provenance.
+Use `originalLink` wherever the physical edge must retain the logical operator and its attributes. Use `connectTo` for a new physical edge. Multiple `originalLink` rules are intentional and preserve the same logical provenance. To label a single hop, indent `technology` or `description` under its arrow. The [cross-environment route](deployment-projections.md#cross-environment-route) shows both fields on a transit hop.
 
 Use short placement when the deployment id stays the same:
 
@@ -144,13 +146,13 @@ route events
         broker originalLink $from
 ```
 
-## Infrastructure projections
+## Routes on infrastructure components
 
-Infrastructure projections use `$from` for the logical consumer and `$this` for the selected infrastructure component. `$to` is invalid.
+Write `route:` on the infrastructure component itself. For older syntax, follow the [3.2.0 migration guide](migration-3.2.md). Component routes use `$from` for the logical consumer and `$this` for the selected infrastructure component. `$to` is invalid.
 
 ```insight
 storage postgres
-    projection:
+    route:
         $from originalLink $this
 ```
 
@@ -158,7 +160,7 @@ The flat form is a local shorthand. The full section and placement syntax is als
 
 ```insight
 storage reporting
-    projection:
+    route:
         outbound:
             $from connectTo privateGateway
             privateGateway connectTo $this

@@ -98,7 +98,7 @@ deployment production
     network:
         networkConnection ${network}
             name = ${network}
-            projection:
+            route:
                 $from originalLink $to
 `);
 }

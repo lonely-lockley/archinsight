@@ -7,6 +7,7 @@ export interface OperatorInvocationSyntax<T extends AntlrParseTreeLike = AntlrPa
   readonly operator: T;
   readonly target: T | undefined;
   readonly body: T | undefined;
+  readonly environmentQualifier: T | undefined;
   readonly anonymousImport: T | undefined;
   readonly prefix: boolean;
 }
@@ -28,7 +29,7 @@ export function readOperatorInvocation<T extends AntlrParseTreeLike>(
   const target = reference ? undefined : prefix !== undefined
     ? child("elementConstructor")
     : child("identifierReference") ?? child("identifierDeclaration");
-  return { operator, target, body: child("objectBody"), anonymousImport, prefix: prefix !== undefined };
+  return { operator, target, body: child("objectBody"), anonymousImport, environmentQualifier: child("routeEnvironmentQualifier"), prefix: prefix !== undefined };
 }
 
 export function isOperatorInvocation(
@@ -55,6 +56,14 @@ export function operatorInvocationDiagnostic(
   const known = typeSystem.hasOperatorConstructor(spelling);
   const candidates = typeSystem.operatorConstructorsFrom(ownerType, expectedType);
   const compatible = candidates.some((operator) => operator.spelling === spelling);
+  if (compatible && invocation.environmentQualifier !== undefined && !candidates.some((operator) =>
+    operator.spelling === spelling && typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentRoute))) {
+    return {
+      code: "ROUTE_QUALIFIER_NOT_ALLOWED",
+      message: "Only a wire route selection accepts an environment qualifier",
+      ...sourceLocationOf(invocation.environmentQualifier, sourceName),
+    };
+  }
   if (compatible && invocation.target !== undefined) return undefined;
   if (!compatible && spelling === "uses" && candidates.some((operator) =>
     typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentRoute))) {

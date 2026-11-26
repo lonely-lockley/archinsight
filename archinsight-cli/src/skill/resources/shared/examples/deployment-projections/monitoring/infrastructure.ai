@@ -15,7 +15,7 @@ deployment production
             collector:
                 infrastructureComponent otel_collector
                     name = OpenTelemetry Collector
-            projection:
+            route:
                 $this connectTo $from
                 $this connectTo prometheus
                 $this connectTo collector

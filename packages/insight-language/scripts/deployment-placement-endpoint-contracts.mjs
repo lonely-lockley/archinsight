@@ -102,7 +102,7 @@ deployment production
     network:
         networkConnection ${network}
             name = ${network}
-            projection:
+            route:
                 $from originalLink $to
 route clusterLocal
     outbound:

@@ -92,6 +92,7 @@ export {
   createOperatorImplementationRegistry,
 } from "./operator-implementation-registry.js";
 export {
+  completionDeploymentEnvironments,
   buildProjectStructure,
   buildTypeHierarchy,
   filterProjectStructure,

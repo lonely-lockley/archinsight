@@ -76,7 +76,7 @@ deployment production
     network:
         networkConnection private
             name = Private network
-            projection:
+            route:
                 $from originalLink $to
 `),
     source("model.ai", `

@@ -108,6 +108,7 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("reports under `reports/`"));
   assert(content.includes("Lead with the verdict, then its model evidence"));
   assert.equal(occurrences(content, "references/deployment-projections.md"), 1);
+  assert.equal(occurrences(content, "references/migration-3.2.md"), 1);
   assert(content.includes("Infer and reuse an existing C4 Code vocabulary from the repository"));
   assert.match(content, /Ask the\s+user about entity kinds only when creating the Code layer or extending that\s+vocabulary/);
   assert.equal(content.includes("references/versioning.md"), false);
@@ -259,7 +260,7 @@ function verifySharedFiles(output) {
   assert(scaling.includes("[Broker route](deployment-projections.md#broker-route)"));
   assert(scaling.includes("Broker events"));
   assert(scaling.includes("KafkaBroker of Broker"));
-  verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md"]);
+  verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md", "migration-3.2.md"]);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
   assert(analysis.includes("Use focused AIQ queries to answer architecture questions"));
@@ -467,17 +468,22 @@ function verifyDeploymentProjectionContracts(output) {
   const examples = path.join(output, "examples", "deployment-projections");
   const gateway = projectionGraph(examples, "gateway");
   assertElements(gateway, ["gateway_example/customer", "gateway_example/api", "eu/edge_gateway", "eu/load_balancer"]);
-  assertProjectedEdge(gateway, "gateway_example/customer", "eu/edge_gateway", {
+  const entry = assertProjectedEdge(gateway, "gateway_example/customer", "eu/edge_gateway", {
     operator: "->",
     originSource: "gateway_example/customer",
     originTarget: "gateway_example/api",
   });
+  assert.deepEqual(entry.edge.attributes.technology, ["HTTPS"]);
+  assert.deepEqual(entry.edge.attributes.description, ["Calls the public edge"]);
   const gatewayConnect = assertProjectedEdge(gateway, "eu/edge_gateway", "eu/load_balancer", {
     operator: "connectTo",
     originSource: "gateway_example/customer",
     originTarget: "gateway_example/api",
   });
-  assert.deepEqual(gatewayConnect.edge.attributes, { technology: ["HTTPS"] });
+  assert.deepEqual(gatewayConnect.edge.attributes, {
+    technology: ["HTTPS"],
+    description: ["Forwards the request to the load balancer"],
+  });
 
   const storage = projectionGraph(examples, "storage");
   assertElements(storage, ["storage_example/orders", "eu/postgres"]);

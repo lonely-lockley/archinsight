@@ -542,7 +542,7 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
 context infra
 
 publicGateway gateway
-    projection:
+    route:
         $from connectTo cdn
             __CURSOR__
 	`, { snapshot, includes: ["technology", "description"] });
@@ -550,7 +550,7 @@ publicGateway gateway
 context infra
 
 publicGateway gateway
-    projection:
+    route:
         $from originalLink cdn
             __CURSOR__
 	`, { snapshot, includes: ["technology", "description", "call", "via"] });
@@ -558,7 +558,7 @@ publicGateway gateway
 context infra
 
 publicGateway gateway
-    projection:
+    route:
         cdn replicateFrom loadBalancer
             __CURSOR__
 	`, { snapshot, includes: ["technology", "description"] });
@@ -1076,7 +1076,7 @@ function assertProjectionCompletion(line, { snapshot, includes, excludes }) {
 context infra
 
 publicGateway gateway
-    projection:
+    route:
         ${line}
 `, { snapshot, contextIds: ["latam"] }));
   for (const label of includes) {
@@ -1107,7 +1107,7 @@ deployment production
             cdn:
                 infrastructureComponent cdn
                     name = CloudFront
-            projection:
+            route:
                 ${line}
 `, { snapshot }));
   for (const label of includes) {
@@ -1138,7 +1138,7 @@ runtime production
             cdn:
                 infrastructureComponent cdn
                     name = CloudFront
-            projection:
+            route:
                 ${line}
 `, { snapshot, contextIds: ["latam"] }));
   for (const label of includes) {

@@ -108,7 +108,11 @@ annotatedOperatorInvocation
     ;
 
 operatorInvocation
-    : operatorIdentifier identifierReference? anonymousImportDeclaration? note? EOL objectBody?
+    : operatorIdentifier identifierReference? (anonymousImportDeclaration | routeEnvironmentQualifier)? note? EOL objectBody?
+    ;
+
+routeEnvironmentQualifier
+    : IN environmentReference
     ;
 
 anonymousImportDeclaration

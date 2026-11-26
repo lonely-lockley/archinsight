@@ -162,7 +162,7 @@ deployment production
     network:
         networkConnection network
             name = Network
-            projection:
+            route:
                 $from originalLink $to
     storage:
         infrastructureComponent storage

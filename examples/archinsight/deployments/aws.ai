@@ -28,7 +28,7 @@ deployment production
             technology = PostgreSQL, Amazon Aurora
             runsOn:
                 csp
-            projection:
+            route:
                 $from originalLink $this
 
     publicGateway:
@@ -81,7 +81,7 @@ deployment production
                     name = Grafana Cloud
                     technology = Grafana
 
-            projection:
+            route:
                 $this connectTo display
                     technology = HTTPS, REST
 

@@ -73,7 +73,7 @@ function highlightsProjectionTermsByRuleContext() {
 context infra
 
 infrastructureComponent gateway
-    projection:
+    route:
         $from originalLink cdn
         cdn connectTo $this in production from eu
 

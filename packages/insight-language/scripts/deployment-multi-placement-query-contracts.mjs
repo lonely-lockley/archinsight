@@ -87,7 +87,7 @@ deployment production
             name = Cluster ${label} network
             runsOn:
                 ${compute}
-            projection:
+            route:
                 $from originalLink $to
 route clusterLocal
     outbound:

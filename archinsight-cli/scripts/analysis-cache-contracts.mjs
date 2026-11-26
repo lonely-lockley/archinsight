@@ -107,14 +107,14 @@ deployment production
             name = Vault
             runsOn:
                 k8s_r1
-            projection:
+            route:
                 $from originalLink $this
     observability:
         monitoring prom_r1
             name = Prometheus
             runsOn:
                 k8s_r1
-            projection:
+            route:
                 $this connectTo $from
 `;
   const logical = `context shop

@@ -147,7 +147,7 @@ extend system payments
 deployment production
     storage:
         storage storage
-            projection:
+            route:
                 $from originalLink ${target}
 `,
   });

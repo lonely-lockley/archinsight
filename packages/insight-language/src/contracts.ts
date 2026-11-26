@@ -444,6 +444,7 @@ export interface RenderGraph {
 }
 
 export interface VisibleIdentifier {
+  readonly deploymentEnvironments?: readonly string[];
   readonly label: string;
   readonly type?: string;
   readonly imported?: boolean;
@@ -462,6 +463,8 @@ export interface ListFrame {
 }
 
 export interface ElementFrame {
+  readonly identifier?: string;
+  readonly referenceContext?: string;
   readonly indent: number;
   readonly type: string;
   readonly parentType?: string;

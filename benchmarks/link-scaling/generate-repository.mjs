@@ -45,7 +45,7 @@ for (const context of contexts) {
 
 const manifest = {
   generator: GENERATOR_ID,
-  schemaVersion: 3,
+  schemaVersion: 4,
   generatedAt: new Date().toISOString(),
   serviceCount,
   environmentCount: ENVIRONMENT_COUNT,
@@ -180,7 +180,7 @@ deployment production
             technology = PostgreSQL
             runsOn:
                 compute
-            projection:
+            route:
                 $from originalLink $this
 
     observability:

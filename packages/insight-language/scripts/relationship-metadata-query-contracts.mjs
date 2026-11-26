@@ -33,7 +33,7 @@ deployment production
             name = Database
             runsOn:
                 kubernetes
-            projection:
+            route:
                 $from originalLink $this
 
     network:

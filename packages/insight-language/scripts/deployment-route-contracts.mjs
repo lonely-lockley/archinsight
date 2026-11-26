@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
+  ProjectLinkerState,
   linkProject,
+  selectGraph,
 } from "../build/runtime/index.js";
 
 const definitions = buildLanguageSnapshotResultFromSources([
@@ -14,6 +16,11 @@ define type RoutedEnvironment of Environment
     InfrastructureComponent privateGateway
     Storage database
     Storage archive
+
+define operator ForwardPath of DeploymentAction
+    constructor forwardVia Route
+        on Wire
+    capability = "deployment-route-use"
 `),
 ], [coreLanguageSnapshot]);
 assertNoErrors(definitions.diagnostics);
@@ -210,6 +217,94 @@ system product
             uses regional
 `);
 assertDiagnostic(ambiguousSelection, "ROUTE_SELECTION_AMBIGUOUS");
+
+const regionalWorld = (routes, actor = false) => source("model.ai", `
+context regional
+
+deploymentProfile regional_profile
+    appliesTo:
+        production from us
+        production from eu
+    runsOn compute
+
+${actor ? "actor caller" : "system caller"}
+    name = Caller
+${actor ? "" : "    deployment:\n        uses regional_profile"}
+    links:
+        -> callee
+            deployment:
+${routes.map(route => "                " + route).join("\n")}
+
+system callee
+    name = Callee
+    deployment:
+        uses regional_profile
+`);
+const projectedPaths = result => result.edges.filter(e => e.projected)
+  .map(e => [e.projectionRoot, e.source, e.target, e.sourcePlacement, e.targetPlacement]).sort();
+
+for (const actor of [false, true]) {
+  const selected = ["route reverse in us", "route clusterLocal"];
+  const first = link(regionalWorld(selected, actor).source);
+  assertNoErrors(first.diagnostics);
+  assert.deepEqual(projectedPaths(first), [
+    ["eu/clusterLocal", "regional/caller", "regional/callee", actor ? undefined : "eu/compute_eu", "eu/compute_eu"],
+    ["us/reverse", "regional/callee", "regional/caller", "us/compute_us", actor ? undefined : "us/compute_us"],
+  ]);
+  assert.deepEqual(projectedPaths(link(regionalWorld([...selected].reverse(), actor).source)), projectedPaths(first));
+  const limited = link(regionalWorld(["route clusterLocal in eu"], actor).source);
+  assertNoErrors(limited.diagnostics);
+  assert.deepEqual(projectedPaths(limited), [projectedPaths(first)[0]]);
+}
+const actorInEu = link(regionalWorld(["route clusterLocal in eu"], true).source);
+const d2Query = readFileSync(new URL("../../../src/main/resources/com/github/lonelylockley/insight/builtin-views/deployment-container.aiq", import.meta.url), "utf8");
+for (const environment of ["eu", "us"]) {
+  const diagram = selectGraph(actorInEu, { tab: "model.ai", context: "regional", view: "deployment-container", environment }, d2Query);
+  assert.equal(diagram.edges.some(edge => edge.source === "regional/caller"), environment === "eu");
+}
+const asymmetricModel = regionalWorld(["route reverse"]).source
+  .replace("system caller", `deploymentProfile us_only
+    appliesTo:
+        production from us
+    runsOn compute
+
+system caller`).replace("uses regional_profile", "uses us_only");
+const asymmetric = link(asymmetricModel);
+assertNoErrors(asymmetric.diagnostics);
+assert.deepEqual(projectedPaths(asymmetric).map(path => path[0]), ["us/reverse"]);
+assertDiagnostic(link(asymmetricModel.replace("route reverse", "route clusterLocal in eu")), "ROUTE_ENVIRONMENT_NOT_APPLICABLE");
+const customSelection = link(regionalWorld(["forwardVia clusterLocal in eu"]).source);
+assertNoErrors(customSelection.diagnostics);
+assert.deepEqual(projectedPaths(customSelection).map(path => path[0]), ["eu/clusterLocal"]);
+const both = link(regionalWorld(["route clusterLocal in eu", "route clusterLocal in us"]).source);
+assertNoErrors(both.diagnostics);
+assert.equal(projectedPaths(both).length, 2);
+for (const [routes, code, token] of [
+  [["route clusterLocal in us", "route reverse in us"], "ROUTE_SELECTION_AMBIGUOUS", "us"],
+  [["route clusterLocal in latam"], "ROUTE_ENVIRONMENT_NOT_APPLICABLE", "latam"],
+  [["route clusterLocal in unknown"], "ROUTE_ENVIRONMENT_NOT_APPLICABLE", "unknown"],
+]) {
+  const model = regionalWorld(routes);
+  const report = link(model.source);
+  const d = report.diagnostics.find(d => d.code === code);
+  assert(d, JSON.stringify(report.diagnostics));
+  assert.equal(model.source.split("\n")[d.line - 1].slice(d.column - 1, d.endColumn - 1), token);
+  assert.deepEqual(projectedPaths(report), []);
+}
+const missingOverride = link(regionalWorld(["route reverse in eu", "route clusterLocal"]).source);
+assertDiagnostic(missingOverride, "ROUTE_NOT_DECLARED");
+assert.deepEqual(projectedPaths(missingOverride).map(path => path[0]), ["us/clusterLocal"]);
+const illegalQualifier = link(regionalWorld(["route clusterLocal"]).source.replace("-> callee", "-> callee in eu"));
+assertDiagnostic(illegalQualifier, "ROUTE_QUALIFIER_NOT_ALLOWED");
+const state = new ProjectLinkerState({snapshot: definitions.snapshot,
+  sources: [environment("us", true), environment("eu", false), environment("latam", false),
+    regionalWorld(["route clusterLocal"])]});
+for (const routes of [["route clusterLocal in eu"], ["route reverse in us", "route clusterLocal"], ["route clusterLocal"]]) {
+  const model = regionalWorld(routes);
+  const update = state.replaceSource(model);
+  assertNoErrors(update.result.diagnostics);
+  assert.deepEqual(projectedPaths(update.result), projectedPaths(link(model.source)));
+}
 
 const undeployedEndpoints = link(`
 context undeployed_endpoints
@@ -687,11 +782,19 @@ assertNoErrors(branchProbe.diagnostics);
 assert.deepEqual(branchProbe.edges.filter(e => e.projectionRoot === "us/macroRegion" && e.operator === "->")
   .map(e => e.source).sort(), ["eu_central_1/tgw_eu_central_1", "latam/tgw_latam"]);
 
+const remoteArchive = probeRoute(`route macroRegion
+    outbound:
+        $from originalLink $to in latam`, `storage reports
+    route:
+        $from originalLink $this in latam`);
+assertNoErrors(remoteArchive.diagnostics);
+assert.deepEqual(remoteArchive.edges.filter(e => e.projectionRoot === "us/reports").map(e => [e.source, e.target]),
+  [["probe/caller", "latam/archive_latam"]]);
 const brokenStorage = probeRoute(`route macroRegion
     outbound:
         $from originalLink $to in latam`, `storage reports
     name = Reports
-    projection:
+    route:
         outbound:
             $from connectTo privateGateway
         inbound:
@@ -751,14 +854,14 @@ deployment production
     database:
         storage database_${name}
             name = Database ${name}
-${withRoute ? `            projection:
+${withRoute ? `            route:
                 outbound:
                     $from originalLink $this in latam
 ` : ""}
     archive:
         storage archive_${name}
             name = Archive ${name}
-${withRoute ? `            projection:
+${withRoute ? `            route:
                 outbound:
                     $from connectTo $this
                 inbound:

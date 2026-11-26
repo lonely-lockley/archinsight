@@ -363,7 +363,7 @@ context test
 infrastructureComponent gateway
     name = Gateway
 
-    projection:
+    route:
         $from originalLink $this
         gateway connectTo $to
 `);
@@ -374,7 +374,7 @@ function rejectsFixedProjectionTerm() {
 context test
 
 infrastructureComponent gateway
-    projection:
+    route:
         gateway connectTo fixed tgw in latam
 `);
 }

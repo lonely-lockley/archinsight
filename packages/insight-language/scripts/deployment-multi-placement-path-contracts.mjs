@@ -91,7 +91,7 @@ deployment production
             gateway:
                 infrastructureComponent ${gateway}
                     name = ${gateway}
-            projection:
+            route:
                 $from originalLink gateway
                 gateway connectTo $to
 route clusterLocal

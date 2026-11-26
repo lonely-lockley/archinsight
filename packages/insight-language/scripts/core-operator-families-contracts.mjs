@@ -22,6 +22,8 @@ define operator LegacyAssignment of Edge
     constructor legacyHost InfrastructureComponent
         on Element
     capability = "deployment-placement"
+extend type Storage
+    Projection accessPath
 extend type System
     List of Edge actions
 `)], [coreLanguageSnapshot]);
@@ -35,7 +37,8 @@ for (const [owner, attribute, expected] of [
 ]) {
   assert.equal(types.attribute(owner, attribute)?.listElementType, expected);
 }
-assert.equal(types.attribute("InfrastructureComponent", "projection")?.type, "Projection");
+assert.equal(types.attribute("InfrastructureComponent", "route")?.type, "Projection");
+assert.equal(types.attribute("InfrastructureComponent", "projection"), undefined);
 assert.equal(types.anonymousListAttribute("Projection")?.listElementType, "PhysicalWire");
 for (const section of ["outbound", "transit", "inbound"]) {
   assert.equal(types.attribute("Projection", section)?.listElementType, "PhysicalWire");
@@ -115,7 +118,33 @@ for (const [header, ownerType, list, expectedType, indent] of [
   }
 }
 
-const projectionHeader = endpoints + "networkConnection caller\n    name = Caller\n    projection:\n";
+const storageSource = "context test\nstorage database\n    name = DB\n";
+const storageCursor = storageSource + "    ";
+const storageItems = engine.complete({ sourceName: "storage.ai", source: storageCursor, cursorOffset: storageCursor.length, snapshot }).items;
+assert(storageItems.some(item => item.label === "route"));
+assert(!storageItems.some(item => item.label === "projection"));
+const componentRoute = block => linkProject({snapshot, sources: [source("storage.ai", storageSource + block + "\n")]});
+for (const body of ["        $from originalLink $this", ...["_", "localPath"].map(id =>
+  `        projection ${id}\n            $from originalLink $this`)]) {
+  const linked = componentRoute("    route:\n" + body);
+  assert.deepEqual(linked.diagnostics.filter(d => (d.level ?? "ERROR") === "ERROR"), []);
+  const owner = linked.elements.find(element => element.id === "test/database");
+  const [routeId] = owner.attributes.route;
+  assert(linked.elements.some(element => element.id === routeId && element.type === "Projection" && element.parent === owner.id));
+}
+for (const field of ["route", "accessPath"]) {
+  for (const section of ["outbound", "transit", "inbound"]) {
+    const text = storageSource + `    ${field}:\n        ${section}:\n            $from `;
+    const items = engine.complete({ sourceName: "storage.ai", source: text, cursorOffset: text.length, snapshot }).items;
+    assert.deepEqual(items.map(item => item.label).sort(), ["connectTo", "originalLink", "replicateFrom"]);
+  }
+}
+const repeated = componentRoute("    route:\n        $from originalLink $this\n    route:\n        $this connectTo $from");
+assert(repeated.diagnostics.some(d => d.code === "ATTRIBUTE_SHADOWS_PREVIOUS" && d.line === 6));
+const legacy = componentRoute("    projection:\n        $from originalLink $this");
+assert(legacy.diagnostics.some(d => d.code === "ATTRIBUTE_NOT_DECLARED" && d.line === 4 && d.column === 5));
+
+const projectionHeader = endpoints + "networkConnection caller\n    name = Caller\n    route:\n";
 const projectionCompletion = engine.complete({
   sourceName: "projection.ai",
   source: projectionHeader + "        ",

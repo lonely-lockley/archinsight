@@ -180,6 +180,7 @@ interface ParsedAttributeValue {
 }
 
 interface ParsedDeploymentAction {
+  readonly routeEnvironment?: SourcePosition & { readonly id: string };
   readonly sourceName: string;
   readonly ownerId: string;
   readonly ownerType: string;
@@ -2230,6 +2231,7 @@ function buildDeploymentAction(
   const scalarAttributes: Record<string, string> = {};
   const scalarAttributePositions: Record<string, SourcePosition> = {};
   const assignedScalarAttributes = new Set<string>();
+  const environment = syntax?.environmentQualifier && firstChild(syntax.environmentQualifier, "environmentReference");
   const body = firstChild(invocation, "objectBody");
   const operator = syntax!.operator.getText();
   if (body !== undefined) {
@@ -2241,7 +2243,8 @@ function buildDeploymentAction(
     ownerType,
     expectedType,
     operator,
-    targetId: targetReference?.getText() ?? "",
+    targetId: targetReference.getText(),
+    ...(environment === undefined ? {} : { routeEnvironment: { id: environment.getText(), ...position(environment, document.sourceName) } }),
     ...(anonymousImport === undefined ? {} : { targetContext: firstChild(anonymousImport, "contextReference")?.getText() ?? "" }),
     targetLine: targetPosition.line,
     targetColumn: targetPosition.column,
@@ -3373,17 +3376,6 @@ interface PhysicalProjectionEndpoint {
 function expandRouteProjection(workspace: LinkingWorkspace, projection: PendingProjection): void {
   // The projection stage dispatches here only when at least one route action exists.
   const actions = projection.routeActions!;
-  if (actions.length !== 1) {
-    const action = actions[1]!;
-    workspace.diagnostics.push({
-      code: "ROUTE_SELECTION_AMBIGUOUS",
-      message: `A relationship must select exactly one route, got ${actions.length}`,
-      sourceName: action.sourceName,
-      ...diagnosticPosition(action),
-    });
-    return;
-  }
-  const action = actions[0]!;
   const sourceElement = workspace.linkedElementsById.get(projection.fromId);
   const targetElement = workspace.linkedElementsById.get(projection.toId);
   if (sourceElement === undefined || targetElement === undefined) return;
@@ -3392,6 +3384,7 @@ function expandRouteProjection(workspace: LinkingWorkspace, projection: PendingP
   const targetDeployments = workspace.deploymentContext.effectiveDeploymentsByElementId.get(targetElement.id) ?? [];
   const seeds = sourceDeployments.length > 0 ? sourceDeployments : targetDeployments;
   if (seeds.length === 0) {
+    const action = actions[0]!;
     workspace.diagnostics.push({
       code: "ROUTE_ENDPOINT_DEPLOYMENT_MISSING",
       message: `Route '${action.targetId}' cannot be resolved because neither endpoint has an effective deployment`,
@@ -3401,8 +3394,37 @@ function expandRouteProjection(workspace: LinkingWorkspace, projection: PendingP
     return;
   }
 
+  const selections = new Map<string | undefined, ParsedDeploymentAction>();
+  const environments = new Set(seeds.map((seed) => seed.context));
+  let invalid = false;
+  for (const action of actions) {
+    const qualifier = action.routeEnvironment;
+    if (selections.has(qualifier?.id)) {
+      workspace.diagnostics.push({
+        code: "ROUTE_SELECTION_AMBIGUOUS",
+        message: qualifier === undefined ? "A wire can select only one default route"
+          : `A wire can select only one route for environment '${qualifier.id}'`,
+        sourceName: action.sourceName,
+        ...diagnosticPosition(qualifier ?? action),
+      });
+      invalid = true;
+    } else if (qualifier !== undefined && !environments.has(qualifier.id)) {
+      workspace.diagnostics.push({
+        code: "ROUTE_ENVIRONMENT_NOT_APPLICABLE",
+        message: `Environment '${qualifier.id}' is outside the effective deployments of '${sourceDeployments.length ? sourceElement.id : targetElement.id}'`,
+        sourceName: action.sourceName,
+        ...diagnosticPosition(qualifier),
+      });
+      invalid = true;
+    }
+    selections.set(qualifier?.id, action);
+  }
+  if (invalid) return;
+
   let projected = false;
   for (const seed of seeds) {
+    const action = selections.get(seed.context) ?? selections.get(undefined);
+    if (action === undefined) continue;
     const route = routeImplementation(action.targetId, seed.context, workspace);
     if (route === undefined) {
       workspace.diagnostics.push({

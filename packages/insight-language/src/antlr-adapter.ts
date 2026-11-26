@@ -683,6 +683,13 @@ function processList(
     if (item === undefined) {
       continue;
     }
+    // A nested attribute in an implicit object belongs to the slot's value.
+    const nestedList = firstChildByRule(item, "namedList", ruleNames);
+    if (nestedList !== undefined && attributeDefinition !== undefined && !attributeDefinition.list
+        && typeSystem.isObjectAttribute(attributeDefinition)) {
+      processList(nestedList, attributeDefinition.type, cursorOffset, cursor, typeSystem, state, ruleNames);
+      continue;
+    }
     processArchitectureItem(
       item,
       ownerType,
@@ -735,7 +742,8 @@ function processElementDeclaration(
     || resolvedType === undefined) {
     return;
   }
-  const frame = mutableFrame(indentLevel(declaration), resolvedType, undefined, parentType);
+  const frame = { ...mutableFrame(indentLevel(declaration), resolvedType, undefined, parentType),
+    ...optionalProperty("identifier", identifier && textOf(identifier)) };
   state.frames.unshift(frame);
   const body = firstChildByRule(declaration, "objectBody", ruleNames);
   if (body !== undefined) {
@@ -771,7 +779,7 @@ function processExtension(
   if (!contains(extension, cursorOffset, cursor) || targetType === undefined) {
     return;
   }
-  const frame = mutableFrame(indentLevel(extension), targetType);
+  const frame = { ...mutableFrame(indentLevel(extension), targetType), ...optionalProperty("identifier", target && textOf(target)) };
   state.frames.unshift(frame);
   const body = firstChildByRule(extension, "objectBody", ruleNames);
   if (body !== undefined) {
@@ -820,7 +828,10 @@ function processOperator(
   if (!contains(invocation, cursorOffset, cursor) || (edgeType === undefined && completionTypes.length === 0)) {
     return;
   }
-  const frame = mutableFrame(indentLevel(invocation), completionTypes[0] ?? edgeType!, completionTypes);
+  const referenceContext = syntax?.anonymousImport && firstChildByRule(syntax.anonymousImport, "contextReference", ruleNames);
+  const frame = { ...mutableFrame(indentLevel(invocation), completionTypes[0] ?? edgeType!, completionTypes),
+    ...optionalProperty("identifier", target && textOf(target)),
+    ...optionalProperty("referenceContext", referenceContext && textOf(referenceContext)) };
   state.operatorFrames.unshift(frame);
   const body = firstChildByRule(invocation, "objectBody", ruleNames);
   if (body !== undefined) {
@@ -924,6 +935,7 @@ function collectImportAliases(
     }
     const indexed = identifiers.get(alias);
     identifiers.set(alias, {
+      ...indexed,
       label: alias,
       ...(indexed?.type === undefined ? {} : { type: indexed.type }),
       imported: true,

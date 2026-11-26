@@ -19,7 +19,9 @@ deployment production
 route publicInbound
     inbound:
         $from originalLink gateway
+            description = Calls the public edge
         gateway connectTo loadBalancer
             technology = HTTPS
+            description = Forwards the request to the load balancer
         loadBalancer connectTo $to
             technology = HTTP

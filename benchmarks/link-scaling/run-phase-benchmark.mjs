@@ -68,7 +68,7 @@ async function ensureRuntimeBuild() {
 async function ensureRepository() {
   try {
     const manifest = JSON.parse(await readFile(path.join(repository, "manifest.json"), "utf8"));
-    if (manifest.schemaVersion !== 3 || manifest.serviceCount !== 250 || manifest.environmentCount !== 15) throw new Error("stale manifest");
+    if (manifest.schemaVersion !== 4 || manifest.serviceCount !== 250 || manifest.environmentCount !== 15) throw new Error("stale manifest");
   } catch {
     await runCommand(process.execPath, [path.join(benchmarkRoot, "generate-repository.mjs")], benchmarkRoot);
   }

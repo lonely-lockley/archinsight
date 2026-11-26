@@ -87,7 +87,7 @@ deployment production
             display:
                 infrastructureComponent grafana
                     name = Grafana
-            projection:
+            route:
                 $this connectTo display
 
     audit:
@@ -98,7 +98,7 @@ deployment production
             display:
                 infrastructureComponent audit_ui
                     name = Audit UI
-            projection:
+            route:
                 $this connectTo display
 `),
     source("model.ai", `

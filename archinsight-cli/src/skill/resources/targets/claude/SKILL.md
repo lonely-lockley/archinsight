@@ -136,6 +136,10 @@ archinsight render . -s <source.ai> -v c2 -f svg -o diagram.svg
 Report diagnostics by source, line, column, and message. Avoid rewriting large
 sections of Insight unless the existing layering is already understood.
 
+## Migrating to Insight 3.2.0
+
+Read [the 3.1.x to 3.2.0 migration guide](references/migration-3.2.md) before converting an existing deployment model. It covers wire-level `uses`, component `projection:` blocks, `source` and `target` placement, and verification against the old diagrams.
+
 ## Reference routing
 
 - Read `references/cli.md` when the CLI is missing, its version differs from

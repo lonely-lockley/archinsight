@@ -61,7 +61,7 @@ C4 query.
 `core_deployment.ai` provides common infrastructure inventory types:
 
 - `InfrastructureComponent`: optional `name`, `technology`,
-  `description`, a `runsOn:` infrastructure reference, and projection rules.
+  `description`, a `runsOn:` infrastructure reference, and a `route:` describing how consumers reach the component.
 - `Storage` / constructor `storage`: for databases, buckets, volumes, and
   other stateful stores.
 - `Broker` / constructor `broker`: a `NetworkConnection` specialization
@@ -71,9 +71,8 @@ C4 query.
   platforms; adds optional `address` and can contain nested infrastructure
   components in a `components:` block.
 - `NetworkConnection` / constructor `networkConnection`: for infrastructure
-  that carries a logical wire. Its projection may connect `$from` directly to
-  `$to` or expand the relationship through relevant gateways and other
-  first-order infrastructure.
+  used along a physical path. An environment route can place it between the
+  endpoints of a logical wire.
 
 Add slots either by extending the shared `Environment` type or by defining a
 constructorless subtype. The extension gives every environment the same
@@ -176,7 +175,7 @@ Interpretation:
 
 - `->` creates a synchronous `SyncWire`.
 - `~>` creates an asynchronous `AsyncWire`.
-- Core `links` lists accept `Wire`, `projection` lists accept `PhysicalWire`,
+- Core `links` lists accept `Wire`, component `route:` blocks contain `PhysicalWire` steps,
   and `deployment` lists accept `DeploymentAction`. The anonymous list in
   `DeploymentProfile` also accepts `DeploymentAction`.
 - Custom deployment operators must derive from `DeploymentAction` or one of

@@ -7,7 +7,7 @@ The model has four parts:
 - environments own deployments, infrastructure, and routes;
 - deployment profiles place systems and containers into deployments;
 - routes project logical relationships onto physical paths;
-- infrastructure projections describe direct use of storage, observability, brokers, and other supporting components.
+- component routes describe direct use of storage, observability, brokers, and other supporting components.
 
 Components and code inherit the deployment of their containing container. Model an independently deployed responsibility as a separate container or service.
 
@@ -141,6 +141,19 @@ route clusterLocal
 
 `$from` and `$to` are the logical relationship endpoints. `originalLink` preserves the logical operator and its attributes, including `technology`, `description`, `call`, and `via`. `connectTo` creates an ordinary physical segment.
 
+Use `in <environment>` on a wire to select where it takes a route. For example, a service deployed in several environments can use a partner gateway in two of them and the public gateway everywhere else.
+
+```insight
+deployment:
+    route partnerGateway in eu
+    route partnerGateway in latam
+    route publicGateway
+```
+
+An explicit selection takes precedence over the default regardless of line order. Omit the default to project the wire only in the listed environments. For a LATAM-only call, a single `route partnerGateway in latam` is sufficient. Each selected environment must implement its chosen route.
+
+The available environments come from the effective deployments of the element declaring the wire. For an actor without its own deployment, they come from the target. This rule also applies when the physical request runs in reverse, as with a Prometheus scrape. Inside the route body, `in` on a path endpoint still specifies where that endpoint lives.
+
 A route has these sections:
 
 - `outbound` describes the path leaving the current deployment;
@@ -229,25 +242,25 @@ route events
 
 Several `originalLink` rules are allowed when the logical relationship must remain visible on more than one physical segment. Each occurrence keeps the same logical provenance and attributes.
 
-## Infrastructure projections
+## Routes on infrastructure components
 
-Infrastructure projections describe direct use of a supporting component by a deployed logical element. They use the same sections and `in` qualifiers as routes, but their infrastructure endpoint is `$this`:
+An infrastructure component can declare its own `route:`. When a deployed element uses that component, the route describes how they connect. For example, a storage component can describe the connection from each consumer to the database.
 
 ```insight
 storage postgres
     name = PostgreSQL
-    projection:
+    route:
         $from originalLink $this
 ```
 
 `$from` is the logical element using the infrastructure. `$this` is the selected infrastructure component. `$to` is not available in an infrastructure projection.
 
-The flat `projection:` form is shorthand for a local projection. Use sections when the path crosses deployments or needs several phases:
+For a local connection, put the arrows directly under `route:`. Use sections when the path crosses deployments or needs several phases. For a directly used component from 3.1.x, rename `projection:` to `route:` and translate its `source` and `target` prefixes to the intended placements. An earlier 3.2 preview with unprefixed component rules needs only the field rename.
 
 ```insight
 storage reporting_database
     name = Reporting database
-    projection:
+    route:
         outbound:
             $from connectTo privateGateway
             privateGateway connectTo $this
@@ -307,7 +320,7 @@ Warnings about missing relationship deployment begin only after a project uses r
 | `NetworkConnection` | `networkConnection` | Network infrastructure used by routes. |
 | `Route` | `route` | Environment-owned implementation of a logical relationship path. |
 | `DeploymentProfile` | `deploymentProfile` | Reusable logical placement and infrastructure selection. |
-| `Projection` | `projection` | Physical rewrite for direct infrastructure use. |
+| `Projection` | `projection` | Value type of the infrastructure component’s `route:` attribute. |
 
 ## Validation
 
