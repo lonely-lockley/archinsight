@@ -106,7 +106,9 @@ deploymentProfile regional_service
 
 `runsOn` selects the hosting slot. `uses` selects supporting infrastructure. Every deployment in `appliesTo` must provide compatible values for the referenced slots.
 
-Apply a profile to a system, container, or service:
+Choose one deployment level per system. To deploy the whole system, put the deployment actions on the system. To place its containers or services separately, put the actions on those elements and leave the system’s deployment empty. Mixing the two levels is a linking error, even if they select different environments.
+
+For example, to deploy a service:
 
 ```insight
 service backend
@@ -116,6 +118,48 @@ service backend
 ```
 
 Several profiles may be applied to one element when their deployment sets do not overlap. Selecting the same concrete deployment through two profiles is an error.
+
+## Shared databases and other infrastructure
+
+For a database shared by every service in a region, put the regional database in the deployment’s `database` slot and select `uses database` in the common profile. Each service connects to the database in its own deployment. For one central database across regions, select its concrete inventory id, for example `uses postgres from central`.
+
+When a service owns several database clusters, give each use an alias that describes the data it stores. Other services can share a specific cluster in each deployment. In this example the `regional` profile places both services in EU and US and supplies their compute placement.
+
+```insight
+system commerce
+    name = Commerce
+
+    service orders
+        name = Orders
+        deployment:
+            uses regional
+            uses database as orderLedger
+                name = Order ledger cluster
+            uses database as audit
+                name = Audit cluster
+
+    service worker
+        name = Worker
+        deployment:
+            uses regional
+            shares orderLedger from orders
+```
+
+In EU, Orders and Worker share the EU order ledger cluster. In US, they share the US order ledger cluster. Only Orders uses the audit cluster in each deployment. An alias names a use within its owner. Renaming the database’s display label leaves the reference intact.
+
+With a single use of the slot on the owner, `shares database from orders` also works. With multiple uses of that slot, select one by alias. Every deployment of the consumer must contain the owner and the selected binding. A missing or ambiguous binding produces a diagnostic on the declaration.
+
+A system deployed as a whole can own a database shared with a different system or its containers. For sharing among sibling containers, one container owns the database and the others reference it, as Worker does above.
+
+AIQ exposes the alias of a customized resource as `binding`, its owner's canonical id as `bindingOwner`, and the original inventory id as `cloneOf`. This query lists the services that use the order ledger in each deployment.
+
+```aiq
+MATCH (db:Storage)
+WHERE db.binding = 'orderLedger' AND db.bindingOwner = 'commerce/orders'
+MATCH (service:Service)
+WHERE db IN service.uses
+RETURN TABLE elementId(service) AS consumer, db.cloneOf AS inventory
+```
 
 ## Routes for logical relationships
 
@@ -244,7 +288,7 @@ Several `originalLink` rules are allowed when the logical relationship must rema
 
 ## Routes on infrastructure components
 
-An infrastructure component can declare its own `route:`. When a deployed element uses that component, the route describes how they connect. For example, a storage component can describe the connection from each consumer to the database.
+An infrastructure component can declare its own `route:`. When a deployed element uses that component, the route describes how they connect. A service can use the database cluster as a single resource. When the diagram needs to show the primary, its replicas, and the direction of replication, model those details in the cluster’s infrastructure projection.
 
 ```insight
 storage postgres

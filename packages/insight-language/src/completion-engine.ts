@@ -82,17 +82,23 @@ export class CompletionEngine {
     const normalized = shouldNormalizeCurrentWord(request.source, offset, originalLine)
       ? sourceWithoutReplacementWord(request.source, originalLine)
       : { source: request.source, cursorOffset: offset };
-    const parsed = this.syntaxProvider.parse({
-      ...request,
-      source: normalized.source,
-      cursorOffset: normalized.cursorOffset,
-    });
     const line = lineContextAt(normalized.source, normalized.cursorOffset);
     const typeSystem = new TypeSystem(request.snapshot);
+    // Parse the binding while the owner identifier is still incomplete. This
+    // keeps parser recovery inside the deployment list at every nesting depth.
+    const qualifier = /^(\S+)\s+\S+\s+(from\s+)$/.exec(line.contentBeforeCursor.trimStart());
+    const editingShareOwner = qualifier && request.snapshot.operators.some((op) =>
+      op.spelling === qualifier[1] && typeSystem.operatorHasCapability(op, OPERATOR_CAPABILITIES.deploymentShare));
+    const scopeOffset = normalized.cursorOffset - (editingShareOwner ? qualifier[2]!.length : 0);
+    const parsed = this.syntaxProvider.parse({
+      ...request,
+      source: normalized.source.slice(0, scopeOffset) + normalized.source.slice(normalized.cursorOffset),
+      cursorOffset: scopeOffset,
+    });
     const visibleTypes = new Set([...typeSystem.declaredTypes(), ...parsed.context.visibleTypes]);
 
     const anonymousImportContexts = anonymousImportContextItems(line, typeSystem, parsed.context);
-    const routeItems = wireRouteQualifierItems(line, typeSystem, parsed.context);
+    const routeItems = deploymentBindingItems(line, typeSystem, parsed.context) ?? wireRouteQualifierItems(line, typeSystem, parsed.context);
     const items = routeItems !== undefined ? routeItems : anonymousImportContexts !== undefined
       ? anonymousImportContexts
       : expectsContextReference(parsed.syntax)
@@ -433,6 +439,31 @@ function expectsPresentationSectionProperty(line: LineContext, syntax: SyntaxCon
     && (rule(syntax, "presentationSection")
       || rule(syntax, "presentationAssignment")
       || rule(syntax, "presentationPropertyIdentifier"));
+}
+
+function deploymentBindingItems(line: LineContext, typeSystem: TypeSystem, context: CompletionScope): CompletionItem[] | undefined {
+  const match = /^(\S+)\s+(?:(\S+)\s+(?:(from)\s+)?)?$/.exec(line.contentBeforeCursor.trimStart());
+  if (!match) return undefined;
+  const list = currentOperatorList(typeSystem, context, line.indentLevel);
+  if (!list) return undefined;
+  const operators = typeSystem.operatorConstructorsFrom(list.ownerType, list.expectedType).filter((op) => op.spelling === match[1]);
+  const binding = match[2];
+  if (operators.some((op) => typeSystem.operatorHasCapability(op, OPERATOR_CAPABILITIES.deploymentShare))) {
+    const providers = [...context.visibleIdentifiers.values(), ...context.contextualIdentifiers.filter((item) =>
+      item.contextId === context.contextId)].filter((item) => item.deploymentUseNames?.length);
+    if (!binding) return uniqueByInsertText(providers.flatMap((item) =>
+      item.deploymentUseNames!.map((label) => identifierItem({label}))));
+    return match[3] ? uniqueByInsertText(providers.filter((item) => item.deploymentUseNames!.includes(binding)).map(identifierItem))
+      : [keyword("from ")];
+  }
+  if (binding && !match[3] && operators.some((op) =>
+    typeSystem.operatorHasCapability(op, OPERATOR_CAPABILITIES.deploymentUse)
+    && typeSystem.typeHasCapability(op.targetType, TYPE_CAPABILITIES.infrastructure))) {
+    const target = context.visibleIdentifiers.get(binding);
+    if (target?.type && typeSystem.typeHasCapability(target.type, TYPE_CAPABILITIES.deploymentProfile)) return undefined;
+    return [keyword("as "), keyword("from ")];
+  }
+  return undefined;
 }
 
 function wireRouteQualifierItems(line: LineContext, typeSystem: TypeSystem, context: CompletionScope): CompletionItem[] | undefined {

@@ -56,7 +56,7 @@ for (const owner of ["System", "Catalog", "ContainerElement", "Worker", "Deploym
     : ["Wire", "SyncWire"].includes(owner)
     ? ["route Route"]
     : ["System", "Catalog", "ContainerElement", "Worker"].includes(owner)
-    ? ["runsOn InfrastructureComponent", "uses DeploymentProfile", "uses InfrastructureComponent"]
+    ? ["runsOn InfrastructureComponent", "shares InfrastructureComponent", "uses DeploymentProfile", "uses InfrastructureComponent"]
     : [];
   assert.deepEqual(actual, expected, owner);
 }
@@ -104,7 +104,7 @@ for (const [owner, header, depth, allowed] of ownerCases) {
   }
   if (allowed) {
     assert.deepEqual(complete(before + indent + "deployment:\n" + indent + "    ")
-      .filter(({ kind }) => kind === "OPERATOR").map(({ label }) => label).sort(), ["runsOn", "uses"], owner);
+      .filter(({ kind }) => kind === "OPERATOR").map(({ label }) => label).sort(), ["runsOn", "shares", "uses"], owner);
     for (const action of ["uses profile", "runsOn host", "uses network"]) {
       const result = link(before + indent + "deployment:\n" + indent + "    " + action + "\n");
       assert.deepEqual(errors(result), [], `${owner}: ${action}`);
@@ -120,6 +120,21 @@ for (const [owner, header, depth, allowed] of ownerCases) {
       sourceName: "model.ai", line, column: depth + 1, endLine: line, endColumn: depth + 11,
     }], owner);
     assert(!result.elements.some(({ type, attributes }) => type === owner && attributes.runsOn?.length), owner);
+  }
+}
+for (const child of ["worker worker1", "worker _"]) {
+  const mixed = preamble + `catalog app
+    name = App
+    deployment:
+        uses profile
+        uses network as mesh
+    ${child}
+        name = Worker
+        deployment:
+`;
+  for (const action of ["uses profile", "runsOn host", "shares mesh from app"]) {
+    assert.deepEqual(errors(link(mixed + "            " + action + "\n")).map((d) => d.code),
+      ["DEPLOYMENT_OWNERSHIP_CONFLICT"], child + ": " + action);
   }
 }
 // Declaring an action slot on a component does not bypass core operator owner constraints.

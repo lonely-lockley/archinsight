@@ -44,7 +44,7 @@ const clauseKeywords = ["WHERE", "MATCH", "OPTIONAL MATCH", "UNWIND", "WITH", "R
 const expressionKeywords = ["DISTINCT", "NOT", "TRUE", "FALSE", "NULL", "AND", "OR", "IN", "CONTAINS", "IS NULL", "IS NOT NULL"] as const;
 const selectors = ["derived", "withDerived", "projected", "withProjected"] as const;
 
-const nodeProperties = ["id", "localId", "type", "context", "sourceIdentity", "parent", "constructor", "annotations"];
+const nodeProperties = ["id", "localId", "type", "context", "sourceIdentity", "parent", "constructor", "annotations", "binding", "bindingOwner", "cloneOf"];
 const relationshipProperties = ["id", "type", "kind", "operator", "source", "target", "context", "sourceIdentity", "derived", "projected", "annotations"];
 const pathProperties = ["nodes", "relationships", "steps", "length"];
 const stepProperties = ["index", "from", "to", "relationshipId", "direction"];

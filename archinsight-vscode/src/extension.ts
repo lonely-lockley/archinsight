@@ -3153,7 +3153,7 @@ function contextualIdentifiers(result: LinkProjectResult): readonly ContextualId
 function completionDocumentationProperty(
   result: LinkProjectResult,
   element: LinkedElement,
-): Pick<VisibleIdentifier, "documentation" | "deploymentEnvironments"> {
+): Pick<VisibleIdentifier, "documentation" | "deploymentEnvironments" | "deploymentUseNames"> {
   const documentation = elementCompletionDocumentation(element, result.presentations);
   return { ...completionDeploymentEnvironments(element), ...(documentation === undefined ? {} : { documentation }) };
 }

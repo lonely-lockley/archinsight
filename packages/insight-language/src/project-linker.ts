@@ -1,3 +1,4 @@
+import { projectionOriginKey, uniqueProjectionOrigins } from "./projection-origin.js";
 import type {
   LanguageDiagnostic,
   LinkedContext,
@@ -114,6 +115,8 @@ export interface ParsedElement {
   readonly id: string;
   readonly context: string;
   readonly localId: string;
+  sharedInfrastructureOwners?: string[];
+  deploymentUseNames?: readonly string[];
   slotName?: string;
   readonly type: string;
   readonly constructor: string;
@@ -121,6 +124,9 @@ export interface ParsedElement {
   readonly anonymous: boolean;
   readonly synthetic?: boolean;
   readonly cloneOf?: string;
+  readonly binding?: string;
+  readonly bindingOwner?: string;
+  readonly infrastructureEnvironment?: string;
   graphElement?: boolean;
   projectionRoot?: boolean;
   readonly projectionRules: ProjectionRuleDefinition[];
@@ -180,6 +186,8 @@ interface ParsedAttributeValue {
 }
 
 interface ParsedDeploymentAction {
+  readonly alias?: SourcePosition & { readonly id: string };
+  readonly shareOwner?: SourcePosition & { readonly id: string };
   readonly routeEnvironment?: SourcePosition & { readonly id: string };
   readonly sourceName: string;
   readonly ownerId: string;
@@ -300,6 +308,8 @@ interface WireDeploymentCoverage {
 }
 
 interface DeploymentExpansionContext {
+  readonly bindingsByOwner: Map<string, DeploymentUse[]>;
+  readonly pendingShares: { owner: ParsedElement; action: ParsedDeploymentAction }[];
   readonly nestedSlots: Map<string, ResolvedReferenceValue[]>;
   readonly sourceElementsBySourceAndLocalId: ReadonlyMap<string, ParsedElement>;
   readonly elementsByContextAndLocalId: ReadonlyMap<string, readonly ParsedElement[]>;
@@ -310,7 +320,7 @@ interface DeploymentExpansionContext {
   readonly typeSystem: TypeSystem;
   readonly diagnostics: LanguageDiagnostic[];
   readonly elements: ParsedElement[];
-  cloneId(owner: ParsedElement, source: ParsedElement, action: ParsedDeploymentAction): string;
+  cloneId(owner: ParsedElement, source: ParsedElement, action: ParsedDeploymentAction, deploymentId?: string): string;
 }
 
 interface DeploymentUse {
@@ -534,6 +544,8 @@ function createLinkingWorkspace(
     }
   });
   const deploymentContext: DeploymentExpansionContext = {
+    bindingsByOwner: new Map(),
+    pendingShares: [],
     nestedSlots: new Map(),
     sourceElementsBySourceAndLocalId,
     elementsByContextAndLocalId,
@@ -544,7 +556,11 @@ function createLinkingWorkspace(
     typeSystem,
     diagnostics,
     elements,
-    cloneId(owner, source, action) {
+    cloneId(owner, source, action, deploymentId) {
+      if (action.alias) {
+        const key = syntheticLinkedLocalId("named-deployment-clone", [owner.id, deploymentId ?? "", source.id, action.alias.id]);
+        return `${owner.context}/${key}`;
+      }
       return `${owner.context}/${syntheticLinkedLocalId("deployment-clone", [
         owner.id,
         source.id,
@@ -625,6 +641,9 @@ function resolveDeploymentStage(workspace: LinkingWorkspace): void {
     if (Object.keys(computedSemanticAttributeNames).length > 0) {
       computedElementSemanticAttributeNames.set(element.id, computedSemanticAttributeNames);
     }
+    if (application.uses.length) {
+      element.deploymentUseNames = shareableNames(deploymentContext.bindingsByOwner.get(element.id) ?? []);
+    }
     resolvedElementAttributes.set(
       element.id,
       mergeResolvedReferenceAttributes(resolvedElementAttributes.get(element.id) ?? {}, {
@@ -634,6 +653,123 @@ function resolveDeploymentStage(workspace: LinkingWorkspace): void {
       }, new Set([placementAttribute])),
     );
   }
+  for (const { owner, action } of deploymentContext.pendingShares) resolveSharedUse(owner, action, workspace);
+}
+
+// A system and its containers are alternative physical owners. Check the
+// declarations after extensions are merged, regardless of resolved placement.
+function checkDeploymentOwnership(workspace: LinkingWorkspace): Set<string> {
+  const coveredByOtherLevel = new Set<string>();
+  const { typeSystem, linkedElementsById, diagnostics } = workspace;
+  for (const child of workspace.elements) {
+    if (!typeSystem.typeHasCapability(child.type, TYPE_CAPABILITIES.deploymentEndpoint)) continue;
+    const parent = ancestorWithCapability(
+      child.parent === undefined ? undefined : linkedElementsById.get(child.parent),
+      linkedElementsById, typeSystem, TYPE_CAPABILITIES.deploymentBoundary,
+    );
+    if (!parent) continue;
+    const systemAction = parent.deploymentActions[0];
+    const childAction = child.deploymentActions[0];
+    if (systemAction && childAction) {
+      diagnostics.push({
+        level: "ERROR", code: "DEPLOYMENT_OWNERSHIP_CONFLICT",
+        message: `Container '${child.id}' declares deployment actions, but its system '${parent.id}' already declares deployment at ${systemAction.sourceName}:${systemAction.line}:${systemAction.column}. Choose one deployment level for this system.`,
+        sourceName: childAction.sourceName, line: childAction.line, column: childAction.column,
+        endLine: childAction.targetEndLine ?? childAction.targetLine,
+        endColumn: childAction.targetEndColumn ?? childAction.targetColumn + childAction.targetId.length,
+      });
+    } else if (systemAction) {
+      coveredByOtherLevel.add(child.id);
+    } else if (childAction) {
+      coveredByOtherLevel.add(parent.id);
+    }
+  }
+  return coveredByOtherLevel;
+}
+
+function shareableNames(bindings: readonly DeploymentUse[]): string[] {
+  const names = new Set<string>();
+  const ambiguous = new Set<string>();
+  const occurrences = new Set<string>();
+  for (const { action, deploymentId } of bindings) {
+    const alias = action.alias?.id;
+    for (const name of alias && alias !== action.targetId ? [alias, action.targetId] : [action.targetId]) {
+      names.add(name);
+      const key = `${deploymentId ?? ""}\0${name}`;
+      if (occurrences.has(key)) ambiguous.add(name);
+      occurrences.add(key);
+    }
+  }
+  return [...names].filter((name) => !ambiguous.has(name));
+}
+
+function shareDeployments(element: ParsedElement, context: DeploymentExpansionContext): readonly ParsedElement[] {
+  const deployments = context.effectiveDeploymentsByElementId.get(element.id);
+  if (deployments?.length) return deployments;
+  const placement = context.typeSystem.attributeWithCapability(element.type, ATTRIBUTE_CAPABILITIES.placementOwner)?.name ?? RUNS_ON_ATTRIBUTE;
+  return mergeUniqueElements([], (context.resolvedElementAttributes.get(element.id)?.[placement] ?? []).flatMap((value) => {
+    const inventory = value.element?.cloneOf ? context.linkedElementsById.get(value.element.cloneOf) : value.element;
+    const deployment = inventory && ancestorWithCapability(inventory, context.linkedElementsById, context.typeSystem, TYPE_CAPABILITIES.deployment);
+    return deployment ? [deployment] : [];
+  }));
+}
+
+function resolveSharedUse(consumer: ParsedElement, action: ParsedDeploymentAction, workspace: LinkingWorkspace): void {
+  const context = workspace.deploymentContext;
+  const reference = action.shareOwner!;
+  const provider = lookupElementReference(reference.id, undefined, action.sourceName, consumer.context,
+    context.sourceElementsBySourceAndLocalId, context.elementsByContextAndLocalId, context.importsBySourceAndAlias);
+  const report = (message: string, atOwner = false) => context.diagnostics.push({
+    code: "SHARED_INFRASTRUCTURE_UNRESOLVED", message, sourceName: action.sourceName,
+    ...(atOwner ? diagnosticPosition(reference) : diagnosticPosition({ line: action.targetLine, column: action.targetColumn,
+      endLine: action.targetEndLine ?? action.targetLine, endColumn: action.targetEndColumn ?? action.targetColumn + action.targetId.length })),
+  });
+  if (!provider) {
+    report(`Unknown infrastructure owner '${reference.id}'`, true);
+    return;
+  }
+  (consumer.sharedInfrastructureOwners ??= []).push(provider.id);
+  const placements = shareDeployments(consumer, context);
+  if (!placements.length) {
+    report(`Cannot resolve shared infrastructure without a deployment for '${consumer.localId}'`);
+    return;
+  }
+  const providerPlacements = new Set(shareDeployments(provider, context).map((item) => item.id));
+  const byPlacement = new Map<string | undefined, DeploymentUse[]>();
+  for (const binding of context.bindingsByOwner.get(provider.id) ?? []) {
+    if (binding.action.targetId !== action.targetId && binding.action.alias?.id !== action.targetId) continue;
+    const entries = byPlacement.get(binding.deploymentId);
+    if (entries) entries.push(binding);
+    else byPlacement.set(binding.deploymentId, [binding]);
+  }
+  const concrete = byPlacement.get(undefined) ?? [];
+  const shared: ResolvedReferenceValue[] = [];
+  for (const placement of placements) {
+    if (!providerPlacements.has(placement.id)) {
+      report(`Owner '${reference.id}' is not deployed in '${placement.id}'`, true);
+      continue;
+    }
+    const matches = [...concrete, ...(byPlacement.get(placement.id) ?? [])];
+    if (matches.length !== 1) {
+      report(matches.length ? `Ambiguous binding '${action.targetId}' on '${reference.id}' in '${placement.id}'; give each use an alias and share that alias`
+        : `Owner '${reference.id}' has no binding '${action.targetId}' in '${placement.id}'`);
+      continue;
+    }
+    const use = matches[0]!;
+    if (!context.typeSystem.operatorConstructor(action.operator, action.ownerType, use.element.type, action.expectedType)) {
+      report(`Operator '${action.operator}' cannot share '${action.targetId}' of type '${use.element.type}'`);
+      continue;
+    }
+    shared.push(resolvedValueForDeploymentUse({ ...use, action, deploymentId: placement.id }));
+  }
+  if (!shared.length) return;
+  const capability = ATTRIBUTE_CAPABILITIES.infrastructureUses;
+  const attribute = context.typeSystem.attributeWithCapability(consumer.type, capability)?.name ?? USES_ATTRIBUTE;
+  context.resolvedElementAttributes.set(consumer.id, mergeResolvedReferenceAttributes(
+    context.resolvedElementAttributes.get(consumer.id) ?? {}, { [attribute]: shared }));
+  workspace.computedElementSemanticAttributeNames.set(consumer.id, {
+    ...workspace.computedElementSemanticAttributeNames.get(consumer.id), [capability]: attribute });
+  workspace.deployedElementIds.add(consumer.id);
 }
 
 function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void {
@@ -811,8 +947,9 @@ function completeLinkingPipeline(
     buildIndexedGraph(documents, elements, imports, linkedEdges, typeSystem)
   );
   const graphElements = elements.filter(isGraphElement);
+  const coveredByOtherLevel = checkDeploymentOwnership(workspace);
   measureLinkPhase(profiler, "link.complete.inspect-graph", () =>
-    inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, typeSystem, deployedElementIds, wireDeploymentCoverage, diagnostics)
+    inspectGraph(graph, graphElements, linkedEdges, resolvedElementAttributes, typeSystem, deployedElementIds, wireDeploymentCoverage, coveredByOtherLevel, diagnostics)
   );
   measureLinkPhase(profiler, "link.complete.validate-icons", () =>
     validateIconAnnotations(elements, linkedEdges, diagnostics)
@@ -981,7 +1118,11 @@ function linkedElementSnapshot(
     declaration: sourceLocation(element.sourceName, element),
     ...(element.anonymous ? { anonymous: true } : {}),
     ...(element.synthetic ? { synthetic: true } : {}),
+    ...(element.sharedInfrastructureOwners && { sharedInfrastructureOwners: element.sharedInfrastructureOwners }),
+    ...(element.deploymentUseNames && { deploymentUseNames: element.deploymentUseNames }),
+    ...(element.binding && { binding: element.binding, bindingOwner: element.bindingOwner! }),
     ...(element.cloneOf === undefined ? {} : { cloneOf: element.cloneOf }),
+    ...(element.infrastructureEnvironment && { infrastructureEnvironment: element.infrastructureEnvironment }),
     ...(element.parent === undefined ? {} : { parent: element.parent }),
     baseTypes: typeSystem.baseTypes(element.type),
     ...(capabilities.length === 0 ? {} : { capabilities }),
@@ -1466,6 +1607,12 @@ function collectListInvocation(
   const diagnostic = operatorInvocationDiagnostic(invocation, ownerType, expectedType, typeSystem, document.sourceName);
   if (diagnostic !== undefined) {
     document.diagnostics.push(diagnostic);
+    return true;
+  }
+  if (invocation.anonymousImport && typeSystem.operatorConstructorsFrom(ownerType, expectedType)
+      .some((op) => op.spelling === invocation.operator.getText() && typeSystem.operatorHasCapability(op, OPERATOR_CAPABILITIES.deploymentShare))) {
+    const action = buildDeploymentAction(node, owner, ownerType, expectedType, document, typeSystem);
+    if (action) deploymentActions.push(action);
     return true;
   }
   if (typeSystem.isAssignable(expectedType, EDGE)) {
@@ -2234,6 +2381,10 @@ function buildDeploymentAction(
   const environment = syntax?.environmentQualifier && firstChild(syntax.environmentQualifier, "environmentReference");
   const body = firstChild(invocation, "objectBody");
   const operator = syntax!.operator.getText();
+  const qualifier = anonymousImport && firstChild(anonymousImport, "contextReference");
+  const shareOwner = qualifier && typeSystem.operatorConstructorsFrom(ownerType, expectedType).some((candidate) =>
+    candidate.spelling === operator && typeSystem.operatorHasCapability(candidate, OPERATOR_CAPABILITIES.deploymentShare))
+    ? qualifier : undefined;
   if (body !== undefined) {
     collectDeploymentActionAttributes(body, owner, operator, attributes, referenceAttributePositions, scalarAttributes, scalarAttributePositions, assignedScalarAttributes, document, typeSystem);
   }
@@ -2245,7 +2396,9 @@ function buildDeploymentAction(
     operator,
     targetId: targetReference.getText(),
     ...(environment === undefined ? {} : { routeEnvironment: { id: environment.getText(), ...position(environment, document.sourceName) } }),
-    ...(anonymousImport === undefined ? {} : { targetContext: firstChild(anonymousImport, "contextReference")?.getText() ?? "" }),
+    ...(syntax?.alias && { alias: { id: syntax.alias.getText(), ...position(syntax.alias, document.sourceName) } }),
+    ...(shareOwner ? { shareOwner: { id: shareOwner.getText(), ...position(shareOwner, document.sourceName) } }
+      : qualifier ? { targetContext: qualifier.getText() } : {}),
     targetLine: targetPosition.line,
     targetColumn: targetPosition.column,
     ...(targetPosition.endLine === undefined ? {} : { targetEndLine: targetPosition.endLine }),
@@ -2928,10 +3081,19 @@ function resolveDeploymentApplication(
   for (const action of actions) {
     applyDeploymentAction(owner, action, false, wire, state, context);
   }
+  const uses = [...state.usesByKey.values()];
+  const bindings = context.bindingsByOwner.get(owner.id);
+  if (bindings && bindings.length !== uses.length) {
+    // Replaced profile defaults are private to that profile. Preserve repeated
+    // declarations of the same effective slot so a shorthand share is diagnosed.
+    const origin = (use: DeploymentUse) => `${use.deploymentId ?? ""}\0${use.action.targetId}\0${use.inherited}`;
+    const effective = new Set(uses.map(origin));
+    context.bindingsByOwner.set(owner.id, bindings.filter((binding) => effective.has(origin(binding))));
+  }
   return {
     deployments: state.deployments,
     runsOn: state.runsOn,
-    uses: [...state.usesByKey.values()],
+    uses,
   };
 }
 
@@ -2944,6 +3106,10 @@ function applyDeploymentAction(
   context: DeploymentExpansionContext,
   resolutionDeployments: readonly ParsedElement[] = state.deployments,
 ): void {
+  if (action.shareOwner) {
+    context.pendingShares.push({ owner, action });
+    return;
+  }
   const target = lookupElementReference(
     action.targetId,
     action.targetContext,
@@ -2972,6 +3138,11 @@ function applyDeploymentAction(
       });
       return;
     }
+    if (action.alias) {
+      context.diagnostics.push({ code: "TYPE_MISMATCH", message: "Only an infrastructure use can declare a binding alias",
+        sourceName: action.sourceName, ...diagnosticPosition(action.alias) });
+      return;
+    }
     applyDeploymentProfile(owner, action, target, wire, state, context);
     return;
   }
@@ -2997,6 +3168,14 @@ function applyDeploymentAction(
     }
     return;
   }
+  const bindings = context.bindingsByOwner.get(owner.id) ?? [];
+  const alias = action.alias;
+  if (alias && bindings.some((binding) => binding.action.alias?.id === alias.id)) {
+    context.diagnostics.push({ code: "DUPLICATE_IDENTIFIER",
+      message: `Deployment binding '${alias.id}' is already declared for '${owner.localId}'`,
+      sourceName: action.sourceName, ...diagnosticPosition(alias) });
+    return;
+  }
   const selected = resolveDeploymentInfrastructure(owner, action, target, resolutionDeployments, inherited, wire, context);
   for (const item of selected) {
     if (wire && !context.typeSystem.typeHasCapability(item.element.type, TYPE_CAPABILITIES.networkConnection)) {
@@ -3018,7 +3197,11 @@ function applyDeploymentAction(
       state.runsOn.push(use);
       continue;
     }
-    state.usesByKey.set(deploymentUseKey(item.element, item.deploymentId, target, context.typeSystem), use);
+    bindings.push(use);
+    context.bindingsByOwner.set(owner.id, bindings);
+    const key = action.alias ? JSON.stringify([action.alias.id, item.element.id, item.deploymentId])
+      : deploymentUseKey(item.element, item.deploymentId, target, context.typeSystem);
+    state.usesByKey.set(key, use);
   }
 }
 
@@ -3195,7 +3378,7 @@ function materializeInfrastructureUse(
     };
   }
   const cloneMap = new Map<string, ParsedElement>();
-  const root = cloneInfrastructureElement(owner, source, action, context, cloneMap, undefined, true);
+  const root = cloneInfrastructureElement(owner, source, action, context, cloneMap, undefined, true, deploymentId);
   return {
     element: root,
     ...(deploymentId === undefined ? {} : { deploymentId }),
@@ -3216,12 +3399,13 @@ function cloneInfrastructureElement(
   cloneMap: Map<string, ParsedElement>,
   parentId: string | undefined,
   root: boolean,
+  deploymentId?: string,
 ): ParsedElement {
   const existing = cloneMap.get(source.id);
   if (existing !== undefined) {
     return existing;
   }
-  const id = context.cloneId(owner, source, action);
+  const id = context.cloneId(owner, source, action, deploymentId);
   const localId = id.slice(id.lastIndexOf("/") + 1);
   const clone: ParsedElement = {
     ...source,
@@ -3232,6 +3416,8 @@ function cloneInfrastructureElement(
     anonymous: true,
     synthetic: true,
     cloneOf: source.cloneOf ?? source.id,
+    ...(root && action.alias && { binding: action.alias.id, bindingOwner: owner.id }),
+    infrastructureEnvironment: context.linkedElementsById.get(deploymentId ?? "")?.context ?? source.context,
     ...(parentId === undefined ? { parent: owner.id } : { parent: parentId }),
     scalarAttributes: {
       ...source.scalarAttributes,
@@ -3263,7 +3449,7 @@ function cloneInfrastructureElement(
             && !context.typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.projection))) {
         return value;
       }
-      const child = cloneInfrastructureElement(owner, value.element, action, context, cloneMap, clone.id, false);
+      const child = cloneInfrastructureElement(owner, value.element, action, context, cloneMap, clone.id, false, deploymentId);
       return remapResolvedValue(value, child);
     });
   }
@@ -3518,7 +3704,7 @@ function expandComponentProjectionStage(workspace: LinkingWorkspace): void {
     const slotName = owner.slotName;
     const endpointDeployments = workspace.elements.filter((element) => {
       if (!workspace.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deployment)) return false;
-      if (deploymentAncestor(owner, workspace.linkedElementsById, workspace.typeSystem)?.id === element.id) return true;
+      if (ancestorWithCapability(owner, workspace.linkedElementsById, workspace.typeSystem, TYPE_CAPABILITIES.deployment)?.id === element.id) return true;
       return slotName !== undefined && deploymentSlotValues(element, slotName, workspace.deploymentContext)
         .some((value) => value.element !== undefined
           && (workspace.typeSystem.isAssignable(value.element.type, owner.type)
@@ -3970,8 +4156,11 @@ function infrastructureProjectionEndpoint(
   workspace: LinkingWorkspace,
   term: ProjectionTermDefinition,
 ): ParsedElement | undefined {
-  const ownerDeployment = deploymentAncestor(endpoint.element, workspace.linkedElementsById, workspace.typeSystem);
+  const ownerDeployment = ancestorWithCapability(endpoint.element, workspace.linkedElementsById, workspace.typeSystem, TYPE_CAPABILITIES.deployment);
   if (ownerDeployment?.id === deployment.id) return endpoint.element;
+  if (endpoint.element.cloneOf && endpoint.element.infrastructureEnvironment === deployment.context
+      && deploymentSlotValues(deployment, endpoint.slotName ?? "", workspace.deploymentContext)
+        .some((value) => value.id === endpoint.element.cloneOf)) return endpoint.element;
   const slotName = endpoint.slotName;
   const candidates = slotName === undefined ? [] : deploymentSlotValues(deployment, slotName, workspace.deploymentContext)
     .flatMap((value) => value.element === undefined ? [] : [value.element])
@@ -3990,15 +4179,16 @@ function infrastructureProjectionEndpoint(
   return candidates[0];
 }
 
-function deploymentAncestor(
-  element: ParsedElement,
+function ancestorWithCapability(
+  element: ParsedElement | undefined,
   elementsById: ReadonlyMap<string, ParsedElement>,
   typeSystem: TypeSystem,
+  capability: string,
 ): ParsedElement | undefined {
   const visited = new Set<string>();
-  let current: ParsedElement | undefined = element;
+  let current = element;
   while (current !== undefined && !visited.has(current.id)) {
-    if (typeSystem.typeHasCapability(current.type, TYPE_CAPABILITIES.deployment)) return current;
+    if (typeSystem.typeHasCapability(current.type, capability)) return current;
     visited.add(current.id);
     current = current.parent === undefined ? undefined : elementsById.get(current.parent);
   }
@@ -4600,34 +4790,6 @@ function mergeProjectedEdge(
   };
 }
 
-function uniqueProjectionOrigins(origins: readonly ProjectionOrigin[]): readonly ProjectionOrigin[] {
-  const seen = new Set<string>();
-  const result: ProjectionOrigin[] = [];
-  for (const origin of origins) {
-    const key = projectionOriginKey(origin);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    result.push(origin);
-  }
-  return result;
-}
-
-function projectionOriginKey(origin: ProjectionOrigin): string {
-  const declaration = origin.declaration;
-  return [
-    origin.source,
-    origin.target,
-    origin.sourceIdentity ?? "",
-    declaration?.sourceName ?? "",
-    declaration?.line ?? "",
-    declaration?.column ?? "",
-    declaration?.endLine ?? "",
-    declaration?.endColumn ?? "",
-  ].join("\0");
-}
-
 function mergeAttributeValues(
   base: Readonly<Record<string, readonly string[]>> | undefined,
   override: Readonly<Record<string, readonly string[]>>,
@@ -5222,6 +5384,7 @@ function inspectGraph(
   typeSystem: TypeSystem,
   deployedElementIds: ReadonlySet<string>,
   wireDeploymentCoverage: readonly WireDeploymentCoverage[],
+  coveredByOtherLevel: ReadonlySet<string>,
   diagnostics: LanguageDiagnostic[],
 ): void {
   if (diagnostics.some((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")) {
@@ -5235,6 +5398,7 @@ function inspectGraph(
     typeSystem,
     deployedElementIds,
     wireDeploymentCoverage,
+    coveredByOtherLevel,
     diagnostics,
   };
   for (const rule of LINK_INTROSPECTION_RULES) {
@@ -5249,6 +5413,7 @@ interface LinkIntrospectionContext {
   readonly resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>;
   readonly typeSystem: TypeSystem;
   readonly deployedElementIds: ReadonlySet<string>;
+  readonly coveredByOtherLevel: ReadonlySet<string>;
   readonly wireDeploymentCoverage: readonly WireDeploymentCoverage[];
   readonly diagnostics: LanguageDiagnostic[];
 }
@@ -5262,8 +5427,8 @@ const LINK_INTROSPECTION_RULES: readonly LinkIntrospectionRule[] = [
     reportIsolatedElements(graph, elements, edges, resolvedElementAttributes, diagnostics),
   ({ graph, edges, diagnostics }) => reportShadowedLowerLevelEdges(graph, edges, diagnostics),
   ({ wireDeploymentCoverage, diagnostics }) => reportIncompleteWireDeployments(wireDeploymentCoverage, diagnostics),
-  ({ elements, typeSystem, deployedElementIds, diagnostics }) =>
-    reportIncompleteElementDeployments(elements, typeSystem, deployedElementIds, diagnostics),
+  ({ elements, typeSystem, deployedElementIds, coveredByOtherLevel, diagnostics }) =>
+    reportIncompleteElementDeployments(elements, typeSystem, deployedElementIds, coveredByOtherLevel, diagnostics),
 ];
 
 function reportDuplicateDeploymentProfileMembers(
@@ -5335,6 +5500,7 @@ function reportIncompleteElementDeployments(
   elements: readonly ParsedElement[],
   typeSystem: TypeSystem,
   deployedElementIds: ReadonlySet<string>,
+  coveredByOtherLevel: ReadonlySet<string>,
   diagnostics: LanguageDiagnostic[],
 ): void {
   const candidates = elements.flatMap((element) => {
@@ -5345,7 +5511,7 @@ function reportIncompleteElementDeployments(
     .filter(({ element }) => element.deploymentActions.length > 0)
     .map(({ family }) => family));
   for (const { element, family } of candidates) {
-    if (!activeFamilies.has(family) || deployedElementIds.has(element.id)) {
+    if (!activeFamilies.has(family) || deployedElementIds.has(element.id) || coveredByOtherLevel.has(element.id)) {
       continue;
     }
     diagnostics.push({

@@ -22,6 +22,7 @@ export interface ProjectStructureDeclaration extends ProjectStructureLocation {
   readonly constructor: string;
   readonly type?: string;
   readonly synthetic?: boolean;
+  readonly deploymentUseNames?: readonly string[];
   readonly deploymentEnvironments?: readonly string[];
   readonly documentation?: CompletionDocumentation;
   readonly children: readonly ProjectStructureDeclaration[];
@@ -136,9 +137,10 @@ export function filterTypeHierarchy(
 
 export function completionDeploymentEnvironments(element: LinkedElement) {
   const deployments = element.attributes.appliesTo;
-  return deployments?.length ? {
-    deploymentEnvironments: [...new Set(deployments.map((id) => id.split("/", 1)[0]!))],
-  } : {};
+  return {
+    ...(element.deploymentUseNames && { deploymentUseNames: element.deploymentUseNames }),
+    ...(deployments?.length && { deploymentEnvironments: [...new Set(deployments.map((id) => id.split("/", 1)[0]!))] }),
+  };
 }
 
 function elementDeclarations(

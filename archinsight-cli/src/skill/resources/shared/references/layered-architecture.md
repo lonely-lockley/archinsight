@@ -118,8 +118,9 @@ deploymentProfile production_service
         production from eu
 ```
 
-Attach placement and infrastructure usage to systems or containers, including
-services. Components and code deploy as part of their container and cannot own
+Choose one deployment level per system. Attach placement and infrastructure usage
+to the whole system or to its individual containers (including services). Declaring
+deployment actions at both levels in the same system is a linking error. Components and code deploy as part of their container and cannot own
 core deployment actions. Attach network paths to the logical wires that use
 them; those wires may be owned by components or actors too.
 

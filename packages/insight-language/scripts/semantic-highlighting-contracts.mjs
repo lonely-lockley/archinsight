@@ -10,6 +10,7 @@ const cases = [
   highlightsSameTextByParserContext,
   highlightsOperatorsAndConstructorsByRuleContext,
   highlightsProjectionTermsByRuleContext,
+  highlightsSharedDeploymentBindings,
   highlightsContextDeclarationWhileTyping,
   highlightsEnvironmentDeclarationAndImports,
   highlightsAbstractTypeModifier,
@@ -32,6 +33,19 @@ if (failures > 0) {
   process.exitCode = 1;
 } else {
   console.log("semantic highlighting contract fixtures passed");
+}
+
+function highlightsSharedDeploymentBindings() {
+  const tokens = tokensByText(`context demo
+system example
+    deployment:
+        uses storage as orderLedger
+        shares ledger from billing
+`);
+  assertToken(tokens, "orderLedger", "variable", ["declaration"]);
+  assertToken(tokens, "shares", "operator");
+  assertToken(tokens, "ledger", "variable");
+  assertToken(tokens, "billing", "variable");
 }
 
 function highlightsSameTextByParserContext() {

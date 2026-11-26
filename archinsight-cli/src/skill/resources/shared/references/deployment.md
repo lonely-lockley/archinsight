@@ -62,7 +62,37 @@ system commerce
 
 `appliesTo` contains concrete `Deployment` references, not environments. Every selected deployment must supply compatible values for every referenced slot. Profiles may overlap in environment but not in the same concrete deployment when applied to one element.
 
+Choose one deployment owner level per system. Deploy the system as a whole or deploy its individual containers and services. Mixing levels, even through an extension or in disjoint environments, produces `DEPLOYMENT_OWNERSHIP_CONFLICT`. Wire routes belong to the relationship and can be selected at either level.
+
 Components and code inherit the deployment of their containing service or container. Do not add core deployment actions to them.
+
+## Sharing physical infrastructure
+
+- Use a bare slot in a shared profile (`uses database`) for one inventory database per deployment. Use a concrete inventory reference (`uses postgres from central`) to pin a common database across deployments.
+- For one customized instance per owner and deployment, declare `uses database as orderLedger` on the provider and put overrides there. At the consumer write `shares orderLedger from orders`. Resolve `orders` as a visible system or container, including an imported alias. A profile may supply a named use to its consuming owner.
+- Name a database binding for the data the cluster holds. Model primary and replica nodes and their replication links in the cluster’s infrastructure projection when the deployment view needs that detail.
+- For one use of a slot, `shares database from orders` is sufficient. Give repeated uses distinct aliases. Equal display names carry no identity.
+- For a database shared by sibling containers, put the aliased use on one container and reference it from its siblings. A system deployed as a whole can own a binding for consumers in other systems.
+- For customized resources, filter AIQ by `db.binding` (alias) and `db.bindingOwner` (canonical owner id). Match consumers with `db IN service.uses`; `db.cloneOf` identifies the original inventory instance.
+- Check every concrete consumer deployment. Missing provider placement, missing binding and ambiguous binding are linking errors. Apply both profiles and inspect D2 for each environment. Keep deployment infrastructure out of C2.
+
+```insight
+system commerce
+    name = Commerce
+
+    service orders
+        name = Orders
+        deployment:
+            uses regional
+            uses database as orderLedger
+                name = Order ledger cluster
+
+    service billing
+        name = Billing
+        deployment:
+            uses regional
+            shares orderLedger from orders
+```
 
 ## Relationship routes
 

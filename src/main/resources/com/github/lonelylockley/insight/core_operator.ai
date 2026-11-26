@@ -26,6 +26,12 @@ define operator InfrastructureUse of DeploymentAction
 
     capability = "deployment-use"
 
+define operator InfrastructureShare of DeploymentAction
+    constructor shares InfrastructureComponent
+        on System or ContainerElement
+
+    capability = "deployment-share"
+
 define operator InfrastructurePlacement of DeploymentAction
     constructor runsOn InfrastructureComponent
         on DeploymentProfile or System or ContainerElement

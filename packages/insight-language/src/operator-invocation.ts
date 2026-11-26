@@ -8,6 +8,7 @@ export interface OperatorInvocationSyntax<T extends AntlrParseTreeLike = AntlrPa
   readonly target: T | undefined;
   readonly body: T | undefined;
   readonly environmentQualifier: T | undefined;
+  readonly alias: T | undefined;
   readonly anonymousImport: T | undefined;
   readonly prefix: boolean;
 }
@@ -29,7 +30,7 @@ export function readOperatorInvocation<T extends AntlrParseTreeLike>(
   const target = reference ? undefined : prefix !== undefined
     ? child("elementConstructor")
     : child("identifierReference") ?? child("identifierDeclaration");
-  return { operator, target, body: child("objectBody"), anonymousImport, environmentQualifier: child("routeEnvironmentQualifier"), prefix: prefix !== undefined };
+  return { operator, target, alias: child("importAlias"), body: child("objectBody"), anonymousImport, environmentQualifier: child("routeEnvironmentQualifier"), prefix: prefix !== undefined };
 }
 
 export function isOperatorInvocation(
@@ -63,6 +64,18 @@ export function operatorInvocationDiagnostic(
       message: "Only a wire route selection accepts an environment qualifier",
       ...sourceLocationOf(invocation.environmentQualifier, sourceName),
     };
+  }
+  const hasCapability = (capability: string) => candidates.some((operator) =>
+    operator.spelling === spelling && typeSystem.operatorHasCapability(operator, capability));
+  if (compatible && invocation.alias && !hasCapability(OPERATOR_CAPABILITIES.deploymentUse)) {
+    return { code: "TYPE_MISMATCH", message: "Only an infrastructure use can declare a binding alias",
+      ...sourceLocationOf(invocation.alias, sourceName) };
+  }
+  if (compatible && hasCapability(OPERATOR_CAPABILITIES.deploymentShare)) {
+    if (!invocation.anonymousImport) return { code: "IDENTIFIER_REQUIRED",
+      message: "A shared binding requires 'from <owner>'", ...sourceLocationOf(invocation.operator, sourceName) };
+    if (invocation.body) return { code: "TYPE_MISMATCH", message: "Set infrastructure overrides on the owning use",
+      ...sourceLocationOf(invocation.body, sourceName) };
   }
   if (compatible && invocation.target !== undefined) return undefined;
   if (!compatible && spelling === "uses" && candidates.some((operator) =>

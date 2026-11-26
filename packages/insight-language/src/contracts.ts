@@ -205,6 +205,8 @@ export interface LinkedContext {
 }
 
 export interface LinkedElement {
+  readonly sharedInfrastructureOwners?: readonly string[];
+  readonly deploymentUseNames?: readonly string[];
   readonly id: string;
   readonly context: string;
   readonly localId: string;
@@ -215,6 +217,9 @@ export interface LinkedElement {
   readonly anonymous?: boolean;
   readonly synthetic?: boolean;
   readonly cloneOf?: string;
+  readonly binding?: string;
+  readonly bindingOwner?: string;
+  readonly infrastructureEnvironment?: string;
   readonly parent?: string;
   readonly baseTypes: readonly string[];
   readonly capabilities?: readonly string[];
@@ -444,6 +449,7 @@ export interface RenderGraph {
 }
 
 export interface VisibleIdentifier {
+  readonly deploymentUseNames?: readonly string[];
   readonly deploymentEnvironments?: readonly string[];
   readonly label: string;
   readonly type?: string;

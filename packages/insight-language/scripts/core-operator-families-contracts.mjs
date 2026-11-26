@@ -84,6 +84,8 @@ for (const [header, ownerType, list, expectedType, indent] of [
   const completion = engine.complete({ sourceName: "model.ai", source: before + indent,
     cursorOffset: before.length + indent.length, snapshot });
   const expectedOperators = operators.filter(([, , family]) => expectedType === "Edge" || family === expectedType).map(([spelling]) => spelling).sort();
+  if (ownerType === "System" && expectedType !== "Wire") expectedOperators.push("shares");
+  expectedOperators.sort();
   assert.deepEqual(completion.items.filter(({ kind }) => kind === "OPERATOR").map(({ label }) => label).sort(), expectedOperators);
   for (const [spelling, target, family] of operators) {
     const valid = expectedType === "Edge" || family === expectedType;

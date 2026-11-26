@@ -1,9 +1,11 @@
+import { uniqueProjectionOrigins } from "./projection-origin.js";
 import type {
   DeploymentEnvironment,
   LinkedContext,
   LinkedEdge,
   LinkedElement,
   LinkProjectResult,
+  ProjectionOrigin,
   QueryScope,
   RenderGraph,
   RenderGraphEdge,
@@ -531,8 +533,9 @@ export function discoverDeploymentEnvironments(
       ...semanticAttribute(element, ATTRIBUTE_CAPABILITIES.infrastructureUses),
     ]) {
       const target = elementsById.get(targetId);
-      if (target !== undefined && target.context !== element.context) {
-        environmentIds.add(target.context);
+      const environment = target?.infrastructureEnvironment ?? target?.context;
+      if (environment !== undefined && environment !== element.context) {
+        environmentIds.add(environment);
       }
     }
   }
@@ -791,6 +794,14 @@ function applyDeploymentEnvironmentScope(
   const sourceElements = context.tabClosure;
   const groups = graph.groups.filter((group) => elementEnvironment(group.owner, elementsById) === environment);
   const selectedIds = new Set(groups.flatMap((group) => [group.owner, ...group.elements]));
+  // A deployment use can select infrastructure without projecting a wire.
+  // Keep the resources of the visible placements that the query returned.
+  for (const id of [...selectedIds]) {
+    const owner = elementsById.get(baseOccurrenceId(id));
+    for (const use of semanticAttribute(owner, ATTRIBUTE_CAPABILITIES.infrastructureUses)) {
+      if (graph.elements[use] && elementEnvironment(use, elementsById) === environment) selectedIds.add(use);
+    }
+  }
   const candidateEdges = graph.edges.filter((edge) => deploymentEdgeInEnvironment(edge, environment, elementsById));
   const edges = candidateEdges.filter((edge) => {
     const sourceAllowed = deploymentEndpointAllowed(edge.source, environment, elementsById);
@@ -878,17 +889,25 @@ function elementEnvironment(
   id: string,
   elementsById: ReadonlyMap<string, LinkedElement>,
 ): string | undefined {
-  return elementsById.get(baseOccurrenceId(id))?.context;
+  const element = elementsById.get(baseOccurrenceId(id));
+  return element?.infrastructureEnvironment ?? element?.context;
 }
 
 function baseOccurrenceId(id: string): string {
   return parseDiagramOccurrenceId(id).canonicalId;
 }
 
+function deploymentSystemAncestor(
+  id: string, rootType: string, elementsById: ReadonlyMap<string, LinkedElement>, parentByChild: ReadonlyMap<string, string>,
+): string | undefined {
+  const base = baseOccurrenceId(id);
+  if (elementHasCapability(elementsById.get(base), TYPE_CAPABILITIES.infrastructure)) return undefined;
+  return lineage(base, parentByChild).find((candidate) => elementHasType(elementsById.get(candidate), rootType));
+}
+
 function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph, rootType: string): RenderGraph {
   const { elementsById, parentByChild } = context;
-  const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), rootType));
+  const systemFor = (id: string) => deploymentSystemAncestor(id, rootType, elementsById, parentByChild);
   const fold = (id: string): string => {
     const system = systemFor(id);
     if (system === undefined) {
@@ -1017,8 +1036,7 @@ function simplifyDeploymentSystemInfrastructure(
     }
   }
 
-  const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), rootType));
+  const systemFor = (id: string) => deploymentSystemAncestor(id, rootType, elementsById, parentByChild);
   for (const source of Object.keys(graph.elements)) {
     if (retained.has(source) || (incoming.get(source)?.length ?? 0) > 0) {
       continue;
@@ -1128,9 +1146,10 @@ function simplifyDeploymentSystemInfrastructure(
     if (occurrenceEnvironment !== undefined) {
       environments.add(occurrenceEnvironment);
     }
+    const infrastructureEnvironment = element?.infrastructureEnvironment ?? element?.context;
     if (environments.size === 0 && elementHasCapability(element, TYPE_CAPABILITIES.infrastructure)
-        && environmentRootByContext.has(element?.context ?? "")) {
-      environments.add(element!.context);
+        && infrastructureEnvironment && environmentRootByContext.has(infrastructureEnvironment)) {
+      environments.add(infrastructureEnvironment);
     }
     for (const environment of environments) {
       const members = groupMembersByEnvironment.get(environment) ?? [];
@@ -1146,10 +1165,40 @@ function simplifyDeploymentSystemInfrastructure(
   return {
     ...graph,
     elements: Object.fromEntries(Object.entries(graph.elements).filter(([id]) => retained.has(id))),
-    edges,
+    edges: mergeFoldedComponentSegments(edges, elementsById),
     groups,
     externalElements: graph.externalElements.filter((id) => retained.has(id)),
   };
+}
+
+function mergeFoldedComponentSegments(edges: readonly RenderGraphEdge[], elements: ReadonlyMap<string, LinkedElement>): RenderGraphEdge[] {
+  const result: RenderGraphEdge[] = [];
+  const bySegment = new Map<string, number>();
+  const mergedOrigins = new Map<number, ProjectionOrigin[]>();
+  for (const item of edges) {
+    const edge = item.edge;
+    if (!edge.projected || !edge.projectionRoot || (edge.originTarget !== edge.projectionRoot && edge.originTarget !== edge.originSource)
+        || !elementHasCapability(elements.get(edge.projectionRoot), TYPE_CAPABILITIES.infrastructure)) {
+      result.push(item);
+      continue;
+    }
+    const key = JSON.stringify([item.source, item.target, edge.projectionRoot, edge.operator, edge.type,
+      edge.projectionScope, edge.sourcePlacement, edge.targetPlacement, edge.attributes, edge.annotations, edge.note]);
+    const previous = bySegment.get(key);
+    if (previous === undefined) {
+      bySegment.set(key, result.length);
+      result.push(item);
+    } else {
+      const origins = mergedOrigins.get(previous) ?? [...(result[previous]!.edge.projectionOrigins ?? [])];
+      origins.push(...(edge.projectionOrigins ?? []));
+      mergedOrigins.set(previous, origins);
+    }
+  }
+  for (const [index, origins] of mergedOrigins) {
+    const first = result[index]!;
+    result[index] = { ...first, edge: { ...first.edge, projectionOrigins: uniqueProjectionOrigins(origins) } };
+  }
+  return result;
 }
 
 function linkedEdgeHasProjectionOrigin(edge: LinkedEdge, source: string, target: string): boolean {
@@ -1448,7 +1497,7 @@ function candidateNodes(context: EvaluationContext, pattern: NodePattern): reado
 function nodeInDiscoveryEnvironment(node: QueryNode, environment: string): boolean {
   return node.kind !== "element"
     || !elementHasCapability(node.element, TYPE_CAPABILITIES.infrastructure)
-    || node.element.context === environment;
+    || (node.element.infrastructureEnvironment ?? node.element.context) === environment;
 }
 
 function indexRelationshipEndpoints(
@@ -3117,6 +3166,15 @@ function relationshipOrientations(
   ];
 }
 
+// An owned infrastructure clone participates in its owner's tab scope. Its
+// logical owner is a valid binding, but does not replace the physical endpoint.
+function boundRollupEndpoint(context: EvaluationContext, edge: QueryRelationship, id: string, bound: QueryNode): RollupEndpoint {
+  const endpoint = context.elementsById.get(id);
+  const keepPhysical = edge.projected && endpoint?.cloneOf && elementHasCapability(endpoint, TYPE_CAPABILITIES.infrastructure)
+    && bound.kind === "element" && !elementHasCapability(bound.element, TYPE_CAPABILITIES.infrastructure);
+  return { id: keepPhysical ? id : bound.id, binding: bound };
+}
+
 function rollupSourceEndpoint(
   context: EvaluationContext,
   edge: QueryRelationship,
@@ -3126,7 +3184,7 @@ function rollupSourceEndpoint(
 ): RollupEndpoint | undefined {
   if (bound !== undefined) {
     if (lineage(edge.source, parentByChild).includes(bound.id)) {
-      return { id: bound.id, binding: bound };
+      return boundRollupEndpoint(context, edge, edge.source, bound);
     }
     if (edgeOriginSourceLineage(edge, parentByChild).includes(bound.id)) {
       return context.nodeById.get(edge.source) === undefined
@@ -3146,7 +3204,7 @@ function rollupTargetCandidates(
 ): readonly RollupEndpoint[] {
   if (bound !== undefined) {
     if (lineage(edge.target, parentByChild).includes(bound.id)) {
-      return [{ id: bound.id, binding: bound }];
+      return [boundRollupEndpoint(context, edge, edge.target, bound)];
     }
     if (edgeOriginTargetLineage(edge, parentByChild).includes(bound.id)) {
       return context.nodeById.get(edge.target) === undefined
@@ -3278,7 +3336,10 @@ function relationshipInDiscoveryEnvironment(
     relation.source,
     relation.target,
   ].filter((id): id is string => id !== undefined);
-  return scopes.some((id) => elementsById.get(id)?.context === environment);
+  return scopes.some((id) => {
+    const element = elementsById.get(id);
+    return (element?.infrastructureEnvironment ?? element?.context) === environment;
+  });
 }
 
 function chargeRawExpansion(budget: QueryBudget): void {
@@ -3624,6 +3685,9 @@ function propertyValue(node: QueryNode, name: string): string | readonly string[
     return undefined;
   }
   const element = node.element;
+  if (name === "binding" || name === "bindingOwner" || name === "cloneOf") {
+    if (element[name] !== undefined) return element[name];
+  }
   if (name === "deployed") {
     return String(element.deployed === true);
   }

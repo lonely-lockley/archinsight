@@ -589,7 +589,7 @@ system application
 `, { snapshot, contextIds: ["eu"] }));
   assert(elementBody.has("uses"), [...elementBody].join(", "));
   assert(elementBody.has("runsOn"), [...elementBody].join(", "));
-  assert.deepEqual([...elementBody].sort(), ["@deprecated", "@icon", "@planned", "runsOn", "uses"]);
+  assert.deepEqual([...elementBody].sort(), ["@deprecated", "@icon", "@planned", "runsOn", "shares", "uses"]);
 
   const elementTarget = itemLabels(completeAtMarker(`
 context app
