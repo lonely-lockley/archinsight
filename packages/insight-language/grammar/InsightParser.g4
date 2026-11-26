@@ -67,22 +67,17 @@ architectureBodyItem
     | namedList
     | annotatedObjectDeclaration
     | relationInvocation
-    | removedProjectionInvocation
+    | invalidRelationInvocation
     | objectExtension
     | annotatedOperatorInvocation
     | trivia
     ;
 
-// Consume the former two-sided spelling as one invalid rule, including
-// its attributes, so recovery can resume at the following declaration.
-removedProjectionInvocation
-    : removedPlacementPrefix relationReference operatorIdentifier removedPlacementPrefix relationReference EOL
+// Recover at the next declaration when extra identifiers precede the endpoints.
+invalidRelationInvocation
+    : identifier relationReference operatorIdentifier identifier relationReference EOL
       (INDENT (assignment | commentLine | EOL)* DEDENT)?
-      { this.notifyErrorListeners("Projection prefixes 'source' and 'target' were removed; use route sections and postfix 'in' for placement", $start, null); }
-    ;
-
-removedPlacementPrefix
-    : {this.tokenStream.LT(1)?.text === "source" || this.tokenStream.LT(1)?.text === "target"}? identifier
+      { this.notifyErrorListeners("Expected '<endpoint> <operator> <endpoint>' with optional 'in <environment>' after an endpoint", $start, null); }
     ;
 
 objectExtension

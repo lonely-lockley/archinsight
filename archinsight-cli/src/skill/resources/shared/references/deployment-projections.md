@@ -22,7 +22,7 @@ Every rule is a directed physical edge from its left term to its right term. In 
 
 `connectTo` takes its labels from the rule. `originalLink` inherits the logical wire's labels, operator, annotations, and provenance. Setting a label under `originalLink` overrides that field on this projected edge and preserves the other inherited fields. Project-defined physical operators work in the same positions.
 
-`source` and `target` prefix operators no longer exist. Placement is expressed by route sections and postfix `in` qualifiers.
+Within a route section, place an endpoint in another environment with `in <environment>` after its name.
 
 ## Section execution
 

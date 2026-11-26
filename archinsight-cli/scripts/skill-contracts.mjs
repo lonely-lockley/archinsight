@@ -250,7 +250,6 @@ function verifySharedFiles(output) {
   for (const heading of ["Inbound gateway", "Storage projection", "Broker route", "Cross-environment route", "Cross-environment infrastructure projection"]) {
     assert(projections.includes(`## ${heading}`));
   }
-  assert(projections.includes("`source` and `target` prefix operators no longer exist"));
   assert(projections.includes("Write every intended destination"));
   assert(projections.includes("edge.projectionOrigins"));
   assert(projections.includes("[Eventing](modeling.md#eventing)"));
