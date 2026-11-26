@@ -388,6 +388,7 @@ export interface ResolvedPresentation {
 }
 
 export interface LinkProjectResult {
+  readonly querySchema?: LanguageSnapshot;
   readonly diagnostics: readonly LanguageDiagnostic[];
   readonly graph: IndexedGraph;
   readonly contexts: readonly LinkedContext[];

@@ -91,7 +91,7 @@ objectExtension
 
 namedList
     : listName COLON EOL
-      INDENT listBodyItem* DEDENT
+      (INDENT listBodyItem* DEDENT)?
     ;
 
 listBodyItem

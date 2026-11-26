@@ -188,6 +188,7 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
     durationMs: Math.round((performance.now() - renderStarted) * 100) / 100
   });
 
+  const { querySchema, ...linkedModel } = analysis.result;
   return {
     revision: analysis.revision,
     analysis: {
@@ -196,7 +197,7 @@ function linkFromAnalysis(analysis: ProjectAnalysis, request: LinkRequest | null
     },
     symbols: analysis.snapshotBuild.snapshot,
     linkedModel: {
-      ...analysis.result,
+      ...linkedModel,
       graph: {
         nodes: analysis.result.graph.nodes(),
         relations: analysis.result.graph.relations()

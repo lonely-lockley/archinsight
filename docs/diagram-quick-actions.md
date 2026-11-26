@@ -124,6 +124,8 @@ archinsight quick-action find-path . --from <source-id> --to <target-id>
 archinsight quick-action declaration . --element <id>
 ```
 
+With `-v deployment-container -e <environment>`, Find path can start at an external actor shown in that environment’s diagram.
+
 Use canonical element IDs from `archinsight structure .` or query output.
 Quick actions support `text`, `json`, `dot`, `svg`, and `png`; use
 `--out <file>` to save an artifact.

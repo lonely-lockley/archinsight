@@ -1,3 +1,4 @@
+import { validateQueryProperties } from "./query-properties.js";
 import { uniqueProjectionOrigins } from "./projection-origin.js";
 import type {
   DeploymentEnvironment,
@@ -223,6 +224,7 @@ function selectGraphInternal(
   }
   const source = query === undefined || query.trim() === "" ? DEFAULT_QUERY : query;
   validateGraphQueryParameters(source, parsed, options.parameters ?? {});
+  if (result.querySchema) validateQueryProperties(parsed, result.querySchema);
   const execution = evaluationContext(
     createQueryExecutionContext(result, scope),
     parsed.matches,
@@ -366,6 +368,7 @@ export function executeQuery(
       return graphResult;
     }
     validateQueryParameters(source, scope, parameters);
+    if (result.querySchema) validateQueryProperties(parsed, result.querySchema);
     const limits = normalizedLimits(options.limits);
     const table = executeTableQuery(evaluationContext(
       createQueryExecutionContext(result, scope),
@@ -3825,6 +3828,8 @@ function edgePropertyValue(relationship: QueryRelationship, name: string): strin
   if (name === "context") {
     return relationship.context;
   }
+  if (name === "originSource") return relationship.originSource ?? edge?.originSource;
+  if (name === "originTarget") return relationship.originTarget ?? edge?.originTarget;
   if (name === "projectionRoot") {
     return edge?.projectionRoot;
   }

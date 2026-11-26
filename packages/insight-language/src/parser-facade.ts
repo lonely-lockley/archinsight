@@ -2,6 +2,7 @@ import {
   BaseErrorListener,
   CharStream,
   CommonTokenStream,
+  NoViableAltException,
   Parser,
   ParserRuleContext,
   RecognitionException,
@@ -59,6 +60,7 @@ export interface AntlrSyntaxErrorLike {
   readonly column: number;
   readonly message?: string;
   readonly expectedTokenTypes: readonly number[];
+  readonly insideFailedBody?: boolean;
 }
 
 export interface AntlrParseFailureLike {
@@ -676,7 +678,9 @@ function derivedGraphSignatureOf(tree: AntlrParseTreeLike): string {
   }
   for (const list of descendantsByRule(tree, "namedList", rules)) {
     const name = childText(list, "listName", rules);
-    if (name === "route" || name === "projection" || name === "deployment") {
+    // Named infrastructure hops also parse as prefixed object declarations.
+    // Fingerprint the whole section, including attributes of those hops.
+    if (["route", "projection", "deployment", "outbound", "transit", "inbound"].includes(name)) {
       parts.push({ offset: sourceRangeOf(list).startOffset, value: `projection:${textOf(list)}` });
     }
   }
@@ -808,6 +812,9 @@ class ParserErrorListener extends BaseErrorListener {
       column,
       message,
       expectedTokenTypes,
+      ...(exception instanceof NoViableAltException && exception.startToken
+        && exception.startToken.line < line && offendingSymbol?.type !== Token.EOF
+        && { insideFailedBody: true }),
     });
     this.diagnostics.push({
       code: "SYNTAX_ERROR",

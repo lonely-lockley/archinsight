@@ -260,9 +260,19 @@ deployment block. A topic without a modeled relationship cannot be discovered.
 
 `kafka-topics.aiq` is a narrower compatibility example for projects that store
 `Kafka` directly in the logical wire's `technology`. Use it only after checking
-that convention. When technology belongs to a deployed broker, join a bound
-`InfrastructureComponent` with `broker IN event.uses` and filter the broker's
-technology; do not require infrastructure for a logical topic inventory.
+that convention.
+
+For a broker route written as `broker originalLink $from`, the broker is the
+source of the projected async segment. The logical wire still runs from the
+consumer to the producer.
+
+```cypher
+MATCH (broker:Broker)-[p:REFERENCES {projected}]->(peer:Element)
+WHERE p IS AsyncWire
+UNWIND p.via AS topic
+RETURN TABLE DISTINCT topic, p.originTarget AS producer, p.originSource AS consumer,
+                      elementId(broker) AS broker
+```
 
 ## Async consumers of a system
 

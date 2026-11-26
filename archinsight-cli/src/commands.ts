@@ -517,9 +517,6 @@ export async function runQuickAction(args: ParsedArgs): Promise<void> {
   if (source.canonicalElementId === target.canonicalElementId) {
     throw new CliError("Find path source and target must be different elements");
   }
-  if (args.environment !== undefined) {
-    validateFindPathSourceEnvironment(project.result, source, args.environment);
-  }
   const graph = selectPathGraph(
     project.result,
     source.canonicalElementId,
@@ -529,6 +526,10 @@ export async function runQuickAction(args: ParsedArgs): Promise<void> {
       sourceEnvironment: args.environment,
     },
   );
+  if (args.environment !== undefined) {
+    const visibleInD2 = args.view === "deployment-container" && Object.hasOwn(graph.elements, source.canonicalElementId);
+    validateFindPathSourceEnvironment(project.result, source, args.environment, visibleInD2);
+  }
   await writeQuickActionGraph(args, format, project.result, graph, {
     schemaVersion: "diagram-quick-action.v1",
     action,
@@ -543,10 +544,12 @@ function validateFindPathSourceEnvironment(
   result: Parameters<typeof diagramQuickActionMetadata>[0],
   source: DiagramElementQuickActionMetadata,
   requested: string,
+  visibleInD2: boolean,
 ): void {
   const environments = deploymentOccurrenceEnvironmentsForElement(result, source.canonicalElementId);
   if (environments.some((environment) => environment.id === requested)) return;
   if (environments.length === 0) {
+    if (visibleInD2) return;
     throw new CliError(`No deployment is available for '${source.canonicalElementId}'`);
   }
   throw new CliError(`Environment '${requested}' is not available for '${source.canonicalElementId}'. Available environments: ${quickActionEnvironmentList(environments)}`);

@@ -289,7 +289,7 @@ export function createAnalysisRunner(ports: AnalysisRunnerPorts): AnalysisRunner
         if (!ports.isCurrent(sequence, state.projectId)) return;
         ports.acceptProjectSymbols(link.symbols);
         const linkHasErrors = hasErrorDiagnostics(link.diagnostics);
-        const linkedAnalysis = linkHasErrors ? undefined : hydrateLinkedModel(link.linkedModel);
+        const linkedAnalysis = linkHasErrors ? undefined : hydrateLinkedModel(link);
         ports.acceptLinkedAnalysis(linkedAnalysis);
         const deploymentEnvironmentChanged = linkedAnalysis === undefined
           ? false
@@ -375,12 +375,13 @@ export function renderSourceIdentities(
     : [activeTab.sourceIdentity];
 }
 
-export function hydrateLinkedModel(model: LinkResponse['linkedModel']): LinkProjectResult {
+export function hydrateLinkedModel({ linkedModel: model, symbols }: LinkResponse): LinkProjectResult {
   const graph = new IndexedGraph();
   for (const node of model.graph.nodes) graph.addNode(node);
   for (const relation of model.graph.relations) graph.addRelation(relation);
   return {
     ...model,
+    querySchema: symbols,
     graph
   };
 }

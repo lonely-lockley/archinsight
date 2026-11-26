@@ -513,6 +513,9 @@ function architectureItems(
   if (projectionItems !== undefined) return projectionItems;
   const contextualListItems = contextualListReferenceItems(line, typeSystem, context);
   if (contextualListItems !== undefined && (operatorList === undefined || !line.hasOnlyIndentBeforeCursor)) return contextualListItems;
+  if (syntax.previousToken?.type === "COLON" && !line.hasOnlyIndentBeforeCursor && rule(syntax, "namedList")) {
+    return [newline(line.indentLevel + 1)];
+  }
   if (syntax.lineBreakIndentDelta !== undefined) {
     return [newline(line.indentLevel + syntax.lineBreakIndentDelta)];
   }

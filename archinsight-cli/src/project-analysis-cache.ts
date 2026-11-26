@@ -20,7 +20,7 @@ import { decodeBinaryCacheValue, encodeBinaryCacheValue } from "./binary-cache-c
 
 const ENVELOPE_MAGIC = Buffer.from("AICACHE\0", "ascii");
 const ENVELOPE_VERSION = 1;
-const PAYLOAD_SCHEMA_VERSION = 11;
+const PAYLOAD_SCHEMA_VERSION = 12;
 const CODEC_GZIP = 1;
 const HEADER_BYTES = 112;
 const DIGEST_BYTES = 32;

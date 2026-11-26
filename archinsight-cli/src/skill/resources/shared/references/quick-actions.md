@@ -73,6 +73,7 @@ built-in `--view` plus its scope options to preserve a particular C/D scale.
 Use `--environment <id>` to select the source element's physical occurrence
 when it is deployed to more than one environment. Physical traversal uses the
 all-environment deployment graph, so a route can cross environment boundaries.
+For an unplaced actor shown in D2, pass `-v deployment-container -s <source> -e <environment>` to traverse its visible physical path.
 In the diagram UI, the source and target occurrences retain the environments
 in which the user selected them.
 

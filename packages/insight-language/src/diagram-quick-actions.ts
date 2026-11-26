@@ -322,6 +322,14 @@ export function selectPathGraph(
   const endpoints = endpointGraph(source, target);
   const sourceEnvironment = endpointEnvironments?.sourceEnvironment;
   const targetEnvironment = endpointEnvironments?.targetEnvironment;
+  if (sourceEnvironment !== undefined && scope?.view === "deployment-container"
+      && !deploymentOccurrenceEnvironmentsForElement(result, sourceId).length) {
+    const visible = selectGraph(result, { ...scope, tab: scope.tab ?? source.sourceIdentity,
+      context: scope.context ?? source.context, environment: sourceEnvironment }, BUILTIN_VIEW_QUERIES[scope.view]);
+    if (!visible.elements[sourceId]) return emptyGraph(source.context);
+    return directedPathCorridor(visible, sourceId, targetId,
+      targetEnvironment === undefined ? undefined : { targetEnvironment }, index.elementsById) ?? endpoints;
+  }
   if (sourceEnvironment !== undefined || targetEnvironment !== undefined) {
     const deploymentGraph = {
       ...completeDeploymentGraph(result),

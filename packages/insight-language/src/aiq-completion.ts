@@ -1,3 +1,4 @@
+import { relationshipProperties } from "./query-properties.js";
 import type { LanguageSnapshot, LinkProjectResult } from "./contracts.js";
 import { AIQ_FUNCTIONS } from "./query-function-catalog.js";
 import { RELATION_KINDS } from "./indexed-graph.js";
@@ -45,7 +46,7 @@ const expressionKeywords = ["DISTINCT", "NOT", "TRUE", "FALSE", "NULL", "AND", "
 const selectors = ["derived", "withDerived", "projected", "withProjected"] as const;
 
 const nodeProperties = ["id", "localId", "type", "context", "sourceIdentity", "parent", "constructor", "annotations", "binding", "bindingOwner", "cloneOf"];
-const relationshipProperties = ["id", "type", "kind", "operator", "source", "target", "context", "sourceIdentity", "derived", "projected", "annotations"];
+
 const pathProperties = ["nodes", "relationships", "steps", "length"];
 const stepProperties = ["index", "from", "to", "relationshipId", "direction"];
 
@@ -405,7 +406,7 @@ function isIdentifierToken(token: Token | undefined): boolean {
 function propertiesFor(alias: string, aliases: ReadonlyMap<string, AliasInfo>, request: AiqCompletionRequest): string[] {
   const info = aliases.get(alias);
   const kind = info?.kind;
-  if (kind === "relationship") return relationshipProperties;
+  if (kind === "relationship") return [...relationshipProperties];
   if (kind === "path") return pathProperties;
   if (kind === "step") return stepProperties;
   const properties = new Set(kind === "node" ? nodeProperties : []);

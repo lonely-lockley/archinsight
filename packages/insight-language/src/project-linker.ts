@@ -389,6 +389,7 @@ interface LinkingWorkspace {
   readonly importsBySourceAndAlias: ReadonlyMap<string, ResolvedImport>;
   readonly linkedEdges: LinkedEdge[];
   readonly ownerIndependentProjectionKeys: Set<string>;
+  readonly reportedRouteJunctions: Set<ProjectionRuleDefinition>;
   readonly pendingProjections: PendingProjection[];
   readonly wireDeploymentCoverage: WireDeploymentCoverage[];
   readonly deployedElementIds: Set<string>;
@@ -583,6 +584,7 @@ function createLinkingWorkspace(
     importsBySourceAndAlias,
     linkedEdges,
     ownerIndependentProjectionKeys,
+    reportedRouteJunctions: new Set(),
     pendingProjections,
     wireDeploymentCoverage,
     deployedElementIds,
@@ -901,6 +903,7 @@ function expandProjectionStage(workspace: LinkingWorkspace): void {
       if (wire !== undefined) {
         for (let index = firstDiagnostic; index < diagnostics.length; index++) {
           const diagnostic = diagnostics[index]!;
+          if (diagnostic.code === "ROUTE_REDUNDANT_JUNCTION") continue;
           diagnostics[index] = { ...diagnostic, message: `${diagnostic.message} (wire ${projection.fromId} → ${projection.toId} at ${wire.sourceName}:${wire.line}:${wire.column})` };
         }
       }
@@ -1015,6 +1018,7 @@ function completeLinkingPipeline(
     diagnostics,
     graph,
     contexts,
+    querySchema: request.snapshot,
     elements: linkedElements,
     imports: linkedImports,
     edges: linkedEdges,
@@ -1138,6 +1142,20 @@ function linkedElementSnapshot(
   };
 }
 
+// ANTLR can look through an entire nested body while choosing between a declaration
+// and an operator. A malformed child can make recovery discard the owner's constructor.
+// Keep the original errors and positions, and recover the semantic tree at line boundaries.
+function architectureForLinking(parsed: ParsedSource): RuleNode | undefined {
+  const original = parsed.syntax.firstDescendant<RuleNode>("architectureFile");
+  if (!original || !parsed.syntaxErrors.some((error) => error.insideFailedBody)) return original;
+  const damaged = new Set(parsed.syntaxErrors.filter((error) => error.insideFailedBody).map((error) => error.line));
+  const source = parsed.source.split("\n").map((line, index) =>
+    damaged.has(index + 1) ? line.replace(/\S/, "#") : line).join("\n");
+  const recovered = parseInsightSource({sourceName: parsed.sourceName, source});
+  if (recovered.parseFailure || recovered.syntaxErrors.length >= parsed.syntaxErrors.length) return original;
+  return recovered.syntax.firstDescendant<RuleNode>("architectureFile") ?? original;
+}
+
 function parseDocument(
   parsed: ParsedSource,
   typeSystem: TypeSystem,
@@ -1145,7 +1163,7 @@ function parseDocument(
 ): MutableParsedDocument {
   const { sourceName } = parsed;
   const diagnostics = [...parsed.diagnostics];
-  const architecture = parsed.syntax.firstDescendant<RuleNode>("architectureFile");
+  const architecture = architectureForLinking(parsed);
   const contextDeclaration = architecture === undefined ? undefined : firstChild(architecture, "contextDeclaration");
   const environmentFile = architecture === undefined ? undefined : firstChild(architecture, "environmentFile");
   const environmentDeclaration = environmentFile === undefined ? undefined : firstChild(environmentFile, "environmentDeclaration");
@@ -3615,6 +3633,16 @@ function expandRouteProjection(workspace: LinkingWorkspace, projection: PendingP
     selections.set(qualifier?.id, action);
   }
   if (invalid) return;
+  if (!targetDeployments.length && !routeEndpointMayRemainUnplaced(targetElement, workspace.typeSystem)) {
+    const action = actions[0]!;
+    workspace.diagnostics.push({
+      code: "ROUTE_TARGET_DEPLOYMENT_MISSING",
+      message: `Target '${targetElement.localId}' is not deployed in any environment`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return;
+  }
 
   let projected = false;
   for (const seed of seeds) {
@@ -3670,7 +3698,7 @@ function expandRouteProjection(workspace: LinkingWorkspace, projection: PendingP
     }
     if (inputNodes.length === 0) continue;
     for (const boundary of boundaryIds) {
-      drafts = collapseRouteBoundary(drafts, boundary, route, workspace.diagnostics);
+      drafts = collapseRouteBoundary(drafts, boundary, route, workspace);
     }
     const dangling = drafts.filter((edge) => edge.source.port === true || edge.target.port === true);
     if (dangling.length > 0) {
@@ -3777,7 +3805,7 @@ function expandComponentProjectionStage(workspace: LinkingWorkspace): void {
         }
         if (inputNodes.length === 0) continue;
         for (const boundary of boundaries) {
-          drafts = collapseRouteBoundary(drafts, boundary, projectionElement, workspace.diagnostics);
+          drafts = collapseRouteBoundary(drafts, boundary, projectionElement, workspace);
         }
         for (const draft of drafts) {
           if (draft.source.port === true || draft.target.port === true) continue;
@@ -4234,7 +4262,7 @@ function collapseRouteBoundary(
   edges: readonly RouteEdgeDraft[],
   boundary: string,
   route: ParsedElement,
-  diagnostics: LanguageDiagnostic[],
+  { diagnostics, reportedRouteJunctions }: LinkingWorkspace,
 ): RouteEdgeDraft[] {
   const prefix = `@route-port:${boundary}:`;
   const ports = new Set(edges.flatMap((edge) => [edge.source.id, edge.target.id]).filter((id) => id.startsWith(prefix)));
@@ -4255,6 +4283,18 @@ function collapseRouteBoundary(
     result = result.filter((edge) => edge.source.id !== port && edge.target.id !== port);
     for (const left of incoming) {
       for (const right of outgoing) {
+        if (!left.source.port && left.source.id === right.target.id
+            && left.source.deployment?.id === right.target.deployment?.id
+            && left.source.placement === right.target.placement) {
+          if (reportedRouteJunctions.has(right.rule)) continue;
+          reportedRouteJunctions.add(right.rule);
+          diagnostics.push({
+            level: "WARNING", code: "ROUTE_REDUNDANT_JUNCTION",
+            message: `Adjacent sections of '${route.localId}' meet at '${left.source.id}'. The repeated hop is omitted.`,
+            ...(right.rule.operatorSource ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+          });
+          continue;
+        }
         const preferred = left.preservesLogicalRelationship ? left : right;
         result.push({
           source: left.source,

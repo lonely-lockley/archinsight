@@ -95,7 +95,9 @@ describe('analysis runner', () => {
   });
 
   it('hydrates transport graph data into the indexed graph used by the language service', () => {
-    const result = hydrateLinkedModel(linkResponse().linkedModel);
+    const response = linkResponse();
+    const result = hydrateLinkedModel(response);
+    expect(result.querySchema).toBe(response.symbols);
     expect(result.graph).toBeDefined();
     expect(result.contexts).toEqual([]);
   });

@@ -277,8 +277,19 @@ ORDER BY topic, producer, consumer
 
 This form includes wires with no `technology` and no deployment block. Filter
 `event.technology` only in a project that stores transport technology on the
-logical wire. If Kafka is modeled on a broker, join that infrastructure through
-`broker IN event.uses` only when the question is about the broker.
+logical wire.
+
+For a broker route written as `broker originalLink $from`, the broker is the
+source of the projected async segment. The logical wire still runs from the
+consumer to the producer.
+
+```cypher
+MATCH (broker:Broker)-[p:REFERENCES {projected}]->(peer:Element)
+WHERE p IS AsyncWire
+UNWIND p.via AS topic
+RETURN TABLE DISTINCT topic, p.originTarget AS producer, p.originSource AS consumer,
+                      elementId(broker) AS broker
+```
 
 ```shell
 archinsight query . -c shop -q reports/async-topics.aiq --format json
@@ -604,9 +615,21 @@ A relationship alias exposes these built-in properties:
 | `context` | The context associated with the authored edge. |
 | `derived` | Whether the relation was rolled up from lower-level endpoints. |
 | `projected` | Whether deployment projection produced the edge. |
-| `projectionRoot` | The infrastructure element whose projection produced a projected edge. |
+| `projectionRoot` | Qualified ID of the environment route or infrastructure component that produced the segment. |
+| `originSource`, `originTarget` | Qualified IDs of the original logical endpoints for this match. |
 
-Attributes declared on an Insight edge type are available in the same way as element attributes.
+To list logical wires that take a particular route, query its projected segments.
+
+```cypher
+MATCH (a:Element)-[p:REFERENCES {projected}]->(b:Element)
+WHERE p.projectionRoot = 'cis/clusterLink'
+RETURN TABLE DISTINCT p.originSource AS caller, p.originTarget AS callee
+```
+
+A shared segment can match several logical wires. `DISTINCT` gives one row per
+endpoint pair even when the route has several hops. AIQ reports
+`AIQ_UNKNOWN_PROPERTY` for a property absent from every type a binding can
+match. A declared optional property can still have a null value.
 
 The arrow controls how a relationship is matched. A directed pattern matches its stored source on the left and its stored target on the right:
 
@@ -904,7 +927,7 @@ instead of decoding the synthetic element id.
 - nested `edge.source` and `edge.target` are the endpoints of the underlying linked or projected edge;
 - nested `edge.originSource` and `edge.originTarget`, when present, identify the logical origin selected for this occurrence of a projected segment;
 - nested `edge.projectionOrigins`, when present, lists every logical source and target that shares the physical segment;
-- nested `edge.projectionRoot` identifies the infrastructure element whose projection produced the segment;
+- nested `edge.projectionRoot` identifies the environment route or infrastructure component that produced the segment;
 - nested `edge.sourcePlacement` and `edge.targetPlacement`, when present, identify the concrete placement of each logical endpoint independently.
 
 For a normal physical deployment segment, the outer and nested endpoints agree until query rollup or multi-placement grouping selects a view-specific endpoint. A grouped occurrence has an id such as `shop/backend@@eu/kubernetes`, while its nested linked edge retains the logical id and records the corresponding placement. Projection origin metadata lets a query discover all segments belonging to a logical wire. A segment shared by several logical consumers remains one physical relationship; the metadata does not turn it into direct connections between the logical endpoints.

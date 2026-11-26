@@ -460,6 +460,7 @@ function mergeResults(
     tabRoots: mergeTabRoots(previous.tabRoots, partial.tabRoots, relinkedSources),
     duplicateEdges: duplicateLinkedEdges(edges),
     presentations: partial.presentations,
+    ...(partial.querySchema && {querySchema: partial.querySchema}),
   };
 }
 

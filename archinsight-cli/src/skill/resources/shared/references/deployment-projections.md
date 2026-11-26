@@ -221,7 +221,7 @@ Every rule is independent. Reusing `$this` creates fan-out.
 1. Run `archinsight link . --format text` and resolve every route diagnostic.
 2. Verify the source and target deployment profiles.
 3. Check the wire's `route <name> in <environment>` selections and optional default. An unselected environment has no path. A selected but missing implementation produces `ROUTE_NOT_DECLARED`, including when a default exists. Duplicate selections for an environment or two defaults are ambiguous. An environment outside the effective profile produces `ROUTE_ENVIRONMENT_NOT_APPLICABLE`. Qualifiers select the logical owner's environments (the target's for an unplaced actor) before projecting any physical arrows.
-4. Follow each `in` cursor change in order.
+4. Follow each `in` cursor change in order. `ROUTE_REDUNDANT_JUNCTION` marks adjacent sections that meet at the same placed node. The linker omits that self-edge.
 5. Confirm that every infrastructure id exists in the active deployment.
 6. Confirm that the final `$to` or `$this` has exactly one matching destination deployment.
 7. Query D1 and each D2 environment before rendering.

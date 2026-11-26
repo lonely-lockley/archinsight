@@ -183,7 +183,7 @@ assert.deepEqual(emptyAggregate.kind === "table" ? emptyAggregate.rows : [], [[0
 const nullFilter = executeQuery(linked, {}, `
 MATCH (service:Service)
 WHERE service.context = 'shared'
-WITH service, service.missing AS missing
+WITH service, service.description AS missing
 WHERE missing IS NULL
 RETURN TABLE elementId(service) AS service
 ORDER BY service

@@ -103,7 +103,7 @@ export type LinkResponse = {
     relinkedSources: number;
   };
   symbols: LanguageSnapshot;
-  linkedModel: Omit<LinkProjectResult, 'graph'> & {
+  linkedModel: Omit<LinkProjectResult, 'graph' | 'querySchema'> & {
     graph: { nodes: readonly GraphNode[]; relations: readonly GraphRelation[] };
   };
   diagnostics: DiagnosticDto[];

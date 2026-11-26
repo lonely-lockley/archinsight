@@ -108,15 +108,12 @@ assertParity({
   matches: "MATCH (network:NetworkConnection)",
 });
 
-assertParity({
-  where: "infrastructure IN event.uses",
-  graphReturn: "consumer, event, producer, infrastructure",
-  tableReturn: "elementId(consumer) AS consumer, elementId(infrastructure) AS infrastructure",
-  expectedGraphIds: [],
-  expectedRows: [],
-  matches: `MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
-MATCH (infrastructure:InfrastructureComponent)`,
-});
+for (const suffix of ["RETURN consumer, event, producer", "RETURN TABLE elementId(consumer) AS consumer"]) {
+  assert.throws(() => executeQuery(linked, {}, `MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
+MATCH (infrastructure:InfrastructureComponent)
+WHERE event IS AsyncWire AND infrastructure IN event.uses
+${suffix}`), {code: "AIQ_UNKNOWN_PROPERTY"});
+}
 
 assertParity({
   where: "event IS AsyncWire",
@@ -149,13 +146,12 @@ assert.deepEqual(placements.rows.map(([node]) => ({ id: node.id, type: node.type
   { id: "cluster_b/k8s_b", type: "Compute", labels: ["Element", "Compute", "InfrastructureComponent", "DeploymentElement", "BoundaryElement"] },
 ]);
 
-const missing = executeQuery(linked, {}, `
+assert.throws(() => executeQuery(linked, {}, `
 MATCH (service:ContainerElement)
 MATCH (infrastructure:InfrastructureComponent)
 WHERE infrastructure IN service.missing
 RETURN TABLE elementId(service) AS service
-`);
-assert.deepEqual(missing.kind === "table" ? missing.rows : [], []);
+`), {code: "AIQ_UNKNOWN_PROPERTY"});
 
 console.log("query predicate parity contracts passed");
 

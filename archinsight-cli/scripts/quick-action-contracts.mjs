@@ -149,6 +149,12 @@ external system google
   assert.match(pathText, /^edge\tsample\/user -> sample\/frontend\tHTTPS$/m);
   assert.match(pathText, /^edge\tsample\/backend -> sample\/google\t-$/m);
 
+  const inboundPath = json("find-path", "--from", "sample/user", "--to", "sample/frontend",
+    "-s", "model.ai", "-v", "deployment-container", "-e", "eu");
+  assert.equal(inboundPath.pathFound, true);
+  assert.deepEqual(inboundPath.graph.edges.map((edge) => [edge.source, edge.target]),
+    [["sample/user", "sample/frontend@@eu/compute"]]);
+
   const crossEnvironmentPath = json(
     "find-path",
     "--from", "sample/cross_source",

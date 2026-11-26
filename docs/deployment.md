@@ -106,7 +106,7 @@ deploymentProfile regional_service
 
 `runsOn` selects the hosting slot. `uses` selects supporting infrastructure. Every deployment in `appliesTo` must provide compatible values for the referenced slots.
 
-Choose one deployment level per system. To deploy the whole system, put the deployment actions on the system. To place its containers or services separately, put the actions on those elements and leave the system’s deployment empty. Mixing the two levels is a linking error, even if they select different environments. When the system is deployed as a whole, routes to and from its containers use the system’s placement. C2 shows the container named on the wire. Deployment views show the system in the environment selected by the route.
+An empty `deployment:` list declares no actions. Choose one deployment level per system. To deploy the whole system, put the deployment actions on the system. To place its containers or services separately, put the actions on those elements and leave the system’s deployment empty. Mixing the two levels is a linking error, even if they select different environments. When the system is deployed as a whole, routes to and from its containers use the system’s placement. C2 shows the container named on the wire. Deployment views show the system in the environment selected by the route.
 
 For example, to deploy a service:
 
@@ -314,6 +314,10 @@ storage reporting_database
         inbound:
             $from originalLink $this in production from eu_central_1
 ```
+
+When adjacent sections meet at the same physical endpoint, the linker emits
+`ROUTE_REDUNDANT_JUNCTION` and joins the path at that endpoint. If an internal
+target has no placement anywhere, the linker reports it once on the wire.
 
 Routes are the only way to deploy a logical relationship. Infrastructure slots are still selected with `uses` on deployment profiles and logical elements; they are not selected with `uses` inside a wire deployment block.
 

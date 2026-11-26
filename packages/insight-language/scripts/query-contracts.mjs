@@ -1311,15 +1311,14 @@ system app
     { tab: "definitions.ai" },
     "MATCH (system:SystemElement) WHERE system.context = $context RETURN system",
   );
-  const missingOnBothSides = selectGraph(
+  assert.throws(() => selectGraph(
     result,
     { tab: "definitions.ai" },
     "MATCH (system:SystemElement) WHERE system.missing = $context RETURN system",
-  );
+  ), {code: "AIQ_UNKNOWN_PROPERTY"});
 
   assertNoErrors(result);
   assert.equal(Object.keys(c1.elements).length, 0);
-  assert.equal(Object.keys(missingOnBothSides.elements).length, 0);
 }
 
 function filtersWithWhereOr() {
