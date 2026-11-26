@@ -12,7 +12,7 @@ external actor customer
             technology = HTTPS
             description = Calls the public API
             deployment:
-                uses publicGateway
+                route publicInbound
 
 system platform
     name = Platform

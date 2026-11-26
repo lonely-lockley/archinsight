@@ -47,7 +47,7 @@ system storefront
             -> api
                 technology = gRPC
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service api
         name = API
@@ -88,7 +88,10 @@ deployment production
             runsOn:
                 ${compute}
             projection:
-                source $from originalLink target $to
+                $from originalLink $to
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `);
 }
 

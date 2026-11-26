@@ -37,12 +37,12 @@ actor user
             technology = HTTPS
             description = Loads the Archinsight web application
             deployment:
-                uses publicGateway
+                route publicInbound
         -> backend
             technology = HTTPS, REST
             description = Uses the public Archinsight API
             deployment:
-                uses publicGateway
+                route publicInbound
 
 system archinsight_web
     name = Archinsight Editor

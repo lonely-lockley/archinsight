@@ -52,7 +52,7 @@ system storefront
             publish producer
                 via = orders.created
                 deployment:
-                    uses network
+                    route clusterLocal
 `),
   ],
 });
@@ -112,11 +112,8 @@ assertParity({
   where: "infrastructure IN event.uses",
   graphReturn: "consumer, event, producer, infrastructure",
   tableReturn: "elementId(consumer) AS consumer, elementId(infrastructure) AS infrastructure",
-  expectedGraphIds: ["cluster_a/net_a", "cluster_b/net_b", "shop/consumer", "shop/producer"],
-  expectedRows: [
-    ["shop/consumer", "cluster_a/net_a"],
-    ["shop/consumer", "cluster_b/net_b"],
-  ],
+  expectedGraphIds: [],
+  expectedRows: [],
   matches: `MATCH (consumer:Element)-[event:REFERENCES]->(producer:Element)
 MATCH (infrastructure:InfrastructureComponent)`,
 });
@@ -191,8 +188,11 @@ deployment production
             name = Network ${label}
             runsOn:
                 ${compute}
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink network
+        network connectTo $to
 `);
 }
 

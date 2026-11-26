@@ -12,6 +12,7 @@ import type {
   OperatorImplementationRegistry,
   OperatorImplementationV1,
   DuplicateLinkedEdgeGroup,
+  ProjectionSection,
   ProjectionRuleDefinition,
   ProjectionOrigin,
   ProjectionTermDefinition,
@@ -65,6 +66,7 @@ import {
 } from "./project-linker-profiler.js";
 
 const ELEMENT_TYPE = "Element";
+const ACTOR_TYPE = "Actor";
 const APPLIES_TO_ATTRIBUTE = "appliesTo";
 const RUNS_ON_ATTRIBUTE = "runsOn";
 const USES_ATTRIBUTE = "uses";
@@ -286,6 +288,7 @@ interface PendingProjection {
   readonly annotations?: readonly LinkedAnnotation[];
   readonly coverage?: WireDeploymentCoverage;
   readonly projectionOrigin: ProjectionOrigin;
+  readonly routeActions?: readonly ParsedDeploymentAction[];
 }
 
 interface WireDeploymentCoverage {
@@ -296,6 +299,7 @@ interface WireDeploymentCoverage {
 }
 
 interface DeploymentExpansionContext {
+  readonly nestedSlots: Map<string, ResolvedReferenceValue[]>;
   readonly sourceElementsBySourceAndLocalId: ReadonlyMap<string, ParsedElement>;
   readonly elementsByContextAndLocalId: ReadonlyMap<string, readonly ParsedElement[]>;
   readonly importsBySourceAndAlias: ReadonlyMap<string, ResolvedImport>;
@@ -529,6 +533,7 @@ function createLinkingWorkspace(
     }
   });
   const deploymentContext: DeploymentExpansionContext = {
+    nestedSlots: new Map(),
     sourceElementsBySourceAndLocalId,
     elementsByContextAndLocalId,
     importsBySourceAndAlias,
@@ -548,6 +553,7 @@ function createLinkingWorkspace(
       ])}`;
     },
   };
+  for (const element of elements) indexNestedSlot(deploymentContext.nestedSlots, element);
   return {
     ...(profiler === undefined ? {} : { profiler }),
     documents,
@@ -729,6 +735,9 @@ function materializeLogicalRelationshipsStage(workspace: LinkingWorkspace): void
           sourceIdentity: materialized.edge.sourceIdentity,
           ...(materialized.edge.declaration === undefined ? {} : { declaration: materialized.edge.declaration }),
         },
+        routeActions: edge.deploymentActions.filter((action) =>
+          deploymentActionHasCapability(action, OPERATOR_CAPABILITIES.deploymentRoute, typeSystem)
+        ),
         ...(materialized.edge.annotations === undefined ? {} : { annotations: materialized.edge.annotations }),
         ...(coverage === undefined ? {} : { coverage }),
       });
@@ -748,8 +757,21 @@ function expandProjectionStage(workspace: LinkingWorkspace): void {
     elements,
   } = workspace;
   for (const projection of pendingProjections) {
-    addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage, projection.projectionOrigin);
+    if ((projection.routeActions?.length ?? 0) > 0) {
+      const firstDiagnostic = diagnostics.length;
+      expandRouteProjection(workspace, projection);
+      const wire = projection.projectionOrigin.declaration;
+      if (wire !== undefined) {
+        for (let index = firstDiagnostic; index < diagnostics.length; index++) {
+          const diagnostic = diagnostics[index]!;
+          diagnostics[index] = { ...diagnostic, message: `${diagnostic.message} (wire ${projection.fromId} → ${projection.toId} at ${wire.sourceName}:${wire.line}:${wire.column})` };
+        }
+      }
+    } else {
+      addProjectedEdges(linkedEdges, projection.sourceIdentity, projection.fromId, projection.toId, projection.attributes, linkedElementsById, resolvedElementAttributes, ownerIndependentProjectionKeys, typeSystem, diagnostics, undefined, projection.annotations, projection.projectedAttributes, projection.projectedOperator, new Set<string>(), projection.coverage, projection.projectionOrigin);
+    }
   }
+  expandComponentProjectionStage(workspace);
   const slotDomainTypes = typeSystem.slotDomainTypes();
   for (const element of elements) {
     if (isProjectionRoot(element, slotDomainTypes, typeSystem)) {
@@ -1243,6 +1265,16 @@ function collectBodyItem(
   expectedObjectType?: string,
 ): void {
   const expectedType = expectedObjectType ?? typeSystem.anonymousListAttribute(ownerType)?.listElementType;
+  const relationAnnotatedObject = firstChild(item, "annotatedObjectDeclaration");
+  const relationObject = relationAnnotatedObject === undefined
+    ? undefined
+    : firstChild(relationAnnotatedObject, "objectDeclaration");
+  if (owner !== undefined && expectedType !== undefined && typeSystem.isAssignable(expectedType, EDGE)
+      && relationObject !== undefined
+      && firstChild(relationObject, "namedPrefixOperatorInvocation") !== undefined) {
+    owner.projectionRules.push(concreteProjectionRuleFromObject(relationObject, document.sourceName, "projection"));
+    return;
+  }
   const annotatedInvocation = firstChild(item, "annotatedOperatorInvocation") ?? firstChild(item, "annotatedObjectDeclaration");
   const invocationNode = annotatedInvocation === undefined ? undefined
     : firstChild(annotatedInvocation, "operatorInvocation") ?? firstChild(annotatedInvocation, "objectDeclaration");
@@ -1269,6 +1301,14 @@ function collectBodyItem(
 
   const relation = firstChild(item, "relationInvocation");
   if (relation !== undefined) {
+    if (owner !== undefined && expectedType !== undefined && typeSystem.isAssignable(expectedType, EDGE)) {
+      owner.projectionRules.push(concreteProjectionRule(relation, document.sourceName, "projection"));
+      return;
+    }
+    if (owner !== undefined && expectedType !== undefined
+        && collectRelationPrefixedObject(relation, ownerType, owner, expectedType, "_", document, typeSystem)) {
+      return;
+    }
     document.diagnostics.push({
       code: "TYPE_MISMATCH",
       message: "Relation invocation expects an Edge list",
@@ -1313,6 +1353,75 @@ function collectBodyItem(
   if (extension !== undefined) {
     collectExtension(extension, document);
   }
+}
+
+function collectRelationPrefixedObject(
+  relation: RuleNode,
+  parentType: string,
+  parent: ParsedElement,
+  expectedType: string,
+  attribute: string,
+  document: MutableParsedDocument,
+  typeSystem: TypeSystem,
+): boolean {
+  const terms = children(relation, "relationTerm");
+  const prefixNode = terms[0] === undefined ? undefined : firstChild(terms[0], "relationReference");
+  const constructorNode = firstChild(relation, "operatorIdentifier");
+  const idNode = terms[1] === undefined ? undefined : firstChild(terms[1], "relationReference");
+  if (prefixNode === undefined || constructorNode === undefined || idNode === undefined
+      || firstChild(terms[0]!, "relationDeploymentQualifier") !== undefined
+      || firstChild(terms[1]!, "relationDeploymentQualifier") !== undefined
+      || firstChild(prefixNode, "identifier") === undefined
+      || firstChild(idNode, "identifier") === undefined) {
+    return false;
+  }
+  const prefix = prefixNode.getText();
+  const constructor = constructorNode.getText();
+  const declaredId = idNode.getText();
+  const typeConstructor = typeSystem.findConstructor(constructor, expectedType);
+  if (typeConstructor === undefined) return false;
+  const prefixOperator = typeSystem.operatorConstructor(prefix, parentType, typeConstructor.ownerType);
+  if (prefixOperator === undefined) return false;
+  const prefixResult = implementationFor(prefixOperator, typeSystem, document.operatorImplementations).applyElementPrefix({
+    operator: prefixOperator,
+    prefix,
+    sourceName: document.sourceName,
+    sourcePosition: position(prefixNode, document.sourceName),
+  });
+  document.diagnostics.push(...(prefixResult.diagnostics ?? []));
+  if (!prefixResult.accepted) return true;
+  const anonymous = declaredId === "_";
+  const localId = anonymous
+    ? anonymousLocalId(document, relation, `object:${constructor}`, parent.id)
+    : declaredId;
+  const type = prefixOperator.ownerType;
+  if (!typeSystem.isAssignable(type, expectedType)) return false;
+  const element: ParsedElement = {
+    id: `${document.context.id}/${localId}`,
+    context: document.context.id,
+    localId,
+    type,
+    constructor,
+    sourceName: document.sourceName,
+    anonymous,
+    parent: parent.id,
+    projectionRules: [],
+    attributes: {},
+    referenceAttributePositions: {},
+    scalarAttributes: { ...(typeConstructor.defaults ?? {}), ...(prefixOperator.defaults ?? {}) },
+    scalarAttributePositions: {},
+    assignedScalarAttributes: new Set(),
+    deploymentActions: [],
+    annotations: [],
+    ...position(relation, document.sourceName),
+    ...prefixedPosition("id", idNode, document.sourceName),
+  };
+  for (const assignment of children(relation, "assignment")) {
+    assignScalarAttribute(element, assignment, document.sourceName, document.diagnostics);
+  }
+  document.elements.push(element);
+  addAttributeValue(parent.attributes, attribute, elementReference(element));
+  return true;
 }
 
 function collectExtension(extension: RuleNode, document: MutableParsedDocument): void {
@@ -1402,7 +1511,8 @@ function collectPendingOperatorInvocations(
           : [operator];
         const deployment = candidates.length > 0 && candidates.every((candidate) =>
           typeSystem.operatorHasCapability(candidate, OPERATOR_CAPABILITIES.deploymentUse)
-            || typeSystem.operatorHasCapability(candidate, OPERATOR_CAPABILITIES.deploymentPlacement));
+            || typeSystem.operatorHasCapability(candidate, OPERATOR_CAPABILITIES.deploymentPlacement)
+            || typeSystem.operatorHasCapability(candidate, OPERATOR_CAPABILITIES.deploymentRoute));
         if (deployment) {
           const action = buildDeploymentAction(item.node, item.owner, item.ownerType, item.expectedType, document, typeSystem);
           if (action !== undefined) {
@@ -1503,8 +1613,18 @@ function collectNamedList(
       const relation = firstChild(bodyItem, "relationInvocation");
       if (relation !== undefined && owner !== undefined) {
         if (isEdgeList(typeSystem, ownerType, listName)) {
-          owner.projectionRules.push(concreteProjectionRule(relation, document.sourceName));
-        } else {
+          owner.projectionRules.push(concreteProjectionRule(relation, document.sourceName, projectionSection(listName)));
+        } else if (!collectRelationPrefixedObject(
+          relation,
+          ownerType,
+          owner,
+          typeSystem.attribute(ownerType, listName)?.listElementType
+            ?? typeSystem.attribute(ownerType, listName)?.type
+            ?? expectedNestedType(typeSystem, ownerType),
+          listName,
+          document,
+          typeSystem,
+        )) {
           document.diagnostics.push({
             code: "TYPE_MISMATCH",
             message: `Attribute '${listName}' on type '${ownerType}' expects an Edge list`,
@@ -1519,6 +1639,11 @@ function collectNamedList(
       if (annotatedObject !== undefined) {
         const object = firstChild(annotatedObject, "objectDeclaration");
         if (object !== undefined) {
+          if (owner !== undefined && isEdgeList(typeSystem, ownerType, listName)
+              && firstChild(object, "namedPrefixOperatorInvocation") !== undefined) {
+            owner.projectionRules.push(concreteProjectionRuleFromObject(object, document.sourceName, projectionSection(listName)));
+            continue;
+          }
           const attribute = typeSystem.attribute(ownerType, listName);
           const nestedType = attribute === undefined
             ? ownerType
@@ -2753,24 +2878,35 @@ function deploymentAttributesForWire(
   if (source === undefined) {
     return {};
   }
-  const deployments = mergeUniqueElements(
-    context.effectiveDeploymentsByElementId.get(source.id) ?? [],
-    context.effectiveDeploymentsByElementId.get(target.id) ?? [],
+  const unsupported = edge.deploymentActions.filter((action) =>
+    !deploymentActionHasCapability(action, OPERATOR_CAPABILITIES.deploymentRoute, context.typeSystem)
   );
-  const application = resolveDeploymentApplication(
-    source,
-    edge.deploymentActions.map((action) => ({ ...action, ownerType: edgeType })),
-    true,
-    context,
-    deployments,
+  for (const action of unsupported) {
+    context.diagnostics.push({
+      code: "WIRE_ROUTE_REQUIRED",
+      message: `Relationship deployment supports only 'route <name>', got '${action.operator} ${action.targetId}'`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+  }
+  if (unsupported.length > 0) return {};
+  return {};
+}
+
+function deploymentActionHasCapability(
+  action: ParsedDeploymentAction,
+  capability: string,
+  typeSystem: TypeSystem,
+): boolean {
+  const candidates = deploymentOperatorCandidates(
+    typeSystem,
+    action.ownerType,
+    action.operator,
+    action.expectedType,
+    [],
   );
-  const usesAttribute = context.typeSystem.attributeWithCapability(
-    edgeType,
-    ATTRIBUTE_CAPABILITIES.infrastructureUses,
-  )?.name ?? USES_ATTRIBUTE;
-  return {
-    [usesAttribute]: application.uses.map(resolvedValueForDeploymentUse),
-  };
+  return candidates.length > 0
+    && candidates.every((operator) => typeSystem.operatorHasCapability(operator, capability));
 }
 
 function resolveDeploymentApplication(
@@ -3109,6 +3245,7 @@ function cloneInfrastructureElement(
   };
   cloneMap.set(source.id, clone);
   context.elements.push(clone);
+  indexNestedSlot(context.nestedSlots, clone);
   context.linkedElementsById.set(clone.id, clone);
 
   const sourceAttributes = context.resolvedElementAttributes.get(source.id) ?? {};
@@ -3119,7 +3256,8 @@ function cloneInfrastructureElement(
     }
     clonedAttributes[name] = values.map((value) => {
       if (value.element === undefined
-          || !context.typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.infrastructure)) {
+          || (!context.typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.infrastructure)
+            && !context.typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.projection))) {
         return value;
       }
       const child = cloneInfrastructureElement(owner, value.element, action, context, cloneMap, clone.id, false);
@@ -3156,6 +3294,15 @@ function remapResolvedValue(value: ResolvedReferenceValue, element: ParsedElemen
   };
 }
 
+function indexNestedSlot(slots: Map<string, ResolvedReferenceValue[]>, element: ParsedElement): void {
+  if (element.parent === undefined || element.slotName === undefined) return;
+  const key = `${element.parent}\0${element.slotName}`;
+  const value = resolvedValueForElement(element, element);
+  const values = slots.get(key);
+  if (values === undefined) slots.set(key, [value]);
+  else values.push(value);
+}
+
 function deploymentSlotValues(
   deployment: ParsedElement,
   slot: string,
@@ -3165,13 +3312,7 @@ function deploymentSlotValues(
   if (direct.length > 0) {
     return direct;
   }
-  const result: ResolvedReferenceValue[] = [];
-  for (const element of context.elements) {
-    if (element.parent === deployment.id && element.slotName === slot) {
-      result.push(resolvedValueForElement(element, element));
-    }
-  }
-  return result;
+  return context.nestedSlots.get(`${deployment.id}\0${slot}`) ?? [];
 }
 
 function deploymentUseFamilyKey(
@@ -3204,6 +3345,775 @@ function deploymentUseFamily(type: string, typeSystem: TypeSystem): string {
     typeSystem.declaresCapability(candidate, TYPE_CAPABILITIES.infrastructure)
   );
   return capabilityRoot > 0 ? lineage[capabilityRoot - 1]! : type;
+}
+
+interface RouteProjectionNode {
+  readonly id: string;
+  readonly deployment?: ParsedElement;
+  readonly placement?: string;
+  readonly port?: boolean;
+}
+
+interface RouteEdgeDraft {
+  readonly source: RouteProjectionNode;
+  readonly target: RouteProjectionNode;
+  readonly operator: string;
+  readonly attributes: Readonly<Record<string, readonly string[]>>;
+  readonly preservesLogicalRelationship: boolean;
+  readonly rule: ProjectionRuleDefinition;
+}
+
+interface PhysicalProjectionEndpoint {
+  readonly kind: "to" | "this";
+  readonly element: ParsedElement;
+  readonly deployments: readonly ParsedElement[];
+  readonly slotName?: string;
+}
+
+function expandRouteProjection(workspace: LinkingWorkspace, projection: PendingProjection): void {
+  // The projection stage dispatches here only when at least one route action exists.
+  const actions = projection.routeActions!;
+  if (actions.length !== 1) {
+    const action = actions[1]!;
+    workspace.diagnostics.push({
+      code: "ROUTE_SELECTION_AMBIGUOUS",
+      message: `A relationship must select exactly one route, got ${actions.length}`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return;
+  }
+  const action = actions[0]!;
+  const sourceElement = workspace.linkedElementsById.get(projection.fromId);
+  const targetElement = workspace.linkedElementsById.get(projection.toId);
+  if (sourceElement === undefined || targetElement === undefined) return;
+
+  const sourceDeployments = workspace.deploymentContext.effectiveDeploymentsByElementId.get(sourceElement.id) ?? [];
+  const targetDeployments = workspace.deploymentContext.effectiveDeploymentsByElementId.get(targetElement.id) ?? [];
+  const seeds = sourceDeployments.length > 0 ? sourceDeployments : targetDeployments;
+  if (seeds.length === 0) {
+    workspace.diagnostics.push({
+      code: "ROUTE_ENDPOINT_DEPLOYMENT_MISSING",
+      message: `Route '${action.targetId}' cannot be resolved because neither endpoint has an effective deployment`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return;
+  }
+
+  let projected = false;
+  for (const seed of seeds) {
+    const route = routeImplementation(action.targetId, seed.context, workspace);
+    if (route === undefined) {
+      workspace.diagnostics.push({
+        code: "ROUTE_NOT_DECLARED",
+        message: `Route '${action.targetId}' is not declared in environment '${seed.context}'`,
+        sourceName: action.sourceName,
+        ...diagnosticPosition(action),
+      });
+      continue;
+    }
+    const rules = route.projectionRules.filter((rule) => rule.section !== "projection");
+    const sections = (["outbound", "transit", "inbound"] as const)
+      .map((section) => ({ section, rules: rules.filter((rule) => rule.section === section) }))
+      .filter((item) => item.rules.length > 0);
+    if (!sections.some((item) => item.section === "outbound" || item.section === "inbound")) {
+      workspace.diagnostics.push({
+        code: "ROUTE_ENDPOINT_SECTION_REQUIRED",
+        message: `Route '${route.localId}' must declare at least one of 'outbound' or 'inbound'`,
+        sourceName: route.sourceName,
+        ...diagnosticPosition(route),
+      });
+      continue;
+    }
+
+    const sourceNode = routeLogicalNode(sourceElement, seed, workspace, action, "source");
+    if (sourceNode === undefined) continue;
+    let inputNodes: readonly RouteProjectionNode[] = [sourceNode];
+    let drafts: RouteEdgeDraft[] = [];
+    const boundaryIds: string[] = [];
+    for (let index = 0; index < sections.length; index += 1) {
+      const item = sections[index]!;
+      const last = index === sections.length - 1;
+      const boundary = last ? undefined : `${route.id}\0${item.section}\0${sections[index + 1]!.section}`;
+      if (boundary !== undefined) boundaryIds.push(boundary);
+      const expanded = expandRouteSection(
+        route,
+        item.rules,
+        inputNodes,
+        boundary,
+        last,
+        { kind: "to", element: targetElement, deployments: targetDeployments },
+        projection,
+        workspace,
+      );
+      drafts.push(...expanded.edges);
+      inputNodes = expanded.outputs;
+      if (inputNodes.length === 0) break;
+    }
+    if (inputNodes.length === 0) continue;
+    for (const boundary of boundaryIds) {
+      drafts = collapseRouteBoundary(drafts, boundary, route, workspace.diagnostics);
+    }
+    const dangling = drafts.filter((edge) => edge.source.port === true || edge.target.port === true);
+    if (dangling.length > 0) {
+      workspace.diagnostics.push({
+        code: "ROUTE_SECTION_NOT_CONNECTED",
+        message: `Route '${route.localId}' has a section branch that does not connect to the next section`,
+        sourceName: route.sourceName,
+        ...(dangling[0]?.rule.operatorSource ?? diagnosticPosition(route)),
+      });
+      continue;
+    }
+    for (const draft of drafts) {
+      materializeRouteEdge(workspace, projection, route, draft);
+      projected = true;
+    }
+  }
+  if (projected && projection.coverage !== undefined) projection.coverage.projected = true;
+}
+
+function expandComponentProjectionStage(workspace: LinkingWorkspace): void {
+  const projections = workspace.elements.filter((element) =>
+    workspace.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.projection)
+      && element.projectionRules.some((rule) => rule.section !== "projection"
+        || rule.source.deployment !== undefined
+        || rule.target.deployment !== undefined)
+  );
+  for (const projectionElement of projections) {
+    const owner = projectionElement.parent === undefined
+      ? undefined
+      : workspace.linkedElementsById.get(projectionElement.parent);
+    if (owner === undefined || !workspace.typeSystem.typeHasCapability(owner.type, TYPE_CAPABILITIES.infrastructure)) {
+      workspace.diagnostics.push({
+        code: "PROJECTION_OWNER_REQUIRED",
+        message: `Projection '${projectionElement.localId}' must belong to an infrastructure component`,
+        sourceName: projectionElement.sourceName,
+        ...diagnosticPosition(projectionElement),
+      });
+      continue;
+    }
+    const slotName = owner.slotName;
+    const endpointDeployments = workspace.elements.filter((element) => {
+      if (!workspace.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deployment)) return false;
+      if (deploymentAncestor(owner, workspace.linkedElementsById, workspace.typeSystem)?.id === element.id) return true;
+      return slotName !== undefined && deploymentSlotValues(element, slotName, workspace.deploymentContext)
+        .some((value) => value.element !== undefined
+          && (workspace.typeSystem.isAssignable(value.element.type, owner.type)
+            || workspace.typeSystem.isAssignable(owner.type, value.element.type)));
+    });
+    const endpoint: PhysicalProjectionEndpoint = {
+      kind: "this",
+      element: owner,
+      deployments: endpointDeployments,
+      ...(slotName === undefined ? {} : { slotName }),
+    };
+    const consumers = componentProjectionConsumers(owner, workspace);
+    for (const consumer of consumers) {
+      const effectiveDeployments = workspace.deploymentContext.effectiveDeploymentsByElementId.get(consumer.element.id) ?? [];
+      const seeds = consumer.deploymentId === undefined
+        ? effectiveDeployments
+        : effectiveDeployments.filter((deployment) => deployment.id === consumer.deploymentId);
+      for (const seed of seeds) {
+        const sourceNode = componentProjectionSourceNode(consumer.element, seed, projectionElement, workspace);
+        if (sourceNode === undefined) continue;
+        const normalizedRules = projectionElement.projectionRules.map((rule) =>
+          rule.section === "projection" ? { ...rule, section: "outbound" as const } : rule
+        );
+        const sections = (["outbound", "transit", "inbound"] as const)
+          .map((section) => ({ section, rules: normalizedRules.filter((rule) => rule.section === section) }))
+          .filter((item) => item.rules.length > 0);
+        let inputNodes: readonly RouteProjectionNode[] = [sourceNode];
+        let drafts: RouteEdgeDraft[] = [];
+        const boundaries: string[] = [];
+        const pending: PendingProjection = {
+          sourceIdentity: consumer.element.sourceName,
+          fromId: consumer.element.id,
+          toId: owner.id,
+          attributes: {},
+          projectedOperator: "->",
+          projectionOrigin: {
+            source: consumer.element.id,
+            target: owner.id,
+            sourceIdentity: consumer.element.sourceName,
+            declaration: sourceLocation(projectionElement.sourceName, projectionElement),
+          },
+        };
+        for (let index = 0; index < sections.length; index += 1) {
+          const item = sections[index]!;
+          const last = index === sections.length - 1;
+          const boundary = last ? undefined : `${projectionElement.id}\0${item.section}\0${sections[index + 1]!.section}`;
+          if (boundary !== undefined) boundaries.push(boundary);
+          const expanded = expandRouteSection(
+            projectionElement,
+            item.rules,
+            inputNodes,
+            boundary,
+            last,
+            endpoint,
+            pending,
+            workspace,
+          );
+          drafts.push(...expanded.edges);
+          inputNodes = expanded.outputs;
+          if (inputNodes.length === 0) break;
+        }
+        if (inputNodes.length === 0) continue;
+        for (const boundary of boundaries) {
+          drafts = collapseRouteBoundary(drafts, boundary, projectionElement, workspace.diagnostics);
+        }
+        for (const draft of drafts) {
+          if (draft.source.port === true || draft.target.port === true) continue;
+          materializeRouteEdge(workspace, pending, projectionElement, draft, owner.id);
+        }
+      }
+    }
+  }
+}
+
+function componentProjectionConsumers(
+  owner: ParsedElement,
+  workspace: LinkingWorkspace,
+): readonly { readonly element: ParsedElement; readonly deploymentId?: string }[] {
+  const result: { element: ParsedElement; deploymentId?: string }[] = [];
+  for (const [elementId, attributes] of workspace.resolvedElementAttributes) {
+    const element = workspace.linkedElementsById.get(elementId);
+    if (element === undefined || workspace.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deploymentElement)
+        || workspace.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.infrastructure)) continue;
+    const endpointId = deploymentViewLogicalEndpoint(element.id, workspace.linkedElementsById, workspace.typeSystem);
+    const endpoint = endpointId === undefined ? undefined : workspace.linkedElementsById.get(endpointId);
+    if (endpoint === undefined) continue;
+    for (const value of Object.values(attributes).flat()) {
+      if (value.element?.id !== owner.id) continue;
+      result.push({ element: endpoint, ...(value.deploymentId === undefined ? {} : { deploymentId: value.deploymentId }) });
+    }
+  }
+  return uniqueBy(result, (item) => `${item.element.id}\0${item.deploymentId ?? ""}`);
+}
+
+function componentProjectionSourceNode(
+  element: ParsedElement,
+  deployment: ParsedElement,
+  projection: ParsedElement,
+  workspace: LinkingWorkspace,
+): RouteProjectionNode | undefined {
+  const placement = endpointPlacement(
+    element.id,
+    deployment.id,
+    deployment.context,
+    workspace.linkedElementsById,
+    workspace.resolvedElementAttributes,
+    workspace.typeSystem,
+  );
+  if (placement === undefined) {
+    workspace.diagnostics.push({
+      code: "PROJECTION_SOURCE_NOT_PLACED",
+      message: `Projection '${projection.localId}' cannot place consumer '${element.localId}' in deployment '${deployment.localId} from ${deployment.context}'`,
+      sourceName: projection.sourceName,
+      ...diagnosticPosition(projection),
+    });
+    return undefined;
+  }
+  return { id: element.id, deployment, placement };
+}
+
+function routeImplementation(
+  routeName: string,
+  environment: string,
+  workspace: LinkingWorkspace,
+): ParsedElement | undefined {
+  const candidates = (workspace.elementsByContextAndLocalId.get(`${environment}\0${routeName}`) ?? [])
+    .filter((element) => workspace.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.route));
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function routeLogicalNode(
+  element: ParsedElement,
+  deployment: ParsedElement,
+  workspace: LinkingWorkspace,
+  action: ParsedDeploymentAction,
+  endpoint: "source" | "target",
+): RouteProjectionNode | undefined {
+  const placement = endpointPlacement(
+    element.id,
+    deployment.id,
+    deployment.context,
+    workspace.linkedElementsById,
+    workspace.resolvedElementAttributes,
+    workspace.typeSystem,
+  );
+  if (placement === undefined && !routeEndpointMayRemainUnplaced(element, workspace.typeSystem)) {
+    workspace.diagnostics.push({
+      code: "ROUTE_ENDPOINT_NOT_PLACED",
+      message: `Route '${action.targetId}' cannot place ${endpoint} '${element.localId}' in deployment '${deployment.localId} from ${deployment.context}'`,
+      sourceName: action.sourceName,
+      ...diagnosticPosition(action),
+    });
+    return undefined;
+  }
+  return {
+    id: element.id,
+    deployment,
+    ...(placement === undefined ? {} : { placement }),
+  };
+}
+
+function expandRouteSection(
+  route: ParsedElement,
+  rules: readonly ProjectionRuleDefinition[],
+  inputNodes: readonly RouteProjectionNode[],
+  outputBoundary: string | undefined,
+  finalSection: boolean,
+  endpoint: PhysicalProjectionEndpoint,
+  projection: PendingProjection,
+  workspace: LinkingWorkspace,
+): { readonly edges: RouteEdgeDraft[]; readonly outputs: readonly RouteProjectionNode[] } {
+  const diagnosticCount = workspace.diagnostics.length;
+  const named = new Map<string, RouteProjectionNode[]>();
+  const edges: RouteEdgeDraft[] = [];
+  const outputs: RouteProjectionNode[] = [];
+  for (const rule of rules) {
+    const sources = resolveRouteTerm(
+      rule.source,
+      "source",
+      inputNodes,
+      inputNodes,
+      named,
+      outputBoundary,
+      finalSection,
+      endpoint,
+      route,
+      workspace,
+    );
+    // A hop from a named node to the same name advances those branches.
+    // Other branches can still refer to their own placements.
+    if (rule.source.kind === "attribute" && rule.target.kind === "attribute"
+        && rule.source.value === rule.target.value && rule.target.deployment !== undefined) {
+      const consumed = new Set(sources.map((node) => node.deployment?.id));
+      named.set(rule.source.value, (named.get(rule.source.value) ?? [])
+        .filter((node) => !consumed.has(node.deployment?.id)));
+    }
+    for (const source of sources) {
+      const targets = resolveRouteTerm(
+        rule.target,
+        "target",
+        [source],
+        inputNodes,
+        named,
+        outputBoundary,
+        finalSection,
+        endpoint,
+        route,
+        workspace,
+      );
+      for (const target of targets) {
+        const preserves = projectionRuleHasCapability(rule, workspace.typeSystem, OPERATOR_CAPABILITIES.preserveLogicalEdge);
+        edges.push({
+          source,
+          target,
+          operator: preserves ? projection.projectedOperator ?? "->" : rule.operator,
+          attributes: mergeAttributeValues(
+            preserves ? projection.projectedAttributes : undefined,
+            rule.attributes ?? {},
+          ),
+          preservesLogicalRelationship: preserves,
+          rule,
+        });
+        if (rule.target.kind === endpoint.kind) outputs.push(target);
+        if (finalSection && rule.source.kind === endpoint.kind) outputs.push(source);
+        if (rule.target.kind === "attribute") addRouteNamedNode(named, rule.target.value, target);
+      }
+    }
+  }
+  if (outputs.length === 0 && workspace.diagnostics.length === diagnosticCount) {
+    workspace.diagnostics.push({
+      code: "ROUTE_SECTION_OUTPUT_REQUIRED",
+      message: `${endpoint.kind === "to" ? "Route" : "Projection"} '${route.localId}' section '${rules[0]?.section ?? ""}' must reach '$${endpoint.kind}'`,
+      sourceName: route.sourceName,
+      ...(rules[0]?.operatorSource ?? diagnosticPosition(route)),
+    });
+  }
+  return { edges, outputs: uniqueRouteNodes(outputs) };
+}
+
+function resolveRouteTerm(
+  term: ProjectionTermDefinition,
+  side: "source" | "target",
+  inheritedNodes: readonly RouteProjectionNode[],
+  sectionInputNodes: readonly RouteProjectionNode[],
+  named: ReadonlyMap<string, readonly RouteProjectionNode[]>,
+  outputBoundary: string | undefined,
+  finalSection: boolean,
+  endpoint: PhysicalProjectionEndpoint,
+  route: ParsedElement,
+  workspace: LinkingWorkspace,
+): readonly RouteProjectionNode[] {
+  if (term.kind === "from") {
+    return qualifyRouteNodes(sectionInputNodes, term, route, workspace);
+  }
+  if (term.kind === endpoint.kind) {
+    const deployments = routeDeploymentsForTerm(term, inheritedNodes, route, workspace);
+    if (!finalSection) {
+      return deployments.map((deployment) => routePortNode(outputBoundary!, deployment));
+    }
+    return deployments.flatMap((deployment) => {
+      const selected = selectTargetRouteDeployments(deployment, term, endpoint.deployments);
+      if (selected.length === 0) {
+        if (endpoint.kind !== "this"
+            && term.deployment === undefined
+            && routeEndpointMayRemainUnplaced(endpoint.element, workspace.typeSystem)) {
+          return [{ id: endpoint.element.id, deployment }];
+        }
+        workspace.diagnostics.push({
+          code: "ROUTE_TARGET_DEPLOYMENT_MISSING",
+          message: `Target '${endpoint.element.localId}' is not deployed in '${deployment.localId} from ${deployment.context}' required by ${endpoint.kind === "to" ? "route" : "projection"} '${route.localId}'`,
+          ...(term.source ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+        });
+      }
+      if (selected.length > 1) {
+        workspace.diagnostics.push({
+          code: "ROUTE_TARGET_DEPLOYMENT_AMBIGUOUS",
+          message: `Target '${endpoint.element.localId}' has multiple matching deployments for ${endpoint.kind === "to" ? "route" : "projection"} '${route.localId}'`,
+          ...(term.source ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+        });
+        return [];
+      }
+      const targetDeployment = selected[0];
+      if (targetDeployment === undefined) return [];
+      const target = endpoint.kind === "this"
+        ? infrastructureProjectionEndpoint(endpoint, targetDeployment, route, workspace, term)
+        : endpoint.element;
+      if (target === undefined) return [];
+      const placement = endpoint.kind === "this" ? undefined : endpointPlacement(
+        target.id,
+        targetDeployment.id,
+        targetDeployment.context,
+        workspace.linkedElementsById,
+        workspace.resolvedElementAttributes,
+        workspace.typeSystem,
+      );
+      if (placement === undefined
+          && endpoint.kind !== "this"
+          && !routeEndpointMayRemainUnplaced(target, workspace.typeSystem)) {
+        workspace.diagnostics.push({
+          code: "ROUTE_ENDPOINT_NOT_PLACED",
+          message: `${endpoint.kind === "to" ? "Route" : "Projection"} '${route.localId}' cannot place target '${target.localId}' in deployment '${targetDeployment.localId} from ${targetDeployment.context}'`,
+          ...(term.source ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+        });
+        return [];
+      }
+      return [{ id: target.id, deployment: targetDeployment, ...(placement === undefined ? {} : { placement }) }];
+    });
+  }
+  if (term.kind === "to" || term.kind === "this" || term.kind === "slot") {
+    workspace.diagnostics.push({
+      code: "ROUTE_TERM_NOT_SUPPORTED",
+      message: `Route '${route.localId}' cannot use '${term.value}'; routes support '$from', '$to', and deployment infrastructure`,
+      ...(term.source ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+    });
+    return [];
+  }
+
+  const existing = side === "source" ? named.get(term.value) ?? [] : [];
+  const bases = existing.length > 0 ? existing : inheritedNodes;
+  const deployments = routeDeploymentsForTerm(term, bases, route, workspace);
+  const result: RouteProjectionNode[] = [];
+  for (const deployment of deployments) {
+    const values = routeInfrastructureValues(deployment, term.value, workspace.deploymentContext)
+      .filter((value) => value.element !== undefined);
+    if (values.length !== 1) {
+      workspace.diagnostics.push({
+        code: values.length === 0 ? "ROUTE_INFRASTRUCTURE_MISSING" : "ROUTE_INFRASTRUCTURE_AMBIGUOUS",
+        message: values.length === 0
+          ? `Deployment '${deployment.localId} from ${deployment.context}' does not provide route infrastructure '${term.value}'`
+          : `Deployment '${deployment.localId} from ${deployment.context}' provides multiple values for route infrastructure '${term.value}'`,
+        ...(term.source ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+      });
+      continue;
+    }
+    result.push({ id: values[0]!.element!.id, deployment });
+  }
+  return uniqueRouteNodes(result);
+}
+
+function routeEndpointMayRemainUnplaced(element: ParsedElement, typeSystem: TypeSystem): boolean {
+  return typeSystem.isAssignable(element.type, ACTOR_TYPE)
+    || elementTypeOrKindIsExplicitlyExternal(element.type, element.scalarAttributes.kind, typeSystem);
+}
+
+function routeInfrastructureValues(
+  deployment: ParsedElement,
+  name: string,
+  context: DeploymentExpansionContext,
+): readonly ResolvedReferenceValue[] {
+  const direct = deploymentSlotValues(deployment, name, context);
+  if (direct.length > 0) return direct;
+  const nested = context.elements
+    .filter((element) => element.id === deployment.id
+      || elementDescendsFrom(element, deployment.id, context.linkedElementsById))
+    .flatMap((element) => context.resolvedElementAttributes.get(element.id)?.[name] ?? [])
+    .filter((value) => value.element !== undefined);
+  if (nested.length > 0) return nested;
+  return context.elements
+    .filter((element) => (element.slotName === name || element.localId === name)
+      && elementDescendsFrom(element, deployment.id, context.linkedElementsById))
+    .map((element) => resolvedValueForElement(element, element));
+}
+
+function elementDescendsFrom(
+  element: ParsedElement,
+  ancestorId: string,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+): boolean {
+  const visited = new Set<string>();
+  let current: ParsedElement | undefined = element;
+  while (current !== undefined && !visited.has(current.id)) {
+    if (current.parent === ancestorId) return true;
+    visited.add(current.id);
+    current = current.parent === undefined ? undefined : elementsById.get(current.parent);
+  }
+  return false;
+}
+
+function routeDeploymentsForTerm(
+  term: ProjectionTermDefinition,
+  nodes: readonly RouteProjectionNode[],
+  route: ParsedElement,
+  workspace: LinkingWorkspace,
+): readonly ParsedElement[] {
+  const bases = uniqueElements(nodes.flatMap((node) => node.deployment === undefined ? [] : [node.deployment]));
+  if (term.deployment === undefined) return bases;
+  const candidates = workspace.elements.filter((element) =>
+    workspace.typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.deployment)
+      && element.context === term.deployment!.environment
+      && (term.deployment!.deployment === undefined || element.localId === term.deployment!.deployment)
+  );
+  const selected = term.deployment.deployment !== undefined
+    ? candidates
+    : uniqueElements(bases.flatMap((base) => {
+      const sameName = candidates.filter((candidate) => candidate.localId === base.localId);
+      return sameName.length > 0 ? sameName : candidates.length === 1 ? candidates : [];
+    }));
+  if (selected.length === 0) {
+    workspace.diagnostics.push({
+      code: "ROUTE_DEPLOYMENT_NOT_FOUND",
+      message: `Route '${route.localId}' cannot resolve deployment '${term.deployment.deployment ?? "<matching>"}' in environment '${term.deployment.environment}'`,
+      ...(term.deployment.source ?? term.source ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+    });
+  } else if (selected.length > 1) {
+    workspace.diagnostics.push({
+      code: "ROUTE_DEPLOYMENT_AMBIGUOUS",
+      message: `Route '${route.localId}' must name a deployment in environment '${term.deployment.environment}' because multiple deployments match`,
+      ...(term.deployment.source ?? term.source ?? { sourceName: route.sourceName, line: route.line, column: route.column }),
+    });
+    return [];
+  }
+  return selected;
+}
+
+function qualifyRouteNodes(
+  nodes: readonly RouteProjectionNode[],
+  term: ProjectionTermDefinition,
+  route: ParsedElement,
+  workspace: LinkingWorkspace,
+): readonly RouteProjectionNode[] {
+  if (term.deployment === undefined) return nodes;
+  const deployments = routeDeploymentsForTerm(term, nodes, route, workspace);
+  const selected = new Set(deployments.map((deployment) => deployment.id));
+  return nodes.filter((node) => node.deployment !== undefined && selected.has(node.deployment.id));
+}
+
+function selectTargetRouteDeployments(
+  current: ParsedElement,
+  term: ProjectionTermDefinition,
+  targetDeployments: readonly ParsedElement[],
+): readonly ParsedElement[] {
+  if (term.deployment !== undefined) {
+    return targetDeployments.filter((deployment) =>
+      deployment.context === term.deployment!.environment
+        && (term.deployment!.deployment === undefined || deployment.localId === term.deployment!.deployment)
+    );
+  }
+  const exact = targetDeployments.filter((deployment) => deployment.id === current.id);
+  if (exact.length > 0) return exact;
+  return targetDeployments.filter((deployment) =>
+    deployment.context === current.context && deployment.localId === current.localId
+  );
+}
+
+function infrastructureProjectionEndpoint(
+  endpoint: PhysicalProjectionEndpoint,
+  deployment: ParsedElement,
+  projection: ParsedElement,
+  workspace: LinkingWorkspace,
+  term: ProjectionTermDefinition,
+): ParsedElement | undefined {
+  const ownerDeployment = deploymentAncestor(endpoint.element, workspace.linkedElementsById, workspace.typeSystem);
+  if (ownerDeployment?.id === deployment.id) return endpoint.element;
+  const slotName = endpoint.slotName;
+  const candidates = slotName === undefined ? [] : deploymentSlotValues(deployment, slotName, workspace.deploymentContext)
+    .flatMap((value) => value.element === undefined ? [] : [value.element])
+    .filter((element) => workspace.typeSystem.isAssignable(element.type, endpoint.element.type)
+      || workspace.typeSystem.isAssignable(endpoint.element.type, element.type));
+  if (candidates.length !== 1) {
+    workspace.diagnostics.push({
+      code: candidates.length === 0 ? "PROJECTION_INFRASTRUCTURE_MISSING" : "PROJECTION_INFRASTRUCTURE_AMBIGUOUS",
+      message: candidates.length === 0
+        ? `Deployment '${deployment.localId} from ${deployment.context}' does not provide '${slotName ?? endpoint.element.localId}' for projection '${projection.localId}'`
+        : `Deployment '${deployment.localId} from ${deployment.context}' provides multiple '${slotName ?? endpoint.element.localId}' values for projection '${projection.localId}'`,
+      ...(term.source ?? { sourceName: projection.sourceName, line: projection.line, column: projection.column }),
+    });
+    return undefined;
+  }
+  return candidates[0];
+}
+
+function deploymentAncestor(
+  element: ParsedElement,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  typeSystem: TypeSystem,
+): ParsedElement | undefined {
+  const visited = new Set<string>();
+  let current: ParsedElement | undefined = element;
+  while (current !== undefined && !visited.has(current.id)) {
+    if (typeSystem.typeHasCapability(current.type, TYPE_CAPABILITIES.deployment)) return current;
+    visited.add(current.id);
+    current = current.parent === undefined ? undefined : elementsById.get(current.parent);
+  }
+  return undefined;
+}
+
+function routePortNode(boundary: string, deployment: ParsedElement): RouteProjectionNode {
+  return { id: `@route-port:${boundary}:${deployment.id}`, deployment, port: true };
+}
+
+function addRouteNamedNode(map: Map<string, RouteProjectionNode[]>, name: string, node: RouteProjectionNode): void {
+  map.set(name, uniqueRouteNodes([...(map.get(name) ?? []), node]));
+}
+
+function uniqueRouteNodes(nodes: readonly RouteProjectionNode[]): RouteProjectionNode[] {
+  return uniqueBy(nodes, (node) => `${node.id}\0${node.deployment?.id ?? ""}\0${node.placement ?? ""}`);
+}
+
+function uniqueElements(elements: readonly ParsedElement[]): ParsedElement[] {
+  return uniqueBy(elements, (element) => element.id);
+}
+
+function uniqueBy<T>(values: readonly T[], key: (value: T) => string): T[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const id = key(value);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function collapseRouteBoundary(
+  edges: readonly RouteEdgeDraft[],
+  boundary: string,
+  route: ParsedElement,
+  diagnostics: LanguageDiagnostic[],
+): RouteEdgeDraft[] {
+  const prefix = `@route-port:${boundary}:`;
+  const ports = new Set(edges.flatMap((edge) => [edge.source.id, edge.target.id]).filter((id) => id.startsWith(prefix)));
+  let result = [...edges];
+  for (const port of ports) {
+    const incoming = result.filter((edge) => edge.target.id === port);
+    const outgoing = result.filter((edge) => edge.source.id === port);
+    if (incoming.length === 0 || outgoing.length === 0) {
+      diagnostics.push({
+        code: "ROUTE_SECTION_NOT_CONNECTED",
+        message: `Route '${route.localId}' has an unconnected section boundary`,
+        sourceName: route.sourceName,
+        line: route.line,
+        column: route.column,
+      });
+      continue;
+    }
+    result = result.filter((edge) => edge.source.id !== port && edge.target.id !== port);
+    for (const left of incoming) {
+      for (const right of outgoing) {
+        const preferred = left.preservesLogicalRelationship ? left : right;
+        result.push({
+          source: left.source,
+          target: right.target,
+          operator: preferred.operator,
+          attributes: mergeAttributeValues(left.attributes, right.attributes),
+          preservesLogicalRelationship: left.preservesLogicalRelationship || right.preservesLogicalRelationship,
+          rule: preferred.rule,
+        });
+      }
+    }
+  }
+  return result;
+}
+
+function materializeRouteEdge(
+  workspace: LinkingWorkspace,
+  projection: PendingProjection,
+  route: ParsedElement,
+  draft: RouteEdgeDraft,
+  projectionRoot = route.id,
+): void {
+  const sourceElement = workspace.linkedElementsById.get(draft.source.id);
+  const targetElement = workspace.linkedElementsById.get(draft.target.id);
+  if (sourceElement === undefined || targetElement === undefined) return;
+  const operator = workspace.typeSystem.operatorConstructor(draft.operator, sourceElement.type, targetElement.type);
+  const type = operator?.ownerType ?? draft.operator;
+  if (!draft.preservesLogicalRelationship) {
+    const existingIndex = workspace.linkedEdges.findIndex((edge) => edge.projected === true
+      && edge.source === draft.source.id
+      && edge.operator === draft.operator
+      && edge.target === draft.target.id
+      && edge.projectionRoot === projectionRoot
+      && edge.sourcePlacement === draft.source.placement
+      && edge.targetPlacement === draft.target.placement);
+    const existing = workspace.linkedEdges[existingIndex];
+    if (existingIndex >= 0 && existing !== undefined) {
+      workspace.linkedEdges[existingIndex] = {
+        ...existing,
+        attributes: mergeAttributeValues(draft.attributes, existing.attributes),
+        annotations: uniqueAnnotations([...(existing.annotations ?? []), ...(projection.annotations ?? [])]),
+        projectionOrigins: uniqueProjectionOrigins([
+          ...(existing.projectionOrigins ?? []),
+          projection.projectionOrigin,
+        ]),
+      };
+      return;
+    }
+  }
+  workspace.linkedEdges.push({
+    id: linkedEdgeId([
+      "route",
+      projection.sourceIdentity,
+      projection.fromId,
+      projection.toId,
+      projectionRoot,
+      draft.source.id,
+      draft.operator,
+      draft.target.id,
+      draft.source.deployment?.id,
+      draft.target.deployment?.id,
+      draft.preservesLogicalRelationship ? projectionOriginKey(projection.projectionOrigin) : undefined,
+    ]),
+    source: draft.source.id,
+    target: draft.target.id,
+    originSource: projection.fromId,
+    originTarget: projection.toId,
+    projectionOrigins: [projection.projectionOrigin],
+    projectionRoot,
+    operator: draft.operator,
+    type,
+    sourceIdentity: projection.sourceIdentity,
+    ...(projection.projectionOrigin.declaration === undefined ? {} : { declaration: projection.projectionOrigin.declaration }),
+    attributes: draft.attributes,
+    ...listAttributesProperty(workspace.typeSystem, type),
+    projected: true,
+    ...(draft.source.placement === undefined ? {} : { sourcePlacement: draft.source.placement }),
+    ...(draft.target.placement === undefined ? {} : { targetPlacement: draft.target.placement }),
+    ...(projection.annotations === undefined ? {} : { annotations: projection.annotations }),
+  });
 }
 
 function resolvedValueForElement(element: ParsedElement, source: SourcePosition): ResolvedReferenceValue {
@@ -3293,6 +4203,7 @@ function addProjectedEdges(
   visitedProjectionElements = new Set<string>(),
   coverage?: WireDeploymentCoverage,
   projectionOrigin: ProjectionOrigin = { source: fromId, target: toId },
+  projectionDeploymentId?: string,
 ): void {
   for (const [attributeName, values] of Object.entries(attributes)) {
     if (attributeName === "_") {
@@ -3305,7 +4216,9 @@ function addProjectedEdges(
       if (!isGraphElement(value.element)) {
         continue;
       }
-      const visitKey = `${fromId}\0${toId}\0${value.element.id}\0${value.deploymentId ?? ""}`;
+      const effectiveDeploymentId = value.deploymentId ?? projectionDeploymentId;
+      const scopedValue = effectiveDeploymentId === undefined ? value : { ...value, deploymentId: effectiveDeploymentId };
+      const visitKey = `${fromId}\0${toId}\0${value.element.id}\0${effectiveDeploymentId ?? ""}`;
       if (visitedProjectionElements.has(visitKey)) {
         continue;
       }
@@ -3316,16 +4229,29 @@ function addProjectedEdges(
       const effectiveProjectionScope = projectionScope ?? projectionScopeFor(
         fromId,
         toId,
-        value,
+        scopedValue,
         elementsById,
         resolvedElementAttributes,
         typeSystem,
       );
       const rules = value.element.projectionRules;
+      if (typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.projection)
+          && fromId === toId
+          && (value.element.parent === fromId
+            || (elementsById.get(fromId) !== undefined
+              && typeSystem.typeHasCapability(elementsById.get(fromId)!.type, TYPE_CAPABILITIES.infrastructure)))) {
+        continue;
+      }
+      if (typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.projection)
+          && rules.some((rule) => rule.section !== "projection"
+            || rule.source.deployment !== undefined
+            || rule.target.deployment !== undefined)) {
+        continue;
+      }
       reportOmittedDeploymentOccurrence(
         fromId,
         toId,
-        value,
+        scopedValue,
         effectiveProjectionScope,
         rules,
         elementsById,
@@ -3336,6 +4262,10 @@ function addProjectedEdges(
         sourceIdentity,
       );
       if (fromId === toId && rules.some(projectionRuleUsesTo)) {
+        if (typeSystem.typeHasCapability(value.element.type, TYPE_CAPABILITIES.projection)
+            && value.element.parent === fromId) {
+          continue;
+        }
         const position = value.line === undefined || value.column === undefined
           ? value.element
           : {
@@ -3368,11 +4298,12 @@ function addProjectedEdges(
         diagnostics,
         effectiveProjectionScope,
         annotations,
-        undefined,
+        rules.length === 0 ? projectedAttributes : undefined,
         projectedOperator,
         visitedProjectionElements,
         coverage,
         projectionOrigin,
+        effectiveDeploymentId,
       );
     }
   }
@@ -3488,6 +4419,10 @@ function addProjectedRuleEdge(
   if (!validateConcreteProjectionRule(rule, typeSystem, diagnostics)) {
     return;
   }
+  const projectionRoot = typeSystem.typeHasCapability(projectionElement.type, TYPE_CAPABILITIES.projection)
+      && projectionElement.parent !== undefined
+    ? projectionElement.parent
+    : projectionElement.id;
   const sources = projectionTerm(rule.source, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics, projectionScope);
   const targets = projectionTerm(rule.target, fromId, toId, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics, projectionScope);
   const preservesLogicalRelationship = projectionRuleHasCapability(
@@ -3514,14 +4449,14 @@ function addProjectedRuleEdge(
         coverage.projected = true;
       }
       if (!projectionRuleUsesOwner(rule)) {
-        const key = `${projectionElement.id}\0${source}\0${effectiveOperator}\0${target}\0${preservesLogicalRelationship ? originKey : ""}`;
+        const key = `${projectionRoot}\0${source}\0${effectiveOperator}\0${target}\0${preservesLogicalRelationship ? originKey : ""}`;
         if (ownerIndependentProjectionKeys.has(key)) {
           mergeProjectedEdge(
             linkedEdges,
             source,
             effectiveOperator,
             target,
-            projectionElement.id,
+            projectionRoot,
             projectionOrigin,
             annotations,
             carriedAttributes,
@@ -3540,7 +4475,7 @@ function addProjectedRuleEdge(
         && edge.source === source
         && edge.operator === effectiveOperator
         && edge.target === target
-        && edge.projectionRoot === projectionElement.id
+        && edge.projectionRoot === projectionRoot
         && edge.projectionScope === edgeProjectionScope
         && edge.sourcePlacement === sourcePlacement
         && edge.targetPlacement === targetPlacement
@@ -3566,7 +4501,7 @@ function addProjectedRuleEdge(
           target,
           effectiveOperator,
           type,
-          projectionElement.id,
+          projectionRoot,
           edgeProjectionScope,
           sourcePlacement,
           targetPlacement,
@@ -3577,7 +4512,7 @@ function addProjectedRuleEdge(
         originSource: fromId,
         originTarget: toId,
         projectionOrigins: [projectionOrigin],
-        projectionRoot: projectionElement.id,
+        projectionRoot,
         operator: effectiveOperator,
         type,
         sourceIdentity: edgeSourceIdentity,
@@ -3607,17 +4542,6 @@ function validateConcreteProjectionRule(
       code: "UNSUPPORTED_PROJECTION_OPERATOR",
       message: `Projection operator '${rule.operator}' is not declared for ProjectionTerm`,
       ...(rule.operatorSource ?? { sourceName: "projection", line: 1, column: 1 }),
-    });
-    valid = false;
-  }
-  for (const term of [rule.source, rule.target]) {
-    if (term.placementText === "source" || term.placementText === "target") {
-      continue;
-    }
-    diagnostics.push({
-      code: "UNSUPPORTED_PROJECTION_PLACEMENT",
-      message: `Projection placement '${term.placementText ?? ""}' is not supported; use 'source' or 'target'`,
-      ...(term.placementSource ?? { sourceName: "projection", line: 1, column: 1 }),
     });
     valid = false;
   }
@@ -3765,16 +4689,23 @@ function projectionTerm(
     case "to":
       return [toId];
     case "this":
-      return resolveThisProjectionTerm(projectionElement);
+      return resolveThisProjectionTerm(projectionElement, elementsById, typeSystem);
     case "attribute":
-      return resolveAttributeProjectionTerm(term, projectionElement, elementsById, resolvedElementAttributes, diagnostics);
+      return resolveAttributeProjectionTerm(term, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics);
     case "slot":
       return resolveSlotProjectionTerm(term, projectionElement, elementsById, resolvedElementAttributes, typeSystem, diagnostics);
   }
 }
 
-function resolveThisProjectionTerm(projectionElement: ParsedElement): readonly string[] {
-  return [projectionElement.id];
+function resolveThisProjectionTerm(
+  projectionElement: ParsedElement,
+  elementsById: ReadonlyMap<string, ParsedElement>,
+  typeSystem: TypeSystem,
+): readonly string[] {
+  return typeSystem.typeHasCapability(projectionElement.type, TYPE_CAPABILITIES.projection)
+      && projectionElement.parent !== undefined
+    ? [projectionElement.parent]
+    : [projectionElement.id];
 }
 
 function resolveAttributeProjectionTerm(
@@ -3782,9 +4713,10 @@ function resolveAttributeProjectionTerm(
   projectionElement: ParsedElement,
   elementsById: ReadonlyMap<string, ParsedElement>,
   resolvedElementAttributes: ReadonlyMap<string, Readonly<Record<string, readonly ResolvedReferenceValue[]>>>,
+  typeSystem: TypeSystem,
   diagnostics: LanguageDiagnostic[],
 ): readonly string[] {
-  const owners = resolveThisProjectionTerm(projectionElement);
+  const owners = resolveThisProjectionTerm(projectionElement, elementsById, typeSystem);
   const scopedValues = owners.flatMap((owner) => resolvedElementAttributes.get(owner)?.[term.value] ?? []);
   if (scopedValues.length > 0) {
     return uniqueIds(scopedValues.map((value) => value.id));
@@ -4015,6 +4947,8 @@ function isGraphElement(element: ParsedElement): boolean {
 function isProjectionRoot(element: ParsedElement, slotDomainTypes: ReadonlySet<string>, typeSystem: TypeSystem): boolean {
   return isGraphElement(element)
     && element.projectionRoot !== false
+    && !typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.projection)
+    && !typeSystem.typeHasCapability(element.type, TYPE_CAPABILITIES.route)
     && !isSlotDomainElement(element, slotDomainTypes, typeSystem);
 }
 
@@ -4460,6 +5394,7 @@ function reportIsolatedElements(
   for (const edge of edges) {
     referenced.add(edge.source);
     referenced.add(edge.target);
+    if (edge.projectionRoot !== undefined) referenced.add(edge.projectionRoot);
   }
   for (const [elementId, attributes] of resolvedElementAttributes) {
     for (const values of Object.values(attributes)) {
@@ -4497,21 +5432,23 @@ function reportShadowedLowerLevelEdges(
   diagnostics: LanguageDiagnostic[],
 ): void {
   const parentByChild = parentByChildFromGraph(graph);
-  const warned = new Set<number>();
-  for (let higherIndex = 0; higherIndex < edges.length; higherIndex++) {
-    const higher = edges[higherIndex]!;
-    for (let lowerIndex = 0; lowerIndex < edges.length; lowerIndex++) {
-      if (higherIndex === lowerIndex || warned.has(higherIndex)) {
-        continue;
-      }
-      const lower = edges[lowerIndex]!;
-      if (higher.projected === true || lower.projected === true) {
-        continue;
-      }
-      if (higher.type !== lower.type || !shadows(higher, lower, parentByChild)) {
-        continue;
-      }
-      warned.add(higherIndex);
+  const logicalEdges = edges.filter((edge) => !edge.projected);
+  const firstLower = new Map<string, LinkedEdge>();
+  function record(lower: LinkedEdge, source: string | undefined, target: string | undefined): void {
+    if (source === undefined || target === undefined) return;
+    const key = `${lower.type}\0${source}\0${target}`;
+    if (!firstLower.has(key)) firstLower.set(key, lower);
+  }
+  for (const lower of logicalEdges) {
+    const sourceParent = parentByChild.get(lower.source);
+    const targetParent = parentByChild.get(lower.target);
+    record(lower, sourceParent, lower.target);
+    record(lower, lower.source, targetParent);
+    record(lower, sourceParent, targetParent);
+  }
+  for (const higher of logicalEdges) {
+    const lower = firstLower.get(`${higher.type}\0${higher.source}\0${higher.target}`);
+    if (lower !== undefined) {
       diagnostics.push({
         level: "WARNING",
         code: "EDGE_SHADOWS_LOWER_LEVEL_EDGE",
@@ -4545,24 +5482,6 @@ function containsNestedElement(graph: IndexedGraph, node: string): boolean {
     }
   }
   return false;
-}
-
-function shadows(
-  higher: LinkedEdge,
-  lower: LinkedEdge,
-  parentByChild: ReadonlyMap<string, string>,
-): boolean {
-  const sourceMovesDown = higher.source === parentByChild.get(lower.source);
-  const targetMovesDown = higher.target === parentByChild.get(lower.target);
-  if (!sourceMovesDown && !targetMovesDown) {
-    return false;
-  }
-  return shadowsEndpoint(higher.source, lower.source, sourceMovesDown)
-    && shadowsEndpoint(higher.target, lower.target, targetMovesDown);
-}
-
-function shadowsEndpoint(higherEndpoint: string, lowerEndpoint: string, movesDown: boolean): boolean {
-  return movesDown || higherEndpoint === lowerEndpoint;
 }
 
 function localName(id: string): string {
@@ -4681,15 +5600,58 @@ function textValue(root: RuleNode | undefined): string {
     .join("");
 }
 
-function concreteProjectionRule(ruleNode: RuleNode, sourceName: string): ProjectionRuleDefinition {
+function concreteProjectionRule(
+  ruleNode: RuleNode,
+  sourceName: string,
+  section: ProjectionSection,
+): ProjectionRuleDefinition {
   const terms = children(ruleNode, "relationTerm");
   const operator = firstChild(ruleNode, "operatorIdentifier");
   const attributes = concreteProjectionRuleAttributes(ruleNode);
   return {
+    section,
     source: concreteProjectionTerm(terms[0], sourceName),
     operator: operator?.getText() ?? "",
     operatorSource: sourceLocation(sourceName, position(operator, sourceName)),
     target: concreteProjectionTerm(terms[1], sourceName),
+    ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
+  };
+}
+
+function concreteProjectionRuleFromObject(
+  object: RuleNode,
+  sourceName: string,
+  section: ProjectionSection,
+): ProjectionRuleDefinition {
+  const source = firstChild(object, "namedPrefixOperatorInvocation");
+  const operator = firstChild(object, "elementConstructor");
+  const target = firstChild(object, "identifierDeclaration");
+  const body = firstChild(object, "objectBody");
+  const attributes = body === undefined ? {} : Object.fromEntries(
+    children(body, "architectureBodyItem").flatMap((item) => {
+      const assignment = firstChild(item, "assignment");
+      return assignment === undefined ? [] : [[
+        firstChild(assignment, "attributeName")?.getText() ?? "",
+        [textValue(firstChild(assignment, "textValue"))],
+      ]];
+    }),
+  );
+  return {
+    section,
+    source: {
+      kind: "attribute",
+      value: source?.getText() ?? "",
+      placement: "source",
+      source: sourceLocation(sourceName, position(source, sourceName)),
+    },
+    operator: operator?.getText() ?? "",
+    operatorSource: sourceLocation(sourceName, position(operator, sourceName)),
+    target: {
+      kind: "attribute",
+      value: target?.getText() ?? "",
+      placement: "source",
+      source: sourceLocation(sourceName, position(target, sourceName)),
+    },
     ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
   };
 }
@@ -4704,14 +5666,20 @@ function concreteProjectionRuleAttributes(ruleNode: RuleNode): Readonly<Record<s
 }
 
 function concreteProjectionTerm(termNode: RuleNode | undefined, sourceName: string): ProjectionTermDefinition {
-  const placementNode = termNode === undefined ? undefined : firstChild(termNode, "relationPlacement");
   const projectionTermNode = termNode === undefined ? undefined : firstChild(termNode, "relationReference");
-  const placementText = placementNode?.getText() ?? "";
+  const qualifierNode = termNode === undefined ? undefined : firstChild(termNode, "relationDeploymentQualifier");
+  const environmentNode = qualifierNode === undefined ? undefined : firstChild(qualifierNode, "identifierReference");
+  const importNode = qualifierNode === undefined ? undefined : firstChild(qualifierNode, "anonymousImportDeclaration");
+  const importedEnvironment = importNode === undefined ? undefined : firstChild(importNode, "contextReference");
+  const deployment = qualifierNode === undefined ? undefined : {
+    environment: importedEnvironment?.getText() ?? environmentNode?.getText() ?? "",
+    ...(importedEnvironment === undefined ? {} : { deployment: environmentNode?.getText() ?? "" }),
+    source: sourceLocation(sourceName, position(qualifierNode, sourceName)),
+  };
   const value = projectionTermNode?.getText() ?? "";
   const base = {
-    placement: placementText === "target" ? "target" as const : "source" as const,
-    placementText,
-    placementSource: sourceLocation(sourceName, position(placementNode, sourceName)),
+    placement: value === "$to" ? "target" as const : "source" as const,
+    ...(deployment === undefined ? {} : { deployment }),
     source: sourceLocation(sourceName, position(projectionTermNode, sourceName)),
   };
   const slot = projectionTermNode === undefined ? undefined : firstChild(projectionTermNode, "relationSlotDereference");
@@ -4734,6 +5702,13 @@ function concreteProjectionTerm(termNode: RuleNode | undefined, sourceName: stri
     return { ...base, kind: "this", value };
   }
   return { ...base, kind: "attribute", value };
+}
+
+function projectionSection(listName: string): ProjectionSection {
+  if (listName === "outbound" || listName === "transit" || listName === "inbound") {
+    return listName;
+  }
+  return "projection";
 }
 
 function position(node: unknown, _sourceName: string): SourcePosition {

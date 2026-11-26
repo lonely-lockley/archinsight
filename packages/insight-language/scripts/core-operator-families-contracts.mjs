@@ -30,11 +30,15 @@ const snapshot = JSON.parse(JSON.stringify(built.snapshot));
 const types = new TypeSystem(snapshot);
 for (const [owner, attribute, expected] of [
   ["System", "links", "Wire"], ["Service", "links", "Wire"],
-  ["InfrastructureComponent", "projection", "PhysicalWire"],
   ["System", "deployment", "DeploymentAction"], ["ContainerElement", "deployment", "DeploymentAction"], ["Wire", "deployment", "DeploymentAction"],
   ["DeploymentProfile", "_", "DeploymentAction"], ["System", "actions", "Edge"],
 ]) {
   assert.equal(types.attribute(owner, attribute)?.listElementType, expected);
+}
+assert.equal(types.attribute("InfrastructureComponent", "projection")?.type, "Projection");
+assert.equal(types.anonymousListAttribute("Projection")?.listElementType, "PhysicalWire");
+for (const section of ["outbound", "transit", "inbound"]) {
+  assert.equal(types.attribute("Projection", section)?.listElementType, "PhysicalWire");
 }
 for (const type of ["Wire", "PhysicalWire", "DeploymentAction"]) {
   assert(types.isAssignable(type, "Edge"));
@@ -68,7 +72,6 @@ const operators = [
 ];
 for (const [header, ownerType, list, expectedType, indent] of [
   ["system caller\n    name = Caller\n    links:\n", "System", "links", "Wire", "        "],
-  ["networkConnection caller\n    name = Caller\n    projection:\n", "NetworkConnection", "projection", "PhysicalWire", "        "],
   ["system caller\n    name = Caller\n    deployment:\n", "System", "deployment", "DeploymentAction", "        "],
   ["deploymentProfile caller\n    appliesTo:\n        production from infra\n", "DeploymentProfile", "_", "DeploymentAction", "    "],
   ["system caller\n    name = Caller\n    actions:\n", "System", "actions", "Edge", "        "],
@@ -110,6 +113,26 @@ for (const [header, ownerType, list, expectedType, indent] of [
       assert.equal(semanticHighlightInsight(incomplete.source, snapshot).find((token) => token.line === line - 1 && token.column === indent.length)?.type, "operator");
     }
   }
+}
+
+const projectionHeader = endpoints + "networkConnection caller\n    name = Caller\n    projection:\n";
+const projectionCompletion = engine.complete({
+  sourceName: "projection.ai",
+  source: projectionHeader + "        ",
+  cursorOffset: projectionHeader.length + 8,
+  snapshot,
+});
+assert.deepEqual(
+  projectionCompletion.items.filter(({ kind }) => kind === "OPERATOR").map(({ label }) => label),
+  [],
+);
+assert(projectionCompletion.items.some(({ label }) => label === "$from"));
+for (const spelling of ["connectTo", "replicateFrom"]) {
+  const result = linkProject({
+    snapshot,
+    sources: [source("projection.ai", `${projectionHeader}        $from ${spelling} $this\n`), environment],
+  });
+  assert.deepEqual(result.diagnostics.filter(({ level }) => (level ?? "ERROR") === "ERROR"), []);
 }
 
 console.log("core operator family contracts passed");

@@ -74,9 +74,12 @@ context infra
 
 infrastructureComponent gateway
     projection:
-        source $from originalLink target cdn
-        target cdn connectTo target $this
-        source $slot from $owner publicGateway connectTo target $to
+        $from originalLink cdn
+        cdn connectTo $this in production from eu
+
+route publicInbound
+    outbound:
+        $from originalLink $to in eu
 `.trimStart();
   const tokens = tokensByText(source);
 
@@ -85,9 +88,7 @@ infrastructureComponent gateway
   assertToken(tokens, "connectTo", "operator");
   assertToken(tokens, "cdn", "property");
   assertToken(tokens, "$this", "variable");
-  assertToken(tokens, "$slot", "variable");
-  assertToken(tokens, "$owner", "variable");
-  assertToken(tokens, "publicGateway", "property");
+  assertToken(tokens, "$to", "variable");
   assertToken(tokens, "$to", "variable");
 }
 

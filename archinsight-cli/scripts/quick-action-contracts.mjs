@@ -44,10 +44,10 @@ external actor user
         -> frontend
             technology = HTTPS
             deployment:
-                uses network
+                route clusterLocal
         -> backend
             deployment:
-                uses network
+                route clusterLocal
 
 system platform
     name = Platform
@@ -59,7 +59,7 @@ system platform
         links:
             -> backend
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service backend
         name = Backend
@@ -68,7 +68,7 @@ system platform
         links:
             -> google
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service database
         name = Database
@@ -85,7 +85,7 @@ system platform
         links:
             -> cross_target
                 deployment:
-                    uses clusterLink
+                    route crossRegion
 
     service cross_target
         name = Cross target
@@ -227,12 +227,17 @@ deployment production
             name = ${name} Compute
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
 ${crossEnvironment ? `    clusterLink:
         clusterLink boundary
-            projection:
-                source $from originalLink target $to
+` : ""}
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
+${crossEnvironment ? `
+route crossRegion
+    outbound:
+        $from originalLink $to in production from us
 ` : ""}
 `;
 }

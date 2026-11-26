@@ -28,8 +28,8 @@ extend container frontend
                     __CURSOR__
 `.trimStart();
 
-assertCompletion(source, "uses");
-assertCompletion(source.replace("__CURSOR__", "uses __CURSOR__"), "privateGateway");
+assertCompletion(source, "route");
+assertCompletion(source.replace("__CURSOR__", "route __CURSOR__"), "clusterLocal");
 
 console.log("completion inside object extension contracts passed");
 
@@ -41,6 +41,7 @@ function assertCompletion(sourceWithCursor, expected) {
     cursorOffset,
     snapshot: snapshotBuild.snapshot,
     contextIds: ["test"],
+    indexedIdentifiers: new Map([["clusterLocal", { label: "clusterLocal", type: "Route", contextId: "test" }]]),
   });
   const labels = completion.items.map((item) => item.label);
   assert(labels.includes(expected), `${expected} missing from ${labels.join(", ")}`);

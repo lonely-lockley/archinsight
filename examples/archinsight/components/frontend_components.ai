@@ -42,7 +42,7 @@ extend container frontend
                 technology = REST
                 description = Sends live syntax checks and link requests
                 deployment:
-                    uses privateGateway
+                    route privateInternal
     component diagram_preview
         name = Diagram preview
         technology = SVG, browser Graphviz WASM

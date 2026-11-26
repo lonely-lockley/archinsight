@@ -158,7 +158,7 @@ A wire can use only a `NetworkConnection` descendant. The built-in `Broker`
 is one, so an environment can expose a `Broker` slot directly and a wire can
 select it with `uses`. Derive product-specific types such as Kafka or RabbitMQ
 from `Broker`, then put the physical path projection on the concrete broker
-instance. Read the complete [Broker](deployment-projections.md#broker) example
+instance. Read the complete [Broker route](deployment-projections.md#broker-route) example
 before modeling that path.
 
 If the chosen style is pragmatic mixed C2, a broker-like node can be acceptable,

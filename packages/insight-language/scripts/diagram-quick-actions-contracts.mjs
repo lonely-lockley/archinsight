@@ -60,16 +60,20 @@ deployment production
             name = Kubernetes
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
     gateway:
         reviewGateway gateway
             relay:
                 infrastructureComponent proxy
                     name = Review proxy
-            projection:
-                source $from originalLink target relay
-                target relay connectTo target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
+
+route reviewRoute
+    outbound:
+        $from originalLink relay
+        relay connectTo $to
 `),
     source("target.ai", `
 context shop
@@ -108,7 +112,7 @@ system storefront
             -> worker
             -> queue
                 deployment:
-                    uses network
+                    route clusterLocal
             -> billing
 
     service queue
@@ -133,7 +137,7 @@ system reviewSystem
         links:
             -> reviewTarget
                 deployment:
-                    uses gateway
+                    route reviewRoute
 
     service reviewTarget
         name = Review target
@@ -488,8 +492,10 @@ deployment production
             name = EU node
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("multi-us.ai", `
 environment us
@@ -501,8 +507,10 @@ deployment production
             name = US node
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("multi-model.ai", `
 context multi
@@ -522,7 +530,7 @@ system application
         links:
             -> target
                 deployment:
-                    uses network
+                    route clusterLocal
     service target
         name = Target
         deployment:
@@ -601,8 +609,10 @@ deployment production
     clusterLink:
         clusterLink boundary
             name = Boundary link
-            projection:
-                source $from originalLink target $to
+
+route crossRegion
+    outbound:
+        $from originalLink $to in production from west
 `),
     source("cross-west.ai", `
 environment west
@@ -615,8 +625,10 @@ deployment production
     network:
         networkConnection internal
             name = Internal network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("cross-model.ai", `
 context cross
@@ -640,7 +652,7 @@ system application
         links:
             -> bridge
                 deployment:
-                    uses clusterLink
+                    route crossRegion
 
     service bridge
         name = Bridge
@@ -649,7 +661,7 @@ system application
         links:
             -> target
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service target
         name = Target
@@ -720,8 +732,10 @@ deployment production
     clusterLink:
         clusterLink boundary
             name = Boundary link
-            projection:
-                source $from originalLink target $to
+
+route crossRegion
+    outbound:
+        $from originalLink $to in production from west
 `),
     source("split-west.ai", `
 environment west
@@ -734,8 +748,10 @@ deployment production
     network:
         networkConnection internal
             name = Internal network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("split-caller.ai", `
 context split
@@ -762,7 +778,7 @@ system application
         links:
             -> bridge
                 deployment:
-                    uses clusterLink
+                    route crossRegion
     service replicated
         name = Replicated
         deployment:
@@ -785,7 +801,7 @@ system backend
         links:
             -> target
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service target
         name = Target

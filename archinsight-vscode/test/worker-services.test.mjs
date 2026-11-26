@@ -160,7 +160,7 @@ deployment production
             runsOn:
                 k8s_r1
             projection:
-                target $this connectTo source $from
+                $this connectTo $from
 `,
     },
     {

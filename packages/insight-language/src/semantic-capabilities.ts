@@ -11,11 +11,14 @@ export const TYPE_CAPABILITIES = Object.freeze({
   infrastructure: "infrastructure",
   logicalContext: "logical-context",
   networkConnection: "network-connection",
+  projection: "deployment-projection",
+  route: "deployment-route",
 } as const);
 
 export const OPERATOR_CAPABILITIES = Object.freeze({
   deploymentUse: "deployment-use",
   deploymentPlacement: "deployment-placement",
+  deploymentRoute: "deployment-route-use",
   preserveLogicalEdge: "preserve-logical-edge",
 } as const);
 

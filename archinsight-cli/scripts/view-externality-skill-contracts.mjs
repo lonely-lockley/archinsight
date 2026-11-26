@@ -80,8 +80,10 @@ deployment production
     network:
         networkConnection service_network
             name = Service network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `);
   file(project, "fintech.ai", `context company_platform
 
@@ -117,7 +119,7 @@ system compliance
         links:
             -> fintech_api
                 deployment:
-                    uses network
+                    route clusterLocal
 `);
 
   run(["link", project, "--format", "text"]);

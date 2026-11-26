@@ -535,7 +535,15 @@ export function discoverDeploymentEnvironments(
   }
 
   for (const edge of result.edges) {
-    if (edge.projected === true || edge.sourceIdentity !== scope.tab) {
+    if (edge.sourceIdentity !== scope.tab) {
+      continue;
+    }
+    if (edge.projected === true) {
+      const projectionRoot = edge.projectionRoot === undefined ? undefined : elementsById.get(edge.projectionRoot);
+      if (projectionRoot !== undefined
+          && elementHasCapability(projectionRoot, TYPE_CAPABILITIES.route)) {
+        wireEnvironmentIds.add(projectionRoot.context);
+      }
       continue;
     }
     for (const targetId of semanticAttribute(edge, ATTRIBUTE_CAPABILITIES.infrastructureUses)) {

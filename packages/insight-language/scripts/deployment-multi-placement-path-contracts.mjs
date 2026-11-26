@@ -48,7 +48,7 @@ system storefront
         links:
             -> api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service api
         name = API
@@ -92,8 +92,12 @@ deployment production
                 infrastructureComponent ${gateway}
                     name = ${gateway}
             projection:
-                source $from originalLink target gateway
-                target gateway connectTo target $to
+                $from originalLink gateway
+                gateway connectTo $to
+route clusterLocal
+    outbound:
+        $from originalLink gateway
+        gateway connectTo $to
 `);
 }
 

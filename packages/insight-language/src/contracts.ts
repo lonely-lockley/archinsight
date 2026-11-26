@@ -79,19 +79,26 @@ export interface AttributeDefinition {
 }
 
 export type ProjectionTermKind = "from" | "to" | "this" | "attribute" | "slot";
-export type ProjectionPlacement = "source" | "target";
+export type ProjectionSection = "projection" | "outbound" | "transit" | "inbound";
+
+export interface ProjectionDeploymentQualifier {
+  readonly environment: string;
+  readonly deployment?: string;
+  readonly source?: SourceLocation;
+}
 
 export interface ProjectionTermDefinition {
   readonly kind: ProjectionTermKind;
   readonly value: string;
-  readonly placement: ProjectionPlacement;
-  readonly placementText?: string;
-  readonly placementSource?: SourceLocation;
+  /** Internal occurrence side inferred from the endpoint; not Insight syntax. */
+  readonly placement: "source" | "target";
+  readonly deployment?: ProjectionDeploymentQualifier;
   readonly ownerAttribute?: string;
   readonly source?: SourceLocation;
 }
 
 export interface ProjectionRuleDefinition {
+  readonly section: ProjectionSection;
   readonly source: ProjectionTermDefinition;
   readonly operator: string;
   readonly operatorSource?: SourceLocation;

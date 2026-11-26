@@ -15,9 +15,11 @@ deployment production
             loadBalancer:
                 infrastructureComponent load_balancer
                     name = Load balancer
-            projection:
-                source $from originalLink target gateway
-                target gateway connectTo target loadBalancer
-                    technology = HTTPS
-                target loadBalancer connectTo target $to
-                    technology = HTTP
+
+route publicInbound
+    inbound:
+        $from originalLink gateway
+        gateway connectTo loadBalancer
+            technology = HTTPS
+        loadBalancer connectTo $to
+            technology = HTTP

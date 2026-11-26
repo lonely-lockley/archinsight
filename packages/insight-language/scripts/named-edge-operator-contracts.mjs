@@ -385,6 +385,6 @@ system caller
         publish receiver
             `;
 assert.deepEqual(completion.complete({ sourceName: "body.ai", source: body, cursorOffset: body.length, snapshot })
-  .items.map(({ label }) => label).sort(), ["deployment", "description", "model", "technology", "uses"]);
+  .items.map(({ label }) => label).sort(), ["deployment", "description", "model", "technology"]);
 
 console.log("named edge operator contracts passed");

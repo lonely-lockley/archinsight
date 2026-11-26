@@ -364,8 +364,8 @@ infrastructureComponent gateway
     name = Gateway
 
     projection:
-        source $from originalLink target $this
-        source gateway connectTo target $to
+        $from originalLink $this
+        gateway connectTo $to
 `);
 }
 
@@ -375,7 +375,7 @@ context test
 
 infrastructureComponent gateway
     projection:
-        source gateway connectTo fixed tgw in latam
+        gateway connectTo fixed tgw in latam
 `);
 }
 

@@ -45,6 +45,7 @@ for (const context of contexts) {
 
 const manifest = {
   generator: GENERATOR_ID,
+  schemaVersion: 3,
   generatedAt: new Date().toISOString(),
   serviceCount,
   environmentCount: ENVIRONMENT_COUNT,
@@ -180,7 +181,7 @@ deployment production
             runsOn:
                 compute
             projection:
-                source $from originalLink target $this
+                $from originalLink $this
 
     observability:
         infrastructureComponent observability
@@ -195,8 +196,10 @@ deployment production
             technology = HTTPS
             runsOn:
                 compute
-            projection:
-                source $from originalLink target $to
+
+route serviceCall
+    outbound:
+        $from originalLink $to
 `;
 }
 
@@ -269,12 +272,16 @@ function relationship(targetService, sourceService, relationshipIndex) {
     return `            ~> api_${targetId}
                 technology = Kafka
                 via = service-events
-                description = Publishes an event to service ${targetId}`;
+                description = Publishes an event to service ${targetId}
+                deployment:
+                    route serviceCall`;
   }
   return `            -> api_${targetId}
                 technology = HTTPS, REST
                 call = GET /v1/resources
-                description = Calls service ${targetId}`;
+                description = Calls service ${targetId}
+                deployment:
+                    route serviceCall`;
 }
 
 function componentSource(service, context, container) {

@@ -51,7 +51,7 @@ deployment production
             runsOn:
                 cloud
             projection:
-                source $from originalLink target $this
+                $from originalLink $this
 
     observability:
         monitoring metrics
@@ -65,8 +65,8 @@ deployment production
                 infrastructureComponent otel
                     name = OpenTelemetry
             projection:
-                target $this connectTo target display
-                target $this connectTo target telemetry
+                $this connectTo display
+                $this connectTo telemetry
 `),
     source("application.ai", `
 context app

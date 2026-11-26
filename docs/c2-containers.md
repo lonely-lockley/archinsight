@@ -88,7 +88,7 @@ service catalog
 
 The selected profile supplies the deployment environment together with values such as `runsOn` and `uses`. These values connect the service to the compute, storage, broker, or other infrastructure that supports it.
 
-A wire has its own deployment information because the path between two deployed elements may require infrastructure of its own. A logical dependency can use a network connection, gateway, broker, or another physical route without changing the logical source and target of the wire.
+A wire has its own deployment information because the path between two deployed elements may require infrastructure of its own. A logical dependency selects a named environment-owned route without changing the logical source and target of the wire.
 
 This creates two related deployment paths:
 
@@ -149,6 +149,5 @@ The C2 level uses the same `Wire` family as C1. The declaration owner is always 
 | `description` | `Text` | No | `->`, `~>` | Purpose of the interaction. |
 | `model` | `WireModel` | Yes, provided by constructor | `->`, `~>` | Enum value identifying the relationship as `sync` or `async` for queries. The built-in constructor supplies it. |
 | `deployment` | `List of DeploymentAction` | No | `->`, `~>` | Deployment actions that describe the physical realization of the wire. |
-| `uses` | `List of NetworkConnection` | No | `->`, `~>` | Network capabilities used by the deployed relationship. |
 | `call` | `Text` | No | `->` | Operation or interface invoked by a synchronous interaction. |
 | `via` | `Text` | No | `~>` | Topic, channel, queue, or route used by an asynchronous interaction. |

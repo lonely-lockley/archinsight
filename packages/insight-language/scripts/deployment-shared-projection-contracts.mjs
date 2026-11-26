@@ -88,7 +88,7 @@ deployment production
                 infrastructureComponent grafana
                     name = Grafana
             projection:
-                target $this connectTo target display
+                $this connectTo display
 
     audit:
         metrics audit
@@ -99,7 +99,7 @@ deployment production
                 infrastructureComponent audit_ui
                     name = Audit UI
             projection:
-                target $this connectTo target display
+                $this connectTo display
 `),
     source("model.ai", `
 context app

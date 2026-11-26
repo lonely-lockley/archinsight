@@ -10,4 +10,4 @@ deployment production
         storage postgres
             name = PostgreSQL
             projection:
-                source $from originalLink target $this
+                $from originalLink $this

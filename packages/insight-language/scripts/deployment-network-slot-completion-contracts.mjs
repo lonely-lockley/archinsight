@@ -26,8 +26,13 @@ assert.equal(
 );
 assert.equal(
   labels(complete(environmentSlot)).has("messageBroker"),
+  false,
+  "NetworkConnection slots must not be offered where relationship deployment requires a Route",
+);
+assert.equal(
+  labels(complete(environmentSlot)).has("clusterLocal"),
   true,
-  "a custom NetworkConnection Environment slot must be offered to wire deployment completion",
+  "environment-owned routes must be offered to relationship deployment completion",
 );
 
 console.log("deployment network slot completion contracts passed");
@@ -43,7 +48,7 @@ system client
     links:
         ~> backend
             deployment:
-                uses __CURSOR__
+                route __CURSOR__
 `.trimStart();
   const cursorOffset = sourceWithCursor.indexOf("__CURSOR__");
   return completion.complete({
@@ -54,6 +59,7 @@ system client
     contextIds: ["application", "consumer"],
     indexedIdentifiers: new Map([
       ["backend", { label: "backend", type: "Service", imported: true }],
+      ["clusterLocal", { label: "clusterLocal", type: "Route", contextId: "application" }],
     ]),
   });
 }

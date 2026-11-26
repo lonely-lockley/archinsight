@@ -23,6 +23,10 @@ deployment production
     compute:
         compute compute
             name = Compute
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
   source("application.ai", `
 context application
@@ -45,11 +49,11 @@ system platform
 const unknown = linkedWithWireSlot("jhv");
 const unknownErrors = errors(unknown.diagnostics);
 assert.equal(unknownErrors.length, 1);
-assert.equal(unknownErrors[0]?.code, "UNDECLARED_IDENTIFIER");
-assert.equal(unknownErrors[0]?.message, "Deployment slot 'jhv' is not declared by any Environment type");
+assert.equal(unknownErrors[0]?.code, "ROUTE_NOT_DECLARED");
+assert.match(unknownErrors[0]?.message ?? "", /jhv|Route/);
 assert.equal(unknownErrors[0]?.sourceName, "consumer.ai");
 
-const optional = linkedWithWireSlot("optionalNetwork");
+const optional = linkedWithWireSlot("clusterLocal");
 assertNoErrors(optional.diagnostics);
 assert.equal(
   optional.diagnostics.some((diagnostic) => diagnostic.code === "UNDECLARED_IDENTIFIER"),
@@ -67,12 +71,12 @@ context consumer
 
 import backend from context application
 
-system client
+external system client
     name = Client
     links:
         ~> backend
             deployment:
-                uses ${slot}
+                route ${slot}
 `),
   ];
   return linkProject({ snapshot: definitions.snapshot, sources });

@@ -54,7 +54,7 @@ for (const owner of ["System", "Catalog", "ContainerElement", "Worker", "Deploym
   const expected = ["DeploymentProfile", "Policy"].includes(owner)
     ? ["runsOn InfrastructureComponent", "uses InfrastructureComponent"]
     : ["Wire", "SyncWire"].includes(owner)
-    ? ["uses NetworkConnection"]
+    ? ["route Route"]
     : ["System", "Catalog", "ContainerElement", "Worker"].includes(owner)
     ? ["runsOn InfrastructureComponent", "uses DeploymentProfile", "uses InfrastructureComponent"]
     : [];

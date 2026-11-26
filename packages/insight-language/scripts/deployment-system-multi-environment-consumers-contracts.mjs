@@ -67,7 +67,7 @@ ${consumers.map(({ id, target, topic }) => `external system ${id}
         ~> ${target}
             via = ${topic}
             deployment:
-                uses broker`).join("\n\n")}
+                route brokerRoute`).join("\n\n")}
 `),
 ];
 
@@ -84,7 +84,7 @@ const expectedElements = [
 assert.deepEqual(Object.keys(graph.elements).sort(), expectedElements);
 
 const expectedEdges = consumers.flatMap(({ id, topic }) => environmentIds.map((environmentId) =>
-  `AsyncWire:consumers/${id}->application/platform@@${environmentId}/compute:${topic}`
+  `AsyncWire:application/platform@@${environmentId}/compute->consumers/${id}:${topic}`
 )).sort();
 assert.equal(expectedEdges.length, 24, "the regression topology must cover eight consumers in three environments");
 assert.deepEqual(
@@ -117,9 +117,11 @@ deployment production
             name = Kafka
             runsOn:
                 compute
-            projection:
-                source $from originalLink source $this
-                target $to connectTo target $this
+
+route brokerRoute
+    inbound:
+        $to connectTo broker
+        broker originalLink $from
 `);
 }
 

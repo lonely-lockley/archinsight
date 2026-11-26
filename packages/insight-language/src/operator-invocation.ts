@@ -1,6 +1,7 @@
 import { firstChildByRule, ruleName, sourceLocationOf, textOf, type AntlrParseTreeLike } from "./parser-facade.js";
 import type { LanguageDiagnostic } from "./contracts.js";
 import type { TypeSystem } from "./type-system.js";
+import { OPERATOR_CAPABILITIES } from "./semantic-capabilities.js";
 
 export interface OperatorInvocationSyntax<T extends AntlrParseTreeLike = AntlrParseTreeLike> {
   readonly operator: T;
@@ -52,9 +53,17 @@ export function operatorInvocationDiagnostic(
 ): LanguageDiagnostic | undefined {
   const spelling = textOf(invocation.operator);
   const known = typeSystem.hasOperatorConstructor(spelling);
-  const compatible = typeSystem.operatorConstructorsFrom(ownerType, expectedType)
-    .some((operator) => operator.spelling === spelling);
+  const candidates = typeSystem.operatorConstructorsFrom(ownerType, expectedType);
+  const compatible = candidates.some((operator) => operator.spelling === spelling);
   if (compatible && invocation.target !== undefined) return undefined;
+  if (!compatible && spelling === "uses" && candidates.some((operator) =>
+    typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentRoute))) {
+    return {
+      code: "WIRE_USES_REMOVED",
+      message: "Wire deployment 'uses' was replaced by 'route <name>'; declare the physical path as a route in the environment",
+      ...sourceLocationOf(invocation.operator, sourceName),
+    };
+  }
   return {
     code: !known ? "CONSTRUCTOR_NOT_DECLARED" : !compatible ? "TYPE_MISMATCH" : "IDENTIFIER_REQUIRED",
     message: !known ? `Unknown operator '${spelling}'`

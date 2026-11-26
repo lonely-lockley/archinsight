@@ -29,8 +29,10 @@ deployment production
     network:
         networkConnection network
             name = Network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
   source("model.ai", `
 context app
@@ -45,7 +47,7 @@ external actor customer
     links:
         -> frontend
             deployment:
-                uses network
+                route clusterLocal
 
 external system partner
     name = Partner
@@ -84,7 +86,7 @@ extend container frontend
         links:
             -> backend
                 deployment:
-                    uses network
+                    route clusterLocal
 
 extend service backend
     component payment_handler
@@ -92,7 +94,7 @@ extend service backend
         links:
             -> partner_api
                 deployment:
-                    uses network
+                    route clusterLocal
 
 extend service partner_api
     component integration

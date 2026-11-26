@@ -49,15 +49,15 @@ context integration
 
 import backend from context application
 
-system producer
+external system producer
     name = Producer
     links:
         ~> backend
             deployment:
-                uses messageBroker
+                route brokerRoute
         -> backend
             deployment:
-                uses network
+                route clusterLocal
 `),
 ];
 const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
@@ -81,9 +81,9 @@ assert.deepEqual(Object.keys(d2.elements).sort(), [
   "integration/producer",
 ]);
 assert.deepEqual(edgeSignatures(d2), [
-  "AsyncWire:integration/producer->eu/broker:eu/broker",
-  "ConnectTo:application/backend@@eu/compute->eu/broker:eu/broker",
-  "SyncWire:integration/producer->application/backend@@eu/compute:eu/network",
+  "AsyncWire:eu/broker->integration/producer:eu/brokerRoute",
+  "ConnectTo:application/backend@@eu/compute->eu/broker:eu/brokerRoute",
+  "SyncWire:integration/producer->application/backend@@eu/compute:eu/clusterLocal",
 ].sort(), "D2 must preserve the exact async projection and the direct sync relationship");
 
 const pathToBrokerWithCapturedSourceScope = selectPathGraph(
@@ -114,10 +114,10 @@ assert.equal(
   "D1 must fold internal brokers and placement infrastructure",
 );
 assert.deepEqual(edgeSignatures(d1), [
-  "AsyncWire:integration/producer->application/platform@@eu/compute:eu/broker",
-  "AsyncWire:integration/producer->application/platform@@sa/compute:sa/broker",
-  "SyncWire:integration/producer->application/platform@@eu/compute:eu/network",
-  "SyncWire:integration/producer->application/platform@@sa/compute:sa/network",
+  "AsyncWire:application/platform@@eu/compute->integration/producer:eu/brokerRoute",
+  "AsyncWire:application/platform@@sa/compute->integration/producer:sa/brokerRoute",
+  "SyncWire:integration/producer->application/platform@@eu/compute:eu/clusterLocal",
+  "SyncWire:integration/producer->application/platform@@sa/compute:sa/clusterLocal",
 ].sort(), "D1 must preserve both logical relationships in every environment without duplicates");
 
 console.log("deployment unplaced system endpoint contracts passed");
@@ -136,14 +136,18 @@ deployment production
             name = Broker
             runsOn:
                 compute
-            projection:
-                source $from originalLink source $this
-                target $to connectTo target $this
     network:
         networkConnection network
             name = Network
-            projection:
-                source $from originalLink target $to
+
+route brokerRoute
+    inbound:
+        $to connectTo messageBroker
+        messageBroker originalLink $from
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `);
 }
 

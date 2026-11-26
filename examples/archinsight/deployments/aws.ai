@@ -29,7 +29,7 @@ deployment production
             runsOn:
                 csp
             projection:
-                source $from originalLink target $this
+                $from originalLink $this
 
     publicGateway:
         archinsightPublicGateway publicGateway
@@ -53,17 +53,6 @@ deployment production
                     runsOn:
                         compute
 
-            projection:
-                source $from originalLink target cdn
-
-                target cdn connectTo target loadBalancer
-                    technology = HTTPS, REST
-
-                target loadBalancer connectTo target ingress
-                    technology = HTTPS, REST
-
-                target ingress connectTo target $to
-                    technology = HTTP, REST
 
     privateGateway:
         archinsightPrivateGateway privateGateway
@@ -71,8 +60,6 @@ deployment production
             technology = Kubernetes networking
             runsOn:
                 compute
-            projection:
-                source $from originalLink target $to
 
     egress:
         egress egress
@@ -80,8 +67,6 @@ deployment production
             technology = AWS networking
             runsOn:
                 compute
-            projection:
-                source $from originalLink target $to
 
     observability:
         metrics observability
@@ -97,5 +82,23 @@ deployment production
                     technology = Grafana
 
             projection:
-                target $this connectTo target display
+                $this connectTo display
                     technology = HTTPS, REST
+
+route publicInbound
+    inbound:
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+            technology = HTTPS, REST
+        loadBalancer connectTo ingress
+            technology = HTTPS, REST
+        ingress connectTo $to
+            technology = HTTP, REST
+
+route privateInternal
+    outbound:
+        $from originalLink $to
+
+route externalOutbound
+    outbound:
+        $from originalLink $to

@@ -90,8 +90,8 @@ container. Actors, components, code, profiles, environments, and infrastructure
 do not inherit this list from `Element`. Deployment profiles declare actions
 directly in their body and cannot select another profile through `uses`.
 `runsOn` and infrastructure `uses` accept systems, containers, and profiles;
-`uses <profile>` accepts only systems and containers. Wire actions accept only
-`uses` of `NetworkConnection` descendants.
+`uses <profile>` accepts only systems and containers. A wire deployment accepts
+only `route <name>`; the route implementation is owned by each environment.
 
 The `runsOn` attribute on `InfrastructureComponent` points to one named
 infrastructure instance. The target cannot be anonymous. By contrast,
@@ -156,7 +156,6 @@ define operator Wire of Edge
     required WireModel model
 
     List of DeploymentAction deployment
-    List of NetworkConnection uses
 
 define operator SyncWire of Wire
     constructor -> Element

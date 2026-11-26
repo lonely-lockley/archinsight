@@ -7,7 +7,3 @@ deployment production
 
     privateGateway:
         name = Target Private Gateway
-        projection:
-            source $from originalLink target $this
-            target $this connectTo target $to
-                technology = HTTPS

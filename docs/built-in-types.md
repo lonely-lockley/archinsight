@@ -250,7 +250,7 @@ Edge
     └── OriginalLink
 ```
 
-`Wire` is the abstract base for logical architectural dependencies. It carries `technology`, `description`, a required `WireModel` attribute named `model`, deployment references, and the network capabilities used by deployment projection. `WireModel` is an enum containing `sync` and `async`. The concrete wire constructors provide the value, making it available for queries without requiring a manual assignment.
+`Wire` is the abstract base for logical architectural dependencies. It carries `technology`, `description`, a required `WireModel` attribute named `model`, and relationship deployment actions. `WireModel` is an enum containing `sync` and `async`. The concrete wire constructors provide the value, making it available for queries without requiring a manual assignment.
 
 `SyncWire` is created with `->` and receives `model = sync`. Its optional `call` attribute can record the operation or interface being invoked. `AsyncWire` is created with `~>` and receives `model = async`; its optional `via` attribute can identify a topic, channel, queue, or other asynchronous route. Model authors leave `model` to these constructor defaults. The default presentation draws asynchronous wires with a dashed line.
 
@@ -270,7 +270,7 @@ service order_fulfillment
 
 `PhysicalWire` is the base for relationships produced by deployment projection. `ConnectTo` represents a physical connection, `ReplicateFrom` represents replication, and `OriginalLink` preserves the logical relationship inside an expanded physical path. These edge types let a deployment view show how one logical wire is realized through gateways, brokers, storage, and network components.
 
-`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates a system or container with a deployment profile through `uses`. `InfrastructureUse` records infrastructure required by a system, container, or profile; on a logical wire, it accepts only `NetworkConnection` targets. `InfrastructurePlacement` places a system, container, or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
+`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates a system or container with a deployment profile through `uses`. `InfrastructureUse` records infrastructure required by a system, container, or profile. `InfrastructurePlacement` places a system, container, or profile on an infrastructure component through `runsOn`. `RouteUse` assigns an environment-owned `Route` to a logical wire. Together they connect the logical model with its deployment environment.
 
 Core lists accept these families separately: `links` expects `Wire`,
 `projection` expects `PhysicalWire`, and `deployment` expects `DeploymentAction`.

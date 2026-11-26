@@ -22,7 +22,7 @@ external actor shopper
     links:
         -> web_app
             deployment:
-                uses publicGateway
+                route publicInbound
 
 external system payment_provider
     name = Payment Provider
@@ -39,7 +39,7 @@ system storefront
         links:
             -> checkout_api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service checkout_api
         name = Checkout API
@@ -49,4 +49,4 @@ system storefront
         links:
             -> payment_provider
                 deployment:
-                    uses egress
+                    route externalOutbound

@@ -213,10 +213,10 @@ function projectionDefinitionItems(
   context: CompletionScope,
 ): CompletionItem[] | undefined {
   const relationList = currentRelationEdgeList(typeSystem, context, line.indentLevel);
-  if (!rule(syntax, "relationInvocation") && relationList === undefined) {
+  if (relationList === undefined) {
     return undefined;
   }
-  if (isProjectionRuleBodyAttributePosition(line, syntax)) {
+  if (isProjectionRuleBodyAttributePosition(line, syntax, context)) {
     return projectionRelationAttributeItems(typeSystem, relationList?.expectedType);
   }
   const words = line.contentBeforeCursor.trim().split(/\s+/).filter((word) => word.length > 0);
@@ -231,24 +231,40 @@ function currentRelationEdgeList(
   typeSystem: TypeSystem,
   context: CompletionScope,
   indent: number,
-): { readonly expectedType: string } | undefined {
-  const list = currentList(context, indent);
-  if (list === undefined) {
+): { readonly expectedType: string; readonly ownerType: string } | undefined {
+  const list = currentList(context, indent) ?? context.lists
+    .filter((candidate) => candidate.indent < indent
+      && ["projection", "outbound", "transit", "inbound", "_"].includes(candidate.attribute))
+    .sort((left, right) => right.indent - left.indent)[0];
+  if (list === undefined || (!["projection", "outbound", "transit", "inbound"].includes(list.attribute)
+      && !(list.attribute === "_" && typeSystem.typeHasCapability(list.ownerType, TYPE_CAPABILITIES.projection)))) {
     return undefined;
   }
-  const expectedType = typeSystem.attribute(list.ownerType, list.attribute)?.listElementType;
+  const attribute = typeSystem.attribute(list.ownerType, list.attribute);
+  const projectionType = attribute !== undefined && attribute.list !== true
+      && typeSystem.typeHasCapability(attribute.type, TYPE_CAPABILITIES.projection)
+    ? attribute.type
+    : undefined;
+  const expectedType = projectionType === undefined
+    ? attribute?.listElementType
+    : typeSystem.anonymousListAttribute(projectionType)?.listElementType;
   return expectedType !== undefined && typeSystem.relationOperatorConstructors(expectedType).length > 0
-    ? { expectedType }
+    ? { expectedType, ownerType: list.ownerType }
     : undefined;
 }
 
 function isProjectionRuleBodyAttributePosition(
   line: LineContext,
   syntax: SyntaxContext,
+  context: CompletionScope,
 ): boolean {
-  return rule(syntax, "relationInvocation")
-    && line.hasOnlyIndentBeforeCursor
-    && line.indentLevel >= 3;
+  if (!line.hasOnlyIndentBeforeCursor || line.indentLevel < 3) return false;
+  if (rule(syntax, "relationInvocation")) return true;
+  const list = context.lists
+    .filter((candidate) => candidate.indent < line.indentLevel
+      && ["projection", "outbound", "transit", "inbound", "_"].includes(candidate.attribute))
+    .sort((left, right) => right.indent - left.indent)[0];
+  return list !== undefined && line.indentLevel >= list.indent + 2 && rule(syntax, "objectDeclaration");
 }
 
 function projectionItemsForWords(
@@ -256,7 +272,7 @@ function projectionItemsForWords(
   syntax: SyntaxContext,
   typeSystem: TypeSystem,
   context: CompletionScope,
-  relationList: { readonly expectedType: string } | undefined,
+  relationList: { readonly expectedType: string; readonly ownerType: string } | undefined,
 ): CompletionItem[] | undefined {
   const expectedInput = relationExpectedInput(words, typeSystem, relationList);
   if (expectedInput === undefined) {
@@ -266,41 +282,25 @@ function projectionItemsForWords(
 }
 
 type RelationExpectedInput =
-  | { readonly kind: "placement" }
-  | { readonly kind: "term"; readonly expectedType: string; readonly placement: string }
+  | { readonly kind: "term"; readonly expectedType: string }
   | { readonly kind: "operator"; readonly expectedType?: string };
 
 function relationExpectedInput(
   words: readonly string[],
   typeSystem: TypeSystem,
-  relationList: { readonly expectedType: string } | undefined,
+  relationList: { readonly expectedType: string; readonly ownerType: string } | undefined,
 ): RelationExpectedInput | undefined {
-  const firstTerm = consumeRelationTerm(words, 0);
-  if (firstTerm.expect === "placement") {
-    return { kind: "placement" };
-  }
-  if (firstTerm.expect === "term") {
-    return { kind: "term", expectedType: PROJECTION_TERM, placement: firstTerm.placement };
-  }
-  if (firstTerm.expect !== "complete") {
-    return undefined;
-  }
-
-  const operatorIndex = firstTerm.next;
+  if (words.length === 0) return { kind: "term", expectedType: PROJECTION_TERM };
+  const operatorIndex = relationTermEnd(words, 0);
   if (words.length === operatorIndex || !projectionOperatorSpellings(typeSystem, relationList?.expectedType).includes(words[operatorIndex] ?? "")) {
     return relationList?.expectedType === undefined
       ? { kind: "operator" }
       : { kind: "operator", expectedType: relationList.expectedType };
   }
 
-  const secondTerm = consumeRelationTerm(words, operatorIndex + 1);
-  if (secondTerm.expect === "placement") {
-    return { kind: "placement" };
-  }
-  if (secondTerm.expect === "term") {
-    return { kind: "term", expectedType: PROJECTION_TERM, placement: secondTerm.placement };
-  }
-  return undefined;
+  return words.length === operatorIndex + 1
+    ? { kind: "term", expectedType: PROJECTION_TERM }
+    : undefined;
 }
 
 function relationExpectedInputItems(
@@ -308,51 +308,26 @@ function relationExpectedInputItems(
   syntax: SyntaxContext,
   typeSystem: TypeSystem,
   context: CompletionScope,
-  relationList: { readonly expectedType: string } | undefined,
+  relationList: { readonly expectedType: string; readonly ownerType: string } | undefined,
 ): CompletionItem[] {
   switch (input.kind) {
-    case "placement":
-      return relationPlacementItems(typeSystem);
     case "term":
       return valueItemsForExpectedType(
         typeSystem,
         context,
         input.expectedType,
-        { typeSlotTargetTypes: relationPlacementTargetTypes(typeSystem, input.placement) },
+        { typeSlotTargetTypes: relationList === undefined
+          ? []
+          : [relationList.ownerType, ...typeSystem.typesWithCapability(TYPE_CAPABILITIES.environment)] },
       );
     case "operator":
       return projectionOperatorItems(typeSystem, input.expectedType);
   }
 }
 
-function relationPlacementItems(typeSystem: TypeSystem): CompletionItem[] {
-  return projectionPlacementOperators(typeSystem).map((operator) => keyword(`${operator.spelling} `));
-}
-
-function projectionPlacementOperators(typeSystem: TypeSystem) {
-  return typeSlotOperatorsForOwner(typeSystem, PROJECTION_TERM);
-}
-
-function relationPlacementTargetTypes(typeSystem: TypeSystem, placement: string): readonly string[] {
-  return projectionPlacementOperators(typeSystem)
-    .filter((operator) => operator.spelling === placement)
-    .map((operator) => operator.targetType);
-}
-
-type RelationTermConsumption =
-  | { readonly expect: "placement" }
-  | { readonly expect: "term"; readonly placement: string }
-  | { readonly expect: "complete"; readonly next: number };
-
-function consumeRelationTerm(words: readonly string[], start: number): RelationTermConsumption {
-  const placement = words[start];
-  if (placement === undefined) {
-    return { expect: "placement" };
-  }
-  if (words.length === start + 1) {
-    return { expect: "term", placement };
-  }
-  return { expect: "complete", next: start + 2 };
+function relationTermEnd(words: readonly string[], start: number): number {
+  if (words[start + 1] !== "in") return start + 1;
+  return words[start + 3] === "from" ? start + 5 : start + 3;
 }
 
 function projectionOperatorItems(typeSystem: TypeSystem, expectedType?: string): CompletionItem[] {
@@ -398,7 +373,9 @@ function projectionSlotAttributeItemsForType(
     .filter((attribute) => attribute.name !== "_")
     .filter((attribute) => {
       const valueType = referenceAttributeValueType(attribute);
-      return valueType !== undefined && typeSystem.isAssignable(valueType, "Element");
+      return valueType !== undefined
+        && typeSystem.isAssignable(valueType, "Element")
+        && !typeSystem.typeHasCapability(valueType, TYPE_CAPABILITIES.projection);
     })
     .map((attribute) => attributeItem(attribute.name, attributeTypeName(attribute)));
 }
@@ -485,7 +462,7 @@ function architectureItems(
     return operatorTargetItems(typeSystem, context, operatorList.ownerType, operatorList.expectedType, operator);
   }
   const projectionItems = projectionDefinitionItems(line, syntax, typeSystem, context);
-  if (projectionItems !== undefined && (edgeList === undefined || !line.hasOnlyIndentBeforeCursor)) return projectionItems;
+  if (projectionItems !== undefined) return projectionItems;
   const contextualListItems = contextualListReferenceItems(line, typeSystem, context);
   if (contextualListItems !== undefined && (operatorList === undefined || !line.hasOnlyIndentBeforeCursor)) return contextualListItems;
   if (syntax.lineBreakIndentDelta !== undefined) {

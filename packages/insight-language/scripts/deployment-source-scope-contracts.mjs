@@ -42,7 +42,7 @@ deployment production
         networkConnection service_network
             name = Service network
             projection:
-                source $from originalLink target $to
+                $from originalLink $to
 
     publicGateway:
         publicGateway public_edge
@@ -53,10 +53,16 @@ deployment production
             loadBalancer:
                 infrastructureComponent alb
                     name = ALB
-            projection:
-                source $from originalLink target cdn
-                target cdn connectTo target loadBalancer
-                target loadBalancer connectTo target $to
+
+route publicInbound
+    inbound:
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+        loadBalancer connectTo $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("ingress.ai", `
 context shop
@@ -72,7 +78,7 @@ external actor shopper
     links:
         -> web_app
             deployment:
-                uses publicGateway
+                route publicInbound
 
 system storefront
     name = Storefront
@@ -84,7 +90,7 @@ system storefront
         links:
             -> checkout_api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service checkout_api
         name = Checkout API
@@ -106,7 +112,7 @@ system reporting
         links:
             -> report_worker
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service report_worker
         name = Report worker

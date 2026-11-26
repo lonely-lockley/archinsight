@@ -7,5 +7,13 @@ deployment production
 
     network:
         name = Source Network
-        projection:
-            source $from originalLink target $to
+
+route privateGateway
+    outbound:
+        $from originalLink privateGateway in target_env
+        privateGateway connectTo $to
+            technology = HTTPS
+
+route externalOutbound
+    outbound:
+        $from originalLink $to

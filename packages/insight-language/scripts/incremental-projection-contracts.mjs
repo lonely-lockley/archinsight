@@ -130,14 +130,14 @@ deployment production
             runsOn:
                 k8s_r1
             projection:
-                source $from originalLink target $this
+                $from originalLink $this
     observability:
         monitoring prom_r1
             name = Prometheus
             runsOn:
                 k8s_r1
             projection:
-                target $this connectTo source $from
+                $this connectTo $from
 `),
     source("shop.ai", `
 context shop
@@ -190,7 +190,7 @@ deployment production
                 infrastructureComponent grafana
                     name = Grafana
 ${withProjection ? `            projection:
-                target $this connectTo target display
+                $this connectTo display
 ` : ""}`;
 }
 

@@ -45,7 +45,7 @@ system storefront
         links:
             -> api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service api
         name = API
@@ -54,7 +54,7 @@ system storefront
         links:
             -> worker
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service worker
         name = Worker
@@ -63,7 +63,7 @@ system storefront
         links:
             -> database
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service database
         name = Database
@@ -163,7 +163,7 @@ deployment production
         networkConnection network
             name = Network
             projection:
-                source $from originalLink target $to
+                $from originalLink $to
     storage:
         infrastructureComponent storage
             name = Storage
@@ -179,6 +179,9 @@ deployment production
     queue:
         infrastructureComponent queue
             name = Queue
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `);
 }
 
