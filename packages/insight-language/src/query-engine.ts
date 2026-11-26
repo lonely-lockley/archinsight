@@ -2483,9 +2483,10 @@ function staticColumnType(expression: TableValueExpression): QueryColumn["type"]
 
 function evaluate(context: EvaluationContext, query: ParsedGraphQuery): readonly Row[] {
   let rows: readonly Row[] = [{ nodes: {}, relationships: {}, values: {} }];
+  const lastMatch = query.matches.at(-1);
   for (const match of query.matches) {
     rows = match.optional
-      ? optionalMatchRows(context, rows, match)
+      ? optionalMatchRows(context, rows, match, match === lastMatch)
       : matchRows(context, rows, match);
     assertRows(context, rows);
   }
@@ -2496,6 +2497,7 @@ function optionalMatchRows(
   context: EvaluationContext,
   rows: readonly Row[],
   clause: MatchClause,
+  feedsGraphReturn: boolean,
 ): readonly Row[] {
   const next: Row[] = [];
   const referencedAliases = matchReferencedAliases(clause);
@@ -2505,7 +2507,10 @@ function optionalMatchRows(
     let matched = matchesByCorrelation.get(key);
     if (matched === undefined) {
       matched = matchRows(context, [correlationRow(row, referencedAliases)], clause);
-      matchesByCorrelation.set(key, matched);
+      // Graph RETURN collects each alias separately, including the node that owns a group.
+      // Emit every template on first use. On reuse, one template carries the new input
+      // bindings in their original order. A subsequent MATCH still needs all combinations.
+      matchesByCorrelation.set(key, feedsGraphReturn ? matched.slice(0, 1) : matched);
     }
     if (matched.length === 0) {
       appendRow(context, next, row);

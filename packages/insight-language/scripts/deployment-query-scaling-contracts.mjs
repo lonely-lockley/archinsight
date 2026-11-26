@@ -122,6 +122,51 @@ assert.deepEqual(graphSignature(graph), graphSignature(reorderedGraph), "safe OP
 assert(Object.keys(graph.elements).some((id) => id.includes("r00")));
 assert.equal(Object.keys(graph.elements).some((id) => id.includes("r01")), false);
 
+// Each client placement calls its corresponding API placement. The graph needs both
+// collections of matches, even though it never displays their Cartesian product.
+for (const count of [8, 68]) {
+  const ids = Array.from({ length: count }, (_, i) => `r${i}`);
+  const tab = "placements.ai";
+  const sources = [definitions, ...ids.map(environment), source(tab, `
+context placements
+deploymentProfile everywhere
+    appliesTo:
+${ids.map((id) => `        production from ${id}`).join("\n")}
+    runsOn compute
+    uses storage
+
+system caller
+    name = Caller
+    service client
+        name = Client
+        deployment:
+            uses everywhere
+        links:
+            -> api
+                deployment:
+                    route clusterLocal
+
+system receiver
+    name = Receiver
+    service api
+        name = API
+        deployment:
+            uses everywhere
+`)];
+  const linked = linkProject({ snapshot: snapshot.snapshot, sources });
+  assertNoErrors(linked.diagnostics);
+  const scope = { context: "placements", tab, view: "deployment-system" };
+  const query = BUILTIN_VIEW_QUERIES[scope.view];
+  const graph = selectGraph(linked, scope, query, { limits: { maxRows: 24 * count } });
+  assert.equal(graph.edges.length, count);
+  assert.equal(graph.groups.length, count);
+  if (count === 8) {
+    // A subsequent match consumes the bindings, forcing ordinary row semantics.
+    const fullJoin = query.replace("GROUP BY", "MATCH (node)\nGROUP BY");
+    assert.deepEqual(graph, selectGraph(linked, scope, fullJoin));
+  }
+}
+
 // Growing both the open tab and the graph must not rescan every relationship per seed.
 const d1Scope = { context: "shop", tab: "chain.ai", view: "deployment-system" };
 const d1 = BUILTIN_VIEW_QUERIES[d1Scope.view];
@@ -139,6 +184,16 @@ const rebound = executeQuery(result, scope, `
   RETURN TABLE elementId(caller) AS caller, elementId(callee) AS callee ORDER BY caller
 `);
 assert.deepEqual(rebound.rows, [["shop/api", "shop/worker"], ["shop/web", "shop/api"], ["shop/worker", "shop/database"]]);
+
+const pairs = "MATCH (a:Service) OPTIONAL MATCH (b:Service)";
+const tablePairs = executeQuery(result, {}, `${pairs} RETURN TABLE count(*) AS pairs`);
+assert.deepEqual(tablePairs.rows, [[16]]);
+const connectedPairs = selectGraph(result, {}, `
+  ${pairs}
+  MATCH (b)-[wire:REFERENCES]->(a)
+  RETURN a, b, wire
+`);
+assert.deepEqual(connectedPairs.edges.map(({ source, target }) => [source, target]).sort(), rebound.rows);
 
 // A failed OPTIONAL MATCH leaves null bindings, which a subsequent ROLLUP must not reopen.
 for (const rollup of [
