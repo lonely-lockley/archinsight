@@ -45,7 +45,7 @@ export type ProjectSourceBatchParser = (
   sources: readonly ProjectSource[],
 ) => Promise<readonly ParsedSource[]>;
 
-export interface PortableLinkProjectResult extends Omit<LinkProjectResult, "graph"> {
+export interface PortableLinkProjectResult extends Omit<LinkProjectResult, "graph" | "querySchema"> {
   readonly graph: IndexedGraphSnapshot;
 }
 
@@ -68,6 +68,7 @@ export function restorePortableProjectAnalysis(portable: PortableProjectAnalysis
   }
   const linkedResult: LinkProjectResult = {
     ...portable.result,
+    querySchema: portable.snapshotBuild.snapshot,
     graph: IndexedGraph.fromSnapshot(portable.result.graph),
   };
   const diagnostics = uniqueDiagnostics([...portable.snapshotBuild.diagnostics, ...linkedResult.diagnostics]);
@@ -193,7 +194,7 @@ export class ProjectAnalysisSession {
   }
 
   portableSnapshot(): PortableProjectAnalysisSession {
-    const result = this.state.result();
+    const { querySchema, ...result } = this.state.result();
     return {
       sources: [...this.sourcesByName.values()],
       parsedSources: this.state.portableParsedSources(),

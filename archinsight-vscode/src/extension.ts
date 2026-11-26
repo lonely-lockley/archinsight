@@ -22,6 +22,7 @@ import {
   coreSource,
   coreSources,
   elementCompletionDocumentation,
+  completionDeploymentEnvironments,
   filterTypeHierarchy,
   insightSemanticTokenModifiers,
   insightSemanticTokenTypes,
@@ -3152,9 +3153,9 @@ function contextualIdentifiers(result: LinkProjectResult): readonly ContextualId
 function completionDocumentationProperty(
   result: LinkProjectResult,
   element: LinkedElement,
-): Pick<VisibleIdentifier, "documentation"> | Record<string, never> {
+): Pick<VisibleIdentifier, "documentation" | "deploymentEnvironments" | "deploymentUseNames"> {
   const documentation = elementCompletionDocumentation(element, result.presentations);
-  return documentation === undefined ? {} : { documentation };
+  return { ...completionDeploymentEnvironments(element), ...(documentation === undefined ? {} : { documentation }) };
 }
 
 function completionKind(item: { readonly kind: CompletionKind; readonly imported?: boolean }): vscode.CompletionItemKind {

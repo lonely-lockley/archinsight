@@ -92,6 +92,7 @@ export {
   createOperatorImplementationRegistry,
 } from "./operator-implementation-registry.js";
 export {
+  completionDeploymentEnvironments,
   buildProjectStructure,
   buildTypeHierarchy,
   filterProjectStructure,
@@ -285,8 +286,9 @@ export type {
   ParsedInsightFile,
   PresentationDefinition,
   ProjectSource,
-  ProjectionPlacement,
+  ProjectionDeploymentQualifier,
   ProjectionRuleDefinition,
+  ProjectionSection,
   ProjectionTermDefinition,
   ProjectionTermKind,
   QueryScope,

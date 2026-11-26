@@ -4,7 +4,6 @@ import {
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
   linkProject,
-  parseSyntheticLinkedLocalId,
   selectGraph,
 } from "../build/runtime/index.js";
 
@@ -42,8 +41,8 @@ deployment production
     network:
         networkConnection service_network
             name = Service network
-            projection:
-                source $from originalLink target $to
+            route:
+                $from originalLink $to
 
     publicGateway:
         publicGateway public_edge
@@ -54,10 +53,16 @@ deployment production
             loadBalancer:
                 infrastructureComponent alb
                     name = ALB
-            projection:
-                source $from originalLink target cdn
-                target cdn connectTo target loadBalancer
-                target loadBalancer connectTo target $to
+
+route publicInbound
+    inbound:
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+        loadBalancer connectTo $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("model.ai", `
 context shop
@@ -73,8 +78,7 @@ external actor shopper
     links:
         -> web_app
             deployment:
-                uses publicGateway
-                    name = Dedicated ingress
+                route publicInbound
 
 system storefront
     name = Storefront
@@ -86,7 +90,7 @@ system storefront
         links:
             -> checkout_api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service checkout_api
         name = Checkout API
@@ -99,62 +103,38 @@ system storefront
 assertNoErrors(snapshot);
 assertNoErrors(result);
 
-const clonesByName = new Map(
-  result.elements
-    .filter((element) => parseSyntheticLinkedLocalId(element.localId)?.kind === "deployment-clone")
-    .map((element) => [element.attributes.name?.[0], element]),
-);
-const gateway = requiredClone(clonesByName, "Dedicated ingress");
-const cdn = requiredClone(clonesByName, "CloudFront");
-const loadBalancer = requiredClone(clonesByName, "ALB");
-assert([gateway, cdn, loadBalancer].every((element) => element.synthetic === true));
-assert.deepEqual(
-  [gateway, cdn, loadBalancer].map((element) => element.cloneOf),
-  ["eu/public_edge", "eu/cloudfront", "eu/alb"],
-  "every deployment clone must expose its original infrastructure element",
-);
-
 assert.deepEqual(
   result.edges
     .filter((edge) => edge.projected === true && edge.originSource === "shop/shopper")
     .map(edgeKey)
     .sort(),
   [
-    `${cdn.id}->${loadBalancer.id}`,
-    `${loadBalancer.id}->shop/web_app`,
-    `shop/shopper->${cdn.id}`,
+    "eu/alb->shop/web_app",
+    "eu/cloudfront->eu/alb",
+    "shop/shopper->eu/cloudfront",
   ].sort(),
-  "the linker must project the wire through the cloned child slots only",
+  "the route must project the wire through the environment-owned child slots",
 );
 
 const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinDeploymentQuery);
 assert.deepEqual(
   graph.edges.map((edge) => `${edge.source}->${edge.target}`).sort(),
   [
-    `${cdn.id}->${loadBalancer.id}`,
-    `${loadBalancer.id}->shop/web_app`,
-    `shop/shopper->${cdn.id}`,
+    "eu/alb->shop/web_app",
+    "eu/cloudfront->eu/alb",
+    "shop/shopper->eu/cloudfront",
     "shop/web_app->shop/checkout_api",
   ].sort(),
-  "the Deployment view must not roll cloned child-slot edges through the clone root",
+  "the Deployment view must keep every route segment",
 );
-assert(!graph.edges.some((edge) => edge.source === gateway.id || edge.target === gateway.id));
 assert(graph.edges.every((edge) => edge.source === edge.edge.source && edge.target === edge.edge.target));
-assert(!graph.edges.some((edge) => edge.source === "eu/cloudfront" || edge.target === "eu/cloudfront"));
-assert(!graph.edges.some((edge) => edge.source === "eu/alb" || edge.target === "eu/alb"));
-assert.equal(graph.elements[cdn.id]?.cloneOf, "eu/cloudfront");
-assert.equal(graph.elements[loadBalancer.id]?.cloneOf, "eu/alb");
+assert(graph.elements["eu/cloudfront"]);
+assert(graph.elements["eu/alb"]);
 
 console.log("deployment copy-on-write contract fixtures passed");
 
 function source(sourceName, sourceText) {
   return { sourceName, source: sourceText.trimStart() };
-}
-
-function requiredClone(clonesByName, name) {
-  const clone = clonesByName.get(name);
-  assert(clone, `expected a deployment clone named '${name}'`);
-  return clone;
 }
 
 function edgeKey(edge) {

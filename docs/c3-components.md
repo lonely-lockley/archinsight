@@ -108,6 +108,5 @@ C3 uses the same `Wire` family as C1 and C2. The component containing the wire o
 | `description` | `Text` | No | `->`, `~>` | Purpose of the component interaction. |
 | `model` | `WireModel` | Yes, provided by constructor | `->`, `~>` | Enum value identifying the relationship as `sync` or `async` for queries. The built-in constructor supplies it. |
 | `deployment` | `List of DeploymentAction` | No | `->`, `~>` | Deployment actions describing the physical realization of the wire. |
-| `uses` | `List of NetworkConnection` | No | `->`, `~>` | Network capabilities used by the deployed relationship. |
 | `call` | `Text` | No | `->` | Operation or interface invoked by a synchronous interaction. |
 | `via` | `Text` | No | `~>` | Topic, channel, queue, or route used by an asynchronous interaction. |

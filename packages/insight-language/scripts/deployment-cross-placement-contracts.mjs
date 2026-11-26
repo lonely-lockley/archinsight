@@ -37,7 +37,6 @@ import api from context shop
 deploymentProfile regional
     appliesTo:
         production from cluster_a
-        production from cluster_b
     runsOn compute
 
 system storefront
@@ -50,7 +49,7 @@ system storefront
         links:
             -> api
                 deployment:
-                    uses clusterLink
+                    route crossCluster
 `),
     source("target.ai", `
 context shop
@@ -71,18 +70,18 @@ system backend
   ],
 });
 assertNoErrors(result.diagnostics);
+const projected = result.edges.find((edge) => edge.projected === true);
+assert.equal(projected?.sourcePlacement, "cluster_a/k8s_a");
+assert.equal(projected?.targetPlacement, "cluster_c/k8s_c");
 
 const graph = selectGraph(result, { context: "shop", tab: "target.ai", view: "deployment" }, deploymentQuery);
 assert.deepEqual(
   graph.edges.map((edge) => `${edge.source}->${edge.target}`),
-  ["shop/web@@cluster_a/k8s_a->shop/api@@cluster_c/k8s_c"],
+  ["shop/web->shop/api"],
   "a cross-environment path must retain the placement of each endpoint independently",
 );
-assert(graph.elements["shop/web@@cluster_a/k8s_a"]);
-assert(graph.elements["shop/api@@cluster_c/k8s_c"]);
-assert.equal(graph.elements["shop/web"], undefined);
-assert.equal(graph.elements["shop/api"], undefined);
-assert.equal(graph.elements["shop/web@@cluster_b/k8s_b"], undefined);
+assert(graph.elements["shop/web"]);
+assert(graph.elements["shop/api"]);
 assert.equal(graph.groups.some((group) => group.owner === "cluster_b/k8s_b"), false);
 assert.deepEqual(new Set(graph.groups.map((group) => group.owner)), new Set(["cluster_a/k8s_a", "cluster_c/k8s_c"]));
 
@@ -100,8 +99,10 @@ deployment production
 ${connected ? `    clusterLink:
         clusterLink route
             name = Route to cluster C
-            projection:
-                source $from originalLink target $to
+
+route crossCluster
+    outbound:
+        $from originalLink $to in production from cluster_c
 ` : ""}`);
 }
 

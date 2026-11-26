@@ -50,7 +50,8 @@ annotatedObjectDeclaration
     ;
 
 objectDeclaration
-    : namedPrefixOperatorInvocation? elementConstructor identifierDeclaration note? EOL objectBody?
+    : elementConstructor identifierDeclaration note? EOL objectBody?
+    | namedPrefixOperatorInvocation elementConstructor identifierDeclaration note? EOL objectBody?
     ;
 
 namedPrefixOperatorInvocation
@@ -64,11 +65,24 @@ objectBody
 architectureBodyItem
     : assignment
     | namedList
-    | relationInvocation
     | annotatedObjectDeclaration
+    | relationInvocation
+    | removedProjectionInvocation
     | objectExtension
     | annotatedOperatorInvocation
     | trivia
+    ;
+
+// Consume the former two-sided spelling as one invalid rule, including
+// its attributes, so recovery can resume at the following declaration.
+removedProjectionInvocation
+    : removedPlacementPrefix relationReference operatorIdentifier removedPlacementPrefix relationReference EOL
+      (INDENT (assignment | commentLine | EOL)* DEDENT)?
+      { this.notifyErrorListeners("Projection prefixes 'source' and 'target' were removed; use route sections and postfix 'in' for placement", $start, null); }
+    ;
+
+removedPlacementPrefix
+    : {this.tokenStream.LT(1)?.text === "source" || this.tokenStream.LT(1)?.text === "target"}? identifier
     ;
 
 objectExtension
@@ -77,7 +91,7 @@ objectExtension
 
 namedList
     : listName COLON EOL
-      INDENT listBodyItem* DEDENT
+      (INDENT listBodyItem* DEDENT)?
     ;
 
 listBodyItem
@@ -94,7 +108,11 @@ annotatedOperatorInvocation
     ;
 
 operatorInvocation
-    : operatorIdentifier identifierReference? anonymousImportDeclaration? note? EOL objectBody?
+    : operatorIdentifier identifierReference? (anonymousImportDeclaration | routeEnvironmentQualifier)? (AS importAlias)? note? EOL objectBody?
+    ;
+
+routeEnvironmentQualifier
+    : IN environmentReference
     ;
 
 anonymousImportDeclaration
@@ -270,11 +288,11 @@ relationInvocation
     ;
 
 relationTerm
-    : relationPlacement relationReference
+    : relationReference relationDeploymentQualifier?
     ;
 
-relationPlacement
-    : identifier
+relationDeploymentQualifier
+    : IN identifierReference anonymousImportDeclaration?
     ;
 
 relationReference

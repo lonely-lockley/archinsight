@@ -18,7 +18,7 @@ Prefer one shared framework per repository:
   systems;
 - context-owned deployment profile files that map logical elements to concrete
   deployments;
-- wire deployment that names network slots directly, without call profiles.
+- environment-owned route implementations reused by relationship deployments.
 
 Do not copy the same environment or infrastructure type definitions into every
 system file. Keep concrete inventory in environment files and keep each
@@ -54,7 +54,7 @@ extend type Environment
     NetworkConnection network
 ```
 
-Concrete environment files contain inventory and instance-level projections:
+Concrete environment files contain inventory, infrastructure projections, and routes:
 
 ```insight
 environment prod_eu
@@ -70,9 +70,11 @@ deployment production
             name = Kafka
             technology = MSK
             address = kafka.prod.eu.internal
-            projection:
-                target $to connectTo target $this
-                target $this originalLink source $from
+
+route events
+    inbound:
+        $to connectTo events
+        events originalLink $from
 ```
 
 ```insight
@@ -86,11 +88,9 @@ deploymentProfile regional_service
 ```
 
 System files in the same logical context should import the context-owned profile
-when it is declared in a different source identity. Wires name compatible
-`NetworkConnection` slots directly. Read the
-[Broker](deployment-projections.md#broker) example before adding an event path;
-the built-in `Broker` can fill a wire-facing slot directly, and
-product-specific broker types should derive from it.
+when it is declared in a different source identity. Relationships select route
+names implemented by their source environments. Read the
+[Broker route](deployment-projections.md#broker-route) example before adding an event path.
 
 ## System Files and External Contexts
 

@@ -24,7 +24,7 @@ describe('Insight Monaco lexical tokens', () => {
       'entity.name.type',
       'variable'
     ]));
-    expect(scopes(provider, 'source $from originalLink target $to')).toContain('variable.language.insight');
+    expect(scopes(provider, '$from originalLink $to')).toContain('variable.language.insight');
     expect(scopes(provider, '@deprecated(replace after migration)')).toEqual(expect.arrayContaining([
       'constant.language.annotation',
       'string'

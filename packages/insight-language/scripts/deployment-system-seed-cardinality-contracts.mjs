@@ -35,7 +35,7 @@ external actor customer
     links:
         -> frontend
             deployment:
-                uses network
+                route clusterLocal
 
 system platform
     name = Platform
@@ -47,7 +47,7 @@ system platform
         links:
             -> backend
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service backend
         name = Backend
@@ -73,8 +73,8 @@ assert.deepEqual(graphSignature(d2), {
     "eu/compute",
   ],
   edges: [
-    "SyncWire:app/customer->app/frontend@@eu/compute:eu/network",
-    "SyncWire:app/frontend@@eu/compute->app/backend@@eu/compute:eu/network",
+    "SyncWire:app/customer->app/frontend@@eu/compute:eu/clusterLocal",
+    "SyncWire:app/frontend@@eu/compute->app/backend@@eu/compute:eu/clusterLocal",
   ],
 }, "D2 must contain every selected physical relationship exactly once and no system-seed rollups");
 
@@ -90,8 +90,8 @@ assert.deepEqual(graphSignature(d1), {
     "app/platform@@sa/compute",
   ],
   edges: [
-    "SyncWire:app/customer->app/platform@@eu/compute:eu/network",
-    "SyncWire:app/customer->app/platform@@sa/compute:sa/network",
+    "SyncWire:app/customer->app/platform@@eu/compute:eu/clusterLocal",
+    "SyncWire:app/customer->app/platform@@sa/compute:sa/clusterLocal",
   ],
 }, "D1 must omit internal system relationships and retain each external relationship exactly once per environment");
 
@@ -109,8 +109,10 @@ deployment production
     network:
         networkConnection network
             name = Network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `);
 }
 

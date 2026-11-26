@@ -16,6 +16,7 @@ define type System of SystemElement
     constructor system
         kind = internal
 
+    capability = "deployment-boundary"
     capability = "deployment-family"
 
     required Text name

@@ -66,6 +66,35 @@ Focused commands such as `test:server`, `test:security`, `test:ui`, `test:cli`,
 and `test:skill` are development conveniences. They never replace the package
 `check` command.
 
+## Built-in AIQ query cost
+
+`./gradlew clean check` runs every query from the built-in view catalog against
+the same linked 250-service, 15-environment fixture. The open model contains
+multiple deployed services and a code-level relationship. D1 covers all
+environments and D2 selects one. Each query must return a populated graph.
+
+Cost is the number of expansions charged by the AIQ engine. Each view has its
+own [reviewed baseline](../../benchmarks/link-scaling/query-expansion-baseline.json).
+A cost increase **greater than 30%** fails the check. Exactly 30% passes,
+subject to the normal AIQ expansion ceiling. A new view needs its own measured
+baseline. Wall-clock timings belong to the separate benchmark.
+
+On failure, reproduce the affected view and compare its cost with the last
+passing revision on the same fixture. Inspect candidate scans, intermediate
+row counts and projection fan-out to find the phase responsible. Fix unintended
+growth. An intentional change to the workload, accounting or query semantics
+requires a reviewed baseline change with the cause and before/after counts.
+
+To print exact counts for every view, run these commands from the repository
+root. Measurement leaves the reviewed baseline in place.
+
+```shell
+npm --prefix packages/insight-language run test:prepare
+node packages/insight-language/scripts/builtin-query-cost-contracts.mjs --measure
+```
+
+Omit `--measure` to run just the pass/fail gate.
+
 ## Coverage non-regression rule
 
 The measured baseline is stored in

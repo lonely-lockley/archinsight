@@ -213,7 +213,7 @@ RETURN source, dependency, target
   assert.match(analysis, /neither\s+an exhaustive catalogue/);
   assert(analysis.includes("Combine them, use other linked facts"));
   assert(analysis.includes("MATCH ROLLUP (consumer:ContainerElement)"));
-  assert(analysis.includes("broker IN event.uses"));
+  assert(analysis.includes("p.originTarget AS producer, p.originSource AS consumer"));
   assert(analysis.includes("unknown id also returns zero"));
   assert(analysis.includes("Save reusable flat `RETURN TABLE` queries under `reports/`"));
   assert(analysis.includes("annotations(value)"));

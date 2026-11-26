@@ -44,10 +44,10 @@ external actor user
         -> frontend
             technology = HTTPS
             deployment:
-                uses network
+                route clusterLocal
         -> backend
             deployment:
-                uses network
+                route clusterLocal
 
 system platform
     name = Platform
@@ -59,7 +59,7 @@ system platform
         links:
             -> backend
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service backend
         name = Backend
@@ -68,7 +68,7 @@ system platform
         links:
             -> google
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service database
         name = Database
@@ -85,7 +85,7 @@ system platform
         links:
             -> cross_target
                 deployment:
-                    uses clusterLink
+                    route crossRegion
 
     service cross_target
         name = Cross target
@@ -148,6 +148,12 @@ external system google
   assert.match(pathText, /^element\tsample\/frontend\tService\tFrontend$/m);
   assert.match(pathText, /^edge\tsample\/user -> sample\/frontend\tHTTPS$/m);
   assert.match(pathText, /^edge\tsample\/backend -> sample\/google\t-$/m);
+
+  const inboundPath = json("find-path", "--from", "sample/user", "--to", "sample/frontend",
+    "-s", "model.ai", "-v", "deployment-container", "-e", "eu");
+  assert.equal(inboundPath.pathFound, true);
+  assert.deepEqual(inboundPath.graph.edges.map((edge) => [edge.source, edge.target]),
+    [["sample/user", "sample/frontend@@eu/compute"]]);
 
   const crossEnvironmentPath = json(
     "find-path",
@@ -212,6 +218,165 @@ external system google
   failure("find-path", /must be different/, "--from", "sample/user", "--to", "sample/user");
   failure("declaration", /not part of the linked project/, "--element", "sample/missing");
 
+  write("model.ai", `context shop
+deploymentProfile regional
+    appliesTo:
+        production from eu
+        production from us
+    runsOn compute
+
+external system partner
+    name = Partner
+
+external actor visitor
+    name = Visitor
+    links:
+        -> api
+            deployment:
+                route clusterLocal in us
+
+system orders
+    name = Orders
+    service api
+        name = API
+        deployment:
+            uses regional
+        links:
+            -> billing
+                deployment:
+                    route clusterLocal
+
+system payments
+    name = Payments
+    service billing
+        name = Billing
+        deployment:
+            uses regional
+        links:
+            -> api
+                deployment:
+                    route clusterLocal
+            -> partner
+                description = Logical only
+`);
+
+  const find = (from, to, ...scope) => json("find-path", "--from", "shop/" + from, "--to", "shop/" + to, ...scope);
+  assert(find("api", "partner").pathFound);
+  for (const [view, root, peer] of [["deployment", "api", "billing"], ["deployment-system", "orders", "payments"]]) {
+    const scope = ["-v", view, "-s", "model.ai"];
+    const missing = find("api", "partner", ...scope);
+    assert.equal(missing.pathFound, false, view);
+    assert.deepEqual(missing.graph.edges, []);
+    assert(find(root, peer, ...scope).pathFound, view);
+    const graph = json("isolate", "--element", "shop/" + root, ...scope).graph;
+    assert.deepEqual(graph.layout.focusOccurrences, ["eu", "us"].map((r) => `shop/${root}@@${r}/compute`));
+    const selected = json("isolate", "--element", `shop/${root}@@us/compute`, ...scope).graph;
+    assert.equal(selected.layout.focus, `shop/${root}@@us/compute`);
+    assert(!Object.keys(selected.elements).includes(`shop/${root}@@eu/compute`));
+    for (const region of ["eu", "us"]) {
+      const placed = `shop/${root}@@${region}/compute`;
+      const incoming = graph.edges.find((e) => e.target === placed && e.edge.originSource === "shop/billing");
+      const outgoing = graph.edges.find((e) => e.source === placed && e.edge.originSource === "shop/api");
+      assert(incoming && outgoing, view + "/" + region);
+      assert.notEqual(incoming.source, outgoing.target);
+      assert(graph.elements[incoming.source] && graph.elements[outgoing.target]);
+      assert.equal(incoming.edge.sourcePlacement, region + "/compute");
+      assert.equal(outgoing.edge.targetPlacement, region + "/compute");
+    }
+  }
+  const d2 = ["-s", "model.ai", "-v", "deployment-container", "-e", "eu"];
+  failure("isolate", /Available occurrences: shop\/api@@eu\/compute\.(?:\s|$)/,
+    "--element", "shop/api@@us/compute", ...d2);
+  failure("isolate", /Available occurrences: shop\/api@@eu\/compute, shop\/api@@us\/compute\./,
+    "--element", "shop/api@@missing/compute", "-v", "deployment", "-s", "model.ai");
+  const physicalIsolate = json("isolate", "--element", "shop/api", ...d2).graph;
+  assert.equal(physicalIsolate.edges.length, 2);
+  assert.equal(new Set(Object.keys(physicalIsolate.elements)).size, 3);
+  assert.match(success("isolate", "--element", "shop/api", ...d2, "-f", "svg").stdout, /<svg\b/);
+  assert.equal(find("visitor", "api", ...d2).pathFound, false);
+  assert(find("visitor", "api", "-s", "model.ai", "-v", "deployment-container", "-e", "us").pathFound);
+
+  write("model.ai", `context shop
+import ledger from context books
+
+deploymentProfile single
+    appliesTo:
+        production from eu
+    runsOn compute
+
+system orders_sys
+    name = Orders
+    service api
+        name = API
+        deployment:
+            uses single
+        links:
+            -> ledger from books
+                deployment:
+                    route clusterLocal
+`);
+  write("ledger.ai", `context books
+import single from context shop
+
+external system partner
+    name = Partner
+
+external system disconnected
+    name = Disconnected
+
+system ledger_sys
+    name = Ledger
+    service ledger
+        name = Ledger
+        deployment:
+            uses single
+        links:
+            -> partner
+                deployment:
+                    route clusterLocal
+    service other
+        name = Other
+        deployment:
+            uses single
+        links:
+            -> disconnected
+                deployment:
+                    route clusterLocal
+`);
+
+  for (const [view, start, middle] of [
+    ["deployment-container", "shop/api", "books/ledger"],
+    ["deployment-system", "shop/orders_sys", "books/ledger_sys"],
+    ["deployment", "shop/api", "books/ledger"],
+  ]) {
+    for (const tab of ["model.ai", "ledger.ai"]) {
+      const scope = ["-v", view, "-s", tab];
+      if (view === "deployment-container") scope.push("-e", "eu");
+      const pathTo = (target) => json("find-path", "--from", start, "--to", target, ...scope);
+      const connected = pathTo("books/partner");
+      assert.equal(connected.pathFound, true, view + " from " + tab);
+      assert.deepEqual(connected.graph.edges.map(({ source, target }) => [source, target]).sort(),
+        [[start, middle], [middle, "books/partner"]].sort());
+      const disconnected = pathTo("books/disconnected");
+      assert.equal(disconnected.pathFound, false, "sibling services do not bridge a physical gap");
+      assert.deepEqual(disconnected.graph.edges, []);
+    }
+  }
+
+  for (const [view, id] of [["deployment", "shop/api"], ["deployment-system", "shop/orders_sys"],
+    ["deployment-container", "shop/api"]]) {
+    const scope = ["-v", view, "-s", "model.ai"];
+    if (view === "deployment-container") scope.push("-e", "eu");
+    const isolate = (element) => json("isolate", "--element", element, ...scope).graph;
+    const plain = isolate(id);
+    assert.equal(plain.layout.focus, id);
+    assert.deepEqual(isolate(id + "@@eu/compute"), plain);
+    failure("isolate", new RegExp("Available occurrences: " + id + "\\."), "--element", id + "@@us/compute", ...scope);
+  }
+  failure("isolate", /Available occurrences: none\./,
+    "--element", "books/other@@eu/compute", "-v", "deployment", "-s", "model.ai");
+  failure("isolate", /not part of the linked project/, "--element", "shop/missing@@eu/compute",
+    "-v", "deployment", "-s", "model.ai");
   console.log("quick action CLI contracts passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
@@ -227,12 +392,17 @@ deployment production
             name = ${name} Compute
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
 ${crossEnvironment ? `    clusterLink:
         clusterLink boundary
-            projection:
-                source $from originalLink target $to
+` : ""}
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
+${crossEnvironment ? `
+route crossRegion
+    outbound:
+        $from originalLink $to in production from us
 ` : ""}
 `;
 }

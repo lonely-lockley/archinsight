@@ -98,8 +98,8 @@ deployment production
     network:
         networkConnection ${network}
             name = ${network}
-            projection:
-                source $from originalLink target $to
+            route:
+                $from originalLink $to
 `);
 }
 

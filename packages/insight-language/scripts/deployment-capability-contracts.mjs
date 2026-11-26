@@ -2,11 +2,9 @@ import assert from "node:assert/strict";
 import {
   CompletionEngine,
   buildLanguageSnapshotResultFromSources,
-  builtinViewDefinition,
   coreLanguageSnapshot,
   createGeneratedInsightSyntaxProvider,
   linkProject,
-  selectGraph,
 } from "../build/runtime/index.js";
 
 const definitions = buildLanguageSnapshotResultFromSources([source("custom-deployment.ai", `
@@ -78,8 +76,8 @@ deployment production
     network:
         networkConnection private
             name = Private network
-            projection:
-                source $from originalLink target $to
+            route:
+                $from originalLink $to
 `),
     source("model.ai", `
 context shop
@@ -116,20 +114,11 @@ secondaryWorkload standby
 `),
   ],
 });
-assertNoErrors(result.diagnostics);
-assert.equal(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("WIRE_DEPLOYMENT_")), false);
-assert(result.diagnostics.some((diagnostic) =>
-  diagnostic.code === "ELEMENT_MISSING_DEPLOYMENT"
-  && diagnostic.message.includes("'standby'")
-));
-assert.deepEqual(result.elements.find((element) => element.id === "shop/web")?.attributes.runsOn, ["cluster/k8s"]);
-const graph = selectGraph(
-  result,
-  { context: "shop", tab: "model.ai", view: "deployment" },
-  builtinViewDefinition("deployment").query,
+assert.deepEqual(
+  result.diagnostics.filter((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR").map((diagnostic) => diagnostic.code),
+  ["WIRE_ROUTE_REQUIRED"],
 );
-assert.deepEqual(graph.edges.map((edge) => `${edge.source}->${edge.target}`), ["shop/web->shop/api"]);
-
+assert.deepEqual(result.elements.find((element) => element.id === "shop/web")?.attributes.runsOn, ["cluster/k8s"]);
 const completion = new CompletionEngine(createGeneratedInsightSyntaxProvider()).complete({
   sourceName: "draft.ai",
   source: "context shop\n\nsystem storefront\n    deployment:\n        ",

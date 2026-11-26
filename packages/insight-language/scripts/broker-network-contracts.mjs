@@ -40,9 +40,11 @@ deployment production
     events:
         kafka kafka_eu
             name = Kafka
-            projection:
-                target $to connectTo target $this
-                target $this originalLink source $from
+
+route eventsRoute
+    outbound:
+        $to connectTo events
+        events originalLink $from
 `),
     source("model.ai", `
 context application
@@ -67,7 +69,7 @@ system platform
         links:
             ~> publisher
                 deployment:
-                    uses events
+                    route eventsRoute
 `),
   ],
 });

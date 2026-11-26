@@ -303,6 +303,7 @@ function resultReferencedNodes(result: LinkProjectResult, source: string): Reado
   const referenced = new Set(result.graph.sourceContribution(source)?.referencedNodes ?? []);
   for (const element of result.elements) {
     if (element.sourceIdentity === source) {
+      for (const owner of element.sharedInfrastructureOwners ?? []) referenced.add(owner);
       addReferenceAttributeValues(referenced, element.referenceAttributes, element.attributes, result.graph);
     }
   }
@@ -323,7 +324,7 @@ function resultDependentSources(
   }
   const dependent = new Set<string>();
   for (const element of result.elements) {
-    if (referencesAny(element.referenceAttributes, element.attributes, targets)) {
+    if (element.sharedInfrastructureOwners?.some((id) => targets.has(id)) || referencesAny(element.referenceAttributes, element.attributes, targets)) {
       dependent.add(element.sourceIdentity);
     }
   }
@@ -459,6 +460,7 @@ function mergeResults(
     tabRoots: mergeTabRoots(previous.tabRoots, partial.tabRoots, relinkedSources),
     duplicateEdges: duplicateLinkedEdges(edges),
     presentations: partial.presentations,
+    ...(partial.querySchema && {querySchema: partial.querySchema}),
   };
 }
 

@@ -482,8 +482,8 @@ deployment production
 
     storage:
         name = Postgres
-        projection:
-            source $from originalLink target $this
+        route:
+            $from originalLink $this
 `),
       source("app.ai", `
 context app
@@ -612,8 +612,8 @@ deployment production
     network:
         networkConnection service_network
             name = Service network
-            projection:
-                source $from originalLink target $to
+            route:
+                $from originalLink $to
 
     publicGateway:
         publicGateway public_edge
@@ -624,10 +624,16 @@ deployment production
             loadBalancer:
                 infrastructureComponent alb
                     name = ALB
-            projection:
-                source $from originalLink target cdn
-                target cdn connectTo target loadBalancer
-                target loadBalancer connectTo target $to
+
+route publicInbound
+    inbound:
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+        loadBalancer connectTo $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
       source("model.ai", `
 context shop
@@ -643,7 +649,7 @@ external actor shopper
     links:
         -> web_app
             deployment:
-                uses publicGateway
+                route publicInbound
 
 system storefront
     name = Storefront
@@ -655,7 +661,7 @@ system storefront
         links:
             -> checkout_api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service checkout_api
         name = Checkout API
@@ -715,10 +721,12 @@ deployment production
             loadBalancer:
                 infrastructureComponent alb
                     name = ALB
-            projection:
-                source $from originalLink target cdn
-                target cdn connectTo target loadBalancer
-                target loadBalancer connectTo target $to
+
+route publicInbound
+    inbound:
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+        loadBalancer connectTo $to
 `),
       source("entry.ai", `
 context shop
@@ -730,7 +738,7 @@ external actor shopper
     links:
         -> web_app
             deployment:
-                uses publicGateway
+                route publicInbound
 `),
       source("model.ai", `
 context shop
@@ -789,8 +797,10 @@ deployment production
     network:
         networkConnection service_network
             name = Service network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
       source("caller.ai", `
 context shop
@@ -814,7 +824,7 @@ system frontend
             -> receiver
                 technology = HTTPS
                 deployment:
-                    uses network
+                    route clusterLocal
 `),
       source("receiver.ai", `
 context shop
@@ -865,8 +875,10 @@ deployment production
     network:
         networkConnection service_network
             name = Service network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
       source("model.ai", `
 context shop
@@ -888,7 +900,7 @@ system storefront
             -> logical_only
             -> physically_unplaced
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service logical_only
         name = Logical only
@@ -902,7 +914,11 @@ system storefront
   const graph = selectGraph(result, { context: "shop", tab: "model.ai" }, builtinDeploymentQuery);
 
   assertNoErrors(snapshot);
-  assertNoErrors(result);
+  assert.deepEqual(
+    result.diagnostics.filter((diagnostic) => diagnostic.level === undefined || diagnostic.level === "ERROR")
+      .map((diagnostic) => diagnostic.code),
+    ["ROUTE_TARGET_DEPLOYMENT_MISSING"],
+  );
   assert(graph.elements["shop/deployed"]);
   assert.equal(graph.elements["shop/logical_only"], undefined);
   assert.equal(graph.elements["shop/physically_unplaced"], undefined);
@@ -1295,15 +1311,14 @@ system app
     { tab: "definitions.ai" },
     "MATCH (system:SystemElement) WHERE system.context = $context RETURN system",
   );
-  const missingOnBothSides = selectGraph(
+  assert.throws(() => selectGraph(
     result,
     { tab: "definitions.ai" },
     "MATCH (system:SystemElement) WHERE system.missing = $context RETURN system",
-  );
+  ), {code: "AIQ_UNKNOWN_PROPERTY"});
 
   assertNoErrors(result);
   assert.equal(Object.keys(c1.elements).length, 0);
-  assert.equal(Object.keys(missingOnBothSides.elements).length, 0);
 }
 
 function filtersWithWhereOr() {

@@ -33,16 +33,18 @@ deployment production
             name = Database
             runsOn:
                 kubernetes
-            projection:
-                source $from originalLink target $this
+            route:
+                $from originalLink $this
 
     network:
         networkConnection service_network
             name = Service network
             runsOn:
                 kubernetes
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("model.ai", `
 context shop
@@ -67,7 +69,7 @@ system storefront
             -> api
                 technology = gRPC
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service api
         name = API
@@ -78,7 +80,7 @@ system storefront
             -> vendor
                 technology = HTTPS
                 deployment:
-                    uses network
+                    route clusterLocal
 `),
   ],
 });
@@ -96,7 +98,7 @@ const allProjected = selectByProjectionRoot("CONTAINS '/'");
 assert.equal(allProjected.edges.length, 3, "a true metadata predicate must keep every projected edge");
 assert.deepEqual(
   new Set(allProjected.edges.map((item) => item.edge.projectionRoot)),
-  new Set(["eu/service_network", "eu/database"]),
+  new Set(["eu/clusterLocal", "eu/database"]),
   "relationship filtering and JSON output must expose the same projection roots",
 );
 

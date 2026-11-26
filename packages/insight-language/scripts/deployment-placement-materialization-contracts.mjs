@@ -76,7 +76,7 @@ system storefront
         links:
             -> api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service api
         name = API
@@ -101,8 +101,11 @@ deployment production
     network:
         networkConnection ${network}
             name = Network ${label}
-            projection:
-                source $from originalLink target $to
+            route:
+                $from originalLink $to
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `);
 }
 

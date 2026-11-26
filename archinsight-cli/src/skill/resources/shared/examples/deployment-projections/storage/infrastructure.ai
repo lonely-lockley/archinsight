@@ -9,5 +9,5 @@ deployment production
     database:
         storage postgres
             name = PostgreSQL
-            projection:
-                source $from originalLink target $this
+            route:
+                $from originalLink $this

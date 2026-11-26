@@ -39,7 +39,7 @@ extend service backend
             -> google
                 technology = HTTPS, REST
                 deployment:
-                    uses egress
+                    route externalOutbound
 
     component repository_service
         name = Repository service
@@ -78,7 +78,7 @@ extend service backend
             -> renderer_api from archinsight
                 technology = HTTPS, REST
                 deployment:
-                    uses privateGateway
+                    route privateInternal
 
     component layout_lexer
         name = Layout lexer helper

@@ -19,4 +19,4 @@ system commerce
                 technology = HTTPS
                 description = Authorizes payments
                 deployment:
-                    uses egress
+                    route externalOutbound

@@ -8,6 +8,7 @@ import {
 const definitions = buildLanguageSnapshotResultFromSources([
   source("framework.ai", `
 define type TestEnvironment of Environment
+    Compute compute
     NetworkConnection network
 `),
 ], [coreLanguageSnapshot]);
@@ -18,21 +19,30 @@ context app
 
 import internal_network from environment eu
 
+deploymentProfile regional
+    appliesTo:
+        production from eu
+    runsOn compute
+
 system frontend
     name = Application
 
     service frontend_service
         name = Frontend
+        deployment:
+            uses regional
         links:
             -> backend_service
                 deployment:
-                    uses internal_network
+                    route clusterLocal
             -> remote from external
                 technology = HTTPS
                 description = Calls an external system
 
     service backend_service
         name = Backend
+        deployment:
+            uses regional
 `.trimStart();
 
 const result = linkProject({
@@ -43,11 +53,16 @@ environment eu
     name = EU
 
 deployment production
+    compute:
+        compute compute
+            name = Compute
     network:
         networkConnection internal_network
             name = Internal network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("external.ai", `
 context external

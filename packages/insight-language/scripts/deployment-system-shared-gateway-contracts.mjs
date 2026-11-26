@@ -62,11 +62,13 @@ deployment production
                     name = Ingress
                     runsOn:
                         compute
-            projection:
-                source $from originalLink target cdn
-                target cdn connectTo target loadBalancer
-                target loadBalancer connectTo target ingress
-                target ingress connectTo target $to
+
+route publicInbound
+    inbound:
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+        loadBalancer connectTo ingress
+        ingress connectTo $to
 `),
     source("application.ai", `
 context app
@@ -82,11 +84,11 @@ external actor user
         -> frontend
             description = Opens the editor
             deployment:
-                uses publicGateway
+                route publicInbound
         -> backend
             description = Calls the API
             deployment:
-                uses publicGateway
+                route publicInbound
 
 system platform
     name = Editor

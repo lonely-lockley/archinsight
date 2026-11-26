@@ -49,19 +49,19 @@ context integration
 import backend from context application
 import api from context application
 
-system service_peer
+external system service_peer
     name = Service peer
     links:
         ~> backend
             deployment:
-                uses messageBroker
+                route brokerRoute
 
-system component_peer
+external system component_peer
     name = Component peer
     links:
         ~> api
             deployment:
-                uses messageBroker
+                route brokerRoute
 `),
 ];
 const snapshot = buildLanguageSnapshotResultFromSources(sources, [coreLanguageSnapshot]);
@@ -83,10 +83,10 @@ assert.deepEqual(graphSignature(d2), {
     "integration/service_peer",
   ],
   edges: [
-    "AsyncWire:integration/component_peer->eu/broker:integration/component_peer->application/api:eu/broker",
-    "AsyncWire:integration/service_peer->eu/broker:integration/service_peer->application/backend:eu/broker",
-    "ConnectTo:application/backend@@eu/compute->eu/broker:integration/component_peer->application/api:eu/broker",
-    "ConnectTo:application/backend@@eu/compute->eu/broker:integration/service_peer->application/backend:eu/broker",
+    "AsyncWire:eu/broker->integration/component_peer:integration/component_peer->application/api:eu/brokerRoute",
+    "AsyncWire:eu/broker->integration/service_peer:integration/service_peer->application/backend:eu/brokerRoute",
+    "ConnectTo:application/backend@@eu/compute->eu/broker:integration/component_peer->application/api:eu/brokerRoute",
+    "ConnectTo:application/backend@@eu/compute->eu/broker:integration/service_peer->application/backend:eu/brokerRoute",
   ],
 }, "D2 opened from the target source must retain incoming system relationships authored at C2 and C3");
 
@@ -103,10 +103,10 @@ assert.deepEqual(graphSignature(d1), {
     "integration/service_peer",
   ],
   edges: [
-    "AsyncWire:integration/component_peer->application/platform@@eu/compute:integration/component_peer->application/api:eu/broker",
-    "AsyncWire:integration/component_peer->application/platform@@sa/compute:integration/component_peer->application/api:sa/broker",
-    "AsyncWire:integration/service_peer->application/platform@@eu/compute:integration/service_peer->application/backend:eu/broker",
-    "AsyncWire:integration/service_peer->application/platform@@sa/compute:integration/service_peer->application/backend:sa/broker",
+    "AsyncWire:application/platform@@eu/compute->integration/component_peer:integration/component_peer->application/api:eu/brokerRoute",
+    "AsyncWire:application/platform@@eu/compute->integration/service_peer:integration/service_peer->application/backend:eu/brokerRoute",
+    "AsyncWire:application/platform@@sa/compute->integration/component_peer:integration/component_peer->application/api:sa/brokerRoute",
+    "AsyncWire:application/platform@@sa/compute->integration/service_peer:integration/service_peer->application/backend:sa/brokerRoute",
   ],
 }, "D1 must roll incoming C2 and C3 relationships up to their systems exactly once per environment");
 
@@ -126,9 +126,11 @@ deployment production
             name = Broker
             runsOn:
                 compute
-            projection:
-                source $from originalLink source $this
-                target $to connectTo target $this
+
+route brokerRoute
+    inbound:
+        $to connectTo messageBroker
+        messageBroker originalLink $from
 `);
 }
 

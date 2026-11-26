@@ -120,7 +120,7 @@ The context identifier is written after the `context` keyword and provides its s
 | `deployment` | `List of DeploymentAction` | No | Profile selection, runtime placement, and infrastructure usage actions. |
 | `_` | `List of Container` | No | Anonymous list of the system's containers and services, shown on C2 and more detailed views. |
 
-`deployment` belongs to `System`, not the shared `SystemElement` base. Actors have no placement action list, but their wires can select network infrastructure. See [Deployment](deployment.md) for the allowed actions.
+`deployment` belongs to `System`, not the shared `SystemElement` base. Actors have no placement action list, but their wires can select an environment-owned route. See [Deployment](deployment.md) for the allowed actions.
 
 ## C1 relationship attributes
 
@@ -132,7 +132,6 @@ The built-in synchronous `->` and asynchronous `~>` operators create `Wire` rela
 | `description` | `Text` | No | `->`, `~>` | Human-readable meaning of the interaction. |
 | `model` | `WireModel` | Yes, provided by constructor | `->`, `~>` | Enum value identifying the relationship as `sync` or `async` for queries. The built-in constructor supplies it. |
 | `deployment` | `List of DeploymentAction` | No | `->`, `~>` | Deployment actions associated with the logical wire. |
-| `uses` | `List of NetworkConnection` | No | `->`, `~>` | Network capabilities used when the relationship is projected onto infrastructure. |
 | `call` | `Text` | No | `->` | Operation or interface invoked by a synchronous interaction. |
 | `via` | `Text` | No | `~>` | Topic, channel, queue, or route used by an asynchronous interaction. |
 

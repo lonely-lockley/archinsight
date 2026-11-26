@@ -20,7 +20,7 @@
       "patterns": [
         {
           "name": "keyword.control.insight",
-          "match": "\\b(define|abstract|extend|context|constructor|required|of|on|from|as|import|project)\\b"
+          "match": "\\b(define|abstract|extend|context|constructor|required|of|on|from|in|as|import|project)\\b"
         }
       ]
     },

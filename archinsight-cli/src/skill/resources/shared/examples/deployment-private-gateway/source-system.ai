@@ -21,8 +21,8 @@ system source_system
                 technology = HTTPS
                 call = GET /private
                 deployment:
-                    uses privateGateway
+                    route privateGateway
             -> payment
                 technology = HTTPS
                 deployment:
-                    uses network
+                    route externalOutbound

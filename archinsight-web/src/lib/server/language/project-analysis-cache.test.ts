@@ -335,8 +335,8 @@ deployment production
             name = Prometheus
             runsOn:
                 k8s_r1
-            projection:
-                target $this connectTo source $from
+            route:
+                $this connectTo $from
 `],
     ['shop.ai', `context shop
 
@@ -363,10 +363,8 @@ import backend from context application
 
 system client
     name = Client
-    links:
-        ~> backend
-            deployment:
-                uses __CURSOR__
+    deployment:
+        uses __CURSOR__
 `;
   const cursorOffset = sourceWithCursor.indexOf('__CURSOR__');
   const source = sourceWithCursor.replace('__CURSOR__', '');

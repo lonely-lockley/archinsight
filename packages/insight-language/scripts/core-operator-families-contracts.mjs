@@ -22,6 +22,8 @@ define operator LegacyAssignment of Edge
     constructor legacyHost InfrastructureComponent
         on Element
     capability = "deployment-placement"
+extend type Storage
+    Projection accessPath
 extend type System
     List of Edge actions
 `)], [coreLanguageSnapshot]);
@@ -30,11 +32,16 @@ const snapshot = JSON.parse(JSON.stringify(built.snapshot));
 const types = new TypeSystem(snapshot);
 for (const [owner, attribute, expected] of [
   ["System", "links", "Wire"], ["Service", "links", "Wire"],
-  ["InfrastructureComponent", "projection", "PhysicalWire"],
   ["System", "deployment", "DeploymentAction"], ["ContainerElement", "deployment", "DeploymentAction"], ["Wire", "deployment", "DeploymentAction"],
   ["DeploymentProfile", "_", "DeploymentAction"], ["System", "actions", "Edge"],
 ]) {
   assert.equal(types.attribute(owner, attribute)?.listElementType, expected);
+}
+assert.equal(types.attribute("InfrastructureComponent", "route")?.type, "Projection");
+assert.equal(types.attribute("InfrastructureComponent", "projection"), undefined);
+assert.equal(types.anonymousListAttribute("Projection")?.listElementType, "PhysicalWire");
+for (const section of ["outbound", "transit", "inbound"]) {
+  assert.equal(types.attribute("Projection", section)?.listElementType, "PhysicalWire");
 }
 for (const type of ["Wire", "PhysicalWire", "DeploymentAction"]) {
   assert(types.isAssignable(type, "Edge"));
@@ -68,7 +75,6 @@ const operators = [
 ];
 for (const [header, ownerType, list, expectedType, indent] of [
   ["system caller\n    name = Caller\n    links:\n", "System", "links", "Wire", "        "],
-  ["networkConnection caller\n    name = Caller\n    projection:\n", "NetworkConnection", "projection", "PhysicalWire", "        "],
   ["system caller\n    name = Caller\n    deployment:\n", "System", "deployment", "DeploymentAction", "        "],
   ["deploymentProfile caller\n    appliesTo:\n        production from infra\n", "DeploymentProfile", "_", "DeploymentAction", "    "],
   ["system caller\n    name = Caller\n    actions:\n", "System", "actions", "Edge", "        "],
@@ -78,6 +84,8 @@ for (const [header, ownerType, list, expectedType, indent] of [
   const completion = engine.complete({ sourceName: "model.ai", source: before + indent,
     cursorOffset: before.length + indent.length, snapshot });
   const expectedOperators = operators.filter(([, , family]) => expectedType === "Edge" || family === expectedType).map(([spelling]) => spelling).sort();
+  if (ownerType === "System" && expectedType !== "Wire") expectedOperators.push("shares");
+  expectedOperators.sort();
   assert.deepEqual(completion.items.filter(({ kind }) => kind === "OPERATOR").map(({ label }) => label).sort(), expectedOperators);
   for (const [spelling, target, family] of operators) {
     const valid = expectedType === "Edge" || family === expectedType;
@@ -110,6 +118,52 @@ for (const [header, ownerType, list, expectedType, indent] of [
       assert.equal(semanticHighlightInsight(incomplete.source, snapshot).find((token) => token.line === line - 1 && token.column === indent.length)?.type, "operator");
     }
   }
+}
+
+const storageSource = "context test\nstorage database\n    name = DB\n";
+const storageCursor = storageSource + "    ";
+const storageItems = engine.complete({ sourceName: "storage.ai", source: storageCursor, cursorOffset: storageCursor.length, snapshot }).items;
+assert(storageItems.some(item => item.label === "route"));
+assert(!storageItems.some(item => item.label === "projection"));
+const componentRoute = block => linkProject({snapshot, sources: [source("storage.ai", storageSource + block + "\n")]});
+for (const body of ["        $from originalLink $this", ...["_", "localPath"].map(id =>
+  `        projection ${id}\n            $from originalLink $this`)]) {
+  const linked = componentRoute("    route:\n" + body);
+  assert.deepEqual(linked.diagnostics.filter(d => (d.level ?? "ERROR") === "ERROR"), []);
+  const owner = linked.elements.find(element => element.id === "test/database");
+  const [routeId] = owner.attributes.route;
+  assert(linked.elements.some(element => element.id === routeId && element.type === "Projection" && element.parent === owner.id));
+}
+for (const field of ["route", "accessPath"]) {
+  for (const section of ["outbound", "transit", "inbound"]) {
+    const text = storageSource + `    ${field}:\n        ${section}:\n            $from `;
+    const items = engine.complete({ sourceName: "storage.ai", source: text, cursorOffset: text.length, snapshot }).items;
+    assert.deepEqual(items.map(item => item.label).sort(), ["connectTo", "originalLink", "replicateFrom"]);
+  }
+}
+const repeated = componentRoute("    route:\n        $from originalLink $this\n    route:\n        $this connectTo $from");
+assert(repeated.diagnostics.some(d => d.code === "ATTRIBUTE_SHADOWS_PREVIOUS" && d.line === 6));
+const legacy = componentRoute("    projection:\n        $from originalLink $this");
+assert(legacy.diagnostics.some(d => d.code === "ATTRIBUTE_NOT_DECLARED" && d.line === 4 && d.column === 5));
+
+const projectionHeader = endpoints + "networkConnection caller\n    name = Caller\n    route:\n";
+const projectionCompletion = engine.complete({
+  sourceName: "projection.ai",
+  source: projectionHeader + "        ",
+  cursorOffset: projectionHeader.length + 8,
+  snapshot,
+});
+assert.deepEqual(
+  projectionCompletion.items.filter(({ kind }) => kind === "OPERATOR").map(({ label }) => label),
+  [],
+);
+assert(projectionCompletion.items.some(({ label }) => label === "$from"));
+for (const spelling of ["connectTo", "replicateFrom"]) {
+  const result = linkProject({
+    snapshot,
+    sources: [source("projection.ai", `${projectionHeader}        $from ${spelling} $this\n`), environment],
+  });
+  assert.deepEqual(result.diagnostics.filter(({ level }) => (level ?? "ERROR") === "ERROR"), []);
 }
 
 console.log("core operator family contracts passed");

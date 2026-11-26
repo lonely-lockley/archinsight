@@ -203,7 +203,7 @@ deployment production
         name = Kubernetes cluster
 ```
 
-`InfrastructureComponent` is the base concrete type for physical or managed infrastructure. It can describe its technology, contain other infrastructure components, refer to a runtime parent through `runsOn`, and carry projection rules that translate logical dependencies into physical paths. Its `runsOn:` attribute stores a typed reference to a concrete named infrastructure instance, so an anonymous `_` object cannot be its target. The similarly spelled `runsOn compute` invocation in a `DeploymentProfile` names an environment slot and resolves a concrete instance for each selected deployment.
+`InfrastructureComponent` is the base concrete type for physical or managed infrastructure. It can describe its technology, contain other infrastructure components, refer to a runtime parent through `runsOn`, and define a `route:` from its consumer to the component. Its `runsOn:` attribute stores a typed reference to a concrete named infrastructure instance, so an anonymous `_` object cannot be its target. The similarly spelled `runsOn compute` invocation in a `DeploymentProfile` names an environment slot and resolves a concrete instance for each selected deployment.
 
 The core library provides several specialized infrastructure types:
 
@@ -250,7 +250,7 @@ Edge
     └── OriginalLink
 ```
 
-`Wire` is the abstract base for logical architectural dependencies. It carries `technology`, `description`, a required `WireModel` attribute named `model`, deployment references, and the network capabilities used by deployment projection. `WireModel` is an enum containing `sync` and `async`. The concrete wire constructors provide the value, making it available for queries without requiring a manual assignment.
+`Wire` is the abstract base for logical architectural dependencies. It carries `technology`, `description`, a required `WireModel` attribute named `model`, and relationship deployment actions. `WireModel` is an enum containing `sync` and `async`. The concrete wire constructors provide the value, making it available for queries without requiring a manual assignment.
 
 `SyncWire` is created with `->` and receives `model = sync`. Its optional `call` attribute can record the operation or interface being invoked. `AsyncWire` is created with `~>` and receives `model = async`; its optional `via` attribute can identify a topic, channel, queue, or other asynchronous route. Model authors leave `model` to these constructor defaults. The default presentation draws asynchronous wires with a dashed line.
 
@@ -270,10 +270,10 @@ service order_fulfillment
 
 `PhysicalWire` is the base for relationships produced by deployment projection. `ConnectTo` represents a physical connection, `ReplicateFrom` represents replication, and `OriginalLink` preserves the logical relationship inside an expanded physical path. These edge types let a deployment view show how one logical wire is realized through gateways, brokers, storage, and network components.
 
-`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates a system or container with a deployment profile through `uses`. `InfrastructureUse` records infrastructure required by a system, container, or profile; on a logical wire, it accepts only `NetworkConnection` targets. `InfrastructurePlacement` places a system, container, or profile on an infrastructure component through `runsOn`. Together they connect the logical model with its deployment environment.
+`DeploymentAction` is the abstract base for deployment operators. `DeploymentProfileUse` associates a system or container with a deployment profile through `uses`. `InfrastructureUse` records infrastructure required by a system, container, or profile. `InfrastructurePlacement` places a system, container, or profile on an infrastructure component through `runsOn`. `RouteUse` assigns an environment-owned `Route` to a logical wire. Together they connect the logical model with its deployment environment.
 
 Core lists accept these families separately: `links` expects `Wire`,
-`projection` expects `PhysicalWire`, and `deployment` expects `DeploymentAction`.
+a component’s `route:` contains `PhysicalWire` steps, and `deployment` expects `DeploymentAction`.
 The anonymous list in `DeploymentProfile` also expects `DeploymentAction`.
 Custom operators inherit the appropriate family to participate in these lists;
 their constructor owner and target constraints still apply. A project can

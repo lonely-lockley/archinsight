@@ -10,6 +10,7 @@ const cases = [
   highlightsSameTextByParserContext,
   highlightsOperatorsAndConstructorsByRuleContext,
   highlightsProjectionTermsByRuleContext,
+  highlightsSharedDeploymentBindings,
   highlightsContextDeclarationWhileTyping,
   highlightsEnvironmentDeclarationAndImports,
   highlightsAbstractTypeModifier,
@@ -32,6 +33,19 @@ if (failures > 0) {
   process.exitCode = 1;
 } else {
   console.log("semantic highlighting contract fixtures passed");
+}
+
+function highlightsSharedDeploymentBindings() {
+  const tokens = tokensByText(`context demo
+system example
+    deployment:
+        uses storage as orderLedger
+        shares ledger from billing
+`);
+  assertToken(tokens, "orderLedger", "variable", ["declaration"]);
+  assertToken(tokens, "shares", "operator");
+  assertToken(tokens, "ledger", "variable");
+  assertToken(tokens, "billing", "variable");
 }
 
 function highlightsSameTextByParserContext() {
@@ -73,10 +87,13 @@ function highlightsProjectionTermsByRuleContext() {
 context infra
 
 infrastructureComponent gateway
-    projection:
-        source $from originalLink target cdn
-        target cdn connectTo target $this
-        source $slot from $owner publicGateway connectTo target $to
+    route:
+        $from originalLink cdn
+        cdn connectTo $this in production from eu
+
+route publicInbound
+    outbound:
+        $from originalLink $to in eu
 `.trimStart();
   const tokens = tokensByText(source);
 
@@ -85,9 +102,7 @@ infrastructureComponent gateway
   assertToken(tokens, "connectTo", "operator");
   assertToken(tokens, "cdn", "property");
   assertToken(tokens, "$this", "variable");
-  assertToken(tokens, "$slot", "variable");
-  assertToken(tokens, "$owner", "variable");
-  assertToken(tokens, "publicGateway", "property");
+  assertToken(tokens, "$to", "variable");
   assertToken(tokens, "$to", "variable");
 }
 

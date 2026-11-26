@@ -9,8 +9,8 @@ const source = (sourceName, source) => ({ sourceName, source });
 const completion = new CompletionEngine(createGeneratedInsightSyntaxProvider());
 let baseline;
 for (const spelling of [
-  { call: "deliver", place: "assignHost", carry: "transport" },
-  { call: "+>", place: "@>", carry: "%>" },
+  { call: "deliver", place: "assignHost" },
+  { call: "+>", place: "@>" },
 ]) {
   const definitions = source("types.ai", `define type Port of BoundaryElement
     constructor port
@@ -30,10 +30,6 @@ define operator HostAssignment of Edge
         on Port
     capability = "deployment-placement"
 
-define operator Transport of Edge
-    constructor ${spelling.carry} NetworkConnection
-        on Wire
-    capability = "deployment-use"
 `);
   const built = buildLanguageSnapshotResultFromSources([definitions], [coreLanguageSnapshot]);
   assert.deepEqual(built.diagnostics, []);
@@ -51,8 +47,6 @@ port root
             routes:
                 ${spelling.call} target
                     description = Delivery
-                    steps:
-                        ${spelling.carry} channel
             actions:
                 ${spelling.place} host
 port target
@@ -62,7 +56,6 @@ port target
   assert.deepEqual(errors(result), []);
   assert.equal(result.edges.length, 1);
   assert.deepEqual(result.elements.find(({ id }) => id === "test/caller").attributes.runsOn, ["test/host"]);
-  assert.deepEqual(result.edges[0].attributes.uses, ["test/channel"]);
   const shape = {
     elements: result.elements.map(({ id, type, attributes }) => ({ id, type, attributes })),
     edges: result.edges.map(({ source, target, type, attributes }) => ({ source, target, type, attributes })),
@@ -73,7 +66,7 @@ port target
   assert.deepEqual(graph.edges.map(({ source, target }) => ({ source, target })), [{ source: "test/caller", target: "test/target" }]);
   assert(renderGraphviz(result, graph).includes('"test/caller" -> "test/target"'));
 
-  for (const [role, target] of [["call", "target"], ["place", "host"], ["carry", "channel"]]) {
+  for (const [role, target] of [["call", "target"], ["place", "host"]]) {
     const invocation = `${spelling[role]} ${target}`;
     const start = model.source.indexOf(invocation);
     const line = model.source.slice(0, start).split("\n").length;
@@ -94,7 +87,7 @@ port target
         cursorOffset: start + spelling[role].length + 1 + prefix.length, snapshot: built.snapshot });
       const labels = completed.items.map(({ label }) => label);
       assert(labels.includes(target), `${role}: ${labels.join(", ")}`);
-      for (const forbidden of role === "call" ? ["host", "channel"] : role === "carry" ? ["host", "root"] : ["root", "target"]) {
+      for (const forbidden of role === "call" ? ["host", "channel"] : ["root", "target"]) {
         assert(!labels.includes(forbidden), `${role} leaked ${forbidden}`);
       }
     }

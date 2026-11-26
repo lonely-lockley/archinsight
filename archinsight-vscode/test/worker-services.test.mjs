@@ -159,8 +159,8 @@ deployment production
             name = Prometheus
             runsOn:
                 k8s_r1
-            projection:
-                target $this connectTo source $from
+            route:
+                $this connectTo $from
 `,
     },
     {

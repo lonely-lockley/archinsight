@@ -363,9 +363,9 @@ context test
 infrastructureComponent gateway
     name = Gateway
 
-    projection:
-        source $from originalLink target $this
-        source gateway connectTo target $to
+    route:
+        $from originalLink $this
+        gateway connectTo $to
 `);
 }
 
@@ -374,8 +374,8 @@ function rejectsFixedProjectionTerm() {
 context test
 
 infrastructureComponent gateway
-    projection:
-        source gateway connectTo fixed tgw in latam
+    route:
+        gateway connectTo fixed tgw in latam
 `);
 }
 

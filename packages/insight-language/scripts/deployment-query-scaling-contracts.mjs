@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { minimumExpansionBudget } from "./query-expansion-budget.mjs";
 import { readFileSync } from "node:fs";
 import {
+  BUILTIN_VIEW_QUERIES,
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
+  executeQuery,
   linkProject,
   selectGraph,
 } from "../build/runtime/index.js";
@@ -45,7 +48,7 @@ system storefront
         links:
             -> api
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service api
         name = API
@@ -54,7 +57,7 @@ system storefront
         links:
             -> worker
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service worker
         name = Worker
@@ -63,7 +66,7 @@ system storefront
         links:
             -> database
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service database
         name = Database
@@ -99,8 +102,8 @@ RETURN node, deploymentTarget, projectedLink, projectedPeer, directDeploymentLin
 `;
 
 const scope = { context: "shop", tab: "model.ai", view: "deployment-container", environment: "r00" };
-const selectedEnvironmentCost = minimumExpansionBudget(scope, placementFirstQuery);
-const allEnvironmentCost = minimumExpansionBudget(
+const selectedEnvironmentCost = expansionCost(scope, placementFirstQuery);
+const allEnvironmentCost = expansionCost(
   { context: "shop", tab: "model.ai", view: "deployment" },
   placementFirstQuery,
 );
@@ -119,22 +122,121 @@ assert.deepEqual(graphSignature(graph), graphSignature(reorderedGraph), "safe OP
 assert(Object.keys(graph.elements).some((id) => id.includes("r00")));
 assert.equal(Object.keys(graph.elements).some((id) => id.includes("r01")), false);
 
+// Each client placement calls its corresponding API placement. The graph needs both
+// collections of matches, even though it never displays their Cartesian product.
+for (const count of [8, 68]) {
+  const ids = Array.from({ length: count }, (_, i) => `r${i}`);
+  const tab = "placements.ai";
+  const sources = [definitions, ...ids.map(environment), source(tab, `
+context placements
+deploymentProfile everywhere
+    appliesTo:
+${ids.map((id) => `        production from ${id}`).join("\n")}
+    runsOn compute
+    uses storage
+
+system caller
+    name = Caller
+    service client
+        name = Client
+        deployment:
+            uses everywhere
+        links:
+            -> api
+                deployment:
+                    route clusterLocal
+
+system receiver
+    name = Receiver
+    service api
+        name = API
+        deployment:
+            uses everywhere
+`)];
+  const linked = linkProject({ snapshot: snapshot.snapshot, sources });
+  assertNoErrors(linked.diagnostics);
+  const scope = { context: "placements", tab, view: "deployment-system" };
+  const query = BUILTIN_VIEW_QUERIES[scope.view];
+  const graph = selectGraph(linked, scope, query, { limits: { maxRows: 24 * count } });
+  assert.equal(graph.edges.length, count);
+  assert.equal(graph.groups.length, count);
+  if (count === 8) {
+    // A subsequent match consumes the bindings, forcing ordinary row semantics.
+    const fullJoin = query.replace("GROUP BY", "MATCH (node)\nGROUP BY");
+    assert.deepEqual(graph, selectGraph(linked, scope, fullJoin));
+  }
+}
+
+// Growing both the open tab and the graph must not rescan every relationship per seed.
+const d1Scope = { context: "shop", tab: "chain.ai", view: "deployment-system" };
+const d1 = BUILTIN_VIEW_QUERIES[d1Scope.view];
+const chainBudget = expansionCost(d1Scope, d1, linkChain(12));
+const chainGraph = selectGraph(linkChain(48), d1Scope, d1, { limits: { maxExpansions: chainBudget * 4 } });
+const systemName = (id) => id.split("@@")[0];
+assert.deepEqual(
+  chainGraph.edges.map((edge) => [systemName(edge.source), systemName(edge.target)]).sort(),
+  Array.from({ length: 47 }, (_, index) => [`shop/system_${index}`, `shop/system_${index + 1}`]).sort(),
+);
+
+const rebound = executeQuery(result, scope, `
+  MATCH (caller:Service)-[wire:REFERENCES]->(callee:Service)
+  MATCH ROLLUP (caller)-[wire:REFERENCES]->(callee)
+  RETURN TABLE elementId(caller) AS caller, elementId(callee) AS callee ORDER BY caller
+`);
+assert.deepEqual(rebound.rows, [["shop/api", "shop/worker"], ["shop/web", "shop/api"], ["shop/worker", "shop/database"]]);
+
+const pairs = "MATCH (a:Service) OPTIONAL MATCH (b:Service)";
+const tablePairs = executeQuery(result, {}, `${pairs} RETURN TABLE count(*) AS pairs`);
+assert.deepEqual(tablePairs.rows, [[16]]);
+const connectedPairs = selectGraph(result, {}, `
+  ${pairs}
+  MATCH (b)-[wire:REFERENCES]->(a)
+  RETURN a, b, wire
+`);
+assert.deepEqual(connectedPairs.edges.map(({ source, target }) => [source, target]).sort(), rebound.rows);
+
+// A failed OPTIONAL MATCH leaves null bindings, which a subsequent ROLLUP must not reopen.
+for (const rollup of [
+  "(peer)-[found:REFERENCES {projected}]->(missing)",
+  "(known)-[absent:REFERENCES {projected}]->(peer)",
+]) {
+  const table = executeQuery(result, scope, `
+    MATCH (known:Service {id: web})
+    OPTIONAL MATCH (known)-[absent:REFERENCES]->(missing:Service {id: unknown})
+    MATCH ROLLUP ${rollup}
+    RETURN TABLE count(*) AS matches
+  `);
+  assert.deepEqual(table.rows, [[0]]);
+}
+
 console.log("deployment query scaling contracts passed");
 
-function minimumExpansionBudget(queryScope, query) {
-  let lower = 1;
-  let upper = 4_000_000;
-  while (lower < upper) {
-    const candidate = Math.floor((lower + upper) / 2);
-    try {
-      selectGraph(result, queryScope, query, { limits: { maxExpansions: candidate } });
-      upper = candidate;
-    } catch (error) {
-      if (!/AIQ_BUDGET_EXCEEDED.*maxExpansions/.test(String(error))) throw error;
-      lower = candidate + 1;
-    }
-  }
-  return lower;
+function linkChain(size) {
+  const systems = Array.from({ length: size }, (_, index) => `
+system system_${index}
+    name = System ${index}
+    service api_${index}
+        name = API ${index}
+        deployment:
+            uses local
+${index + 1 === size ? "" : `        links:
+            -> api_${index + 1}
+                deployment:
+                    route clusterLocal`}`);
+  const sources = [definitions, environment("r00"), source("chain.ai", `
+context shop
+deploymentProfile local
+    appliesTo:
+        production from r00
+    runsOn compute
+${systems.join("\n")}`)];
+  const chain = linkProject({ snapshot: snapshot.snapshot, sources });
+  assertNoErrors(chain.diagnostics);
+  return chain;
+}
+
+function expansionCost(scope, query, linked = result) {
+  return minimumExpansionBudget((maxExpansions) => selectGraph(linked, scope, query, { limits: { maxExpansions } }), 4_000_000);
 }
 
 function graphSignature(graph) {
@@ -162,8 +264,8 @@ deployment production
     network:
         networkConnection network
             name = Network
-            projection:
-                source $from originalLink target $to
+            route:
+                $from originalLink $to
     storage:
         infrastructureComponent storage
             name = Storage
@@ -179,6 +281,9 @@ deployment production
     queue:
         infrastructureComponent queue
             name = Queue
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `);
 }
 

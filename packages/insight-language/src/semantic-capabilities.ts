@@ -2,6 +2,7 @@ export const TYPE_CAPABILITIES = Object.freeze({
   documentAggregateRoot: "document-aggregate-root",
   documentAggregateMember: "document-aggregate-member",
   deploymentElement: "deployment-element",
+  deploymentBoundary: "deployment-boundary",
   deploymentEndpoint: "deployment-endpoint",
   deploymentFamily: "deployment-family",
   deploymentProfile: "deployment-profile",
@@ -11,11 +12,15 @@ export const TYPE_CAPABILITIES = Object.freeze({
   infrastructure: "infrastructure",
   logicalContext: "logical-context",
   networkConnection: "network-connection",
+  projection: "deployment-projection",
+  route: "deployment-route",
 } as const);
 
 export const OPERATOR_CAPABILITIES = Object.freeze({
+  deploymentShare: "deployment-share",
   deploymentUse: "deployment-use",
   deploymentPlacement: "deployment-placement",
+  deploymentRoute: "deployment-route-use",
   preserveLogicalEdge: "preserve-logical-edge",
 } as const);
 

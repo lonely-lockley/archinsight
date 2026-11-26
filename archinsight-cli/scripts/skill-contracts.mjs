@@ -108,6 +108,7 @@ function verifyEntrypoint(target, output) {
   assert(content.includes("reports under `reports/`"));
   assert(content.includes("Lead with the verdict, then its model evidence"));
   assert.equal(occurrences(content, "references/deployment-projections.md"), 1);
+  assert.equal(occurrences(content, "references/migration-3.2.md"), 1);
   assert(content.includes("Infer and reuse an existing C4 Code vocabulary from the repository"));
   assert.match(content, /Ask the\s+user about entity kinds only when creating the Code layer or extending that\s+vocabulary/);
   assert.equal(content.includes("references/versioning.md"), false);
@@ -237,7 +238,7 @@ function verifySharedFiles(output) {
   assert.match(modeling, /inventory alone does not place an async logical wire/);
   assert(modeling.includes("built-in `Broker`"));
   assert.match(modeling, /built-in `Broker`\s+is one/);
-  assert(modeling.includes("[Broker](deployment-projections.md#broker)"));
+  assert(modeling.includes("[Broker route](deployment-projections.md#broker-route)"));
 
   const deployment = readFileSync(path.join(output, "references", "deployment.md"), "utf8");
   assert(deployment.includes("references/deployment-projections.md"));
@@ -246,22 +247,20 @@ function verifySharedFiles(output) {
   assert.match(deployment, /Read the ids from `environments` and pass the selected id/);
 
   const projections = readFileSync(path.join(output, "references", "deployment-projections.md"), "utf8");
-  for (const heading of ["Gateway", "Storage", "Broker", "Egress", "Monitoring"]) {
+  for (const heading of ["Inbound gateway", "Storage projection", "Broker route", "Cross-environment route", "Cross-environment infrastructure projection"]) {
     assert(projections.includes(`## ${heading}`));
   }
-  assert(projections.includes("A path made entirely from `connectTo`"));
-  assert(projections.includes("copy-on-write"));
+  assert(projections.includes("`source` and `target` prefix operators no longer exist"));
+  assert(projections.includes("Write every intended destination"));
   assert(projections.includes("edge.projectionOrigins"));
-  assert(projections.includes("eu/telemetry branches independently"));
-  assert(projections.includes("-v deployment-container --environment eu"));
   assert(projections.includes("[Eventing](modeling.md#eventing)"));
   assert(projections.includes("[Scaling](scaling.md#framework-once-use-everywhere)"));
 
   const scaling = readFileSync(path.join(output, "references", "scaling.md"), "utf8");
-  assert(scaling.includes("[Broker](deployment-projections.md#broker)"));
+  assert(scaling.includes("[Broker route](deployment-projections.md#broker-route)"));
   assert(scaling.includes("Broker events"));
   assert(scaling.includes("KafkaBroker of Broker"));
-  verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md"]);
+  verifyReferenceLinks(output, ["modeling.md", "deployment-projections.md", "scaling.md", "migration-3.2.md"]);
 
   const analysis = readFileSync(path.join(output, "references", "analysis.md"), "utf8");
   assert(analysis.includes("Use focused AIQ queries to answer architecture questions"));
@@ -287,8 +286,8 @@ function verifySharedFiles(output) {
 
   assert(deployment.includes("deployment-system"));
   assert(deployment.includes("deployment-container"));
-  assert(deployment.includes("--environment <environment>"));
-  assert(deployment.includes("backward compatibility"));
+  assert(deployment.includes("--environment <id>"));
+  assert(deployment.includes("Do not use an infrastructure slot directly in a wire deployment"));
 
   const validation = readFileSync(path.join(output, "references", "validation.md"), "utf8");
   assert.match(validation, /archinsight query .* -v c4 --format json/);
@@ -469,17 +468,22 @@ function verifyDeploymentProjectionContracts(output) {
   const examples = path.join(output, "examples", "deployment-projections");
   const gateway = projectionGraph(examples, "gateway");
   assertElements(gateway, ["gateway_example/customer", "gateway_example/api", "eu/edge_gateway", "eu/load_balancer"]);
-  assertProjectedEdge(gateway, "gateway_example/customer", "eu/edge_gateway", {
+  const entry = assertProjectedEdge(gateway, "gateway_example/customer", "eu/edge_gateway", {
     operator: "->",
     originSource: "gateway_example/customer",
     originTarget: "gateway_example/api",
   });
+  assert.deepEqual(entry.edge.attributes.technology, ["HTTPS"]);
+  assert.deepEqual(entry.edge.attributes.description, ["Calls the public edge"]);
   const gatewayConnect = assertProjectedEdge(gateway, "eu/edge_gateway", "eu/load_balancer", {
     operator: "connectTo",
     originSource: "gateway_example/customer",
     originTarget: "gateway_example/api",
   });
-  assert.deepEqual(gatewayConnect.edge.attributes, { technology: ["HTTPS"] });
+  assert.deepEqual(gatewayConnect.edge.attributes, {
+    technology: ["HTTPS"],
+    description: ["Forwards the request to the load balancer"],
+  });
 
   const storage = projectionGraph(examples, "storage");
   assertElements(storage, ["storage_example/orders", "eu/postgres"]);
@@ -494,7 +498,7 @@ function verifyDeploymentProjectionContracts(output) {
   const brokerModel = readFileSync(path.join(examples, "broker", "model.ai"), "utf8");
   assert(brokerDefinitions.includes("Broker events"));
   assert(brokerDefinitions.includes("KafkaBroker of Broker"));
-  assert(brokerModel.includes("uses events"));
+  assert(brokerModel.includes("route events"));
   assert.equal(brokerModel.includes("uses kafka"), false);
   assertElements(broker, ["broker_example/publisher", "broker_example/consumer", "eu/kafka"]);
   const producerHop = assertProjectedEdge(broker, "broker_example/publisher", "eu/kafka", {

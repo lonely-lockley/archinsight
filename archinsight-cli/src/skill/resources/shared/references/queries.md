@@ -238,8 +238,7 @@ for a list property it tests membership. Match the stored spelling exactly.
 with the same semantics in graph and table results.
 
 Attribute cardinality comes from the Insight type system and linked reference
-metadata, not from the JSON representation. Use `CONTAINS` for declared lists
-such as `Wire.uses`. Infrastructure `runsOn` is a declared scalar reference;
+metadata, not from the JSON representation. Infrastructure `runsOn` is a declared scalar reference;
 on systems and containers, `runsOn` and `uses` are computed deployment results,
 not declared source attributes. A single resolved reference resolves to its
 real typed graph node: compare it with another bound node, or
@@ -275,11 +274,18 @@ intersection.
 undeployed logical elements out of the physical diagram.
 
 `edge.projectionRoot` is available on projected relationships and identifies
-the infrastructure element whose projection produced the selected segment.
+the environment route or infrastructure component that produced the selected segment.
 It can be used in relationship predicates and has the same value shown in
 `query --format json` output. Resolved `node.runsOn` can contain several
 concrete infrastructure objects, so use `candidate IN node.runsOn` when
 matching placement targets.
+
+For a route inventory, filter `p.projectionRoot` by the qualified route ID
+and return `DISTINCT p.originSource AS caller, p.originTarget AS callee` from
+projected relationships. These IDs retain logical direction on reversed broker
+paths and distinguish the users of a shared physical hop. A reference to an
+undeclared property produces `AIQ_UNKNOWN_PROPERTY`. An unset optional property
+can still return null.
 
 ## Relationship Selectors
 
@@ -377,8 +383,8 @@ parsing or decoding a synthetic element id.
   the logical origin selected for this occurrence of a projected segment;
 - nested `edge.projectionOrigins`, when present, lists every logical source and
   target that shares the physical segment;
-- nested `edge.projectionRoot` identifies the infrastructure element whose
-  projection produced the segment;
+- nested `edge.projectionRoot` identifies the environment route or infrastructure component
+  that produced the segment;
 - nested `edge.sourcePlacement` and `edge.targetPlacement`, when present,
   identify the concrete placement of each logical endpoint independently.
 

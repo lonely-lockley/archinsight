@@ -111,6 +111,10 @@ the same host. It is intentionally separate from `./gradlew clean check`:
 `check` contains deterministic performance contracts, while benchmark timings
 are sensitive to host hardware and contention.
 
+The [built-in AIQ query gate](../../docs/development/testing.md#built-in-aiq-query-cost)
+also uses the 250-service generator. It runs in `check` and compares each
+view's expansion count with its reviewed baseline.
+
 Historical measurements from before the repeated-graph-build optimization are
 kept under [`before-results`](before-results) and
 [`before-phase-results`](before-phase-results). The default runners write the

@@ -35,9 +35,11 @@ deployment production
             name = Broker
             runsOn:
                 compute
-            projection:
-                source $from originalLink source $this
-                target $to connectTo target $this
+
+route brokerRoute
+    inbound:
+        $to connectTo messageBroker
+        messageBroker originalLink $from
 `),
   source("application.ai", `
 context application
@@ -60,29 +62,29 @@ context integration
 
 import backend from context application
 
-system producer
+external system producer
     name = Producer
     links:
         ~> backend
             via = topic_one
             deployment:
-                uses messageBroker
+                route brokerRoute
         ~> backend
             via = topic_two
             deployment:
-                uses messageBroker
+                route brokerRoute
         ~> backend
             via = topic_three
             deployment:
-                uses messageBroker
+                route brokerRoute
 
-system producer_two
+external system producer_two
     name = Producer two
     links:
         ~> backend
             via = topic_four
             deployment:
-                uses messageBroker
+                route brokerRoute
 `),
 ];
 
@@ -106,10 +108,10 @@ const projectedLogical = result.edges.filter((edge) => edge.projected === true &
 assert.deepEqual(
   projectedLogical.map(logicalRelationshipSignature).sort(),
   [
-    "integration/producer->eu/broker:topic_one",
-    "integration/producer->eu/broker:topic_three",
-    "integration/producer->eu/broker:topic_two",
-    "integration/producer_two->eu/broker:topic_four",
+    "eu/broker->integration/producer:topic_one",
+    "eu/broker->integration/producer:topic_three",
+    "eu/broker->integration/producer:topic_two",
+    "eu/broker->integration/producer_two:topic_four",
   ],
   "each originalLink projection must preserve a distinct logical wire even when its endpoints match",
 );
@@ -125,10 +127,10 @@ const d2 = selectGraph(
   view("deployment-container"),
 );
 assert.deepEqual(graphRelationshipSignature(d2), [
-  "AsyncWire:integration/producer->eu/broker:topic_one",
-  "AsyncWire:integration/producer->eu/broker:topic_three",
-  "AsyncWire:integration/producer->eu/broker:topic_two",
-  "AsyncWire:integration/producer_two->eu/broker:topic_four",
+  "AsyncWire:eu/broker->integration/producer:topic_one",
+  "AsyncWire:eu/broker->integration/producer:topic_three",
+  "AsyncWire:eu/broker->integration/producer:topic_two",
+  "AsyncWire:eu/broker->integration/producer_two:topic_four",
   "ConnectTo:application/backend->eu/broker:",
 ], "D2 must contain every logical broker relationship and one shared physical segment");
 
@@ -138,10 +140,10 @@ const d1 = selectGraph(
   view("deployment-system"),
 );
 assert.deepEqual(graphRelationshipSignature(d1), [
-  "AsyncWire:integration/producer->application/platform:topic_one",
-  "AsyncWire:integration/producer->application/platform:topic_three",
-  "AsyncWire:integration/producer->application/platform:topic_two",
-  "AsyncWire:integration/producer_two->application/platform:topic_four",
+  "AsyncWire:application/platform->integration/producer:topic_one",
+  "AsyncWire:application/platform->integration/producer:topic_three",
+  "AsyncWire:application/platform->integration/producer:topic_two",
+  "AsyncWire:application/platform->integration/producer_two:topic_four",
 ], "D1 must retain parallel async relationships while contracting their internal broker path");
 
 console.log("deployment parallel async contracts passed");

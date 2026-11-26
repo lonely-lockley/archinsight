@@ -85,8 +85,8 @@ function deploymentInternalActorsQuery(): string {
   let query = BUILTIN_VIEW_QUERIES.deployment;
   query = replaceExactlyOnce(
     query,
-    "    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true))",
-    "    OR ((node IS ContainerElement OR node IS External) AND node.deployed = true)\n    OR node IS Actor)",
+    " AND node.deployed = true))",
+    " AND node.deployed = true)\n    OR node IS Actor)",
     "Deployment internal-actor query",
   );
   query = replaceExactlyOnce(

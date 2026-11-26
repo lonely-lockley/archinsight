@@ -11,8 +11,6 @@ define operator Wire of Edge
 
     List of DeploymentAction deployment
         capability = "deployment-actions"
-    List of NetworkConnection uses
-        capability = "infrastructure-uses"
 
 define abstract type DeploymentAction of Edge
 
@@ -26,16 +24,25 @@ define operator InfrastructureUse of DeploymentAction
     constructor uses InfrastructureComponent
         on DeploymentProfile or System or ContainerElement
 
-    constructor uses NetworkConnection
-        on Wire
-
     capability = "deployment-use"
+
+define operator InfrastructureShare of DeploymentAction
+    constructor shares InfrastructureComponent
+        on System or ContainerElement
+
+    capability = "deployment-share"
 
 define operator InfrastructurePlacement of DeploymentAction
     constructor runsOn InfrastructureComponent
         on DeploymentProfile or System or ContainerElement
 
     capability = "deployment-placement"
+
+define operator RouteUse of DeploymentAction
+    constructor route Route
+        on Wire
+
+    capability = "deployment-route-use"
 
 define operator SyncWire of Wire
     constructor -> Element
@@ -85,14 +92,6 @@ define operator OriginalLink of PhysicalWire
 
     Text call
     Text via
-
-define operator SourceProjectionTerm of TypeSlotReference
-    constructor source Environment or InfrastructureComponent
-        on ProjectionTerm
-
-define operator TargetProjectionTerm of TypeSlotReference
-    constructor target Environment or InfrastructureComponent
-        on ProjectionTerm
 
 define type ExternalSystem of System
     capability = "external-element"

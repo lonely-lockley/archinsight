@@ -10,6 +10,8 @@ type WorkspaceCompletionIdentifier = {
   type: string;
   imported?: boolean;
   documentation?: CompletionDocumentation;
+  deploymentUseNames?: readonly string[];
+  deploymentEnvironments?: readonly string[];
 };
 
 export type WorkspaceCompletionSnapshot = {
@@ -90,6 +92,8 @@ function collectContextualIdentifiers(
           label: declaration.id,
           type: declaration.type,
           contextId,
+          ...(declaration.deploymentUseNames && { deploymentUseNames: declaration.deploymentUseNames }),
+          ...(declaration.deploymentEnvironments && { deploymentEnvironments: declaration.deploymentEnvironments }),
           ...(declaration.documentation === undefined ? {} : { documentation: declaration.documentation })
         }]
       : []),
@@ -121,6 +125,8 @@ function collectImportedIdentifiers(
         label: declaration.id,
         type: declaration.type,
         imported: true,
+        ...(declaration.deploymentUseNames && { deploymentUseNames: declaration.deploymentUseNames }),
+        ...(declaration.deploymentEnvironments && { deploymentEnvironments: declaration.deploymentEnvironments }),
         ...(declaration.documentation === undefined ? {} : { documentation: declaration.documentation })
       });
       result.set(declaration.source, identifiers);

@@ -51,7 +51,7 @@ const scenarios = [
   scenario(
     "environment-projection",
     "environments/env-15.ai",
-    /            projection:\n                source \$from originalLink target \$this\n/,
+    /            route:\n                \$from originalLink \$this\n/,
     "",
   ),
 ];

@@ -458,7 +458,7 @@ service storefront
 Operator attributes describe the relationship created by an invocation. Required attributes are validated in the same way as attributes on ordinary elements. Operator inheritance can refine a general relationship family into synchronous, asynchronous, physical, or domain-specific connections while keeping shared attributes and presentation rules.
 
 Core lists distinguish three families derived from `Edge`: `links` accepts
-`Wire`, `projection` accepts `PhysicalWire`, and `deployment` accepts
+`Wire`, a component’s `route:` contains `PhysicalWire` steps, and `deployment` accepts
 `DeploymentAction`. The anonymous list in `DeploymentProfile` also accepts
 `DeploymentAction`. Constructor owner and target constraints further restrict
 which operators are valid in each position. These same type rules determine
@@ -467,8 +467,8 @@ completion candidates.
 The named `deployment` list is available on `System`, `ContainerElement`,
 `Wire`, and their descendants. Core `runsOn` and infrastructure `uses` actions
 accept systems, containers, and deployment profiles as owners. Only systems
-and containers can select a profile through `uses <profile>`. Wires can use network connections. Profiles
-declare actions directly in their anonymous body. The separate `runsOn:`
+and containers can select a profile through `uses <profile>`. A wire accepts only
+`route <name>`. Profiles declare actions directly in their anonymous body. The separate `runsOn:`
 reference attribute on infrastructure remains available.
 
 Previously, `deployment` was inherited from `Element`. Move component or code
@@ -478,11 +478,10 @@ directly in the profile body. Custom deployable types can inherit `System` or
 `ContainerElement`, or explicitly declare their own action list and compatible
 custom operators.
 
-Custom deployment operators used in core lists must derive from
-`DeploymentAction` (or one of its subtypes) and declare the appropriate
-capability. Migrate an existing deployment operator declared `of Edge` by
-changing its base to `DeploymentAction`; a capability alone does not make it
-assignable to a core deployment list. Projects can still declare `List of Edge`
+Custom deployment operators used by systems, containers, and profiles must derive
+from `DeploymentAction` (or one of its subtypes) and declare the appropriate
+capability. Relationship deployment is deliberately restricted to the built-in
+`route` action. Projects can still declare `List of Edge`
 when a mixed list of operator families is intentional.
 
 ### Semantic capabilities

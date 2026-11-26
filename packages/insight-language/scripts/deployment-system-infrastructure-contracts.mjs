@@ -50,8 +50,8 @@ deployment production
             name = Database
             runsOn:
                 cloud
-            projection:
-                source $from originalLink target $this
+            route:
+                $from originalLink $this
 
     observability:
         monitoring metrics
@@ -64,9 +64,9 @@ deployment production
             telemetry:
                 infrastructureComponent otel
                     name = OpenTelemetry
-            projection:
-                target $this connectTo target display
-                target $this connectTo target telemetry
+            route:
+                $this connectTo display
+                $this connectTo telemetry
 `),
     source("application.ai", `
 context app

@@ -1,73 +1,30 @@
 # Deployment
 
-A deployment model projects the logical architecture onto physical infrastructure. Systems and containers define the logical deployment units. Components and code remain inside their containing container; wires describe the physical paths between logical endpoints.
+Deployment models map logical systems and containers to physical infrastructure and describe how logical relationships travel between their concrete deployments.
 
-The goal is a readable physical explanation of the logical model. A deployment diagram focuses on a deployable element and the infrastructure immediately relevant to it. Transit networks, replication meshes, provider internals, and every possible deployment variation would quickly turn the model into a complete infrastructure topology. Details of that depth are usually better recorded in `description`, `technology`, `via`, notes, or project-specific attributes on the relevant element or relationship.
+The model has four parts:
 
-The deployment model is the home of infrastructure. Compute platforms, databases, object storage, message brokers, gateways, load balancers, ingress controllers, network connections, and observability services belong here when the project models deployment explicitly. Logical C2 elements refer to these resources without turning a database or broker into an application container.
+- environments own deployments, infrastructure, and routes;
+- deployment profiles place systems and containers into deployments;
+- routes project logical relationships onto physical paths;
+- component routes describe direct use of storage, observability, brokers, and other supporting components.
 
-Deployment views start from the model fragment associated with the selected tab. They follow the deployment profiles, placements, infrastructure uses, and projected wires reachable from that logical fragment. The result stays centered on the system or service being examined while drawing the relevant objects from their environment namespaces.
+Components and code inherit the deployment of their containing container. Model an independently deployed responsibility as a separate container or service.
 
-A placed logical element enters these views after its deployment resolves to physical infrastructure through `runsOn` or `uses`. An unplaced system or actor can also remain visible as an endpoint of a projected wire; the infrastructure used by that wire determines the relevant environments when the selected source has no placements of its own. A logical wire enters only through the physical relationships produced by its deployment projection. A wire without deployment information is therefore absent even when both logical endpoints are deployed. Direct relationships declared between infrastructure components remain visible because they already describe the physical model.
+## Environments and deployments
 
-## D1 and D2 deployment detail
-
-The editor provides two deployment detail levels. D1 gives a system-level overview across every environment used by the selected source. Containers and services are folded into their owning systems, and internal infrastructure is folded out of the physical paths. Each environment boundary therefore shows its deployed systems and external integrations without exposing compute, storage, gateway, or observability internals. Connections whose logical endpoints belong to the same system are omitted at this level.
-
-D2 opens the containers and services in one concrete environment. When the selected source reaches several environments, the editor asks which one to show. Infrastructure and placement clones from the other environments remain closed; a remote logical endpoint required by a cross-environment connection stays visible as an external participant.
-
-The web editor remembers the D2 environment for each tab. VS Code uses a native environment picker. A single relevant environment is selected automatically, and switching environments reuses the linked model.
-
-The same views are available from the CLI:
-
-```shell
-archinsight query . -s storefront.ai -v deployment-system --format json
-archinsight environments . -s storefront.ai --format json
-archinsight query . -s storefront.ai -v deployment-container --environment eu_west --format json
-```
-
-The selected logical source is the entry point for both views. The CLI obtains
-the context from that file, so a separate `--context` option is unnecessary.
-D1 uses every environment relevant to the source. D2 selects its only relevant
-environment automatically, or requires `--environment` when several are
-available. `archinsight environments` exposes that D2 choice as structured JSON,
-so scripts and agents do not need to inspect the Insight source or parse an
-entire linked graph. Without `--source`, the command lists every environment
-declared in the project.
-
-`deployment-system` and `deployment-container` are stable built-in view names. The older `deployment` view remains available for commands and integrations that need the complete container-level graph across all relevant environments.
-
-## Environment and deployment boundaries
-
-An `environment` is the root of a physical infrastructure inventory. It commonly represents a region, account, cluster estate, data center, or another operational boundary:
+An `environment` is a physical namespace such as a region, account, cluster estate, or data center. Keep each environment in its own source file.
 
 ```insight
 environment eu
     name = Europe
-    region = eu-central
-```
-
-The environment identifier establishes its namespace. Logical model files can refer to its deployments and infrastructure without moving those objects into a logical context. An environment source contains exactly one `environment <id>` header. A second environment belongs in a second source file.
-
-One environment can contain several deployment schemes. Each `deployment` fills the infrastructure slots available in that environment for a particular variant such as production, test, disaster recovery, or an isolated tenant:
-
-```insight
-environment eu
-    name = Europe
-    region = eu-central
+    region = eu-central-1
 
 deployment production
     name = Production
-
-deployment test
-    name = Test
 ```
 
-The two deployments share the `eu` environment boundary and keep separate infrastructure instances. They are written as top-level declarations after the environment header, but the linker attaches them to that environment. A logical element can be mapped to either deployment through a profile, and different profiles can select different schemes from the same environment.
-
-The Deployment view renders the concrete `InfrastructureComponent` instances held by a scheme. Their built-in presentation uses a dashed node boundary, inherited by project-defined infrastructure types unless their presentation overrides `graphviz.style`. The `Deployment` object organizes that inventory and remains outside the rendered graph, so projected relationships connect physical components instead of rolling up to the scheme itself.
-
-Projects usually define an environment subtype with the slots required by their deployment model:
+Projects normally define the infrastructure slots available in their environments:
 
 ```insight
 define type CommerceEnvironment of Environment
@@ -77,9 +34,7 @@ define type CommerceEnvironment of Environment
     NetworkConnection publicGateway
 ```
 
-This form creates a distinct constructorless environment schema. It is useful when a project has several environment families or wants the deployment vocabulary to remain isolated. When the project intentionally uses one slot contract everywhere, the same slots can instead be added with `extend type Environment`. Extending the base type changes every environment in the project; defining `CommerceEnvironment` introduces a separate schema. Environment roots infer a compatible subtype from the slots used by their deployments, so several subtypes must remain unambiguous.
-
-Every deployment of that environment can then provide concrete values for those slots:
+Each deployment fills those slots with concrete infrastructure:
 
 ```insight
 environment eu
@@ -87,48 +42,31 @@ environment eu
 
 deployment production
     compute:
-        compute production_compute
+        compute kubernetes
             name = Production Kubernetes
 
     database:
-        storage production_database
-            name = Production PostgreSQL
+        storage postgres
+            name = PostgreSQL
 
     events:
-        broker production_events
-            name = Production Kafka
+        broker kafka
+            name = Kafka
 
     publicGateway:
-        networkConnection production_public_gateway
-            name = Production public gateway
-            projection:
-                source $from originalLink target $to
-
-deployment test
-    compute:
-        compute test_compute
-            name = Test Kubernetes
-
-    database:
-        storage test_database
-            name = Test PostgreSQL
-
-    events:
-        broker test_events
-            name = Test Kafka
-
-    publicGateway:
-        networkConnection test_public_gateway
-            name = Test public gateway
-            projection:
-                source $from originalLink target $to
+        networkConnection public_gateway
+            name = Public gateway
 ```
 
-The slot names form a stable contract. A deployment profile can ask for `compute` or `database`, and each selected deployment supplies the appropriate concrete instance. Because `Broker` derives from `NetworkConnection`, a wire can select the `events` slot directly. The concrete broker needs a projection when it should appear as part of the physical path.
+The same environment may contain several schemes, such as `production` and `test`. A deployment reference therefore includes both parts:
 
-## Infrastructure nesting
+```insight
+production from eu
+```
 
-Infrastructure is nested to express ownership and composition. A compute platform can contain a cluster, a gateway can contain its load balancer and ingress, and a managed service can contain the concrete resources that form it:
+## Infrastructure nesting and placement
+
+Nest infrastructure to express physical ownership:
 
 ```insight
 compute kubernetes
@@ -136,18 +74,9 @@ compute kubernetes
 
     infrastructureComponent ingress
         name = Traefik ingress
-
-    infrastructureComponent worker_pool
-        name = Application worker pool
 ```
 
-The indentation makes `ingress` and `worker_pool` parts of `kubernetes`. This structural ownership determines how the physical inventory is organized and gives deployment diagrams natural boundaries.
-
-Nesting is the first choice when one infrastructure component is genuinely part of another. It creates a clear hierarchy that can be read without interpreting additional relationships.
-
-## `runsOn`
-
-`runsOn` records runtime placement. It connects an element to the infrastructure component that hosts or executes it:
+Use `runsOn:` between concrete infrastructure components:
 
 ```insight
 compute kubernetes
@@ -156,274 +85,297 @@ compute kubernetes
         cloud_provider
 ```
 
-Within an environment inventory, this can express placement across structural boundaries: a Kubernetes cluster runs on a cloud provider, while an ingress controller runs on the cluster. The target is the id of a concrete infrastructure object visible to the source. An anonymous `_` instance cannot be referenced through `runsOn`; give it a stable id when another declaration must address it.
-
-Deployment profiles use the operator form to refer to an environment slot:
-
-```insight
-deploymentProfile application_service
-    appliesTo:
-        production from eu
-
-    runsOn compute
-```
-
-Here, `compute` names a slot rather than one hard-coded infrastructure instance. Applying the profile to `production from eu` resolves it to the concrete compute value supplied by that deployment.
-
-These are two different forms of placement. `runsOn:` on an infrastructure component stores a reference to one named instance. `runsOn compute` in a profile names an environment slot and resolves a potentially different instance in every deployment selected by `appliesTo`.
-
-## `uses`
-
-`uses` records infrastructure required by a deployed element in addition to its host. A service may run on compute while using storage, a broker, or observability:
-
-```insight
-deploymentProfile stateful_service
-    appliesTo:
-        production from eu
-
-    runsOn compute
-    uses database
-    uses events
-```
-
-`runsOn` answers where the workload executes. `uses` identifies supporting infrastructure with which it interacts. The distinction lets a diagram place the workload under its host while drawing its other physical dependencies separately.
-
-On a wire, `uses` selects a `NetworkConnection`. This describes infrastructure used by the relationship itself, such as a public gateway, private route, ingress path, egress path, or broker. `Broker` is a built-in `NetworkConnection` specialization, so a project-specific implementation can preserve the broker contract while adding its own constructor and attributes:
-
-```insight
-define type KafkaBroker of Broker
-    constructor kafka
-```
-
-An environment slot declared as `Broker events` can contain a `KafkaBroker`, and a logical wire can select it with `uses events`. The logical element containing the wire remains its owner and source in the logical graph. The selected broker's projection then defines the source and target of every physical segment explicitly. This allows a consumer-owned asynchronous dependency to expand into a physical producer-to-broker-to-consumer flow without changing the ownership of the logical wire.
-
-## Infrastructure projections
-
-An infrastructure component may define a `projection` when selecting that component should expand a logical wire into a more explicit physical path. A projection is optional for infrastructure selected by an element: the resource can still appear as infrastructure used by the deployed workload. A `NetworkConnection` selected by a wire must produce a projection for that wire to appear in Deployment views. When it does not, the linker reports `WIRE_DEPLOYMENT_NOT_PROJECTED` and leaves the incomplete physical relationship out of the view.
-
-A simple storage projection connects the logical source directly to the selected storage instance:
-
-```insight
-storage database
-    name = PostgreSQL
-    projection:
-        source $from originalLink target $this
-```
-
-`$from` is the source endpoint of the logical wire, and `$this` is the infrastructure component whose projection is being applied. `originalLink` carries the original logical operator and its attributes into the projected segment. A synchronous database dependency therefore keeps its technology, call, description, and direction when it reaches `database`.
-
-A gateway can expose the intermediate components that matter to the architecture:
-
-```insight
-networkConnection public_gateway
-    name = Public ingress path
-
-    infrastructureComponent cdn
-        name = CDN
-
-    infrastructureComponent load_balancer
-        name = Load balancer
-
-    infrastructureComponent ingress
-        name = Ingress controller
-
-    projection:
-        source $from originalLink target cdn
-        target cdn connectTo target load_balancer
-        target load_balancer connectTo target ingress
-        target ingress connectTo target $to
-```
-
-`$to` is the target endpoint of the logical wire. The projection turns one logical relationship into the visible path:
-
-```text
-$from → CDN → load balancer → ingress → $to
-```
-
-The first segment uses `originalLink`, preserving the logical wire and its attributes. The following `connectTo` segments describe direct physical connections between infrastructure components. These intermediate objects exist only in the deployment model; C1, C2, and C3 remain focused on the logical endpoints.
-
-The `source` and `target` words before projection terms assign each endpoint of the generated segment to the corresponding side of the deployment relationship. References such as `cdn`, `load_balancer`, and `ingress` identify infrastructure held by the projection owner. This allows an ingress path to stay with the target deployment and an egress path to stay with the source deployment.
-
-When several deployed elements or wires use the same infrastructure, the component's own projected segments belong to every one of those consumers. Each relevant source view can therefore expand the complete infrastructure path. If several consumers are shown together, a shared physical segment appears only once.
-
-Projections should stop at the level needed to explain the architecture. Provider transit hops, broker replication, database replication, and similar operational detail can remain in the relationship description unless the team deliberately treats an intermediate resource as an architectural element.
+An anonymous `_` component cannot be referenced. Give infrastructure a stable id when another declaration must address it.
 
 ## Deployment profiles
 
-A `DeploymentProfile` describes how particular logical elements are deployed into concrete deployments. It selects its deployment variants through the required `appliesTo` list and records the infrastructure slots shared by elements using the profile:
+A deployment profile places logical systems and containers into one or more deployments:
 
 ```insight
 context commerce
 
-import eu from environment eu
-
-deploymentProfile production_service
-    appliesTo:
-        production from eu
-
-    runsOn compute
-    uses events
-```
-
-The profile belongs to the logical context because it describes a deployment variant of that context's systems and containers, including services. The concrete infrastructure remains owned by the environment.
-
-One profile may apply to several concrete deployments when they share the required slot contract:
-
-```insight
 deploymentProfile regional_service
     appliesTo:
         production from eu
         production from us
 
     runsOn compute
+    uses database
     uses events
 ```
 
-Every selected deployment must provide compatible values for `compute` and `events`. A missing slot or a value of the wrong type produces an error at the profile action that cannot be resolved.
+`runsOn` selects the hosting slot. `uses` selects supporting infrastructure. Every deployment in `appliesTo` must provide compatible values for the referenced slots.
 
-Listing the same concrete deployment more than once in one profile produces a
-`DEPLOYMENT_PROFILE_MEMBER_DUPLICATE` warning on every repeated entry after the
-first. References are compared after resolution, so an alias and an inline
-`production from eu` reference to the same deployment are duplicates too.
+An empty `deployment:` list declares no actions. Choose one deployment level per system. To deploy the whole system, put the deployment actions on the system. To place its containers or services separately, put the actions on those elements and leave the system’s deployment empty. Mixing the two levels is a linking error, even if they select different environments. When the system is deployed as a whole, routes to and from its containers use the system’s placement. C2 shows the container named on the wire. Deployment views show the system in the environment selected by the route.
 
-Several profiles can be applied to one logical element when their `appliesTo` sets are disjoint. Two profiles that select the same concrete deployment contradict one another for that element, and Archinsight reports an error. Different deployment schemes inside the same environment remain valid when they refer to different deployment IDs, such as `production from eu` and `test from eu`.
-
-`appliesTo` accepts `Deployment` values. Pointing it at an `Environment` directly is a type error because the environment may contain several deployment schemes.
-
-## Placing systems, containers, and services
-
-A system or container selects a profile inside its `deployment` block:
+For example, to deploy a service:
 
 ```insight
 service backend
     name = Backend API
     deployment:
-        uses production_service
+        uses regional_service
 ```
 
-The profile contributes its concrete deployment set, `runsOn` placement, and `uses` infrastructure to `backend`. The deployment view can then group the service under its compute resource and include the storage, broker, observability, or other infrastructure it uses.
+Several profiles may be applied to one element when their deployment sets do not overlap. Selecting the same concrete deployment through two profiles is an error.
 
-When a selected Deployment graph contains an element placed on several concrete compute resources, query output represents grouped logical endpoints with ids such as `shop/backend@@eu/kubernetes`. Their `projectedFrom` attribute points to the logical element. Projected paths connect the occurrence in each placement, while the linked logical model continues to use `shop/backend`. A graph whose logical elements all have one placement keeps their ordinary ids.
+## Shared databases and other infrastructure
 
-The named `deployment` action list is declared on `System` and `ContainerElement` and inherited by their descendants, including `ExternalSystem`, `Container`, and `Service`. It is not declared on `Element` or `SystemElement`: actors, components, code, profiles, environments, and infrastructure do not inherit it. Components and code use the deployment scope of their containing container. Model an independently deployed responsibility as a separate container or service.
+For a database shared by every service in a region, put the regional database in the deployment’s `database` slot and select `uses database` in the common profile. Each service connects to the database in its own deployment. For one central database across regions, select its concrete inventory id, for example `uses postgres from central`.
 
-Inside this list, `uses <profile>` selects a deployment profile, while `runsOn <infrastructure>` and `uses <infrastructure>` can address concrete visible infrastructure directly. Profile bodies accept the infrastructure actions directly in their anonymous list; a profile has no named `deployment:` block and cannot apply another profile through `uses`. Infrastructure keeps its separate `runsOn:` reference attribute.
-
-Several `uses` actions may address different concrete infrastructure instances,
-including instances of the same type. Every referenced instance remains part of
-the element's resolved infrastructure usage.
-
-For older models, move component or code deployment blocks to the containing container and move actions out of a profile's named block into its body. Project-defined deployment vocabularies can explicitly declare their own action lists and compatible custom operators; extending `Element` alone does not grant the core deployment actions.
-
-The linker begins checking deployment coverage for a modeling level after at least one comparable element at that level has a `deployment` block. It then warns when another element at that level has no deployment, or when a deployment block resolves to no `runsOn` or `uses` infrastructure. This keeps projects that have not started deployment modeling quiet while exposing gaps once a physical model is being maintained. External actors and systems can enter the view through projected wires and do not need artificial placement merely to appear as an endpoint.
-
-## Placing wires onto physical paths
-
-A logical wire selects network infrastructure in its own `deployment` block:
+When a service owns several database clusters, give each use an alias that describes the data it stores. Other services can share a specific cluster in each deployment. In this example the `regional` profile places both services in EU and US and supplies their compute placement.
 
 ```insight
-external actor customer
-    name = Customer
-    links:
-        -> frontend
-            technology = HTTPS
-            description = Opens the storefront
-            deployment:
-                uses publicGateway
+system commerce
+    name = Commerce
+
+    service orders
+        name = Orders
+        deployment:
+            uses regional
+            uses database as orderLedger
+                name = Order ledger cluster
+            uses database as audit
+                name = Audit cluster
+
+    service worker
+        name = Worker
+        deployment:
+            uses regional
+            shares orderLedger from orders
 ```
 
-The actor owns this wire, so the logical arrow begins at `customer` and points to `frontend`. `publicGateway` is resolved for the deployments of the wire endpoints. If that network connection has a projection, the deployment diagram expands the logical relationship through its declared CDN, load balancer, ingress, or other direct infrastructure components.
+In EU, Orders and Worker share the EU order ledger cluster. In US, they share the US order ledger cluster. Only Orders uses the audit cluster in each deployment. An alias names a use within its owner. Renaming the database’s display label leaves the reference intact.
 
-A wire deployment accepts `NetworkConnection` infrastructure through `uses`. It does not select a `DeploymentProfile` and does not use `runsOn`: profiles place elements, while a wire describes the physical route between their deployed endpoints.
+With a single use of the slot on the owner, `shares database from orders` also works. With multiple uses of that slot, select one by alias. Every deployment of the consumer must contain the owner and the selected binding. A missing or ambiguous binding produces a diagnostic on the declaration.
 
-Element placement and wire placement work together. The element profiles identify the concrete deployments and runtime infrastructure. The wire then selects the connection available in those deployments, and its projection explains the visible physical path while preserving the wire's source, target, and logical attributes.
+A system deployed as a whole can own a database shared with a different system or its containers. For sharing among sibling containers, one container owns the database and the others reference it, as Worker does above.
 
-Wire coverage is checked only after the project contains at least one deployment-relevant wire with a `deployment` block. From that point, a logical wire between different deployment endpoints produces `WIRE_MISSING_DEPLOYMENT` when it has no deployment, while a configured wire that produces no physical projection produces `WIRE_DEPLOYMENT_NOT_PROJECTED`. A component relationship whose endpoints belong to the same container does not require a physical projection because it collapses to a self-relationship in the Deployment views. Both diagnostics are warnings: the linked logical graph remains valid, while the incomplete wire stays out of the built-in Deployment views.
+AIQ exposes the alias of a customized resource as `binding`, its owner's canonical id as `bindingOwner`, and the original inventory id as `cloneOf`. This query lists the services that use the order ledger in each deployment.
 
-When both endpoints are deployed but their placement sets differ, a projected occurrence is created only where the selected infrastructure can resolve the required endpoint placements. An unmatched occurrence is omitted instead of falling back to an unplaced logical endpoint. `WIRE_DEPLOYMENT_OCCURRENCE_OMITTED` is written as a note in Output for each affected environment and identifies the endpoint that has no placement there.
+```aiq
+MATCH (db:Storage)
+WHERE db.binding = 'orderLedger' AND db.bindingOwner = 'commerce/orders'
+MATCH (service:Service)
+WHERE db IN service.uses
+RETURN TABLE elementId(service) AS consumer, db.cloneOf AS inventory
+```
+
+## Routes for logical relationships
+
+A logical relationship chooses a named route:
+
+```insight
+service frontend
+    links:
+        -> backend
+            technology = HTTPS, REST
+            description = Calls the backend API
+            deployment:
+                route clusterLocal
+```
+
+Routes are declared in environments. The same route name may have a different implementation in every environment:
+
+```insight
+route clusterLocal
+    outbound:
+        $from originalLink $to
+```
+
+`$from` and `$to` are the logical relationship endpoints. `originalLink` preserves the logical operator and its attributes, including `technology`, `description`, `call`, and `via`. `connectTo` creates an ordinary physical segment.
+
+Use `in <environment>` on a wire to select where it takes a route. For example, a service deployed in several environments can use a partner gateway in two of them and the public gateway everywhere else.
+
+```insight
+deployment:
+    route partnerGateway in eu
+    route partnerGateway in latam
+    route publicGateway
+```
+
+An explicit selection takes precedence over the default regardless of line order. Omit the default to project the wire only in the listed environments. For a LATAM-only call, a single `route partnerGateway in latam` is sufficient. Each selected environment must implement its chosen route.
+
+The available environments come from the effective deployments of the element declaring the wire. For an actor without its own deployment, they come from the target. This rule also applies when the physical request runs in reverse, as with a Prometheus scrape. Inside the route body, `in` on a path endpoint still specifies where that endpoint lives.
+
+A route has these sections:
+
+- `outbound` describes the path leaving the current deployment;
+- `transit` describes optional intermediate hops;
+- `inbound` describes the path entering the destination deployment.
+
+At least one of `outbound` or `inbound` is required. `transit` is optional. Sections are connected in their written order.
+
+### Gateway route
+
+```insight
+route publicInbound
+    inbound:
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+            technology = HTTPS
+        loadBalancer connectTo ingress
+            technology = HTTP
+        ingress connectTo $to
+```
+
+Infrastructure names in a route resolve against the deployment inventory of the environment that owns the route. Nested components such as `cdn`, `loadBalancer`, and `ingress` may be used directly.
+
+### Cross-environment route
+
+Use `in` to move the route cursor to another environment:
+
+```insight
+environment us
+    name = United States
+
+route macroRegion
+    outbound:
+        $from originalLink $to
+
+    transit:
+        $from connectTo tgw in eu_central_1
+        tgw connectTo $to
+
+    inbound:
+        $from connectTo tgw in latam
+        tgw connectTo privateGateway
+        privateGateway originalLink $to
+```
+
+The short form selects the matching deployment id in another environment:
+
+```insight
+tgw connectTo privateGateway in latam
+```
+
+Use the long form when the destination deployment has a different id or must be explicit:
+
+```insight
+tgw connectTo privateGateway in production from latam
+```
+
+Once a rule changes the cursor, following unqualified infrastructure terms in that section use the selected deployment. Repeating `in` is allowed. A qualifier must appear before an infrastructure reference whose placement depends on it.
+
+The final `$to` must be deployed in the selected destination. Archinsight reports an error instead of guessing another placement or producing a Cartesian set of relationships.
+
+### Broadcast route
+
+Broadcast is explicit: write one physical branch for every intended destination.
+
+```insight
+route broadcast
+    outbound:
+        $from originalLink $to in latam
+        $from originalLink $to in eu_central_1
+        $from originalLink $to in mena
+```
+
+Archinsight does not infer local-first, nearest-region, macro-region, or global-routing behavior. Route names such as `clusterLocal`, `macroRegion`, and `global` are project vocabulary; their meaning comes entirely from their environment implementations.
+
+### Asynchronous route
+
+`$from` always means the input of the current section, even when it appears on the right. This allows a consumer-owned asynchronous relationship to describe producer-to-broker-to-consumer flow:
+
+```insight
+route events
+    inbound:
+        $to connectTo broker
+        broker originalLink $from
+```
+
+Several `originalLink` rules are allowed when the logical relationship must remain visible on more than one physical segment. Each occurrence keeps the same logical provenance and attributes.
+
+## Routes on infrastructure components
+
+An infrastructure component can declare its own `route:`. When a deployed element uses that component, the route describes how they connect. A service can use the database cluster as a single resource. When the diagram needs to show the primary, its replicas, and the direction of replication, model those details in the cluster’s infrastructure projection.
+
+```insight
+storage postgres
+    name = PostgreSQL
+    route:
+        $from originalLink $this
+```
+
+`$from` is the logical element using the infrastructure. `$this` is the selected infrastructure component. `$to` is not available in an infrastructure projection.
+
+For a local connection, put the arrows directly under `route:`. Use sections when the path crosses deployments or needs several phases. For a directly used component from 3.1.x, rename `projection:` to `route:` and translate its `source` and `target` prefixes to the intended placements. An earlier 3.2 preview with unprefixed component rules needs only the field rename.
+
+```insight
+storage reporting_database
+    name = Reporting database
+    route:
+        outbound:
+            $from connectTo privateGateway
+            privateGateway connectTo $this
+        transit:
+            $from connectTo tgw in eu_central_1
+            tgw connectTo $this
+        inbound:
+            $from originalLink $this in production from eu_central_1
+```
+
+When adjacent sections meet at the same physical endpoint, the linker emits
+`ROUTE_REDUNDANT_JUNCTION` and joins the path at that endpoint. If an internal
+target has no placement anywhere, the linker reports it once on the wire.
+
+Routes are the only way to deploy a logical relationship. Infrastructure slots are still selected with `uses` on deployment profiles and logical elements; they are not selected with `uses` inside a wire deployment block.
+
+## Deployment views
+
+The editor provides two deployment detail levels:
+
+- D1 (`deployment-system`) folds containers and internal infrastructure into deployed systems across all relevant environments;
+- D2 (`deployment-container`) shows containers, services, and infrastructure in one selected environment.
+
+The CLI exposes the same views:
+
+```shell
+archinsight query . -s storefront.ai -v deployment-system --format json
+archinsight environments . -s storefront.ai --format json
+archinsight query . -s storefront.ai -v deployment-container --environment eu --format json
+```
+
+The older `deployment` view remains available for a complete container-level graph across relevant environments.
+
+A route is resolved once for every applicable source deployment. D2 shows the selected environment and keeps remote endpoints required by cross-environment paths as external participants. D1 contracts the physical path while preserving the logical relationship and its metadata.
+
+## Diagnostics
+
+Common route errors explain the unresolved assumption directly:
+
+- the named route is not declared in an applicable environment;
+- neither endpoint provides an effective deployment;
+- an endpoint is not placed in the required deployment;
+- `$to` has no deployment matching an `in` qualifier;
+- a destination has several ambiguous matching deployments;
+- a section does not connect to its required boundary;
+- an infrastructure term is referenced before its environment can be determined;
+- a relationship deployment uses an action other than `route <name>`.
+
+Warnings about missing relationship deployment begin only after a project uses relationship deployment modeling. Logical relationships without a route remain valid in logical views but are absent from deployment views.
 
 ## Deployment entities
 
 | Entity | Constructor | Purpose |
 | --- | --- | --- |
-| `DeploymentElement` | — | Abstract family for objects that can live directly in an environment or deployment boundary. |
-| `Environment` | `environment` | Root namespace and inventory for physical infrastructure. |
-| `Deployment` | `deployment` | One concrete deployment scheme inside an environment. |
-| `InfrastructureComponent` | `infrastructureComponent` | General physical, managed, or platform resource. |
-| `Compute` | `compute` | Runtime host, cluster, compute platform, or execution environment. |
-| `Storage` | `storage` | Database, bucket, volume, or other stateful infrastructure. |
-| `Broker` | `broker` | Wire-capable message broker or event infrastructure. |
-| `NetworkConnection` | `networkConnection` | Network capability that can carry and project a logical wire. |
-| `DeploymentProfile` | `deploymentProfile` | Reusable placement and infrastructure selection for concrete deployments. |
-| `DeploymentAction` | — | Abstract base for deployment operators such as `uses` and `runsOn`. |
-| `ProjectionTerm` | — | Supporting value used to describe endpoints inside an infrastructure projection. |
+| `Environment` | `environment` | Physical namespace and inventory. |
+| `Deployment` | `deployment` | Concrete scheme inside an environment. |
+| `InfrastructureComponent` | `infrastructureComponent` | General physical or managed resource. |
+| `Compute` | `compute` | Runtime host or execution platform. |
+| `Storage` | `storage` | Database, bucket, volume, or other stateful resource. |
+| `Broker` | `broker` | Message broker or event infrastructure. |
+| `NetworkConnection` | `networkConnection` | Network infrastructure used by routes. |
+| `Route` | `route` | Environment-owned implementation of a logical relationship path. |
+| `DeploymentProfile` | `deploymentProfile` | Reusable logical placement and infrastructure selection. |
+| `Projection` | `projection` | Value type of the infrastructure component’s `route:` attribute. |
 
-### `Environment` attributes
+## Validation
 
-| Name | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `name` | `Text` | Yes | Human-readable environment name. |
-| `region` | `Text` | No | Region, location, or other physical scope label. |
-| `_` | `List of DeploymentElement` | No | Anonymous list of deployments and environment-level infrastructure. |
-
-### `Deployment` attributes
-
-| Name | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `name` | `Text` | No | Human-readable name of the deployment scheme. |
-| `_` | `List of DeploymentElement` | No | Anonymous list of infrastructure owned by the deployment. |
-
-Project-specific environment subtypes add the named infrastructure slots filled by each deployment.
-
-### `InfrastructureComponent` attributes
-
-| Name | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `name` | `Text` | No | Human-readable infrastructure name. |
-| `technology` | `Text` | No | Provider, product, protocol, or implementation technology. |
-| `description` | `Text` | No | Architectural purpose and relevant operational detail. |
-| `runsOn` | `InfrastructureComponent` | No | Infrastructure that hosts this component. |
-| `projection` | `List of PhysicalWire` | No | Optional physical path produced when the component is selected by deployment. |
-| `_` | `List of InfrastructureComponent` | No | Nested infrastructure owned by this component. |
-
-### Specialized infrastructure attributes
-
-| Type | Name | Attribute type | Required | Meaning |
-| --- | --- | --- | --- | --- |
-| `Compute` | `address` | `Text` | No | Address or location of the compute platform. |
-| `Compute` | `components` | `List of InfrastructureComponent` | No | Named collection of infrastructure associated with the compute platform. |
-| `Broker` | `address` | `Text` | No | Broker address or connection location. |
-
-`Storage` and `NetworkConnection` add no data attributes to the base infrastructure schema. Their types provide distinct modeling roles and presentations. The base `NetworkConnection` is hidden by default. `Broker` derives from it and restores visibility so a concrete broker selected by a projection can appear on the physical diagram.
-
-### `DeploymentProfile` attributes
-
-| Name | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `appliesTo` | `List of Deployment` | Yes | Concrete deployment schemes selected by the profile. |
-| `_` | `List of DeploymentAction` | No | Deployment operator invocations owned by the profile. |
-
-The `runsOn` and `uses` lines in a profile are typed operator invocations. They resolve infrastructure slots from every deployment listed in `appliesTo` and contribute the resulting placement and dependencies to elements using the profile.
-
-### Deployment attributes on logical elements and wires
-
-| Owner | Name | Type | Required | Meaning |
-| --- | --- | --- | --- | --- |
-| `System`, `ContainerElement` | `deployment` | `List of DeploymentAction` | No | Deployment actions, including selection of a profile through `uses`; inherited by descendants. |
-| `Wire` | `deployment` | `List of DeploymentAction` | No | Deployment actions attached to the logical relationship. |
-| `Wire` | `uses` | `List of NetworkConnection` | No | Network connections carrying the wire through deployment infrastructure. |
-
-The linker exposes resolved `runsOn` and `uses` values on placed systems and containers for queries. These values can contain several infrastructure references after applying profiles. They are computed results, not additional source attributes declared on `Element`; write placement and infrastructure actions inside `deployment:`. The infrastructure `runsOn` and wire `uses` rows above describe actual typed source attributes.
-
-## Validating the deployment view
-
-A clean link proves that the project parses and that types, imports, profiles, slots, and references resolve. The selected deployment view still needs its own semantic check:
+Run the project link before trusting a deployment view:
 
 ```shell
-archinsight link . --format text
-archinsight query . -s <logical-source.ai> -v deployment-system --format json
-archinsight query . -s <logical-source.ai> -v deployment-container --environment <environment> --format json
-archinsight render . -s <logical-source.ai> -v deployment-container --environment <environment> -f svg -o deployment.svg
+archinsight link .
 ```
 
-Inspect the JSON before relying on the image. It records the exact elements and physical edges selected by the Deployment query. SVG is the final presentation check for layout, labels, and styling.
+Then inspect D1, every relevant D2 environment, and any important cross-environment path. A clean logical model does not by itself prove that every route chooses the intended destination or that its physical labels are sufficient for readers.

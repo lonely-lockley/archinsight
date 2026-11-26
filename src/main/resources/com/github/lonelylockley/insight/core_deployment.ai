@@ -19,7 +19,7 @@ define type InfrastructureComponent of DeploymentElement
     Text description
     InfrastructureComponent runsOn
         capability = "placement-owner"
-    List of PhysicalWire projection
+    Projection route
     List of InfrastructureComponent _
 
 define presentation InfrastructureComponent
@@ -27,6 +27,33 @@ define presentation InfrastructureComponent
         style = filled,rounded,dashed
 
 define type ProjectionTerm
+
+define type Projection of DeploymentElement
+    constructor projection
+
+    capability = "deployment-projection"
+
+    List of PhysicalWire outbound
+    List of PhysicalWire transit
+    List of PhysicalWire inbound
+    List of PhysicalWire _
+
+define presentation Projection
+    graphviz
+        visible = false
+
+define type Route of DeploymentElement
+    constructor route
+
+    capability = "deployment-route"
+
+    List of PhysicalWire outbound
+    List of PhysicalWire transit
+    List of PhysicalWire inbound
+
+define presentation Route
+    graphviz
+        visible = false
 
 define type DeploymentProfile of BoundaryElement
     constructor deploymentProfile

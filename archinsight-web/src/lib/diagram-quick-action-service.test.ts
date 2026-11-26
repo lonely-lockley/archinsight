@@ -48,8 +48,10 @@ deployment production
     clusterLink:
         clusterLink boundary
             name = Boundary
-            projection:
-                source $from originalLink target $to
+
+route crossRegion
+    outbound:
+        $from originalLink $to in production from west
 `
     },
     {
@@ -64,8 +66,10 @@ deployment production
     network:
         networkConnection internal
             name = Internal
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `
     },
     {
@@ -91,7 +95,7 @@ system application
         links:
             -> bridge
                 deployment:
-                    uses clusterLink
+                    route crossRegion
 
     service bridge
         name = Bridge
@@ -100,7 +104,7 @@ system application
         links:
             -> target
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service target
         name = Target

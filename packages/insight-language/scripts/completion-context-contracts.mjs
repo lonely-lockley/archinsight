@@ -498,61 +498,41 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
 
   assertProjectionCompletion("__CURSOR__", {
     snapshot,
-    includes: ["source", "target", "connectTo", "replicateFrom"],
-    excludes: ["$from", "->"],
-  });
-  assertProjectionCompletion("source __CURSOR__", {
-    snapshot,
     includes: ["$from", "$to", "$this", "cdn", "loadBalancer"],
-    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+    excludes: ["source", "target", "connectTo", "->"],
   });
-  assertProjectionCompletion("source $from __CURSOR__", {
+  assertProjectionCompletion("$from __CURSOR__", {
     snapshot,
     includes: ["originalLink", "connectTo", "replicateFrom"],
     excludes: ["source", "target", "fixed", "$to", "->"],
   });
-  assertProjectionCompletion("source $from connectTo __CURSOR__", {
-    snapshot,
-    includes: ["source", "target"],
-    excludes: ["$from", "connectTo"],
-  });
-  assertProjectionCompletion("source $from connectTo target __CURSOR__", {
+  assertProjectionCompletion("$from connectTo __CURSOR__", {
     snapshot,
     includes: ["$to", "$this", "cdn", "loadBalancer"],
     excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
   });
 
-  assertProjectionCompletion("__CURSOR__source $from connectTo target cdn", {
-    snapshot,
-    includes: ["source", "target", "connectTo", "replicateFrom"],
-    excludes: ["$from", "->"],
-  });
-  assertProjectionCompletion("source __CURSOR__$from connectTo target cdn", {
+  assertProjectionCompletion("__CURSOR__$from connectTo cdn", {
     snapshot,
     includes: ["$from", "$to", "$this", "cdn", "loadBalancer"],
-    excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
+    excludes: ["source", "target", "connectTo", "->"],
   });
-  assertProjectionCompletion("source $from __CURSOR__connectTo target cdn", {
+  assertProjectionCompletion("$from __CURSOR__connectTo cdn", {
     snapshot,
     includes: ["originalLink", "connectTo", "replicateFrom"],
     excludes: ["source", "target", "fixed", "$to", "->"],
   });
-  assertProjectionCompletion("source $from connectTo __CURSOR__target cdn", {
-    snapshot,
-    includes: ["source", "target"],
-    excludes: ["$from", "connectTo"],
-  });
-  assertProjectionCompletion("source $from connectTo target __CURSOR__cdn", {
+  assertProjectionCompletion("$from connectTo __CURSOR__cdn", {
     snapshot,
     includes: ["$to", "$this", "cdn", "loadBalancer"],
     excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
   });
-  assertNestedDeploymentProjectionCompletion("source __CURSOR__", {
+  assertNestedDeploymentProjectionCompletion("__CURSOR__", {
     snapshot,
     includes: ["$from", "$to", "$this", "cdn", "loadBalancer", "cloud", "compute", "network"],
     excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
   });
-  assertCustomRuntimeProjectionCompletion("source __CURSOR__", {
+  assertCustomRuntimeProjectionCompletion("__CURSOR__", {
     snapshot,
     includes: ["$from", "$to", "$this", "cdn", "loadBalancer", "cloud", "compute", "network"],
     excludes: ["source", "target", "fixed", "connectTo", "projection", "name"],
@@ -562,24 +542,24 @@ function projectionRulesCompleteTextualOperatorsTermsAndAttributes() {
 context infra
 
 publicGateway gateway
-    projection:
-        source $from connectTo target cdn
+    route:
+        $from connectTo cdn
             __CURSOR__
 	`, { snapshot, includes: ["technology", "description"] });
   assertProjectionRelationAttributes(`
 context infra
 
 publicGateway gateway
-    projection:
-        source $from originalLink target cdn
+    route:
+        $from originalLink cdn
             __CURSOR__
 	`, { snapshot, includes: ["technology", "description", "call", "via"] });
   assertProjectionRelationAttributes(`
 context infra
 
 publicGateway gateway
-    projection:
-        target cdn replicateFrom target loadBalancer
+    route:
+        cdn replicateFrom loadBalancer
             __CURSOR__
 	`, { snapshot, includes: ["technology", "description"] });
 }
@@ -609,7 +589,7 @@ system application
 `, { snapshot, contextIds: ["eu"] }));
   assert(elementBody.has("uses"), [...elementBody].join(", "));
   assert(elementBody.has("runsOn"), [...elementBody].join(", "));
-  assert.deepEqual([...elementBody].sort(), ["@deprecated", "@icon", "@planned", "runsOn", "uses"]);
+  assert.deepEqual([...elementBody].sort(), ["@deprecated", "@icon", "@planned", "runsOn", "shares", "uses"]);
 
   const elementTarget = itemLabels(completeAtMarker(`
 context app
@@ -652,7 +632,7 @@ system application
     service backend
         name = Backend
 `, { snapshot, contextIds: ["eu"] }));
-  assert(wireBody.has("uses"), [...wireBody].join(", "));
+  assert(wireBody.has("route"), [...wireBody].join(", "));
   assert(!wireBody.has("runsOn"), [...wireBody].join(", "));
 
   const wireTarget = itemLabels(completeAtMarker(`
@@ -670,15 +650,20 @@ system application
         links:
             -> backend
                 deployment:
-                    uses __CURSOR__
+                    route __CURSOR__
 
     service backend
         name = Backend
-`, { snapshot, contextIds: ["eu"] }));
+`, {
+    snapshot,
+    contextIds: ["eu"],
+    indexedIdentifiers: new Map([["clusterLocal", { label: "clusterLocal", type: "Route", contextId: "eu" }]]),
+  }));
   assert(!wireTarget.has("globalProfile"), [...wireTarget].join(", "));
-  assert(wireTarget.has("internalNetwork"), [...wireTarget].join(", "));
-  assert(wireTarget.has("publicGateway"), [...wireTarget].join(", "));
-  assert(wireTarget.has("broker"), [...wireTarget].join(", "));
+  assert(wireTarget.has("clusterLocal"), [...wireTarget].join(", "));
+  assert(!wireTarget.has("internalNetwork"), [...wireTarget].join(", "));
+  assert(!wireTarget.has("publicGateway"), [...wireTarget].join(", "));
+  assert(!wireTarget.has("broker"), [...wireTarget].join(", "));
   assert(!wireTarget.has("database"), [...wireTarget].join(", "));
 
   const elementOverrideBody = itemLabels(completeAtMarker(`
@@ -720,15 +705,13 @@ system application
         links:
             -> backend
                 deployment:
-                    uses publicGateway
+                    route clusterLocal
                         __CURSOR__
 
     service backend
         name = Backend
 `, { snapshot, contextIds: ["eu"] }));
-  for (const expected of ["name", "technology", "description", "cidr"]) {
-    assert(wireOverrideBody.has(expected), `${expected} missing from ${[...wireOverrideBody].join(", ")}`);
-  }
+  assert.deepEqual([...wireOverrideBody], []);
   assert(!wireOverrideBody.has("appliesTo"), [...wireOverrideBody].join(", "));
 }
 
@@ -1093,7 +1076,7 @@ function assertProjectionCompletion(line, { snapshot, includes, excludes }) {
 context infra
 
 publicGateway gateway
-    projection:
+    route:
         ${line}
 `, { snapshot, contextIds: ["latam"] }));
   for (const label of includes) {
@@ -1124,7 +1107,7 @@ deployment production
             cdn:
                 infrastructureComponent cdn
                     name = CloudFront
-            projection:
+            route:
                 ${line}
 `, { snapshot }));
   for (const label of includes) {
@@ -1155,7 +1138,7 @@ runtime production
             cdn:
                 infrastructureComponent cdn
                     name = CloudFront
-            projection:
+            route:
                 ${line}
 `, { snapshot, contextIds: ["latam"] }));
   for (const label of includes) {

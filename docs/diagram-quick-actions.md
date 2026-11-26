@@ -124,6 +124,16 @@ archinsight quick-action find-path . --from <source-id> --to <target-id>
 archinsight quick-action declaration . --element <id>
 ```
 
+Find path follows logical relationships by default. With `-e <environment>` alone,
+it starts at the selected source placement and follows physical connections, including
+cross-environment hops. D1 and legacy Deployment follow the path across project
+files. D1 shows the systems along that path. In a deployment view, a missing physical path gives
+`pathFound: false`. This also applies when an external actor is absent from a
+valid D2 slice.
+
+In D1 and legacy Deployment, Isolate with a canonical ID shows every visible
+placement of that element. An occurrence ID from query JSON selects one placement.
+
 Use canonical element IDs from `archinsight structure .` or query output.
 Quick actions support `text`, `json`, `dot`, `svg`, and `png`; use
 `--out <file>` to save an artifact.

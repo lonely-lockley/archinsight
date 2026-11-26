@@ -76,6 +76,7 @@ const keywordTokens = new Set([
   "REQUIRED",
   "IMPORT",
   "FROM",
+  "IN",
   "AS",
   "CONTEXT",
   "ENVIRONMENT",
@@ -245,6 +246,8 @@ function classifyInvocation(
   const invocation = readOperatorInvocation(tree, ruleNames);
   if (invocation === undefined) return;
   markFirstTerminal(invocation.operator, classifications, "operator");
+  if (invocation.anonymousImport) markFirstChildRule(invocation.anonymousImport, "contextReference", ruleNames, classifications, "variable");
+  if (invocation.alias) markFirstTerminal(invocation.alias, classifications, "variable", ["declaration"]);
   if (invocation.target !== undefined) markFirstTerminal(invocation.target, classifications, "variable");
 }
 

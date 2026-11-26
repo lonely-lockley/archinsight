@@ -147,8 +147,8 @@ extend system payments
 deployment production
     storage:
         storage storage
-            projection:
-                source $from originalLink target ${target}
+            route:
+                $from originalLink ${target}
 `,
   });
   assert.match(projection("$this").metadata.derivedGraphSignature, /projection:/);

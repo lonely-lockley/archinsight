@@ -44,8 +44,8 @@ deployment production
             display:
                 infrastructureComponent grafana
                     name = Grafana
-            projection:
-                target $this connectTo target display
+            route:
+                $this connectTo display
 `),
     source("application.ai", `
 context app

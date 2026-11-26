@@ -79,19 +79,26 @@ export interface AttributeDefinition {
 }
 
 export type ProjectionTermKind = "from" | "to" | "this" | "attribute" | "slot";
-export type ProjectionPlacement = "source" | "target";
+export type ProjectionSection = "projection" | "outbound" | "transit" | "inbound";
+
+export interface ProjectionDeploymentQualifier {
+  readonly environment: string;
+  readonly deployment?: string;
+  readonly source?: SourceLocation;
+}
 
 export interface ProjectionTermDefinition {
   readonly kind: ProjectionTermKind;
   readonly value: string;
-  readonly placement: ProjectionPlacement;
-  readonly placementText?: string;
-  readonly placementSource?: SourceLocation;
+  /** Internal occurrence side inferred from the endpoint; not Insight syntax. */
+  readonly placement: "source" | "target";
+  readonly deployment?: ProjectionDeploymentQualifier;
   readonly ownerAttribute?: string;
   readonly source?: SourceLocation;
 }
 
 export interface ProjectionRuleDefinition {
+  readonly section: ProjectionSection;
   readonly source: ProjectionTermDefinition;
   readonly operator: string;
   readonly operatorSource?: SourceLocation;
@@ -198,6 +205,8 @@ export interface LinkedContext {
 }
 
 export interface LinkedElement {
+  readonly sharedInfrastructureOwners?: readonly string[];
+  readonly deploymentUseNames?: readonly string[];
   readonly id: string;
   readonly context: string;
   readonly localId: string;
@@ -208,6 +217,9 @@ export interface LinkedElement {
   readonly anonymous?: boolean;
   readonly synthetic?: boolean;
   readonly cloneOf?: string;
+  readonly binding?: string;
+  readonly bindingOwner?: string;
+  readonly infrastructureEnvironment?: string;
   readonly parent?: string;
   readonly baseTypes: readonly string[];
   readonly capabilities?: readonly string[];
@@ -376,6 +388,7 @@ export interface ResolvedPresentation {
 }
 
 export interface LinkProjectResult {
+  readonly querySchema?: LanguageSnapshot;
   readonly diagnostics: readonly LanguageDiagnostic[];
   readonly graph: IndexedGraph;
   readonly contexts: readonly LinkedContext[];
@@ -421,6 +434,7 @@ export interface RenderGraphGroup {
 export interface IsolateRenderGraphLayout {
   readonly kind: "isolate";
   readonly focus: string;
+  readonly focusOccurrences?: readonly string[];
   readonly incoming: readonly string[];
   readonly outgoing: readonly string[];
 }
@@ -437,6 +451,8 @@ export interface RenderGraph {
 }
 
 export interface VisibleIdentifier {
+  readonly deploymentUseNames?: readonly string[];
+  readonly deploymentEnvironments?: readonly string[];
   readonly label: string;
   readonly type?: string;
   readonly imported?: boolean;
@@ -455,6 +471,8 @@ export interface ListFrame {
 }
 
 export interface ElementFrame {
+  readonly identifier?: string;
+  readonly referenceContext?: string;
   readonly indent: number;
   readonly type: string;
   readonly parentType?: string;

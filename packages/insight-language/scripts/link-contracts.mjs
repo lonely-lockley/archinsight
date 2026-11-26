@@ -80,12 +80,6 @@ const cases = [
   reusesDeploymentInfrastructureWithoutOverrides,
   overridesClonedDeploymentUsesLocally,
   clonesDeploymentInfrastructureForReferenceOverrides,
-  reusesWireDeploymentInfrastructureWithoutOverrides,
-  inheritsDeploymentTargetsForComponentWires,
-  appliesAndOverridesWireDeploymentNetworkUses,
-  rejectsDeploymentProfilesOnWires,
-  rejectsNonNetworkInfrastructureOnWires,
-  skipsUnavailableWireNetworksPerDeployment,
   requiresDeploymentProfileTargets,
   rejectsEnvironmentTargetsInDeploymentProfiles,
   rejectsDeploymentProfilesInsideEnvironments,
@@ -93,8 +87,6 @@ const cases = [
   isolatesDisjointDeploymentProfilesInSameEnvironment,
   rejectsLocalAppliesToOverrideInDeploymentBlocks,
   doesNotWarnAboutWireDeploymentUntilTheProjectUsesIt,
-  warnsAboutMissingAndNonPhysicalWireDeploymentsOnceWireDeploymentIsUsed,
-  doesNotRequireDeploymentOnAlreadyPhysicalWires,
   doesNotWarnAboutElementDeploymentUntilTheProjectUsesIt,
   warnsAboutMissingElementDeploymentsWithinTheActiveLogicalLevel,
   warnsWhenElementDeploymentResolvesToNoPhysicalInfrastructure,
@@ -2144,11 +2136,11 @@ publicGateway gateway
     loadBalancer:
         lb
     projection:
-        source $from originalLink target cdn
-        target cdn connectTo target loadBalancer
+        $from originalLink cdn
+        cdn connectTo loadBalancer
             technology = HTTPS
-        target loadBalancer connectTo target $this
-        target $this connectTo target $to
+        loadBalancer connectTo $this
+        $this connectTo $to
 
 system api
     name = API
@@ -2203,10 +2195,10 @@ publicGateway gateway
     loadBalancer:
         local_tgw
     projection:
-        source $from originalLink target cdn
-        target local_tgw connectTo fixed tgw in latam
+        $from originalLink cdn
+        local_tgw connectTo fixed tgw in latam
             technology = Transit
-        fixed tgw in latam connectTo target $to
+        fixed tgw in latam connectTo $to
 
 system api
     name = API
@@ -2357,157 +2349,6 @@ system application
   assert.deepEqual(database?.attributes.endpoint, ["app/private_endpoint"]);
   assert.deepEqual(originalDatabase?.attributes.endpoint, [originalEndpoint?.id]);
   assert(!result.elements.some((element) => element.context === "app" && element.attributes.name?.[0] === "Default endpoint"));
-}
-
-function reusesWireDeploymentInfrastructureWithoutOverrides() {
-  const result = linkDeploymentProfileProject(`
-service frontend
-    name = Frontend
-    deployment:
-        uses globalProfile
-
-    component internalCaller
-        name = Internal caller
-        links:
-            -> internalCallee
-
-    component internalCallee
-        name = Internal callee
-
-    links:
-        -> backend
-            deployment:
-                uses internalNetwork
-
-service backend
-    name = Backend
-    deployment:
-        uses globalProfile
-`);
-
-  assertNoErrors(result);
-  const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
-  const network = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Cluster network");
-  assert.deepEqual(edge?.attributes.uses, [network?.id]);
-  assert(!result.elements.some((element) => element.synthetic === true));
-}
-
-function inheritsDeploymentTargetsForComponentWires() {
-  const result = linkDeploymentProfileProject(`
-service backend
-    name = Backend
-    deployment:
-        uses globalProfile
-
-    component caller
-        name = Caller
-        links:
-            -> callee
-                deployment:
-                    uses internalNetwork
-
-    component callee
-        name = Callee
-`);
-
-  assertNoErrors(result);
-  const edge = result.edges.find((candidate) => candidate.source === "app/caller" && candidate.target === "app/callee" && candidate.projected !== true);
-  const network = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Cluster network");
-  assert.deepEqual(edge?.attributes.uses, [network?.id]);
-}
-
-function appliesAndOverridesWireDeploymentNetworkUses() {
-  const result = linkDeploymentProfileProject(`
-service frontend
-    name = Frontend
-    deployment:
-        uses globalProfile
-    links:
-        -> backend
-            deployment:
-                uses publicGateway
-                    description = Public ingress for this call
-
-service backend
-    name = Backend
-    deployment:
-        uses globalProfile
-`);
-
-  assertNoErrors(result);
-  const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
-  assert.equal(edge?.attributes.uses?.length, 1);
-  const gateway = result.elements.find((element) => element.id === edge?.attributes.uses?.[0]);
-  const originalGateway = result.elements.find((element) => element.context === "eu" && element.attributes.name?.[0] === "Public gateway");
-  assert.notEqual(gateway?.id, originalGateway?.id);
-  assert.deepEqual(gateway?.attributes.name, ["Public gateway"]);
-  assert.deepEqual(gateway?.attributes.description, ["Public ingress for this call"]);
-  assert.deepEqual(originalGateway?.attributes.description, undefined);
-  assert(!edge?.attributes.uses?.some((id) => result.elements.find((element) => element.id === id)?.attributes.name?.[0] === "Application database"));
-}
-
-function rejectsDeploymentProfilesOnWires() {
-  const result = linkDeploymentProfileProject(`
-service frontend
-    name = Frontend
-    deployment:
-        uses globalProfile
-    links:
-        -> backend
-            deployment:
-                uses globalProfile
-
-service backend
-    name = Backend
-    deployment:
-        uses globalProfile
-`);
-
-  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message === "Operator 'uses' cannot be applied from 'SyncWire' to 'DeploymentProfile'"), JSON.stringify(result.diagnostics));
-}
-
-function rejectsNonNetworkInfrastructureOnWires() {
-  const result = linkDeploymentProfileProject(`
-service frontend
-    name = Frontend
-    deployment:
-        uses globalProfile
-    links:
-        -> backend
-            deployment:
-                uses database
-
-service backend
-    name = Backend
-    deployment:
-        uses globalProfile
-`);
-
-  assert(result.diagnostics.some((diagnostic) => diagnostic.code === "TYPE_MISMATCH"
-    && diagnostic.message === "Operator 'uses' cannot be applied from 'SyncWire' to 'Storage'"), JSON.stringify(result.diagnostics));
-}
-
-function skipsUnavailableWireNetworksPerDeployment() {
-  const result = linkDeploymentProfileProject(`
-service frontend
-    name = Frontend
-    deployment:
-        uses globalProfile
-    links:
-        -> backend
-            deployment:
-                uses missingNetwork
-
-service backend
-    name = Backend
-    deployment:
-        uses globalProfile
-`);
-
-  assertNoErrors(result);
-  const edge = result.edges.find((candidate) => candidate.source === "app/frontend" && candidate.target === "app/backend" && candidate.projected !== true);
-  assert.equal(edge?.attributes.uses, undefined);
 }
 
 function requiresDeploymentProfileTargets() {
@@ -2681,93 +2522,6 @@ system application
 
   assertNoErrors(result);
   assert.equal(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("WIRE_")), false);
-}
-
-function warnsAboutMissingAndNonPhysicalWireDeploymentsOnceWireDeploymentIsUsed() {
-  const result = linkDeploymentProfileProject(`
-service frontend
-    name = Frontend
-    deployment:
-        uses globalProfile
-    links:
-        -> backend
-            deployment:
-                uses internalNetwork
-        -> worker
-
-service backend
-    name = Backend
-    deployment:
-        uses globalProfile
-
-service worker
-    name = Worker
-    deployment:
-        uses globalProfile
-`);
-
-  assertNoErrors(result);
-  const unprojected = result.diagnostics.find((diagnostic) => diagnostic.code === "WIRE_DEPLOYMENT_NOT_PROJECTED");
-  const missing = result.diagnostics.find((diagnostic) => diagnostic.code === "WIRE_MISSING_DEPLOYMENT");
-  assert(unprojected?.message.includes("'frontend' to 'backend'"));
-  assert(missing?.message.includes("'frontend' to 'worker'"));
-  assert.equal(result.diagnostics.some((diagnostic) =>
-    diagnostic.code === "WIRE_MISSING_DEPLOYMENT"
-    && diagnostic.message.includes("'internalCaller' to 'internalCallee'")
-  ), false);
-}
-
-function doesNotRequireDeploymentOnAlreadyPhysicalWires() {
-  const snapshot = buildLanguageSnapshotResultFromSources([
-    source("framework.ai", `
-extend type InfrastructureComponent
-    List of Wire links
-`),
-  ], [coreLanguageSnapshot]);
-  const result = linkProject({
-    snapshot: snapshot.snapshot,
-    sources: [
-      source("eu.ai", `
-environment eu
-    name = EU
-
-infrastructureComponent gateway
-    name = Gateway
-    links:
-        -> compute
-
-infrastructureComponent compute
-    name = Compute
-
-networkConnection route
-    name = Route
-    projection:
-        source $from originalLink target $to
-`),
-      source("app.ai", `
-context app
-
-import route from environment eu
-
-system source
-    name = Source
-    links:
-        -> target
-            deployment:
-                uses route
-
-system target
-    name = Target
-`),
-    ],
-  });
-
-  assertNoErrors(snapshot);
-  assertNoErrors(result);
-  assert.equal(result.diagnostics.some((diagnostic) =>
-    diagnostic.code === "WIRE_MISSING_DEPLOYMENT"
-    && diagnostic.message.includes("'gateway' to 'compute'")
-  ), false);
 }
 
 function doesNotWarnAboutElementDeploymentUntilTheProjectUsesIt() {
@@ -3240,10 +2994,10 @@ publicGateway envoy
     loadBalancer:
         lb
     projection:
-        source $from originalLink target cdn
-        target cdn connectTo target loadBalancer
-        target loadBalancer connectTo target $this
-        target $this connectTo target $to
+        $from originalLink cdn
+        cdn connectTo loadBalancer
+        loadBalancer connectTo $this
+        $this connectTo $to
 `),
       source("architecture.ai", `
 context shared
@@ -3860,8 +3614,8 @@ deployment production
     database:
         name = Application database
         description = default connection
-        projection:
-            source $from originalLink target $this
+        route:
+            $from originalLink $this
 
     broker:
         name = Kafka

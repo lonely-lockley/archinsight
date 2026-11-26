@@ -51,9 +51,11 @@ deployment production
                     name = Kafka
                     runsOn:
                         cloud
-            projection:
-                target $to connectTo target transport
-                target transport originalLink source $from
+
+route eventsRoute
+    inbound:
+        $to connectTo transport
+        transport originalLink $from
 `),
     source("model.ai", `
 context shop
@@ -84,7 +86,7 @@ system fulfillment
                 technology = Kafka
                 description = Consumes order-created events
                 deployment:
-                    uses events
+                    route eventsRoute
 `),
   ],
 });

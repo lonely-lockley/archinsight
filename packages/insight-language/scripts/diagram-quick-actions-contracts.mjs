@@ -5,6 +5,7 @@ import {
   coreLanguageSnapshot,
   declaredDeploymentEnvironments,
   diagramOccurrenceId,
+  diagramElementOccurrenceEnvironment,
   deploymentEnvironmentsForElement,
   deploymentFocusElementIds,
   diagramQuickActionMetadata,
@@ -60,16 +61,20 @@ deployment production
             name = Kubernetes
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
     gateway:
         reviewGateway gateway
             relay:
                 infrastructureComponent proxy
                     name = Review proxy
-            projection:
-                source $from originalLink target relay
-                target relay connectTo target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
+
+route reviewRoute
+    outbound:
+        $from originalLink relay
+        relay connectTo $to
 `),
     source("target.ai", `
 context shop
@@ -108,7 +113,7 @@ system storefront
             -> worker
             -> queue
                 deployment:
-                    uses network
+                    route clusterLocal
             -> billing
 
     service queue
@@ -133,7 +138,7 @@ system reviewSystem
         links:
             -> reviewTarget
                 deployment:
-                    uses gateway
+                    route reviewRoute
 
     service reviewTarget
         name = Review target
@@ -297,6 +302,15 @@ const deployment = selectDeploymentGraph(result, "shop/api", "eu");
 assert.deepEqual(deploymentFocusElementIds(result, "shop/api", deployment), ["shop/api"]);
 assert(Object.keys(deployment.elements).some((id) => id.startsWith("shop/api")), "deployment contains the selected logical occurrence");
 assert(deployment.edges.length > 0, "deployment retains the selected element's physical path");
+const singleScope = { view: "deployment", tab: "model.ai", context: "shop" };
+const singleIsolate = selectIsolatedElementGraph(result, "shop/api", singleScope);
+assert.equal(singleIsolate.layout.focus, "shop/api");
+assert.deepEqual(selectIsolatedElementGraph(result, "shop/api@@eu/k8s", singleScope), singleIsolate);
+assert.throws(() => selectIsolatedElementGraph(result, "shop/api@@eu/other", singleScope),
+  /Available occurrences: shop\/api\./);
+assert.throws(() => selectIsolatedElementGraph(result, "shop/api@@eu/k8s"),
+  /Available occurrences: shop\/api\./);
+assert.deepEqual(selectIsolatedRenderGraph(singleIsolate, "shop/api@@isolate-incoming").layout.focus, "shop/api");
 const nestedGatewayDeployment = selectDeploymentGraph(result, "shop/reviewTarget", "eu");
 const nestedGatewayEdgeIds = nestedGatewayDeployment.edges.map((edge) => edge.edge.id);
 assert.equal(
@@ -488,8 +502,10 @@ deployment production
             name = EU node
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("multi-us.ai", `
 environment us
@@ -501,8 +517,10 @@ deployment production
             name = US node
     network:
         networkConnection network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("multi-model.ai", `
 context multi
@@ -522,7 +540,7 @@ system application
         links:
             -> target
                 deployment:
-                    uses network
+                    route clusterLocal
     service target
         name = Target
         deployment:
@@ -531,6 +549,14 @@ system application
   ],
 });
 assertNoErrors(multiEnvironmentResult.diagnostics);
+const usPlacement = multiEnvironmentResult.elements.find((e) => e.context === "us" && e.type === "Compute").id;
+const displayed = `multi/source@@${usPlacement}@@isolate-incoming`;
+assert.deepEqual(parseDiagramOccurrenceId(displayed), {
+  canonicalId: "multi/source", qualifier: usPlacement, isolateRole: "incoming",
+});
+assert.equal(diagramElementOccurrenceEnvironment(multiEnvironmentResult, displayed, "eu"), "us");
+assert.equal(replaceDiagramOccurrenceCanonical(displayed, "multi/target"), `multi/target@@${usPlacement}@@isolate-incoming`);
+
 const logicalMultiEnvironmentPath = selectPathGraph(
   multiEnvironmentResult,
   "multi/source",
@@ -601,8 +627,10 @@ deployment production
     clusterLink:
         clusterLink boundary
             name = Boundary link
-            projection:
-                source $from originalLink target $to
+
+route crossRegion
+    outbound:
+        $from originalLink $to in production from west
 `),
     source("cross-west.ai", `
 environment west
@@ -615,8 +643,10 @@ deployment production
     network:
         networkConnection internal
             name = Internal network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("cross-model.ai", `
 context cross
@@ -640,7 +670,7 @@ system application
         links:
             -> bridge
                 deployment:
-                    uses clusterLink
+                    route crossRegion
 
     service bridge
         name = Bridge
@@ -649,7 +679,7 @@ system application
         links:
             -> target
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service target
         name = Target
@@ -720,8 +750,10 @@ deployment production
     clusterLink:
         clusterLink boundary
             name = Boundary link
-            projection:
-                source $from originalLink target $to
+
+route crossRegion
+    outbound:
+        $from originalLink $to in production from west
 `),
     source("split-west.ai", `
 environment west
@@ -734,8 +766,10 @@ deployment production
     network:
         networkConnection internal
             name = Internal network
-            projection:
-                source $from originalLink target $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
 `),
     source("split-caller.ai", `
 context split
@@ -762,7 +796,7 @@ system application
         links:
             -> bridge
                 deployment:
-                    uses clusterLink
+                    route crossRegion
     service replicated
         name = Replicated
         deployment:
@@ -785,7 +819,7 @@ system backend
         links:
             -> target
                 deployment:
-                    uses network
+                    route clusterLocal
 
     service target
         name = Target
@@ -820,6 +854,19 @@ assert.equal(
   true,
   "a physical route continues through relationships declared in another source file",
 );
+for (const tab of ["split-caller.ai", "split-target.ai"]) {
+  const legacy = selectPathGraph(splitSourceCrossEnvironmentResult, "split/source", "split/target",
+    { view: "deployment", tab });
+  assert.deepEqual(legacy.edges.map((e) => [e.edge.originSource, e.edge.originTarget]).sort(),
+    [["split/bridge", "split/target"], ["split/source", "split/bridge"]]);
+  const systemPath = (targetEnvironment) => selectPathGraph(splitSourceCrossEnvironmentResult,
+    "split/application", "split/backend", { view: "deployment-system", tab },
+    { sourceEnvironment: "east", targetEnvironment });
+  const crossing = systemPath("west");
+  assert.deepEqual(crossing.edges.map((e) => [e.source, e.target]),
+    [["split/application@@east/node", "split/backend@@west/node"]]);
+  assert.deepEqual(systemPath("east").edges, []);
+}
 const splitBridgeDeployment = selectDeploymentGraph(splitSourceCrossEnvironmentResult, "split/bridge", "west");
 assert.deepEqual(
   Object.keys(splitBridgeDeployment.elements).filter((id) => canonicalDiagramElementId(id) === "split/bridge"),

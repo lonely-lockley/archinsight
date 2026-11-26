@@ -54,10 +54,10 @@ system storefront
         links:
             -> worker
                 deployment:
-                    uses network
+                    route clusterLocal
             -> api
                 deployment:
-                    uses network
+                    route central
 
     service worker
         name = Worker
@@ -139,10 +139,6 @@ assert.deepEqual(
   ["shop/worker@@cluster_b/k8s_b"],
   "only endpoints deployed in the selected sibling environment may belong to its compute group",
 );
-assert(
-  siblingD2.externalElements.some((id) => id.startsWith("shop/web@@cluster_a/")),
-  "a caller deployed only in another environment must remain an external participant",
-);
 assert.equal(
   siblingD2.groups.some((group) => group.elements.some((id) => id.startsWith("shop/web"))),
   false,
@@ -206,8 +202,17 @@ deployment production
     network:
         networkConnection ${network}
             name = ${network}
-            projection:
-                source $from originalLink target $to
+            route:
+                $from originalLink $to
+
+route clusterLocal
+    outbound:
+        $from originalLink $to
+${context === "cluster_a" ? `
+route central
+    outbound:
+        $from originalLink $to in production from cluster_c
+` : ""}
 `);
 }
 

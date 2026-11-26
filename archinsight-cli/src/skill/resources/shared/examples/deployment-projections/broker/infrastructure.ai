@@ -10,7 +10,9 @@ deployment production
         kafka kafka
             name = Kafka
             technology = Managed Kafka
-            projection:
-                target $to connectTo target $this
-                    technology = Kafka
-                target $this originalLink source $from
+
+route events
+    inbound:
+        $to connectTo events
+            technology = Kafka
+        events originalLink $from

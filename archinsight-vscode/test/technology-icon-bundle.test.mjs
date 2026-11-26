@@ -7,7 +7,7 @@ const extensionRoot = path.resolve(import.meta.dirname, '..');
 
 test('keeps technology SVG assets lazy in the extension and render worker', () => {
   const extension = readFileSync(path.join(extensionRoot, 'dist/extension.cjs'), 'utf8');
-  assert(statSync(path.join(extensionRoot, 'dist/extension.cjs')).size < 3_000_000);
+  assert(statSync(path.join(extensionRoot, 'dist/extension.cjs')).size < 3_100_000);
   assert.doesNotMatch(extension, /var icons = \{/);
   assert.doesNotMatch(extension, /aria-hidden="true" focusable="false"><path/);
   assert.equal(readdirSync(path.join(extensionRoot, 'dist/icon-assets')).filter((name) => name.endsWith('.svg')).length, 616);

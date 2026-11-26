@@ -1,9 +1,12 @@
+import { validateQueryProperties } from "./query-properties.js";
+import { uniqueProjectionOrigins } from "./projection-origin.js";
 import type {
   DeploymentEnvironment,
   LinkedContext,
   LinkedEdge,
   LinkedElement,
   LinkProjectResult,
+  ProjectionOrigin,
   QueryScope,
   RenderGraph,
   RenderGraphEdge,
@@ -148,6 +151,7 @@ interface EvaluationContext extends QueryExecutionContext {
   readonly relationshipsBySource: ReadonlyMap<string, readonly QueryRelationship[]>;
   readonly relationshipsByTarget: ReadonlyMap<string, readonly QueryRelationship[]>;
   readonly relationshipsByEndpoint: ReadonlyMap<string, readonly QueryRelationship[]>;
+  readonly rollupIndexes: Map<RelationshipPattern, ReadonlyMap<string, readonly QueryRelationship[]>>;
   readonly budget: QueryBudget;
   readonly parameters: Readonly<Record<string, QueryParameterValue>>;
   readonly discoveryEnvironment?: string;
@@ -220,8 +224,10 @@ function selectGraphInternal(
   }
   const source = query === undefined || query.trim() === "" ? DEFAULT_QUERY : query;
   validateGraphQueryParameters(source, parsed, options.parameters ?? {});
+  if (result.querySchema) validateQueryProperties(parsed, result.querySchema);
   const execution = evaluationContext(
     createQueryExecutionContext(result, scope),
+    parsed.matches,
     createQueryBudget(normalizedLimits(options.limits), options.signal),
     options.parameters,
   );
@@ -333,7 +339,9 @@ function selectGraphInternal(
   return runQueryViewPipeline(result, scope, selectedGraph, {
     applyBoundary: (_result, graph) => applyViewBoundary(execution, graph),
     filterDeploymentSeeds: removeDescendantProjectionsCapturedBySystemSeeds,
-    materializeGroups: materializeGroupedView,
+    materializeGroups: (graph, placements) => materializeGroupedView(
+      placements ? preferExplicitSystemWires(graph, execution) : graph, placements,
+    ),
     applyEnvironment: (_result, graph) => applyDeploymentEnvironmentScope(execution, graph),
     rollUpSystems: (_result, graph, _scope, rootType) => rollUpDeploymentSystems(execution, graph, rootType),
     simplifyInfrastructure: (_result, graph, rootType) => simplifyDeploymentSystemInfrastructure(execution, graph, rootType),
@@ -360,9 +368,11 @@ export function executeQuery(
       return graphResult;
     }
     validateQueryParameters(source, scope, parameters);
+    if (result.querySchema) validateQueryProperties(parsed, result.querySchema);
     const limits = normalizedLimits(options.limits);
     const table = executeTableQuery(evaluationContext(
       createQueryExecutionContext(result, scope),
+      parsed.clauses.flatMap((input) => input.kind === "match" ? [input.clause] : []),
       createQueryBudget(limits, options.signal),
     ), parsed, parameters);
     assertOutputBudget(table, limits);
@@ -489,7 +499,8 @@ function removeDescendantProjectionsCapturedBySystemSeeds(
     const originTarget = edge.edge.originTarget ?? edge.edge.target;
     return ![edge.source, edge.target].some((endpoint) => {
       const system = baseOccurrenceId(endpoint);
-      return sourceSystems.has(system) && originSource !== system && originTarget !== system;
+      return sourceSystems.has(system) && originSource !== system && originTarget !== system
+        && edge.edge.source !== system && edge.edge.target !== system;
     });
   });
   const referenced = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
@@ -513,14 +524,14 @@ export function discoverDeploymentEnvironments(
   result: LinkProjectResult,
   scope: Pick<QueryScope, "context" | "tab">,
 ): readonly DeploymentEnvironment[] {
-  const execution = createQueryExecutionContext(result, scope);
+  const execution = createQueryExecutionContext(result, { ...scope, view: "deployment-container" });
   const closure = execution.tabClosure;
   const elementsById = execution.elementsById;
   const environmentIds = new Set<string>();
   const wireEnvironmentIds = new Set<string>();
 
   for (const element of result.elements) {
-    if (!closure.has(element.id) || element.deployed !== true) {
+    if (element.deployed !== true || (!closure.has(element.id) && !execution.tabDeploymentOwners.has(element.id))) {
       continue;
     }
     for (const targetId of [
@@ -528,14 +539,23 @@ export function discoverDeploymentEnvironments(
       ...semanticAttribute(element, ATTRIBUTE_CAPABILITIES.infrastructureUses),
     ]) {
       const target = elementsById.get(targetId);
-      if (target !== undefined && target.context !== element.context) {
-        environmentIds.add(target.context);
+      const environment = target?.infrastructureEnvironment ?? target?.context;
+      if (environment !== undefined && environment !== element.context) {
+        environmentIds.add(environment);
       }
     }
   }
 
   for (const edge of result.edges) {
-    if (edge.projected === true || edge.sourceIdentity !== scope.tab) {
+    if (edge.sourceIdentity !== scope.tab) {
+      continue;
+    }
+    if (edge.projected === true) {
+      const projectionRoot = edge.projectionRoot === undefined ? undefined : elementsById.get(edge.projectionRoot);
+      if (projectionRoot !== undefined
+          && elementHasCapability(projectionRoot, TYPE_CAPABILITIES.route)) {
+        wireEnvironmentIds.add(projectionRoot.context);
+      }
       continue;
     }
     for (const targetId of semanticAttribute(edge, ATTRIBUTE_CAPABILITIES.infrastructureUses)) {
@@ -655,6 +675,31 @@ function contextualLinkedEdge(relationship: QueryRelationship): LinkedEdge {
     ...(originSource === undefined ? {} : { originSource }),
     ...(originTarget === undefined ? {} : { originTarget }),
   };
+}
+
+// When a container wire lands on its deployed system, an explicit system wire
+// can already represent that same directed hop. Keep parallel declarations at
+// the same logical level and paths using a different route or placement.
+function preferExplicitSystemWires(graph: RenderGraph, context: EvaluationContext): RenderGraph {
+  const declared = new Set<string>();
+  const inherited = new Map<RenderGraphEdge, string>();
+  const isSystem = (id: string) => elementHasCapability(graph.elements[id], TYPE_CAPABILITIES.deploymentBoundary)
+    && graph.elements[id]?.deployed === true;
+  const represents = (physical: string, logical: string) => physical === logical
+    || (isSystem(physical) && isDescendantOf(logical, physical, context.parentByChild));
+  for (const item of graph.edges) {
+    const edge = item.edge;
+    if (!edge.projected || !edge.originSource || !edge.originTarget || (!isSystem(edge.source) && !isSystem(edge.target))) continue;
+    const forward = represents(edge.source, edge.originSource) && represents(edge.target, edge.originTarget);
+    if (!forward && !(represents(edge.source, edge.originTarget) && represents(edge.target, edge.originSource))) continue;
+    const key = JSON.stringify([item.source, item.target, edge.operator, edge.projectionRoot,
+      edge.sourcePlacement, edge.targetPlacement, forward]);
+    if (edge.source === (forward ? edge.originSource : edge.originTarget)
+        && edge.target === (forward ? edge.originTarget : edge.originSource)) declared.add(key);
+    else inherited.set(item, key);
+  }
+  if (!declared.size || !inherited.size) return graph;
+  return { ...graph, edges: graph.edges.filter((item) => !declared.has(inherited.get(item) ?? "")) };
 }
 
 export function materializeGroupedView(graph: RenderGraph, materializeDeploymentPlacements = true): RenderGraph {
@@ -780,6 +825,14 @@ function applyDeploymentEnvironmentScope(
   const sourceElements = context.tabClosure;
   const groups = graph.groups.filter((group) => elementEnvironment(group.owner, elementsById) === environment);
   const selectedIds = new Set(groups.flatMap((group) => [group.owner, ...group.elements]));
+  // A deployment use can select infrastructure without projecting a wire.
+  // Keep the resources of the visible placements that the query returned.
+  for (const id of [...selectedIds]) {
+    const owner = elementsById.get(baseOccurrenceId(id));
+    for (const use of semanticAttribute(owner, ATTRIBUTE_CAPABILITIES.infrastructureUses)) {
+      if (graph.elements[use] && elementEnvironment(use, elementsById) === environment) selectedIds.add(use);
+    }
+  }
   const candidateEdges = graph.edges.filter((edge) => deploymentEdgeInEnvironment(edge, environment, elementsById));
   const edges = candidateEdges.filter((edge) => {
     const sourceAllowed = deploymentEndpointAllowed(edge.source, environment, elementsById);
@@ -799,7 +852,8 @@ function applyDeploymentEnvironmentScope(
         && isLogicalDeploymentEndpoint(id, elementsById)) {
       externalElements.add(id);
     }
-    if (isLogicalDeploymentEndpoint(id, elementsById) && !sourceElements.has(baseOccurrenceId(id))) {
+    if (isLogicalDeploymentEndpoint(id, elementsById) && !sourceElements.has(baseOccurrenceId(id))
+        && !context.tabDeploymentOwners.has(baseOccurrenceId(id))) {
       externalElements.add(id);
     }
   }
@@ -867,17 +921,41 @@ function elementEnvironment(
   id: string,
   elementsById: ReadonlyMap<string, LinkedElement>,
 ): string | undefined {
-  return elementsById.get(baseOccurrenceId(id))?.context;
+  const element = elementsById.get(baseOccurrenceId(id));
+  return element?.infrastructureEnvironment ?? element?.context;
 }
 
 function baseOccurrenceId(id: string): string {
   return parseDiagramOccurrenceId(id).canonicalId;
 }
 
-function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph, rootType: string): RenderGraph {
+function deploymentSystemAncestor(
+  id: string, rootType: string, elementsById: ReadonlyMap<string, LinkedElement>, parentByChild: ReadonlyMap<string, string>,
+): string | undefined {
+  const base = baseOccurrenceId(id);
+  if (elementHasCapability(elementsById.get(base), TYPE_CAPABILITIES.infrastructure)) return undefined;
+  return lineage(base, parentByChild).find((candidate) => elementHasType(elementsById.get(candidate), rootType));
+}
+
+export function deploymentSystemPathView(
+  result: LinkProjectResult, path: RenderGraph, scope: QueryScope, rootType: string,
+  sourceId: string, targetId: string,
+): RenderGraph {
+  const context = createQueryExecutionContext(result, scope);
+  // A project-wide path combines several tab views. Their individual external
+  // flags cannot distinguish transit infrastructure from a selected endpoint.
+  const externalElements = Object.entries(path.elements)
+    .filter(([id, element]) => explicitlyExternal(element)
+      || (elementHasCapability(element, TYPE_CAPABILITIES.infrastructure)
+        && (baseOccurrenceId(id) === sourceId || baseOccurrenceId(id) === targetId)))
+    .map(([id]) => id);
+  const folded = rollUpDeploymentSystems(context, { ...path, externalElements }, rootType);
+  return simplifyDeploymentSystemInfrastructure(context, folded, rootType);
+}
+
+function rollUpDeploymentSystems(context: QueryExecutionContext, graph: RenderGraph, rootType: string): RenderGraph {
   const { elementsById, parentByChild } = context;
-  const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), rootType));
+  const systemFor = (id: string) => deploymentSystemAncestor(id, rootType, elementsById, parentByChild);
   const fold = (id: string): string => {
     const system = systemFor(id);
     if (system === undefined) {
@@ -953,7 +1031,7 @@ function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph,
 }
 
 function simplifyDeploymentSystemInfrastructure(
-  context: EvaluationContext,
+  context: QueryExecutionContext,
   graph: RenderGraph,
   rootType: string,
 ): RenderGraph {
@@ -1006,8 +1084,7 @@ function simplifyDeploymentSystemInfrastructure(
     }
   }
 
-  const systemFor = (id: string): string | undefined => lineage(baseOccurrenceId(id), parentByChild)
-    .find((candidate) => elementHasType(elementsById.get(candidate), rootType));
+  const systemFor = (id: string) => deploymentSystemAncestor(id, rootType, elementsById, parentByChild);
   for (const source of Object.keys(graph.elements)) {
     if (retained.has(source) || (incoming.get(source)?.length ?? 0) > 0) {
       continue;
@@ -1117,9 +1194,10 @@ function simplifyDeploymentSystemInfrastructure(
     if (occurrenceEnvironment !== undefined) {
       environments.add(occurrenceEnvironment);
     }
+    const infrastructureEnvironment = element?.infrastructureEnvironment ?? element?.context;
     if (environments.size === 0 && elementHasCapability(element, TYPE_CAPABILITIES.infrastructure)
-        && environmentRootByContext.has(element?.context ?? "")) {
-      environments.add(element!.context);
+        && infrastructureEnvironment && environmentRootByContext.has(infrastructureEnvironment)) {
+      environments.add(infrastructureEnvironment);
     }
     for (const environment of environments) {
       const members = groupMembersByEnvironment.get(environment) ?? [];
@@ -1135,10 +1213,40 @@ function simplifyDeploymentSystemInfrastructure(
   return {
     ...graph,
     elements: Object.fromEntries(Object.entries(graph.elements).filter(([id]) => retained.has(id))),
-    edges,
+    edges: mergeFoldedComponentSegments(edges, elementsById),
     groups,
     externalElements: graph.externalElements.filter((id) => retained.has(id)),
   };
+}
+
+function mergeFoldedComponentSegments(edges: readonly RenderGraphEdge[], elements: ReadonlyMap<string, LinkedElement>): RenderGraphEdge[] {
+  const result: RenderGraphEdge[] = [];
+  const bySegment = new Map<string, number>();
+  const mergedOrigins = new Map<number, ProjectionOrigin[]>();
+  for (const item of edges) {
+    const edge = item.edge;
+    if (!edge.projected || !edge.projectionRoot || (edge.originTarget !== edge.projectionRoot && edge.originTarget !== edge.originSource)
+        || !elementHasCapability(elements.get(edge.projectionRoot), TYPE_CAPABILITIES.infrastructure)) {
+      result.push(item);
+      continue;
+    }
+    const key = JSON.stringify([item.source, item.target, edge.projectionRoot, edge.operator, edge.type,
+      edge.projectionScope, edge.sourcePlacement, edge.targetPlacement, edge.attributes, edge.annotations, edge.note]);
+    const previous = bySegment.get(key);
+    if (previous === undefined) {
+      bySegment.set(key, result.length);
+      result.push(item);
+    } else {
+      const origins = mergedOrigins.get(previous) ?? [...(result[previous]!.edge.projectionOrigins ?? [])];
+      origins.push(...(edge.projectionOrigins ?? []));
+      mergedOrigins.set(previous, origins);
+    }
+  }
+  for (const [index, origins] of mergedOrigins) {
+    const first = result[index]!;
+    result[index] = { ...first, edge: { ...first.edge, projectionOrigins: uniqueProjectionOrigins(origins) } };
+  }
+  return result;
 }
 
 function linkedEdgeHasProjectionOrigin(edge: LinkedEdge, source: string, target: string): boolean {
@@ -1316,7 +1424,7 @@ function openedViewBoundaries(
 }
 
 function openedTabBoundaries(
-  context: EvaluationContext,
+  context: QueryExecutionContext,
   boundaryType: string,
 ): ReadonlySet<string> {
   return new Set([...context.tabClosure]
@@ -1382,12 +1490,15 @@ function explicitlyExternal(element: LinkedElement): boolean {
 
 function evaluationContext(
   base: QueryExecutionContext,
+  matches: readonly { readonly pattern: QueryPattern }[],
   budget = createQueryBudget(DEFAULT_QUERY_EXECUTION_LIMITS),
   parameters: Readonly<Record<string, QueryParameterValue>> = {},
 ): EvaluationContext {
   const discoveryEnvironment = deploymentDiscoveryEnvironment(base);
   const nodes = queryNodes(base);
-  const relationships = queryRelationships(base, budget, discoveryEnvironment);
+  const includeDerived = matches.some(({ pattern }) => pattern.relationship !== undefined
+    && matchesSelectorDimension(true, pattern.relationship.selectors, "derived", "withDerived"));
+  const relationships = queryRelationships(base, budget, discoveryEnvironment, includeDerived);
   return {
     ...base,
     nodes,
@@ -1397,6 +1508,7 @@ function evaluationContext(
     relationshipsBySource: indexRelationships(relationships, (relationship) => relationship.source),
     relationshipsByTarget: indexRelationships(relationships, (relationship) => relationship.target),
     relationshipsByEndpoint: indexRelationshipEndpoints(relationships),
+    rollupIndexes: new Map(),
     budget,
     parameters,
     ...(discoveryEnvironment === undefined ? {} : { discoveryEnvironment }),
@@ -1433,7 +1545,7 @@ function candidateNodes(context: EvaluationContext, pattern: NodePattern): reado
 function nodeInDiscoveryEnvironment(node: QueryNode, environment: string): boolean {
   return node.kind !== "element"
     || !elementHasCapability(node.element, TYPE_CAPABILITIES.infrastructure)
-    || node.element.context === environment;
+    || (node.element.infrastructureEnvironment ?? node.element.context) === environment;
 }
 
 function indexRelationshipEndpoints(
@@ -2468,9 +2580,10 @@ function staticColumnType(expression: TableValueExpression): QueryColumn["type"]
 
 function evaluate(context: EvaluationContext, query: ParsedGraphQuery): readonly Row[] {
   let rows: readonly Row[] = [{ nodes: {}, relationships: {}, values: {} }];
+  const lastMatch = query.matches.at(-1);
   for (const match of query.matches) {
     rows = match.optional
-      ? optionalMatchRows(context, rows, match)
+      ? optionalMatchRows(context, rows, match, match === lastMatch)
       : matchRows(context, rows, match);
     assertRows(context, rows);
   }
@@ -2481,6 +2594,7 @@ function optionalMatchRows(
   context: EvaluationContext,
   rows: readonly Row[],
   clause: MatchClause,
+  feedsGraphReturn: boolean,
 ): readonly Row[] {
   const next: Row[] = [];
   const referencedAliases = matchReferencedAliases(clause);
@@ -2490,7 +2604,10 @@ function optionalMatchRows(
     let matched = matchesByCorrelation.get(key);
     if (matched === undefined) {
       matched = matchRows(context, [correlationRow(row, referencedAliases)], clause);
-      matchesByCorrelation.set(key, matched);
+      // Graph RETURN collects each alias separately, including the node that owns a group.
+      // Emit every template on first use. On reuse, one template carries the new input
+      // bindings in their original order. A subsequent MATCH still needs all combinations.
+      matchesByCorrelation.set(key, feedsGraphReturn ? matched.slice(0, 1) : matched);
     }
     if (matched.length === 0) {
       appendRow(context, next, row);
@@ -2935,6 +3052,36 @@ function bindMatchedPath(row: Row, pattern: QueryPattern, path: QueryPath): Row 
   return next;
 }
 
+function indexedRollupRelationships(
+  context: EvaluationContext,
+  pattern: RelationshipPattern,
+  endpoint: string,
+): readonly QueryRelationship[] {
+  let index = context.rollupIndexes.get(pattern);
+  if (index === undefined) {
+    const byEndpoint = new Map<string, QueryRelationship[]>();
+    for (const edge of context.relationships) {
+      chargeExpansion(context);
+      if (!matchesRelationship(edge, pattern, context)) continue;
+      // A binding may refer to a physical endpoint, a projection origin, or an ancestor of either.
+      const endpoints = new Set([
+        ...lineage(edge.source, context.parentByChild),
+        ...lineage(edge.target, context.parentByChild),
+        ...edgeOriginSourceLineage(edge, context.parentByChild),
+        ...edgeOriginTargetLineage(edge, context.parentByChild),
+      ]);
+      for (const id of endpoints) {
+        const bucket = byEndpoint.get(id);
+        if (bucket === undefined) byEndpoint.set(id, [edge]);
+        else bucket.push(edge);
+      }
+    }
+    index = byEndpoint;
+    context.rollupIndexes.set(pattern, index);
+  }
+  return index.get(endpoint) ?? [];
+}
+
 function rollupMatchRows(
   context: EvaluationContext,
   inputRows: readonly Row[],
@@ -2946,7 +3093,6 @@ function rollupMatchRows(
   }
 
   const rows: Row[] = [];
-  const relationships = context.relationships;
   const parentByChild = context.parentByChild;
   const right = pattern.right;
   const relationship = pattern.relationship;
@@ -2959,15 +3105,22 @@ function rollupMatchRows(
         || (relationship.alias !== undefined && boundRelationship === undefined && hasRuntimeBinding(row, relationship.alias))) {
       continue;
     }
-    for (const edge of relationships) {
+    const endpoint = boundLeft ?? boundRight;
+    const candidates = endpoint === undefined ? context.relationships : indexedRollupRelationships(context, relationship, endpoint.id);
+    const orientations = rollupOrientations(pattern, right, boundLeft, boundRight);
+    const representsTab = endpoint !== undefined && context.tabDeploymentOwners.has(endpoint.id);
+    for (const edge of candidates) {
       chargeExpansion(context);
+      if (representsTab && edge.projected
+          && !context.tabClosure.has(edge.originSource ?? edge.source)
+          && !context.tabClosure.has(edge.originTarget ?? edge.target)) continue;
       if (boundRelationship !== undefined && boundRelationship !== edge) {
         continue;
       }
-      if (!matchesRelationship(edge, relationship, context)) {
+      if (endpoint === undefined && !matchesRelationship(edge, relationship, context)) {
         continue;
       }
-      for (const orientation of rollupOrientations(pattern, right, boundLeft, boundRight)) {
+      for (const orientation of orientations) {
         const sourceEndpoint = rollupSourceEndpoint(context, edge, orientation.sourcePattern, orientation.sourceBound, parentByChild);
         if (sourceEndpoint === undefined) {
           continue;
@@ -3065,6 +3218,15 @@ function relationshipOrientations(
   ];
 }
 
+// An owned infrastructure clone participates in its owner's tab scope. Its
+// logical owner is a valid binding, but does not replace the physical endpoint.
+function boundRollupEndpoint(context: EvaluationContext, edge: QueryRelationship, id: string, bound: QueryNode): RollupEndpoint {
+  const endpoint = context.elementsById.get(id);
+  const keepPhysical = edge.projected && endpoint?.cloneOf && elementHasCapability(endpoint, TYPE_CAPABILITIES.infrastructure)
+    && bound.kind === "element" && !elementHasCapability(bound.element, TYPE_CAPABILITIES.infrastructure);
+  return { id: keepPhysical ? id : bound.id, binding: bound };
+}
+
 function rollupSourceEndpoint(
   context: EvaluationContext,
   edge: QueryRelationship,
@@ -3074,7 +3236,7 @@ function rollupSourceEndpoint(
 ): RollupEndpoint | undefined {
   if (bound !== undefined) {
     if (lineage(edge.source, parentByChild).includes(bound.id)) {
-      return { id: bound.id, binding: bound };
+      return boundRollupEndpoint(context, edge, edge.source, bound);
     }
     if (edgeOriginSourceLineage(edge, parentByChild).includes(bound.id)) {
       return context.nodeById.get(edge.source) === undefined
@@ -3094,7 +3256,7 @@ function rollupTargetCandidates(
 ): readonly RollupEndpoint[] {
   if (bound !== undefined) {
     if (lineage(edge.target, parentByChild).includes(bound.id)) {
-      return [{ id: bound.id, binding: bound }];
+      return [boundRollupEndpoint(context, edge, edge.target, bound)];
     }
     if (edgeOriginTargetLineage(edge, parentByChild).includes(bound.id)) {
       return context.nodeById.get(edge.target) === undefined
@@ -3160,6 +3322,7 @@ function queryRelationships(
   context: QueryExecutionContext,
   budget: QueryBudget,
   discoveryEnvironment: string | undefined,
+  includeDerived: boolean,
 ): readonly QueryRelationship[] {
   const edgeByRelationId = linkedEdgesByGraphRelationId(context.result);
   const relationships: QueryRelationship[] = context.result.graph.relations().flatMap((relation) => {
@@ -3171,6 +3334,7 @@ function queryRelationships(
     }
     return queryRelationshipVariants(relation, edge, context.contextBySourceIdentity);
   });
+  if (!includeDerived) return relationships;
   const parentByChild = context.parentByChild;
   for (const relationship of [...relationships]) {
     if (relationship.kind !== "REFERENCES" || relationship.edge === undefined) {
@@ -3224,7 +3388,10 @@ function relationshipInDiscoveryEnvironment(
     relation.source,
     relation.target,
   ].filter((id): id is string => id !== undefined);
-  return scopes.some((id) => elementsById.get(id)?.context === environment);
+  return scopes.some((id) => {
+    const element = elementsById.get(id);
+    return (element?.infrastructureEnvironment ?? element?.context) === environment;
+  });
 }
 
 function chargeRawExpansion(budget: QueryBudget): void {
@@ -3366,7 +3533,7 @@ function tabSourceIdentityPredicate(row: Row, propertyExpression: ValueExpressio
   }
   const node = row.nodes[propertyExpression.alias];
   if (node?.kind === "element") {
-    return context.tabClosure.has(node.id);
+    return context.tabClosure.has(node.id) || context.tabDeploymentOwners.has(node.id);
   }
   const relationship = row.relationships[propertyExpression.alias];
   if (relationship !== undefined) {
@@ -3385,7 +3552,7 @@ function isTabVariable(value: QueryValue): boolean {
 
 function matchesNodeProperty(node: QueryNode, name: string, value: QueryValue, context: EvaluationContext): boolean {
   if (name === "sourceIdentity" && isTabVariable(value) && node.kind === "element") {
-    return context.tabClosure.has(node.id);
+    return context.tabClosure.has(node.id) || context.tabDeploymentOwners.has(node.id);
   }
   return equalQueryValues(property(node, name), resolveValue(value, context.scope, context.parameters));
 }
@@ -3570,6 +3737,9 @@ function propertyValue(node: QueryNode, name: string): string | readonly string[
     return undefined;
   }
   const element = node.element;
+  if (name === "binding" || name === "bindingOwner" || name === "cloneOf") {
+    if (element[name] !== undefined) return element[name];
+  }
   if (name === "deployed") {
     return String(element.deployed === true);
   }
@@ -3674,6 +3844,8 @@ function edgePropertyValue(relationship: QueryRelationship, name: string): strin
   if (name === "context") {
     return relationship.context;
   }
+  if (name === "originSource") return relationship.originSource ?? edge?.originSource;
+  if (name === "originTarget") return relationship.originTarget ?? edge?.originTarget;
   if (name === "projectionRoot") {
     return edge?.projectionRoot;
   }
