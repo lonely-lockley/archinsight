@@ -1,6 +1,7 @@
 import archy from "archy";
 import { instance } from "@viz-js/viz";
-import { Resvg } from "@resvg/resvg-js";
+import { pngFonts } from "@archinsight/graphviz/png-fonts";
+import { stylePngText } from "@archinsight/graphviz/png-text";
 import { inlineGraphvizIcons, normalizeGraphvizSvgResult } from "@archinsight/graphviz";
 import {
   buildProjectStructure,
@@ -30,15 +31,14 @@ export async function renderSvg(dot: string, icons: readonly GraphvizIconPlaceme
   return inlineGraphvizIcons(result.svg, icons);
 }
 
-export function renderPng(svg: string): Uint8Array {
+export async function renderPng(svg: string): Promise<Uint8Array> {
   const dimensions = svgDimensions(svg);
   validatePngDimensions(dimensions.width, dimensions.height);
-  const image = new Resvg(svg, {
-    dpi: 96,
-    font: { loadSystemFonts: false, defaultFontFamily: "sans-serif" },
-  }).render();
-  validatePngDimensions(image.width, image.height);
-  const png = image.asPng();
+  const { renderPng: encode } = await import("resvg-napi/helpers");
+  const png = encode(stylePngText(svg), {
+    dpi: 96, fonts: pngFonts(), fontFamily: "Carlito", maxPixels: 16_777_216,
+  });
+  validatePngDimensions(png.readUInt32BE(16), png.readUInt32BE(20));
   if (png.byteLength > 64 * 1024 * 1024) throw new CliError(`PNG output is too large: ${png.byteLength} bytes`);
   return png;
 }

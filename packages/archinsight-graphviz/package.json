@@ -8,7 +8,16 @@
     ".": {
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
-    }
+    },
+    "./png-fonts": {
+      "types": "./src/png-fonts.d.ts",
+      "default": "./src/png-fonts.js"
+    },
+    "./png-text": {
+      "types": "./src/png-text.d.ts",
+      "default": "./src/png-text.js"
+    },
+    "./webfonts/*": "./src/webfonts/*"
   },
   "scripts": {
     "test": "node --experimental-test-coverage --test-coverage-include='src/**/*.js' --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test test/*.test.mjs"

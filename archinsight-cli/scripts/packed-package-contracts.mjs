@@ -9,6 +9,8 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tiny_skia } from "resvg-napi";
+import { renderRaw } from "resvg-napi/helpers";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
@@ -44,7 +46,7 @@ try {
   writeFileSync(path.join(projectDirectory, "model.ai"), `context sample
 
 system application
-    name = Application
+    name = 👩‍💻 Клиент
 `);
 
   const linked = spawnSync(
@@ -55,6 +57,21 @@ system application
   assert.equal(linked.status, 0, linked.stderr);
   assert.equal(JSON.parse(linked.stdout).summary.ERROR, 0);
 
+  const renderArgs = [path.join(packageDirectory, "build", "index.js"), "render", projectDirectory, "--theme", "light", "--format"];
+  const svg = execFileSync(process.execPath, [...renderArgs, "svg"], { cwd: packageDirectory, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  assert.match(svg, />👩‍💻 Клиент<\/text>/);
+  const withoutLabels = svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/g, "");
+  const expectedBlank = renderRaw(withoutLabels, { dpi: 96, fonts: [] });
+  const png = execFileSync(process.execPath, [...renderArgs, "png"], { cwd: packageDirectory, stdio: ["ignore", "pipe", "pipe"] });
+  const pixels = tiny_skia.Pixmap.decodePng(png).take();
+  assert(!pixels.equals(expectedBlank.data), "Packed CLI must paint diagram labels in PNG");
+  // Only the emoji has warm colors in the default blue system node.
+  let emojiPixels = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] > pixels[i + 1] + 10 && pixels[i + 1] > pixels[i + 2] + 15) emojiPixels++;
+  }
+  assert(emojiPixels > 5, "Packed CLI must paint the color emoji next to the Cyrillic title");
+
   unlinkSync(path.join(packageDirectory, "build", "project-source-parser-worker.js"));
   const fallback = spawnSync(
     process.execPath,
@@ -63,7 +80,7 @@ system application
   );
   assert.equal(fallback.status, 0, fallback.stderr);
   assert.deepEqual(JSON.parse(fallback.stdout), JSON.parse(linked.stdout));
-  console.log("Packed CLI cold-link contract passed");
+  console.log("Packed CLI cold-link and PNG export contracts passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }

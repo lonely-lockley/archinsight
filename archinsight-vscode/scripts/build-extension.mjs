@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadTechnologyIconSvg, technologyIconCatalog } from '../../packages/archinsight-icons/src/index.js';
 
@@ -55,8 +55,12 @@ for (const { id } of technologyIconCatalog()) {
   writeFileSync(path.join(targetAssets, `${id}.svg`), svg);
 }
 
+cpSync('../packages/archinsight-graphviz/src/webfonts', 'dist/webfonts', { recursive: true });
 mkdirSync('dist/licenses', { recursive: true });
 copyFileSync('../packages/archinsight-icons/src/generated/DEVICON-LICENSE', 'dist/licenses/DEVICON-LICENSE');
+for (const license of ['Carlito-OFL.txt', 'NotoColorEmoji-OFL.txt']) {
+  copyFileSync('../packages/archinsight-graphviz/src/fonts/' + license, 'dist/licenses/' + license);
+}
 const iconAudit = JSON.parse(readFileSync('../packages/archinsight-icons/src/generated/audit.json', 'utf8'));
 writeFileSync('dist/licenses/technology-icons-source.json', `${JSON.stringify({
   ...iconAudit.source,

@@ -109,6 +109,7 @@ import {
 } from "./diagram-rendering.js";
 import { openGitVersionedRepository, type GitVersionedRepository } from "@archinsight/git";
 import { createDiagramSession, saveBytes } from "./vscode-diagram-service.js";
+import { prepareWebviewPng } from "./png-fonts.js";
 import { previewHtml } from "./preview-webview.js";
 import { renderThemeForColorThemeKind } from "./theme.js";
 import { LatestWinsCoordinator } from "./latest-wins.js";
@@ -1671,7 +1672,7 @@ class ArchinsightWorkbenchEditorSession {
         await this.controls.sync(state.view, state.query);
       },
       requestPng: async (svg) => {
-        await this.panel.webview.postMessage({ command: "exportPng", svg });
+        await this.panel.webview.postMessage({ command: "exportPng", svg: await prepareWebviewPng(svg, path.join(__dirname, "webfonts")) });
       },
     }, (message) => output.appendLine(message));
   }
@@ -2856,7 +2857,7 @@ class PreviewSession {
         if (this.panel === undefined) {
           throw new Error("Preview is not open");
         }
-        await this.panel.webview.postMessage({ command: "exportPng", svg });
+        await this.panel.webview.postMessage({ command: "exportPng", svg: await prepareWebviewPng(svg, path.join(__dirname, "webfonts")) });
       },
     }, (message) => output.appendLine(message));
   }

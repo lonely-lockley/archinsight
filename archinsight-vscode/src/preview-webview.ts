@@ -123,18 +123,24 @@ export function previewHtml(): string {
       async function exportPng(svg) {
         const image = new Image();
         const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-        await new Promise((resolve, reject) => {
-          image.onload = resolve;
-          image.onerror = reject;
-          image.src = url;
-        });
-        const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth || 1;
-        canvas.height = image.naturalHeight || 1;
-        const context = canvas.getContext("2d");
-        context.drawImage(image, 0, 0);
-        URL.revokeObjectURL(url);
-        const dataUrl = canvas.toDataURL("image/png");
+        let dataUrl = "";
+        try {
+          await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = reject;
+            image.src = url;
+          });
+          const canvas = document.createElement("canvas");
+          canvas.width = image.naturalWidth || 1;
+          canvas.height = image.naturalHeight || 1;
+          const context = canvas.getContext("2d");
+          context.drawImage(image, 0, 0);
+          dataUrl = canvas.toDataURL("image/png");
+        } catch {
+          // The host rejects the pending save on an empty PNG response.
+        } finally {
+          URL.revokeObjectURL(url);
+        }
         vscode.postMessage({ command: "png", dataUrl });
       }
 

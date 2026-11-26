@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { tiny_skia } from 'resvg-napi';
 import { Worker } from 'node:worker_threads';
 import { requestLimitsFromEnv } from '../src/validation.mjs';
 
@@ -36,6 +37,53 @@ test('worker renders svg and png payloads', async () => {
   assert.ok(bytes.subarray(0, 8).equals(Buffer.from([
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
   ])));
+});
+
+test('PNG paints Latin and Cyrillic node and edge labels', async () => {
+  const result = await render({
+    mode: 'png', dpi: 96, limits,
+    renders: [{
+      sourceIdentity: 'labels.ai', diagram: 'query',
+      dot: 'digraph { a [label="Заказы", fontcolor=red]; b [label="Orders", fontcolor=blue]; a -> b [label="HTTPS", fontcolor=green] }'
+    }]
+  });
+  const pixels = tiny_skia.Pixmap.decodePng(Buffer.from(result.pngs[0].png, 'base64')).take();
+  const ink = new Set();
+  for (let i = 0; i < pixels.length; i += 4) {
+    const [r, g, b] = pixels.subarray(i, i + 3);
+    if (r > g + 40 && r > b + 40) ink.add('Cyrillic node');
+    if (b > r + 40 && b > g + 40) ink.add('Latin node');
+    if (g > r + 40 && g > b + 40) ink.add('edge');
+  }
+  assert.deepEqual(ink, new Set(['Cyrillic node', 'Latin node', 'edge']));
+});
+
+test('PNG resolves distinct emoji glyphs and shapes a joined emoji as one symbol', async () => {
+  const labels = ['🚀', '🔒', '👩‍💻', '👩💻'];
+  const result = await render({
+    mode: 'png', dpi: 96, limits,
+    renders: labels.map(label => ({
+      sourceIdentity: 'emoji.ai', diagram: 'query',
+      dot: `digraph { a [shape=box, fixedsize=true, width=2, height=1, fontsize=24, label=<<b>${label} Клиент</b>>] }`
+    }))
+  });
+  const glyphs = result.pngs.map(item => {
+    const pixels = tiny_skia.Pixmap.decodePng(Buffer.from(item.png, 'base64')).take();
+    const ink = [];
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (Math.max(...pixels.subarray(i, i + 3)) - Math.min(...pixels.subarray(i, i + 3)) > 55) ink.push(i / 4);
+    }
+    assert(ink.length > 20);
+    const xs = ink.map(offset => offset % item.width);
+    const left = Math.min(...xs);
+    const top = Math.floor(ink[0] / item.width);
+    return {
+      shape: ink.map(offset => offset - top * item.width - left).join(','),
+      width: Math.max(...xs) - left + 1
+    };
+  });
+  assert.equal(new Set(glyphs.map(glyph => glyph.shape)).size, labels.length);
+  assert(glyphs[2].width < glyphs[3].width * 0.8, 'ZWJ sequence must shape as a single glyph');
 });
 
 test('worker rejects a huge fixed-size canvas before Resvg rasterization', async () => {

@@ -11,6 +11,7 @@
     "./monaco-session": "./src/monaco-session.ts",
     "./monaco-themes": "./src/monaco-themes.ts",
     "./presets": "./src/diagram-query-presets.ts",
+    "./diagram-raster": "./src/diagram-raster.ts",
     "./svg-sanitizer": "./src/svg-sanitizer.ts",
     "./svg-preview": "./src/SvgPreviewPanel.svelte",
     "./empty-workspace": "./src/empty-workspace-strategy.ts",
