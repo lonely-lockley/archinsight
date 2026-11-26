@@ -193,9 +193,12 @@ a route from `--from` to `--to`; when no route is found, JSON reports
 `pathFound: false`. Declaration returns the source file, line, and column.
 
 With both `--view` and `--environment` omitted, Find path follows authored logical relationships.
-With `--environment` alone, it starts from a physical placement. D1 and legacy Deployment return
-`pathFound: false` when their diagram has no directed physical path.
+With `--environment` alone, it starts from a physical placement. D1 and legacy Deployment follow directed
+physical paths across files. D1 displays the enclosing systems. Changing `--source`
+keeps the same physical reachability.
 Isolate in either view includes every visible placement of the selected element.
+A qualified ID selects one placement, even when the diagram displays its plain ID.
+An unavailable ID reports the occurrences of that element visible in the selected view.
 
 Find path never treats edges as undirected. `--from A --to B` and
 `--from B --to A` are separate requests and may produce different results. To

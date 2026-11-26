@@ -937,7 +937,23 @@ function deploymentSystemAncestor(
   return lineage(base, parentByChild).find((candidate) => elementHasType(elementsById.get(candidate), rootType));
 }
 
-function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph, rootType: string): RenderGraph {
+export function deploymentSystemPathView(
+  result: LinkProjectResult, path: RenderGraph, scope: QueryScope, rootType: string,
+  sourceId: string, targetId: string,
+): RenderGraph {
+  const context = createQueryExecutionContext(result, scope);
+  // A project-wide path combines several tab views. Their individual external
+  // flags cannot distinguish transit infrastructure from a selected endpoint.
+  const externalElements = Object.entries(path.elements)
+    .filter(([id, element]) => explicitlyExternal(element)
+      || (elementHasCapability(element, TYPE_CAPABILITIES.infrastructure)
+        && (baseOccurrenceId(id) === sourceId || baseOccurrenceId(id) === targetId)))
+    .map(([id]) => id);
+  const folded = rollUpDeploymentSystems(context, { ...path, externalElements }, rootType);
+  return simplifyDeploymentSystemInfrastructure(context, folded, rootType);
+}
+
+function rollUpDeploymentSystems(context: QueryExecutionContext, graph: RenderGraph, rootType: string): RenderGraph {
   const { elementsById, parentByChild } = context;
   const systemFor = (id: string) => deploymentSystemAncestor(id, rootType, elementsById, parentByChild);
   const fold = (id: string): string => {
@@ -1015,7 +1031,7 @@ function rollUpDeploymentSystems(context: EvaluationContext, graph: RenderGraph,
 }
 
 function simplifyDeploymentSystemInfrastructure(
-  context: EvaluationContext,
+  context: QueryExecutionContext,
   graph: RenderGraph,
   rootType: string,
 ): RenderGraph {
@@ -1408,7 +1424,7 @@ function openedViewBoundaries(
 }
 
 function openedTabBoundaries(
-  context: EvaluationContext,
+  context: QueryExecutionContext,
   boundaryType: string,
 ): ReadonlySet<string> {
   return new Set([...context.tabClosure]

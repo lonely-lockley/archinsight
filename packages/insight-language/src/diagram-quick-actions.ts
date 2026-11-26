@@ -11,9 +11,9 @@ import type {
   IsolateRenderGraphLayout,
   SourceLocation,
 } from "./contracts.js";
-import { declaredDeploymentEnvironments, materializeGroupedView, selectGraph } from "./query-engine.js";
+import { declaredDeploymentEnvironments, materializeGroupedView, deploymentSystemPathView, selectGraph } from "./query-engine.js";
 import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
-import { diagramOccurrenceId, isolateOccurrenceId, parseDiagramOccurrenceId } from "./occurrence-identity.js";
+import { isolateOccurrenceId, parseDiagramOccurrenceId } from "./occurrence-identity.js";
 
 interface DiagramQuickActionIndex {
   readonly elementsById: ReadonlyMap<string, LinkedElement>;
@@ -130,7 +130,7 @@ export function selectIsolatedElementGraph(
   requestedElementId: string,
   scope?: QueryScope,
 ): RenderGraph {
-  const elementId = canonicalDiagramElementId(requestedElementId);
+  const { canonicalId: elementId, qualifier } = parseDiagramOccurrenceId(requestedElementId);
   const index = diagramQuickActionIndex(result);
   const root = index.elementsById.get(elementId);
   if (root === undefined) return emptyGraph("-");
@@ -141,9 +141,18 @@ export function selectIsolatedElementGraph(
       context: scope.context ?? root.context,
       tab: scope.tab ?? root.sourceIdentity,
     }, BUILTIN_VIEW_QUERIES[scope.view]);
+    if (qualifier !== undefined && graph.elements[elementId] && !graph.elements[requestedElementId]
+        && builtinViewHasStage(scope.view, "deployment-materialization")) {
+      const rootType = builtinViewHasStage(scope.view, "deployment-system-rollup")
+        ? builtinViewDefinition(scope.view).deploymentRootType : undefined;
+      if (soleDeploymentPlacement(root, index, rootType) === qualifier) {
+        return isolateElementInGraph(graph, [elementId]);
+      }
+    }
     return selectIsolatedRenderGraph(graph, requestedElementId);
   }
 
+  if (qualifier !== undefined) throw unavailableIsolateOccurrence(requestedElementId, [elementId]);
   const selected = new Set([elementId]);
   const edges = result.edges.flatMap((edge) => {
     if (edge.projected === true || (edge.source !== elementId && edge.target !== elementId)) return [];
@@ -160,21 +169,41 @@ export function selectIsolatedElementGraph(
   }, [elementId]);
 }
 
+// D1 can display the owning system at the single placement of its deployed children.
+function soleDeploymentPlacement(
+  root: LinkedElement, index: DiagramQuickActionIndex, systemRootType: string | undefined,
+): string | undefined {
+  const members = systemRootType !== undefined && elementHasType(root, systemRootType)
+    ? logicalDescendantIds(root.id, index.childrenByParent) : [root.id];
+  const placements = new Set<string>();
+  for (const id of members) {
+    const owners = index.elementsById.get(id)?.semanticAttributes?.["placement-owner"] ?? [];
+    for (const owner of owners) placements.add(owner);
+  }
+  return placements.size === 1 ? placements.values().next().value : undefined;
+}
+
 /** Applies Isolate to an already projected diagram without rebuilding its view. */
 export function selectIsolatedRenderGraph(
   graph: RenderGraph,
   requestedElementId: string,
 ): RenderGraph {
-  const {canonicalId, qualifier} = parseDiagramOccurrenceId(requestedElementId);
-  // A canonical selection includes every placement. A click on an occurrence selects only that placement.
-  const roots = requestedElementId === canonicalId ? graphElementOccurrences(graph, canonicalId)
-    : [requestedElementId];
-  if (roots.length === 1 && !graph.elements[roots[0]!]) {
-    const underlying = qualifier === undefined ? canonicalId : diagramOccurrenceId(canonicalId, qualifier);
-    if (!graph.elements[underlying]) return emptyGraph(graph.context);
-    return isolateElementInGraph(graph, [underlying]);
+  const { canonicalId, isolateRole } = parseDiagramOccurrenceId(requestedElementId);
+  if (requestedElementId !== canonicalId && Object.hasOwn(graph.elements, requestedElementId)) {
+    return isolateElementInGraph(graph, [requestedElementId]);
   }
-  return roots.length ? isolateElementInGraph(graph, roots) : emptyGraph(graph.context);
+  const occurrences = graphElementOccurrences(graph, canonicalId);
+  if (requestedElementId === canonicalId && occurrences.length > 0) return isolateElementInGraph(graph, occurrences);
+  if (isolateRole !== undefined) {
+    const underlying = occurrences.find((id) => parseDiagramOccurrenceId(id).isolateRole === undefined
+      && isolateOccurrenceId(id, isolateRole) === requestedElementId);
+    if (underlying !== undefined) return isolateElementInGraph(graph, [underlying]);
+  }
+  throw unavailableIsolateOccurrence(requestedElementId, occurrences);
+}
+
+function unavailableIsolateOccurrence(id: string, occurrences: readonly string[]): Error {
+  return new Error(`'${id}' is not present in the selected view. Available occurrences: ${occurrences.join(", ") || "none"}.`);
 }
 
 /** Opens exactly the next logical architecture level below one boundary. */
@@ -332,13 +361,24 @@ export function selectPathGraph(
     return directedPathCorridor(visible, sourceId, targetId,
       targetEnvironment === undefined ? undefined : { targetEnvironment }, index.elementsById) ?? endpoints;
   }
-  if (sourceEnvironment !== undefined || targetEnvironment !== undefined) {
-    const deploymentGraph = {
-      ...completeDeploymentGraph(result),
-      context: scope?.context ?? source.context,
-    };
-    return directedPathCorridor(deploymentGraph, sourceId, targetId, endpointEnvironments, index.elementsById)
-      ?? endpoints;
+  const view = scope?.view;
+  const allPlacementView = builtinViewHasStage(view, "deployment-materialization")
+    && !builtinViewHasStage(view, "deployment-environment");
+  if (allPlacementView || sourceEnvironment !== undefined || targetEnvironment !== undefined) {
+    const graph = completeDeploymentGraph(result);
+    const systemRoot = view !== undefined && builtinViewHasStage(view, "deployment-system-rollup")
+      ? builtinViewDefinition(view).deploymentRootType : undefined;
+    const pathEndpoints = (element: LinkedElement) => systemRoot !== undefined && elementHasType(element, systemRoot)
+      ? descendantIds(element.id, index.childrenByParent) : element.id;
+    // Traverse physical occurrences before folding. Two sibling services in the
+    // same system need an actual connection to carry a path through that system.
+    const corridor = directedPathCorridor(graph, pathEndpoints(source), pathEndpoints(target),
+      endpointEnvironments, index.elementsById);
+    if (corridor === undefined) return endpoints;
+    const context = scope?.context ?? source.context;
+    const path = { ...corridor, context };
+    return systemRoot === undefined ? path : deploymentSystemPathView(result, path,
+      { ...scope, context, tab: scope?.tab ?? source.sourceIdentity }, systemRoot, sourceId, targetId);
   }
   const scopedViewQuery = scope?.view === undefined ? undefined : BUILTIN_VIEW_QUERIES[scope.view];
   if (scope?.view !== undefined && scopedViewQuery !== undefined) {
@@ -369,8 +409,8 @@ export function selectPathGraph(
 
 function directedPathCorridor(
   graph: RenderGraph,
-  sourceId: string,
-  targetId: string,
+  sourceId: string | ReadonlySet<string>,
+  targetId: string | ReadonlySet<string>,
   endpointEnvironments?: PathEndpointEnvironments,
   elementsById?: ReadonlyMap<string, LinkedElement>,
 ): RenderGraph | undefined {
@@ -517,12 +557,13 @@ function backtrackSimplePath(
 
 function graphElementOccurrences(
   graph: RenderGraph,
-  canonicalId: string,
+  canonicalIds: string | ReadonlySet<string>,
   environment?: string,
   elementsById?: ReadonlyMap<string, LinkedElement>,
 ): string[] {
+  const ids = typeof canonicalIds === "string" ? new Set([canonicalIds]) : canonicalIds;
   return Object.keys(graph.elements)
-    .filter((id) => canonicalDiagramElementId(id) === canonicalId)
+    .filter((id) => ids.has(canonicalDiagramElementId(id)))
     .filter((id) => environment === undefined
       || (elementsById !== undefined && graphOccurrenceEnvironments(graph, id, elementsById).has(environment)))
     .sort();

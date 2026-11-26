@@ -126,7 +126,8 @@ archinsight quick-action declaration . --element <id>
 
 Find path follows logical relationships by default. With `-e <environment>` alone,
 it starts at the selected source placement and follows physical connections, including
-cross-environment hops. In a deployment view, a missing physical path gives
+cross-environment hops. D1 and legacy Deployment follow the path across project
+files. D1 shows the systems along that path. In a deployment view, a missing physical path gives
 `pathFound: false`. This also applies when an external actor is absent from a
 valid D2 slice.
 

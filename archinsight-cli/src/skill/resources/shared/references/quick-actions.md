@@ -44,7 +44,9 @@ archinsight quick-action isolate . --element <canonical-id> --format json
 Use a built-in view and its source or context to isolate the element at that
 scale. In D1 and legacy Deployment, a canonical ID includes every visible
 placement and its direct neighbours. Pass an occurrence ID from query JSON to
-focus on one placement. In D2, use `-e` to select the environment. Without a
+focus on one placement. A qualified ID can also select the element's sole placement
+when the diagram uses its plain ID. If the occurrence is absent, the error lists
+the IDs visible for that element in the selected view. In D2, use `-e` to select the environment. Without a
 view, Isolate uses direct logical relationships.
 
 ## Deployment
@@ -73,7 +75,9 @@ archinsight quick-action find-path . --from <source-id> --to <target-id> --forma
 With both `--view` and `--environment` omitted, Find Path traverses authored
 logical relationships. With `-e <environment>` alone, it starts at the source
 placement in that environment and follows physical hops across environments.
-In D1 and legacy Deployment, the search uses the physical paths in that view.
+D1 and legacy Deployment search across all project files, including intermediate hops
+declared outside `--source`. D1 folds a connected physical path to its enclosing
+systems. Two disconnected services in an intermediate system cannot relay a path.
 For an unplaced actor in D2, use `-v deployment-container -s <source> -e <environment>`.
 If the actor is absent from that source slice, the result has `pathFound: false`.
 In the diagram UI, the source and target occurrences retain the environments

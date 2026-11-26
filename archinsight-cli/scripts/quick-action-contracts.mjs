@@ -285,6 +285,10 @@ system payments
     }
   }
   const d2 = ["-s", "model.ai", "-v", "deployment-container", "-e", "eu"];
+  failure("isolate", /Available occurrences: shop\/api@@eu\/compute\.(?:\s|$)/,
+    "--element", "shop/api@@us/compute", ...d2);
+  failure("isolate", /Available occurrences: shop\/api@@eu\/compute, shop\/api@@us\/compute\./,
+    "--element", "shop/api@@missing/compute", "-v", "deployment", "-s", "model.ai");
   const physicalIsolate = json("isolate", "--element", "shop/api", ...d2).graph;
   assert.equal(physicalIsolate.edges.length, 2);
   assert.equal(new Set(Object.keys(physicalIsolate.elements)).size, 3);
@@ -292,6 +296,87 @@ system payments
   assert.equal(find("visitor", "api", ...d2).pathFound, false);
   assert(find("visitor", "api", "-s", "model.ai", "-v", "deployment-container", "-e", "us").pathFound);
 
+  write("model.ai", `context shop
+import ledger from context books
+
+deploymentProfile single
+    appliesTo:
+        production from eu
+    runsOn compute
+
+system orders_sys
+    name = Orders
+    service api
+        name = API
+        deployment:
+            uses single
+        links:
+            -> ledger from books
+                deployment:
+                    route clusterLocal
+`);
+  write("ledger.ai", `context books
+import single from context shop
+
+external system partner
+    name = Partner
+
+external system disconnected
+    name = Disconnected
+
+system ledger_sys
+    name = Ledger
+    service ledger
+        name = Ledger
+        deployment:
+            uses single
+        links:
+            -> partner
+                deployment:
+                    route clusterLocal
+    service other
+        name = Other
+        deployment:
+            uses single
+        links:
+            -> disconnected
+                deployment:
+                    route clusterLocal
+`);
+
+  for (const [view, start, middle] of [
+    ["deployment-container", "shop/api", "books/ledger"],
+    ["deployment-system", "shop/orders_sys", "books/ledger_sys"],
+    ["deployment", "shop/api", "books/ledger"],
+  ]) {
+    for (const tab of ["model.ai", "ledger.ai"]) {
+      const scope = ["-v", view, "-s", tab];
+      if (view === "deployment-container") scope.push("-e", "eu");
+      const pathTo = (target) => json("find-path", "--from", start, "--to", target, ...scope);
+      const connected = pathTo("books/partner");
+      assert.equal(connected.pathFound, true, view + " from " + tab);
+      assert.deepEqual(connected.graph.edges.map(({ source, target }) => [source, target]).sort(),
+        [[start, middle], [middle, "books/partner"]].sort());
+      const disconnected = pathTo("books/disconnected");
+      assert.equal(disconnected.pathFound, false, "sibling services do not bridge a physical gap");
+      assert.deepEqual(disconnected.graph.edges, []);
+    }
+  }
+
+  for (const [view, id] of [["deployment", "shop/api"], ["deployment-system", "shop/orders_sys"],
+    ["deployment-container", "shop/api"]]) {
+    const scope = ["-v", view, "-s", "model.ai"];
+    if (view === "deployment-container") scope.push("-e", "eu");
+    const isolate = (element) => json("isolate", "--element", element, ...scope).graph;
+    const plain = isolate(id);
+    assert.equal(plain.layout.focus, id);
+    assert.deepEqual(isolate(id + "@@eu/compute"), plain);
+    failure("isolate", new RegExp("Available occurrences: " + id + "\\."), "--element", id + "@@us/compute", ...scope);
+  }
+  failure("isolate", /Available occurrences: none\./,
+    "--element", "books/other@@eu/compute", "-v", "deployment", "-s", "model.ai");
+  failure("isolate", /not part of the linked project/, "--element", "shop/missing@@eu/compute",
+    "-v", "deployment", "-s", "model.ai");
   console.log("quick action CLI contracts passed");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });

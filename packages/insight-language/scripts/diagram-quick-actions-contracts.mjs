@@ -302,6 +302,15 @@ const deployment = selectDeploymentGraph(result, "shop/api", "eu");
 assert.deepEqual(deploymentFocusElementIds(result, "shop/api", deployment), ["shop/api"]);
 assert(Object.keys(deployment.elements).some((id) => id.startsWith("shop/api")), "deployment contains the selected logical occurrence");
 assert(deployment.edges.length > 0, "deployment retains the selected element's physical path");
+const singleScope = { view: "deployment", tab: "model.ai", context: "shop" };
+const singleIsolate = selectIsolatedElementGraph(result, "shop/api", singleScope);
+assert.equal(singleIsolate.layout.focus, "shop/api");
+assert.deepEqual(selectIsolatedElementGraph(result, "shop/api@@eu/k8s", singleScope), singleIsolate);
+assert.throws(() => selectIsolatedElementGraph(result, "shop/api@@eu/other", singleScope),
+  /Available occurrences: shop\/api\./);
+assert.throws(() => selectIsolatedElementGraph(result, "shop/api@@eu/k8s"),
+  /Available occurrences: shop\/api\./);
+assert.deepEqual(selectIsolatedRenderGraph(singleIsolate, "shop/api@@isolate-incoming").layout.focus, "shop/api");
 const nestedGatewayDeployment = selectDeploymentGraph(result, "shop/reviewTarget", "eu");
 const nestedGatewayEdgeIds = nestedGatewayDeployment.edges.map((edge) => edge.edge.id);
 assert.equal(
@@ -845,6 +854,19 @@ assert.equal(
   true,
   "a physical route continues through relationships declared in another source file",
 );
+for (const tab of ["split-caller.ai", "split-target.ai"]) {
+  const legacy = selectPathGraph(splitSourceCrossEnvironmentResult, "split/source", "split/target",
+    { view: "deployment", tab });
+  assert.deepEqual(legacy.edges.map((e) => [e.edge.originSource, e.edge.originTarget]).sort(),
+    [["split/bridge", "split/target"], ["split/source", "split/bridge"]]);
+  const systemPath = (targetEnvironment) => selectPathGraph(splitSourceCrossEnvironmentResult,
+    "split/application", "split/backend", { view: "deployment-system", tab },
+    { sourceEnvironment: "east", targetEnvironment });
+  const crossing = systemPath("west");
+  assert.deepEqual(crossing.edges.map((e) => [e.source, e.target]),
+    [["split/application@@east/node", "split/backend@@west/node"]]);
+  assert.deepEqual(systemPath("east").edges, []);
+}
 const splitBridgeDeployment = selectDeploymentGraph(splitSourceCrossEnvironmentResult, "split/bridge", "west");
 assert.deepEqual(
   Object.keys(splitBridgeDeployment.elements).filter((id) => canonicalDiagramElementId(id) === "split/bridge"),
