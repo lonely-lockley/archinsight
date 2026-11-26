@@ -126,7 +126,7 @@
   },
   {
     "id": "deployment",
-    "presetVersion": 1,
+    "presetVersion": 2,
     "order": 7,
     "label": "Deployment (legacy)",
     "shortLabel": "Deployment",

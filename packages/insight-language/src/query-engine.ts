@@ -337,7 +337,9 @@ function selectGraphInternal(
   return runQueryViewPipeline(result, scope, selectedGraph, {
     applyBoundary: (_result, graph) => applyViewBoundary(execution, graph),
     filterDeploymentSeeds: removeDescendantProjectionsCapturedBySystemSeeds,
-    materializeGroups: materializeGroupedView,
+    materializeGroups: (graph, placements) => materializeGroupedView(
+      placements ? preferExplicitSystemWires(graph, execution) : graph, placements,
+    ),
     applyEnvironment: (_result, graph) => applyDeploymentEnvironmentScope(execution, graph),
     rollUpSystems: (_result, graph, _scope, rootType) => rollUpDeploymentSystems(execution, graph, rootType),
     simplifyInfrastructure: (_result, graph, rootType) => simplifyDeploymentSystemInfrastructure(execution, graph, rootType),
@@ -494,7 +496,8 @@ function removeDescendantProjectionsCapturedBySystemSeeds(
     const originTarget = edge.edge.originTarget ?? edge.edge.target;
     return ![edge.source, edge.target].some((endpoint) => {
       const system = baseOccurrenceId(endpoint);
-      return sourceSystems.has(system) && originSource !== system && originTarget !== system;
+      return sourceSystems.has(system) && originSource !== system && originTarget !== system
+        && edge.edge.source !== system && edge.edge.target !== system;
     });
   });
   const referenced = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
@@ -518,14 +521,14 @@ export function discoverDeploymentEnvironments(
   result: LinkProjectResult,
   scope: Pick<QueryScope, "context" | "tab">,
 ): readonly DeploymentEnvironment[] {
-  const execution = createQueryExecutionContext(result, scope);
+  const execution = createQueryExecutionContext(result, { ...scope, view: "deployment-container" });
   const closure = execution.tabClosure;
   const elementsById = execution.elementsById;
   const environmentIds = new Set<string>();
   const wireEnvironmentIds = new Set<string>();
 
   for (const element of result.elements) {
-    if (!closure.has(element.id) || element.deployed !== true) {
+    if (element.deployed !== true || (!closure.has(element.id) && !execution.tabDeploymentOwners.has(element.id))) {
       continue;
     }
     for (const targetId of [
@@ -669,6 +672,31 @@ function contextualLinkedEdge(relationship: QueryRelationship): LinkedEdge {
     ...(originSource === undefined ? {} : { originSource }),
     ...(originTarget === undefined ? {} : { originTarget }),
   };
+}
+
+// When a container wire lands on its deployed system, an explicit system wire
+// can already represent that same directed hop. Keep parallel declarations at
+// the same logical level and paths using a different route or placement.
+function preferExplicitSystemWires(graph: RenderGraph, context: EvaluationContext): RenderGraph {
+  const declared = new Set<string>();
+  const inherited = new Map<RenderGraphEdge, string>();
+  const isSystem = (id: string) => elementHasCapability(graph.elements[id], TYPE_CAPABILITIES.deploymentBoundary)
+    && graph.elements[id]?.deployed === true;
+  const represents = (physical: string, logical: string) => physical === logical
+    || (isSystem(physical) && isDescendantOf(logical, physical, context.parentByChild));
+  for (const item of graph.edges) {
+    const edge = item.edge;
+    if (!edge.projected || !edge.originSource || !edge.originTarget || (!isSystem(edge.source) && !isSystem(edge.target))) continue;
+    const forward = represents(edge.source, edge.originSource) && represents(edge.target, edge.originTarget);
+    if (!forward && !(represents(edge.source, edge.originTarget) && represents(edge.target, edge.originSource))) continue;
+    const key = JSON.stringify([item.source, item.target, edge.operator, edge.projectionRoot,
+      edge.sourcePlacement, edge.targetPlacement, forward]);
+    if (edge.source === (forward ? edge.originSource : edge.originTarget)
+        && edge.target === (forward ? edge.originTarget : edge.originSource)) declared.add(key);
+    else inherited.set(item, key);
+  }
+  if (!declared.size || !inherited.size) return graph;
+  return { ...graph, edges: graph.edges.filter((item) => !declared.has(inherited.get(item) ?? "")) };
 }
 
 export function materializeGroupedView(graph: RenderGraph, materializeDeploymentPlacements = true): RenderGraph {
@@ -821,7 +849,8 @@ function applyDeploymentEnvironmentScope(
         && isLogicalDeploymentEndpoint(id, elementsById)) {
       externalElements.add(id);
     }
-    if (isLogicalDeploymentEndpoint(id, elementsById) && !sourceElements.has(baseOccurrenceId(id))) {
+    if (isLogicalDeploymentEndpoint(id, elementsById) && !sourceElements.has(baseOccurrenceId(id))
+        && !context.tabDeploymentOwners.has(baseOccurrenceId(id))) {
       externalElements.add(id);
     }
   }
@@ -3060,8 +3089,12 @@ function rollupMatchRows(
     const endpoint = boundLeft ?? boundRight;
     const candidates = endpoint === undefined ? context.relationships : indexedRollupRelationships(context, relationship, endpoint.id);
     const orientations = rollupOrientations(pattern, right, boundLeft, boundRight);
+    const representsTab = endpoint !== undefined && context.tabDeploymentOwners.has(endpoint.id);
     for (const edge of candidates) {
       chargeExpansion(context);
+      if (representsTab && edge.projected
+          && !context.tabClosure.has(edge.originSource ?? edge.source)
+          && !context.tabClosure.has(edge.originTarget ?? edge.target)) continue;
       if (boundRelationship !== undefined && boundRelationship !== edge) {
         continue;
       }
@@ -3481,7 +3514,7 @@ function tabSourceIdentityPredicate(row: Row, propertyExpression: ValueExpressio
   }
   const node = row.nodes[propertyExpression.alias];
   if (node?.kind === "element") {
-    return context.tabClosure.has(node.id);
+    return context.tabClosure.has(node.id) || context.tabDeploymentOwners.has(node.id);
   }
   const relationship = row.relationships[propertyExpression.alias];
   if (relationship !== undefined) {
@@ -3500,7 +3533,7 @@ function isTabVariable(value: QueryValue): boolean {
 
 function matchesNodeProperty(node: QueryNode, name: string, value: QueryValue, context: EvaluationContext): boolean {
   if (name === "sourceIdentity" && isTabVariable(value) && node.kind === "element") {
-    return context.tabClosure.has(node.id);
+    return context.tabClosure.has(node.id) || context.tabDeploymentOwners.has(node.id);
   }
   return equalQueryValues(property(node, name), resolveValue(value, context.scope, context.parameters));
 }

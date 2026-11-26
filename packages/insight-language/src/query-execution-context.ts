@@ -1,3 +1,5 @@
+import { queryViewPipeline } from "./builtin-views.js";
+import { TYPE_CAPABILITIES } from "./semantic-capabilities.js";
 import type {
   LinkedContext,
   LinkedElement,
@@ -12,6 +14,7 @@ export interface QueryExecutionContext {
   readonly contextsById: ReadonlyMap<string, LinkedContext>;
   readonly contextBySourceIdentity: ReadonlyMap<string, string>;
   readonly parentByChild: ReadonlyMap<string, string>;
+  readonly tabDeploymentOwners: ReadonlySet<string>;
   readonly tabClosure: ReadonlySet<string>;
 }
 
@@ -19,14 +22,28 @@ export function createQueryExecutionContext(
   result: LinkProjectResult,
   scope: QueryScope,
 ): QueryExecutionContext {
+  const elementsById = new Map(result.elements.map((element) => [element.id, element]));
+  const parentByChild = containmentIndex(result);
+  const tabClosure = buildTabClosure(result, scope.tab);
+  const tabDeploymentOwners = new Set<string>();
+  if (scope.tab && queryViewPipeline(scope.view, scope.pipeline).stages.includes("deployment-materialization")) {
+    for (const root of result.tabRoots[scope.tab] ?? []) {
+      // A file extending a child can select its physical system without
+      // bringing the system's other children into the logical source scope.
+      const owner = ancestors(root, parentByChild).find((id) =>
+        elementsById.get(id)?.capabilities?.includes(TYPE_CAPABILITIES.deploymentBoundary));
+      if (owner && !tabClosure.has(owner) && elementsById.get(owner)?.deployed) tabDeploymentOwners.add(owner);
+    }
+  }
   return {
     result,
     scope,
-    elementsById: new Map(result.elements.map((element) => [element.id, element])),
+    elementsById,
     contextsById: new Map(result.contexts.map((context) => [context.id, context])),
     contextBySourceIdentity: new Map(result.contexts.map((context) => [context.sourceIdentity, context.id])),
-    parentByChild: containmentIndex(result),
-    tabClosure: buildTabClosure(result, scope.tab),
+    parentByChild,
+    tabClosure,
+    tabDeploymentOwners,
   };
 }
 

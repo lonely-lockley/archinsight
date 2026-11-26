@@ -127,7 +127,7 @@ for (const view of ["deployment-system", "deployment-container", "deployment"]) 
   for (const r of view === "deployment-container" ? ["r0"] : regions) {
     const clone = systemShared.elements.find((e) => e.bindingOwner === "shop/orders_sys" && e.infrastructureEnvironment === r);
     assert.equal(clone.binding, "order_db");
-    const owners = view === "deployment" ? ["api", "consumer"] : ["orders_sys", "api", "consumer"];
+    const owners = ["orders_sys", "api", "consumer"];
     for (const id of owners) {
       const drawn = view === "deployment-system" && id !== "orders_sys" ? "billing_sys" : id;
       (expected[`shop/${drawn}@@${r}/k8s_${r} -> ${clone.id}`] ??= []).push("shop/" + id);

@@ -62,7 +62,7 @@ system commerce
 
 `appliesTo` contains concrete `Deployment` references, not environments. Every selected deployment must supply compatible values for every referenced slot. Profiles may overlap in environment but not in the same concrete deployment when applied to one element.
 
-Choose one deployment owner level per system. Deploy the system as a whole or deploy its individual containers and services. Mixing levels, even through an extension or in disjoint environments, produces `DEPLOYMENT_OWNERSHIP_CONFLICT`. Wire routes belong to the relationship and can be selected at either level.
+Choose one deployment owner level per system. Deploy the system as a whole or deploy its individual containers and services. Mixing levels, even through an extension or in disjoint environments, produces `DEPLOYMENT_OWNERSHIP_CONFLICT`. Wire routes belong to the relationship and can be selected at either level. For a wire to or from a container inside a whole-deployed system, keep the container as the logical endpoint. D1, D2 and legacy Deployment use the system’s physical placement for both synchronous and broker routes.
 
 Components and code inherit the deployment of their containing service or container. Do not add core deployment actions to them.
 

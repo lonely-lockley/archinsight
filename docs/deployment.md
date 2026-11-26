@@ -106,7 +106,7 @@ deploymentProfile regional_service
 
 `runsOn` selects the hosting slot. `uses` selects supporting infrastructure. Every deployment in `appliesTo` must provide compatible values for the referenced slots.
 
-Choose one deployment level per system. To deploy the whole system, put the deployment actions on the system. To place its containers or services separately, put the actions on those elements and leave the system’s deployment empty. Mixing the two levels is a linking error, even if they select different environments.
+Choose one deployment level per system. To deploy the whole system, put the deployment actions on the system. To place its containers or services separately, put the actions on those elements and leave the system’s deployment empty. Mixing the two levels is a linking error, even if they select different environments. When the system is deployed as a whole, routes to and from its containers use the system’s placement. C2 shows the container named on the wire. Deployment views show the system in the environment selected by the route.
 
 For example, to deploy a service:
 

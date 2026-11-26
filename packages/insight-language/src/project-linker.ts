@@ -3559,11 +3559,20 @@ interface PhysicalProjectionEndpoint {
   readonly slotName?: string;
 }
 
+function physicalWireEndpoint(id: string, workspace: LinkingWorkspace): ParsedElement | undefined {
+  const endpoint = workspace.linkedElementsById.get(id);
+  if (!endpoint?.parent || workspace.deployedElementIds.has(id)
+      || workspace.typeSystem.typeHasCapability(endpoint.type, TYPE_CAPABILITIES.deploymentElement)) return endpoint;
+  const system = ancestorWithCapability(endpoint, workspace.linkedElementsById, workspace.typeSystem,
+    TYPE_CAPABILITIES.deploymentBoundary);
+  return system && workspace.deployedElementIds.has(system.id) ? system : endpoint;
+}
+
 function expandRouteProjection(workspace: LinkingWorkspace, projection: PendingProjection): void {
   // The projection stage dispatches here only when at least one route action exists.
   const actions = projection.routeActions!;
-  const sourceElement = workspace.linkedElementsById.get(projection.fromId);
-  const targetElement = workspace.linkedElementsById.get(projection.toId);
+  const sourceElement = physicalWireEndpoint(projection.fromId, workspace);
+  const targetElement = physicalWireEndpoint(projection.toId, workspace);
   if (sourceElement === undefined || targetElement === undefined) return;
 
   const sourceDeployments = workspace.deploymentContext.effectiveDeploymentsByElementId.get(sourceElement.id) ?? [];
