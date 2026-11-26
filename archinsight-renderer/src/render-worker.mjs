@@ -1,7 +1,9 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { instance } from '@viz-js/viz';
 import { inlineGraphvizIcons, normalizeGraphvizSvgResult } from '@archinsight/graphviz';
-import { Resvg } from '@resvg/resvg-js';
+import { pngFonts } from '@archinsight/graphviz/png-fonts';
+import { stylePngText } from '@archinsight/graphviz/png-text';
+import { renderPng } from 'resvg-napi/helpers';
 import {
   addOutputBytes,
   expectedPngDimensions,
@@ -68,15 +70,12 @@ function renderSvgItem(item, svg) {
 function renderPngItem(item, svg, dpi, limits) {
   const expected = expectedPngDimensions(svg, dpi);
   validatePngDimensions(expected.width, expected.height, limits);
-  const image = new Resvg(svg, {
-    dpi,
-    font: {
-      loadSystemFonts: false,
-      defaultFontFamily: 'sans-serif'
-    }
-  }).render();
-  validatePngDimensions(image.width, image.height, limits);
-  const png = image.asPng();
+  const png = renderPng(stylePngText(svg), {
+    dpi, fonts: pngFonts(), fontFamily: 'Carlito', maxPixels: limits.maxPngPixels
+  });
+  const width = png.readUInt32BE(16);
+  const height = png.readUInt32BE(20);
+  validatePngDimensions(width, height, limits);
   if (png.byteLength > limits.maxPngBytes) {
     throw new Error(`PNG output is too large: ${png.byteLength}`);
   }
@@ -84,8 +83,8 @@ function renderPngItem(item, svg, dpi, limits) {
     sourceIdentity: item.sourceIdentity,
     diagram: item.diagram,
     dpi,
-    width: image.width,
-    height: image.height,
+    width,
+    height,
     contentType: 'image/png',
     png: png.toString('base64')
   };

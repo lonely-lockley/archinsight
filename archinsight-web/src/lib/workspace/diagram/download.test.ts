@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   fileNameWithExtension,
   sanitizeFileName,
-  svgToPngBlob,
+  svgToPngBlob
+} from './download';
+import {
   svgDimensions,
   svgLengthToPixels,
   validateRasterDimensions
-} from './download';
+} from '@archinsight/workbench/diagram-raster';
 
 describe('diagram downloads', () => {
   it('sanitizes platform-invalid names and replaces the prior extension', () => {

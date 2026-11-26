@@ -68,6 +68,7 @@
     type DiagramDiffMode,
     type DiagramDiffPickerState
   } from '@archinsight/workbench/versioned-diagram-diff';
+  import { exportPng } from './export-png';
   import VscodeDownloadActions from './VscodeDownloadActions.svelte';
   import { renderThemeForBodyClasses } from '../theme';
 
@@ -396,7 +397,7 @@
       return;
     }
     if (message.command === 'exportPng') {
-      void exportPng(message.svg);
+      void exportPng(message.svg, vscode);
       return;
     }
     if (message.command === 'findPathMode') {
@@ -851,23 +852,6 @@
 
   function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
-  }
-
-  async function exportPng(currentSvg: string): Promise<void> {
-    const image = new Image();
-    const url = URL.createObjectURL(new Blob([currentSvg], { type: 'image/svg+xml;charset=utf-8' }));
-    await new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = reject;
-      image.src = url;
-    });
-    const canvas = document.createElement('canvas');
-    canvas.width = image.naturalWidth || 1;
-    canvas.height = image.naturalHeight || 1;
-    const context = canvas.getContext('2d');
-    context?.drawImage(image, 0, 0);
-    URL.revokeObjectURL(url);
-    vscode.postMessage({ command: 'png', dataUrl: canvas.toDataURL('image/png') });
   }
 </script>
 

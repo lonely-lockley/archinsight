@@ -131,7 +131,7 @@ export async function runRender(args: ParsedArgs): Promise<void> {
     if (format === "svg") {
       await writeOutput(args.output, svg);
     } else {
-      await writeBinaryOutput(args.output, renderPng(svg));
+      await writeBinaryOutput(args.output, await renderPng(svg));
     }
     process.stderr.write(renderFinishedLine(true, "diagram rendered successfully"));
   } catch (error) {
@@ -220,7 +220,7 @@ export async function runDiff(args: ParsedArgs): Promise<void> {
   } else {
     const svg = await renderSvg(dot, artifact.icons);
     if (format === "svg") await writeOutput(args.output, svg);
-    else await writeBinaryOutput(args.output, renderPng(svg));
+    else await writeBinaryOutput(args.output, await renderPng(svg));
   }
   process.stderr.write(renderFinishedLine(true, "diagram diff rendered successfully"));
 }
@@ -650,7 +650,7 @@ async function writeQuickActionGraph(
     await writeOutput(args.output, svg);
     return;
   }
-  await writeBinaryOutput(args.output, renderPng(svg));
+  await writeBinaryOutput(args.output, await renderPng(svg));
 }
 
 export async function runSkill(args: ParsedArgs): Promise<void> {

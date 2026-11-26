@@ -494,7 +494,7 @@ The CLI version is generated from the Gradle project version into
 ## Package and Publish
 
 The npm package publishes the bundled CLI from `build/`. The TypeScript language
-core is bundled into the CLI artifact; `@viz-js/viz` and `@resvg/resvg-js`
+core is bundled into the CLI artifact; `@viz-js/viz` and `resvg-napi`
 remain external runtime dependencies for SVG and PNG rendering.
 
 Prepare and inspect the package:

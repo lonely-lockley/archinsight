@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 rmSync('build', { recursive: true, force: true });
@@ -11,7 +11,7 @@ const shared = {
   sourcemap: true,
   preserveSymlinks: true,
   outdir: 'build',
-  external: ['@viz-js/viz', '@resvg/resvg-js'],
+  external: ['@viz-js/viz', 'resvg-napi'],
   alias: {
     '@archinsight/icons': path.resolve('../packages/archinsight-icons/src/index.js'),
   },
@@ -36,6 +36,7 @@ await build({
   },
 });
 
+cpSync('../packages/archinsight-graphviz/src/fonts', 'build/fonts', { recursive: true });
 mkdirSync('build/licenses', { recursive: true });
 copyFileSync('../packages/archinsight-icons/src/generated/DEVICON-LICENSE', 'build/licenses/DEVICON-LICENSE');
 const iconAudit = JSON.parse(readFileSync('../packages/archinsight-icons/src/generated/audit.json', 'utf8'));

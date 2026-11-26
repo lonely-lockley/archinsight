@@ -52,6 +52,7 @@ export default defineConfig({
     exclude: ['@insight/language']
   },
   server: {
+    fs: { allow: [fileURLToPath(new URL('../packages/archinsight-graphviz/src/webfonts', import.meta.url))] },
     port: 5173
   }
 });
