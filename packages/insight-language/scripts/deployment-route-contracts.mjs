@@ -817,17 +817,23 @@ for (const file of ["docs/deployment.md", ...["deployment", "deployment-projecti
   assert(linked.edges.some(e => e.projected && e.target === "eu_central_1/archive_eu_central_1"), file);
 }
 
-const migration = probeRoute(`route macroRegion
+const invalidEndpoints = probeRoute(`route macroRegion
     outbound:
         source $from originalLink target tgw
             technology = HTTPS
-        target tgw connectTo target $to`, undefined, {
+        left tgw connectTo right $to`, undefined, {
   ...probeModel, source: probeModel.source.replace("route macroRegion", "uses oldNetwork"),
 });
-const migrationErrors = migration.diagnostics.filter(d => d.level === undefined || d.level === "ERROR");
-assert.equal(migrationErrors.length, 3);
-assert.equal(migrationErrors.filter(d => d.message.includes("prefixes 'source' and 'target' were removed")).length, 2);
-assert(migrationErrors.some(d => d.code === "WIRE_USES_REMOVED" && d.sourceName === "caller.ai"));
+const invalidErrors = invalidEndpoints.diagnostics.filter(d => (d.level ?? "ERROR") === "ERROR");
+assert.deepEqual(invalidErrors.filter(d => d.sourceName === "caller.ai").map(d => [d.code, d.message, d.column, d.endColumn]), [
+  ["TYPE_MISMATCH", "Operator 'uses' is not compatible with 'SyncWire' (expected 'DeploymentAction')", 21, 25],
+]);
+const syntaxErrors = invalidErrors.filter(d => d.sourceName === "us.ai");
+assert.deepEqual(syntaxErrors.map(d => [d.code, d.message, d.column]), [
+  ["SYNTAX_ERROR", "Expected '<endpoint> <operator> <endpoint>' with optional 'in <environment>' after an endpoint", 9],
+  ["SYNTAX_ERROR", "Expected '<endpoint> <operator> <endpoint>' with optional 'in <environment>' after an endpoint", 9],
+]);
+assert.equal(invalidErrors.length, 3);
 
 console.log("deployment route contracts passed");
 

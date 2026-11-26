@@ -12,7 +12,7 @@ Keep these responsibilities separate:
 4. A logical relationship selects a route per applicable environment with `route <name> in <environment>` and an optional unqualified default.
 5. Infrastructure selected by a profile or logical element may define its own `route:` using `$from` and `$this`.
 
-Do not use an infrastructure slot directly in a wire deployment. `uses network`, `uses gateway`, and `uses broker` on a wire belong to the removed deployment model. Migrate them to a named route.
+Do not use an infrastructure slot directly in a wire deployment. Reference the slot inside the environment’s route.
 
 ## Inventory and profiles
 

@@ -78,14 +78,6 @@ export function operatorInvocationDiagnostic(
       ...sourceLocationOf(invocation.body, sourceName) };
   }
   if (compatible && invocation.target !== undefined) return undefined;
-  if (!compatible && spelling === "uses" && candidates.some((operator) =>
-    typeSystem.operatorHasCapability(operator, OPERATOR_CAPABILITIES.deploymentRoute))) {
-    return {
-      code: "WIRE_USES_REMOVED",
-      message: "Wire deployment 'uses' was replaced by 'route <name>'; declare the physical path as a route in the environment",
-      ...sourceLocationOf(invocation.operator, sourceName),
-    };
-  }
   return {
     code: !known ? "CONSTRUCTOR_NOT_DECLARED" : !compatible ? "TYPE_MISMATCH" : "IDENTIFIER_REQUIRED",
     message: !known ? `Unknown operator '${spelling}'`
