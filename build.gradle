@@ -185,6 +185,7 @@ tasks.register('languageNpmTest', Exec) {
     inputs.dir('packages/insight-language/grammar')
     inputs.file('packages/insight-language/package.json')
     inputs.file('test-coverage-baseline.json')
+    inputs.files('benchmarks/link-scaling/generate-repository.mjs', 'benchmarks/link-scaling/query-expansion-baseline.json')
     inputs.dir('scripts')
     if (file('packages/insight-language/package-lock.json').exists()) {
         inputs.file('packages/insight-language/package-lock.json')

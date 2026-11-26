@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { minimumExpansionBudget } from "./query-expansion-budget.mjs";
 import { readFileSync } from "node:fs";
 import {
+  BUILTIN_VIEW_QUERIES,
   buildLanguageSnapshotResultFromSources,
   coreLanguageSnapshot,
+  executeQuery,
   linkProject,
   selectGraph,
 } from "../build/runtime/index.js";
@@ -99,8 +102,8 @@ RETURN node, deploymentTarget, projectedLink, projectedPeer, directDeploymentLin
 `;
 
 const scope = { context: "shop", tab: "model.ai", view: "deployment-container", environment: "r00" };
-const selectedEnvironmentCost = minimumExpansionBudget(scope, placementFirstQuery);
-const allEnvironmentCost = minimumExpansionBudget(
+const selectedEnvironmentCost = expansionCost(scope, placementFirstQuery);
+const allEnvironmentCost = expansionCost(
   { context: "shop", tab: "model.ai", view: "deployment" },
   placementFirstQuery,
 );
@@ -119,22 +122,66 @@ assert.deepEqual(graphSignature(graph), graphSignature(reorderedGraph), "safe OP
 assert(Object.keys(graph.elements).some((id) => id.includes("r00")));
 assert.equal(Object.keys(graph.elements).some((id) => id.includes("r01")), false);
 
+// Growing both the open tab and the graph must not rescan every relationship per seed.
+const d1Scope = { context: "shop", tab: "chain.ai", view: "deployment-system" };
+const d1 = BUILTIN_VIEW_QUERIES[d1Scope.view];
+const chainBudget = expansionCost(d1Scope, d1, linkChain(12));
+const chainGraph = selectGraph(linkChain(48), d1Scope, d1, { limits: { maxExpansions: chainBudget * 4 } });
+const systemName = (id) => id.split("@@")[0];
+assert.deepEqual(
+  chainGraph.edges.map((edge) => [systemName(edge.source), systemName(edge.target)]).sort(),
+  Array.from({ length: 47 }, (_, index) => [`shop/system_${index}`, `shop/system_${index + 1}`]).sort(),
+);
+
+const rebound = executeQuery(result, scope, `
+  MATCH (caller:Service)-[wire:REFERENCES]->(callee:Service)
+  MATCH ROLLUP (caller)-[wire:REFERENCES]->(callee)
+  RETURN TABLE elementId(caller) AS caller, elementId(callee) AS callee ORDER BY caller
+`);
+assert.deepEqual(rebound.rows, [["shop/api", "shop/worker"], ["shop/web", "shop/api"], ["shop/worker", "shop/database"]]);
+
+// A failed OPTIONAL MATCH leaves null bindings, which a subsequent ROLLUP must not reopen.
+for (const rollup of [
+  "(peer)-[found:REFERENCES {projected}]->(missing)",
+  "(known)-[absent:REFERENCES {projected}]->(peer)",
+]) {
+  const table = executeQuery(result, scope, `
+    MATCH (known:Service {id: web})
+    OPTIONAL MATCH (known)-[absent:REFERENCES]->(missing:Service {id: unknown})
+    MATCH ROLLUP ${rollup}
+    RETURN TABLE count(*) AS matches
+  `);
+  assert.deepEqual(table.rows, [[0]]);
+}
+
 console.log("deployment query scaling contracts passed");
 
-function minimumExpansionBudget(queryScope, query) {
-  let lower = 1;
-  let upper = 4_000_000;
-  while (lower < upper) {
-    const candidate = Math.floor((lower + upper) / 2);
-    try {
-      selectGraph(result, queryScope, query, { limits: { maxExpansions: candidate } });
-      upper = candidate;
-    } catch (error) {
-      if (!/AIQ_BUDGET_EXCEEDED.*maxExpansions/.test(String(error))) throw error;
-      lower = candidate + 1;
-    }
-  }
-  return lower;
+function linkChain(size) {
+  const systems = Array.from({ length: size }, (_, index) => `
+system system_${index}
+    name = System ${index}
+    service api_${index}
+        name = API ${index}
+        deployment:
+            uses local
+${index + 1 === size ? "" : `        links:
+            -> api_${index + 1}
+                deployment:
+                    route clusterLocal`}`);
+  const sources = [definitions, environment("r00"), source("chain.ai", `
+context shop
+deploymentProfile local
+    appliesTo:
+        production from r00
+    runsOn compute
+${systems.join("\n")}`)];
+  const chain = linkProject({ snapshot: snapshot.snapshot, sources });
+  assertNoErrors(chain.diagnostics);
+  return chain;
+}
+
+function expansionCost(scope, query, linked = result) {
+  return minimumExpansionBudget((maxExpansions) => selectGraph(linked, scope, query, { limits: { maxExpansions } }), 4_000_000);
 }
 
 function graphSignature(graph) {

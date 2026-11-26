@@ -148,6 +148,7 @@ interface EvaluationContext extends QueryExecutionContext {
   readonly relationshipsBySource: ReadonlyMap<string, readonly QueryRelationship[]>;
   readonly relationshipsByTarget: ReadonlyMap<string, readonly QueryRelationship[]>;
   readonly relationshipsByEndpoint: ReadonlyMap<string, readonly QueryRelationship[]>;
+  readonly rollupIndexes: Map<RelationshipPattern, ReadonlyMap<string, readonly QueryRelationship[]>>;
   readonly budget: QueryBudget;
   readonly parameters: Readonly<Record<string, QueryParameterValue>>;
   readonly discoveryEnvironment?: string;
@@ -222,6 +223,7 @@ function selectGraphInternal(
   validateGraphQueryParameters(source, parsed, options.parameters ?? {});
   const execution = evaluationContext(
     createQueryExecutionContext(result, scope),
+    parsed.matches,
     createQueryBudget(normalizedLimits(options.limits), options.signal),
     options.parameters,
   );
@@ -363,6 +365,7 @@ export function executeQuery(
     const limits = normalizedLimits(options.limits);
     const table = executeTableQuery(evaluationContext(
       createQueryExecutionContext(result, scope),
+      parsed.clauses.flatMap((input) => input.kind === "match" ? [input.clause] : []),
       createQueryBudget(limits, options.signal),
     ), parsed, parameters);
     assertOutputBudget(table, limits);
@@ -1390,12 +1393,15 @@ function explicitlyExternal(element: LinkedElement): boolean {
 
 function evaluationContext(
   base: QueryExecutionContext,
+  matches: readonly { readonly pattern: QueryPattern }[],
   budget = createQueryBudget(DEFAULT_QUERY_EXECUTION_LIMITS),
   parameters: Readonly<Record<string, QueryParameterValue>> = {},
 ): EvaluationContext {
   const discoveryEnvironment = deploymentDiscoveryEnvironment(base);
   const nodes = queryNodes(base);
-  const relationships = queryRelationships(base, budget, discoveryEnvironment);
+  const includeDerived = matches.some(({ pattern }) => pattern.relationship !== undefined
+    && matchesSelectorDimension(true, pattern.relationship.selectors, "derived", "withDerived"));
+  const relationships = queryRelationships(base, budget, discoveryEnvironment, includeDerived);
   return {
     ...base,
     nodes,
@@ -1405,6 +1411,7 @@ function evaluationContext(
     relationshipsBySource: indexRelationships(relationships, (relationship) => relationship.source),
     relationshipsByTarget: indexRelationships(relationships, (relationship) => relationship.target),
     relationshipsByEndpoint: indexRelationshipEndpoints(relationships),
+    rollupIndexes: new Map(),
     budget,
     parameters,
     ...(discoveryEnvironment === undefined ? {} : { discoveryEnvironment }),
@@ -2943,6 +2950,36 @@ function bindMatchedPath(row: Row, pattern: QueryPattern, path: QueryPath): Row 
   return next;
 }
 
+function indexedRollupRelationships(
+  context: EvaluationContext,
+  pattern: RelationshipPattern,
+  endpoint: string,
+): readonly QueryRelationship[] {
+  let index = context.rollupIndexes.get(pattern);
+  if (index === undefined) {
+    const byEndpoint = new Map<string, QueryRelationship[]>();
+    for (const edge of context.relationships) {
+      chargeExpansion(context);
+      if (!matchesRelationship(edge, pattern, context)) continue;
+      // A binding may refer to a physical endpoint, a projection origin, or an ancestor of either.
+      const endpoints = new Set([
+        ...lineage(edge.source, context.parentByChild),
+        ...lineage(edge.target, context.parentByChild),
+        ...edgeOriginSourceLineage(edge, context.parentByChild),
+        ...edgeOriginTargetLineage(edge, context.parentByChild),
+      ]);
+      for (const id of endpoints) {
+        const bucket = byEndpoint.get(id);
+        if (bucket === undefined) byEndpoint.set(id, [edge]);
+        else bucket.push(edge);
+      }
+    }
+    index = byEndpoint;
+    context.rollupIndexes.set(pattern, index);
+  }
+  return index.get(endpoint) ?? [];
+}
+
 function rollupMatchRows(
   context: EvaluationContext,
   inputRows: readonly Row[],
@@ -2954,7 +2991,6 @@ function rollupMatchRows(
   }
 
   const rows: Row[] = [];
-  const relationships = context.relationships;
   const parentByChild = context.parentByChild;
   const right = pattern.right;
   const relationship = pattern.relationship;
@@ -2967,15 +3003,18 @@ function rollupMatchRows(
         || (relationship.alias !== undefined && boundRelationship === undefined && hasRuntimeBinding(row, relationship.alias))) {
       continue;
     }
-    for (const edge of relationships) {
+    const endpoint = boundLeft ?? boundRight;
+    const candidates = endpoint === undefined ? context.relationships : indexedRollupRelationships(context, relationship, endpoint.id);
+    const orientations = rollupOrientations(pattern, right, boundLeft, boundRight);
+    for (const edge of candidates) {
       chargeExpansion(context);
       if (boundRelationship !== undefined && boundRelationship !== edge) {
         continue;
       }
-      if (!matchesRelationship(edge, relationship, context)) {
+      if (endpoint === undefined && !matchesRelationship(edge, relationship, context)) {
         continue;
       }
-      for (const orientation of rollupOrientations(pattern, right, boundLeft, boundRight)) {
+      for (const orientation of orientations) {
         const sourceEndpoint = rollupSourceEndpoint(context, edge, orientation.sourcePattern, orientation.sourceBound, parentByChild);
         if (sourceEndpoint === undefined) {
           continue;
@@ -3168,6 +3207,7 @@ function queryRelationships(
   context: QueryExecutionContext,
   budget: QueryBudget,
   discoveryEnvironment: string | undefined,
+  includeDerived: boolean,
 ): readonly QueryRelationship[] {
   const edgeByRelationId = linkedEdgesByGraphRelationId(context.result);
   const relationships: QueryRelationship[] = context.result.graph.relations().flatMap((relation) => {
@@ -3179,6 +3219,7 @@ function queryRelationships(
     }
     return queryRelationshipVariants(relation, edge, context.contextBySourceIdentity);
   });
+  if (!includeDerived) return relationships;
   const parentByChild = context.parentByChild;
   for (const relationship of [...relationships]) {
     if (relationship.kind !== "REFERENCES" || relationship.edge === undefined) {
